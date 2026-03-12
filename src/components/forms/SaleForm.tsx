@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 
 export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { clients, inventory, addSale } = useAppContext();
   
-  const availableProducts = inventory.filter(p => p.status === 'DISPONIBLE');
+  const availableProducts = useMemo(() =>
+    inventory.filter(p => p.status === 'DISPONIBLE'),
+    [inventory]
+  );
 
   const [formData, setFormData] = useState({
     clientId: clients[0]?.id || '',
@@ -12,7 +15,10 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     paymentMethod: 'TRANSFERENCIA' as any,
   });
 
-  const selectedProduct = availableProducts.find(p => p.id === formData.productId);
+  const selectedProduct = useMemo(() =>
+    availableProducts.find(p => p.id === formData.productId),
+    [availableProducts, formData.productId]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
