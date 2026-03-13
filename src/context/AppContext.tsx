@@ -8,10 +8,17 @@ interface AppState {
   clients: Client[];
   customColumns: CustomColumn[];
   addSale: (sale: Omit<Sale, 'id'>) => void;
+  updateSale: (sale: Sale) => void;
+  deleteSale: (id: string) => void;
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
+  deleteProduct: (id: string) => void;
   addClient: (client: Omit<Client, 'id'>) => void;
+  updateClient: (client: Client) => void;
+  deleteClient: (id: string) => void;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => void;
+  updateTradeIn: (tradeIn: TradeIn) => void;
+  deleteTradeIn: (id: string) => void;
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => void;
   removeCustomColumn: (id: string) => void;
 }
@@ -67,6 +74,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(clients.map(c => c.id === saleData.clientId ? { ...c, totalSpent: c.totalSpent + saleData.amount, lastPurchaseDate: saleData.date } : c));
   };
 
+  const updateSale = (updatedSale: Sale) => {
+    setSales(sales.map(s => s.id === updatedSale.id ? updatedSale : s));
+  };
+
+  const deleteSale = (id: string) => {
+    setSales(sales.filter(s => s.id !== id));
+  };
+
   const addProduct = (productData: Omit<Product, 'id'>) => {
     const newProduct = { ...productData, id: generateId('P') };
     setInventory([newProduct, ...inventory]);
@@ -76,14 +91,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInventory(inventory.map(p => p.id === updatedProduct.id ? updatedProduct : p));
   };
 
+  const deleteProduct = (id: string) => {
+    setInventory(inventory.filter(p => p.id !== id));
+  };
+
   const addClient = (clientData: Omit<Client, 'id'>) => {
     const newClient = { ...clientData, id: generateId('C') };
     setClients([newClient, ...clients]);
   };
 
+  const updateClient = (updatedClient: Client) => {
+    setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+  };
+
+  const deleteClient = (id: string) => {
+    setClients(clients.filter(c => c.id !== id));
+  };
+
   const addTradeIn = (tradeInData: Omit<TradeIn, 'id'>) => {
     const newTradeIn = { ...tradeInData, id: generateId('CAN') };
     setTradeIns([newTradeIn, ...tradeIns]);
+  };
+
+  const updateTradeIn = (updatedTradeIn: TradeIn) => {
+    setTradeIns(tradeIns.map(t => t.id === updatedTradeIn.id ? updatedTradeIn : t));
+  };
+
+  const deleteTradeIn = (id: string) => {
+    setTradeIns(tradeIns.filter(t => t.id !== id));
   };
 
   const addCustomColumn = (columnData: Omit<CustomColumn, 'id'>) => {
@@ -105,7 +140,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   return (
-    <AppContext.Provider value={{ inventory, sales, tradeIns, clients, customColumns, addSale, addProduct, updateProduct, addClient, addTradeIn, addCustomColumn, removeCustomColumn }}>
+    <AppContext.Provider value={{ 
+      inventory, sales, tradeIns, clients, customColumns, 
+      addSale, updateSale, deleteSale,
+      addProduct, updateProduct, deleteProduct,
+      addClient, updateClient, deleteClient,
+      addTradeIn, updateTradeIn, deleteTradeIn,
+      addCustomColumn, removeCustomColumn 
+    }}>
       {children}
     </AppContext.Provider>
   );

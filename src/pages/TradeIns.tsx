@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, MoreVertical, ChevronDown, ChevronUp, ChevronRight, X } from 'lucide-react';
+import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, MoreVertical, ChevronDown, ChevronUp, ChevronRight, X, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const container = {
@@ -17,8 +17,25 @@ const item = {
 };
 
 export const TradeIns: React.FC = () => {
-  const { tradeIns } = useAppContext();
+  const { tradeIns, deleteTradeIn } = useAppContext();
+  const [filterDate, setFilterDate] = useState<string>('Todas');
+  const [filterClient, setFilterClient] = useState<string>('Todos');
+  const [filterDevice, setFilterDevice] = useState<string>('Todos');
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+
+  const uniqueClients = Array.from(new Set(tradeIns.map(t => t.clientId))).sort();
+  const uniqueDevices = Array.from(new Set(tradeIns.map(t => t.deviceReceived))).sort();
+  const uniqueStatuses = Array.from(new Set(tradeIns.map(t => t.status))).sort();
+
+  const filteredTradeIns = tradeIns.filter(trade => {
+    if (filterDate !== 'Todas' && trade.date !== filterDate) return false;
+    if (filterClient !== 'Todos' && trade.clientId !== filterClient) return false;
+    if (filterDevice !== 'Todos' && trade.deviceReceived !== filterDevice) return false;
+    if (filterStatus !== 'Todos' && trade.status !== filterStatus) return false;
+    return true;
+  });
+  const [selectedTradeIn, setSelectedTradeIn] = useState<any>(null);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -103,13 +120,76 @@ export const TradeIns: React.FC = () => {
                   >
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                       <h3 className="font-bold text-gray-900">Filtros</h3>
-                      <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button>
+                      <button 
+                        onClick={() => {
+                          setFilterDate('Todas');
+                          setFilterClient('Todos');
+                          setFilterDevice('Todos');
+                          setFilterStatus('Todos');
+                        }}
+                        className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                      >
+                        Limpiar
+                      </button>
                     </div>
-                    <div className="p-4 space-y-4">
-                      <FilterSelect label="Fecha: Todas" />
-                      <FilterSelect label="Cliente: Todos" />
-                      <FilterSelect label="Equipo Recibido: Todos" />
-                      <FilterSelect label="Estado: Todos" />
+                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</label>
+                        <select
+                          value={filterDate}
+                          onChange={(e) => setFilterDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todas">Todas</option>
+                          {Array.from(new Set(tradeIns.map(t => t.date))).sort().map(date => (
+                            <option key={date} value={date}>{date}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</label>
+                        <select
+                          value={filterClient}
+                          onChange={(e) => setFilterClient(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todos">Todos</option>
+                          {uniqueClients.map(client => (
+                            <option key={client} value={client}>
+                              {client === '1' ? 'Andrés Mendoza' : client === '2' ? 'Lucía Fernandini' : 'Roberto Gómez'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Equipo Recibido</label>
+                        <select
+                          value={filterDevice}
+                          onChange={(e) => setFilterDevice(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todos">Todos</option>
+                          {uniqueDevices.map(device => (
+                            <option key={device} value={device}>{device}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</label>
+                        <select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todos">Todos</option>
+                          {uniqueStatuses.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -128,12 +208,12 @@ export const TradeIns: React.FC = () => {
                 <th className="px-6 py-4">Equipo Entregado</th>
                 <th className="px-6 py-4">Dif. Abonada</th>
                 <th className="px-6 py-4">Estado</th>
-                <th className="px-6 py-4"></th>
+                <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {tradeIns.map((trade) => (
-                <tr key={trade.id} className="hover:bg-gray-50 transition-colors">
+              {filteredTradeIns.map((trade) => (
+                <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="px-6 py-4 text-gray-500">{trade.date}</td>
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900">
@@ -157,10 +237,17 @@ export const TradeIns: React.FC = () => {
                       {trade.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-gray-400 hover:text-gray-600 transition-colors">
-                      <MoreVertical size={18} />
-                    </button>
+                  <td className="px-6 py-4">
+                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ActionMenu 
+                        onEdit={() => setSelectedTradeIn(trade)} 
+                        onDelete={() => {
+                          if (window.confirm('¿Está seguro de que desea eliminar este canje?')) {
+                            deleteTradeIn(trade.id);
+                          }
+                        }} 
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -181,15 +268,47 @@ export const TradeIns: React.FC = () => {
   );
 };
 
-const FilterSelect = ({ label }: { label: string }) => {
-  const [key, value] = label.split(': ');
+const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{key}</label>
-      <button className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-between transition-colors">
-        <span className="text-gray-500">{value}</span>
-        <ChevronDown size={14} className="text-gray-400" />
+    <div className="relative">
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        <MoreVertical size={16} />
       </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Edit2 size={14} />
+                Editar
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, ChevronRight, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { Sale } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,9 +18,25 @@ const item = {
 };
 
 export const Sales: React.FC = () => {
-  const { sales } = useAppContext();
+  const { sales, deleteSale } = useAppContext();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [filterDate, setFilterDate] = useState<string>('Todas');
+  const [filterClient, setFilterClient] = useState<string>('Todos');
+  const [filterModel, setFilterModel] = useState<string>('Todos');
+  const [filterPayment, setFilterPayment] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+
+  const uniqueClients = Array.from(new Set(sales.map(s => s.clientId))).sort();
+  const uniqueModels = Array.from(new Set(sales.map(s => s.productId))).sort();
+  const uniquePayments = Array.from(new Set(sales.map(s => s.paymentMethod))).sort();
+
+  const filteredSales = sales.filter(sale => {
+    if (filterDate !== 'Todas' && sale.date !== filterDate) return false;
+    if (filterClient !== 'Todos' && sale.clientId !== filterClient) return false;
+    if (filterModel !== 'Todos' && sale.productId !== filterModel) return false;
+    if (filterPayment !== 'Todos' && sale.paymentMethod !== filterPayment) return false;
+    return true;
+  });
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col lg:flex-row gap-6 flex-1 relative">
@@ -64,13 +80,78 @@ export const Sales: React.FC = () => {
                     >
                       <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h3 className="font-bold text-gray-900">Filtros</h3>
-                        <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button>
+                        <button 
+                          onClick={() => {
+                            setFilterDate('Todas');
+                            setFilterClient('Todos');
+                            setFilterModel('Todos');
+                            setFilterPayment('Todos');
+                          }}
+                          className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                        >
+                          Limpiar
+                        </button>
                       </div>
-                      <div className="p-4 space-y-4">
-                        <FilterSelect label="Fecha: Todas" />
-                        <FilterSelect label="Cliente: Todos" />
-                        <FilterSelect label="Modelo: Todos" />
-                        <FilterSelect label="Método de Pago: Todos" />
+                      <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</label>
+                          <select
+                            value={filterDate}
+                            onChange={(e) => setFilterDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                          >
+                            <option value="Todas">Todas</option>
+                            {Array.from(new Set(sales.map(s => s.date))).sort().map(date => (
+                              <option key={date} value={date}>{date}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</label>
+                          <select
+                            value={filterClient}
+                            onChange={(e) => setFilterClient(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                          >
+                            <option value="Todos">Todos</option>
+                            {uniqueClients.map(client => (
+                              <option key={client} value={client}>
+                                {client === '1' ? 'Juan Pérez' : client === '2' ? 'María García' : client === '3' ? 'Pedro Sánchez' : client === '4' ? 'Elena Martínez' : 'Roberto Jiménez'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Modelo</label>
+                          <select
+                            value={filterModel}
+                            onChange={(e) => setFilterModel(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                          >
+                            <option value="Todos">Todos</option>
+                            {uniqueModels.map(model => (
+                              <option key={model} value={model}>
+                                {model === '1' ? 'iPhone 15 Pro Max' : model === '2' ? 'iPhone 14' : model === '3' ? 'iPhone 15 Pro' : model === '4' ? 'iPhone 13' : 'iPhone 15'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Método de Pago</label>
+                          <select
+                            value={filterPayment}
+                            onChange={(e) => setFilterPayment(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                          >
+                            <option value="Todos">Todos</option>
+                            {uniquePayments.map(payment => (
+                              <option key={payment} value={payment}>{payment}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -87,27 +168,27 @@ export const Sales: React.FC = () => {
                   <th className="px-6 py-4">Cliente</th>
                   <th className="px-6 py-4">Modelo / IMEI</th>
                   <th className="px-6 py-4">Pago</th>
+                  <th className="px-6 py-4 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sales.map((sale) => (
+                {filteredSales.map((sale) => (
                   <tr 
                     key={sale.id} 
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
-                    onClick={() => setSelectedSale(sale)}
+                    className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
                   >
-                    <td className="px-6 py-4 font-bold text-gray-900">{sale.id}</td>
-                    <td className="px-6 py-4 text-gray-500">{sale.date}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
+                    <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
                       {sale.clientId === '1' ? 'Juan Pérez' : sale.clientId === '2' ? 'María García' : sale.clientId === '3' ? 'Pedro Sánchez' : sale.clientId === '4' ? 'Elena Martínez' : 'Roberto Jiménez'}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
                       <div className="font-bold text-gray-900">
                         {sale.productId === '1' ? 'iPhone 15 Pro Max' : sale.productId === '2' ? 'iPhone 14' : sale.productId === '3' ? 'iPhone 15 Pro' : sale.productId === '4' ? 'iPhone 13' : 'iPhone 15'}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">IMEI: 354678129034567</div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
                       <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
                         sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
                         sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
@@ -116,13 +197,25 @@ export const Sales: React.FC = () => {
                         {sale.paymentMethod}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ActionMenu 
+                          onEdit={() => setSelectedSale(sale)} 
+                          onDelete={() => {
+                            if (window.confirm('¿Está seguro de que desea eliminar esta venta?')) {
+                              deleteSale(sale.id);
+                            }
+                          }} 
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div className="p-4 border-t border-gray-200 text-sm text-gray-500 bg-white rounded-b-2xl">
-            Mostrando {sales.length} ventas
+            Mostrando {filteredSales.length} ventas
           </div>
         </motion.div>
       </div>
@@ -235,15 +328,47 @@ export const Sales: React.FC = () => {
   );
 };
 
-const FilterSelect = ({ label }: { label: string }) => {
-  const [key, value] = label.split(': ');
+const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{key}</label>
-      <button className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-between transition-colors">
-        <span className="text-gray-500">{value}</span>
-        <ChevronDown size={14} className="text-gray-400" />
+    <div className="relative">
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        <MoreVertical size={16} />
       </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Edit2 size={14} />
+                Editar
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

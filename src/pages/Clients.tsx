@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Users, UserCheck, Wallet, Ticket, Filter, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Users, UserCheck, Wallet, Ticket, Filter, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const container = {
@@ -17,8 +17,23 @@ const item = {
 };
 
 export const Clients: React.FC = () => {
-  const { clients } = useAppContext();
+  const { clients, deleteClient } = useAppContext();
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
+  const [filterLastPurchase, setFilterLastPurchase] = useState<string>('Todas');
+  const [filterBalance, setFilterBalance] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+
+  const uniqueLastPurchases = Array.from(new Set(clients.map(c => c.lastPurchaseDate))).sort();
+
+  const filteredClients = clients.filter(client => {
+    if (filterStatus === 'Activos' && client.pendingBalance > 0) return false; // Example logic
+    if (filterStatus === 'Inactivos' && client.pendingBalance === 0) return false; // Example logic
+    if (filterLastPurchase !== 'Todas' && client.lastPurchaseDate !== filterLastPurchase) return false;
+    if (filterBalance === 'Con Deuda' && client.pendingBalance === 0) return false;
+    if (filterBalance === 'Sin Deuda' && client.pendingBalance > 0) return false;
+    return true;
+  });
+  const [selectedClient, setSelectedClient] = useState<any>(null);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -67,12 +82,57 @@ export const Clients: React.FC = () => {
                   >
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                       <h3 className="font-bold text-gray-900">Filtros</h3>
-                      <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button>
+                      <button 
+                        onClick={() => {
+                          setFilterStatus('Todos');
+                          setFilterLastPurchase('Todas');
+                          setFilterBalance('Todos');
+                        }}
+                        className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                      >
+                        Limpiar
+                      </button>
                     </div>
-                    <div className="p-4 space-y-4">
-                      <FilterSelect label="Estado: Todos" />
-                      <FilterSelect label="Última Compra: Todas" />
-                      <FilterSelect label="Saldo Pendiente: Todos" />
+                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</label>
+                        <select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todos">Todos</option>
+                          <option value="Activos">Activos</option>
+                          <option value="Inactivos">Inactivos</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Última Compra</label>
+                        <select
+                          value={filterLastPurchase}
+                          onChange={(e) => setFilterLastPurchase(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todas">Todas</option>
+                          {uniqueLastPurchases.map(date => (
+                            <option key={date} value={date}>{date}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Saldo Pendiente</label>
+                        <select
+                          value={filterBalance}
+                          onChange={(e) => setFilterBalance(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                        >
+                          <option value="Todos">Todos</option>
+                          <option value="Con Deuda">Con Deuda</option>
+                          <option value="Sin Deuda">Sin Deuda</option>
+                        </select>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -80,7 +140,7 @@ export const Clients: React.FC = () => {
             </div>
           </div>
           <div className="text-sm text-gray-500">
-            Mostrando <span className="font-bold text-gray-900">{clients.length}</span> de <span className="font-bold text-gray-900">1,284</span> clientes
+            Mostrando <span className="font-bold text-gray-900">{filteredClients.length}</span> de <span className="font-bold text-gray-900">{clients.length}</span> clientes
           </div>
         </div>
         
@@ -95,11 +155,12 @@ export const Clients: React.FC = () => {
                 <th className="px-6 py-4">Última Compra</th>
                 <th className="px-6 py-4">Total Gastado</th>
                 <th className="px-6 py-4 text-right">Saldo Pendiente</th>
+                <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {clients.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+              {filteredClients.map((client) => (
+                <tr key={client.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="px-6 py-4 font-medium text-gray-500">{client.dni}</td>
                   <td className="px-6 py-4 font-bold text-gray-900">{client.name}</td>
                   <td className="px-6 py-4 text-gray-500">{client.email}</td>
@@ -112,6 +173,18 @@ export const Clients: React.FC = () => {
                     ) : (
                       <span className="text-gray-900">$0</span>
                     )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ActionMenu 
+                        onEdit={() => setSelectedClient(client)} 
+                        onDelete={() => {
+                          if (window.confirm('¿Está seguro de que desea eliminar este cliente?')) {
+                            deleteClient(client.id);
+                          }
+                        }} 
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -139,15 +212,47 @@ export const Clients: React.FC = () => {
   );
 };
 
-const FilterSelect = ({ label }: { label: string }) => {
-  const [key, value] = label.split(': ');
+const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{key}</label>
-      <button className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-between transition-colors">
-        <span className="text-gray-500">{value}</span>
-        <ChevronDown size={14} className="text-gray-400" />
+    <div className="relative">
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        <MoreVertical size={16} />
       </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Edit2 size={14} />
+                Editar
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

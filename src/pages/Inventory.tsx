@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2 } from 'lucide-react';
+import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
 
@@ -18,7 +18,7 @@ const item = {
 };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns } = useAppContext();
+  const { inventory, customColumns, deleteProduct } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -292,14 +292,14 @@ export const Inventory: React.FC = () => {
                 {customColumns.map(col => visibleColumns[col.id] !== false && (
                   <th key={col.id} className="px-6 py-4">{col.label}</th>
                 ))}
+                <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredInventory.map((invItem) => (
                 <tr 
                   key={invItem.id} 
-                  onClick={() => setSelectedItem(invItem)}
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="hover:bg-gray-50 transition-colors group"
                 >
                   {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
                   {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
@@ -342,6 +342,18 @@ export const Inventory: React.FC = () => {
                       {invItem.customFields?.[col.id] || '-'}
                     </td>
                   ))}
+                  <td className="px-6 py-4">
+                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ActionMenu 
+                        onEdit={() => setSelectedItem(invItem)} 
+                        onDelete={() => {
+                          if (window.confirm('¿Está seguro de que desea eliminar este equipo?')) {
+                            deleteProduct(invItem.id);
+                          }
+                        }} 
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -388,6 +400,16 @@ export const Inventory: React.FC = () => {
                     {invItem.batteryHealth}%
                   </span>
                 </div>}
+                <div className="ml-2">
+                  <ActionMenu 
+                    onEdit={() => setSelectedItem(invItem)} 
+                    onDelete={() => {
+                      if (window.confirm('¿Está seguro de que desea eliminar este equipo?')) {
+                        deleteProduct(invItem.id);
+                      }
+                    }} 
+                  />
+                </div>
               </div>
               {customColumns.some(col => visibleColumns[col.id] !== false) && (
                 <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
@@ -462,15 +484,47 @@ export const Inventory: React.FC = () => {
   );
 };
 
-const FilterSelect = ({ label }: { label: string }) => {
-  const [key, value] = label.split(': ');
+const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{key}</label>
-      <button className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-between transition-colors">
-        <span className="text-gray-500">{value}</span>
-        <ChevronDown size={14} className="text-gray-400" />
+    <div className="relative">
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+      >
+        <MoreVertical size={16} />
       </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Edit2 size={14} />
+                Editar
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 size={14} />
+                Eliminar
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
