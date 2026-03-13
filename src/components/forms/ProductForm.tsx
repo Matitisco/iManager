@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 
 export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { addProduct } = useAppContext();
+  const { addProduct, customColumns } = useAppContext();
   
   const [formData, setFormData] = useState({
     imei: '',
@@ -14,6 +14,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     batteryHealth: 100,
     cost: 0,
     price: 0,
+    customFields: {} as Record<string, string | number>
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -96,6 +97,29 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} />
         </div>
       </div>
+
+      {customColumns.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+          {customColumns.map(col => (
+            <div key={col.id} className="space-y-1">
+              <label className="text-xs font-bold text-gray-700">{col.label}</label>
+              <input 
+                type={col.type === 'number' ? 'number' : 'text'} 
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" 
+                value={formData.customFields[col.id] || ''} 
+                onChange={e => setFormData({
+                  ...formData, 
+                  customFields: {
+                    ...formData.customFields,
+                    [col.id]: col.type === 'number' ? Number(e.target.value) : e.target.value
+                  }
+                })} 
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="pt-4 flex gap-3">
         <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50">Cancelar</button>
         <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800">Guardar Equipo</button>

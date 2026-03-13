@@ -10,6 +10,13 @@ export interface Product {
   cost: number;
   price: number;
   status: 'DISPONIBLE' | 'VENDIDO' | 'EN_REVISION';
+  customFields?: Record<string, any>;
+}
+
+export interface CustomColumn {
+  id: string;
+  label: string;
+  type: 'text' | 'number';
 }
 
 export interface Sale {

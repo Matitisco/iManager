@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Product, Sale, TradeIn, Client } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn } from '../types';
 
 interface AppState {
   inventory: Product[];
   sales: Sale[];
   tradeIns: TradeIn[];
   clients: Client[];
+  customColumns: CustomColumn[];
   addSale: (sale: Omit<Sale, 'id'>) => void;
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
   addClient: (client: Omit<Client, 'id'>) => void;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => void;
+  addCustomColumn: (column: Omit<CustomColumn, 'id'>) => void;
+  removeCustomColumn: (id: string) => void;
 }
 
 const mockInventory: Product[] = [
@@ -51,6 +54,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sales, setSales] = useState<Sale[]>(mockSales);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>(mockTradeIns);
   const [clients, setClients] = useState<Client[]>(mockClients);
+  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
 
   const addSale = (saleData: Omit<Sale, 'id'>) => {
     const newSale = { ...saleData, id: generateId('V') };
@@ -82,8 +86,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTradeIns([newTradeIn, ...tradeIns]);
   };
 
+  const addCustomColumn = (columnData: Omit<CustomColumn, 'id'>) => {
+    const newColumn = { ...columnData, id: generateId('COL') };
+    setCustomColumns([...customColumns, newColumn]);
+  };
+
+  const removeCustomColumn = (id: string) => {
+    setCustomColumns(customColumns.filter(c => c.id !== id));
+    // Optionally, remove the field from all products
+    setInventory(inventory.map(p => {
+      if (p.customFields) {
+        const newFields = { ...p.customFields };
+        delete newFields[id];
+        return { ...p, customFields: newFields };
+      }
+      return p;
+    }));
+  };
+
   return (
-    <AppContext.Provider value={{ inventory, sales, tradeIns, clients, addSale, addProduct, updateProduct, addClient, addTradeIn }}>
+    <AppContext.Provider value={{ inventory, sales, tradeIns, clients, customColumns, addSale, addProduct, updateProduct, addClient, addTradeIn, addCustomColumn, removeCustomColumn }}>
       {children}
     </AppContext.Provider>
   );
