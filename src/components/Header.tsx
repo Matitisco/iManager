@@ -125,10 +125,10 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-4 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                className="absolute right-0 mt-4 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
               >
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h3 className="font-bold text-gray-900">Notificaciones</h3>
+                <div className="p-3 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <h3 className="font-bold text-gray-900 text-sm sm:text-base">Notificaciones</h3>
                   <AnimatePresence>
                     {unreadCount > 0 && (
                       <motion.button 
@@ -146,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                     )}
                   </AnimatePresence>
                 </div>
-                <div className="max-h-96 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="max-h-64 sm:max-h-96 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   <AnimatePresence mode="popLayout">
                     {notifications.map((notification) => {
                       const Icon = notification.icon;
@@ -157,7 +157,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                           onClick={() => markAsRead(notification.id)}
                           whileHover={{ scale: 1.02, x: 4 }}
                           whileTap={{ scale: 0.98 }}
-                          className={`p-4 border-b border-gray-50 transition-colors cursor-pointer relative overflow-hidden ${
+                          className={`p-3 sm:p-4 border-b border-gray-50 transition-colors cursor-pointer relative overflow-hidden ${
                             notification.read ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/30 hover:bg-blue-50/50'
                           }`}
                         >
@@ -236,11 +236,11 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-4 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                className="absolute right-0 mt-4 w-56 sm:w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
               >
-                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                  <p className="font-bold text-gray-900">Carlos Méndez</p>
-                  <p className="text-xs text-gray-500 mt-0.5">carlos@imanager.com</p>
+                <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50/50">
+                  <p className="font-bold text-gray-900 text-sm sm:text-base">Carlos Méndez</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">carlos@imanager.com</p>
                   <div className="mt-2 inline-block px-2 py-1 bg-gray-200 text-gray-700 text-[10px] font-bold rounded uppercase tracking-wide">
                     Administrador
                   </div>

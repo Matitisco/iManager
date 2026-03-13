@@ -136,7 +136,10 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <span className="text-sm text-gray-500">Cliente: Roberto Díaz</span>
-                  <button className="text-sm font-bold text-gray-900 flex items-center gap-1 hover:underline">
+                  <button 
+                    onClick={() => onNavigate?.('tradeins')}
+                    className="text-sm font-bold text-gray-900 flex items-center gap-1 hover:underline"
+                  >
                     Revisar <ArrowRight size={16} />
                   </button>
                 </div>
@@ -152,13 +155,19 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <span className="text-sm text-gray-500">Cliente: Ana Sofía V.</span>
-                  <button className="text-sm font-bold text-gray-900 flex items-center gap-1 hover:underline">
+                  <button 
+                    onClick={() => onNavigate?.('tradeins')}
+                    className="text-sm font-bold text-gray-900 flex items-center gap-1 hover:underline"
+                  >
                     Detalles <ArrowRight size={16} />
                   </button>
                 </div>
               </div>
             </div>
-            <button className="w-full mt-4 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            <button 
+              onClick={() => onNavigate?.('tradeins')}
+              className="w-full mt-4 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
               Ver todos los canjes (12)
             </button>
           </motion.div>
