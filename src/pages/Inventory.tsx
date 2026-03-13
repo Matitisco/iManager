@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Product } from '../types';
 
 const container = {
   hidden: { opacity: 0 },
@@ -19,6 +20,7 @@ const item = {
 export const Inventory: React.FC = () => {
   const { inventory } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Product | null>(null);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
@@ -75,6 +77,7 @@ export const Inventory: React.FC = () => {
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
                 <th className="px-6 py-4">IMEI</th>
                 <th className="px-6 py-4">Modelo</th>
+                <th className="px-6 py-4">Condición</th>
                 <th className="px-6 py-4">Capacidad / Color</th>
                 <th className="px-6 py-4">Estética</th>
                 <th className="px-6 py-4">Batería</th>
@@ -84,21 +87,21 @@ export const Inventory: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {inventory.map((invItem) => (
-                <tr key={invItem.id} className="hover:bg-gray-50 transition-colors">
+                <tr 
+                  key={invItem.id} 
+                  onClick={() => setSelectedItem(invItem)}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                >
                   <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>
+                  <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-gray-900">{invItem.model}</span>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
-                          invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
-                          invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {invItem.condition}
-                        </span>
-                      </div>
-                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${
+                      invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
+                      invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {invItem.condition}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-gray-500">{invItem.capacity} • {invItem.color}</td>
                   <td className="px-6 py-4">
@@ -134,7 +137,11 @@ export const Inventory: React.FC = () => {
         {/* Mobile List View */}
         <div className="md:hidden flex-1 overflow-y-auto divide-y divide-gray-100">
           {inventory.map((invItem) => (
-            <div key={invItem.id} className="p-4 hover:bg-gray-50 transition-colors">
+            <div 
+              key={invItem.id} 
+              onClick={() => setSelectedItem(invItem)}
+              className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -212,6 +219,15 @@ export const Inventory: React.FC = () => {
           </motion.button>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {selectedItem && (
+          <InventoryEditPanel 
+            item={selectedItem} 
+            onClose={() => setSelectedItem(null)} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -236,3 +252,204 @@ const PageButton = ({ label, icon, active }: { label?: string, icon?: React.Reac
     {label || icon}
   </motion.button>
 );
+
+const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => void }) => {
+  const { updateProduct } = useAppContext();
+  const [formData, setFormData] = useState<Product>(item);
+
+  // Sync state if item changes
+  useEffect(() => {
+    setFormData(item);
+  }, [item]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'cost' || name === 'price' || name === 'batteryHealth' ? Number(value) : value
+    }));
+  };
+
+  const handleSave = () => {
+    updateProduct(formData);
+    onClose();
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+      />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200"
+      >
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+              <Edit2 size={18} className="text-gray-900" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Editar Producto</h2>
+              <p className="text-xs text-gray-500 font-mono">{item.imei}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Modelo</label>
+              <input
+                type="text"
+                name="model"
+                value={formData.model}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+            
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">IMEI</label>
+              <input
+                type="text"
+                name="imei"
+                value={formData.imei}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Capacidad</label>
+              <input
+                type="text"
+                name="capacity"
+                value={formData.capacity}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Color</label>
+              <input
+                type="text"
+                name="color"
+                value={formData.color}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Condición</label>
+              <select
+                name="condition"
+                value={formData.condition}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all appearance-none"
+              >
+                <option value="NUEVO">NUEVO</option>
+                <option value="USADO">USADO</option>
+                <option value="PRE-OWNED">PRE-OWNED</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estética</label>
+              <select
+                name="grade"
+                value={formData.grade}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all appearance-none"
+              >
+                <option value="A+">A+</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="N/A">N/A</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batería (%)</label>
+              <input
+                type="number"
+                name="batteryHealth"
+                value={formData.batteryHealth}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all appearance-none"
+              >
+                <option value="DISPONIBLE">DISPONIBLE</option>
+                <option value="VENDIDO">VENDIDO</option>
+                <option value="EN_REVISION">EN REVISIÓN</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Costo ($)</label>
+              <input
+                type="number"
+                name="cost"
+                value={formData.cost}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Precio ($)</label>
+              <input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-3 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+          >
+            <Save size={18} />
+            Guardar
+          </button>
+        </div>
+      </motion.div>
+    </>
+  );
+};

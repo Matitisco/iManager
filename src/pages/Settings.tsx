@@ -48,7 +48,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Información de la Tienda</h2>
             
@@ -126,7 +126,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Mi Perfil</h2>
             <div className="space-y-6">
@@ -177,7 +177,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Preferencias de Notificaciones</h2>
             <div className="space-y-6">
@@ -245,7 +245,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Seguridad de la Cuenta</h2>
             <div className="space-y-8">
@@ -297,7 +297,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Facturación y Suscripción</h2>
             <div className="space-y-8">
@@ -379,7 +379,7 @@ export const Settings: React.FC<SettingsProps> = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-8 max-w-2xl"
+            className="p-8 w-full"
           >
             <h2 className="text-lg font-bold text-gray-900 mb-6">Integraciones</h2>
             <div className="space-y-4">
@@ -475,7 +475,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </motion.div>
 
         {/* Content Area */}
-        <motion.div variants={item} className="flex-1 bg-white border border-gray-200 rounded-2xl overflow-y-auto relative">
+        <motion.div variants={item} className="flex-1 max-w-3xl bg-white border border-gray-200 rounded-2xl overflow-y-auto relative">
           <AnimatePresence mode="wait">
             {renderTabContent()}
           </AnimatePresence>

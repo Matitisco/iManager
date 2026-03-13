@@ -8,6 +8,7 @@ interface AppState {
   clients: Client[];
   addSale: (sale: Omit<Sale, 'id'>) => void;
   addProduct: (product: Omit<Product, 'id'>) => void;
+  updateProduct: (product: Product) => void;
   addClient: (client: Omit<Client, 'id'>) => void;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => void;
 }
@@ -67,6 +68,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInventory([newProduct, ...inventory]);
   };
 
+  const updateProduct = (updatedProduct: Product) => {
+    setInventory(inventory.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+  };
+
   const addClient = (clientData: Omit<Client, 'id'>) => {
     const newClient = { ...clientData, id: generateId('C') };
     setClients([newClient, ...clients]);
@@ -78,7 +83,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   return (
-    <AppContext.Provider value={{ inventory, sales, tradeIns, clients, addSale, addProduct, addClient, addTradeIn }}>
+    <AppContext.Provider value={{ inventory, sales, tradeIns, clients, addSale, addProduct, updateProduct, addClient, addTradeIn }}>
       {children}
     </AppContext.Provider>
   );
