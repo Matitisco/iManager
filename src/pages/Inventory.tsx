@@ -86,7 +86,20 @@ export const Inventory: React.FC = () => {
               {inventory.map((invItem) => (
                 <tr key={invItem.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>
-                  <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-gray-900">{invItem.model}</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                          invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
+                          invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {invItem.condition}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-gray-500">{invItem.capacity} • {invItem.color}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -124,7 +137,16 @@ export const Inventory: React.FC = () => {
             <div key={invItem.id} className="p-4 hover:bg-gray-50 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h3 className="font-bold text-gray-900">{invItem.model}</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-gray-900">{invItem.model}</h3>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                      invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
+                      invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {invItem.condition}
+                    </span>
+                  </div>
                   <p className="text-sm text-gray-500">{invItem.capacity} • {invItem.color}</p>
                 </div>
                 <div className="text-right">

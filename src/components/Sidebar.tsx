@@ -22,7 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
   ];
 
   const sidebarContent = (
-    <aside className="w-64 bg-white border-r border-gray-200 h-full flex flex-col z-50">
+    <aside className="w-64 bg-white border-r border-gray-200 h-full flex flex-col">
       <div className="p-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <motion.div 
@@ -90,14 +90,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              className="fixed inset-0 bg-black/50 z-[60] md:hidden"
             />
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-50 md:hidden"
+              className="fixed inset-y-0 left-0 z-[70] md:hidden"
             >
               {sidebarContent}
             </motion.div>
