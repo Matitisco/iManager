@@ -168,19 +168,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const path = `sales/${id}`;
     try {
       await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
-      
+
       // Update product status
       if (saleData.productId) {
         await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
       }
-      
+
       // Update client total spent
       if (saleData.clientId) {
         const client = clients.find(c => c.id === saleData.clientId);
         if (client) {
-          await updateDoc(doc(db, 'clients', saleData.clientId), { 
-            totalSpent: (client.totalSpent || 0) + saleData.amount, 
-            lastPurchaseDate: saleData.date 
+          await updateDoc(doc(db, 'clients', saleData.clientId), {
+            totalSpent: (client.totalSpent || 0) + saleData.amount,
+            lastPurchaseDate: saleData.date
           });
         }
       }
@@ -336,8 +336,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 
   return (
-    <AppContext.Provider value={{ 
-      inventory, sales, tradeIns, clients, customColumns, 
+    <AppContext.Provider value={{
+      inventory, sales, tradeIns, clients, customColumns,
       addSale, updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
       addClient, updateClient, deleteClient,
