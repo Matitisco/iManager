@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "An item in the inventory",
+      "type": "object",
+      "properties": {
+        "imei": { "type": "string" },
+        "model": { "type": "string" },
+        "capacity": { "type": "string" },
+        "color": { "type": "string" },
+        "condition": { "type": "string", "enum": ["NUEVO", "USADO", "PRE-OWNED"] },
+        "grade": { "type": "string", "enum": ["A+", "A", "B", "C", "N/A"] },
+        "batteryHealth": { "type": "number" },
+        "cost": { "type": "number" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["DISPONIBLE", "VENDIDO", "EN_REVISION"] },
+        "customFields": { "type": "object" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["imei", "model", "capacity", "color", "condition", "grade", "batteryHealth", "cost", "price", "status", "authorUid"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "A recorded sale",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "clientId": { "type": "string" },
+        "productId": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["TRANSFERENCIA", "EFECTIVO", "TARJETA", "CANJE / PAGO", "T. Crédito"] },
+        "status": { "type": "string", "enum": ["COMPLETADA", "PENDIENTE"] },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["date", "clientId", "productId", "amount", "paymentMethod", "status", "authorUid"]
+    },
+    "TradeIn": {
+      "title": "TradeIn",
+      "description": "A recorded trade-in",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "clientId": { "type": "string" },
+        "deviceReceived": { "type": "string" },
+        "deviceReceivedImei": { "type": "string" },
+        "takeValue": { "type": "number" },
+        "deviceGiven": { "type": "string" },
+        "differencePaid": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDIENTE", "APROBADO", "RECHAZADO", "EN REVISIÓN", "PERITAJE TÉC.", "LISTO"] },
+        "batteryHealth": { "type": "number" },
+        "grade": { "type": "string" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["date", "clientId", "deviceReceived", "deviceReceivedImei", "takeValue", "deviceGiven", "differencePaid", "status", "authorUid"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "A customer",
+      "type": "object",
+      "properties": {
+        "dni": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "lastPurchaseDate": { "type": "string" },
+        "totalSpent": { "type": "number" },
+        "pendingBalance": { "type": "number" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["dni", "name", "email", "phone", "lastPurchaseDate", "totalSpent", "pendingBalance", "authorUid"]
+    }
+  },
+  "firestore": {
+    "/inventory/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Inventory products"
+    },
+    "/sales/{saleId}": {
+      "schema": { "$ref": "#/entities/Sale" },
+      "description": "Recorded sales"
+    },
+    "/tradeIns/{tradeInId}": {
+      "schema": { "$ref": "#/entities/TradeIn" },
+      "description": "Recorded trade-ins"
+    },
+    "/clients/{clientId}": {
+      "schema": { "$ref": "#/entities/Client" },
+      "description": "Customers"
+    }
+  }
+}

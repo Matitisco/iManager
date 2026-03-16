@@ -1,61 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, ArrowRight, Package, User, Sparkles } from 'lucide-react';
+import { Package, Sparkles } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
 
-interface LoginProps {
-  onLogin: () => void;
-}
-
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('carlos@imanager.com');
-  const [password, setPassword] = useState('password123');
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Validate origin is from AI Studio preview or localhost
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
-        return;
-      }
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        onLogin();
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [onLogin]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onLogin();
-  };
+export const Login: React.FC = () => {
+  const { login } = useAppContext();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     try {
-      const response = await fetch('/api/auth/google/url');
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error) {
-          throw new Error(errorData.error);
-        }
-        throw new Error('Failed to get auth URL');
-      }
-      const { url } = await response.json();
-
-      const authWindow = window.open(
-        url,
-        'oauth_popup',
-        'width=600,height=700'
-      );
-
-      if (!authWindow) {
-        alert('Por favor permite las ventanas emergentes (popups) para iniciar sesión con Google.');
-      }
-    } catch (error: any) {
-      console.error('OAuth error:', error);
-      alert(`Error al iniciar sesión con Google: ${error.message || 'Error desconocido'}`);
+      setIsLoading(true);
+      setError(null);
+      await login();
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Error al iniciar sesión con Google');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -196,142 +158,43 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <span className="text-2xl font-bold tracking-tight">iManager</span>
           </div>
 
-          <motion.div layout className="mb-10">
+          <motion.div layout className="mb-10 text-center">
             <AnimatePresence mode="wait">
               <motion.div
-                key={isLogin ? 'login-title' : 'register-title'}
+                key="login-title"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
-                  {isLogin ? 'Bienvenido de nuevo' : 'Crea tu cuenta'}
+                  Bienvenido a iManager
                 </h2>
                 <p className="text-gray-500">
-                  {isLogin ? 'Ingresa tus credenciales para acceder.' : 'Comienza a gestionar tu negocio hoy mismo.'}
+                  Inicia sesión para gestionar tu negocio.
                 </p>
               </motion.div>
             </AnimatePresence>
           </motion.div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <AnimatePresence mode="popLayout">
-              {!isLogin && (
-                <motion.div
-                  key="name-field"
-                  initial={{ opacity: 0, height: 0, y: -20 }}
-                  animate={{ opacity: 1, height: 'auto', y: 0 }}
-                  exit={{ opacity: 0, height: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="overflow-hidden"
-                >
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre completo
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-black transition-colors">
-                      <User size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="block w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all bg-gray-50 focus:bg-white text-gray-900"
-                      placeholder="Juan Pérez"
-                      required={!isLogin}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <motion.div layout>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Correo electrónico
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-black transition-colors">
-                  <Mail size={18} />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all bg-gray-50 focus:bg-white text-gray-900"
-                  placeholder="tu@email.com"
-                  required
-                />
-              </div>
-            </motion.div>
-
-            <motion.div layout>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Contraseña
-                </label>
-                {isLogin && (
-                  <a href="#" className="text-sm font-medium text-gray-500 hover:text-black transition-colors">
-                    ¿Olvidaste tu contraseña?
-                  </a>
-                )}
-              </div>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-black transition-colors">
-                  <Lock size={18} />
-                </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all bg-gray-50 focus:bg-white text-gray-900"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            </motion.div>
-
-            <motion.div layout className="pt-4">
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors shadow-lg shadow-black/10"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={isLogin ? 'btn-login' : 'btn-register'}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.15 }}
-                    className="flex items-center gap-2"
-                  >
-                    {isLogin ? 'Ingresar' : 'Crear cuenta'} <ArrowRight size={18} />
-                  </motion.span>
-                </AnimatePresence>
-              </motion.button>
-            </motion.div>
-          </form>
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
 
           <motion.div layout className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">O continúa con</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleGoogleLogin}
-                type="button"
-                className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors"
-              >
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              type="button"
+              className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+              ) : (
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -350,22 +213,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     fill="#EA4335"
                   />
                 </svg>
-                Google
-              </motion.button>
-            </div>
-          </motion.div>
-
-          <motion.div layout className="mt-8 text-center">
-            <p className="text-sm text-gray-600">
-              {isLogin ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'}{' '}
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="font-semibold text-black hover:underline focus:outline-none"
-              >
-                {isLogin ? 'Regístrate' : 'Inicia sesión'}
-              </button>
-            </p>
+              )}
+              {isLoading ? 'Iniciando sesión...' : 'Continuar con Google'}
+            </motion.button>
           </motion.div>
         </motion.div>
       </div>

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Store, User, Bell, Shield, CreditCard, Smartphone, Save, Check, Key, Mail, Lock, Link as LinkIcon, Download } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Variants } from 'motion/react';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -10,7 +10,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };

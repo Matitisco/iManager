@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Users, UserCheck, Wallet, Ticket, Filter, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Variants } from 'motion/react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -11,7 +12,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
@@ -22,6 +23,7 @@ export const Clients: React.FC = () => {
   const [filterLastPurchase, setFilterLastPurchase] = useState<string>('Todas');
   const [filterBalance, setFilterBalance] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
   const uniqueLastPurchases = Array.from(new Set(clients.map(c => c.lastPurchaseDate))).sort();
 
@@ -178,11 +180,7 @@ export const Clients: React.FC = () => {
                     <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <ActionMenu 
                         onEdit={() => setSelectedClient(client)} 
-                        onDelete={() => {
-                          if (window.confirm('¿Está seguro de que desea eliminar este cliente?')) {
-                            deleteClient(client.id);
-                          }
-                        }} 
+                        onDelete={() => setClientToDelete(client.id)} 
                       />
                     </div>
                   </td>
@@ -208,6 +206,18 @@ export const Clients: React.FC = () => {
           </motion.button>
         </div>
       </motion.div>
+
+      <ConfirmModal
+        isOpen={!!clientToDelete}
+        title="Eliminar Cliente"
+        message="¿Está seguro de que desea eliminar este cliente? Esta acción no se puede deshacer."
+        onConfirm={() => {
+          if (clientToDelete) {
+            deleteClient(clientToDelete);
+          }
+        }}
+        onCancel={() => setClientToDelete(null)}
+      />
     </motion.div>
   );
 };

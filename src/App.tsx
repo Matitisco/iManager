@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useAppContext } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
@@ -13,34 +13,38 @@ import { TradeIns } from './pages/TradeIns';
 import { Clients } from './pages/Clients';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
-import { Login } from './pages/Login';
 import { Notifications } from './pages/Notifications';
+import { Login } from './pages/Login';
 import { Modal } from './components/Modal';
 import { ProductForm } from './components/forms/ProductForm';
 import { ClientForm } from './components/forms/ClientForm';
 import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
 
-export default function App() {
+function AppContent() {
+  const { user, loading } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   const handleNavigate = (tab: string, subTab?: string) => {
-    if (tab === 'logout') {
-      setIsLoggedIn(false);
-      return;
-    }
     setActiveTab(tab);
     if (tab === 'settings' && subTab) {
       setSettingsTab(subTab);
     }
   };
-
-  if (!isLoggedIn) {
-    return <Login onLogin={() => setIsLoggedIn(true)} />;
-  }
 
   const renderContent = () => {
     switch (activeTab) {
@@ -94,13 +98,21 @@ export default function App() {
   };
 
   return (
-    <AppProvider>
+    <>
       <Layout activeTab={activeTab} setActiveTab={handleNavigate} actionLabel={getActionLabel()} onNewAction={handleNewAction}>
         {renderContent()}
       </Layout>
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         {renderModalContent()}
       </Modal>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <AppContent />
     </AppProvider>
   );
 }

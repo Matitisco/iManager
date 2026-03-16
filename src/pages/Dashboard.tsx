@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import { AlertCircle, AlertTriangle, ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, Variants } from 'motion/react';
 import { formatCompactNumber } from '../lib/utils';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -12,7 +12,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };

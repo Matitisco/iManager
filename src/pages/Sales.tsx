@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, ChevronRight, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { Sale } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Variants } from 'motion/react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -12,7 +13,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
@@ -20,6 +21,8 @@ const item = {
 export const Sales: React.FC = () => {
   const { sales, deleteSale } = useAppContext();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<string>('Todas');
   const [filterClient, setFilterClient] = useState<string>('Todos');
   const [filterModel, setFilterModel] = useState<string>('Todos');
@@ -200,12 +203,8 @@ export const Sales: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                         <ActionMenu 
-                          onEdit={() => setSelectedSale(sale)} 
-                          onDelete={() => {
-                            if (window.confirm('¿Está seguro de que desea eliminar esta venta?')) {
-                              deleteSale(sale.id);
-                            }
-                          }} 
+                          onEdit={() => setEditingSale(sale)} 
+                          onDelete={() => setSaleToDelete(sale.id)} 
                         />
                       </div>
                     </td>
@@ -324,6 +323,24 @@ export const Sales: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {editingSale && (
+          <SaleEditPanel sale={editingSale} onClose={() => setEditingSale(null)} />
+        )}
+      </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={!!saleToDelete}
+        title="Eliminar Venta"
+        message="¿Está seguro de que desea eliminar esta venta? Esta acción no se puede deshacer."
+        onConfirm={() => {
+          if (saleToDelete) {
+            deleteSale(saleToDelete);
+          }
+        }}
+        onCancel={() => setSaleToDelete(null)}
+      />
     </motion.div>
   );
 };
@@ -391,3 +408,145 @@ const StatCard = ({ title, value, trend, trendDown = false, icon }: any) => (
     </div>
   </motion.div>
 );
+
+const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) => {
+  const { updateSale, clients, inventory } = useAppContext();
+  const [formData, setFormData] = useState<Sale>(sale);
+
+  useEffect(() => {
+    setFormData(sale);
+  }, [sale]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'amount' ? Number(value) : value
+    }));
+  };
+
+  const handleSave = () => {
+    updateSale(formData);
+    onClose();
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+      />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200"
+      >
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+              <Edit2 size={18} className="text-gray-900" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Editar Venta</h2>
+              <p className="text-xs text-gray-500 font-mono">{sale.id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cliente</label>
+              <select
+                name="clientId"
+                value={formData.clientId}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              >
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name} ({c.dni})</option>)}
+              </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Producto</label>
+              <select
+                name="productId"
+                value={formData.productId}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              >
+                {inventory.map(p => <option key={p.id} value={p.id}>{p.model} - {p.capacity} ({p.imei})</option>)}
+              </select>
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Monto</label>
+              <input
+                type="number"
+                name="amount"
+                value={formData.amount}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Método de Pago</label>
+              <select
+                name="paymentMethod"
+                value={formData.paymentMethod}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              >
+                <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                <option value="EFECTIVO">EFECTIVO</option>
+                <option value="TARJETA">TARJETA</option>
+                <option value="CANJE / PAGO">CANJE / PAGO</option>
+              </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              >
+                <option value="COMPLETADA">COMPLETADA</option>
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="CANCELADA">CANCELADA</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+          >
+            Guardar Cambios
+          </button>
+        </div>
+      </motion.div>
+    </>
+  );
+};

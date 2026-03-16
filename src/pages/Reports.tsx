@@ -1,9 +1,9 @@
 import React from 'react';
 import { BarChart2, TrendingUp, PieChart, Download, Calendar, DollarSign, Package, Activity } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, Variants } from 'motion/react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -11,7 +11,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };

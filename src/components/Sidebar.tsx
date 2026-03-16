@@ -1,7 +1,8 @@
 import React from 'react';
-import { LayoutDashboard, Package, ShoppingCart, RefreshCcw, Users, BarChart2, Settings, Box, X } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, RefreshCcw, Users, BarChart2, Settings, Box, X, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAppContext } from '../context/AppContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,6 +12,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose = () => {} }) => {
+  const { logout } = useAppContext();
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Inventario', icon: Package },
@@ -71,6 +73,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
           );
         })}
       </nav>
+      
+      <div className="p-4 border-t border-gray-200">
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <LogOut size={20} />
+          <span>Cerrar Sesión</span>
+        </button>
+      </div>
     </aside>
   );
 

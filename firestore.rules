@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+
+    function uidUnchanged() {
+      return !('authorUid' in request.resource.data) || request.resource.data.authorUid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('authorUid' in request.resource.data) || request.resource.data.authorUid == resource.data.authorUid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "matiscornia0@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidProduct(data) {
+      return hasOnlyAllowedFields(['imei', 'model', 'capacity', 'color', 'condition', 'grade', 'batteryHealth', 'cost', 'price', 'status', 'customFields', 'authorUid']) &&
+             data.imei is string && data.imei.size() > 0 && data.imei.size() < 100 &&
+             data.model is string && data.model.size() > 0 && data.model.size() < 100 &&
+             data.capacity is string && data.capacity.size() > 0 && data.capacity.size() < 50 &&
+             data.color is string && data.color.size() > 0 && data.color.size() < 50 &&
+             data.condition in ['NUEVO', 'USADO', 'PRE-OWNED'] &&
+             data.grade in ['A+', 'A', 'B', 'C', 'N/A'] &&
+             data.batteryHealth is number && data.batteryHealth >= 0 && data.batteryHealth <= 100 &&
+             data.cost is number && data.cost >= 0 &&
+             data.price is number && data.price >= 0 &&
+             data.status in ['DISPONIBLE', 'VENDIDO', 'EN_REVISION'] &&
+             (!('customFields' in data) || data.customFields is map) &&
+             data.authorUid is string;
+    }
+
+    function isValidSale(data) {
+      return hasOnlyAllowedFields(['date', 'clientId', 'productId', 'amount', 'paymentMethod', 'status', 'authorUid']) &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.clientId is string && data.clientId.size() > 0 && data.clientId.size() < 100 &&
+             data.productId is string && data.productId.size() > 0 && data.productId.size() < 100 &&
+             data.amount is number && data.amount >= 0 &&
+             data.paymentMethod in ['TRANSFERENCIA', 'EFECTIVO', 'TARJETA', 'CANJE / PAGO', 'T. Crédito'] &&
+             data.status in ['COMPLETADA', 'PENDIENTE'] &&
+             data.authorUid is string;
+    }
+
+    function isValidTradeIn(data) {
+      return hasOnlyAllowedFields(['date', 'clientId', 'deviceReceived', 'deviceReceivedImei', 'takeValue', 'deviceGiven', 'differencePaid', 'status', 'batteryHealth', 'grade', 'authorUid']) &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.clientId is string && data.clientId.size() > 0 && data.clientId.size() < 100 &&
+             data.deviceReceived is string && data.deviceReceived.size() > 0 && data.deviceReceived.size() < 100 &&
+             data.deviceReceivedImei is string && data.deviceReceivedImei.size() > 0 && data.deviceReceivedImei.size() < 100 &&
+             data.takeValue is number && data.takeValue >= 0 &&
+             data.deviceGiven is string && data.deviceGiven.size() > 0 && data.deviceGiven.size() < 100 &&
+             data.differencePaid is number &&
+             data.status in ['PENDIENTE', 'APROBADO', 'RECHAZADO', 'EN REVISIÓN', 'PERITAJE TÉC.', 'LISTO'] &&
+             (!('batteryHealth' in data) || (data.batteryHealth is number && data.batteryHealth >= 0 && data.batteryHealth <= 100)) &&
+             (!('grade' in data) || (data.grade is string && data.grade.size() > 0 && data.grade.size() < 10)) &&
+             data.authorUid is string;
+    }
+
+    function isValidClient(data) {
+      return hasOnlyAllowedFields(['dni', 'name', 'email', 'phone', 'lastPurchaseDate', 'totalSpent', 'pendingBalance', 'authorUid']) &&
+             data.dni is string && data.dni.size() > 0 && data.dni.size() < 50 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.size() >= 0 && data.email.size() < 100 &&
+             data.phone is string && data.phone.size() >= 0 && data.phone.size() < 50 &&
+             data.lastPurchaseDate is string && data.lastPurchaseDate.size() >= 0 && data.lastPurchaseDate.size() < 50 &&
+             data.totalSpent is number && data.totalSpent >= 0 &&
+             data.pendingBalance is number && data.pendingBalance >= 0 &&
+             data.authorUid is string;
+    }
+
+    function isValidCustomColumn(data) {
+      return hasOnlyAllowedFields(['label', 'type', 'authorUid']) &&
+             data.label is string && data.label.size() > 0 && data.label.size() < 100 &&
+             data.type in ['text', 'number'] &&
+             data.authorUid is string;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /inventory/{productId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data) && uidUnchanged();
+      allow update: if isAuthenticated() && isValidProduct(request.resource.data) && uidNotModified() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && isValidSale(request.resource.data) && uidUnchanged();
+      allow update: if isAuthenticated() && isValidSale(request.resource.data) && uidNotModified() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /tradeIns/{tradeInId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && isValidTradeIn(request.resource.data) && uidUnchanged();
+      allow update: if isAuthenticated() && isValidTradeIn(request.resource.data) && uidNotModified() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && isValidClient(request.resource.data) && uidUnchanged();
+      allow update: if isAuthenticated() && isValidClient(request.resource.data) && uidNotModified() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /customColumns/{columnId} {
+      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow create: if isAuthenticated() && isValidCustomColumn(request.resource.data) && uidUnchanged();
+      allow update: if isAuthenticated() && isValidCustomColumn(request.resource.data) && uidNotModified() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+  }
+}

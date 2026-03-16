@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Variants } from 'motion/react';
 import { Product } from '../types';
+import { ConfirmModal } from '../components/ConfirmModal';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -12,7 +13,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
@@ -22,6 +23,7 @@ export const Inventory: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [filterCondition, setFilterCondition] = useState<string>('Todos');
   const [filterGrade, setFilterGrade] = useState<string>('Todos');
   const [filterModel, setFilterModel] = useState<string>('Todos');
@@ -346,11 +348,7 @@ export const Inventory: React.FC = () => {
                     <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <ActionMenu 
                         onEdit={() => setSelectedItem(invItem)} 
-                        onDelete={() => {
-                          if (window.confirm('¿Está seguro de que desea eliminar este equipo?')) {
-                            deleteProduct(invItem.id);
-                          }
-                        }} 
+                        onDelete={() => setItemToDelete(invItem.id)} 
                       />
                     </div>
                   </td>
@@ -403,11 +401,7 @@ export const Inventory: React.FC = () => {
                 <div className="ml-2">
                   <ActionMenu 
                     onEdit={() => setSelectedItem(invItem)} 
-                    onDelete={() => {
-                      if (window.confirm('¿Está seguro de que desea eliminar este equipo?')) {
-                        deleteProduct(invItem.id);
-                      }
-                    }} 
+                    onDelete={() => setItemToDelete(invItem.id)} 
                   />
                 </div>
               </div>
@@ -480,6 +474,18 @@ export const Inventory: React.FC = () => {
           <ManageColumnsModal onClose={() => setShowManageColumns(false)} />
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={!!itemToDelete}
+        title="Eliminar Equipo"
+        message="¿Está seguro de que desea eliminar este equipo? Esta acción no se puede deshacer."
+        onConfirm={() => {
+          if (itemToDelete) {
+            deleteProduct(itemToDelete);
+          }
+        }}
+        onCancel={() => setItemToDelete(null)}
+      />
     </motion.div>
   );
 };
