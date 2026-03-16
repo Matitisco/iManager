@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Plus, Menu, User, Settings, LogOut, Package, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAppContext } from '../context/AppContext';
 
 interface HeaderProps {
   title?: string;
@@ -11,6 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel = "Nuevo Ingreso", onMenuClick, onNavigate }) => {
+  const { logout } = useAppContext();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
@@ -267,9 +269,9 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                 </div>
                 <div className="p-2 border-t border-gray-100">
                   <button 
-                    onClick={() => {
+                    onClick={async () => {
                       setIsProfileOpen(false);
-                      onNavigate?.('logout');
+                      await logout();
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                   >
