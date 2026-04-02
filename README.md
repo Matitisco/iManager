@@ -4,6 +4,10 @@ Panel de gestión para negocios de dispositivos, con foco en inventario, ventas,
 
 > Estado actual: **MVP usable con flujos core reales**, pero con varias pantallas auxiliares todavía mockeadas o incompletas.
 
+> Coordinación viva:
+> - `AGENTS.md` — handoff rápido entre agentes
+> - `PROJECT_STATUS.md` — estado real, roadmap, issues y próximos pasos
+
 ---
 
 ## 1. Qué es iManager hoy

@@ -5,6 +5,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPas
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
+import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
@@ -92,6 +93,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const [inventorySource, setInventorySource] = useState<'firestore' | 'backend'>('firestore');
   const [clientsSource, setClientsSource] = useState<'firestore' | 'backend'>('firestore');
 
   useEffect(() => {
@@ -112,6 +114,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setAppSession(null);
       setBackendStatus('checking');
       setBackendMessage(null);
+      setInventorySource('firestore');
       setClientsSource('firestore');
       return;
     }
@@ -128,10 +131,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBackendMessage(message);
     });
 
-    const unsubInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
-      setInventory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'inventory'));
-
     const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
       setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
@@ -146,14 +145,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => {
       cancelled = true;
-      unsubInventory();
       unsubSales();
       unsubTradeIns();
       unsubCustomColumns();
     };
   }, [user]);
 
+  const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribeFirestore: (() => void) | null = null;
+
+    const startFirestoreFallback = () => {
+      setInventorySource('firestore');
+      unsubscribeFirestore = onSnapshot(collection(db, 'inventory'), (snapshot) => {
+        setInventory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'inventory'));
+    };
+
+    const loadBackendInventory = async () => {
+      try {
+        const backendInventory = await fetchBackendInventory(user);
+        if (cancelled) return;
+        setInventory(backendInventory);
+        setInventorySource('backend');
+      } catch (error) {
+        if (cancelled) return;
+        console.warn('Backend inventory unavailable, falling back to Firestore.', error);
+        startFirestoreFallback();
+      }
+    };
+
+    if (backendInventoryEnabled) {
+      void loadBackendInventory();
+    } else {
+      startFirestoreFallback();
+    }
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
+  }, [backendInventoryEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -298,32 +339,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     if (!user) return;
-    const id = generateId('P');
-    const path = `inventory/${id}`;
+    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
     try {
+      if (canUseBackendInventory) {
+        const createdProduct = await createBackendInventoryItem(user, productData);
+        setInventory(prev => [createdProduct, ...prev]);
+        return;
+      }
+
+      const id = generateId('P');
+      const path = `inventory/${id}`;
       await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
     } catch (error) {
+      if (canUseBackendInventory) {
+        console.warn('Backend inventory create failed, falling back to Firestore.', error);
+        setInventorySource('firestore');
+        const id = generateId('P');
+        const path = `inventory/${id}`;
+        try {
+          await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.CREATE, path);
+          return;
+        }
+      }
+
+      const id = generateId('P');
+      const path = `inventory/${id}`;
       handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
-    const path = `inventory/${updatedProduct.id}`;
+    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
     try {
+      if (canUseBackendInventory) {
+        const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
+        setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
+        return;
+      }
+
+      const path = `inventory/${updatedProduct.id}`;
       const { id, ...data } = updatedProduct;
       await updateDoc(doc(db, 'inventory', id), data as any);
     } catch (error) {
+      if (canUseBackendInventory) {
+        console.warn('Backend inventory update failed, falling back to Firestore.', error);
+        setInventorySource('firestore');
+        const path = `inventory/${updatedProduct.id}`;
+        try {
+          const { id, ...data } = updatedProduct;
+          await updateDoc(doc(db, 'inventory', id), data as any);
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
+          return;
+        }
+      }
+
+      const path = `inventory/${updatedProduct.id}`;
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
   const deleteProduct = async (id: string) => {
     if (!user) return;
-    const path = `inventory/${id}`;
+    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
     try {
+      if (canUseBackendInventory) {
+        await deleteBackendInventoryItem(user, id);
+        setInventory(prev => prev.filter(product => product.id !== id));
+        return;
+      }
+
+      const path = `inventory/${id}`;
       await deleteDoc(doc(db, 'inventory', id));
     } catch (error) {
+      if (canUseBackendInventory) {
+        console.warn('Backend inventory delete failed, falling back to Firestore.', error);
+        setInventorySource('firestore');
+        const path = `inventory/${id}`;
+        try {
+          await deleteDoc(doc(db, 'inventory', id));
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.DELETE, path);
+          return;
+        }
+      }
+
+      const path = `inventory/${id}`;
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   };

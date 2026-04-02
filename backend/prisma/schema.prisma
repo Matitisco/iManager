@@ -30,6 +30,7 @@ model Store {
   timezone    String        @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
   memberships StoreMember[]
   clients     Client[]
+  inventory   InventoryItem[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -64,6 +65,28 @@ model Client {
 
   @@index([storeId])
   @@unique([storeId, dni])
+}
+
+model InventoryItem {
+  id            String   @id @default(cuid())
+  storeId       String
+  imei          String   @db.VarChar(100)
+  model         String   @db.VarChar(100)
+  capacity      String   @db.VarChar(50)
+  color         String   @db.VarChar(50)
+  condition     String   @db.VarChar(20)
+  grade         String   @db.VarChar(20)
+  batteryHealth Int
+  cost          Decimal  @db.Decimal(12, 2)
+  price         Decimal  @db.Decimal(12, 2)
+  status        String   @db.VarChar(20)
+  customFields  Json?
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([storeId])
+  @@unique([storeId, imei])
 }
 
 enum UserStatus {
