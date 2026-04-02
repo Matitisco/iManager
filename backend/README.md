@@ -8,6 +8,7 @@ Backend para iManager con Fastify, Prisma, PostgreSQL y Firebase Admin.
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
+- `FIRESTORE_DATABASE_ID`
 
 ## Scripts útiles
 

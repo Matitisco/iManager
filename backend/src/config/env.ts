@@ -7,6 +7,7 @@ const envSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().min(1),
   FIREBASE_CLIENT_EMAIL: z.string().min(1),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
+  FIRESTORE_DATABASE_ID: z.string().min(1),
 });
 
 export const env = envSchema.parse(process.env);

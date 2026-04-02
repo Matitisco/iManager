@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import { env } from "../config/env.js";
 
 if (!admin.apps.length) {
@@ -13,4 +14,4 @@ if (!admin.apps.length) {
 
 export { admin };
 export const adminAuth = admin.auth();
-export const firestore = admin.firestore();
+export const firestore = getFirestore(admin.app(), env.FIRESTORE_DATABASE_ID);
