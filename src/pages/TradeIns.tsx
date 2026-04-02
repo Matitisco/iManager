@@ -52,13 +52,6 @@ export const TradeIns: React.FC = () => {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
-        <p className="text-sm font-semibold">Modo tester:</p>
-        <p className="text-sm mt-1">
-          El historial de canjes ya usa datos reales. La franja superior ahora toma casos reales recientes, pero todavía no existe un workflow avanzado de peritaje ni exportación.
-        </p>
-      </motion.div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <motion.div variants={item}><StatCard title="CANJES EN EVALUACIÓN" value={String(pendingTradeIns)} trend={`${tradeIns.length} totales`} icon={<AlertCircle size={16} className="text-amber-500" />} /></motion.div>
         <motion.div variants={item}><StatCard title="VALOR RECIBIDO" value={formatCurrency(totalTakeValue)} trend="Datos reales" icon={<Banknote size={16} className="text-emerald-500" />} /></motion.div>

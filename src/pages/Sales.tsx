@@ -59,13 +59,6 @@ export const Sales: React.FC = () => {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col lg:flex-row gap-6 flex-1 relative">
       <div className="flex-1 flex flex-col space-y-6">
-        <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
-          <p className="text-sm font-semibold">Modo tester:</p>
-          <p className="text-sm mt-1">
-            Esta pantalla ya usa datos reales de clientes, productos e importes. Todavía no genera ticket/PDF y la edición quedó limitada a seguimiento para no romper consistencia de negocio.
-          </p>
-        </motion.div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <motion.div variants={item}>
             <StatCard title="FACTURACIÓN TOTAL" value={formatCurrency(totalRevenue)} trend={`${sales.length} ventas`} icon={<TrendingUp size={16} className="text-emerald-500" />} />
