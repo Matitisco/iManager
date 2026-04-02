@@ -29,6 +29,7 @@ model Store {
   currency    String        @default("ARS") @db.VarChar(10)
   timezone    String        @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
   memberships StoreMember[]
+  clients     Client[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
