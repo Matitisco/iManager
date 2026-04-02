@@ -98,7 +98,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - [ ] Reintentar `npm run migrate:clients` en `backend/` cuando el deploy actual termine.
 - [ ] Bootstrapping adicional si aparece otra cuenta o tienda.
 - [x] Definir y aplicar el siguiente slice real después de inventory: `sales`.
-- [ ] Seguir con hardening de formularios y listados secundarios en el core migrado.
+- [x] Seguir con hardening de formularios y listados secundarios en el core migrado.
 - [ ] Mantener este archivo actualizado al cerrar cada hito.
 
 ## Riesgos actuales
@@ -143,4 +143,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - El header tenia notificaciones fake y ahora se dejo sin datos reales para no engan~ar al tester.
 - La sesion de backend puede quedar temporalmente en onboarding o error, por eso el reintento automatico sigue siendo importante.
 - El perfil necesitaba sincronizar `avatarUrl` y refrescar metadatos del usuario desde backend para no depender solo del objeto de Firebase Auth.
+- Los formularios de alta estaban cerrando antes de esperar el resultado async, lo que ocultaba errores y daba la sensacion de que "no funcionaba" el alta.
+- Ventas y canjes ahora pueden crear un cliente inline dentro del mismo formulario, sin exigir un cliente precargado.
+- Inventario, ventas y canjes ahora muestran errores de validacion y deshabilitan el submit mientras guardan, reduciendo submits invalidos o duplicados.
 

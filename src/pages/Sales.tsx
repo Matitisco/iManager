@@ -4,7 +4,7 @@ import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, Chevron
 import { Client, Product, Sale } from '../types';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { formatCurrency, getInitials } from '../lib/utils';
+import { formatCurrency, getInitials, getFriendlyErrorMessage } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -447,14 +447,25 @@ const StatCard = ({ title, value, trend, icon }: any) => (
 const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) => {
   const { updateSale } = useAppContext();
   const [formData, setFormData] = useState<Sale>(sale);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData(sale);
   }, [sale]);
 
-  const handleSave = () => {
-    updateSale(formData);
-    onClose();
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await updateSale(formData);
+      onClose();
+    } catch (submitError) {
+      setError(getFriendlyErrorMessage(submitError, 'No se pudo actualizar la venta.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -492,6 +503,11 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
           <div className="rounded-xl border border-gray-200 bg-amber-50 p-4 text-sm text-amber-900">
             Para no desalinear stock y métricas, en esta etapa sólo permitimos actualizar método de pago y estado operativo de la venta.
           </div>
@@ -532,14 +548,16 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+            disabled={isSaving}
           >
             Cancelar
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-50"
+            disabled={isSaving}
           >
-            Guardar Cambios
+            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
         </div>
       </motion.div>

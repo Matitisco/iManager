@@ -6,6 +6,7 @@ import type { ClientInput } from "./clients.service.js";
 import {
   createClient,
   deleteClient,
+  getClientsErrorStatus,
   listClients,
   updateClient,
 } from "./clients.service.js";
@@ -49,9 +50,18 @@ export async function clientsRoutes(app: FastifyInstance) {
       }
 
       const body = clientCreateSchema.parse(request.body) as ClientInput;
-      const client = await createClient(request.appUser.storeId, body);
+      try {
+        const client = await createClient(request.appUser.storeId, body);
 
-      return reply.code(201).send({ client });
+        return reply.code(201).send({ client });
+      } catch (error) {
+        const mapped = getClientsErrorStatus(error);
+        if (mapped) {
+          return reply.code(mapped.statusCode).send({ error: mapped.message });
+        }
+
+        throw error;
+      }
     }
   );
 
@@ -67,13 +77,22 @@ export async function clientsRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = clientPatchSchema.parse(request.body);
-      const client = await updateClient(request.appUser.storeId, params.id, body);
+      try {
+        const client = await updateClient(request.appUser.storeId, params.id, body);
 
-      if (!client) {
-        return reply.code(404).send({ error: "Client not found" });
+        if (!client) {
+          return reply.code(404).send({ error: "Client not found" });
+        }
+
+        return { client };
+      } catch (error) {
+        const mapped = getClientsErrorStatus(error);
+        if (mapped) {
+          return reply.code(mapped.statusCode).send({ error: mapped.message });
+        }
+
+        throw error;
       }
-
-      return { client };
     }
   );
 

@@ -22,7 +22,7 @@ interface AppState {
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  addClient: (client: Omit<Client, 'id'>) => Promise<void>;
+  addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<void>;
@@ -691,36 +691,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addClient = async (clientData: Omit<Client, 'id'>) => {
-    if (!user) return;
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
     const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
     try {
       if (canUseBackendClients) {
         const createdClient = await createBackendClient(user, clientData);
         setClients(prev => [createdClient, ...prev]);
-        return;
+        return createdClient;
       }
 
       const id = generateId('C');
+      const createdClient = { id, ...clientData };
       const path = `clients/${id}`;
       await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
+      return createdClient;
     } catch (error) {
       if (canUseBackendClients) {
         console.warn('Backend client create failed, falling back to Firestore.', error);
         setClientsSource('firestore');
         const id = generateId('C');
+        const createdClient = { id, ...clientData };
         const path = `clients/${id}`;
         try {
           await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
-          return;
+          return createdClient;
         } catch (fallbackError) {
           handleFirestoreError(fallbackError, OperationType.CREATE, path);
-          return;
+          throw fallbackError;
         }
       }
 
       const id = generateId('C');
       const path = `clients/${id}`;
       handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
     }
   };
 

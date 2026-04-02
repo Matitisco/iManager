@@ -4,7 +4,7 @@ import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, More
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { Client, TradeIn } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, getFriendlyErrorMessage } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -404,6 +404,8 @@ const EvaluationCard = ({
 const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: TradeIn, onClose: () => void }) => {
   const { updateTradeIn, clients } = useAppContext();
   const [formData, setFormData] = useState(tradeIn);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData(tradeIn);
@@ -417,9 +419,28 @@ const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: TradeIn, onClose: () 
     }));
   };
 
-  const handleSave = () => {
-    updateTradeIn(formData);
-    onClose();
+  const handleSave = async () => {
+    if (!formData.deviceReceived.trim() || !formData.deviceReceivedImei.trim() || !formData.deviceGiven.trim()) {
+      setError('Completá equipo recibido, IMEI y equipo entregado antes de guardar.');
+      return;
+    }
+
+    if (!Number.isFinite(formData.takeValue) || formData.takeValue < 0 || !Number.isFinite(formData.differencePaid)) {
+      setError('Los importes deben ser números válidos.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await updateTradeIn(formData);
+      onClose();
+    } catch (submitError) {
+      setError(getFriendlyErrorMessage(submitError, 'No se pudo guardar el canje.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -457,6 +478,11 @@ const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: TradeIn, onClose: () 
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cliente</label>
@@ -548,14 +574,16 @@ const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: TradeIn, onClose: () 
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+            disabled={isSaving}
           >
             Cancelar
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-50"
+            disabled={isSaving}
           >
-            Guardar Cambios
+            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
         </div>
       </motion.div>

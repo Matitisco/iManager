@@ -46,6 +46,15 @@ type InventoryRecord = {
   customFields: Prisma.JsonValue | null;
 };
 
+class InventoryError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const inventoryPrisma = prisma as any;
 
 const toDecimal = (value: number) => new Decimal(value);
@@ -93,13 +102,22 @@ export async function listInventory(storeId: string) {
 }
 
 export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
+  const existing = await inventoryPrisma.inventoryItem.findFirst({
+    where: { storeId, imei: input.imei.trim() },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new InventoryError("Inventory item already exists", 409);
+  }
+
   const inventoryItem = await inventoryPrisma.inventoryItem.create({
     data: {
       storeId,
-      imei: input.imei,
-      model: input.model,
-      capacity: input.capacity,
-      color: input.color,
+      imei: input.imei.trim(),
+      model: input.model.trim(),
+      capacity: input.capacity.trim(),
+      color: input.color.trim(),
       condition: input.condition,
       grade: input.grade,
       batteryHealth: input.batteryHealth,
@@ -126,13 +144,29 @@ export async function updateInventoryItem(
     return null;
   }
 
+  if (input.imei !== undefined) {
+    const nextImei = input.imei.trim();
+    const duplicate = await inventoryPrisma.inventoryItem.findFirst({
+      where: {
+        storeId,
+        imei: nextImei,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new InventoryError("Inventory item already exists", 409);
+    }
+  }
+
   const updated = await inventoryPrisma.inventoryItem.update({
     where: { id },
     data: {
-      imei: input.imei ?? existing.imei,
-      model: input.model ?? existing.model,
-      capacity: input.capacity ?? existing.capacity,
-      color: input.color ?? existing.color,
+      imei: input.imei !== undefined ? input.imei.trim() : existing.imei,
+      model: input.model !== undefined ? input.model.trim() : existing.model,
+      capacity: input.capacity !== undefined ? input.capacity.trim() : existing.capacity,
+      color: input.color !== undefined ? input.color.trim() : existing.color,
       condition: input.condition ?? existing.condition,
       grade: input.grade ?? existing.grade,
       batteryHealth: input.batteryHealth ?? existing.batteryHealth,
@@ -164,4 +198,15 @@ export async function deleteInventoryItem(storeId: string, id: string) {
   });
 
   return true;
+}
+
+export function getInventoryErrorStatus(error: unknown) {
+  if (error instanceof InventoryError) {
+    return {
+      statusCode: error.statusCode,
+      message: error.message,
+    };
+  }
+
+  return null;
 }

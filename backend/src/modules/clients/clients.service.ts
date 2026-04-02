@@ -33,6 +33,15 @@ type ClientRecord = {
   pendingBalance: Decimal;
 };
 
+class ClientsError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const toDecimal = (value?: number) => new Decimal(value ?? 0);
 
 const formatDate = (value: Date | null) => {
@@ -72,11 +81,21 @@ export async function listClients(storeId: string) {
 }
 
 export async function createClient(storeId: string, input: ClientInput) {
+  const dni = input.dni.trim();
+  const existing = await prisma.client.findFirst({
+    where: { storeId, dni },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new ClientsError("Client already exists", 409);
+  }
+
   const client = await prisma.client.create({
     data: {
       storeId,
-      dni: input.dni,
-      name: input.name,
+      dni,
+      name: input.name.trim(),
       email: input.email || null,
       phone: input.phone || null,
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
@@ -97,11 +116,27 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     return null;
   }
 
+  if (input.dni !== undefined) {
+    const nextDni = input.dni.trim();
+    const duplicate = await prisma.client.findFirst({
+      where: {
+        storeId,
+        dni: nextDni,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new ClientsError("Client already exists", 409);
+    }
+  }
+
   const updated = await prisma.client.update({
     where: { id },
     data: {
-      dni: input.dni ?? existing.dni,
-      name: input.name ?? existing.name,
+      dni: input.dni !== undefined ? input.dni.trim() : existing.dni,
+      name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
       phone: input.phone !== undefined ? input.phone || null : existing.phone,
       lastPurchaseAt:
@@ -133,4 +168,15 @@ export async function deleteClient(storeId: string, id: string) {
   });
 
   return true;
+}
+
+export function getClientsErrorStatus(error: unknown) {
+  if (error instanceof ClientsError) {
+    return {
+      statusCode: error.statusCode,
+      message: error.message,
+    };
+  }
+
+  return null;
 }

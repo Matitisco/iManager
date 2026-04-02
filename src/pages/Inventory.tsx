@@ -4,6 +4,7 @@ import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, C
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { Product } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { getFriendlyErrorMessage } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -563,6 +564,8 @@ const PageButton = ({ label, icon, active }: { label?: string, icon?: React.Reac
 const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => void }) => {
   const { updateProduct, customColumns } = useAppContext();
   const [formData, setFormData] = useState<Product>(item);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Sync state if item changes
   useEffect(() => {
@@ -577,9 +580,44 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
     }));
   };
 
-  const handleSave = () => {
-    updateProduct(formData);
-    onClose();
+  const handleSave = async () => {
+    const imei = formData.imei.trim();
+    const model = formData.model.trim();
+    const capacity = formData.capacity.trim();
+    const color = formData.color.trim();
+
+    if (!imei || !model || !capacity || !color) {
+      setError('Completá IMEI, modelo, capacidad y color antes de guardar.');
+      return;
+    }
+
+    if (!Number.isFinite(formData.batteryHealth) || formData.batteryHealth < 0 || formData.batteryHealth > 100) {
+      setError('La salud de batería debe estar entre 0 y 100.');
+      return;
+    }
+
+    if (!Number.isFinite(formData.cost) || formData.cost < 0 || !Number.isFinite(formData.price) || formData.price < 0) {
+      setError('Costo y precio deben ser números válidos mayores o iguales a 0.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await updateProduct({
+        ...formData,
+        imei,
+        model,
+        capacity,
+        color,
+      });
+      onClose();
+    } catch (submitError) {
+      setError(getFriendlyErrorMessage(submitError, 'No se pudo guardar el equipo.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -617,6 +655,11 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Modelo</label>
@@ -696,6 +739,8 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batería (%)</label>
               <input
                 type="number"
+                min={0}
+                max={100}
                 name="batteryHealth"
                 value={formData.batteryHealth}
                 onChange={handleChange}
@@ -721,6 +766,7 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Costo ($)</label>
               <input
                 type="number"
+                min={0}
                 name="cost"
                 value={formData.cost}
                 onChange={handleChange}
@@ -732,6 +778,7 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Precio ($)</label>
               <input
                 type="number"
+                min={0}
                 name="price"
                 value={formData.price}
                 onChange={handleChange}
@@ -763,15 +810,17 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
           <button
             onClick={onClose}
             className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors"
+            disabled={isSaving}
           >
             Cancelar
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-3 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-3 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            disabled={isSaving}
           >
             <Save size={18} />
-            Guardar
+            {isSaving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
       </motion.div>

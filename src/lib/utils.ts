@@ -40,3 +40,39 @@ export function getInitials(name: string): string {
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
 }
+
+export function getFriendlyErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    try {
+      const parsed = JSON.parse(error.message) as { error?: string; message?: string };
+      if (parsed?.error) {
+        return parsed.error;
+      }
+
+      if (parsed?.message) {
+        return parsed.message;
+      }
+    } catch {
+      return error.message || fallback;
+    }
+
+    return error.message || fallback;
+  }
+
+  if (typeof error === 'string') {
+    try {
+      const parsed = JSON.parse(error) as { error?: string; message?: string };
+      if (parsed?.error) {
+        return parsed.error;
+      }
+
+      if (parsed?.message) {
+        return parsed.message;
+      }
+    } catch {
+      return error;
+    }
+  }
+
+  return fallback;
+}

@@ -6,6 +6,7 @@ import type { InventoryItemInput } from "./inventory.service.js";
 import {
   createInventoryItem,
   deleteInventoryItem,
+  getInventoryErrorStatus,
   listInventory,
   updateInventoryItem,
 } from "./inventory.service.js";
@@ -53,9 +54,18 @@ export async function inventoryRoutes(app: FastifyInstance) {
       }
 
       const body = inventoryItemSchema.parse(request.body) as InventoryItemInput;
-      const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
+      try {
+        const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
 
-      return reply.code(201).send({ inventoryItem });
+        return reply.code(201).send({ inventoryItem });
+      } catch (error) {
+        const mapped = getInventoryErrorStatus(error);
+        if (mapped) {
+          return reply.code(mapped.statusCode).send({ error: mapped.message });
+        }
+
+        throw error;
+      }
     }
   );
 
@@ -71,17 +81,26 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = inventoryPatchSchema.parse(request.body);
-      const inventoryItem = await updateInventoryItem(
-        request.appUser.storeId,
-        params.id,
-        body
-      );
+      try {
+        const inventoryItem = await updateInventoryItem(
+          request.appUser.storeId,
+          params.id,
+          body
+        );
 
-      if (!inventoryItem) {
-        return reply.code(404).send({ error: "Inventory item not found" });
+        if (!inventoryItem) {
+          return reply.code(404).send({ error: "Inventory item not found" });
+        }
+
+        return { inventoryItem };
+      } catch (error) {
+        const mapped = getInventoryErrorStatus(error);
+        if (mapped) {
+          return reply.code(mapped.statusCode).send({ error: mapped.message });
+        }
+
+        throw error;
       }
-
-      return { inventoryItem };
     }
   );
 
