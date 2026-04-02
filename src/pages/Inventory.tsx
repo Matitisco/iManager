@@ -30,6 +30,7 @@ export const Inventory: React.FC = () => {
   const [filterModel, setFilterModel] = useState<string>('Todos');
   const [filterCapacity, setFilterCapacity] = useState<string>('Todas');
   const [filterBattery, setFilterBattery] = useState<string>('Todas');
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
   const [showColumns, setShowColumns] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
@@ -69,14 +70,15 @@ export const Inventory: React.FC = () => {
     if (filterGrade !== 'Todos' && item.grade !== filterGrade) return false;
     if (filterModel !== 'Todos' && item.model !== filterModel) return false;
     if (filterCapacity !== 'Todas' && item.capacity !== filterCapacity) return false;
-    
+    if (filterStatus !== 'Todos' && item.status !== filterStatus) return false;
+
     if (filterBattery !== 'Todas') {
       if (filterBattery === '100' && item.batteryHealth !== 100) return false;
       if (filterBattery === '90-99' && (item.batteryHealth < 90 || item.batteryHealth > 99)) return false;
       if (filterBattery === '80-89' && (item.batteryHealth < 80 || item.batteryHealth > 89)) return false;
       if (filterBattery === '<80' && item.batteryHealth >= 80) return false;
     }
-    
+
     return true;
   });
 
@@ -192,6 +194,7 @@ export const Inventory: React.FC = () => {
                         setFilterModel('Todos');
                         setFilterCapacity('Todas');
                         setFilterBattery('Todas');
+                        setFilterStatus('Todos');
                       }}
                       className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
                     >
@@ -228,7 +231,7 @@ export const Inventory: React.FC = () => {
                     </div>
                     
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</label>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Condición</label>
                       <select
                         value={filterCondition}
                         onChange={(e) => setFilterCondition(e.target.value)}
@@ -238,6 +241,20 @@ export const Inventory: React.FC = () => {
                         <option value="NUEVO">NUEVO</option>
                         <option value="USADO">USADO</option>
                         <option value="PRE-OWNED">PRE-OWNED</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Disponibilidad</label>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+                      >
+                        <option value="Todos">Todos</option>
+                        <option value="DISPONIBLE">Disponible</option>
+                        <option value="VENDIDO">Vendido</option>
+                        <option value="EN_REVISION">En revisión</option>
                       </select>
                     </div>
 
@@ -295,6 +312,7 @@ export const Inventory: React.FC = () => {
                 {customColumns.map(col => visibleColumns[col.id] !== false && (
                   <th key={col.id} className="px-6 py-4">{col.label}</th>
                 ))}
+                <th className="px-6 py-4">Disponibilidad</th>
                 <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
@@ -313,7 +331,7 @@ export const Inventory: React.FC = () => {
                   <tr
                     key={invItem.id}
                     onClick={() => setSelectedItem(invItem)}
-                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                    className={`hover:bg-gray-50 transition-colors group cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''}`}
                   >
                     {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
                     {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
@@ -356,6 +374,22 @@ export const Inventory: React.FC = () => {
                         {invItem.customFields?.[col.id] || '-'}
                       </td>
                     ))}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider w-fit ${
+                          invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' :
+                          invItem.status === 'VENDIDO' ? 'bg-gray-100 text-gray-600' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {invItem.status === 'EN_REVISION' ? 'En revisión' : invItem.status === 'VENDIDO' ? 'Vendido' : 'Disponible'}
+                        </span>
+                        {invItem.status === 'VENDIDO' && invItem.soldAt && (
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            {new Date(invItem.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                         <ActionMenu
@@ -379,10 +413,10 @@ export const Inventory: React.FC = () => {
             </div>
           ) : (
             filteredInventory.map((invItem) => (
-              <div 
-                key={invItem.id} 
+              <div
+                key={invItem.id}
                 onClick={() => setSelectedItem(invItem)}
-                className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''}`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
@@ -410,16 +444,30 @@ export const Inventory: React.FC = () => {
                   }`}>
                     {invItem.grade}
                   </span>}
-                  {visibleColumns.battery !== false && <div className="flex items-center gap-1 ml-auto">
+                  {visibleColumns.battery !== false && <div className="flex items-center gap-1">
                     <div className={`w-2 h-2 rounded-full ${invItem.batteryHealth >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     <span className={`font-bold ${invItem.batteryHealth >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {invItem.batteryHealth}%
                     </span>
                   </div>}
-                  <div className="ml-2">
-                    <ActionMenu 
-                      onEdit={() => setSelectedItem(invItem)} 
-                      onDelete={() => setItemToDelete(invItem.id)} 
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="flex flex-col items-end">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                        invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' :
+                        invItem.status === 'VENDIDO' ? 'bg-gray-100 text-gray-600' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {invItem.status === 'EN_REVISION' ? 'En rev.' : invItem.status === 'VENDIDO' ? 'Vendido' : 'Disponible'}
+                      </span>
+                      {invItem.status === 'VENDIDO' && invItem.soldAt && (
+                        <span className="text-[9px] text-gray-400 font-mono mt-0.5">
+                          {new Date(invItem.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <ActionMenu
+                      onEdit={() => setSelectedItem(invItem)}
+                      onDelete={() => setItemToDelete(invItem.id)}
                     />
                   </div>
                 </div>
@@ -750,7 +798,7 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Disponibilidad</label>
               <select
                 name="status"
                 value={formData.status}
@@ -761,6 +809,11 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
                 <option value="VENDIDO">VENDIDO</option>
                 <option value="EN_REVISION">EN REVISIÓN</option>
               </select>
+              {formData.status === 'VENDIDO' && item.soldAt && (
+                <p className="mt-1.5 text-xs text-gray-400">
+                  Vendido el {new Date(item.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              )}
             </div>
 
             <div>

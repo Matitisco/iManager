@@ -29,6 +29,7 @@ export interface InventoryItemResponse {
   price: number;
   status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
   customFields: Record<string, unknown>;
+  soldAt: string | null;
 }
 
 type InventoryRecord = {
@@ -44,6 +45,7 @@ type InventoryRecord = {
   price: Decimal;
   status: string;
   customFields: Prisma.JsonValue | null;
+  sales?: { soldAt: Date }[];
 };
 
 class InventoryError extends Error {
@@ -81,6 +83,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     price: item.price.toNumber(),
     status: item.status as InventoryItemResponse["status"],
     customFields: toCustomFields(item.customFields),
+    soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
   };
 }
 
@@ -95,6 +98,13 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
 export async function listInventory(storeId: string) {
   const inventory = await inventoryPrisma.inventoryItem.findMany({
     where: { storeId },
+    include: {
+      sales: {
+        select: { soldAt: true },
+        orderBy: { soldAt: "desc" },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 

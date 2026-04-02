@@ -10,6 +10,7 @@ export interface Product {
   cost: number;
   price: number;
   status: 'DISPONIBLE' | 'VENDIDO' | 'EN_REVISION';
+  soldAt?: string | null;
   customFields?: Record<string, any>;
 }
 
