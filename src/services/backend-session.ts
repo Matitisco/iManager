@@ -1,5 +1,6 @@
 import type { User } from 'firebase/auth';
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 const DEFAULT_BACKEND_ERROR_MESSAGE = 'El backend respondió con un error inesperado. Reintentando.';
@@ -42,7 +43,7 @@ export async function fetchBackendSession(user: User): Promise<{
   try {
     const token = await user.getIdToken();
 
-    const response = await fetch(`${baseUrl}/api/me`, {
+    const response = await fetchWithTimeout(`${baseUrl}/api/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',

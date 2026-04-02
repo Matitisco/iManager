@@ -411,10 +411,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const id = generateId('V');
       const path = `sales/${id}`;
+      const createdSale = { id, ...saleData };
       await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
+      setSales(prev => [createdSale, ...prev]);
 
       if (saleData.productId) {
         await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
+        setInventory(prev => prev.map(product => (
+          product.id === saleData.productId ? { ...product, status: 'VENDIDO' } : product
+        )));
       }
 
       if (saleData.clientId) {
@@ -424,6 +429,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             totalSpent: (client.totalSpent || 0) + saleData.amount,
             lastPurchaseDate: saleData.date
           });
+          setClients(prev => prev.map(currentClient => (
+            currentClient.id === saleData.clientId
+              ? {
+                  ...currentClient,
+                  totalSpent: (currentClient.totalSpent || 0) + saleData.amount,
+                  lastPurchaseDate: saleData.date,
+                }
+              : currentClient
+          )));
         }
       }
     } catch (error) {
@@ -433,10 +447,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const id = generateId('V');
         const path = `sales/${id}`;
         try {
+          const createdSale = { id, ...saleData };
           await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
+          setSales(prev => [createdSale, ...prev]);
 
           if (saleData.productId) {
             await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
+            setInventory(prev => prev.map(product => (
+              product.id === saleData.productId ? { ...product, status: 'VENDIDO' } : product
+            )));
           }
 
           if (saleData.clientId) {
@@ -446,6 +465,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 totalSpent: (client.totalSpent || 0) + saleData.amount,
                 lastPurchaseDate: saleData.date
               });
+              setClients(prev => prev.map(currentClient => (
+                currentClient.id === saleData.clientId
+                  ? {
+                      ...currentClient,
+                      totalSpent: (currentClient.totalSpent || 0) + saleData.amount,
+                      lastPurchaseDate: saleData.date,
+                    }
+                  : currentClient
+              )));
             }
           }
 
@@ -604,7 +632,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const id = generateId('P');
       const path = `inventory/${id}`;
+      const createdProduct = { id, ...productData };
       await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
+      setInventory(prev => [createdProduct, ...prev]);
     } catch (error) {
       if (canUseBackendInventory) {
         console.warn('Backend inventory create failed, falling back to Firestore.', error);
@@ -612,7 +642,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const id = generateId('P');
         const path = `inventory/${id}`;
         try {
+          const createdProduct = { id, ...productData };
           await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
+          setInventory(prev => [createdProduct, ...prev]);
           return;
         } catch (fallbackError) {
           handleFirestoreError(fallbackError, OperationType.CREATE, path);
@@ -706,6 +738,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const createdClient = { id, ...clientData };
       const path = `clients/${id}`;
       await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
+      setClients(prev => [createdClient, ...prev]);
       return createdClient;
     } catch (error) {
       if (canUseBackendClients) {
@@ -716,6 +749,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const path = `clients/${id}`;
         try {
           await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
+          setClients(prev => [createdClient, ...prev]);
           return createdClient;
         } catch (fallbackError) {
           handleFirestoreError(fallbackError, OperationType.CREATE, path);
@@ -806,7 +840,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const id = generateId('CAN');
       const path = `tradeIns/${id}`;
+      const createdTradeIn = { id, ...tradeInData };
       await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
+      setTradeIns(prev => [createdTradeIn, ...prev]);
     } catch (error) {
       if (canUseBackendTradeIns) {
         console.warn('Backend trade-in create failed, falling back to Firestore.', error);
@@ -814,7 +850,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const id = generateId('CAN');
         const path = `tradeIns/${id}`;
         try {
+          const createdTradeIn = { id, ...tradeInData };
           await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
+          setTradeIns(prev => [createdTradeIn, ...prev]);
           return;
         } catch (fallbackError) {
           handleFirestoreError(fallbackError, OperationType.CREATE, path);

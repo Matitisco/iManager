@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import type { Client } from '../types';
 import { getBackendBaseUrl } from './backend-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
 
 type BackendClientResponse = {
   client?: Client;
@@ -35,7 +36,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchBackendClients(user: User): Promise<Client[]> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/clients`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients`, {
     headers: await getAuthHeaders(user),
   });
 
@@ -50,7 +51,7 @@ export async function fetchBackendClients(user: User): Promise<Client[]> {
 
 export async function createBackendClient(user: User, client: Omit<Client, 'id'>): Promise<Client> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/clients`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients`, {
     method: 'POST',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(client),
@@ -71,7 +72,7 @@ export async function createBackendClient(user: User, client: Omit<Client, 'id'>
 
 export async function updateBackendClient(user: User, client: Client): Promise<Client> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/clients/${client.id}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/${client.id}`, {
     method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(client),
@@ -92,7 +93,7 @@ export async function updateBackendClient(user: User, client: Client): Promise<C
 
 export async function deleteBackendClient(user: User, clientId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/clients/${clientId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}`, {
     method: 'DELETE',
     headers: await getAuthHeaders(user),
   });

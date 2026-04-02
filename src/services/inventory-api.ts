@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import type { Product } from '../types';
 import { getBackendBaseUrl } from './backend-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
 
 type BackendInventoryResponse = {
   inventory?: Product[];
@@ -35,7 +36,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchBackendInventory(user: User): Promise<Product[]> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/inventory`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory`, {
     headers: await getAuthHeaders(user),
   });
 
@@ -53,7 +54,7 @@ export async function createBackendInventoryItem(
   item: Omit<Product, 'id'>
 ): Promise<Product> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/inventory`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory`, {
     method: 'POST',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(item),
@@ -74,7 +75,7 @@ export async function createBackendInventoryItem(
 
 export async function updateBackendInventoryItem(user: User, item: Product): Promise<Product> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/inventory/${item.id}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/${item.id}`, {
     method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(item),
@@ -95,7 +96,7 @@ export async function updateBackendInventoryItem(user: User, item: Product): Pro
 
 export async function deleteBackendInventoryItem(user: User, itemId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/inventory/${itemId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/${itemId}`, {
     method: 'DELETE',
     headers: await getAuthHeaders(user),
   });

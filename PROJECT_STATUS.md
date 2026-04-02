@@ -136,6 +136,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - [ ] Notifications: siguen siendo preview/locales; no validar como funcionalidad productiva.
 - [ ] Reports: siguen siendo demo; no usar para validar backend en tester.
 - [ ] Settings: siguen mezclando preview y placeholders; validar solo como UI, no como negocio final.
+- [ ] Alta de entidades: agregar timeout/fallback consistente en requests backend para que un POST colgado no deje la UI en "Guardando..." indefinidamente. *(En progreso: se introdujo helper con timeout y se reforzaron fallbacks locales de creación.)*
 
 ### Hallazgos concretos
 
@@ -146,4 +147,5 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Los formularios de alta estaban cerrando antes de esperar el resultado async, lo que ocultaba errores y daba la sensacion de que "no funcionaba" el alta.
 - Ventas y canjes ahora pueden crear un cliente inline dentro del mismo formulario, sin exigir un cliente precargado.
 - Inventario, ventas y canjes ahora muestran errores de validacion y deshabilitan el submit mientras guardan, reduciendo submits invalidos o duplicados.
+- El flujo de alta podia quedar colgado si un request backend nunca resolvia porque no existia timeout de fetch; ahora hay timeout de 15s en los helpers HTTP y los fallbacks locales de creacion actualizan estado inmediatamente.
 

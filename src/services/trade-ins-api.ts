@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import type { TradeIn } from '../types';
 import { getBackendBaseUrl } from './backend-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
 
 type BackendTradeInsResponse = {
   tradeIn?: TradeIn;
@@ -35,7 +36,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchBackendTradeIns(user: User): Promise<TradeIn[]> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/trade-ins`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins`, {
     headers: await getAuthHeaders(user),
   });
 
@@ -50,7 +51,7 @@ export async function fetchBackendTradeIns(user: User): Promise<TradeIn[]> {
 
 export async function createBackendTradeIn(user: User, tradeIn: Omit<TradeIn, 'id'>): Promise<TradeIn> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/trade-ins`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins`, {
     method: 'POST',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(tradeIn),
@@ -71,7 +72,7 @@ export async function createBackendTradeIn(user: User, tradeIn: Omit<TradeIn, 'i
 
 export async function updateBackendTradeIn(user: User, tradeIn: TradeIn): Promise<TradeIn> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/trade-ins/${tradeIn.id}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/${tradeIn.id}`, {
     method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(tradeIn),
@@ -92,7 +93,7 @@ export async function updateBackendTradeIn(user: User, tradeIn: TradeIn): Promis
 
 export async function deleteBackendTradeIn(user: User, tradeInId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/trade-ins/${tradeInId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/${tradeInId}`, {
     method: 'DELETE',
     headers: await getAuthHeaders(user),
   });

@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import type { Sale } from '../types';
 import { getBackendBaseUrl } from './backend-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
 
 type BackendSalesResponse = {
   sale?: Sale;
@@ -35,7 +36,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchBackendSales(user: User): Promise<Sale[]> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/sales`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/sales`, {
     headers: await getAuthHeaders(user),
   });
 
@@ -50,7 +51,7 @@ export async function fetchBackendSales(user: User): Promise<Sale[]> {
 
 export async function createBackendSale(user: User, sale: Omit<Sale, 'id'>): Promise<Sale> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/sales`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/sales`, {
     method: 'POST',
     headers: await getAuthHeaders(user),
     body: JSON.stringify(sale),
@@ -71,7 +72,7 @@ export async function createBackendSale(user: User, sale: Omit<Sale, 'id'>): Pro
 
 export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/sales/${sale.id}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/sales/${sale.id}`, {
     method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify({
@@ -95,7 +96,7 @@ export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
 
 export async function deleteBackendSale(user: User, saleId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
-  const response = await fetch(`${baseUrl}/api/sales/${saleId}`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/sales/${saleId}`, {
     method: 'DELETE',
     headers: await getAuthHeaders(user),
   });
