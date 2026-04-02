@@ -149,3 +149,8 @@ Documento vivo de coordinaciÃ³n. Actualizar cada vez que se complete un paso rel
 - Inventario, ventas y canjes ahora muestran errores de validacion y deshabilitan el submit mientras guardan, reduciendo submits invalidos o duplicados.
 - El flujo de alta podia quedar colgado si un request backend nunca resolvia porque no existia timeout de fetch; ahora hay timeout de 15s en los helpers HTTP y los fallbacks locales de creacion actualizan estado inmediatamente.
 
+## Update 2026-04-02 - Inventario / persistencia
+
+- Se detectó un bug de consistencia en inventario: con backend configurado, un fallo o estado intermedio podía caer a Firestore y dar una falsa sensación de guardado exitoso.
+- Decisión tomada: para inventario, si el backend está configurado, las altas/ediciones/bajas deben pasar por backend o fallar con error visible; Firestore queda solo para modo local sin backend configurado.
+- Esto evita cierres de modal con 'guardado fantasma' que luego no aparece persistido en Postgres.

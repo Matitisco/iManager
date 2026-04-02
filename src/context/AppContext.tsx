@@ -622,10 +622,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     if (!user) return;
-    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendInventory) {
+      if (backendConfigured) {
+        if (!backendInventoryEnabled) {
+          throw new Error(
+            backendMessage ||
+              'El backend todavÃ­a no estÃ¡ listo para guardar inventario. ReintentÃ¡ en unos segundos.'
+          );
+        }
+
         const createdProduct = await createBackendInventoryItem(user, productData);
+        setInventorySource('backend');
         setInventory(prev => [createdProduct, ...prev]);
         return;
       }
@@ -636,20 +644,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
       setInventory(prev => [createdProduct, ...prev]);
     } catch (error) {
-      if (canUseBackendInventory) {
-        console.warn('Backend inventory create failed, falling back to Firestore.', error);
-        setInventorySource('firestore');
-        const id = generateId('P');
-        const path = `inventory/${id}`;
-        try {
-          const createdProduct = { id, ...productData };
-          await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
-          setInventory(prev => [createdProduct, ...prev]);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.CREATE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
 
       const id = generateId('P');
@@ -660,10 +656,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
-    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendInventory) {
+      if (backendConfigured) {
+        if (!backendInventoryEnabled) {
+          throw new Error(
+            backendMessage ||
+              'El backend todavÃ­a no estÃ¡ listo para actualizar inventario. ReintentÃ¡ en unos segundos.'
+          );
+        }
+
         const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
+        setInventorySource('backend');
         setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
         return;
       }
@@ -672,18 +676,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { id, ...data } = updatedProduct;
       await updateDoc(doc(db, 'inventory', id), data as any);
     } catch (error) {
-      if (canUseBackendInventory) {
-        console.warn('Backend inventory update failed, falling back to Firestore.', error);
-        setInventorySource('firestore');
-        const path = `inventory/${updatedProduct.id}`;
-        try {
-          const { id, ...data } = updatedProduct;
-          await updateDoc(doc(db, 'inventory', id), data as any);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
 
       const path = `inventory/${updatedProduct.id}`;
@@ -693,10 +687,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteProduct = async (id: string) => {
     if (!user) return;
-    const canUseBackendInventory = inventorySource === 'backend' && backendInventoryEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendInventory) {
+      if (backendConfigured) {
+        if (!backendInventoryEnabled) {
+          throw new Error(
+            backendMessage ||
+              'El backend todavÃ­a no estÃ¡ listo para eliminar inventario. ReintentÃ¡ en unos segundos.'
+          );
+        }
+
         await deleteBackendInventoryItem(user, id);
+        setInventorySource('backend');
         setInventory(prev => prev.filter(product => product.id !== id));
         return;
       }
@@ -704,17 +706,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const path = `inventory/${id}`;
       await deleteDoc(doc(db, 'inventory', id));
     } catch (error) {
-      if (canUseBackendInventory) {
-        console.warn('Backend inventory delete failed, falling back to Firestore.', error);
-        setInventorySource('firestore');
-        const path = `inventory/${id}`;
-        try {
-          await deleteDoc(doc(db, 'inventory', id));
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.DELETE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
 
       const path = `inventory/${id}`;
