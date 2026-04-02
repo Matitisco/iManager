@@ -44,7 +44,7 @@ function AppContent() {
     return <Onboarding />;
   }
 
-  const showBackendBanner = backendStatus !== 'ready';
+  const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
   const showOnboardingBanner = backendStatus === 'ready' && !!appSession?.onboardingRequired;
   const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
 
