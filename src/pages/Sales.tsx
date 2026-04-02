@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, ChevronRight, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-import { Sale } from '../types';
+import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { Client, Product, Sale } from '../types';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatCurrency, getInitials } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -19,7 +20,7 @@ const item: Variants = {
 };
 
 export const Sales: React.FC = () => {
-  const { sales, deleteSale } = useAppContext();
+  const { sales, clients, inventory, deleteSale } = useAppContext();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
@@ -28,6 +29,9 @@ export const Sales: React.FC = () => {
   const [filterModel, setFilterModel] = useState<string>('Todos');
   const [filterPayment, setFilterPayment] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+
+  const getClient = (clientId: string): Client | undefined => clients.find((client) => client.id === clientId);
+  const getProduct = (productId: string): Product | undefined => inventory.find((product) => product.id === productId);
 
   const uniqueClients = Array.from(new Set(sales.map(s => s.clientId))).sort();
   const uniqueModels = Array.from(new Set(sales.map(s => s.productId))).sort();
@@ -41,24 +45,46 @@ export const Sales: React.FC = () => {
     return true;
   });
 
+  const totalRevenue = sales.reduce((sum, sale) => sum + sale.amount, 0);
+  const averageTicket = sales.length > 0 ? totalRevenue / sales.length : 0;
+  const totalMarginAmount = sales.reduce((sum, sale) => {
+    const product = getProduct(sale.productId);
+    return sum + (product ? sale.amount - product.cost : 0);
+  }, 0);
+  const marginRate = totalRevenue > 0 ? (totalMarginAmount / totalRevenue) * 100 : 0;
+
+  const selectedClient = selectedSale ? getClient(selectedSale.clientId) : undefined;
+  const selectedProduct = selectedSale ? getProduct(selectedSale.productId) : undefined;
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col lg:flex-row gap-6 flex-1 relative">
       <div className="flex-1 flex flex-col space-y-6">
-        {/* Stats */}
+        <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+          <p className="text-sm font-semibold">Modo tester:</p>
+          <p className="text-sm mt-1">
+            Esta pantalla ya usa datos reales de clientes, productos e importes. Todavía no genera ticket/PDF y la edición quedó limitada a seguimiento para no romper consistencia de negocio.
+          </p>
+        </motion.div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <motion.div variants={item}><StatCard title="VENTAS TOTALES MES" value="$125.400,00" trend="+12.5%" icon={<TrendingUp size={16} className="text-emerald-500" />} /></motion.div>
-          <motion.div variants={item}><StatCard title="TICKET PROMEDIO" value="$850,00" trend="-2.1%" trendDown icon={<BarChart size={16} className="text-gray-400" />} /></motion.div>
-          <motion.div variants={item}><StatCard title="MARGEN TOTAL" value="24.5%" trend="+5.0%" /></motion.div>
+          <motion.div variants={item}>
+            <StatCard title="FACTURACIÓN TOTAL" value={formatCurrency(totalRevenue)} trend={`${sales.length} ventas`} icon={<TrendingUp size={16} className="text-emerald-500" />} />
+          </motion.div>
+          <motion.div variants={item}>
+            <StatCard title="TICKET PROMEDIO" value={formatCurrency(averageTicket)} trend={sales.length > 0 ? 'Datos reales' : 'Sin ventas'} icon={<BarChart size={16} className="text-gray-400" />} />
+          </motion.div>
+          <motion.div variants={item}>
+            <StatCard title="MARGEN BRUTO ESTIMADO" value={`${marginRate.toFixed(1)}%`} trend={formatCurrency(totalMarginAmount)} />
+          </motion.div>
         </div>
 
-        {/* Table */}
         <motion.div variants={item} className="bg-white border border-gray-200 rounded-2xl flex-1 flex flex-col">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white rounded-t-2xl z-10 relative">
-            <h2 className="text-lg font-bold text-gray-900">Ventas Recientes</h2>
+            <h2 className="text-lg font-bold text-gray-900">Ventas Registradas</h2>
             <div className="flex items-center gap-2">
-              <button className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 flex items-center gap-2 hover:bg-gray-50 transition-colors bg-white">
-                Últimos 30 días
-              </button>
+              <span className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white">
+                {filteredSales.length} resultado{filteredSales.length === 1 ? '' : 's'}
+              </span>
               <div className="relative">
                 <motion.button 
                   whileHover={{ scale: 1.02 }} 
@@ -96,65 +122,43 @@ export const Sales: React.FC = () => {
                         </button>
                       </div>
                       <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</label>
-                          <select
-                            value={filterDate}
-                            onChange={(e) => setFilterDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                          >
-                            <option value="Todas">Todas</option>
-                            {Array.from(new Set(sales.map(s => s.date))).sort().map(date => (
-                              <option key={date} value={date}>{date}</option>
-                            ))}
-                          </select>
-                        </div>
+                        <FilterField label="Fecha" value={filterDate} onChange={setFilterDate}>
+                          <option value="Todas">Todas</option>
+                          {Array.from(new Set(sales.map(s => s.date))).sort().map(date => (
+                            <option key={date} value={date}>{date}</option>
+                          ))}
+                        </FilterField>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</label>
-                          <select
-                            value={filterClient}
-                            onChange={(e) => setFilterClient(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                          >
-                            <option value="Todos">Todos</option>
-                            {uniqueClients.map(client => (
-                              <option key={client} value={client}>
-                                {client === '1' ? 'Juan Pérez' : client === '2' ? 'María García' : client === '3' ? 'Pedro Sánchez' : client === '4' ? 'Elena Martínez' : 'Roberto Jiménez'}
+                        <FilterField label="Cliente" value={filterClient} onChange={setFilterClient}>
+                          <option value="Todos">Todos</option>
+                          {uniqueClients.map(clientId => {
+                            const client = getClient(clientId);
+                            return (
+                              <option key={clientId} value={clientId}>
+                                {client ? `${client.name} (${client.dni})` : `Cliente ${clientId}`}
                               </option>
-                            ))}
-                          </select>
-                        </div>
+                            );
+                          })}
+                        </FilterField>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Modelo</label>
-                          <select
-                            value={filterModel}
-                            onChange={(e) => setFilterModel(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                          >
-                            <option value="Todos">Todos</option>
-                            {uniqueModels.map(model => (
-                              <option key={model} value={model}>
-                                {model === '1' ? 'iPhone 15 Pro Max' : model === '2' ? 'iPhone 14' : model === '3' ? 'iPhone 15 Pro' : model === '4' ? 'iPhone 13' : 'iPhone 15'}
+                        <FilterField label="Modelo" value={filterModel} onChange={setFilterModel}>
+                          <option value="Todos">Todos</option>
+                          {uniqueModels.map(productId => {
+                            const product = getProduct(productId);
+                            return (
+                              <option key={productId} value={productId}>
+                                {product ? `${product.model} - ${product.capacity}` : `Producto ${productId}`}
                               </option>
-                            ))}
-                          </select>
-                        </div>
+                            );
+                          })}
+                        </FilterField>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Método de Pago</label>
-                          <select
-                            value={filterPayment}
-                            onChange={(e) => setFilterPayment(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                          >
-                            <option value="Todos">Todos</option>
-                            {uniquePayments.map(payment => (
-                              <option key={payment} value={payment}>{payment}</option>
-                            ))}
-                          </select>
-                        </div>
+                        <FilterField label="Método de Pago" value={filterPayment} onChange={setFilterPayment}>
+                          <option value="Todos">Todos</option>
+                          {uniquePayments.map(payment => (
+                            <option key={payment} value={payment}>{payment}</option>
+                          ))}
+                        </FilterField>
                       </div>
                     </motion.div>
                   )}
@@ -162,6 +166,7 @@ export const Sales: React.FC = () => {
               </div>
             </div>
           </div>
+
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50/50">
@@ -170,56 +175,66 @@ export const Sales: React.FC = () => {
                   <th className="px-6 py-4">Fecha</th>
                   <th className="px-6 py-4">Cliente</th>
                   <th className="px-6 py-4">Modelo / IMEI</th>
+                  <th className="px-6 py-4">Monto</th>
                   <th className="px-6 py-4">Pago</th>
                   <th className="px-6 py-4 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredSales.map((sale) => (
-                  <tr 
-                    key={sale.id} 
-                    className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
-                  >
-                    <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
-                    <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                      {sale.clientId === '1' ? 'Juan Pérez' : sale.clientId === '2' ? 'María García' : sale.clientId === '3' ? 'Pedro Sánchez' : sale.clientId === '4' ? 'Elena Martínez' : 'Roberto Jiménez'}
-                    </td>
-                    <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                      <div className="font-bold text-gray-900">
-                        {sale.productId === '1' ? 'iPhone 15 Pro Max' : sale.productId === '2' ? 'iPhone 14' : sale.productId === '3' ? 'iPhone 15 Pro' : sale.productId === '4' ? 'iPhone 13' : 'iPhone 15'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">IMEI: 354678129034567</div>
-                    </td>
-                    <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                      <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
-                        sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
-                        sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {sale.paymentMethod}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ActionMenu 
-                          onEdit={() => setEditingSale(sale)} 
-                          onDelete={() => setSaleToDelete(sale.id)} 
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredSales.map((sale) => {
+                  const client = getClient(sale.clientId);
+                  const product = getProduct(sale.productId);
+
+                  return (
+                    <tr 
+                      key={sale.id} 
+                      className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
+                    >
+                      <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
+                      <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
+                      <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        {client?.name || 'Cliente eliminado'}
+                      </td>
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <div className="font-bold text-gray-900">
+                          {product ? `${product.model} ${product.capacity}` : 'Producto eliminado'}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          IMEI: {product?.imei || 'No disponible'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        {formatCurrency(sale.amount)}
+                      </td>
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
+                          sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
+                          sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {sale.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ActionMenu 
+                            onEdit={() => setEditingSale(sale)} 
+                            onDelete={() => setSaleToDelete(sale.id)} 
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="p-4 border-t border-gray-200 text-sm text-gray-500 bg-white rounded-b-2xl">
-            Mostrando {filteredSales.length} ventas
+            Mostrando {filteredSales.length} venta{filteredSales.length === 1 ? '' : 's'}
           </div>
         </motion.div>
       </div>
 
-      {/* Slide-over Details */}
       <AnimatePresence>
         {selectedSale && (
           <motion.div 
@@ -246,79 +261,71 @@ export const Sales: React.FC = () => {
             </div>
 
             <div className="p-6 flex-1 overflow-y-auto space-y-8">
-              {/* Cliente */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Información del Cliente</h3>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-medium">
-                    JP
+                    {getInitials(selectedClient?.name || 'Cliente')}
                   </div>
                   <div>
-                    <div className="font-bold text-gray-900">Juan Pérez</div>
-                    <div className="text-sm text-gray-500">juan.perez@email.com</div>
-                    <div className="text-sm text-gray-500">+54 11 4455-6677</div>
+                    <div className="font-bold text-gray-900">{selectedClient?.name || 'Cliente eliminado'}</div>
+                    <div className="text-sm text-gray-500">{selectedClient?.email || 'Sin email'}</div>
+                    <div className="text-sm text-gray-500">{selectedClient?.phone || 'Sin teléfono'}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Producto */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Producto Vendido</h3>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <div className="font-bold text-gray-900">iPhone 15 Pro Max</div>
-                    <div className="font-black text-gray-900">${selectedSale.amount.toLocaleString()}</div>
+                    <div className="font-bold text-gray-900">
+                      {selectedProduct ? `${selectedProduct.model} ${selectedProduct.capacity}` : 'Producto eliminado'}
+                    </div>
+                    <div className="font-black text-gray-900">{formatCurrency(selectedSale.amount)}</div>
                   </div>
-                  <div className="text-sm text-gray-500 mb-2">Capacidad: 256GB • Color: Titanio Natural</div>
+                  <div className="text-sm text-gray-500 mb-2">
+                    {selectedProduct ? `Color: ${selectedProduct.color} • Estado: ${selectedProduct.condition}` : 'No hay metadata disponible'}
+                  </div>
                   <div className="flex justify-between items-center">
-                    <div className="text-xs text-gray-400">IMEI: 354678129034567</div>
-                    <div className="text-xs font-bold text-emerald-600">Stock: Disponible</div>
+                    <div className="text-xs text-gray-400">IMEI: {selectedProduct?.imei || 'No disponible'}</div>
+                    <div className="text-xs font-bold text-emerald-600">Pago {selectedSale.status.toLowerCase()}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Desglose */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Desglose de Pago</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>${(selectedSale.amount * 0.79).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>{formatCurrency(selectedSale.amount)}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
-                    <span>IVA (21%)</span>
-                    <span>${(selectedSale.amount * 0.21).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>Método</span>
+                    <span>{selectedSale.paymentMethod}</span>
                   </div>
                   <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100 mt-2">
                     <span>Total Cobrado</span>
-                    <span>${selectedSale.amount.toLocaleString()}</span>
+                    <span>{formatCurrency(selectedSale.amount)}</span>
                   </div>
                 </div>
                 <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex gap-2 items-start">
                   <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
                   <span className="text-xs text-emerald-700 font-medium leading-relaxed">
-                    Pago verificado vía {selectedSale.paymentMethod}
+                    Venta asociada a datos reales del cliente y del inventario actual.
                   </span>
                 </div>
-              </div>
-
-              {/* Notas */}
-              <div>
-                <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Notas Internas</h3>
-                <textarea 
-                  className="w-full bg-gray-50 border-none rounded-xl p-3 text-sm text-gray-900 placeholder-gray-400 resize-none h-24 focus:ring-2 focus:ring-black outline-none transition-shadow"
-                  placeholder="Agregar una nota sobre esta venta..."
-                ></textarea>
               </div>
             </div>
 
             <div className="p-4 border-t border-gray-200 flex gap-3 bg-white">
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
-                <Printer size={16} /> Ticket
-              </motion.button>
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-2.5 bg-black text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors">
-                <Share2 size={16} /> Enviar PDF
-              </motion.button>
+              <button className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-400 flex items-center justify-center gap-2 cursor-not-allowed" disabled>
+                <Printer size={16} /> Ticket (próximamente)
+              </button>
+              <button className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-not-allowed" disabled>
+                <Share2 size={16} /> PDF (próximamente)
+              </button>
             </div>
           </motion.div>
         )}
@@ -333,7 +340,7 @@ export const Sales: React.FC = () => {
       <ConfirmModal
         isOpen={!!saleToDelete}
         title="Eliminar Venta"
-        message="¿Está seguro de que desea eliminar esta venta? Esta acción no se puede deshacer."
+        message="¿Está seguro de que desea eliminar esta venta? Se revertirá el stock del producto y el total gastado del cliente."
         onConfirm={() => {
           if (saleToDelete) {
             deleteSale(saleToDelete);
@@ -344,6 +351,29 @@ export const Sales: React.FC = () => {
     </motion.div>
   );
 };
+
+const FilterField = ({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+    >
+      {children}
+    </select>
+  </div>
+);
 
 const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -366,14 +396,14 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+              className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
             >
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
               >
                 <Edit2 size={14} />
-                Editar
+                Editar seguimiento
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
@@ -390,7 +420,7 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
   );
 };
 
-const StatCard = ({ title, value, trend, trendDown = false, icon }: any) => (
+const StatCard = ({ title, value, trend, icon }: any) => (
   <motion.div 
     whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
     className="bg-white p-5 rounded-2xl border border-gray-200 h-full transition-shadow cursor-default"
@@ -401,29 +431,18 @@ const StatCard = ({ title, value, trend, trendDown = false, icon }: any) => (
     </div>
     <div className="text-3xl font-black text-gray-900 mb-2">{value}</div>
     <div className="flex items-center gap-1.5">
-      <span className={`text-xs font-bold ${trendDown ? 'text-red-600' : 'text-emerald-600'}`}>
-        {trend}
-      </span>
-      <span className="text-xs text-gray-400 font-medium">vs. mes anterior</span>
+      <span className="text-xs font-bold text-gray-500">{trend}</span>
     </div>
   </motion.div>
 );
 
 const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) => {
-  const { updateSale, clients, inventory } = useAppContext();
+  const { updateSale } = useAppContext();
   const [formData, setFormData] = useState<Sale>(sale);
 
   useEffect(() => {
     setFormData(sale);
   }, [sale]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'amount' ? Number(value) : value
-    }));
-  };
 
   const handleSave = () => {
     updateSale(formData);
@@ -452,7 +471,7 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
               <Edit2 size={18} className="text-gray-900" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Editar Venta</h2>
+              <h2 className="text-lg font-bold text-gray-900">Editar Seguimiento</h2>
               <p className="text-xs text-gray-500 font-mono">{sale.id}</p>
             </div>
           </div>
@@ -465,68 +484,37 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cliente</label>
-              <select
-                name="clientId"
-                value={formData.clientId}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
-              >
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name} ({c.dni})</option>)}
-              </select>
-            </div>
+          <div className="rounded-xl border border-gray-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Para no desalinear stock y métricas, en esta etapa sólo permitimos actualizar método de pago y estado operativo de la venta.
+          </div>
 
-            <div className="col-span-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Producto</label>
-              <select
-                name="productId"
-                value={formData.productId}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
-              >
-                {inventory.map(p => <option key={p.id} value={p.id}>{p.model} - {p.capacity} ({p.imei})</option>)}
-              </select>
-            </div>
-
-            <div className="col-span-1">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Monto</label>
-              <input
-                type="number"
-                name="amount"
-                value={formData.amount}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
-              />
-            </div>
-
-            <div className="col-span-1">
+          <div className="grid grid-cols-1 gap-4">
+            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Método de Pago</label>
               <select
                 name="paymentMethod"
                 value={formData.paymentMethod}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value as Sale['paymentMethod'] }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
               >
                 <option value="TRANSFERENCIA">TRANSFERENCIA</option>
                 <option value="EFECTIVO">EFECTIVO</option>
                 <option value="TARJETA">TARJETA</option>
                 <option value="CANJE / PAGO">CANJE / PAGO</option>
+                <option value="T. Crédito">T. Crédito</option>
               </select>
             </div>
 
-            <div className="col-span-2">
+            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
               <select
                 name="status"
                 value={formData.status}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Sale['status'] }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
               >
                 <option value="COMPLETADA">COMPLETADA</option>
                 <option value="PENDIENTE">PENDIENTE</option>
-                <option value="CANCELADA">CANCELADA</option>
               </select>
             </div>
           </div>

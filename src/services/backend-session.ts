@@ -1,0 +1,63 @@
+import type { User } from 'firebase/auth';
+import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+
+export function getBackendBaseUrl() {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (!baseUrl) return null;
+  return trimTrailingSlash(baseUrl);
+}
+
+export async function fetchBackendSession(user: User): Promise<{
+  status: BackendConnectionStatus;
+  session: AppSession | null;
+  message: string | null;
+}> {
+  const baseUrl = getBackendBaseUrl();
+
+  if (!baseUrl) {
+    return {
+      status: 'unconfigured',
+      session: null,
+      message: 'Backend no configurado. La app sigue funcionando con el flujo local actual.',
+    };
+  }
+
+  try {
+    const token = await user.getIdToken();
+
+    const response = await fetch(`${baseUrl}/api/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      return {
+        status: 'error',
+        session: null,
+        message: body?.error || `Backend respondió ${response.status}`,
+      };
+    }
+
+    const data = (await response.json()) as AppSessionResponse;
+
+    return {
+      status: 'ready',
+      session: data,
+      message: data.onboardingRequired
+        ? 'El backend está activo, pero el usuario todavía no tiene una tienda/membresía asignada.'
+        : null,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      status: 'offline',
+      session: null,
+      message: `No se pudo conectar al backend: ${message}`,
+    };
+  }
+}

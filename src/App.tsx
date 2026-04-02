@@ -22,7 +22,7 @@ import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
 
 function AppContent() {
-  const { user, loading } = useAppContext();
+  const { user, loading, appSession, backendStatus, backendMessage } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,6 +38,10 @@ function AppContent() {
   if (!user) {
     return <Login />;
   }
+
+  const showBackendBanner = backendStatus !== 'ready';
+  const showOnboardingBanner = backendStatus === 'ready' && !!appSession?.onboardingRequired;
+  const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
 
   const handleNavigate = (tab: string, subTab?: string) => {
     setActiveTab(tab);
@@ -99,12 +103,52 @@ function AppContent() {
 
   return (
     <>
-      <Layout activeTab={activeTab} setActiveTab={handleNavigate} actionLabel={getActionLabel()} onNewAction={handleNewAction}>
-        {renderContent()}
-      </Layout>
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-        {renderModalContent()}
-      </Modal>
+      {(showBackendBanner || showOnboardingBanner) && (
+        <div className="fixed top-0 left-0 right-0 z-[100]">
+          {showBackendBanner && (
+            <div
+              className={`px-4 py-3 text-sm border-b ${
+                backendStatus === 'unconfigured'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : backendStatus === 'offline'
+                    ? 'bg-red-50 border-red-200 text-red-900'
+                    : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+            >
+              <div className="max-w-7xl mx-auto">
+                <strong className="font-semibold">
+                  {backendStatus === 'unconfigured'
+                    ? 'Modo local activo'
+                    : backendStatus === 'offline'
+                      ? 'Backend no disponible'
+                      : 'Backend en estado intermedio'}
+                </strong>
+                <span className="ml-2">
+                  {backendMessage || 'La sesión de aplicación todavía no está completamente resuelta.'}
+                </span>
+              </div>
+            </div>
+          )}
+          {showOnboardingBanner && (
+            <div className="px-4 py-3 text-sm border-b bg-blue-50 border-blue-200 text-blue-900">
+              <div className="max-w-7xl mx-auto">
+                <strong className="font-semibold">Onboarding requerido</strong>
+                <span className="ml-2">
+                  Tu usuario ya está autenticado, pero todavía no tiene una tienda o membresía asignada en Postgres.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div className={topPaddingClass}>
+        <Layout activeTab={activeTab} setActiveTab={handleNavigate} actionLabel={getActionLabel()} onNewAction={handleNewAction}>
+          {renderContent()}
+        </Layout>
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
+          {renderModalContent()}
+        </Modal>
+      </div>
     </>
   );
 }
@@ -116,5 +160,3 @@ export default function App() {
     </AppProvider>
   );
 }
-
-

@@ -116,6 +116,12 @@ export const Notifications: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-4xl mx-auto space-y-6"
     >
+      <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+        <p className="text-sm font-semibold">Módulo en preview:</p>
+        <p className="text-sm mt-1">
+          Estas notificaciones todavía son locales/mock. Sirven para revisar UI, no para validar eventos reales del sistema.
+        </p>
+      </div>
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

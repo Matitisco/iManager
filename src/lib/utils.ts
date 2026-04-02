@@ -23,3 +23,20 @@ export function formatCompactNumber(number: number, isCurrency: boolean = false)
   
   return isCurrency ? `$${formatted}` : formatted;
 }
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+export function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}

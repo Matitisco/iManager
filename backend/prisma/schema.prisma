@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  firebaseUid  String        @unique
+  email        String?       @db.VarChar(255)
+  displayName  String?       @db.VarChar(255)
+  avatarUrl    String?       @db.Text
+  status       UserStatus    @default(ACTIVE)
+  memberships  StoreMember[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Store {
+  id          String        @id @default(cuid())
+  name        String        @db.VarChar(120)
+  legalName   String?       @db.VarChar(160)
+  taxId       String?       @db.VarChar(50)
+  phone       String?       @db.VarChar(50)
+  address     String?       @db.VarChar(255)
+  currency    String        @default("ARS") @db.VarChar(10)
+  timezone    String        @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
+  memberships StoreMember[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model StoreMember {
+  id        String    @id @default(cuid())
+  storeId   String
+  userId    String
+  role      StoreRole
+  isDefault Boolean   @default(false)
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([storeId, userId])
+}
+
+model Client {
+  id             String    @id @default(cuid())
+  storeId        String
+  dni            String    @db.VarChar(50)
+  name           String    @db.VarChar(120)
+  email          String?   @db.VarChar(255)
+  phone          String?   @db.VarChar(50)
+  lastPurchaseAt DateTime?
+  totalSpent     Decimal   @default(0) @db.Decimal(12, 2)
+  pendingBalance Decimal   @default(0) @db.Decimal(12, 2)
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([storeId])
+  @@unique([storeId, dni])
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum StoreRole {
+  OWNER
+  ADMIN
+  SELLER
+}

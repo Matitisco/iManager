@@ -2,7 +2,10 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Product, Sale, TradeIn, Client, CustomColumn } from '../types';
 import { auth, db, googleProvider } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, query, getDocs, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { fetchBackendSession } from '../services/backend-session';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
+import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
   inventory: Product[];
@@ -26,6 +29,9 @@ interface AppState {
   removeCustomColumn: (id: string) => Promise<void>;
   user: User | null;
   loading: boolean;
+  appSession: AppSession | null;
+  backendStatus: BackendConnectionStatus;
+  backendMessage: string | null;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -83,6 +89,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [appSession, setAppSession] = useState<AppSession | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
+  const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const [clientsSource, setClientsSource] = useState<'firestore' | 'backend'>('firestore');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -99,8 +109,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTradeIns([]);
       setClients([]);
       setCustomColumns([]);
+      setAppSession(null);
+      setBackendStatus('checking');
+      setBackendMessage(null);
+      setClientsSource('firestore');
       return;
     }
+
+    let cancelled = false;
+
+    setBackendStatus('checking');
+    setBackendMessage(null);
+
+    fetchBackendSession(user).then(({ status, session, message }) => {
+      if (cancelled) return;
+      setBackendStatus(status);
+      setAppSession(session);
+      setBackendMessage(message);
+    });
 
     const unsubInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
       setInventory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
@@ -114,22 +140,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
 
-    const unsubClients = onSnapshot(collection(db, 'clients'), (snapshot) => {
-      setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
-
     const unsubCustomColumns = onSnapshot(collection(db, 'customColumns'), (snapshot) => {
       setCustomColumns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomColumn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'customColumns'));
 
     return () => {
+      cancelled = true;
       unsubInventory();
       unsubSales();
       unsubTradeIns();
-      unsubClients();
       unsubCustomColumns();
     };
   }, [user]);
+
+  const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribeFirestore: (() => void) | null = null;
+
+    const startFirestoreFallback = () => {
+      setClientsSource('firestore');
+      unsubscribeFirestore = onSnapshot(collection(db, 'clients'), (snapshot) => {
+        setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
+    };
+
+    const loadBackendClients = async () => {
+      try {
+        const backendClients = await fetchBackendClients(user);
+        if (cancelled) return;
+        setClients(backendClients);
+        setClientsSource('backend');
+      } catch (error) {
+        if (cancelled) return;
+        console.warn('Backend clients unavailable, falling back to Firestore.', error);
+        startFirestoreFallback();
+      }
+    };
+
+    if (backendClientsEnabled) {
+      void loadBackendClients();
+    } else {
+      startFirestoreFallback();
+    }
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
+  }, [backendClientsEnabled, user]);
 
   const login = async () => {
     try {
@@ -204,6 +270,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) return;
     const path = `sales/${id}`;
     try {
+      const existingSale = sales.find((sale) => sale.id === id);
+
+      if (existingSale?.productId) {
+        await updateDoc(doc(db, 'inventory', existingSale.productId), { status: 'DISPONIBLE' });
+      }
+
+      if (existingSale?.clientId) {
+        const client = clients.find(c => c.id === existingSale.clientId);
+        const remainingClientSales = sales.filter(
+          (sale) => sale.clientId === existingSale.clientId && sale.id !== id
+        );
+
+        if (client) {
+          await updateDoc(doc(db, 'clients', existingSale.clientId), {
+            totalSpent: Math.max(0, (client.totalSpent || 0) - existingSale.amount),
+            lastPurchaseDate: remainingClientSales[0]?.date || 'N/A'
+          });
+        }
+      }
+
       await deleteDoc(doc(db, 'sales', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
@@ -244,32 +330,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) return;
-    const id = generateId('C');
-    const path = `clients/${id}`;
+    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
     try {
+      if (canUseBackendClients) {
+        const createdClient = await createBackendClient(user, clientData);
+        setClients(prev => [createdClient, ...prev]);
+        return;
+      }
+
+      const id = generateId('C');
+      const path = `clients/${id}`;
       await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
     } catch (error) {
+      if (canUseBackendClients) {
+        console.warn('Backend client create failed, falling back to Firestore.', error);
+        setClientsSource('firestore');
+        const id = generateId('C');
+        const path = `clients/${id}`;
+        try {
+          await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.CREATE, path);
+          return;
+        }
+      }
+
+      const id = generateId('C');
+      const path = `clients/${id}`;
       handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 
   const updateClient = async (updatedClient: Client) => {
     if (!user) return;
-    const path = `clients/${updatedClient.id}`;
+    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
     try {
+      if (canUseBackendClients) {
+        const backendClient = await updateBackendClient(user, updatedClient);
+        setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
+        return;
+      }
+
+      const path = `clients/${updatedClient.id}`;
       const { id, ...data } = updatedClient;
       await updateDoc(doc(db, 'clients', id), data as any);
     } catch (error) {
+      if (canUseBackendClients) {
+        console.warn('Backend client update failed, falling back to Firestore.', error);
+        setClientsSource('firestore');
+        const path = `clients/${updatedClient.id}`;
+        try {
+          const { id, ...data } = updatedClient;
+          await updateDoc(doc(db, 'clients', id), data as any);
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
+          return;
+        }
+      }
+
+      const path = `clients/${updatedClient.id}`;
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
   const deleteClient = async (id: string) => {
     if (!user) return;
-    const path = `clients/${id}`;
+    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
     try {
+      if (canUseBackendClients) {
+        await deleteBackendClient(user, id);
+        setClients(prev => prev.filter(client => client.id !== id));
+        return;
+      }
+
+      const path = `clients/${id}`;
       await deleteDoc(doc(db, 'clients', id));
     } catch (error) {
+      if (canUseBackendClients) {
+        console.warn('Backend client delete failed, falling back to Firestore.', error);
+        setClientsSource('firestore');
+        const path = `clients/${id}`;
+        try {
+          await deleteDoc(doc(db, 'clients', id));
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.DELETE, path);
+          return;
+        }
+      }
+
+      const path = `clients/${id}`;
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   };
@@ -343,7 +495,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addClient, updateClient, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
-      user, loading, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>

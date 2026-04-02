@@ -34,6 +34,12 @@ const salesData = [
 export const Reports: React.FC = () => {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+        <p className="text-sm font-semibold">Módulo en preview:</p>
+        <p className="text-sm mt-1">
+          Estos gráficos siguen en modo demo. No uses esta pantalla como validación funcional del backend durante el testing inicial.
+        </p>
+      </motion.div>
       {/* Header Info */}
       <motion.div variants={item} className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>

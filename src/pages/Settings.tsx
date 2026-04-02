@@ -437,6 +437,12 @@ export const Settings: React.FC<SettingsProps> = ({
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
+      <motion.div variants={item} className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+        <p className="text-sm font-semibold">Módulo en preview:</p>
+        <p className="text-sm mt-1">
+          Configuración, billing e integraciones todavía no persisten cambios reales. Para el primer tester conviene tratarlos como UI de referencia.
+        </p>
+      </motion.div>
       <motion.div variants={item} className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Configuración</h1>
         <p className="text-gray-500 text-sm">Administra las preferencias y ajustes de tu cuenta.</p>

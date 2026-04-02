@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, MoreVertical, ChevronDown, ChevronUp, ChevronRight, X, Edit2, Trash2 } from 'lucide-react';
+import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, MoreVertical, ChevronDown, ChevronUp, X, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
+import { Client, TradeIn } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatCurrency } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -18,12 +20,16 @@ const item: Variants = {
 };
 
 export const TradeIns: React.FC = () => {
-  const { tradeIns, deleteTradeIn } = useAppContext();
+  const { tradeIns, clients, deleteTradeIn } = useAppContext();
   const [filterDate, setFilterDate] = useState<string>('Todas');
   const [filterClient, setFilterClient] = useState<string>('Todos');
   const [filterDevice, setFilterDevice] = useState<string>('Todos');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedTradeIn, setSelectedTradeIn] = useState<TradeIn | null>(null);
+  const [tradeInToDelete, setTradeInToDelete] = useState<string | null>(null);
+
+  const getClient = (clientId: string): Client | undefined => clients.find((client) => client.id === clientId);
 
   const uniqueClients = Array.from(new Set(tradeIns.map(t => t.clientId))).sort();
   const uniqueDevices = Array.from(new Set(tradeIns.map(t => t.deviceReceived))).sort();
@@ -36,68 +42,60 @@ export const TradeIns: React.FC = () => {
     if (filterStatus !== 'Todos' && trade.status !== filterStatus) return false;
     return true;
   });
-  const [selectedTradeIn, setSelectedTradeIn] = useState<any>(null);
-  const [tradeInToDelete, setTradeInToDelete] = useState<string | null>(null);
+
+  const pendingTradeIns = tradeIns.filter(trade => ['PENDIENTE', 'EN REVISIÓN', 'PERITAJE TÉC.', 'LISTO'].includes(trade.status)).length;
+  const totalTakeValue = tradeIns.reduce((sum, trade) => sum + trade.takeValue, 0);
+  const averageDifference = tradeIns.length > 0 ? tradeIns.reduce((sum, trade) => sum + trade.differencePaid, 0) / tradeIns.length : 0;
+  const approvedTradeIns = tradeIns.filter(trade => trade.status === 'APROBADO').length;
+  const approvalRate = tradeIns.length > 0 ? (approvedTradeIns / tradeIns.length) * 100 : 0;
+  const highlightedTradeIns = useMemo(() => tradeIns.slice(0, 3), [tradeIns]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div variants={item}><StatCard title="CANJES EN EVALUACIÓN" value="12" trend="+5%" icon={<AlertCircle size={16} className="text-amber-500" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="VALOR RECIBIDO (MES)" value="$15,400" trend="-2%" trendDown icon={<Banknote size={16} className="text-emerald-500" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="PROMEDIO DIFERENCIA" value="$1,250" trend="+8%" icon={<Calculator size={16} className="text-blue-500" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="TASA APROBACIÓN" value="84%" trend="+1%" icon={<CheckCircle2 size={16} className="text-gray-900" />} /></motion.div>
-      </div>
-
-      {/* Evaluaciones en Curso */}
-      <motion.div variants={item}>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <h2 className="text-lg font-bold text-gray-900">Evaluaciones en Curso</h2>
-          <div className="flex flex-wrap gap-2">
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-2 transition-colors">
-              Grado B <Filter size={14} />
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-2 transition-colors">
-              Todos los modelos <Filter size={14} />
-            </motion.button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <EvaluationCard 
-            model="iPhone 13 Pro" 
-            status="EN REVISIÓN" 
-            battery="88%" 
-            grade="Grado B" 
-            price="$450.00" 
-            imgColor="bg-gray-800"
-          />
-          <EvaluationCard 
-            model="iPhone 12 128GB" 
-            status="LISTO" 
-            battery="92%" 
-            grade="Grado A" 
-            price="$320.00" 
-            imgColor="bg-blue-800"
-          />
-          <EvaluationCard 
-            model="iPhone 14 Pro Max" 
-            status="PERITAJE TÉC." 
-            battery="95%" 
-            grade="Grado A+" 
-            price="$780.00" 
-            imgColor="bg-yellow-200"
-          />
-        </div>
+      <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
+        <p className="text-sm font-semibold">Modo tester:</p>
+        <p className="text-sm mt-1">
+          El historial de canjes ya usa datos reales. La franja superior ahora toma casos reales recientes, pero todavía no existe un workflow avanzado de peritaje ni exportación.
+        </p>
       </motion.div>
 
-      {/* Historial */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div variants={item}><StatCard title="CANJES EN EVALUACIÓN" value={String(pendingTradeIns)} trend={`${tradeIns.length} totales`} icon={<AlertCircle size={16} className="text-amber-500" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="VALOR RECIBIDO" value={formatCurrency(totalTakeValue)} trend="Datos reales" icon={<Banknote size={16} className="text-emerald-500" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="PROMEDIO DIFERENCIA" value={formatCurrency(averageDifference)} trend="Datos reales" icon={<Calculator size={16} className="text-blue-500" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="TASA APROBACIÓN" value={`${approvalRate.toFixed(0)}%`} trend={`${approvedTradeIns} aprobados`} icon={<CheckCircle2 size={16} className="text-gray-900" />} /></motion.div>
+      </div>
+
+      <motion.div variants={item}>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+          <h2 className="text-lg font-bold text-gray-900">Canjes recientes</h2>
+          <span className="text-sm text-gray-500">Los cards muestran registros cargados en Firestore.</span>
+        </div>
+        {highlightedTradeIns.length === 0 ? (
+          <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-8 text-center text-gray-500">
+            Todavía no hay canjes registrados para mostrar.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {highlightedTradeIns.map((trade) => (
+              <EvaluationCard
+                key={trade.id}
+                trade={trade}
+                client={getClient(trade.clientId)}
+                onOpen={() => setSelectedTradeIn(trade)}
+              />
+            ))}
+          </div>
+        )}
+      </motion.div>
+
       <motion.div variants={item} className="bg-white border border-gray-200 rounded-2xl">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white rounded-t-2xl z-10 relative">
           <h2 className="text-lg font-bold text-gray-900">Historial de Canjes</h2>
           <div className="flex items-center gap-2">
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors bg-white">
+            <button className="p-2 border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed bg-white" disabled>
               <Download size={18} />
-            </motion.button>
+            </button>
             <div className="relative">
               <motion.button 
                 whileHover={{ scale: 1.02 }} 
@@ -135,63 +133,38 @@ export const TradeIns: React.FC = () => {
                       </button>
                     </div>
                     <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</label>
-                        <select
-                          value={filterDate}
-                          onChange={(e) => setFilterDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                        >
-                          <option value="Todas">Todas</option>
-                          {Array.from(new Set(tradeIns.map(t => t.date))).sort().map(date => (
-                            <option key={date} value={date}>{date}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <FilterField label="Fecha" value={filterDate} onChange={setFilterDate}>
+                        <option value="Todas">Todas</option>
+                        {Array.from(new Set(tradeIns.map(t => t.date))).sort().map(date => (
+                          <option key={date} value={date}>{date}</option>
+                        ))}
+                      </FilterField>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</label>
-                        <select
-                          value={filterClient}
-                          onChange={(e) => setFilterClient(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                        >
-                          <option value="Todos">Todos</option>
-                          {uniqueClients.map(client => (
-                            <option key={client} value={client}>
-                              {client === '1' ? 'Andrés Mendoza' : client === '2' ? 'Lucía Fernandini' : 'Roberto Gómez'}
+                      <FilterField label="Cliente" value={filterClient} onChange={setFilterClient}>
+                        <option value="Todos">Todos</option>
+                        {uniqueClients.map(clientId => {
+                          const client = getClient(clientId);
+                          return (
+                            <option key={clientId} value={clientId}>
+                              {client ? `${client.name} (${client.dni})` : `Cliente ${clientId}`}
                             </option>
-                          ))}
-                        </select>
-                      </div>
+                          );
+                        })}
+                      </FilterField>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Equipo Recibido</label>
-                        <select
-                          value={filterDevice}
-                          onChange={(e) => setFilterDevice(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                        >
-                          <option value="Todos">Todos</option>
-                          {uniqueDevices.map(device => (
-                            <option key={device} value={device}>{device}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <FilterField label="Equipo Recibido" value={filterDevice} onChange={setFilterDevice}>
+                        <option value="Todos">Todos</option>
+                        {uniqueDevices.map(device => (
+                          <option key={device} value={device}>{device}</option>
+                        ))}
+                      </FilterField>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</label>
-                        <select
-                          value={filterStatus}
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
-                        >
-                          <option value="Todos">Todos</option>
-                          {uniqueStatuses.map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <FilterField label="Estado" value={filterStatus} onChange={setFilterStatus}>
+                        <option value="Todos">Todos</option>
+                        {uniqueStatuses.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </FilterField>
                     </div>
                   </motion.div>
                 )}
@@ -199,6 +172,7 @@ export const TradeIns: React.FC = () => {
             </div>
           </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50/50">
@@ -214,52 +188,49 @@ export const TradeIns: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTradeIns.map((trade) => (
-                <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-4 text-gray-500">{trade.date}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900">
-                      {trade.clientId === '1' ? 'Andrés Mendoza' : trade.clientId === '2' ? 'Lucía Fernandini' : 'Roberto Gómez'}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5">DNI 45892xxx</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900">{trade.deviceReceived}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{trade.deviceReceivedImei}</div>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-gray-900">${trade.takeValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="px-6 py-4 text-gray-500">{trade.deviceGiven}</td>
-                  <td className="px-6 py-4 font-bold text-gray-900">${trade.differencePaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${
-                      trade.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800' :
-                      trade.status === 'RECHAZADO' ? 'bg-red-100 text-red-800' :
-                      'bg-amber-100 text-amber-800'
-                    }`}>
-                      {trade.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ActionMenu 
-                        onEdit={() => setSelectedTradeIn(trade)} 
-                        onDelete={() => setTradeInToDelete(trade.id)} 
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredTradeIns.map((trade) => {
+                const client = getClient(trade.clientId);
+
+                return (
+                  <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-6 py-4 text-gray-500">{trade.date}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-gray-900">{client?.name || 'Cliente eliminado'}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{client?.dni || 'Sin DNI'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-gray-900">{trade.deviceReceived}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{trade.deviceReceivedImei}</div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.takeValue)}</td>
+                    <td className="px-6 py-4 text-gray-500">{trade.deviceGiven}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.differencePaid)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${
+                        trade.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800' :
+                        trade.status === 'RECHAZADO' ? 'bg-red-100 text-red-800' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>
+                        {trade.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ActionMenu 
+                          onEdit={() => setSelectedTradeIn(trade)} 
+                          onDelete={() => setTradeInToDelete(trade.id)} 
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-gray-200 flex items-center justify-center sm:justify-end bg-white rounded-b-2xl">
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1">
-            <button className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap">Anterior</button>
-            <button className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-sm font-medium bg-black text-white">1</button>
-            <button className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors">2</button>
-            <button className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors">3</button>
-            <button className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap">Siguiente</button>
-          </div>
+
+        <div className="p-4 border-t border-gray-200 text-sm text-gray-500 bg-white rounded-b-2xl">
+          Mostrando {filteredTradeIns.length} canje{filteredTradeIns.length === 1 ? '' : 's'}
         </div>
       </motion.div>
 
@@ -283,6 +254,29 @@ export const TradeIns: React.FC = () => {
     </motion.div>
   );
 };
+
+const FilterField = ({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
+    >
+      {children}
+    </select>
+  </div>
+);
 
 const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -329,7 +323,7 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
   );
 };
 
-const StatCard = ({ title, value, trend, trendDown = false, icon }: any) => (
+const StatCard = ({ title, value, trend, icon }: any) => (
   <motion.div 
     whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
     className="bg-white p-5 rounded-2xl border border-gray-200 transition-shadow cursor-default h-full"
@@ -342,51 +336,64 @@ const StatCard = ({ title, value, trend, trendDown = false, icon }: any) => (
     </div>
     <div className="flex items-end gap-2">
       <div className="text-3xl font-black text-gray-900 leading-none">{value}</div>
-      <span className={`text-xs font-bold px-1.5 py-0.5 rounded mb-1 ${trendDown ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50'}`}>
-        {trend}
-      </span>
     </div>
+    <span className="inline-block mt-2 text-xs font-bold text-gray-500">{trend}</span>
   </motion.div>
 );
 
-const EvaluationCard = ({ model, status, battery, grade, price, imgColor }: any) => (
-  <motion.div 
+const EvaluationCard = ({
+  trade,
+  client,
+  onOpen,
+}: {
+  trade: TradeIn;
+  client?: Client;
+  onOpen: () => void;
+}) => (
+  <motion.button
     whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
-    className="bg-white p-4 rounded-2xl border border-gray-200 flex gap-4 transition-shadow cursor-pointer"
+    onClick={onOpen}
+    className="bg-white p-4 rounded-2xl border border-gray-200 flex gap-4 transition-shadow text-left"
   >
-    <div className={`w-20 h-24 rounded-xl ${imgColor} shrink-0 border border-gray-100 shadow-inner`}></div>
+    <div className="w-20 h-24 rounded-xl bg-gray-900/5 shrink-0 border border-gray-100 shadow-inner flex items-center justify-center text-gray-500 text-xs font-bold px-2 text-center">
+      {trade.deviceReceived}
+    </div>
     <div className="flex-1 flex flex-col justify-between">
       <div>
-        <div className="flex justify-between items-start mb-1">
-          <h3 className="font-bold text-gray-900">{model}</h3>
+        <div className="flex justify-between items-start mb-1 gap-3">
+          <h3 className="font-bold text-gray-900">{trade.deviceReceived}</h3>
           <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide ${
-            status === 'LISTO' ? 'bg-emerald-100 text-emerald-800' :
-            status === 'EN REVISIÓN' ? 'bg-amber-100 text-amber-800' :
+            trade.status === 'LISTO' ? 'bg-emerald-100 text-emerald-800' :
+            trade.status === 'EN REVISIÓN' ? 'bg-amber-100 text-amber-800' :
             'bg-yellow-100 text-yellow-800'
           }`}>
-            {status}
+            {trade.status}
           </span>
         </div>
         <div className="text-xs text-gray-500 space-y-0.5">
-          <div className="flex justify-between">
-            <span>Salud Batería:</span>
-            <span className="font-medium text-gray-900">{battery}</span>
+          <div className="flex justify-between gap-3">
+            <span>Cliente:</span>
+            <span className="font-medium text-gray-900 text-right">{client?.name || 'Sin cliente'}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Estado:</span>
-            <span className="font-medium text-gray-900">{grade}</span>
+          <div className="flex justify-between gap-3">
+            <span>Batería:</span>
+            <span className="font-medium text-gray-900">{trade.batteryHealth ? `${trade.batteryHealth}%` : 'N/D'}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Grado:</span>
+            <span className="font-medium text-gray-900">{trade.grade || 'N/D'}</span>
           </div>
         </div>
       </div>
       <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs text-gray-400">Precio Estimado</span>
-        <span className="font-black text-gray-900">{price}</span>
+        <span className="text-xs text-gray-400">Valor estimado</span>
+        <span className="font-black text-gray-900">{formatCurrency(trade.takeValue)}</span>
       </div>
     </div>
-  </motion.div>
+  </motion.button>
 );
 
-const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: any, onClose: () => void }) => {
+const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: TradeIn, onClose: () => void }) => {
   const { updateTradeIn, clients } = useAppContext();
   const [formData, setFormData] = useState(tradeIn);
 
@@ -396,7 +403,7 @@ const TradeInEditPanel = ({ tradeIn, onClose }: { tradeIn: any, onClose: () => v
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: name === 'takeValue' || name === 'differencePaid' || name === 'batteryHealth' ? Number(value) : value
     }));
