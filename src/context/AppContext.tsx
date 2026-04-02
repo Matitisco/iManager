@@ -6,6 +6,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'fireb
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
+import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
@@ -95,6 +96,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const [inventorySource, setInventorySource] = useState<'firestore' | 'backend'>('firestore');
   const [clientsSource, setClientsSource] = useState<'firestore' | 'backend'>('firestore');
+  const [salesSource, setSalesSource] = useState<'firestore' | 'backend'>('firestore');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -116,6 +118,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBackendMessage(null);
       setInventorySource('firestore');
       setClientsSource('firestore');
+      setSalesSource('firestore');
       return;
     }
 
@@ -131,10 +134,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBackendMessage(message);
     });
 
-    const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
-      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
-
     const unsubTradeIns = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
@@ -145,7 +144,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => {
       cancelled = true;
-      unsubSales();
       unsubTradeIns();
       unsubCustomColumns();
     };
@@ -153,6 +151,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const backendSalesEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
 
   useEffect(() => {
     if (!user) {
@@ -238,6 +237,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [backendClientsEnabled, user]);
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribeFirestore: (() => void) | null = null;
+
+    const startFirestoreFallback = () => {
+      setSalesSource('firestore');
+      unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
+        setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
+    };
+
+    const loadBackendSales = async () => {
+      try {
+        const backendSales = await fetchBackendSales(user);
+        if (cancelled) return;
+        setSales(backendSales);
+        setSalesSource('backend');
+      } catch (error) {
+        if (cancelled) return;
+        console.warn('Backend sales unavailable, falling back to Firestore.', error);
+        startFirestoreFallback();
+      }
+    };
+
+    if (backendSalesEnabled) {
+      void loadBackendSales();
+    } else {
+      startFirestoreFallback();
+    }
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
+  }, [backendSalesEnabled, user]);
+
   const login = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
@@ -271,17 +312,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addSale = async (saleData: Omit<Sale, 'id'>) => {
     if (!user) return;
-    const id = generateId('V');
-    const path = `sales/${id}`;
+    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
     try {
+      if (canUseBackendSales) {
+        const createdSale = await createBackendSale(user, saleData);
+        setSales(prev => [createdSale, ...prev]);
+        setInventory(prev => prev.map(product => (
+          product.id === createdSale.productId ? { ...product, status: 'VENDIDO' } : product
+        )));
+        setClients(prev => prev.map(client => {
+          if (client.id !== createdSale.clientId) {
+            return client;
+          }
+
+          return {
+            ...client,
+            totalSpent: (client.totalSpent || 0) + createdSale.amount,
+            lastPurchaseDate: createdSale.date,
+          };
+        }));
+        return;
+      }
+
+      const id = generateId('V');
+      const path = `sales/${id}`;
       await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
 
-      // Update product status
       if (saleData.productId) {
         await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
       }
 
-      // Update client total spent
       if (saleData.clientId) {
         const client = clients.find(c => c.id === saleData.clientId);
         if (client) {
@@ -292,27 +352,113 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
     } catch (error) {
+      if (canUseBackendSales) {
+        console.warn('Backend sale create failed, falling back to Firestore.', error);
+        setSalesSource('firestore');
+        const id = generateId('V');
+        const path = `sales/${id}`;
+        try {
+          await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
+
+          if (saleData.productId) {
+            await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
+          }
+
+          if (saleData.clientId) {
+            const client = clients.find(c => c.id === saleData.clientId);
+            if (client) {
+              await updateDoc(doc(db, 'clients', saleData.clientId), {
+                totalSpent: (client.totalSpent || 0) + saleData.amount,
+                lastPurchaseDate: saleData.date
+              });
+            }
+          }
+
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.CREATE, path);
+          return;
+        }
+      }
+
+      const id = generateId('V');
+      const path = `sales/${id}`;
       handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 
   const updateSale = async (updatedSale: Sale) => {
     if (!user) return;
-    const path = `sales/${updatedSale.id}`;
+    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
     try {
+      if (canUseBackendSales) {
+        const backendSale = await updateBackendSale(user, updatedSale);
+        setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
+        return;
+      }
+
+      const path = `sales/${updatedSale.id}`;
       const { id, ...data } = updatedSale;
       await updateDoc(doc(db, 'sales', id), data as any);
     } catch (error) {
+      if (canUseBackendSales) {
+        console.warn('Backend sale update failed, falling back to Firestore.', error);
+        setSalesSource('firestore');
+        const path = `sales/${updatedSale.id}`;
+        try {
+          const { id, ...data } = updatedSale;
+          await updateDoc(doc(db, 'sales', id), data as any);
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
+          return;
+        }
+      }
+
+      const path = `sales/${updatedSale.id}`;
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
   const deleteSale = async (id: string) => {
     if (!user) return;
-    const path = `sales/${id}`;
+    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
     try {
       const existingSale = sales.find((sale) => sale.id === id);
 
+      if (canUseBackendSales) {
+        await deleteBackendSale(user, id);
+
+        if (existingSale?.productId) {
+          setInventory(prev => prev.map(product => (
+            product.id === existingSale.productId ? { ...product, status: 'DISPONIBLE' } : product
+          )));
+        }
+
+        if (existingSale?.clientId) {
+          const remainingClientSales = sales.filter(
+            (sale) => sale.clientId === existingSale.clientId && sale.id !== id
+          );
+          setClients(prev => prev.map(client => {
+            if (client.id !== existingSale.clientId) {
+              return client;
+            }
+
+            const nextTotalSpent = remainingClientSales.reduce((sum, sale) => sum + sale.amount, 0);
+
+            return {
+              ...client,
+              totalSpent: nextTotalSpent,
+              lastPurchaseDate: remainingClientSales[0]?.date || 'N/A',
+            };
+          }));
+        }
+
+        setSales(prev => prev.filter(sale => sale.id !== id));
+        return;
+      }
+
+      const path = `sales/${id}`;
       if (existingSale?.productId) {
         await updateDoc(doc(db, 'inventory', existingSale.productId), { status: 'DISPONIBLE' });
       }
@@ -333,6 +479,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       await deleteDoc(doc(db, 'sales', id));
     } catch (error) {
+      if (canUseBackendSales) {
+        console.warn('Backend sale delete failed, falling back to Firestore.', error);
+        setSalesSource('firestore');
+        const path = `sales/${id}`;
+        try {
+          const existingSale = sales.find((sale) => sale.id === id);
+
+          if (existingSale?.productId) {
+            await updateDoc(doc(db, 'inventory', existingSale.productId), { status: 'DISPONIBLE' });
+          }
+
+          if (existingSale?.clientId) {
+            const client = clients.find(c => c.id === existingSale.clientId);
+            const remainingClientSales = sales.filter(
+              (sale) => sale.clientId === existingSale.clientId && sale.id !== id
+            );
+
+            if (client) {
+              await updateDoc(doc(db, 'clients', existingSale.clientId), {
+                totalSpent: Math.max(0, (client.totalSpent || 0) - existingSale.amount),
+                lastPurchaseDate: remainingClientSales[0]?.date || 'N/A'
+              });
+            }
+          }
+
+          await deleteDoc(doc(db, 'sales', id));
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.DELETE, path);
+          return;
+        }
+      }
+
+      const path = `sales/${id}`;
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   };

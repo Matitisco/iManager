@@ -12,6 +12,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Sesión de aplicación resuelta vía `/api/me`.
 - Módulo `clients` ya migrado como slice real en backend; la migración histórica desde Firestore fue verificada contra la base named y hoy no encontró documentos.
 - Módulo `inventory` ya migrado como slice real en backend y conectado al frontend con fallback controlado a Firestore.
+- Módulo `sales` ya migrado como slice real transaccional en backend y conectado al frontend con fallback controlado a Firestore.
 
 ## Qué ya está listo
 
@@ -27,6 +28,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Script de bootstrap de owner.
 - Script de migración histórica de clients.
 - Script y módulo backend de inventory.
+- Script y módulo backend de sales.
 
 ## Issues conocidos
 
@@ -42,7 +44,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Sigue siendo un área sensible porque impacta stock, ventas y reportes.
 - Falta recién observar el comportamiento en integración con ventas, que todavía no se migró.
 
-### 3) Ventas y canjes todavía dependen de la fase de migración
+### 3) Canjes todavía dependen de la fase de migración
 
 - Las pantallas fueron saneadas para el tester.
 - Falta mover lógica crítica al backend para evitar side effects duplicados.
@@ -73,7 +75,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - [x] Migrar `clients` como slice backend.
 - [x] Validar migración histórica de `clients` en el Firestore named database actual.
 - [x] Migrar `inventory`.
-- [ ] Migrar `sales`.
+- [x] Migrar `sales`.
 - [ ] Migrar `trade-ins`.
 
 ### Fase 3 — Operación y reporting
@@ -86,7 +88,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 
 - [ ] Reintentar `npm run migrate:clients` en `backend/` cuando el deploy actual termine.
 - [ ] Bootstrapping adicional si aparece otra cuenta o tienda.
-- [ ] Definir el siguiente slice real después de inventory: `sales`.
+- [x] Definir y aplicar el siguiente slice real después de inventory: `sales`.
 - [ ] Mantener este archivo actualizado al cerrar cada hito.
 
 ## Riesgos actuales

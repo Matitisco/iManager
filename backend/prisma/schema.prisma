@@ -31,6 +31,7 @@ model Store {
   memberships StoreMember[]
   clients     Client[]
   inventory   InventoryItem[]
+  sales       Sale[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -60,6 +61,7 @@ model Client {
   totalSpent     Decimal   @default(0) @db.Decimal(12, 2)
   pendingBalance Decimal   @default(0) @db.Decimal(12, 2)
   store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sales          Sale[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -82,11 +84,34 @@ model InventoryItem {
   status        String   @db.VarChar(20)
   customFields  Json?
   store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sales         Sale[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([storeId])
   @@unique([storeId, imei])
+}
+
+model Sale {
+  id              String         @id @default(cuid())
+  storeId         String
+  clientId        String?
+  inventoryItemId String?
+  dateLabel       String         @db.VarChar(120)
+  amount          Decimal        @db.Decimal(12, 2)
+  paymentMethod   String         @db.VarChar(50)
+  status          String         @db.VarChar(20)
+  soldAt          DateTime
+  store           Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([storeId])
+  @@index([storeId, soldAt])
+  @@index([clientId])
+  @@index([inventoryItemId])
 }
 
 enum UserStatus {
