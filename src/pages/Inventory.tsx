@@ -310,9 +310,10 @@ export const Inventory: React.FC = () => {
                 </tr>
               ) : (
                 filteredInventory.map((invItem) => (
-                  <tr 
-                    key={invItem.id} 
-                    className="hover:bg-gray-50 transition-colors group"
+                  <tr
+                    key={invItem.id}
+                    onClick={() => setSelectedItem(invItem)}
+                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
                   >
                     {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
                     {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
@@ -355,11 +356,11 @@ export const Inventory: React.FC = () => {
                         {invItem.customFields?.[col.id] || '-'}
                       </td>
                     ))}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ActionMenu 
-                          onEdit={() => setSelectedItem(invItem)} 
-                          onDelete={() => setItemToDelete(invItem.id)} 
+                        <ActionMenu
+                          onEdit={() => setSelectedItem(invItem)}
+                          onDelete={() => setItemToDelete(invItem.id)}
                         />
                       </div>
                     </td>
