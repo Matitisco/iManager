@@ -13,7 +13,24 @@ Backend para iManager con Fastify, Prisma, PostgreSQL y Firebase Admin.
 
 - `npm run dev` — arranca el backend en modo desarrollo
 - `npm run lint` — chequeo TypeScript sin build
+- `npm run bootstrap:owner -- --firebaseUid <uid>` — crea `Store` + `StoreMember` OWNER default para un usuario existente
 - `npm run migrate:clients` — migra `clients` históricos desde Firestore a PostgreSQL
+
+## Bootstrap inicial de tienda
+
+El script de bootstrap busca el usuario por `firebaseUid` o por `email` en Firebase Auth y en Postgres.
+
+Ejemplos:
+
+```bash
+cd backend
+npm run bootstrap:owner -- --firebaseUid abc123 --storeName "iManager Store"
+```
+
+```bash
+cd backend
+npm run bootstrap:owner -- --email usuario@correo.com
+```
 
 ## Migración histórica de clients
 

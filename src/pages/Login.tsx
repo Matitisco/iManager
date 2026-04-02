@@ -14,34 +14,48 @@ export const Login: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const clearError = () => setError(null);
+
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
       case 'auth/user-not-found':
-        return 'No existe una cuenta con este correo electrónico.';
+        return 'No existe una cuenta con este correo electr?nico.';
       case 'auth/wrong-password':
       case 'auth/invalid-credential':
-        return 'Correo o contraseña incorrectos.';
+        return 'Correo o contrase?a incorrectos.';
+      case 'auth/operation-not-allowed':
+        return 'Este m?todo de acceso no est? habilitado en Firebase.';
+      case 'auth/network-request-failed':
+        return 'No pudimos conectarnos. Revis? tu conexi?n e intent? de nuevo.';
+      case 'auth/popup-closed-by-user':
+        return 'Cerraste la ventana de Google antes de completar el acceso.';
+      case 'auth/cancelled-popup-request':
+        return 'Ya hay un intento de acceso con Google en curso.';
+      case 'auth/popup-blocked':
+        return 'El navegador bloque? la ventana de Google. Permit? popups e intent? de nuevo.';
       case 'auth/email-already-in-use':
-        return 'Ya existe una cuenta con este correo electrónico.';
+        return 'Ya existe una cuenta con este correo electr?nico.';
       case 'auth/weak-password':
-        return 'La contraseña debe tener al menos 6 caracteres.';
+        return 'La contrase?a debe tener al menos 6 caracteres.';
       case 'auth/invalid-email':
-        return 'El correo electrónico no es válido.';
+        return 'El correo electr?nico no es v?lido.';
       case 'auth/too-many-requests':
-        return 'Demasiados intentos. Intenta de nuevo más tarde.';
+        return 'Demasiados intentos. Intent? de nuevo m?s tarde.';
+      case 'auth/internal-error':
+        return 'Firebase devolvi? un error interno. Intent? de nuevo.';
       default:
-        return 'Error al iniciar sesión. Intenta de nuevo.';
+        return 'No pudimos completar el acceso. Intenta de nuevo.';
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
-      setError(null);
+      clearError();
       await login();
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Error al iniciar sesión con Google');
+      setError(getFirebaseErrorMessage(err?.code || ''));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -49,15 +63,15 @@ export const Login: React.FC = () => {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    clearError();
 
     if (isRegisterMode && password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
+      setError('Las contrase?as no coinciden.');
       return;
     }
 
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
+      setError('La contrase?a debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -79,7 +93,7 @@ export const Login: React.FC = () => {
 
   const toggleMode = () => {
     setIsRegisterMode(!isRegisterMode);
-    setError(null);
+    clearError();
     setConfirmPassword('');
   };
 
@@ -262,7 +276,10 @@ export const Login: React.FC = () => {
                 type="email"
                 placeholder="Correo electrónico"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearError();
+                }}
                 required
                 className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
               />
@@ -274,7 +291,10 @@ export const Login: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Contraseña"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearError();
+                }}
                 required
                 minLength={6}
                 className="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
@@ -302,7 +322,10 @@ export const Login: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Confirmar contraseña"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      clearError();
+                    }}
                     required
                     minLength={6}
                     className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
