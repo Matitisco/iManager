@@ -13,7 +13,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Módulo `clients` ya migrado como slice real en backend; la migración histórica desde Firestore fue verificada contra la base named y hoy no encontró documentos.
 - Módulo `inventory` ya migrado como slice real en backend y conectado al frontend con fallback controlado a Firestore.
 - Módulo `sales` ya migrado como slice real transaccional en backend y conectado al frontend con fallback controlado a Firestore.
-- Módulo `trade-ins` ya fue implementado como slice real en backend y conectado al frontend con fallback controlado a Firestore; falta verificar despliegue y persistencia en Railway.
+- Módulo `trade-ins` ya fue implementado como slice real en backend y conectado al frontend con fallback controlado a Firestore.
 - Hardening funcional del core en curso: banner de backend con reintento automático, perfil de usuario dinámico y listados con vacíos/estadísticas reales.
 
 ## Qué ya está listo
@@ -122,3 +122,25 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Después revisar `backend/README.md` si vas a tocar migraciones o scripts.
 - Si una tarea toca auth o sesión, verificar primero el estado de `/api/me`.
 - Si una tarea toca datos históricos, revisar qué fuente de verdad corresponde a cada módulo.
+
+## Smoke test guiado del core
+
+### Checklist priorizada
+
+- [x] Login / sesion: Google y email/password levantan, `/api/me` resuelve contexto de app y el backend reintenta cuando queda intermedio.
+- [x] Header de usuario: nombre, mail, rol y avatar salen de la identidad autenticada o de la sesion de app; si faltan datos, se recuperan desde backend.
+- [x] Clients: CRUD y listado revisados; la migracion historica no encontro documentos en el Firestore named actual.
+- [x] Inventory: slice backend operativo; revisar en UI la edicion de custom fields y los estados de borde.
+- [x] Sales: transacciones y revert de stock/cliente revisados; falta seguir probando flujos de edicion y borrado manual en UI.
+- [x] Trade-ins: slice backend operativo; falta validacion manual completa en UI con datos reales.
+- [ ] Notifications: siguen siendo preview/locales; no validar como funcionalidad productiva.
+- [ ] Reports: siguen siendo demo; no usar para validar backend en tester.
+- [ ] Settings: siguen mezclando preview y placeholders; validar solo como UI, no como negocio final.
+
+### Hallazgos concretos
+
+- El origen historico de `clients` en el Firestore named actual esta vacio, asi que no hay datos que importar desde ahi.
+- El header tenia notificaciones fake y ahora se dejo sin datos reales para no engan~ar al tester.
+- La sesion de backend puede quedar temporalmente en onboarding o error, por eso el reintento automatico sigue siendo importante.
+- El perfil necesitaba sincronizar `avatarUrl` y refrescar metadatos del usuario desde backend para no depender solo del objeto de Firebase Auth.
+

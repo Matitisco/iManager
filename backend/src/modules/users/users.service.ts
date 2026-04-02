@@ -7,6 +7,25 @@ export async function findOrCreateUserFromFirebase(auth: FirebaseAuthContext) {
   });
 
   if (existing) {
+    const nextDisplayName = auth.name?.trim();
+    const nextAvatarUrl = auth.picture?.trim();
+    const nextEmail = auth.email?.trim();
+    const shouldRefresh =
+      (!existing.displayName && nextDisplayName) ||
+      (!existing.avatarUrl && nextAvatarUrl) ||
+      (!existing.email && nextEmail);
+
+    if (shouldRefresh) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          displayName: existing.displayName ?? nextDisplayName ?? undefined,
+          avatarUrl: existing.avatarUrl ?? nextAvatarUrl ?? undefined,
+          email: existing.email ?? nextEmail ?? undefined,
+        },
+      });
+    }
+
     return existing;
   }
 

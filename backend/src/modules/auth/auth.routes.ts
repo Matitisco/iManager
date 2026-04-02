@@ -25,6 +25,7 @@ export async function authRoutes(app: FastifyInstance) {
             firebaseUid: user.firebaseUid,
             email: user.email,
             displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
           },
           store: null,
           membership: null,
@@ -38,6 +39,7 @@ export async function authRoutes(app: FastifyInstance) {
           firebaseUid: user.firebaseUid,
           email: user.email,
           displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
         },
         store: {
           id: membership.store.id,
