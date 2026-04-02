@@ -23,3 +23,12 @@ Este repo ya tiene instrucciones operativas detalladas en el chat, pero no tení
 - `PROJECT_STATUS.md` — estado vivo, roadmap, issues y próximos pasos.
 - `README.md` — documentación de producto.
 - `backend/README.md` — notas operativas del backend.
+
+## Fast bootstrap for new agents
+If you are joining through a fresh feature chat, start here:
+- `docs/agent-context/README.md`
+- `docs/agent-context/QUICK_START.md`
+- `docs/agent-context/ARCHITECTURE_MAP.md`
+- `docs/agent-context/FEATURE_HANDOFF_TEMPLATE.md`
+
+Keep the bootstrap shallow. Use `PROJECT_STATUS.md` and `ARCHITECTURE_DECISIONS_2026-04-02.md` for live state and rationale.

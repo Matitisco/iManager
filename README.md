@@ -251,3 +251,10 @@ Antes de pasar a una refactorización mayor, conviene resolver este orden:
 
 Porque si no, vas a testear una casa con la fachada pintada y las vigas flojas.  
 Y eso, hermano, es comprar deuda con intereses.
+
+## Fast context for future agents
+For a shallow, token-light bootstrap, start with:
+- `docs/agent-context/README.md`
+- `docs/agent-context/QUICK_START.md`
+- `PROJECT_STATUS.md`
+- `ARCHITECTURE_DECISIONS_2026-04-02.md`
