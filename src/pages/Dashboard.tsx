@@ -71,13 +71,6 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4">
-        <p className="text-sm font-semibold">Panel operativo para tester:</p>
-        <p className="text-sm mt-1">
-          Este dashboard ahora prioriza datos reales del sistema. Las alertas siguen siendo básicas y no reemplazan reportes ni automatizaciones.
-        </p>
-      </motion.div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <motion.div variants={item}><StatCard title="STOCK DISPONIBLE" value={formatCompactNumber(availableInventory.length)} trend={formatCurrency(inventoryValue)} subtitle="Equipos hoy en inventario" /></motion.div>
         <motion.div variants={item}><StatCard title="VENTAS REGISTRADAS" value={formatCompactNumber(sales.length)} trend={formatCurrency(sales.reduce((sum, sale) => sum + sale.amount, 0))} subtitle="Histórico cargado" /></motion.div>
