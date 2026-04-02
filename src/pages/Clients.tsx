@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { Users, UserCheck, Wallet, Ticket, Filter, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatCurrency } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -18,24 +19,30 @@ const item: Variants = {
 };
 
 export const Clients: React.FC = () => {
-  const { clients, deleteClient } = useAppContext();
+  const { clients, sales, deleteClient } = useAppContext();
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [filterLastPurchase, setFilterLastPurchase] = useState<string>('Todas');
   const [filterBalance, setFilterBalance] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
+  const hasClientActivity = (client: (typeof clients)[number]) => client.totalSpent > 0 || client.lastPurchaseDate !== 'N/A';
 
-  const uniqueLastPurchases = Array.from(new Set(clients.map(c => c.lastPurchaseDate))).sort();
+  const uniqueLastPurchases = Array.from(new Set(clients.map(c => c.lastPurchaseDate).filter(date => date !== 'N/A'))).sort();
 
   const filteredClients = clients.filter(client => {
-    if (filterStatus === 'Activos' && client.pendingBalance > 0) return false; // Example logic
-    if (filterStatus === 'Inactivos' && client.pendingBalance === 0) return false; // Example logic
+    if (filterStatus === 'Activos' && !hasClientActivity(client)) return false;
+    if (filterStatus === 'Inactivos' && hasClientActivity(client)) return false;
     if (filterLastPurchase !== 'Todas' && client.lastPurchaseDate !== filterLastPurchase) return false;
     if (filterBalance === 'Con Deuda' && client.pendingBalance === 0) return false;
     if (filterBalance === 'Sin Deuda' && client.pendingBalance > 0) return false;
     return true;
   });
   const [selectedClient, setSelectedClient] = useState<any>(null);
+
+  const totalClients = clients.length;
+  const clientsWithActivity = clients.filter(hasClientActivity).length;
+  const totalPendingBalance = clients.reduce((sum, client) => sum + client.pendingBalance, 0);
+  const averageTicket = sales.length > 0 ? sales.reduce((sum, sale) => sum + sale.amount, 0) / sales.length : 0;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -47,10 +54,10 @@ export const Clients: React.FC = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div variants={item}><StatCard title="Total Clientes" value="1,284" trend="+5.2%" icon={<Users size={18} className="text-gray-400" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="Clientes Activos (30d)" value="856" trend="+2.1%" icon={<UserCheck size={18} className="text-gray-400" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="Saldo Pendiente Total" value="$420,500" trend="-1.4%" trendDown icon={<Wallet size={18} className="text-gray-400" />} /></motion.div>
-        <motion.div variants={item}><StatCard title="Ticket Promedio" value="AR$15.200" trend="+8.5%" icon={<Ticket size={18} className="text-gray-400" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="Total Clientes" value={String(totalClients)} trend="Datos reales" icon={<Users size={18} className="text-gray-400" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="Clientes con actividad" value={String(clientsWithActivity)} trend={sales.length > 0 ? 'Basado en ventas' : 'Sin ventas'} icon={<UserCheck size={18} className="text-gray-400" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="Saldo Pendiente Total" value={formatCurrency(totalPendingBalance)} trend={totalPendingBalance > 0 ? 'Deuda real' : 'Sin deuda'} trendDown={totalPendingBalance > 0} icon={<Wallet size={18} className="text-gray-400" />} /></motion.div>
+        <motion.div variants={item}><StatCard title="Ticket Promedio" value={formatCurrency(averageTicket)} trend={sales.length > 0 ? 'Datos reales' : 'Sin ventas'} icon={<Ticket size={18} className="text-gray-400" />} /></motion.div>
       </div>
 
       {/* Table */}
@@ -104,8 +111,8 @@ export const Clients: React.FC = () => {
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none"
                         >
                           <option value="Todos">Todos</option>
-                          <option value="Activos">Activos</option>
-                          <option value="Inactivos">Inactivos</option>
+                        <option value="Activos">Activos</option>
+                        <option value="Inactivos">Inactivos</option>
                         </select>
                       </div>
 
@@ -161,31 +168,39 @@ export const Clients: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredClients.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-4 font-medium text-gray-500">{client.dni}</td>
-                  <td className="px-6 py-4 font-bold text-gray-900">{client.name}</td>
-                  <td className="px-6 py-4 text-gray-500">{client.email}</td>
-                  <td className="px-6 py-4 text-gray-500">{client.phone}</td>
-                  <td className="px-6 py-4 text-gray-500">{client.lastPurchaseDate}</td>
-                  <td className="px-6 py-4 font-bold text-gray-900">${client.totalSpent.toLocaleString('en-US')}</td>
-                  <td className="px-6 py-4 font-bold text-right">
-                    {client.pendingBalance > 0 ? (
-                      <span className="text-red-600">${client.pendingBalance.toLocaleString('en-US')}</span>
-                    ) : (
-                      <span className="text-gray-900">$0</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ActionMenu 
-                        onEdit={() => setSelectedClient(client)} 
-                        onDelete={() => setClientToDelete(client.id)} 
-                      />
-                    </div>
+              {filteredClients.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                    No hay clientes para mostrar con los filtros actuales.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredClients.map((client) => (
+                  <tr key={client.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-6 py-4 font-medium text-gray-500">{client.dni}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900">{client.name}</td>
+                    <td className="px-6 py-4 text-gray-500">{client.email}</td>
+                    <td className="px-6 py-4 text-gray-500">{client.phone}</td>
+                    <td className="px-6 py-4 text-gray-500">{client.lastPurchaseDate}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(client.totalSpent)}</td>
+                    <td className="px-6 py-4 font-bold text-right">
+                      {client.pendingBalance > 0 ? (
+                        <span className="text-red-600">{formatCurrency(client.pendingBalance)}</span>
+                      ) : (
+                        <span className="text-gray-900">{formatCurrency(0)}</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ActionMenu 
+                          onEdit={() => setSelectedClient(client)} 
+                          onDelete={() => setClientToDelete(client.id)} 
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

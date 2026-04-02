@@ -126,16 +126,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     let cancelled = false;
+    let retryTimeout: number | undefined;
 
     setBackendStatus('checking');
     setBackendMessage(null);
 
-    fetchBackendSession(user).then(({ status, session, message }) => {
-      if (cancelled) return;
-      setBackendStatus(status);
-      setAppSession(session);
-      setBackendMessage(message);
-    });
+    const loadBackendSession = async () => {
+      try {
+        const { status, session, message } = await fetchBackendSession(user);
+        if (cancelled) return;
+
+        setBackendStatus(status);
+        setAppSession(session);
+        setBackendMessage(message);
+
+        const shouldRetry = status !== 'ready' || session?.onboardingRequired;
+        if (shouldRetry) {
+          retryTimeout = window.setTimeout(() => {
+            if (!cancelled) {
+              void loadBackendSession();
+            }
+          }, 15000);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setBackendStatus('offline');
+        setBackendMessage(error instanceof Error ? error.message : String(error));
+
+        retryTimeout = window.setTimeout(() => {
+          if (!cancelled) {
+            void loadBackendSession();
+          }
+        }, 15000);
+      }
+    };
+
+    void loadBackendSession();
 
     const unsubTradeIns = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
@@ -147,6 +173,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => {
       cancelled = true;
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+      }
       unsubTradeIns();
       unsubCustomColumns();
     };

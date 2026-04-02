@@ -298,125 +298,142 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredInventory.map((invItem) => (
-                <tr 
-                  key={invItem.id} 
-                  className="hover:bg-gray-50 transition-colors group"
-                >
-                  {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
-                  {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
-                  {visibleColumns.condition !== false && <td className="px-6 py-4">
-                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${
-                      invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
-                      invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {invItem.condition}
-                    </span>
-                  </td>}
-                  {visibleColumns.capacityColor !== false && <td className="px-6 py-4 text-gray-500">{invItem.capacity} • {invItem.color}</td>}
-                  {visibleColumns.grade !== false && <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      invItem.grade.includes('A') ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {invItem.grade}
-                    </span>
-                  </td>}
-                  {visibleColumns.battery !== false && <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${invItem.batteryHealth}%` }}
-                          transition={{ duration: 1, ease: "easeOut" }}
-                          className={`h-full rounded-full ${invItem.batteryHealth >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
-                        />
-                      </div>
-                      <span className={`font-bold ${invItem.batteryHealth >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {invItem.batteryHealth}%
-                      </span>
-                    </div>
-                  </td>}
-                  {visibleColumns.cost !== false && <td className="px-6 py-4 text-gray-500">${invItem.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>}
-                  {visibleColumns.price !== false && <td className="px-6 py-4 font-bold text-gray-900 text-right">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>}
-                  {customColumns.map(col => visibleColumns[col.id] !== false && (
-                    <td key={col.id} className="px-6 py-4 text-gray-500">
-                      {invItem.customFields?.[col.id] || '-'}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ActionMenu 
-                        onEdit={() => setSelectedItem(invItem)} 
-                        onDelete={() => setItemToDelete(invItem.id)} 
-                      />
-                    </div>
+              {filteredInventory.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={8 + customColumns.filter(col => visibleColumns[col.id] !== false).length}
+                    className="px-6 py-10 text-center text-sm text-gray-500"
+                  >
+                    No hay equipos para mostrar con los filtros actuales.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredInventory.map((invItem) => (
+                  <tr 
+                    key={invItem.id} 
+                    className="hover:bg-gray-50 transition-colors group"
+                  >
+                    {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
+                    {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
+                    {visibleColumns.condition !== false && <td className="px-6 py-4">
+                      <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${
+                        invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
+                        invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {invItem.condition}
+                      </span>
+                    </td>}
+                    {visibleColumns.capacityColor !== false && <td className="px-6 py-4 text-gray-500">{invItem.capacity} • {invItem.color}</td>}
+                    {visibleColumns.grade !== false && <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${
+                        invItem.grade.includes('A') ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {invItem.grade}
+                      </span>
+                    </td>}
+                    {visibleColumns.battery !== false && <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${invItem.batteryHealth}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className={`h-full rounded-full ${invItem.batteryHealth >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                          />
+                        </div>
+                        <span className={`font-bold ${invItem.batteryHealth >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {invItem.batteryHealth}%
+                        </span>
+                      </div>
+                    </td>}
+                    {visibleColumns.cost !== false && <td className="px-6 py-4 text-gray-500">${invItem.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>}
+                    {visibleColumns.price !== false && <td className="px-6 py-4 font-bold text-gray-900 text-right">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>}
+                    {customColumns.map(col => visibleColumns[col.id] !== false && (
+                      <td key={col.id} className="px-6 py-4 text-gray-500">
+                        {invItem.customFields?.[col.id] || '-'}
+                      </td>
+                    ))}
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ActionMenu 
+                          onEdit={() => setSelectedItem(invItem)} 
+                          onDelete={() => setItemToDelete(invItem.id)} 
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Mobile List View */}
         <div className="md:hidden flex-1 overflow-y-auto divide-y divide-gray-100">
-          {filteredInventory.map((invItem) => (
-            <div 
-              key={invItem.id} 
-              onClick={() => setSelectedItem(invItem)}
-              className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    {visibleColumns.model !== false && <h3 className="font-bold text-gray-900">{invItem.model}</h3>}
-                    {visibleColumns.condition !== false && <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                      invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
-                      invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {invItem.condition}
-                    </span>}
-                  </div>
-                  {visibleColumns.capacityColor !== false && <p className="text-sm text-gray-500">{invItem.capacity} • {invItem.color}</p>}
-                </div>
-                <div className="text-right">
-                  {visibleColumns.price !== false && <div className="font-bold text-gray-900">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
-                  {visibleColumns.cost !== false && <div className="text-xs text-gray-500">Costo: ${invItem.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
-                </div>
-              </div>
-              <div className="flex items-center gap-3 mt-3 text-xs">
-                {visibleColumns.imei !== false && <span className="font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">{invItem.imei.slice(-6)}</span>}
-                {visibleColumns.grade !== false && <span className={`px-2 py-1 rounded font-bold ${
-                  invItem.grade.includes('A') ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {invItem.grade}
-                </span>}
-                {visibleColumns.battery !== false && <div className="flex items-center gap-1 ml-auto">
-                  <div className={`w-2 h-2 rounded-full ${invItem.batteryHealth >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  <span className={`font-bold ${invItem.batteryHealth >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {invItem.batteryHealth}%
-                  </span>
-                </div>}
-                <div className="ml-2">
-                  <ActionMenu 
-                    onEdit={() => setSelectedItem(invItem)} 
-                    onDelete={() => setItemToDelete(invItem.id)} 
-                  />
-                </div>
-              </div>
-              {customColumns.some(col => visibleColumns[col.id] !== false) && (
-                <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
-                  {customColumns.map(col => visibleColumns[col.id] !== false && (
-                    <div key={col.id} className="flex flex-col">
-                      <span className="text-gray-400 font-medium">{col.label}</span>
-                      <span className="text-gray-900 font-medium">{invItem.customFields?.[col.id] || '-'}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {filteredInventory.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              No hay equipos para mostrar con los filtros actuales.
             </div>
-          ))}
+          ) : (
+            filteredInventory.map((invItem) => (
+              <div 
+                key={invItem.id} 
+                onClick={() => setSelectedItem(invItem)}
+                className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      {visibleColumns.model !== false && <h3 className="font-bold text-gray-900">{invItem.model}</h3>}
+                      {visibleColumns.condition !== false && <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                        invItem.condition === 'NUEVO' ? 'bg-emerald-100 text-emerald-700' :
+                        invItem.condition === 'USADO' ? 'bg-amber-100 text-amber-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {invItem.condition}
+                      </span>}
+                    </div>
+                    {visibleColumns.capacityColor !== false && <p className="text-sm text-gray-500">{invItem.capacity} • {invItem.color}</p>}
+                  </div>
+                  <div className="text-right">
+                    {visibleColumns.price !== false && <div className="font-bold text-gray-900">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
+                    {visibleColumns.cost !== false && <div className="text-xs text-gray-500">Costo: ${invItem.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-3 text-xs">
+                  {visibleColumns.imei !== false && <span className="font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">{invItem.imei.slice(-6)}</span>}
+                  {visibleColumns.grade !== false && <span className={`px-2 py-1 rounded font-bold ${
+                    invItem.grade.includes('A') ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {invItem.grade}
+                  </span>}
+                  {visibleColumns.battery !== false && <div className="flex items-center gap-1 ml-auto">
+                    <div className={`w-2 h-2 rounded-full ${invItem.batteryHealth >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span className={`font-bold ${invItem.batteryHealth >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {invItem.batteryHealth}%
+                    </span>
+                  </div>}
+                  <div className="ml-2">
+                    <ActionMenu 
+                      onEdit={() => setSelectedItem(invItem)} 
+                      onDelete={() => setItemToDelete(invItem.id)} 
+                    />
+                  </div>
+                </div>
+                {customColumns.some(col => visibleColumns[col.id] !== false) && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
+                    {customColumns.map(col => visibleColumns[col.id] !== false && (
+                      <div key={col.id} className="flex flex-col">
+                        <span className="text-gray-400 font-medium">{col.label}</span>
+                        <span className="text-gray-900 font-medium">{invItem.customFields?.[col.id] || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
 
         {/* Pagination */}

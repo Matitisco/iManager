@@ -2,6 +2,21 @@ import type { User } from 'firebase/auth';
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+const DEFAULT_BACKEND_ERROR_MESSAGE = 'El backend respondió con un error inesperado. Reintentando.';
+
+function normalizeBackendErrorMessage(status: number, body: any) {
+  const rawMessage = typeof body?.error === 'string' ? body.error.trim() : '';
+
+  if (status >= 500) {
+    return DEFAULT_BACKEND_ERROR_MESSAGE;
+  }
+
+  if (!rawMessage || rawMessage === 'Internal Server Error') {
+    return `Backend respondió ${status}`;
+  }
+
+  return rawMessage;
+}
 
 export function getBackendBaseUrl() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
@@ -39,7 +54,7 @@ export async function fetchBackendSession(user: User): Promise<{
       return {
         status: 'error',
         session: null,
-        message: body?.error || `Backend respondió ${response.status}`,
+        message: normalizeBackendErrorMessage(response.status, body),
       };
     }
 

@@ -181,51 +181,59 @@ export const Sales: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredSales.map((sale) => {
-                  const client = getClient(sale.clientId);
-                  const product = getProduct(sale.productId);
+                {filteredSales.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">
+                      Todavía no hay ventas para mostrar con los filtros actuales.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSales.map((sale) => {
+                    const client = getClient(sale.clientId);
+                    const product = getProduct(sale.productId);
 
-                  return (
-                    <tr 
-                      key={sale.id} 
-                      className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
-                    >
-                      <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
-                      <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
-                      <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                        {client?.name || 'Cliente eliminado'}
-                      </td>
-                      <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                        <div className="font-bold text-gray-900">
-                          {product ? `${product.model} ${product.capacity}` : 'Producto eliminado'}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          IMEI: {product?.imei || 'No disponible'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                        {formatCurrency(sale.amount)}
-                      </td>
-                      <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
-                        <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
-                          sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
-                          sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {sale.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ActionMenu 
-                            onEdit={() => setEditingSale(sale)} 
-                            onDelete={() => setSaleToDelete(sale.id)} 
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr 
+                        key={sale.id} 
+                        className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
+                      >
+                        <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
+                        <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
+                        <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                          {client?.name || 'Cliente eliminado'}
+                        </td>
+                        <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                          <div className="font-bold text-gray-900">
+                            {product ? `${product.model} ${product.capacity}` : 'Producto eliminado'}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            IMEI: {product?.imei || 'No disponible'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                          {formatCurrency(sale.amount)}
+                        </td>
+                        <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                          <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
+                            sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
+                            sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {sale.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ActionMenu 
+                              onEdit={() => setEditingSale(sale)} 
+                              onDelete={() => setSaleToDelete(sale.id)} 
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

@@ -14,6 +14,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Módulo `inventory` ya migrado como slice real en backend y conectado al frontend con fallback controlado a Firestore.
 - Módulo `sales` ya migrado como slice real transaccional en backend y conectado al frontend con fallback controlado a Firestore.
 - Módulo `trade-ins` ya fue implementado como slice real en backend y conectado al frontend con fallback controlado a Firestore; falta verificar despliegue y persistencia en Railway.
+- Hardening funcional del core en curso: banner de backend con reintento automático, perfil de usuario dinámico y listados con vacíos/estadísticas reales.
 
 ## Qué ya está listo
 
@@ -55,6 +56,13 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - El login ya quedó funcional, pero la UX de errores fue un punto sensible.
 - Conviene mantener mensajes de error claros y separados por provider.
 
+### 5) Hardening funcional del core
+
+- El header ya no muestra datos hardcodeados de usuario; ahora usa la identidad autenticada y la membresía real cuando están disponibles.
+- La sesión de backend reintenta automáticamente mientras la app está en un estado intermedio, para evitar quedar pegada en un banner por una falla transitoria.
+- Clients y trade-ins ya muestran vacíos y métricas derivadas de datos reales, no números demo.
+- Falta seguir revisando formularios secundarios y estados de borde antes de dar por cerrado el hardening.
+
 ## Roadmap por fases
 
 ### Fase 0 — Fundaciones
@@ -90,6 +98,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - [ ] Reintentar `npm run migrate:clients` en `backend/` cuando el deploy actual termine.
 - [ ] Bootstrapping adicional si aparece otra cuenta o tienda.
 - [x] Definir y aplicar el siguiente slice real después de inventory: `sales`.
+- [ ] Seguir con hardening de formularios y listados secundarios en el core migrado.
 - [ ] Mantener este archivo actualizado al cerrar cada hito.
 
 ## Riesgos actuales

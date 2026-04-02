@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Plus, Menu, User, Settings, LogOut, Package, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
+import { getInitials } from '../lib/utils';
 
 interface HeaderProps {
   title?: string;
@@ -12,7 +13,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel = "Nuevo Ingreso", onMenuClick, onNavigate }) => {
-  const { logout } = useAppContext();
+  const { logout, user, appSession } = useAppContext();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
@@ -40,6 +41,12 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
   ]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const profileName = appSession?.user.displayName?.trim() || user?.displayName?.trim() || user?.email?.trim() || 'Usuario';
+  const profileEmail = appSession?.user.email || user?.email || 'Sin correo';
+  const profileRole = appSession?.membership?.role || 'SELLER';
+  const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'ADMIN' ? 'Administrador' : 'Vendedor';
+  const profileAvatarUrl = user?.photoURL || '';
+  const profileInitials = getInitials(profileName);
 
   const markAllAsRead = () => {
     setNotifications(notifications.map(n => ({ ...n, read: true })));
@@ -225,9 +232,13 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
               setIsProfileOpen(!isProfileOpen);
               setIsNotificationsOpen(false);
             }}
-            className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 cursor-pointer shrink-0"
+            className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300 cursor-pointer shrink-0 flex items-center justify-center text-xs font-bold text-gray-700"
           >
-            <img src="https://i.pravatar.cc/150?img=11" alt="User" className="w-full h-full object-cover" />
+            {profileAvatarUrl ? (
+              <img src={profileAvatarUrl} alt={profileName} className="w-full h-full object-cover" />
+            ) : (
+              <span>{profileInitials || 'U'}</span>
+            )}
           </motion.div>
 
           <AnimatePresence>
@@ -241,11 +252,9 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
                 className="absolute right-0 mt-4 w-56 sm:w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
               >
                 <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50/50">
-                  <p className="font-bold text-gray-900 text-sm sm:text-base">Carlos Méndez</p>
-                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">carlos@imanager.com</p>
-                  <div className="mt-2 inline-block px-2 py-1 bg-gray-200 text-gray-700 text-[10px] font-bold rounded uppercase tracking-wide">
-                    Administrador
-                  </div>
+                  <p className="font-bold text-gray-900 text-sm sm:text-base">{profileName}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{profileEmail}</p>
+                  <div className="mt-2 inline-block px-2 py-1 bg-gray-200 text-gray-700 text-[10px] font-bold rounded uppercase tracking-wide">{profileRoleLabel}</div>
                 </div>
                 <div className="p-2">
                   <button 
@@ -286,3 +295,4 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
     </header>
   );
 };
+

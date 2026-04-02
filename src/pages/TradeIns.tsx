@@ -43,7 +43,7 @@ export const TradeIns: React.FC = () => {
     return true;
   });
 
-  const pendingTradeIns = tradeIns.filter(trade => ['PENDIENTE', 'EN REVISIÓN', 'PERITAJE TÉC.', 'LISTO'].includes(trade.status)).length;
+  const pendingTradeIns = tradeIns.filter(trade => ['PENDIENTE', 'EN REVISIÓN', 'PERITAJE TÉC.'].includes(trade.status)).length;
   const totalTakeValue = tradeIns.reduce((sum, trade) => sum + trade.takeValue, 0);
   const averageDifference = tradeIns.length > 0 ? tradeIns.reduce((sum, trade) => sum + trade.differencePaid, 0) / tradeIns.length : 0;
   const approvedTradeIns = tradeIns.filter(trade => trade.status === 'APROBADO').length;
@@ -188,43 +188,51 @@ export const TradeIns: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTradeIns.map((trade) => {
-                const client = getClient(trade.clientId);
+              {filteredTradeIns.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                    No hay canjes para mostrar con los filtros actuales.
+                  </td>
+                </tr>
+              ) : (
+                filteredTradeIns.map((trade) => {
+                  const client = getClient(trade.clientId);
 
-                return (
-                  <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-6 py-4 text-gray-500">{trade.date}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">{client?.name || 'Cliente eliminado'}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{client?.dni || 'Sin DNI'}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">{trade.deviceReceived}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{trade.deviceReceivedImei}</div>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.takeValue)}</td>
-                    <td className="px-6 py-4 text-gray-500">{trade.deviceGiven}</td>
-                    <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.differencePaid)}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${
-                        trade.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800' :
-                        trade.status === 'RECHAZADO' ? 'bg-red-100 text-red-800' :
-                        'bg-amber-100 text-amber-800'
-                      }`}>
-                        {trade.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ActionMenu 
-                          onEdit={() => setSelectedTradeIn(trade)} 
-                          onDelete={() => setTradeInToDelete(trade.id)} 
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
+                      <td className="px-6 py-4 text-gray-500">{trade.date}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900">{client?.name || 'Cliente eliminado'}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{client?.dni || 'Sin DNI'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900">{trade.deviceReceived}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{trade.deviceReceivedImei}</div>
+                      </td>
+                      <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.takeValue)}</td>
+                      <td className="px-6 py-4 text-gray-500">{trade.deviceGiven}</td>
+                      <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(trade.differencePaid)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${
+                          trade.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800' :
+                          trade.status === 'RECHAZADO' ? 'bg-red-100 text-red-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {trade.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ActionMenu 
+                            onEdit={() => setSelectedTradeIn(trade)} 
+                            onDelete={() => setTradeInToDelete(trade.id)} 
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
