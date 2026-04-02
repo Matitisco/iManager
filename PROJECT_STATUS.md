@@ -154,3 +154,10 @@ Documento vivo de coordinaciÃ³n. Actualizar cada vez que se complete un paso rel
 - Se detectó un bug de consistencia en inventario: con backend configurado, un fallo o estado intermedio podía caer a Firestore y dar una falsa sensación de guardado exitoso.
 - Decisión tomada: para inventario, si el backend está configurado, las altas/ediciones/bajas deben pasar por backend o fallar con error visible; Firestore queda solo para modo local sin backend configurado.
 - Esto evita cierres de modal con 'guardado fantasma' que luego no aparece persistido en Postgres.
+
+## Update 2026-04-02 - Onboarding de tienda
+
+- Se implemento una pantalla real de onboarding para usuarios que ya iniciaron sesion pero todavia no tienen `Store` ni `StoreMember`.
+- El backend expone un flujo para completar onboarding creando `Store` + `StoreMember` OWNER y devolviendo la nueva sesion de app.
+- La app ahora bloquea el acceso al core hasta completar este paso, en vez de dejar que el usuario choque con errores de membresia faltante.
+- Este flujo es la forma correcta de materializar contexto de negocio para cuentas nuevas en iManager.

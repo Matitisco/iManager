@@ -15,6 +15,7 @@ import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Notifications } from './pages/Notifications';
 import { Login } from './pages/Login';
+import { Onboarding } from './pages/Onboarding';
 import { Modal } from './components/Modal';
 import { ProductForm } from './components/forms/ProductForm';
 import { ClientForm } from './components/forms/ClientForm';
@@ -37,6 +38,10 @@ function AppContent() {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (backendStatus === 'ready' && appSession?.onboardingRequired) {
+    return <Onboarding />;
   }
 
   const showBackendBanner = backendStatus !== 'ready';

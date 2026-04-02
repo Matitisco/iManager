@@ -8,6 +8,7 @@ import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBa
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
+import { completeBackendOnboarding } from '../services/onboarding-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
@@ -35,6 +36,7 @@ interface AppState {
   appSession: AppSession | null;
   backendStatus: BackendConnectionStatus;
   backendMessage: string | null;
+  completeOnboarding: (storeName: string) => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -100,6 +102,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [salesSource, setSalesSource] = useState<'firestore' | 'backend'>('firestore');
   const [tradeInsSource, setTradeInsSource] = useState<'firestore' | 'backend'>('firestore');
 
+  const refreshBackendSession = async (currentUser: User) => {
+    const { status, session, message } = await fetchBackendSession(currentUser);
+    setBackendStatus(status);
+    setAppSession(session);
+    setBackendMessage(message);
+    return { status, session, message };
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -133,12 +143,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const loadBackendSession = async () => {
       try {
-        const { status, session, message } = await fetchBackendSession(user);
+        const { status, session, message } = await refreshBackendSession(user);
         if (cancelled) return;
-
-        setBackendStatus(status);
-        setAppSession(session);
-        setBackendMessage(message);
 
         const shouldRetry = status !== 'ready' || session?.onboardingRequired;
         if (shouldRetry) {
@@ -383,6 +389,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const logout = async () => {
     await signOut(auth);
+  };
+
+  const completeOnboarding = async (storeName: string) => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const session = await completeBackendOnboarding(user, storeName);
+    setBackendStatus('ready');
+    setBackendMessage(null);
+    setAppSession(session);
   };
 
   const addSale = async (saleData: Omit<Sale, 'id'>) => {
@@ -960,7 +977,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addClient, updateClient, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
-      user, loading, appSession, backendStatus, backendMessage, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>
