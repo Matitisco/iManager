@@ -7,6 +7,7 @@ import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
+import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
@@ -97,6 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [inventorySource, setInventorySource] = useState<'firestore' | 'backend'>('firestore');
   const [clientsSource, setClientsSource] = useState<'firestore' | 'backend'>('firestore');
   const [salesSource, setSalesSource] = useState<'firestore' | 'backend'>('firestore');
+  const [tradeInsSource, setTradeInsSource] = useState<'firestore' | 'backend'>('firestore');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -119,6 +121,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setInventorySource('firestore');
       setClientsSource('firestore');
       setSalesSource('firestore');
+      setTradeInsSource('firestore');
       return;
     }
 
@@ -152,6 +155,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendSalesEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const backendTradeInsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
 
   useEffect(() => {
     if (!user) {
@@ -278,6 +282,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
   }, [backendSalesEnabled, user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribeFirestore: (() => void) | null = null;
+
+    const startFirestoreFallback = () => {
+      setTradeInsSource('firestore');
+      unsubscribeFirestore = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
+        setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
+    };
+
+    const loadBackendTradeIns = async () => {
+      try {
+        const backendTradeIns = await fetchBackendTradeIns(user);
+        if (cancelled) return;
+        setTradeIns(backendTradeIns);
+        setTradeInsSource('backend');
+      } catch (error) {
+        if (cancelled) return;
+        console.warn('Backend trade-ins unavailable, falling back to Firestore.', error);
+        startFirestoreFallback();
+      }
+    };
+
+    if (backendTradeInsEnabled) {
+      void loadBackendTradeIns();
+    } else {
+      startFirestoreFallback();
+    }
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
+  }, [backendTradeInsEnabled, user]);
 
   const login = async () => {
     try {
@@ -715,32 +761,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addTradeIn = async (tradeInData: Omit<TradeIn, 'id'>) => {
     if (!user) return;
-    const id = generateId('CAN');
-    const path = `tradeIns/${id}`;
+    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
     try {
+      if (canUseBackendTradeIns) {
+        const createdTradeIn = await createBackendTradeIn(user, tradeInData);
+        setTradeIns(prev => [createdTradeIn, ...prev]);
+        return;
+      }
+
+      const id = generateId('CAN');
+      const path = `tradeIns/${id}`;
       await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
     } catch (error) {
+      if (canUseBackendTradeIns) {
+        console.warn('Backend trade-in create failed, falling back to Firestore.', error);
+        setTradeInsSource('firestore');
+        const id = generateId('CAN');
+        const path = `tradeIns/${id}`;
+        try {
+          await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.CREATE, path);
+          return;
+        }
+      }
+
+      const id = generateId('CAN');
+      const path = `tradeIns/${id}`;
       handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
     if (!user) return;
-    const path = `tradeIns/${updatedTradeIn.id}`;
+    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
     try {
+      if (canUseBackendTradeIns) {
+        const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
+        setTradeIns(prev => prev.map(tradeIn => tradeIn.id === backendTradeIn.id ? backendTradeIn : tradeIn));
+        return;
+      }
+
+      const path = `tradeIns/${updatedTradeIn.id}`;
       const { id, ...data } = updatedTradeIn;
       await updateDoc(doc(db, 'tradeIns', id), data as any);
     } catch (error) {
+      if (canUseBackendTradeIns) {
+        console.warn('Backend trade-in update failed, falling back to Firestore.', error);
+        setTradeInsSource('firestore');
+        const path = `tradeIns/${updatedTradeIn.id}`;
+        try {
+          const { id, ...data } = updatedTradeIn;
+          await updateDoc(doc(db, 'tradeIns', id), data as any);
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
+          return;
+        }
+      }
+
+      const path = `tradeIns/${updatedTradeIn.id}`;
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
   const deleteTradeIn = async (id: string) => {
     if (!user) return;
-    const path = `tradeIns/${id}`;
+    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
     try {
+      if (canUseBackendTradeIns) {
+        await deleteBackendTradeIn(user, id);
+        setTradeIns(prev => prev.filter(tradeIn => tradeIn.id !== id));
+        return;
+      }
+
+      const path = `tradeIns/${id}`;
       await deleteDoc(doc(db, 'tradeIns', id));
     } catch (error) {
+      if (canUseBackendTradeIns) {
+        console.warn('Backend trade-in delete failed, falling back to Firestore.', error);
+        setTradeInsSource('firestore');
+        const path = `tradeIns/${id}`;
+        try {
+          await deleteDoc(doc(db, 'tradeIns', id));
+          return;
+        } catch (fallbackError) {
+          handleFirestoreError(fallbackError, OperationType.DELETE, path);
+          return;
+        }
+      }
+
+      const path = `tradeIns/${id}`;
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   };

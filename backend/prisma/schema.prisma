@@ -32,6 +32,7 @@ model Store {
   clients     Client[]
   inventory   InventoryItem[]
   sales       Sale[]
+  tradeIns    TradeIn[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -62,6 +63,7 @@ model Client {
   pendingBalance Decimal   @default(0) @db.Decimal(12, 2)
   store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sales          Sale[]
+  tradeIns       TradeIn[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -112,6 +114,30 @@ model Sale {
   @@index([storeId, soldAt])
   @@index([clientId])
   @@index([inventoryItemId])
+}
+
+model TradeIn {
+  id                 String   @id @default(cuid())
+  storeId            String
+  clientId           String?
+  dateLabel          String   @db.VarChar(120)
+  deviceReceived     String   @db.VarChar(120)
+  deviceReceivedImei String   @db.VarChar(100)
+  takeValue          Decimal  @db.Decimal(12, 2)
+  deviceGiven        String   @db.VarChar(120)
+  differencePaid     Decimal  @db.Decimal(12, 2)
+  status             String   @db.VarChar(30)
+  batteryHealth      Int?
+  grade              String?  @db.VarChar(20)
+  tradeAt            DateTime
+  store              Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client             Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([storeId])
+  @@index([storeId, tradeAt])
+  @@index([clientId])
 }
 
 enum UserStatus {

@@ -13,6 +13,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Módulo `clients` ya migrado como slice real en backend; la migración histórica desde Firestore fue verificada contra la base named y hoy no encontró documentos.
 - Módulo `inventory` ya migrado como slice real en backend y conectado al frontend con fallback controlado a Firestore.
 - Módulo `sales` ya migrado como slice real transaccional en backend y conectado al frontend con fallback controlado a Firestore.
+- Módulo `trade-ins` ya fue implementado como slice real en backend y conectado al frontend con fallback controlado a Firestore; falta verificar despliegue y persistencia en Railway.
 
 ## Qué ya está listo
 
@@ -44,10 +45,10 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - Sigue siendo un área sensible porque impacta stock, ventas y reportes.
 - Falta recién observar el comportamiento en integración con ventas, que todavía no se migró.
 
-### 3) Canjes todavía dependen de la fase de migración
+### 3) Canjes
 
-- Las pantallas fueron saneadas para el tester.
-- Falta mover lógica crítica al backend para evitar side effects duplicados.
+- El slice backend y el fallback frontend ya están implementados.
+- Falta validar que Railway tome el cambio y que la tabla nueva quede aplicada en Postgres.
 
 ### 4) UI de auth y sesión
 
@@ -76,7 +77,7 @@ Documento vivo de coordinación. Actualizar cada vez que se complete un paso rel
 - [x] Validar migración histórica de `clients` en el Firestore named database actual.
 - [x] Migrar `inventory`.
 - [x] Migrar `sales`.
-- [ ] Migrar `trade-ins`.
+- [x] Migrar `trade-ins` como slice real.
 
 ### Fase 3 — Operación y reporting
 
