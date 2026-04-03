@@ -6,7 +6,7 @@ import { importBackendInventoryItems, type ImportRow, type ImportResult } from '
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = 'upload' | 'mapping' | 'result';
+type Step = 'upload' | 'header-select' | 'mapping' | 'result';
 
 interface FieldDef {
   key: keyof ImportRow;
@@ -30,7 +30,8 @@ const INVENTORY_FIELDS: FieldDef[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function parseFile(file: File): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
+/** Parse file into raw rows (array of arrays, no header assumption) */
+function parseFile(file: File): Promise<string[][]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -38,11 +39,9 @@ function parseFile(file: File): Promise<{ headers: string[]; rows: Record<string
         const data = new Uint8Array(e.target!.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        if (raw.length === 0) return resolve({ headers: [], rows: [] });
-        const headers = Object.keys(raw[0]);
-        resolve({ headers, rows: raw });
-      } catch (err) {
+        const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+        resolve(raw.map(row => row.map(cell => String(cell ?? '').trim())));
+      } catch {
         reject(new Error('No se pudo leer el archivo'));
       }
     };
@@ -51,27 +50,49 @@ function parseFile(file: File): Promise<{ headers: string[]; rows: Record<string
   });
 }
 
+/** Find the most likely header row index: first row with ≥2 non-empty, non-numeric cells */
+function autoDetectHeaderRow(rawRows: string[][]): number {
+  for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
+    const row = rawRows[i];
+    const textCells = row.filter(cell => cell && isNaN(Number(cell)));
+    if (textCells.length >= 2) return i;
+  }
+  return 0;
+}
+
 function autoMap(headers: string[]): Record<string, string> {
-  const normalize = (s: string) => s.toLowerCase().replace(/[\s_-]/g, '');
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s_\-\.]/g, '');
   const aliases: Record<string, string> = {
-    imei: 'imei', serial: 'imei',
+    imei: 'imei', serial: 'imei', numeroserie: 'imei',
     modelo: 'model', model: 'model',
-    precio: 'price', price: 'price', pvp: 'price',
+    precio: 'price', price: 'price', pvp: 'price', precioventa: 'price',
     capacidad: 'capacity', capacity: 'capacity', almacenamiento: 'capacity', storage: 'capacity',
     color: 'color', colour: 'color',
-    condicion: 'condition', condition: 'condition', estado2: 'condition',
-    estetica: 'grade', grade: 'grade', grado: 'grade',
-    bateria: 'batteryHealth', battery: 'batteryHealth', batt: 'batteryHealth',
-    costo: 'cost', cost: 'cost', costounitario: 'cost',
+    condicion: 'condition', condition: 'condition',
+    estetica: 'grade', grade: 'grade', grado: 'grade', calidad: 'grade',
+    bateria: 'batteryHealth', battery: 'batteryHealth', batt: 'batteryHealth', saludbateria: 'batteryHealth',
+    costo: 'cost', cost: 'cost', costounitario: 'cost', preciocompra: 'cost',
     estado: 'status', status: 'status', disponibilidad: 'status',
   };
 
   const mapping: Record<string, string> = {};
   for (const h of headers) {
     const key = aliases[normalize(h)];
-    if (key) mapping[key] = h;
+    if (key && !mapping[key]) mapping[key] = h;
   }
   return mapping;
+}
+
+function buildDataRows(rawRows: string[][], headerRowIndex: number): {
+  headers: string[];
+  fileRows: Record<string, string>[];
+} {
+  const headers = rawRows[headerRowIndex].map((h, i) => h || `Columna ${i + 1}`);
+  const fileRows = rawRows
+    .slice(headerRowIndex + 1)
+    .filter(row => row.some(cell => cell !== ''))
+    .map(row => Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ''])));
+  return { headers, fileRows };
 }
 
 function buildRows(
@@ -110,16 +131,24 @@ interface Props {
   onClose: () => void;
 }
 
+const PREVIEW_ROWS = 12; // how many raw rows to show in header-select step
+
 export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const { user, reloadInventory } = useAppContext();
 
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+
+  // Raw parsed state
+  const [rawRows, setRawRows] = useState<string[][]>([]);
+  const [headerRowIndex, setHeaderRowIndex] = useState(0);
+
+  // Derived after confirming header row
   const [headers, setHeaders] = useState<string[]>([]);
   const [fileRows, setFileRows] = useState<Record<string, string>[]>([]);
-  // fieldKey → fileColumnName
   const [fieldToColumn, setFieldToColumn] = useState<Record<string, string>>({});
+
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,12 +163,12 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
       return;
     }
     try {
-      const { headers: h, rows } = await parseFile(file);
-      if (h.length === 0) { setFileError('El archivo no tiene columnas'); return; }
-      setHeaders(h);
-      setFileRows(rows);
-      setFieldToColumn(autoMap(h));
-      setStep('mapping');
+      const rows = await parseFile(file);
+      if (rows.length === 0) { setFileError('El archivo está vacío'); return; }
+      const suggested = autoDetectHeaderRow(rows);
+      setRawRows(rows);
+      setHeaderRowIndex(suggested);
+      setStep('header-select');
     } catch (e: unknown) {
       setFileError(e instanceof Error ? e.message : 'Error al leer el archivo');
     }
@@ -152,7 +181,22 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
     if (file) handleFile(file);
   };
 
-  // ── Step 2: Mapping helpers ─────────────────────────────────────────────────
+  // ── Step 2: Confirm header row → go to mapping ──────────────────────────────
+
+  const confirmHeaderRow = () => {
+    const { headers: h, fileRows: rows } = buildDataRows(rawRows, headerRowIndex);
+    if (h.every(col => col.startsWith('Columna '))) {
+      setFileError('La fila seleccionada parece estar vacía. Elegí la fila con los nombres de columna.');
+      return;
+    }
+    setHeaders(h);
+    setFileRows(rows);
+    setFieldToColumn(autoMap(h));
+    setFileError(null);
+    setStep('mapping');
+  };
+
+  // ── Step 3: Mapping helpers ─────────────────────────────────────────────────
 
   const requiredMapped = INVENTORY_FIELDS
     .filter(f => f.required)
@@ -160,7 +204,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
 
   const previewRows = fileRows.slice(0, 3);
 
-  // ── Step 3: Import ──────────────────────────────────────────────────────────
+  // ── Step 4: Import ──────────────────────────────────────────────────────────
 
   const handleImport = async () => {
     if (!user) return;
@@ -178,7 +222,20 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
     }
   };
 
+  // ── Subtitle per step ───────────────────────────────────────────────────────
+
+  const subtitle = {
+    'upload': 'Subí un archivo CSV, XLSX o XLS',
+    'header-select': 'Indicá cuál fila tiene los nombres de columna',
+    'mapping': `${fileRows.length} filas detectadas — mapeá las columnas`,
+    'result': 'Importación completada',
+  }[step];
+
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  // Slice of raw rows to display in header-select
+  const displayRawRows = rawRows.slice(0, PREVIEW_ROWS);
+  const maxCols = Math.min(8, Math.max(...displayRawRows.map(r => r.length)));
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -188,11 +245,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Importar inventario</h2>
-            <p className="text-sm text-gray-500">
-              {step === 'upload' && 'Subí un archivo CSV, XLSX o XLS'}
-              {step === 'mapping' && `${fileRows.length} filas detectadas — mapeá las columnas`}
-              {step === 'result' && 'Importación completada'}
-            </p>
+            <p className="text-sm text-gray-500">{subtitle}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <X size={18} className="text-gray-500" />
@@ -234,10 +287,75 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
 
+          {/* ── Step: Header row selection ── */}
+          {step === 'header-select' && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
+                <AlertCircle size={15} className="mt-0.5 shrink-0 text-gray-400" />
+                Hacé click en la fila que contiene los <strong className="text-gray-700">nombres de las columnas</strong>. Las filas de arriba se ignoran.
+              </div>
+
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {displayRawRows.map((row, i) => {
+                        const isHeader = i === headerRowIndex;
+                        const isAbove = i < headerRowIndex;
+                        return (
+                          <tr
+                            key={i}
+                            onClick={() => { setHeaderRowIndex(i); setFileError(null); }}
+                            className={`cursor-pointer transition-colors border-b border-gray-100 last:border-b-0
+                              ${isHeader
+                                ? 'bg-black text-white'
+                                : isAbove
+                                  ? 'bg-gray-50 text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+                                  : 'text-gray-600 hover:bg-blue-50'
+                              }`}
+                          >
+                            {/* Row number */}
+                            <td className={`px-3 py-2.5 font-mono text-right w-10 select-none ${isHeader ? 'text-gray-300' : 'text-gray-300'}`}>
+                              {i + 1}
+                            </td>
+                            {/* Tag for selected header row */}
+                            <td className="px-2 py-2.5 w-20 select-none">
+                              {isHeader && (
+                                <span className="text-[10px] font-bold tracking-wider bg-white/20 rounded px-1.5 py-0.5 uppercase whitespace-nowrap">
+                                  Encabezado
+                                </span>
+                              )}
+                            </td>
+                            {/* Cell values */}
+                            {Array.from({ length: maxCols }).map((_, j) => (
+                              <td key={j} className={`px-3 py-2.5 max-w-[120px] truncate ${isHeader ? 'font-semibold' : ''}`}>
+                                {row[j] ?? ''}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {rawRows.length > PREVIEW_ROWS && (
+                  <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
+                    Mostrando las primeras {PREVIEW_ROWS} filas de {rawRows.length}
+                  </div>
+                )}
+              </div>
+
+              {fileError && (
+                <div className="flex items-center gap-2 text-red-600 text-sm">
+                  <AlertCircle size={15} /> {fileError}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Step: Mapping ── */}
           {step === 'mapping' && (
             <div className="space-y-5">
-              {/* Column mapping table */}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -387,10 +505,28 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </button>
           )}
 
-          {step === 'mapping' && (
+          {step === 'header-select' && (
             <>
               <button
                 onClick={() => { setStep('upload'); setFileError(null); }}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Volver
+              </button>
+              <button
+                onClick={confirmHeaderRow}
+                className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center gap-2"
+              >
+                Confirmar encabezado
+                <ArrowRight size={15} />
+              </button>
+            </>
+          )}
+
+          {step === 'mapping' && (
+            <>
+              <button
+                onClick={() => { setStep('header-select'); setFileError(null); }}
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Volver
