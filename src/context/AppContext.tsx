@@ -29,7 +29,7 @@ interface AppState {
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<void>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<void>;
   deleteTradeIn: (id: string) => Promise<void>;
-  addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<void>;
+  addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
   removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
   user: User | null;
@@ -924,14 +924,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const addCustomColumn = async (columnData: Omit<CustomColumn, 'id'>) => {
-    if (!user) return;
+  const addCustomColumn = async (columnData: Omit<CustomColumn, 'id'>): Promise<string | undefined> => {
+    if (!user) return undefined;
     const id = generateId('COL');
     const path = `customColumns/${id}`;
     try {
       await setDoc(doc(db, 'customColumns', id), { ...columnData, authorUid: user.uid });
+      return id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
+      return undefined;
     }
   };
 

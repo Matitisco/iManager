@@ -13,6 +13,7 @@ export interface ImportRow {
   cost?: number;
   price: number;
   status?: string;
+  customFields?: Record<string, unknown>;
 }
 
 export interface ImportResult {

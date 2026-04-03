@@ -129,6 +129,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
               cost: z.coerce.number().optional(),
               price: z.coerce.number(),
               status: z.string().optional(),
+              customFields: z.record(z.unknown()).optional(),
             })
           )
           .max(2000),

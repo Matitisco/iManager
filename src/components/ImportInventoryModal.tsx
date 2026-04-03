@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
@@ -95,9 +95,18 @@ function buildDataRows(rawRows: string[][], headerRowIndex: number): {
   return { headers, fileRows };
 }
 
+/** Detect if a column is mostly numeric (>50% of non-empty values parse as numbers) */
+function detectColumnType(fileRows: Record<string, string>[], colName: string): 'text' | 'number' {
+  const values = fileRows.map(r => String(r[colName] ?? '').trim()).filter(Boolean);
+  if (values.length === 0) return 'text';
+  const numCount = values.filter(v => !isNaN(parseFloat(v.replace(',', '.')))).length;
+  return numCount / values.length > 0.5 ? 'number' : 'text';
+}
+
 function buildRows(
   fileRows: Record<string, string>[],
-  fieldToColumn: Record<string, string>
+  fieldToColumn: Record<string, string>,
+  extraCols: { fileColumn: string; colId: string }[]
 ): ImportRow[] {
   return fileRows.map((row) => {
     const get = (field: string) => {
@@ -110,6 +119,12 @@ function buildRows(
       return isNaN(n) ? undefined : n;
     };
 
+    const customFields: Record<string, unknown> = {};
+    for (const { fileColumn, colId } of extraCols) {
+      const val = String(row[fileColumn] ?? '').trim();
+      if (val) customFields[colId] = val;
+    }
+
     return {
       imei: get('imei'),
       model: get('model'),
@@ -121,6 +136,7 @@ function buildRows(
       batteryHealth: num('batteryHealth'),
       cost: num('cost'),
       status: get('status') || undefined,
+      customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
     };
   });
 }
@@ -134,7 +150,7 @@ interface Props {
 const PREVIEW_ROWS = 12; // how many raw rows to show in header-select step
 
 export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
-  const { user, reloadInventory } = useAppContext();
+  const { user, reloadInventory, customColumns, addCustomColumn } = useAppContext();
 
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
@@ -149,9 +165,19 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const [fileRows, setFileRows] = useState<Record<string, string>[]>([]);
   const [fieldToColumn, setFieldToColumn] = useState<Record<string, string>>({});
 
+  // Extra columns: file columns not mapped to any standard field
+  // key = fileColumn, value = enabled (true = will be imported as custom column)
+  const [extraEnabled, setExtraEnabled] = useState<Record<string, boolean>>({});
+
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // File columns that are NOT mapped to any standard inventory field
+  const unmappedColumns = useMemo(() => {
+    const mapped = new Set(Object.values(fieldToColumn).filter(Boolean));
+    return headers.filter(h => !mapped.has(h));
+  }, [headers, fieldToColumn]);
 
   // ── Step 1: Upload ──────────────────────────────────────────────────────────
 
@@ -189,9 +215,15 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
       setFileError('La fila seleccionada parece estar vacía. Elegí la fila con los nombres de columna.');
       return;
     }
+    const mapped = new Set(Object.values(autoMap(h)).filter(Boolean));
+    const extra: Record<string, boolean> = {};
+    for (const col of h) {
+      if (!mapped.has(col)) extra[col] = true;
+    }
     setHeaders(h);
     setFileRows(rows);
     setFieldToColumn(autoMap(h));
+    setExtraEnabled(extra);
     setFileError(null);
     setStep('mapping');
   };
@@ -210,7 +242,24 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
     if (!user) return;
     setImporting(true);
     try {
-      const rows = buildRows(fileRows, fieldToColumn);
+      // Resolve extra columns: find or create custom columns, get their IDs
+      const extraCols: { fileColumn: string; colId: string }[] = [];
+      for (const fileColumn of unmappedColumns) {
+        if (!extraEnabled[fileColumn]) continue;
+        // Check if a custom column with this label already exists
+        const existing = customColumns.find(
+          c => c.label.toLowerCase() === fileColumn.toLowerCase()
+        );
+        if (existing) {
+          extraCols.push({ fileColumn, colId: existing.id });
+        } else {
+          const type = detectColumnType(fileRows, fileColumn);
+          const id = await addCustomColumn({ label: fileColumn, type });
+          if (id) extraCols.push({ fileColumn, colId: id });
+        }
+      }
+
+      const rows = buildRows(fileRows, fieldToColumn, extraCols);
       const res = await importBackendInventoryItems(user, rows);
       await reloadInventory();
       setResult(res);
@@ -405,6 +454,51 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Extra columns → custom columns */}
+              {unmappedColumns.length > 0 && (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Columnas adicionales</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Se agregarán como columnas personalizadas en la tabla</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const allOn = unmappedColumns.every(c => extraEnabled[c]);
+                        const next: Record<string, boolean> = {};
+                        for (const c of unmappedColumns) next[c] = !allOn;
+                        setExtraEnabled(next);
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                    >
+                      {unmappedColumns.every(c => extraEnabled[c]) ? 'Desmarcar todas' : 'Marcar todas'}
+                    </button>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {unmappedColumns.map(col => {
+                      const alreadyExists = customColumns.some(
+                        c => c.label.toLowerCase() === col.toLowerCase()
+                      );
+                      return (
+                        <label key={col} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={!!extraEnabled[col]}
+                            onChange={e => setExtraEnabled(prev => ({ ...prev, [col]: e.target.checked }))}
+                            className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+                          />
+                          <span className="text-sm font-medium text-gray-700 flex-1">{col}</span>
+                          {alreadyExists
+                            ? <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">ya existe</span>
+                            : <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">nueva</span>
+                          }
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Preview */}
               {previewRows.length > 0 && (

@@ -221,6 +221,7 @@ export interface ImportRow {
   cost?: number;
   price: number;
   status?: string;
+  customFields?: Record<string, unknown>;
 }
 
 export interface ImportResult {
@@ -312,6 +313,14 @@ export async function importInventoryItems(
       });
 
       if (existing) {
+        const prev = await inventoryPrisma.inventoryItem.findFirst({
+          where: { id: existing.id },
+          select: { customFields: true },
+        });
+        const mergedFields = {
+          ...(toCustomFields(prev?.customFields ?? null)),
+          ...(raw.customFields ?? {}),
+        };
         await inventoryPrisma.inventoryItem.update({
           where: { id: existing.id },
           data: {
@@ -324,6 +333,7 @@ export async function importInventoryItems(
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
             status: input.status,
+            customFields: mergedFields,
           },
         });
         result.updated++;
@@ -341,7 +351,7 @@ export async function importInventoryItems(
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
             status: input.status,
-            customFields: {},
+            customFields: raw.customFields ?? {},
           },
         });
         result.imported++;
