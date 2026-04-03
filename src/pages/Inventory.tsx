@@ -567,9 +567,10 @@ export const Inventory: React.FC = () => {
 
       <AnimatePresence>
         {selectedItem && (
-          <InventoryEditPanel 
-            item={selectedItem} 
-            onClose={() => setSelectedItem(null)} 
+          <InventoryEditPanel
+            item={selectedItem}
+            onClose={() => setSelectedItem(null)}
+            onDelete={(id) => { setSelectedItem(null); setItemToDelete(id); }}
           />
         )}
       </AnimatePresence>
@@ -658,7 +659,7 @@ const PageButton = ({ label, icon, active, disabled, onClick }: { label?: string
   </motion.button>
 );
 
-const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => void }) => {
+const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClose: () => void, onDelete: (id: string) => void }) => {
   const { updateProduct, customColumns } = useAppContext();
   const [formData, setFormData] = useState<Product>(item);
   const [isSaving, setIsSaving] = useState(false);
@@ -909,6 +910,13 @@ const InventoryEditPanel = ({ item, onClose }: { item: Product, onClose: () => v
         </div>
 
         <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+          <button
+            onClick={() => onDelete(item.id)}
+            className="px-4 py-3 border border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 transition-colors flex items-center gap-2"
+            disabled={isSaving}
+          >
+            <Trash2 size={16} />
+          </button>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors"
