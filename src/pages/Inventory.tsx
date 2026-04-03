@@ -34,6 +34,9 @@ export const Inventory: React.FC = () => {
   const [filterBattery, setFilterBattery] = useState<string>('Todas');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+
   const [showColumns, setShowColumns] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('inventoryVisibleColumns');
@@ -83,6 +86,13 @@ export const Inventory: React.FC = () => {
 
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredInventory.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedInventory = filteredInventory.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setCurrentPage(1); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
@@ -339,7 +349,7 @@ export const Inventory: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredInventory.map((invItem) => (
+                pagedInventory.map((invItem) => (
                   <tr
                     key={invItem.id}
                     onClick={() => setSelectedItem(invItem)}
@@ -424,7 +434,7 @@ export const Inventory: React.FC = () => {
               No hay equipos para mostrar con los filtros actuales.
             </div>
           ) : (
-            filteredInventory.map((invItem) => (
+            pagedInventory.map((invItem) => (
               <div
                 key={invItem.id}
                 onClick={() => setSelectedItem(invItem)}
@@ -500,16 +510,32 @@ export const Inventory: React.FC = () => {
 
         {/* Pagination */}
         <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-b-2xl">
-          <span className="text-sm text-gray-500 text-center sm:text-left">Mostrando {filteredInventory.length > 0 ? 1 : 0} a {filteredInventory.length} de {inventory.length} unidades en inventario</span>
-          <div className="flex flex-wrap items-center justify-center gap-1">
-            <PageButton icon={<ChevronLeft size={16} />} />
-            <PageButton label="1" active />
-            <PageButton label="2" />
-            <PageButton label="3" />
-            <span className="px-2 text-gray-400">...</span>
-            <PageButton label="12" />
-            <PageButton icon={<ChevronRight size={16} />} />
-          </div>
+          <span className="text-sm text-gray-500 text-center sm:text-left">
+            {filteredInventory.length > 0
+              ? `Mostrando ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filteredInventory.length)} de ${filteredInventory.length} unidades`
+              : 'Sin resultados'}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              <PageButton icon={<ChevronLeft size={16} />} disabled={safePage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} />
+              {(() => {
+                const pages: (number | '…')[] = [];
+                for (let i = 1; i <= totalPages; i++) {
+                  if (i === 1 || i === totalPages || (i >= safePage - 1 && i <= safePage + 1)) {
+                    pages.push(i);
+                  } else if (pages[pages.length - 1] !== '…') {
+                    pages.push('…');
+                  }
+                }
+                return pages.map((p, i) =>
+                  p === '…'
+                    ? <span key={`e${i}`} className="px-1 text-gray-400 text-sm">…</span>
+                    : <PageButton key={p} label={String(p)} active={p === safePage} onClick={() => setCurrentPage(p as number)} />
+                );
+              })()}
+              <PageButton icon={<ChevronRight size={16} />} disabled={safePage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} />
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -618,10 +644,16 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
   );
 };
 
-const PageButton = ({ label, icon, active }: { label?: string, icon?: React.ReactNode, active?: boolean }) => (
-  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-    active ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-100 border border-gray-200'
-  }`}>
+const PageButton = ({ label, icon, active, disabled, onClick }: { label?: string, icon?: React.ReactNode, active?: boolean, disabled?: boolean, onClick?: () => void }) => (
+  <motion.button
+    whileHover={!disabled && !active ? { scale: 1.05 } : {}}
+    whileTap={!disabled && !active ? { scale: 0.95 } : {}}
+    onClick={onClick}
+    disabled={disabled}
+    className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+      active ? 'bg-black text-white' : disabled ? 'text-gray-300 border border-gray-100 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100 border border-gray-200'
+    }`}
+  >
     {label || icon}
   </motion.button>
 );
