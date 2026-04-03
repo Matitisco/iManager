@@ -29,7 +29,7 @@ const tradeInCreateSchema = z.object({
   deviceGiven: z.string().min(1).max(120),
   differencePaid: z.number(),
   status: tradeInStatusSchema,
-  batteryHealth: z.number().int().min(0).max(100).optional().nullable(),
+  batteryHealth: z.string().trim().max(50).optional().nullable(),
   grade: z.string().trim().max(20).optional().nullable(),
 });
 

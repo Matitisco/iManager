@@ -121,9 +121,9 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Salud Batería (%)</label>
-          <input required type="number" min="0" max="100" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-            value={formData.batteryHealth} onChange={e => setFormData({...formData, batteryHealth: Number(e.target.value)})} />
+          <label className="text-xs font-bold text-gray-700">Batería</label>
+          <input required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+            value={formData.batteryHealth} onChange={e => setFormData({...formData, batteryHealth: e.target.value})} placeholder="ej: 83-85% o 100" />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

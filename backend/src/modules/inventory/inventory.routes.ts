@@ -125,7 +125,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
               color: z.string().optional(),
               condition: z.string().optional(),
               grade: z.string().optional(),
-              batteryHealth: z.coerce.number().optional(),
+              batteryHealth: z.coerce.string().optional(),
               cost: z.coerce.number().optional(),
               price: z.coerce.number(),
               status: z.string().optional(),

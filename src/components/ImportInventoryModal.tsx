@@ -167,7 +167,7 @@ function buildRows(
       color: get('color') || undefined,
       condition: get('condition') || undefined,
       grade: get('grade') || undefined,
-      batteryHealth: num('batteryHealth'),
+      batteryHealth: get('batteryHealth') || undefined,
       cost: num('cost'),
       status: get('status') || undefined,
       customFields: Object.keys(customFields).length > 0 ? customFields : undefined,

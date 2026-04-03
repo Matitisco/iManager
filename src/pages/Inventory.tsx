@@ -937,14 +937,13 @@ const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClos
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batería (%)</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batería</label>
               <input
-                type="number"
-                min={0}
-                max={100}
+                type="text"
                 name="batteryHealth"
                 value={formData.batteryHealth}
                 onChange={handleChange}
+                placeholder="ej: 83-85% o 100"
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all"
               />
             </div>

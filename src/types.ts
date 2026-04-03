@@ -6,7 +6,7 @@ export interface Product {
   color: string;
   condition: 'NUEVO' | 'USADO' | 'PRE-OWNED';
   grade: 'A+' | 'A' | 'B' | 'C' | 'N/A';
-  batteryHealth: number;
+  batteryHealth: string;
   cost: number;
   price: number;
   status: 'DISPONIBLE' | 'VENDIDO' | 'EN_REVISION';
@@ -40,7 +40,7 @@ export interface TradeIn {
   deviceGiven: string;
   differencePaid: number;
   status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'EN REVISIÓN' | 'PERITAJE TÉC.' | 'LISTO';
-  batteryHealth?: number;
+  batteryHealth?: string;
   grade?: string;
 }
 

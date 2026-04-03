@@ -141,12 +141,12 @@ function normalizeGrade(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-function normalizeBatteryHealth(value?: number | null) {
+function normalizeBatteryHealth(value?: string | null) {
   if (value === undefined) {
     return undefined;
   }
-
-  return value === null ? null : value;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export async function listTradeIns(storeId: string) {

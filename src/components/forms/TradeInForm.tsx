@@ -94,7 +94,7 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         deviceGiven: selectedProduct.model,
         differencePaid,
         status: 'PENDIENTE',
-        batteryHealth: 100,
+        batteryHealth: "100",
         grade: 'A'
       });
 

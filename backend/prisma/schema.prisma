@@ -80,7 +80,7 @@ model InventoryItem {
   color         String   @db.VarChar(50)
   condition     String   @db.VarChar(20)
   grade         String   @db.VarChar(20)
-  batteryHealth Int
+  batteryHealth String   @db.VarChar(50)
   cost          Decimal  @db.Decimal(12, 2)
   price         Decimal  @db.Decimal(12, 2)
   status        String   @db.VarChar(20)
@@ -127,7 +127,7 @@ model TradeIn {
   deviceGiven        String   @db.VarChar(120)
   differencePaid     Decimal  @db.Decimal(12, 2)
   status             String   @db.VarChar(30)
-  batteryHealth      Int?
+  batteryHealth      String?  @db.VarChar(50)
   grade              String?  @db.VarChar(20)
   tradeAt            DateTime
   store              Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -150,3 +150,4 @@ enum StoreRole {
   ADMIN
   SELLER
 }
+

@@ -296,7 +296,7 @@ export async function importInventoryItems(
       color: raw.color?.trim() || "",
       condition: normalizeEnum(raw.condition, CONDITION_MAP, "USADO" as const),
       grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
-      batteryHealth: Math.min(100, Math.max(0, Math.round(Number(raw.batteryHealth) || 100))),
+      batteryHealth: raw.batteryHealth?.toString()?.trim() || "100",
       cost: Number(raw.cost) || 0,
       price: Number(raw.price),
       status: normalizeEnum(raw.status, STATUS_MAP, "DISPONIBLE" as const),
