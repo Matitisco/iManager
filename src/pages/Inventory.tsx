@@ -203,11 +203,77 @@ export const Inventory: React.FC = () => {
               </button>
               <AnimatePresence>
                 {showFilters && (
-                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"><h3 className="font-bold text-gray-900">Filtros</h3><button onClick={() => { setFilterCondition('Todos'); setFilterGrade('Todos'); setFilterModel('Todos'); setFilterCapacity('Todas'); setFilterBattery('Todas'); setFilterStatus('Todos'); }} className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button></div>
-                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Modelo</label><select value={filterModel} onChange={e => setFilterModel(e.target.value)} className="w-full px-3 py-2 border rounded-lg appearance-none"><option>Todos</option>{uniqueModels.map(m => <option key={m}>{m}</option>)}</select></div>
-                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Batería</label><select value={filterBattery} onChange={e => setFilterBattery(e.target.value)} className="w-full px-3 py-2 border rounded-lg appearance-none"><option>Todas</option><option>100%</option><option>{'>'} 90%</option><option>80% - 90%</option><option>{'<'} 80%</option></select></div>
+                  <motion.div
+                    key="filters-panel"
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
+                  >
+                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                      <h3 className="font-bold text-gray-900">Filtros</h3>
+                      <button
+                        onClick={() => { setFilterCondition('Todos'); setFilterGrade('Todos'); setFilterModel('Todos'); setFilterCapacity('Todas'); setFilterBattery('Todas'); setFilterStatus('Todos'); }}
+                        className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Modelo</label>
+                        <select value={filterModel} onChange={e => setFilterModel(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todos">Todos</option>
+                          {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Capacidad</label>
+                        <select value={filterCapacity} onChange={e => setFilterCapacity(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todas">Todas</option>
+                          {uniqueCapacities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Condición</label>
+                        <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todos">Todos</option>
+                          <option value="NUEVO">NUEVO</option>
+                          <option value="USADO">USADO</option>
+                          <option value="PRE-OWNED">PRE-OWNED</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Disponibilidad</label>
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todos">Todos</option>
+                          <option value="DISPONIBLE">Disponible</option>
+                          <option value="VENDIDO">Vendido</option>
+                          <option value="EN_REVISION">En revisión</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grado Estético</label>
+                        <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todos">Todos</option>
+                          <option value="A+">A+</option>
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="N/A">N/A</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Batería</label>
+                        <select value={filterBattery} onChange={e => setFilterBattery(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors appearance-none">
+                          <option value="Todas">Todas</option>
+                          <option value="100%">100%</option>
+                          <option value="> 90%">Mayor a 90%</option>
+                          <option value="80% - 90%">80% - 90%</option>
+                          <option value="< 80%">Menor a 80%</option>
+                        </select>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -350,28 +416,154 @@ const PageButton = ({ icon, disabled, onClick }: { icon: React.ReactNode, disabl
 );
 
 const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClose: () => void, onDelete: (id: string) => void }) => {
-  const { updateProduct } = useAppContext();
+  const { updateProduct, customColumns } = useAppContext();
   const [formData, setFormData] = useState<Product>(item);
-  const handleSave = async () => {
-    await updateProduct(formData);
-    onClose();
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { setFormData(item); }, [item]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: name === 'cost' || name === 'price' ? Number(value) : value }));
   };
+
+  const handleSave = async () => {
+    const imei = formData.imei.trim();
+    const model = formData.model.trim();
+    if (!imei || !model) {
+      setError('Completá IMEI y modelo antes de guardar.');
+      return;
+    }
+    if (!Number.isFinite(formData.cost) || formData.cost < 0 || !Number.isFinite(formData.price) || formData.price < 0) {
+      setError('Costo y precio deben ser números válidos.');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await updateProduct({ ...formData, imei, model });
+      onClose();
+    } catch (submitError) {
+      setError(getFriendlyErrorMessage(submitError, 'No se pudo guardar el equipo.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const inputCls = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-gray-300 transition-all";
+  const labelCls = "block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2";
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-[60]" onClick={onClose} />
-      <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] p-6 flex flex-col">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold">Editar {item.model}</h2>
-          <button onClick={onClose}><X size={20} /></button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]" />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200"
+      >
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+              <Edit2 size={18} className="text-gray-900" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Editar Producto</h2>
+              <p className="text-xs text-gray-500 font-mono">{item.imei}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+            <X size={20} />
+          </button>
         </div>
-        <div className="flex-1 space-y-4">
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Modelo</label><input type="text" value={formData.model} onChange={e => setFormData({...formData, model: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Batería</label><input type="text" value={formData.batteryHealth} onChange={e => setFormData({...formData, batteryHealth: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Precio</label><input type="number" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className={labelCls}>Modelo</label>
+              <input type="text" name="model" value={formData.model} onChange={handleChange} className={inputCls} />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>IMEI</label>
+              <input type="text" name="imei" value={formData.imei} onChange={handleChange} className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls}>Capacidad</label>
+              <input type="text" name="capacity" value={formData.capacity} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Color</label>
+              <input type="text" name="color" value={formData.color} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Condición</label>
+              <select name="condition" value={formData.condition} onChange={handleChange} className={`${inputCls} appearance-none`}>
+                <option value="NUEVO">NUEVO</option>
+                <option value="USADO">USADO</option>
+                <option value="PRE-OWNED">PRE-OWNED</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Estética</label>
+              <select name="grade" value={formData.grade} onChange={handleChange} className={`${inputCls} appearance-none`}>
+                <option value="A+">A+</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="N/A">N/A</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Batería</label>
+              <input type="text" name="batteryHealth" value={formData.batteryHealth} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Disponibilidad</label>
+              <select name="status" value={formData.status} onChange={handleChange} className={`${inputCls} appearance-none`}>
+                <option value="DISPONIBLE">DISPONIBLE</option>
+                <option value="VENDIDO">VENDIDO</option>
+                <option value="EN_REVISION">EN REVISIÓN</option>
+              </select>
+              {formData.status === 'VENDIDO' && item.soldAt && (
+                <p className="mt-1.5 text-xs text-gray-400">Vendido el {new Date(item.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Costo ($)</label>
+              <input type="number" min={0} name="cost" value={formData.cost} onChange={handleChange} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Precio ($)</label>
+              <input type="number" min={0} name="price" value={formData.price} onChange={handleChange} className={inputCls} />
+            </div>
+            {customColumns.map(col => (
+              <div key={col.id} className="col-span-2 sm:col-span-1">
+                <label className={labelCls}>{col.label}</label>
+                <input
+                  type={col.type === 'number' ? 'number' : 'text'}
+                  value={formData.customFields?.[col.id] || ''}
+                  onChange={e => setFormData(prev => ({ ...prev, customFields: { ...prev.customFields, [col.id]: col.type === 'number' ? Number(e.target.value) : e.target.value } }))}
+                  className={inputCls}
+                />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-3 pt-6 border-t mt-auto">
-          <button onClick={() => onDelete(item.id)} className="p-3 border rounded-xl text-red-600"><Trash2 size={18} /></button>
-          <button onClick={handleSave} className="flex-1 bg-black text-white py-3 rounded-xl font-bold">Guardar</button>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+          <button onClick={() => onDelete(item.id)} className="px-4 py-3 border border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 transition-colors flex items-center gap-2" disabled={isSaving}>
+            <Trash2 size={16} />
+          </button>
+          <button onClick={onClose} className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors" disabled={isSaving}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} className="flex-1 px-4 py-3 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50" disabled={isSaving}>
+            <Save size={18} />
+            {isSaving ? 'Guardando...' : 'Guardar'}
+          </button>
         </div>
       </motion.div>
     </>
