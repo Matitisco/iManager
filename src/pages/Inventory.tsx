@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical, Upload } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
@@ -40,6 +40,8 @@ export const Inventory: React.FC = () => {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [showColumns, setShowColumns] = useState(false);
+  const columnsRef = useRef<HTMLDivElement>(null);
+  const filtersRef = useRef<HTMLDivElement>(null);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('inventoryVisibleColumns');
     if (saved) {
@@ -70,6 +72,15 @@ export const Inventory: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('inventoryVisibleColumns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
+      if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showColumns, showFilters]);
 
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => ({ ...prev, [key]: prev[key] === false ? true : false }));
@@ -163,7 +174,7 @@ export const Inventory: React.FC = () => {
             <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">{filteredInventory.length}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative" ref={columnsRef}>
               <button onClick={() => { setShowColumns(v => !v); setShowFilters(false); }} className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showColumns ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <Columns size={16} /> <span className="hidden sm:inline">Columnas</span>
               </button>
@@ -186,7 +197,7 @@ export const Inventory: React.FC = () => {
             <button onClick={() => { setShowImportModal(true); setShowColumns(false); setShowFilters(false); }} className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50">
               <Upload size={16} /> <span className="hidden sm:inline">Importar</span>
             </button>
-            <div className="relative">
+            <div className="relative" ref={filtersRef}>
               <button onClick={() => { setShowFilters(v => !v); setShowColumns(false); }} className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showFilters ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <Filter size={16} /> <span className="hidden sm:inline">Filtros</span> {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
