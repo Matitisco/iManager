@@ -280,10 +280,6 @@ export async function importInventoryItems(
     const raw = rows[i];
     const rowNum = i + 1;
 
-    if (!raw.imei?.trim()) {
-      result.errors.push({ row: rowNum, imei: "", message: "IMEI vacío" });
-      continue;
-    }
     if (!raw.model?.trim()) {
       result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
       continue;
@@ -294,7 +290,7 @@ export async function importInventoryItems(
     }
 
     const input = {
-      imei: raw.imei.trim(),
+      imei: raw.imei?.trim() || `IMP-${Date.now()}-${rowNum}`,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color: raw.color?.trim() || "",

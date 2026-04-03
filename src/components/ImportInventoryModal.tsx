@@ -16,9 +16,9 @@ interface FieldDef {
 }
 
 const INVENTORY_FIELDS: FieldDef[] = [
-  { key: 'imei',          label: 'IMEI',        required: true },
   { key: 'model',         label: 'Modelo',       required: true },
-  { key: 'price',         label: 'Precio',       required: true },
+  { key: 'imei',          label: 'IMEI',         required: false },
+  { key: 'price',         label: 'Precio',       required: false },
   { key: 'capacity',      label: 'Capacidad',    required: false, hint: 'ej: 128GB' },
   { key: 'color',         label: 'Color',        required: false },
   { key: 'condition',     label: 'Condición',    required: false, hint: 'NUEVO / USADO / PRE-OWNED' },
@@ -61,25 +61,59 @@ function autoDetectHeaderRow(rawRows: string[][]): number {
 }
 
 function autoMap(headers: string[]): Record<string, string> {
-  const normalize = (s: string) => s.toLowerCase().replace(/[\s_\-\.]/g, '');
-  const aliases: Record<string, string> = {
-    imei: 'imei', serial: 'imei', numeroserie: 'imei',
-    modelo: 'model', model: 'model',
-    precio: 'price', price: 'price', pvp: 'price', precioventa: 'price',
-    capacidad: 'capacity', capacity: 'capacity', almacenamiento: 'capacity', storage: 'capacity',
-    color: 'color', colour: 'color',
-    condicion: 'condition', condition: 'condition',
-    estetica: 'grade', grade: 'grade', grado: 'grade', calidad: 'grade',
-    bateria: 'batteryHealth', battery: 'batteryHealth', batt: 'batteryHealth', saludbateria: 'batteryHealth',
-    costo: 'cost', cost: 'cost', costounitario: 'cost', preciocompra: 'cost',
-    estado: 'status', status: 'status', disponibilidad: 'status',
+  const n = (s: string) => s.toLowerCase().replace(/[\s_\-\.áéíóúàèìòùäëïöü]/g, (c) => {
+    const acc: Record<string, string> = { á:'a',é:'e',í:'i',ó:'o',ú:'u',à:'a',è:'e',ì:'i',ò:'o',ù:'u',ä:'a',ë:'e',ï:'i',ö:'o',ü:'u' };
+    return acc[c] ?? '';
+  });
+
+  // Alias map: normalized string → field key
+  const aliases: Record<string, keyof ImportRow> = {
+    imei:'imei', serial:'imei', numeroserie:'imei', ns:'imei', sn:'imei',
+    modelo:'model', model:'model', equipo:'model', dispositivo:'model', nombre:'model', producto:'model',
+    precio:'price', price:'price', pvp:'price', precioventa:'price', venta:'price', preciofinal:'price',
+    capacidad:'capacity', capacity:'capacity', almacenamiento:'capacity', storage:'capacity', rom:'capacity', memoria:'capacity',
+    color:'color', colour:'color', colores:'color',
+    condicion:'condition', condition:'condition', tipo:'condition',
+    estetica:'grade', grade:'grade', grado:'grade', calidad:'grade', cosmetica:'grade', estado2:'grade',
+    bateria:'batteryHealth', battery:'batteryHealth', batt:'batteryHealth', saludbateria:'batteryHealth',
+    salud:'batteryHealth', health:'batteryHealth', bateriasalud:'batteryHealth',
+    costo:'cost', cost:'cost', costounitario:'cost', preciocompra:'cost', compra:'cost',
+    estado:'status', status:'status', disponibilidad:'status', disponible:'status',
   };
 
+  // Substring keywords for fallback matching
+  const substrings: [string, keyof ImportRow][] = [
+    ['imei','imei'], ['serial','imei'],
+    ['model','model'], ['equipo','model'],
+    ['preci','price'], ['venta','price'],
+    ['capac','capacity'], ['almac','capacity'], ['memor','capacity'],
+    ['color','color'],
+    ['condic','condition'],
+    ['estetica','grade'], ['grado','grade'], ['grade','grade'],
+    ['bater','batteryHealth'], ['battery','batteryHealth'], ['salud','batteryHealth'],
+    ['costo','cost'], ['compra','cost'],
+    ['estado','status'], ['dispon','status'],
+  ];
+
   const mapping: Record<string, string> = {};
+
+  // Pass 1: exact alias match
   for (const h of headers) {
-    const key = aliases[normalize(h)];
+    const key = aliases[n(h)];
     if (key && !mapping[key]) mapping[key] = h;
   }
+
+  // Pass 2: substring fallback for unmatched fields
+  for (const h of headers) {
+    const nh = n(h);
+    for (const [substr, key] of substrings) {
+      if (!mapping[key] && nh.includes(substr)) {
+        mapping[key] = h;
+        break;
+      }
+    }
+  }
+
   return mapping;
 }
 
@@ -536,7 +570,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
               {!requiredMapped && (
                 <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 rounded-lg px-3 py-2">
                   <AlertCircle size={15} />
-                  Mapeá los campos requeridos (IMEI, Modelo, Precio) para continuar.
+                  El campo <strong>Modelo</strong> es obligatorio para continuar.
                 </div>
               )}
 
