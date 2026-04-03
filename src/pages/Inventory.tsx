@@ -271,8 +271,19 @@ export const Inventory: React.FC = () => {
         <div className="p-4 border-t border-gray-200 flex items-center justify-between">
           <span className="text-sm text-gray-500">Mostrando {pagedInventory.length} de {filteredInventory.length}</span>
           {totalPages > 1 && (
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
               <PageButton icon={<ChevronLeft size={16} />} disabled={safePage === 1} onClick={() => setCurrentPage(p => p - 1)} />
+              {Array.from({ length: totalPages }, (_, i) => i + 1).reduce<(number | '...')[]>((acc, page) => {
+                if (page === 1 || page === totalPages || Math.abs(page - safePage) <= 1) {
+                  if (acc.length && acc[acc.length - 1] !== '...' && (page as number) - (acc[acc.length - 1] as number) > 1) acc.push('...');
+                  acc.push(page);
+                }
+                return acc;
+              }, []).map((page, i) =>
+                page === '...'
+                  ? <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+                  : <button key={page} onClick={() => setCurrentPage(page as number)} className={`w-8 h-8 flex items-center justify-center rounded border text-sm font-medium transition-colors ${safePage === page ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>{page}</button>
+              )}
               <PageButton icon={<ChevronRight size={16} />} disabled={safePage === totalPages} onClick={() => setCurrentPage(p => p + 1)} />
             </div>
           )}
