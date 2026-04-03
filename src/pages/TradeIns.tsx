@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { AlertCircle, Banknote, Calculator, CheckCircle2, Filter, Download, MoreVertical, ChevronDown, ChevronUp, X, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
@@ -281,11 +281,23 @@ const FilterField = ({
 
 const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setIsOpen(prev => !prev);
+  };
 
   return (
-    <div className="relative">
-      <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+    <div>
+      <button
+        ref={buttonRef}
+        onClick={handleOpen}
         className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
       >
         <MoreVertical size={16} />
@@ -300,14 +312,15 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+              style={{ top: menuPos.top, right: menuPos.right }}
+              className="fixed w-36 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
             >
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
               >
                 <Edit2 size={14} />
-                Editar
+                Editar canje
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
