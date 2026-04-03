@@ -96,9 +96,13 @@ export async function updateBackendInventoryItem(user: User, item: Product): Pro
 
 export async function deleteBackendInventoryItem(user: User, itemId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
+  const token = await user.getIdToken();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/${itemId}`, {
     method: 'DELETE',
-    headers: await getAuthHeaders(user),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
   });
 
   if (!response.ok && response.status !== 204) {
