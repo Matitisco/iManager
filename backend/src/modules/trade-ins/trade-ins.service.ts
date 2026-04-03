@@ -16,7 +16,7 @@ export interface TradeInInput {
     | "EN REVISIÓN"
     | "PERITAJE TÉC."
     | "LISTO";
-  batteryHealth?: number | null;
+  batteryHealth?: string | null;
   grade?: string | null;
 }
 
@@ -32,8 +32,8 @@ export interface TradeInResponse {
   deviceGiven: string;
   differencePaid: number;
   status: TradeInInput["status"];
-  batteryHealth?: number;
-  grade?: string;
+  batteryHealth?: string | null;
+  grade?: string | null;
 }
 
 type TradeInRecord = {
@@ -46,7 +46,7 @@ type TradeInRecord = {
   deviceGiven: string;
   differencePaid: Decimal;
   status: string;
-  batteryHealth: number | null;
+  batteryHealth: string | null;
   grade: string | null;
   tradeAt: Date;
 };
