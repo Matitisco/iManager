@@ -115,7 +115,7 @@ export const Inventory: React.FC = () => {
               <motion.button 
                 whileHover={{ scale: 1.02 }} 
                 whileTap={{ scale: 0.98 }} 
-                onClick={() => setShowColumns(!showColumns)}
+                onClick={() => { setShowColumns(v => !v); setShowFilters(false); }}
                 className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showColumns ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
               >
                 <Columns size={16} />
@@ -186,7 +186,7 @@ export const Inventory: React.FC = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setShowImportModal(true)}
+              onClick={() => { setShowImportModal(true); setShowColumns(false); setShowFilters(false); }}
               className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             >
               <Upload size={16} />
@@ -197,7 +197,7 @@ export const Inventory: React.FC = () => {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => { setShowFilters(v => !v); setShowColumns(false); }}
               className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showFilters ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
             >
               <Filter size={16} />
