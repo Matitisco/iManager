@@ -13,6 +13,8 @@ export interface SaleInput {
 export interface SalePatchInput {
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
+  date?: string;
+  amount?: number;
 }
 
 export interface SaleResponse {
@@ -190,15 +192,42 @@ export async function updateSale(
     return null;
   }
 
-  const updated = await prisma.sale.update({
-    where: { id },
-    data: {
-      paymentMethod: input.paymentMethod ?? existing.paymentMethod,
-      status: input.status ?? existing.status,
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const newSoldAt = input.date ? parseDateLabel(input.date) : existing.soldAt;
+    const newDateLabel = input.date
+      ? normalizeDateLabel(input.date) || formatDateLabel(newSoldAt)
+      : existing.dateLabel;
+    const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
 
-  return serializeSale(updated as SaleRecord);
+    const updated = await tx.sale.update({
+      where: { id },
+      data: {
+        paymentMethod: input.paymentMethod ?? existing.paymentMethod,
+        status: input.status ?? existing.status,
+        dateLabel: newDateLabel,
+        soldAt: newSoldAt,
+        amount: newAmount,
+      },
+    });
+
+    if (existing.clientId && input.amount !== undefined) {
+      const aggregate = await tx.sale.aggregate({
+        where: { storeId, clientId: existing.clientId },
+        _sum: { amount: true },
+        _max: { soldAt: true },
+      });
+
+      await tx.client.updateMany({
+        where: { id: existing.clientId, storeId },
+        data: {
+          totalSpent: aggregate._sum.amount ?? new Decimal(0),
+          lastPurchaseAt: aggregate._max.soldAt ?? null,
+        },
+      });
+    }
+
+    return serializeSale(updated as SaleRecord);
+  });
 }
 
 export async function deleteSale(storeId: string, id: string) {

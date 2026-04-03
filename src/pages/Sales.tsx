@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { TrendingUp, BarChart, X, CheckCircle2, Printer, Share2, Filter, ChevronDown, ChevronUp, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { TrendingUp, BarChart, X, Filter, ChevronDown, ChevronUp, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { Client, Product, Sale } from '../types';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { formatCurrency, getInitials, getFriendlyErrorMessage } from '../lib/utils';
+import { formatCurrency, getFriendlyErrorMessage } from '../lib/utils';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -21,7 +21,6 @@ const item: Variants = {
 
 export const Sales: React.FC = () => {
   const { sales, clients, inventory, deleteSale } = useAppContext();
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<string>('Todas');
@@ -52,9 +51,6 @@ export const Sales: React.FC = () => {
     return sum + (product ? sale.amount - product.cost : 0);
   }, 0);
   const marginRate = totalRevenue > 0 ? (totalMarginAmount / totalRevenue) * 100 : 0;
-
-  const selectedClient = selectedSale ? getClient(selectedSale.clientId) : undefined;
-  const selectedProduct = selectedSale ? getProduct(selectedSale.productId) : undefined;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col lg:flex-row gap-6 flex-1 relative">
@@ -186,16 +182,17 @@ export const Sales: React.FC = () => {
                     const product = getProduct(sale.productId);
 
                     return (
-                      <tr 
-                        key={sale.id} 
-                        className={`hover:bg-gray-50 transition-colors group ${selectedSale?.id === sale.id ? 'bg-gray-50' : ''}`}
+                      <tr
+                        key={sale.id}
+                        onClick={() => setEditingSale(sale)}
+                        className="hover:bg-gray-50 transition-colors group cursor-pointer"
                       >
-                        <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.id}</td>
-                        <td className="px-6 py-4 text-gray-500 cursor-pointer" onClick={() => setSelectedSale(sale)}>{sale.date}</td>
-                        <td className="px-6 py-4 font-medium text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <td className="px-6 py-4 font-bold text-gray-900">{sale.id}</td>
+                        <td className="px-6 py-4 text-gray-500">{sale.date}</td>
+                        <td className="px-6 py-4 font-medium text-gray-900">
                           {client?.name || 'Cliente eliminado'}
                         </td>
-                        <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <td className="px-6 py-4">
                           <div className="font-bold text-gray-900">
                             {product ? `${product.model} ${product.capacity}` : 'Producto eliminado'}
                           </div>
@@ -203,10 +200,10 @@ export const Sales: React.FC = () => {
                             IMEI: {product?.imei || 'No disponible'}
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-bold text-gray-900 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <td className="px-6 py-4 font-bold text-gray-900">
                           {formatCurrency(sale.amount)}
                         </td>
-                        <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedSale(sale)}>
+                        <td className="px-6 py-4">
                           <span className={`px-3 py-1 text-xs font-bold rounded-md uppercase tracking-wide ${
                             sale.paymentMethod === 'TRANSFERENCIA' ? 'bg-gray-100 text-gray-600' :
                             sale.paymentMethod === 'EFECTIVO' ? 'bg-black text-white' :
@@ -215,11 +212,11 @@ export const Sales: React.FC = () => {
                             {sale.paymentMethod}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ActionMenu 
-                              onEdit={() => setEditingSale(sale)} 
-                              onDelete={() => setSaleToDelete(sale.id)} 
+                            <ActionMenu
+                              onEdit={() => setEditingSale(sale)}
+                              onDelete={() => setSaleToDelete(sale.id)}
                             />
                           </div>
                         </td>
@@ -235,102 +232,6 @@ export const Sales: React.FC = () => {
           </div>
         </motion.div>
       </div>
-
-      <AnimatePresence>
-        {selectedSale && (
-          <motion.div 
-            key="sale-details"
-            initial={{ opacity: 0, x: 50, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 50, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="w-full lg:w-96 absolute inset-0 lg:relative bg-white border border-gray-200 rounded-2xl flex flex-col overflow-hidden shrink-0 shadow-lg z-20"
-          >
-            <div className="p-6 border-b border-gray-200 flex justify-between items-start">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Detalle de Venta</h2>
-                <p className="text-sm text-gray-500 mt-1">ID: {selectedSale.id} • {selectedSale.date}</p>
-              </div>
-              <motion.button 
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setSelectedSale(null)} 
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X size={20} />
-              </motion.button>
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto space-y-8">
-              <div>
-                <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Información del Cliente</h3>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-medium">
-                    {getInitials(selectedClient?.name || 'Cliente')}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-900">{selectedClient?.name || 'Cliente eliminado'}</div>
-                    <div className="text-sm text-gray-500">{selectedClient?.email || 'Sin email'}</div>
-                    <div className="text-sm text-gray-500">{selectedClient?.phone || 'Sin teléfono'}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Producto Vendido</h3>
-                <div className="border border-gray-200 rounded-xl p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="font-bold text-gray-900">
-                      {selectedProduct ? `${selectedProduct.model} ${selectedProduct.capacity}` : 'Producto eliminado'}
-                    </div>
-                    <div className="font-black text-gray-900">{formatCurrency(selectedSale.amount)}</div>
-                  </div>
-                  <div className="text-sm text-gray-500 mb-2">
-                    {selectedProduct ? `Color: ${selectedProduct.color} • Estado: ${selectedProduct.condition}` : 'No hay metadata disponible'}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-xs text-gray-400">IMEI: {selectedProduct?.imei || 'No disponible'}</div>
-                    <div className="text-xs font-bold text-emerald-600">Pago {selectedSale.status.toLowerCase()}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-3">Desglose de Pago</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal</span>
-                    <span>{formatCurrency(selectedSale.amount)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Método</span>
-                    <span>{selectedSale.paymentMethod}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t border-gray-100 mt-2">
-                    <span>Total Cobrado</span>
-                    <span>{formatCurrency(selectedSale.amount)}</span>
-                  </div>
-                </div>
-                <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex gap-2 items-start">
-                  <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                  <span className="text-xs text-emerald-700 font-medium leading-relaxed">
-                    Venta asociada a datos reales del cliente y del inventario actual.
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-200 flex gap-3 bg-white">
-              <button className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-400 flex items-center justify-center gap-2 cursor-not-allowed" disabled>
-                <Printer size={16} /> Ticket (próximamente)
-              </button>
-              <button className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 cursor-not-allowed" disabled>
-                <Share2 size={16} /> PDF (próximamente)
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {editingSale && (
@@ -378,11 +279,23 @@ const FilterField = ({
 
 const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setIsOpen(prev => !prev);
+  };
 
   return (
-    <div className="relative">
-      <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+    <div>
+      <button
+        ref={buttonRef}
+        onClick={handleOpen}
         className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
       >
         <MoreVertical size={16} />
@@ -397,14 +310,15 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+              style={{ top: menuPos.top, right: menuPos.right }}
+              className="fixed w-40 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
             >
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
               >
                 <Edit2 size={14} />
-                Editar seguimiento
+                Editar venta
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
@@ -501,12 +415,46 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
               {error}
             </div>
           )}
-          <div className="rounded-xl border border-gray-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Para no desalinear stock y métricas, en esta etapa sólo permitimos actualizar método de pago y estado operativo de la venta.
-          </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Fecha</label>
+              <input
+                type="text"
+                name="date"
+                value={formData.date}
+                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+                placeholder="ej. 2 abr 2026"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Monto</label>
+              <input
+                type="number"
+                name="amount"
+                value={formData.amount}
+                onChange={(e) => setFormData(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+                min={0}
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Sale['status'] }))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              >
+                <option value="COMPLETADA">COMPLETADA</option>
+                <option value="PENDIENTE">PENDIENTE</option>
+              </select>
+            </div>
+
+            <div className="col-span-2">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Método de Pago</label>
               <select
                 name="paymentMethod"
@@ -519,19 +467,6 @@ const SaleEditPanel = ({ sale, onClose }: { sale: Sale, onClose: () => void }) =
                 <option value="TARJETA">TARJETA</option>
                 <option value="CANJE / PAGO">CANJE / PAGO</option>
                 <option value="T. Crédito">T. Crédito</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Estado</label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Sale['status'] }))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
-              >
-                <option value="COMPLETADA">COMPLETADA</option>
-                <option value="PENDIENTE">PENDIENTE</option>
               </select>
             </div>
           </div>

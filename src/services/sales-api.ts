@@ -78,6 +78,8 @@ export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
     body: JSON.stringify({
       paymentMethod: sale.paymentMethod,
       status: sale.status,
+      date: sale.date,
+      amount: sale.amount,
     }),
   });
 

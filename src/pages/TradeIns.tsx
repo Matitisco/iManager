@@ -192,7 +192,11 @@ export const TradeIns: React.FC = () => {
                   const client = getClient(trade.clientId);
 
                   return (
-                    <tr key={trade.id} className="hover:bg-gray-50 transition-colors group">
+                    <tr
+                      key={trade.id}
+                      onClick={() => setSelectedTradeIn(trade)}
+                      className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                    >
                       <td className="px-6 py-4 text-gray-500">{trade.date}</td>
                       <td className="px-6 py-4">
                         <div className="font-bold text-gray-900">{client?.name || 'Cliente eliminado'}</div>
@@ -214,11 +218,11 @@ export const TradeIns: React.FC = () => {
                           {trade.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ActionMenu 
-                            onEdit={() => setSelectedTradeIn(trade)} 
-                            onDelete={() => setTradeInToDelete(trade.id)} 
+                          <ActionMenu
+                            onEdit={() => setSelectedTradeIn(trade)}
+                            onDelete={() => setTradeInToDelete(trade.id)}
                           />
                         </div>
                       </td>

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Users, UserCheck, Wallet, Ticket, Filter, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, getFriendlyErrorMessage } from '../lib/utils';
+import { Client } from '../types';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -19,7 +20,7 @@ const item: Variants = {
 };
 
 export const Clients: React.FC = () => {
-  const { clients, sales, deleteClient } = useAppContext();
+  const { clients, sales, deleteClient, updateClient } = useAppContext();
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [filterLastPurchase, setFilterLastPurchase] = useState<string>('Todas');
   const [filterBalance, setFilterBalance] = useState<string>('Todos');
@@ -37,7 +38,7 @@ export const Clients: React.FC = () => {
     if (filterBalance === 'Sin Deuda' && client.pendingBalance > 0) return false;
     return true;
   });
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const totalClients = clients.length;
   const clientsWithActivity = clients.filter(hasClientActivity).length;
@@ -176,7 +177,11 @@ export const Clients: React.FC = () => {
                 </tr>
               ) : (
                 filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr
+                    key={client.id}
+                    onClick={() => setSelectedClient(client)}
+                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                  >
                     <td className="px-6 py-4 font-medium text-gray-500">{client.dni}</td>
                     <td className="px-6 py-4 font-bold text-gray-900">{client.name}</td>
                     <td className="px-6 py-4 text-gray-500">{client.email}</td>
@@ -190,11 +195,11 @@ export const Clients: React.FC = () => {
                         <span className="text-gray-900">{formatCurrency(0)}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ActionMenu 
-                          onEdit={() => setSelectedClient(client)} 
-                          onDelete={() => setClientToDelete(client.id)} 
+                        <ActionMenu
+                          onEdit={() => setSelectedClient(client)}
+                          onDelete={() => setClientToDelete(client.id)}
                         />
                       </div>
                     </td>
@@ -233,17 +238,39 @@ export const Clients: React.FC = () => {
         }}
         onCancel={() => setClientToDelete(null)}
       />
+
+      <AnimatePresence>
+        {selectedClient && (
+          <ClientEditPanel
+            client={selectedClient}
+            onClose={() => setSelectedClient(null)}
+            onSave={async (updated) => { await updateClient(updated); setSelectedClient(null); }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
 
 const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setIsOpen(prev => !prev);
+  };
 
   return (
-    <div className="relative">
-      <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+    <div>
+      <button
+        ref={buttonRef}
+        onClick={handleOpen}
         className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
       >
         <MoreVertical size={16} />
@@ -258,7 +285,8 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
+              style={{ top: menuPos.top, right: menuPos.right }}
+              className="fixed w-32 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50"
             >
               <button
                 onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(); }}
@@ -279,6 +307,187 @@ const ActionMenu = ({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => 
         )}
       </AnimatePresence>
     </div>
+  );
+};
+
+const ClientEditPanel = ({
+  client,
+  onClose,
+  onSave,
+}: {
+  client: Client;
+  onClose: () => void;
+  onSave: (updated: Client) => Promise<void>;
+}) => {
+  const [formData, setFormData] = useState(client);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFormData(client);
+  }, [client]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'pendingBalance' ? Number(value) : value,
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      setError('El nombre es obligatorio.');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave(formData);
+    } catch (submitError) {
+      setError(getFriendlyErrorMessage(submitError, 'No se pudo actualizar el cliente.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+      />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-200"
+      >
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+              <Edit2 size={18} className="text-gray-900" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Editar Cliente</h2>
+              <p className="text-xs text-gray-500 font-mono">{client.id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Nombre</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">DNI</label>
+              <input
+                type="text"
+                name="dni"
+                value={formData.dni}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Teléfono</label>
+              <input
+                type="text"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Saldo Pendiente</label>
+              <input
+                type="number"
+                name="pendingBalance"
+                value={formData.pendingBalance}
+                onChange={handleChange}
+                min={0}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors"
+              />
+            </div>
+
+            <div className="col-span-1">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Total Gastado</label>
+              <input
+                type="text"
+                value={formatCurrency(formData.totalSpent)}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-100 rounded-lg text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Última Compra</label>
+              <input
+                type="text"
+                value={formData.lastPurchaseDate}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-100 rounded-lg text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+            disabled={isSaving}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-50"
+            disabled={isSaving}
+          >
+            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 };
 
