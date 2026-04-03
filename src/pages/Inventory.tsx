@@ -36,6 +36,8 @@ export const Inventory: React.FC = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [showColumns, setShowColumns] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
@@ -100,11 +102,56 @@ export const Inventory: React.FC = () => {
 
   // Reset to page 1 whenever filters change
   useEffect(() => { setCurrentPage(1); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
+  // Clear selection when filters change
+  useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
+
+  const allPageSelected = pagedInventory.length > 0 && pagedInventory.every(i => selectedIds.has(i.id));
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      setSelectedIds(prev => { const n = new Set(prev); pagedInventory.forEach(i => n.delete(i.id)); return n; });
+    } else {
+      setSelectedIds(prev => { const n = new Set(prev); pagedInventory.forEach(i => n.add(i.id)); return n; });
+    }
+  };
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
       {/* Table / List View */}
       <motion.div variants={item} className="bg-white border border-gray-200 rounded-2xl flex-1 flex flex-col">
+        <AnimatePresence>
+          {selectedIds.size > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden rounded-t-2xl"
+            >
+              <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 flex items-center justify-between">
+                <span className="text-sm font-semibold text-red-700">
+                  {selectedIds.size} equipo{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    className="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 size={14} /> Eliminar {selectedIds.size}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white rounded-t-2xl z-10 relative">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-gray-900">Inventario</h2>
@@ -331,6 +378,14 @@ export const Inventory: React.FC = () => {
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
+                <th className="px-4 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                  />
+                </th>
                 {visibleColumns.imei !== false && <th className="px-6 py-4">IMEI</th>}
                 {visibleColumns.model !== false && <th className="px-6 py-4">Modelo</th>}
                 {visibleColumns.condition !== false && <th className="px-6 py-4">Condición</th>}
@@ -351,7 +406,7 @@ export const Inventory: React.FC = () => {
               {filteredInventory.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9 + customColumns.filter(col => visibleColumns[col.id] !== false).length}
+                    colSpan={10 + customColumns.filter(col => visibleColumns[col.id] !== false).length}
                     className="px-6 py-10 text-center text-sm text-gray-500"
                   >
                     No hay equipos para mostrar con los filtros actuales.
@@ -362,8 +417,16 @@ export const Inventory: React.FC = () => {
                   <tr
                     key={invItem.id}
                     onClick={() => setSelectedItem(invItem)}
-                    className={`hover:bg-gray-50 transition-colors group cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''}`}
+                    className={`hover:bg-gray-50 transition-colors group cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''} ${selectedIds.has(invItem.id) ? 'bg-red-50/40' : ''}`}
                   >
+                    <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(invItem.id)}
+                        onChange={() => toggleSelect(invItem.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                      />
+                    </td>
                     {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
                     {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
                     {visibleColumns.condition !== false && <td className="px-6 py-4">
@@ -448,9 +511,18 @@ export const Inventory: React.FC = () => {
               <div
                 key={invItem.id}
                 onClick={() => setSelectedItem(invItem)}
-                className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''}`}
+                className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${invItem.status === 'VENDIDO' ? 'opacity-60' : ''} ${selectedIds.has(invItem.id) ? 'bg-red-50/40' : ''}`}
               >
                 <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-start gap-3">
+                    <div onClick={e => e.stopPropagation()} className="pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(invItem.id)}
+                        onChange={() => toggleSelect(invItem.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                      />
+                    </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       {visibleColumns.model !== false && <h3 className="font-bold text-gray-900">{invItem.model}</h3>}
@@ -469,6 +541,7 @@ export const Inventory: React.FC = () => {
                         {visibleColumns.color !== false && invItem.color}
                       </p>
                     )}
+                  </div>
                   </div>
                   <div className="text-right">
                     {visibleColumns.price !== false && <div className="font-bold text-gray-900">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
@@ -611,6 +684,20 @@ export const Inventory: React.FC = () => {
           }
         }}
         onCancel={() => setItemToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        title={`Eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}`}
+        message={`¿Está seguro de que desea eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
+        onConfirm={async () => {
+          for (const id of Array.from(selectedIds)) {
+            await deleteProduct(id);
+          }
+          setSelectedIds(new Set());
+          setShowBulkDeleteConfirm(false);
+        }}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
       />
     </motion.div>
   );
