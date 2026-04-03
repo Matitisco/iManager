@@ -840,103 +840,80 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addTradeIn = async (tradeInData: Omit<TradeIn, 'id'>) => {
     if (!user) return;
-    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendTradeIns) {
+      if (backendConfigured) {
+        if (!backendTradeInsEnabled) {
+          throw new Error(
+            backendMessage || 'El backend todavía no está listo para guardar canjes. Reintentá en unos segundos.'
+          );
+        }
         const createdTradeIn = await createBackendTradeIn(user, tradeInData);
+        setTradeInsSource('backend');
         setTradeIns(prev => [createdTradeIn, ...prev]);
         return;
       }
 
       const id = generateId('CAN');
-      const path = `tradeIns/${id}`;
       const createdTradeIn = { id, ...tradeInData };
       await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
       setTradeIns(prev => [createdTradeIn, ...prev]);
     } catch (error) {
-      if (canUseBackendTradeIns) {
-        console.warn('Backend trade-in create failed, falling back to Firestore.', error);
-        setTradeInsSource('firestore');
-        const id = generateId('CAN');
-        const path = `tradeIns/${id}`;
-        try {
-          const createdTradeIn = { id, ...tradeInData };
-          await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
-          setTradeIns(prev => [createdTradeIn, ...prev]);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.CREATE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
-
-      const id = generateId('CAN');
-      const path = `tradeIns/${id}`;
-      handleFirestoreError(error, OperationType.CREATE, path);
+      handleFirestoreError(error, OperationType.CREATE, 'tradeIns');
     }
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
     if (!user) return;
-    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendTradeIns) {
+      if (backendConfigured) {
+        if (!backendTradeInsEnabled) {
+          throw new Error(
+            backendMessage || 'El backend todavía no está listo para actualizar canjes. Reintentá en unos segundos.'
+          );
+        }
         const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
-        setTradeIns(prev => prev.map(tradeIn => tradeIn.id === backendTradeIn.id ? backendTradeIn : tradeIn));
+        setTradeInsSource('backend');
+        setTradeIns(prev => prev.map(t => t.id === backendTradeIn.id ? backendTradeIn : t));
         return;
       }
 
-      const path = `tradeIns/${updatedTradeIn.id}`;
       const { id, ...data } = updatedTradeIn;
       await updateDoc(doc(db, 'tradeIns', id), data as any);
     } catch (error) {
-      if (canUseBackendTradeIns) {
-        console.warn('Backend trade-in update failed, falling back to Firestore.', error);
-        setTradeInsSource('firestore');
-        const path = `tradeIns/${updatedTradeIn.id}`;
-        try {
-          const { id, ...data } = updatedTradeIn;
-          await updateDoc(doc(db, 'tradeIns', id), data as any);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
-
-      const path = `tradeIns/${updatedTradeIn.id}`;
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      handleFirestoreError(error, OperationType.UPDATE, `tradeIns/${updatedTradeIn.id}`);
     }
   };
 
   const deleteTradeIn = async (id: string) => {
     if (!user) return;
-    const canUseBackendTradeIns = tradeInsSource === 'backend' && backendTradeInsEnabled;
+    const backendConfigured = backendStatus !== 'unconfigured';
     try {
-      if (canUseBackendTradeIns) {
+      if (backendConfigured) {
+        if (!backendTradeInsEnabled) {
+          throw new Error(
+            backendMessage || 'El backend todavía no está listo para eliminar canjes. Reintentá en unos segundos.'
+          );
+        }
         await deleteBackendTradeIn(user, id);
-        setTradeIns(prev => prev.filter(tradeIn => tradeIn.id !== id));
+        setTradeInsSource('backend');
+        setTradeIns(prev => prev.filter(t => t.id !== id));
         return;
       }
 
-      const path = `tradeIns/${id}`;
       await deleteDoc(doc(db, 'tradeIns', id));
     } catch (error) {
-      if (canUseBackendTradeIns) {
-        console.warn('Backend trade-in delete failed, falling back to Firestore.', error);
-        setTradeInsSource('firestore');
-        const path = `tradeIns/${id}`;
-        try {
-          await deleteDoc(doc(db, 'tradeIns', id));
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.DELETE, path);
-          return;
-        }
+      if (backendConfigured) {
+        throw error;
       }
-
-      const path = `tradeIns/${id}`;
-      handleFirestoreError(error, OperationType.DELETE, path);
+      handleFirestoreError(error, OperationType.DELETE, `tradeIns/${id}`);
     }
   };
 
