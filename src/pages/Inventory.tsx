@@ -42,7 +42,13 @@ export const Inventory: React.FC = () => {
     const saved = localStorage.getItem('inventoryVisibleColumns');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // migrate old capacityColor key to separate capacity/color keys
+        if ('capacityColor' in parsed) {
+          const { capacityColor, ...rest } = parsed;
+          return { ...rest, capacity: capacityColor, color: capacityColor };
+        }
+        return parsed;
       } catch (e) {
         // ignore
       }
@@ -51,7 +57,8 @@ export const Inventory: React.FC = () => {
       imei: true,
       model: true,
       condition: true,
-      capacityColor: true,
+      capacity: true,
+      color: true,
       grade: true,
       battery: true,
       cost: true,
@@ -133,7 +140,8 @@ export const Inventory: React.FC = () => {
                         imei: 'IMEI',
                         model: 'Modelo',
                         condition: 'Condición',
-                        capacityColor: 'Capacidad / Color',
+                        capacity: 'Capacidad',
+                        color: 'Color',
                         grade: 'Estética',
                         battery: 'Batería',
                         cost: 'Costo',
@@ -326,7 +334,8 @@ export const Inventory: React.FC = () => {
                 {visibleColumns.imei !== false && <th className="px-6 py-4">IMEI</th>}
                 {visibleColumns.model !== false && <th className="px-6 py-4">Modelo</th>}
                 {visibleColumns.condition !== false && <th className="px-6 py-4">Condición</th>}
-                {visibleColumns.capacityColor !== false && <th className="px-6 py-4">Capacidad / Color</th>}
+                {visibleColumns.capacity !== false && <th className="px-6 py-4">Capacidad</th>}
+                {visibleColumns.color !== false && <th className="px-6 py-4">Color</th>}
                 {visibleColumns.grade !== false && <th className="px-6 py-4">Estética</th>}
                 {visibleColumns.battery !== false && <th className="px-6 py-4">Batería</th>}
                 {visibleColumns.cost !== false && <th className="px-6 py-4">Costo</th>}
@@ -342,7 +351,7 @@ export const Inventory: React.FC = () => {
               {filteredInventory.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8 + customColumns.filter(col => visibleColumns[col.id] !== false).length}
+                    colSpan={9 + customColumns.filter(col => visibleColumns[col.id] !== false).length}
                     className="px-6 py-10 text-center text-sm text-gray-500"
                   >
                     No hay equipos para mostrar con los filtros actuales.
@@ -366,7 +375,8 @@ export const Inventory: React.FC = () => {
                         {invItem.condition}
                       </span>
                     </td>}
-                    {visibleColumns.capacityColor !== false && <td className="px-6 py-4 text-gray-500">{invItem.capacity} • {invItem.color}</td>}
+                    {visibleColumns.capacity !== false && <td className="px-6 py-4 text-gray-500">{invItem.capacity}</td>}
+                    {visibleColumns.color !== false && <td className="px-6 py-4 text-gray-500">{invItem.color}</td>}
                     {visibleColumns.grade !== false && <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
                         invItem.grade.includes('A') ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'
@@ -452,7 +462,13 @@ export const Inventory: React.FC = () => {
                         {invItem.condition}
                       </span>}
                     </div>
-                    {visibleColumns.capacityColor !== false && <p className="text-sm text-gray-500">{invItem.capacity} • {invItem.color}</p>}
+                    {(visibleColumns.capacity !== false || visibleColumns.color !== false) && (
+                      <p className="text-sm text-gray-500">
+                        {visibleColumns.capacity !== false && invItem.capacity}
+                        {visibleColumns.capacity !== false && visibleColumns.color !== false && ' • '}
+                        {visibleColumns.color !== false && invItem.color}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     {visibleColumns.price !== false && <div className="font-bold text-gray-900">${invItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>}
