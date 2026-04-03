@@ -31,6 +31,7 @@ interface AppState {
   deleteTradeIn: (id: string) => Promise<void>;
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<void>;
   removeCustomColumn: (id: string) => Promise<void>;
+  reloadInventory: () => Promise<void>;
   user: User | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -732,6 +733,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const reloadInventory = async () => {
+    if (!user) return;
+    const items = await fetchBackendInventory(user);
+    setInventory(items);
+  };
+
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -954,6 +961,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addClient, updateClient, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
+      reloadInventory,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

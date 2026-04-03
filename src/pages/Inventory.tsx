@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical } from 'lucide-react';
+import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical, Upload } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { Product } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { getFriendlyErrorMessage } from '../lib/utils';
+import { ImportInventoryModal } from '../components/ImportInventoryModal';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -25,6 +26,7 @@ export const Inventory: React.FC = () => {
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [filterCondition, setFilterCondition] = useState<string>('Todos');
   const [filterGrade, setFilterGrade] = useState<string>('Todos');
   const [filterModel, setFilterModel] = useState<string>('Todos');
@@ -163,10 +165,20 @@ export const Inventory: React.FC = () => {
               </AnimatePresence>
             </div>
 
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowImportModal(true)}
+              className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Importar</span>
+            </motion.button>
+
             <div className="relative">
-              <motion.button 
-                whileHover={{ scale: 1.02 }} 
-                whileTap={{ scale: 0.98 }} 
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setShowFilters(!showFilters)}
               className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showFilters ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
             >
@@ -541,6 +553,10 @@ export const Inventory: React.FC = () => {
           <ManageColumnsModal onClose={() => setShowManageColumns(false)} />
         )}
       </AnimatePresence>
+
+      {showImportModal && (
+        <ImportInventoryModal onClose={() => setShowImportModal(false)} />
+      )}
 
       <ConfirmModal
         isOpen={!!itemToDelete}

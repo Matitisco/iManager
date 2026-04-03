@@ -2,11 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
-import type { InventoryItemInput } from "./inventory.service.js";
+import type { InventoryItemInput, ImportRow } from "./inventory.service.js";
 import {
   createInventoryItem,
   deleteInventoryItem,
   getInventoryErrorStatus,
+  importInventoryItems,
   listInventory,
   updateInventoryItem,
 } from "./inventory.service.js";
@@ -101,6 +102,41 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
         throw error;
       }
+    }
+  );
+
+  app.post(
+    "/import",
+    {
+      preHandler: [authenticate, resolveAppUser],
+    },
+    async (request, reply) => {
+      if (!request.appUser) {
+        return reply.code(403).send({ error: "Store membership required" });
+      }
+
+      const bodySchema = z.object({
+        rows: z
+          .array(
+            z.object({
+              imei: z.string(),
+              model: z.string(),
+              capacity: z.string().optional(),
+              color: z.string().optional(),
+              condition: z.string().optional(),
+              grade: z.string().optional(),
+              batteryHealth: z.coerce.number().optional(),
+              cost: z.coerce.number().optional(),
+              price: z.coerce.number(),
+              status: z.string().optional(),
+            })
+          )
+          .max(2000),
+      });
+
+      const { rows } = bodySchema.parse(request.body) as { rows: ImportRow[] };
+      const result = await importInventoryItems(request.appUser.storeId, rows);
+      return reply.code(200).send(result);
     }
   );
 

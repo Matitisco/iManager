@@ -210,6 +210,150 @@ export async function deleteInventoryItem(storeId: string, id: string) {
   return true;
 }
 
+export interface ImportRow {
+  imei: string;
+  model: string;
+  capacity?: string;
+  color?: string;
+  condition?: string;
+  grade?: string;
+  batteryHealth?: number;
+  cost?: number;
+  price: number;
+  status?: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; imei: string; message: string }[];
+}
+
+const CONDITION_MAP: Record<string, string> = {
+  nuevo: "NUEVO",
+  new: "NUEVO",
+  usado: "USADO",
+  used: "USADO",
+  "pre-owned": "PRE-OWNED",
+  preowned: "PRE-OWNED",
+  "pre owned": "PRE-OWNED",
+};
+
+const GRADE_MAP: Record<string, string> = {
+  "a+": "A+",
+  a: "A",
+  b: "B",
+  c: "C",
+  "n/a": "N/A",
+  na: "N/A",
+  "-": "N/A",
+};
+
+const STATUS_MAP: Record<string, string> = {
+  disponible: "DISPONIBLE",
+  available: "DISPONIBLE",
+  vendido: "VENDIDO",
+  sold: "VENDIDO",
+  "en revision": "EN_REVISION",
+  en_revision: "EN_REVISION",
+  review: "EN_REVISION",
+};
+
+function normalizeEnum<T extends string>(
+  value: string | undefined,
+  map: Record<string, string>,
+  fallback: T
+): T {
+  if (!value) return fallback;
+  const normalized = map[value.toLowerCase().trim()];
+  return (normalized as T) ?? fallback;
+}
+
+export async function importInventoryItems(
+  storeId: string,
+  rows: ImportRow[]
+): Promise<ImportResult> {
+  const result: ImportResult = { imported: 0, updated: 0, errors: [] };
+
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i];
+    const rowNum = i + 1;
+
+    if (!raw.imei?.trim()) {
+      result.errors.push({ row: rowNum, imei: "", message: "IMEI vacío" });
+      continue;
+    }
+    if (!raw.model?.trim()) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
+      continue;
+    }
+    if (raw.price == null || isNaN(raw.price)) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "Precio inválido" });
+      continue;
+    }
+
+    const input = {
+      imei: raw.imei.trim(),
+      model: raw.model.trim(),
+      capacity: raw.capacity?.trim() || "",
+      color: raw.color?.trim() || "",
+      condition: normalizeEnum(raw.condition, CONDITION_MAP, "USADO" as const),
+      grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
+      batteryHealth: Math.min(100, Math.max(0, Math.round(Number(raw.batteryHealth) || 100))),
+      cost: Number(raw.cost) || 0,
+      price: Number(raw.price),
+      status: normalizeEnum(raw.status, STATUS_MAP, "DISPONIBLE" as const),
+    };
+
+    try {
+      const existing = await inventoryPrisma.inventoryItem.findFirst({
+        where: { storeId, imei: input.imei },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await inventoryPrisma.inventoryItem.update({
+          where: { id: existing.id },
+          data: {
+            model: input.model,
+            capacity: input.capacity,
+            color: input.color,
+            condition: input.condition,
+            grade: input.grade,
+            batteryHealth: input.batteryHealth,
+            cost: toDecimal(input.cost),
+            price: toDecimal(input.price),
+            status: input.status,
+          },
+        });
+        result.updated++;
+      } else {
+        await inventoryPrisma.inventoryItem.create({
+          data: {
+            storeId,
+            imei: input.imei,
+            model: input.model,
+            capacity: input.capacity,
+            color: input.color,
+            condition: input.condition,
+            grade: input.grade,
+            batteryHealth: input.batteryHealth,
+            cost: toDecimal(input.cost),
+            price: toDecimal(input.price),
+            status: input.status,
+            customFields: {},
+          },
+        });
+        result.imported++;
+      }
+    } catch {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "Error al guardar" });
+    }
+  }
+
+  return result;
+}
+
 export function getInventoryErrorStatus(error: unknown) {
   if (error instanceof InventoryError) {
     return {
