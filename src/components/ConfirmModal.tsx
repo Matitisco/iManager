@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, Loader2 } from 'lucide-react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
   title: string;
   message: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -17,6 +17,29 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setLoading(false);
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await onConfirm();
+      onCancel();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -25,7 +48,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onCancel}
+            onClick={loading ? undefined : onCancel}
             className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100]"
           />
           <motion.div
@@ -42,10 +65,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
                   <p className="text-sm text-gray-500">{message}</p>
+                  {error && (
+                    <p className="text-sm text-red-600 mt-2 font-medium">{error}</p>
+                  )}
                 </div>
                 <button
-                  onClick={onCancel}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={loading ? undefined : onCancel}
+                  disabled={loading}
+                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
                 >
                   <X size={20} />
                 </button>
@@ -54,17 +81,17 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               <button
                 onClick={onCancel}
-                className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                disabled={loading}
+                className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-40"
               >
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  onConfirm();
-                  onCancel();
-                }}
-                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                onClick={handleConfirm}
+                disabled={loading}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-70 flex items-center gap-2"
               >
+                {loading && <Loader2 size={14} className="animate-spin" />}
                 Eliminar
               </button>
             </div>

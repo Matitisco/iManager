@@ -589,9 +589,9 @@ export const Inventory: React.FC = () => {
         isOpen={!!itemToDelete}
         title="Eliminar Equipo"
         message="¿Está seguro de que desea eliminar este equipo? Esta acción no se puede deshacer."
-        onConfirm={() => {
+        onConfirm={async () => {
           if (itemToDelete) {
-            deleteProduct(itemToDelete);
+            await deleteProduct(itemToDelete);
           }
         }}
         onCancel={() => setItemToDelete(null)}
