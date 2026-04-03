@@ -270,6 +270,15 @@ function normalizeEnum<T extends string>(
   return (normalized as T) ?? fallback;
 }
 
+function normalizeBattery(raw: unknown): string {
+  if (raw === undefined || raw === null || raw === '') return '100';
+  const s = String(raw).trim();
+  if (s.includes('-') || s.includes('%')) return s;
+  const n = parseFloat(s);
+  if (!isNaN(n) && n > 0 && n <= 1) return String(Math.round(n * 100));
+  return s;
+}
+
 export async function importInventoryItems(
   storeId: string,
   rows: ImportRow[]
@@ -296,7 +305,7 @@ export async function importInventoryItems(
       color: raw.color?.trim() || "",
       condition: normalizeEnum(raw.condition, CONDITION_MAP, "USADO" as const),
       grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
-      batteryHealth: raw.batteryHealth?.toString()?.trim() || "100",
+      batteryHealth: normalizeBattery(raw.batteryHealth),
       cost: Number(raw.cost) || 0,
       price: Number(raw.price),
       status: normalizeEnum(raw.status, STATUS_MAP, "DISPONIBLE" as const),
