@@ -286,6 +286,19 @@ export const Inventory: React.FC = () => {
       </AnimatePresence>
       {showImportModal && <ImportInventoryModal onClose={() => setShowImportModal(false)} />}
       <ConfirmModal isOpen={!!itemToDelete} title="Eliminar" message="¿Confirmás?" onConfirm={async () => itemToDelete && await deleteProduct(itemToDelete)} onCancel={() => setItemToDelete(null)} />
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        title={`Eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}`}
+        message={`¿Estás seguro de que querés eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
+        onConfirm={async () => {
+          for (const id of Array.from(selectedIds)) {
+            await deleteProduct(id);
+          }
+          setSelectedIds(new Set());
+          setShowBulkDeleteConfirm(false);
+        }}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+      />
     </motion.div>
   );
 };
