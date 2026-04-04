@@ -6,7 +6,7 @@ import { Product } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportInventoryModal } from '../components/ImportInventoryModal';
-import { extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
+import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -610,9 +610,9 @@ export const Inventory: React.FC = () => {
                         ) : (
                           <div className="flex items-center gap-2">
                             <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth)) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
                             </div>
-                            <span className={`font-bold ${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth)) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            <span className={`font-bold ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).text}`}>
                               {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
                             </span>
                           </div>
@@ -657,8 +657,8 @@ export const Inventory: React.FC = () => {
               </div>
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  <span className={`font-bold text-xs ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <div className={`w-2 h-2 rounded-full ${batteryColor(extractMinBattery(invItem.batteryHealth)).bg}`} />
+                  <span className={`font-bold text-xs ${batteryColor(extractMinBattery(invItem.batteryHealth)).text}`}>
                     {formatBatteryDisplay(invItem.batteryHealth)}
                   </span>
                 </div>

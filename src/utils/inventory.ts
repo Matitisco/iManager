@@ -14,6 +14,16 @@ export function extractMinBattery(val: string | number | undefined | null): numb
 }
 
 /**
+ * Returns Tailwind color classes for a battery value.
+ * < 70 → red, 70–85 → amber, > 85 → emerald
+ */
+export function batteryColor(pct: number): { bg: string; text: string } {
+  if (pct < 70) return { bg: 'bg-red-500', text: 'text-red-600' };
+  if (pct <= 85) return { bg: 'bg-amber-500', text: 'text-amber-600' };
+  return { bg: 'bg-emerald-500', text: 'text-emerald-600' };
+}
+
+/**
  * Formats a batteryHealth value for display.
  * Returns the value with a "%" suffix; range strings like "83-85%" pass through.
  */
