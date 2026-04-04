@@ -1,4 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
@@ -345,8 +346,8 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const maxCols = Math.min(8, Math.max(...displayRawRows.map(r => r.length)));
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
@@ -746,7 +747,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </button>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

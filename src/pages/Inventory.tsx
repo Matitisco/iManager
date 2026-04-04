@@ -372,7 +372,9 @@ export const Inventory: React.FC = () => {
           <InventoryEditPanel item={selectedItem} onClose={() => setSelectedItem(null)} onDelete={(id) => { setSelectedItem(null); setItemToDelete(id); }} />
         )}
       </AnimatePresence>
-      {showImportModal && <ImportInventoryModal onClose={() => setShowImportModal(false)} />}
+      <AnimatePresence>
+        {showImportModal && <ImportInventoryModal onClose={() => setShowImportModal(false)} />}
+      </AnimatePresence>
       <ConfirmModal isOpen={!!itemToDelete} title="Eliminar" message="¿Confirmás?" onConfirm={async () => itemToDelete && await deleteProduct(itemToDelete)} onCancel={() => setItemToDelete(null)} />
       <ConfirmModal
         isOpen={showBulkDeleteConfirm}
