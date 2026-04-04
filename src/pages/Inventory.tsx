@@ -189,22 +189,26 @@ export const Inventory: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
                   {inventoryCategories.length > 0 && (
-                    <div className="relative">
+                    <>
                       <button onClick={() => setShowBulkMoveConfirm(v => !v)} className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-gray-50 transition-colors">
                         Mover a...
                       </button>
                       <AnimatePresence>
                         {showBulkMoveConfirm && (
-                          <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
-                            <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
-                            <div className="border-t border-gray-100" />
-                            {inventoryCategories.map(cat => (
-                              <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700">{cat.name}</button>
-                            ))}
-                          </motion.div>
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowBulkMoveConfirm(false)} />
+                            <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="fixed top-16 left-1/2 -translate-x-1/2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
+                              <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50"><p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mover {selectedIds.size} equipo{selectedIds.size !== 1 ? 's' : ''} a</p></div>
+                              <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
+                              <div className="border-t border-gray-100" />
+                              {inventoryCategories.map(cat => (
+                                <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700">{cat.name}</button>
+                              ))}
+                            </motion.div>
+                          </>
                         )}
                       </AnimatePresence>
-                    </div>
+                    </>
                   )}
                   <button onClick={() => setShowBulkDeleteConfirm(true)} className="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-red-700 transition-colors">
                     <Trash2 size={14} /> Eliminar {selectedIds.size}
