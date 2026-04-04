@@ -1,6 +1,6 @@
 ---
 name: start
-description: Toma contexto completo del proyecto iManager antes de comenzar a trabajar. Lee CLAUDE.md, commits recientes y estado del repo.
+description: Toma contexto completo del proyecto iManager antes de comenzar a trabajar. Lee AGENTS.md, commits recientes y estado del repo.
 allowed-tools: [Read, Bash]
 ---
 
@@ -10,7 +10,7 @@ Tu objetivo es darle al agente el contexto necesario para trabajar en iManager. 
 
 ## Pasos
 
-1. Leé el archivo `CLAUDE.md` en la raíz del repo para entender el proyecto.
+1. Leé el archivo `AGENTS.md` en la raíz del repo para entender el proyecto.
 
 2. Corré estos dos comandos en paralelo:
    - `git log --since="3 days ago" --pretty=format:"%h %ad %s" --date=short`
@@ -21,8 +21,8 @@ Tu objetivo es darle al agente el contexto necesario para trabajar en iManager. 
 ```
 ## Contexto iManager
 
-**Stack:** [1 línea desde CLAUDE.md]
-**Módulos migrados:** [lista desde CLAUDE.md]
+**Stack:** [1 línea desde AGENTS.md]
+**Módulos migrados:** [lista desde AGENTS.md]
 
 **Últimos commits:**
 [agrupa por tema si hay varios del mismo día]

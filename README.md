@@ -1,260 +1,104 @@
 # iManager
 
-Panel de gestión para negocios de dispositivos, con foco en inventario, ventas, clientes y canjes.
-
-> Estado actual: **MVP usable con flujos core reales**, pero con varias pantallas auxiliares todavía mockeadas o incompletas.
-
-> Coordinación viva:
-> - `AGENTS.md` — handoff rápido entre agentes
-> - `PROJECT_STATUS.md` — estado real, roadmap, issues y próximos pasos
+Panel de gestión POS para tiendas de celulares/dispositivos.
 
 ---
 
-## 1. Qué es iManager hoy
+## Qué es
 
-iManager no es el scaffold genérico que todavía sugieren algunos metadatos del repo.  
-La implementación real es una app de gestión orientada a tiendas de celulares/dispositivos, especialmente útil para operar con:
+iManager es una app de gestión para tiendas de celulares. Maneja:
 
-- inventario por IMEI
-- condición estética y salud de batería
-- ventas
-- clientes
-- canjes / trade-ins
-- columnas personalizadas para inventario
-
----
-
-## 2. Stack verificado
-
-- **Frontend:** React 19 + TypeScript + Vite 6
-- **UI:** Tailwind CSS 4 + lucide-react + motion + recharts
-- **Backend liviano/dev server:** Express + tsx (`server.ts`)
-- **Auth:** Firebase Authentication
-- **Base de datos:** Cloud Firestore
-- **Reglas de seguridad:** `firestore.rules`
+- Inventario por IMEI (condición, batería, categorías, columnas custom)
+- Ventas (transaccional: muta stock y totales del cliente)
+- Clientes con historial de compras
+- Canjes / trade-ins
+- Import de inventario desde CSV/XLSX
+- Auth multi-proveedor (Google + email/password)
 
 ---
 
-## 3. Estructura principal
+## Stack
 
-### Frontend
-
-- `C:\Users\matis\Desktop\iManager\src\App.tsx`  
-  Shell principal de la aplicación y navegación por tabs.
-
-- `C:\Users\matis\Desktop\iManager\src\context\AppContext.tsx`  
-  Fuente de verdad de negocio: auth, suscripciones realtime y operaciones CRUD.
-
-- `C:\Users\matis\Desktop\iManager\src\pages\`  
-  Pantallas principales: dashboard, inventario, ventas, canjes, clientes, reportes, settings, notificaciones.
-
-- `C:\Users\matis\Desktop\iManager\src\components\forms\`  
-  Formularios de alta para inventario, clientes, ventas y canjes.
-
-### Infra / configuración
-
-- `C:\Users\matis\Desktop\iManager\src\firebase.ts`  
-  Inicialización de Firebase.
-
-- `C:\Users\matis\Desktop\iManager\firestore.rules`  
-  Reglas de acceso y validación por colección.
-
-- `C:\Users\matis\Desktop\iManager\server.ts`  
-  Servidor Express para desarrollo y callback OAuth.
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | React 19 + Vite + TypeScript + Tailwind CSS 4 |
+| Backend | Fastify + Prisma + Firebase Admin (Railway) |
+| Base de datos | PostgreSQL en Railway |
+| Auth | Firebase Authentication |
+| Deploy | Railway (proyecto `efficient-magic`) |
 
 ---
 
-## 4. Auditoría funcional inicial
+## Estado actual (2026-04-04)
 
-### Resumen ejecutivo
+Los módulos core (inventory, clients, sales, trade-ins) están en producción sobre PostgreSQL.
+Dashboard, Reports, Notifications y Settings siguen siendo demo/placeholder.
 
-El proyecto mezcla **flujos core reales** con **capas de UI demo/mock**.
-
-Eso significa:
-
-- sí hay valor real para empezar a testear el producto
-- pero NO todas las pantallas representan funcionalidad productiva
-- varias vistas venden una madurez mayor a la implementación real
-
-### Estado por módulo
-
-| Módulo | Estado | Qué está real hoy | Riesgos / gaps detectados |
-|---|---|---|---|
-| Login | **Funcional** | Login con email/password y Google vía Firebase | Copy y branding bien; no se validó todavía un flujo real de recuperación de cuenta |
-| Inventario | **Bastante funcional** | Alta, edición, borrado, filtros locales, columnas custom, persistencia en Firestore | KPIs/footer y paginación son visuales; formato moneda mezcla `en-US`; no hay búsqueda real |
-| Ventas | **Parcialmente funcional** | Alta y borrado de ventas, actualización de stock a `VENDIDO`, actualización de gasto del cliente | Vistas/detalles con nombres e IMEI hardcodeados; editar venta tiene estados inválidos; borrar venta no revierte stock ni totales |
-| Canjes | **Parcialmente funcional** | Alta, edición, borrado y persistencia en Firestore | Cards superiores y varios labels son demo; nombres de cliente hardcodeados en tabla; no hay workflow real de valuación |
-| Clientes | **Funcional con maquillaje** | Alta y borrado reales, listado desde Firestore | KPIs son mock; filtros “activos/inactivos” usan lógica de ejemplo; no hay edición real implementada |
-| Dashboard | **Demo con datos mezclados** | Lee `sales` del contexto para tabla parcial | KPIs, alertas, inventario por condición y evaluaciones están hardcodeados o derivados de forma incompleta |
-| Reportes | **Mock** | Sin backend real asociado | Métricas, gráficos y exportación son demo |
-| Notificaciones | **Mock** | UI interactiva local | No persiste ni consume eventos reales |
-| Settings | **Mock** | Navegación interna de tabs | Store/profile/security/billing/integrations no persisten nada y muestran datos ficticios |
-| Header / profile / mini notifications | **Mock** | Navegación y logout | Avatar, perfil y notificaciones rápidas usan datos falsos |
+Ver `PROJECT_STATUS.md` para el estado detallado y el roadmap.
 
 ---
 
-## 5. Flujos realmente valiosos para el primer tester
-
-Si el objetivo es tener algo testeable YA, los recorridos más defendibles son:
-
-1. **Autenticarse**
-2. **Dar de alta productos**
-3. **Editar productos**
-4. **Crear clientes**
-5. **Registrar ventas**
-6. **Registrar canjes**
-7. **Agregar / quitar columnas personalizadas en inventario**
-
-Eso sí: el tester debería entrar sabiendo que **dashboard, reportes, settings y notificaciones no son evidencia de backend real todavía**.
-
----
-
-## 6. Problemas importantes detectados para corregir antes o durante testing
-
-### Bloqueantes o casi bloqueantes
-
-1. **Ventas: edición con estado inválido**
-   - En la UI de edición aparece `CANCELADA`
-   - Pero el tipo `Sale.status` y las reglas de Firestore sólo contemplan `COMPLETADA` y `PENDIENTE`
-   - Resultado probable: error al intentar guardar una venta cancelada
-
-2. **Ventas: borrar no revierte efectos colaterales**
-   - Al crear una venta se marca el producto como `VENDIDO`
-   - También se suma `totalSpent` al cliente
-   - Pero al borrar la venta NO se revierte ninguno de esos cambios
-
-3. **Ventas: detalle visual engañoso**
-   - La tabla y el panel lateral muestran clientes, productos e IMEI hardcodeados
-   - Un tester puede creer que ve el dato real cuando en realidad ve placeholders
-
-4. **Clientes y canjes: varias referencias nominales hardcodeadas**
-   - Hay mapeos por ids tipo `1`, `2`, `3`
-   - Si los documentos reales no coinciden con esos ids, la UI muestra nombres falsos
-
-### No bloqueantes pero importantes
-
-5. **Dashboard no representa el negocio real**
-   - No debería usarse para validación operativa
-
-6. **Reportes está en modo demo**
-   - No debería ofrecerse como feature terminada
-
-7. **Settings vende integraciones no verificadas**
-   - Mercado Pago, WhatsApp, API propia, 2FA, billing y tokens aparecen en UI
-   - Hoy no hay implementación visible que respalde esas promesas
-
-8. **Formato de datos inconsistente**
-   - Parte de la app usa `es-AR`
-   - Parte formatea montos con `en-US`
-   - La experiencia queda inconsistente para un tester regional
-
----
-
-## 7. Seguridad y modelo de datos
-
-Las reglas actuales de Firestore validan el shape de:
-
-- `inventory`
-- `sales`
-- `tradeIns`
-- `clients`
-- `customColumns`
-
-Además, usan `authorUid` y rol admin para acceso.
-
-Esto es una buena señal:  
-**la capa de datos está más seria que varias pantallas de UI**.
-
----
-
-## 8. Cómo correr el proyecto
-
-### Requisitos
-
-- Node.js
-
-### Instalar dependencias
+## Cómo correr el proyecto
 
 ```bash
+# Frontend
 npm install
+npm run dev       # http://localhost:5173
+npm run lint      # tsc --noEmit
+
+# Backend (desde backend/)
+npm install
+npm run dev       # tsx watch src/server.ts
+npm run lint
+npx prisma studio # UI de PostgreSQL
 ```
 
 ### Variables de entorno
 
-Tomar como base:
-
-- `C:\Users\matis\Desktop\iManager\.env.example`
-
-Variables relevantes:
-
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- configuración Firebase incluida vía `firebase-applet-config.json`
-- `VITE_API_BASE_URL` para apuntar al backend en Railway cuando ya esté desplegado
-
-### Backend nuevo
-
-El backend objetivo vive en `C:\Users\matis\Desktop\iManager\backend` y expone, al menos:
-
-- `GET /api/health`
-- `GET /api/me`
-
-### Desarrollo
-
-```bash
-npm run dev
+**Frontend (`.env.local`):**
+```
+VITE_BACKEND_URL=http://localhost:3001
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_APP_ID=...
 ```
 
-Esto levanta el servidor definido en `server.ts`.
-
-### Chequeo de TypeScript
-
-```bash
-npm run lint
+**Backend (`backend/.env`):**
 ```
-
-> Nota: en este proyecto `lint` ejecuta `tsc --noEmit`.  
-> No hay tests automatizados propios detectados al momento de esta auditoría.
+DATABASE_URL=postgresql://...
+FIREBASE_PROJECT_ID=...
+FIREBASE_CLIENT_EMAIL=...
+FIREBASE_PRIVATE_KEY=...
+FIRESTORE_DATABASE_ID=...
+```
 
 ---
 
-## 9. Recomendación para el primer tester
+## Flujo de sesión
 
-### Sí pedirle que pruebe
-
-- login
-- alta/edición de inventario
-- alta de clientes
-- registro de ventas
-- registro de canjes
-- columnas personalizadas
-
-### No usar como criterio de “está terminado”
-
-- dashboard
-- reportes
-- notificaciones
-- settings
-- integraciones
-- billing
+```
+Firebase Auth → JWT → /api/me → User + Store + StoreMember
+  ↓ onboardingRequired?
+  Sí → pantalla de onboarding → crea Store + StoreMember OWNER
+  No → app core
+```
 
 ---
 
-## 10. Próximo enfoque recomendado
+## Documentación para agentes AI
 
-Antes de pasar a una refactorización mayor, conviene resolver este orden:
+Si sos un agente empezando a trabajar en este repo:
 
-1. sacar o etiquetar visualmente lo mock
-2. corregir inconsistencias de ventas/clientes/canjes
-3. alinear detalles visuales con datos reales
-4. recién después encarar refactor de arquitectura/UI
+1. **`AGENTS.md`** — onboarding completo: stack, módulos, reglas, skills
+2. **`PROJECT_STATUS.md`** — estado vivo, roadmap, issues conocidos
+3. **`.agent/skills/`** — skills por área (frontend, backend, inventory)
 
-Porque si no, vas a testear una casa con la fachada pintada y las vigas flojas.  
-Y eso, hermano, es comprar deuda con intereses.
+---
 
-## Fast context for future agents
-For a shallow, token-light bootstrap, start with:
-- `docs/agent-context/README.md`
-- `docs/agent-context/QUICK_START.md`
-- `PROJECT_STATUS.md`
-- `ARCHITECTURE_DECISIONS_2026-04-02.md`
+## Reglas clave
+
+- No hacer build manual (Railway hace el build en deploy)
+- Los módulos migrados no usan fallback silencioso a Firestore
+- Backend propio es obligatorio para toda lógica de negocio
+- Un usuario autenticado puede necesitar onboarding antes de usar el core

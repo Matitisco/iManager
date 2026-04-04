@@ -1,19 +1,24 @@
-﻿# Agent Context Bootstrap
+# Agent Context Bootstrap
 
-If you are a new agent joining iManager, start here.
+Si sos un nuevo agente entrando a iManager, empezá acá.
 
-## Read in order
-1. `docs/agent-context/QUICK_START.md`
-2. `docs/agent-context/ARCHITECTURE_MAP.md`
-3. `docs/agent-context/FEATURE_HANDOFF_TEMPLATE.md`
-4. `PROJECT_STATUS.md`
-5. `ARCHITECTURE_DECISIONS_2026-04-02.md`
+## Lectura mínima (en orden)
 
-## Purpose
-This folder is intentionally shallow. It exists to let future agents get oriented fast without rereading the full chat history.
+1. `AGENTS.md` — onboarding completo de stack, módulos, reglas y skills
+2. `PROJECT_STATUS.md` — estado vivo, roadmap, issues abiertos
+3. Skill correspondiente según el área que vas a tocar:
+   - `src/` → `.agent/skills/imanager-frontend/SKILL.md`
+   - `backend/` → `.agent/skills/imanager-backend/SKILL.md`
+   - `src/pages/Inventory.tsx` → `.agent/skills/imanager-inventory/SKILL.md`
 
-## Rules
-- Use the live status doc for current state.
-- Use the architecture decisions doc for reasoning and tradeoffs.
-- Use feature handoff templates for new chats per feature.
-- Keep new feature context short and link back here.
+## Reglas mínimas
+
+- No hacer build (Railway lo hace)
+- Si tocás `src/` → leer la skill de frontend primero
+- Si tocás `backend/` → leer la skill de backend primero
+- Si el módulo es Inventory → también leer la skill de inventory
+
+## Para features nuevas
+
+Usar el template en `FEATURE_HANDOFF_TEMPLATE.md` al comenzar.
+Actualizar `PROJECT_STATUS.md` al terminar.

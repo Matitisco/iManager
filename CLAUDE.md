@@ -1,96 +1,149 @@
-# iManager — Contexto para Claude Code
+# iManager — Contexto para agentes AI
 
-## Qué es este proyecto
+> Este archivo es la fuente de verdad para onboarding de agentes.
+> `AGENTS.md` es una copia idéntica de este archivo — mantenlos sincronizados.
 
-Sistema de gestión para tiendas (POS/inventario/clientes/ventas). Stack:
+---
+
+## Qué es iManager
+
+Sistema de gestión POS para tiendas de celulares/dispositivos. Stack:
 
 - **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
-- **Backend**: Fastify + Prisma + Firebase Admin — desplegado en Railway (proyecto `efficient-magic`)
-- **Base de datos**: PostgreSQL en Railway (fuente de verdad del negocio)
+- **Backend**: Fastify + Prisma + Firebase Admin — Railway (`efficient-magic`)
+- **DB**: PostgreSQL en Railway (fuente de verdad del negocio)
 - **Auth**: Firebase Auth (Google + email/password)
+
+---
+
+## Flujo de sesión
+
+```
+Firebase Auth → token → /api/me → User + Store + StoreMember
+  ↓ onboardingRequired?
+  Sí → Onboarding (crea Store + StoreMember OWNER)
+  No → Core app
+```
+
+---
 
 ## Estructura del repo
 
 ```
-/                    → frontend (React+Vite)
+/                        → frontend (React+Vite)
   src/
-    context/         → AppContext.tsx — bridge principal de sesión y CRUD
-    services/        → clientes HTTP al backend (inventory-api, sales-api, etc.)
-    modules/         → vistas por módulo
-backend/             → API propia (Fastify + Prisma)
-  src/
-    modules/         → auth, clients, inventory, sales, trade-ins, onboarding, stores, users
-  prisma/            → schema.prisma y migraciones
-  scripts/           → bootstrap-owner, migrate-clients
+    App.tsx              → shell, navegación, modales globales
+    context/AppContext.tsx → bridge de sesión y todo el CRUD
+    services/*.ts        → clientes HTTP al backend
+    pages/               → una página por módulo
+    components/          → layout, header, modales, forms
+  .agent/skills/         → skills de agentes (ver más abajo)
+backend/                 → API propia (Fastify + Prisma)
+  src/modules/           → auth, clients, inventory, sales, trade-ins, onboarding, stores, users
+  prisma/                → schema.prisma y migraciones
+  scripts/               → bootstrap-owner, migrate-clients
 ```
 
-## Flujo de sesión
+---
 
-1. Usuario se autentica con Firebase Auth → obtiene token
-2. Frontend llama `/api/me` con el token
-3. Backend valida token, resuelve `User + Store + StoreMember`
-4. Si no hay contexto de negocio → `onboardingRequired` → pantalla de onboarding
-5. Onboarding crea `Store` + `StoreMember` OWNER → desbloquea el core
+## Estado de módulos (2026-04-04)
 
-## Módulos migrados a Postgres (backend real)
+| Módulo       | Fuente de datos | Estado         | Notas                                                   |
+|--------------|-----------------|----------------|---------------------------------------------------------|
+| Auth/sesión  | Firebase + PG   | ✅ producción  | Bridge `/api/me` operativo, retry automático            |
+| Onboarding   | PostgreSQL       | ✅ producción  | Crea Store + StoreMember OWNER                          |
+| Inventory    | PostgreSQL       | ✅ producción  | Categorías, import XLSX, inline edit, bulk select/delete, paginación, ordenar, columnas custom |
+| Clients      | PostgreSQL       | ✅ producción  | CRUD real                                               |
+| Sales        | PostgreSQL       | ✅ producción  | Transaccional: muta stock e cliente                     |
+| Trade-ins    | PostgreSQL       | ✅ producción  | CRUD real por storeId                                   |
+| Dashboard    | —               | ⏳ demo        | No consulta SQL real                                    |
+| Reports      | —               | ⏳ demo        | Placeholder                                             |
+| Notifications| —               | ⏳ local       | Preview, no persiste                                    |
+| Settings     | —               | ⏳ parcial     | UI presente, sin persistencia real                      |
 
-- `clients` — CRUD real
-- `inventory` — CRUD real, unicidad por `storeId + imei`, categorías
-- `sales` — transaccional, muta stock e inventario
-- `trade-ins` — CRUD real filtrado por `storeId`
+---
 
-## Módulos aún en demo / pendiente
+## Reglas que NO se rompen
 
-- `dashboard` y `reports` — demo, no consultan SQL real
-- `notifications` — preview local
-- `settings` — mezcla UI y placeholders
+1. **No hacer build** después de cambios (Railway hace el build en deploy)
+2. **No fallback silencioso a Firestore** en módulos ya migrados — si backend falla, error visible
+3. **No mezclar Firestore y Postgres** como fuentes activas del mismo dato
+4. **No cerrar modales como éxito** si la persistencia real falló
+5. **No asumir** que un usuario autenticado tiene contexto de negocio (puede necesitar onboarding)
 
-## Reglas que no se rompen
-
-- **No hacer build** después de cambios (Railway hace el build en deploy)
-- **No usar fallback silencioso a Firestore** en módulos ya migrados — si el backend falla, el usuario debe ver error real
-- **No mezclar Firestore y Postgres** como fuentes activas del mismo dato
-- **No cerrar modales como éxito** si la persistencia real falló
-- **No asumir** que un usuario autenticado ya tiene contexto de negocio (puede necesitar onboarding)
+---
 
 ## Comandos útiles
 
 ```bash
 # Frontend
-npm run dev          # dev server (puerto 5173 aprox)
+npm run dev          # dev server (puerto 5173)
 npm run lint         # tsc --noEmit
 
 # Backend (desde backend/)
 npm run dev          # tsx watch src/server.ts
 npm run lint         # tsc --noEmit
-npm run bootstrap:owner   # crear owner inicial en Postgres
-npm run migrate:clients   # migración histórica de clients desde Firestore
-npx prisma studio    # UI de Postgres
+npm run bootstrap:owner -- --firebaseUid <uid>   # crear owner en PG
+npm run migrate:clients                          # migración histórica desde Firestore
+npx prisma studio                               # UI de PG
 ```
+
+---
 
 ## Servicios frontend → backend
 
-| Archivo                        | Módulo        |
-|-------------------------------|---------------|
-| `src/services/inventory-api.ts`       | Inventario    |
-| `src/services/inventory-import-api.ts` | Import XLSX  |
-| `src/services/clients-api.ts`         | Clientes      |
-| `src/services/sales-api.ts`           | Ventas        |
-| `src/services/trade-ins-api.ts`       | Canjes        |
-| `src/services/onboarding-api.ts`      | Onboarding    |
-| `src/services/backend-session.ts`     | Sesión `/api/me` |
+| Archivo                              | Módulo       |
+|--------------------------------------|--------------|
+| `src/services/inventory-api.ts`      | Inventario   |
+| `src/services/inventory-import-api.ts` | Import XLSX |
+| `src/services/clients-api.ts`        | Clientes     |
+| `src/services/sales-api.ts`          | Ventas       |
+| `src/services/trade-ins-api.ts`      | Canjes       |
+| `src/services/onboarding-api.ts`     | Onboarding   |
+| `src/services/backend-session.ts`    | `/api/me`    |
 
 Todos usan `fetch-with-timeout.ts` (timeout 15s).
 
+---
+
+## Skills disponibles
+
+Las skills viven en `skills/`. Cada una tiene un `SKILL.md` con instrucciones.
+**Antes de escribir código en un contexto nuevo, buscá si hay una skill aplicable.**
+
+| Skill                  | Cuándo cargarla                                              |
+|------------------------|--------------------------------------------------------------|
+| `start`                | Al inicio de cualquier sesión — toma contexto del repo antes de trabajar |
+| `imanager-frontend`    | Cualquier cambio en `src/` — patrones, convenciones, context API, AppContext |
+| `imanager-backend`     | Cualquier cambio en `backend/` — Prisma, Fastify, módulos, auth middleware  |
+| `imanager-inventory`   | Features específicos del módulo Inventory (el más complejo)  |
+| `test`                 | Antes de pushear — corre lint de TypeScript en frontend y backend en paralelo |
+| `push`                 | Al finalizar una sesión — commitea y pushea a main con conventional commits |
+
+### Cómo usar una skill
+
+1. Ver qué skill aplica según la tabla de arriba
+2. Leer el `SKILL.md` correspondiente **antes de escribir código**
+3. Aplicar TODOS los patrones definidos en esa skill
+
+---
+
 ## Decisiones de diseño clave
 
-- Firebase Auth se mantiene por pragmatismo (identidad) — Postgres es el negocio
+- Firebase Auth por pragmatismo (identidad) — Postgres para el negocio
 - No dual-write permanente entre Firestore y Postgres
-- Backend propio obligatorio para módulos migrados (no lógica sensible en frontend)
+- Backend propio obligatorio para lógica sensible: no se pone en el frontend
 - Onboarding es la única forma válida de crear contexto de negocio para cuentas nuevas
+- `batteryHealth` es `string` para soportar rangos como `"83-85%"`
 
-## Estado actual (2026-04-04)
+---
 
-- Core estable y probado con datos reales
-- Últimos features: categorías en inventario, rename inline, bulk-move, shift+click selection
-- Pendiente: dashboard/reportes sobre SQL real, audit logs, hardening de settings
+## Documentación viva
+
+| Archivo                              | Para qué                                      |
+|--------------------------------------|-----------------------------------------------|
+| `CLAUDE.md` / `AGENTS.md`           | Este archivo — onboarding completo de agentes |
+| `PROJECT_STATUS.md`                  | Estado actual, roadmap, issues abiertos       |
+| `ARCHITECTURE_DECISIONS_2026-04-02.md` | Decisiones y tradeoffs de arquitectura      |
+| `README.md`                          | Descripción de producto (para humanos)        |
+| `docs/agent-context/`                | Bootstrap rápido por feature                  |

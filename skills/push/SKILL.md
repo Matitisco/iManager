@@ -27,17 +27,11 @@ Seguí el estilo del proyecto:
 - Formato: `tipo: descripción en inglés, imperativo, minúsculas`
 - Tipos válidos: `feat`, `fix`, `refactor`, `docs`, `chore`
 - Mensaje que explique **qué** se hizo y **por qué** si no es obvio
-- Siempre agregar al final del cuerpo del commit:
-  `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+- **No agregar Co-Authored-By ni atribuciones de AI**
 
 Ejemplo:
 ```
-git commit -m "$(cat <<'EOF'
-feat: add inline cell editing to inventory table
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-EOF
-)"
+git commit -m "feat: add inline cell editing to inventory table"
 ```
 
 ### 4. Push
