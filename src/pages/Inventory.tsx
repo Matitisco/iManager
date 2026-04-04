@@ -50,6 +50,7 @@ export const Inventory: React.FC = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
+  const renameDoneRef = useRef(false); // prevents onBlur from re-saving after Enter or Escape
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -419,21 +420,33 @@ export const Inventory: React.FC = () => {
                     value={editingCategoryName}
                     onChange={e => setEditingCategoryName(e.target.value)}
                     onBlur={async () => {
+                      if (renameDoneRef.current) { renameDoneRef.current = false; return; }
                       const trimmed = editingCategoryName.trim();
                       if (trimmed && trimmed !== label) {
-                        await renameCategory(catId, trimmed).catch(() => {});
+                        try {
+                          await renameCategory(catId, trimmed);
+                        } catch {
+                          // revert silently on blur (input is already closing)
+                        }
                       }
                       setEditingCategoryId(null);
                     }}
                     onKeyDown={async (e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
+                        renameDoneRef.current = true;
                         const trimmed = editingCategoryName.trim();
                         if (trimmed && trimmed !== label) {
-                          await renameCategory(catId, trimmed).catch(() => {});
+                          try {
+                            await renameCategory(catId, trimmed);
+                          } catch {
+                            renameDoneRef.current = false;
+                            return; // keep input open on error
+                          }
                         }
                         setEditingCategoryId(null);
                       } else if (e.key === 'Escape') {
+                        renameDoneRef.current = true;
                         setEditingCategoryId(null);
                       }
                     }}
@@ -442,7 +455,7 @@ export const Inventory: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => setActiveCategoryId(catId)}
-                    onDoubleClick={() => { if (catId !== 'all') { setEditingCategoryId(catId); setEditingCategoryName(label); } }}
+                    onDoubleClick={() => { if (catId !== 'all') { renameDoneRef.current = false; setEditingCategoryId(catId); setEditingCategoryName(label); } }}
                     className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                   >
                     {label}
