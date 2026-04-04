@@ -32,7 +32,12 @@ const inventoryItemSchema = z.object({
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 
-const inventoryPatchSchema = inventoryItemSchema.partial();
+const inventoryPatchSchema = inventoryItemSchema
+  .extend({
+    capacity: z.string().trim().max(50),
+    color: z.string().trim().max(50),
+  })
+  .partial();
 
 export async function inventoryRoutes(app: FastifyInstance) {
   app.get(
