@@ -47,6 +47,7 @@ export const Inventory: React.FC = () => {
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -405,7 +406,7 @@ export const Inventory: React.FC = () => {
                 </button>
                 {catId !== 'all' && (
                   <button
-                    onClick={async (e) => { e.stopPropagation(); if (activeCategoryId === catId) setActiveCategoryId('all'); await deleteCategory(catId); }}
+                    onClick={(e) => { e.stopPropagation(); setCategoryToDelete({ id: catId, name: label }); }}
                     className="absolute -top-1 -right-1 w-4 h-4 bg-gray-200 hover:bg-red-200 text-gray-500 hover:text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
                   >
                     <X size={10} />
@@ -532,6 +533,18 @@ export const Inventory: React.FC = () => {
         {showImportModal && <ImportInventoryModal onClose={() => setShowImportModal(false)} />}
       </AnimatePresence>
       <ConfirmModal isOpen={!!itemToDelete} title="Eliminar" message="¿Confirmás?" onConfirm={async () => itemToDelete && await deleteProduct(itemToDelete)} onCancel={() => setItemToDelete(null)} />
+      <ConfirmModal
+        isOpen={!!categoryToDelete}
+        title={`Eliminar categoría "${categoryToDelete?.name}"`}
+        message={`¿Estás seguro? Los equipos de esta categoría quedarán sin categoría asignada.`}
+        onConfirm={async () => {
+          if (!categoryToDelete) return;
+          if (activeCategoryId === categoryToDelete.id) setActiveCategoryId('all');
+          await deleteCategory(categoryToDelete.id);
+          setCategoryToDelete(null);
+        }}
+        onCancel={() => setCategoryToDelete(null)}
+      />
       <ConfirmModal
         isOpen={showBulkDeleteConfirm}
         title={`Eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}`}
