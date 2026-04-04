@@ -148,6 +148,14 @@ export async function deleteCategoryApi(user: User, id: string): Promise<void> {
   if (!response.ok && response.status !== 204) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al eliminar categoría`); }
 }
 
+export async function reorderCategoriesApi(user: User, ids: string[]): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/reorder`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ ids }),
+  });
+  if (!response.ok && response.status !== 204) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al reordenar categorías`); }
+}
+
 export async function bulkMoveCategoryApi(user: User, ids: string[], categoryId: string | null): Promise<number> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/bulk-move`, {

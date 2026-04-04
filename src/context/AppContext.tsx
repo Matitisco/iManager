@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPas
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
-import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi } from '../services/inventory-api';
+import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
@@ -37,6 +37,7 @@ interface AppState {
   renameCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   bulkMoveCategory: (ids: string[], categoryId: string | null) => Promise<void>;
+  reorderCategories: (ids: string[]) => Promise<void>;
   user: User | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -792,6 +793,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInventory(prev => prev.map(item => ids.includes(item.id) ? { ...item, categoryId } : item));
   };
 
+  const reorderCategories = async (ids: string[]): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const prev = inventoryCategories;
+    const map = new Map(prev.map(c => [c.id, c]));
+    setInventoryCategories(ids.map(id => map.get(id)!).filter(Boolean));
+    try {
+      await reorderCategoriesApi(user, ids);
+    } catch {
+      setInventoryCategories(prev);
+    }
+  };
+
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -1017,7 +1030,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
       reloadInventory,
-      inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory,
+      inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

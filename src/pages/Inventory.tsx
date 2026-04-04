@@ -22,7 +22,7 @@ const item: Variants = {
 };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory } = useAppContext();
+  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -44,6 +44,8 @@ export const Inventory: React.FC = () => {
   const bulkMoveRef = useRef<HTMLButtonElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Product; isBulk: boolean } | null>(null);
   const [contextMoveOpen, setContextMoveOpen] = useState(false);
+  const [draggedCatId, setDraggedCatId] = useState<string | null>(null);
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -194,6 +196,19 @@ export const Inventory: React.FC = () => {
     }
   };
 
+
+  const handleCategoryDrop = (targetId: string) => {
+    if (!draggedCatId || draggedCatId === targetId) return;
+    const from = inventoryCategories.findIndex(c => c.id === draggedCatId);
+    const to = inventoryCategories.findIndex(c => c.id === targetId);
+    if (from === -1 || to === -1) return;
+    const reordered = [...inventoryCategories];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    reorderCategories(reordered.map(c => c.id));
+    setDraggedCatId(null);
+    setDragOverCatId(null);
+  };
 
   const handleContextMenu = (e: React.MouseEvent, invItem: Product) => {
     e.preventDefault();
@@ -483,7 +498,16 @@ export const Inventory: React.FC = () => {
             const label = catId === 'all' ? 'Todas' : inventoryCategories.find(c => c.id === catId)?.name ?? '';
             const active = activeCategoryId === catId;
             return (
-              <div key={catId} className="relative group flex-shrink-0">
+              <div
+                key={catId}
+                className={`relative group flex-shrink-0 transition-opacity ${draggedCatId === catId ? 'opacity-40' : ''} ${dragOverCatId === catId && draggedCatId !== catId ? 'bg-gray-100 rounded-t-lg' : ''}`}
+                draggable={catId !== 'all'}
+                onDragStart={catId !== 'all' ? e => { e.dataTransfer.effectAllowed = 'move'; setDraggedCatId(catId); } : undefined}
+                onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
+                onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
+                onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
+                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); } : undefined}
+              >
                 {catId !== 'all' && editingCategoryId === catId ? (
                   <input
                     autoFocus

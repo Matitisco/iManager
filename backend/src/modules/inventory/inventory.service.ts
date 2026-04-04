@@ -226,7 +226,7 @@ export async function deleteInventoryItem(storeId: string, id: string) {
 export async function listCategories(storeId: string): Promise<InventoryCategoryResponse[]> {
   const cats = await inventoryPrisma.inventoryCategory.findMany({
     where: { storeId },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: { id: true, name: true },
   });
   return cats;
@@ -237,8 +237,17 @@ export async function createCategory(storeId: string, name: string): Promise<Inv
   if (!trimmed) throw new InventoryError("Category name required", 400);
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { storeId, name: trimmed } });
   if (existing) throw new InventoryError("Category already exists", 409);
-  const cat = await inventoryPrisma.inventoryCategory.create({ data: { storeId, name: trimmed }, select: { id: true, name: true } });
+  const count = await inventoryPrisma.inventoryCategory.count({ where: { storeId } });
+  const cat = await inventoryPrisma.inventoryCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
   return cat;
+}
+
+export async function reorderCategories(storeId: string, orderedIds: string[]): Promise<void> {
+  await inventoryPrisma.$transaction(
+    orderedIds.map((id, idx) =>
+      inventoryPrisma.inventoryCategory.updateMany({ where: { id, storeId }, data: { sortOrder: idx } })
+    )
+  );
 }
 
 export async function renameCategory(storeId: string, id: string, name: string): Promise<InventoryCategoryResponse | null> {

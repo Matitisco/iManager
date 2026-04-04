@@ -15,6 +15,7 @@ import {
   renameCategory,
   deleteCategory,
   bulkMoveCategory,
+  reorderCategories,
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
@@ -192,6 +193,13 @@ export async function inventoryRoutes(app: FastifyInstance) {
       if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
       throw error;
     }
+  });
+
+  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { ids } = z.object({ ids: z.array(z.string()).min(1).max(200) }).parse(request.body);
+    await reorderCategories(request.appUser.storeId, ids);
+    return reply.code(204).send();
   });
 
   app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {

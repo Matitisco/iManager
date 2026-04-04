@@ -76,6 +76,7 @@ model InventoryCategory {
   id        String          @id @default(cuid())
   storeId   String
   name      String          @db.VarChar(80)
+  sortOrder Int             @default(0)
   store     Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   items     InventoryItem[]
   createdAt DateTime        @default(now())
