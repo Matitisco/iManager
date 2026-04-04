@@ -21,7 +21,7 @@ const item: Variants = {
 };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, deleteCategory, bulkMoveCategory } = useAppContext();
+  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -48,6 +48,8 @@ export const Inventory: React.FC = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -411,13 +413,42 @@ export const Inventory: React.FC = () => {
             const active = activeCategoryId === catId;
             return (
               <div key={catId} className="relative group flex-shrink-0">
-                <button
-                  onClick={() => setActiveCategoryId(catId)}
-                  className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                  {label}
-                </button>
-                {catId !== 'all' && (
+                {catId !== 'all' && editingCategoryId === catId ? (
+                  <input
+                    autoFocus
+                    value={editingCategoryName}
+                    onChange={e => setEditingCategoryName(e.target.value)}
+                    onBlur={async () => {
+                      const trimmed = editingCategoryName.trim();
+                      if (trimmed && trimmed !== label) {
+                        await renameCategory(catId, trimmed).catch(() => {});
+                      }
+                      setEditingCategoryId(null);
+                    }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = editingCategoryName.trim();
+                        if (trimmed && trimmed !== label) {
+                          await renameCategory(catId, trimmed).catch(() => {});
+                        }
+                        setEditingCategoryId(null);
+                      } else if (e.key === 'Escape') {
+                        setEditingCategoryId(null);
+                      }
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 focus:outline-none focus:ring-2 focus:ring-black/10 w-28 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-700'}`}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActiveCategoryId(catId)}
+                    onDoubleClick={() => { if (catId !== 'all') { setEditingCategoryId(catId); setEditingCategoryName(label); } }}
+                    className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {label}
+                  </button>
+                )}
+                {catId !== 'all' && editingCategoryId !== catId && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setCategoryToDelete({ id: catId, name: label }); }}
                     className="absolute -top-1 -right-1 w-4 h-4 bg-gray-200 hover:bg-red-200 text-gray-500 hover:text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
