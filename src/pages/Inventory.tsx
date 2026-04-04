@@ -58,6 +58,9 @@ export const Inventory: React.FC = () => {
   const inlineEditCellRef = useRef<{ id: string; field: string } | null>(null);
   const inlineEditValueRef = useRef('');
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Display override: set BEFORE setInlineEditCell(null) so the render that hides the input
+  // already reads the new value — eliminates the flash of the old value.
+  const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -223,14 +226,22 @@ export const Inventory: React.FC = () => {
     }
     let parsed: any = newVal;
     if (field === 'price' || field === 'cost') parsed = Number(newVal) || 0;
-    // Close input AFTER the API returns so the cell never briefly shows the old value:
-    // when setInlineEditCell(null) fires, inventory already has the new value.
+    // Write the override ref BEFORE queuing the state update.
+    // Refs are read synchronously during render, so the render triggered by
+    // setInlineEditCell(null) will always see the new value — no batching required.
+    committedDisplayRef.current = { id: invItem.id, field, value: parsed };
+    setInlineEditCell(null);
     try {
       await updateProduct({ ...invItem, [field]: parsed });
     } finally {
-      setInlineEditCell(null);
+      committedDisplayRef.current = null; // inventory is now up-to-date, clear override
     }
   };
+
+  const cellDisplay = (invItem: Product, field: string, fallback: any) =>
+    committedDisplayRef.current?.id === invItem.id && committedDisplayRef.current.field === field
+      ? committedDisplayRef.current.value
+      : fallback;
 
   const handleEditableCellClick = (e: React.MouseEvent, invItem: Product, field: string, rawValue: string) => {
     e.stopPropagation();
@@ -580,7 +591,7 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
-                        ) : invItem.imei}
+                        ) : cellDisplay(invItem, 'imei', invItem.imei)}
                       </td>
                     );
                   })()}
@@ -596,7 +607,7 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
-                        ) : invItem.model}
+                        ) : cellDisplay(invItem, 'model', invItem.model)}
                       </td>
                     );
                   })()}
@@ -615,10 +626,10 @@ export const Inventory: React.FC = () => {
                         ) : (
                           <div className="flex items-center gap-2">
                             <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(invItem.batteryHealth)}%` }} className={`h-full ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth)) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                             </div>
-                            <span className={`font-bold ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {formatBatteryDisplay(invItem.batteryHealth)}
+                            <span className={`font-bold ${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth)) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
                             </span>
                           </div>
                         )}
@@ -637,7 +648,7 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                        ) : `$${Number(invItem.price).toLocaleString('en-US')}`}
+                        ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
                       </td>
                     );
                   })()}
