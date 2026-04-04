@@ -42,6 +42,8 @@ export const Inventory: React.FC = () => {
   const [showBulkMoveConfirm, setShowBulkMoveConfirm] = useState(false);
   const [bulkMovePos, setBulkMovePos] = useState({ top: 0, left: 0 });
   const bulkMoveRef = useRef<HTMLButtonElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Product; isBulk: boolean } | null>(null);
+  const [contextMoveOpen, setContextMoveOpen] = useState(false);
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -106,6 +108,7 @@ export const Inventory: React.FC = () => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
       if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
       if (showSort && sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false);
+      setContextMenu(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -184,6 +187,16 @@ export const Inventory: React.FC = () => {
     }
   };
 
+
+  const handleContextMenu = (e: React.MouseEvent, invItem: Product) => {
+    e.preventDefault();
+    const isBulk = selectedIds.has(invItem.id) && selectedIds.size > 1;
+    const MENU_W = 208;
+    const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
+    const y = Math.min(e.clientY, window.innerHeight - 200);
+    setContextMoveOpen(false);
+    setContextMenu({ x, y, item: invItem, isBulk });
+  };
 
   const startInlineEdit = (id: string, field: string, value: string) => {
     inlineEditCellRef.current = { id, field };
@@ -561,7 +574,7 @@ export const Inventory: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {pagedInventory.map((invItem, idx) => (
-                <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} className="hover:bg-gray-50 cursor-pointer group">
+                <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} onContextMenu={e => handleContextMenu(e, invItem)} className="hover:bg-gray-50 cursor-pointer group">
                   <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
                   {visibleColumns.imei !== false && (() => {
                     const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
@@ -725,6 +738,73 @@ export const Inventory: React.FC = () => {
         }}
         onCancel={() => setShowBulkDeleteConfirm(false)}
       />
+
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-[70]" onMouseDown={() => setContextMenu(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.1 }}
+            style={{ top: contextMenu.y, left: contextMenu.x, position: 'fixed' }}
+            className="w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[80]"
+          >
+            {contextMenu.isBulk ? (
+              <>
+                <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{selectedIds.size} equipos seleccionados</p>
+                </div>
+                {inventoryCategories.length > 0 && (
+                  <>
+                    <button onClick={() => setContextMoveOpen(v => !v)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center justify-between">
+                      <span>Mover a...</span>
+                      <ChevronDown size={14} className={`transition-transform ${contextMoveOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {contextMoveOpen && (
+                      <div className="border-t border-gray-100 bg-gray-50/30">
+                        <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
+                        {inventoryCategories.map(cat => (
+                          <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="border-t border-gray-100" />
+                <button onClick={() => { setShowBulkDeleteConfirm(true); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2">
+                  <Trash2 size={14} /> Eliminar {selectedIds.size}
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { setSelectedItem(contextMenu.item); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
+                  <Edit2 size={14} /> Editar
+                </button>
+                {inventoryCategories.length > 0 && (
+                  <>
+                    <button onClick={() => setContextMoveOpen(v => !v)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center justify-between">
+                      <span>Mover a...</span>
+                      <ChevronDown size={14} className={`transition-transform ${contextMoveOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {contextMoveOpen && (
+                      <div className="border-t border-gray-100 bg-gray-50/30">
+                        <button onClick={async () => { await bulkMoveCategory([contextMenu.item.id], null); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
+                        {inventoryCategories.map(cat => (
+                          <button key={cat.id} onClick={async () => { await bulkMoveCategory([contextMenu.item.id], cat.id); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="border-t border-gray-100" />
+                <button onClick={() => { setItemToDelete(contextMenu.item.id); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2">
+                  <Trash2 size={14} /> Eliminar
+                </button>
+              </>
+            )}
+          </motion.div>
+        </>
+      )}
     </motion.div>
   );
 };
