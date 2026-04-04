@@ -39,6 +39,8 @@ git commit -m "feat: add inline cell editing to inventory table"
 git push origin main
 ```
 
+> El hook de push corre lint (frontend + backend) y tests automáticamente. No hace falta correrlos antes manualmente.
+
 ### 5. Confirmar
 
 Reportá en una línea: hash del commit + "pusheado a main".
