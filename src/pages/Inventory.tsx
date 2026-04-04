@@ -6,6 +6,7 @@ import { Product } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportInventoryModal } from '../components/ImportInventoryModal';
+import { extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -117,16 +118,6 @@ export const Inventory: React.FC = () => {
   const uniqueModels = Array.from(new Set(inventory.map(item => item.model))).sort();
   const uniqueCapacities = Array.from(new Set(inventory.map(item => item.capacity))).sort();
 
-  const extractMinBattery = (val: string | number | undefined | null): number => {
-    if (val === undefined || val === null || val === '') return 100;
-    const sVal = String(val).trim();
-    const numVal = parseFloat(sVal);
-    if (!isNaN(numVal) && numVal > 0 && numVal < 1 && !sVal.includes('-')) {
-      return Math.round(numVal * 100);
-    }
-    const match = sVal.match(/\d+/);
-    return match ? parseInt(match[0], 10) : 100;
-  };
 
   const filteredInventory = inventory.filter(item => {
     if (filterCondition !== 'Todos' && item.condition !== filterCondition) return false;
@@ -193,13 +184,6 @@ export const Inventory: React.FC = () => {
     }
   };
 
-  const formatBatteryDisplay = (val: string | number) => {
-    const sVal = String(val);
-    const minVal = extractMinBattery(val);
-    if (sVal.includes('%')) return sVal;
-    if (parseFloat(sVal) < 1 && !sVal.includes('-')) return `${minVal}%`;
-    return `${sVal}%`;
-  };
 
   const startInlineEdit = (id: string, field: string, value: string) => {
     inlineEditCellRef.current = { id, field };
