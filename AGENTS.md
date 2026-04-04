@@ -117,6 +117,12 @@ Las skills viven en `skills/`. Cada una tiene un `SKILL.md` con instrucciones.
 | `imanager-frontend`    | Cualquier cambio en `src/` — patrones, convenciones, context API, AppContext |
 | `imanager-backend`     | Cualquier cambio en `backend/` — Prisma, Fastify, módulos, auth middleware  |
 | `imanager-inventory`   | Features específicos del módulo Inventory (el más complejo)  |
+| `imanager-design`      | Cualquier JSX nuevo o cambio visual — colores, tipografía, componentes, animaciones |
+| `appcontext`           | Antes de tocar `AppContext.tsx` — estado global, flags de backend, CRUD, módulos |
+| `new-feature`          | Agregar una feature nueva full-stack (backend + frontend + AppContext + página) |
+| `harden`               | Eliminar fallbacks silenciosos a Firestore en módulos ya migrados (Sales, Clients) |
+| `schema-change`        | Modificar el schema de Prisma — campos, modelos, relaciones, Railway sync |
+| `debug`                | Diagnosticar fallos en Railway, Firebase, sesión, Prisma o el bridge frontend↔backend |
 | `test`                 | Antes de pushear — corre lint de TypeScript en frontend y backend en paralelo |
 | `push`                 | Al finalizar una sesión — commitea y pushea a main con conventional commits |
 
