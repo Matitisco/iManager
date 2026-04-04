@@ -21,6 +21,8 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
+const GRABBING_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Crect x='5' y='6' width='4.5' height='8' rx='2.25' fill='%23111827'/%3E%3Crect x='10' y='5' width='4.5' height='9' rx='2.25' fill='%23111827'/%3E%3Crect x='15' y='6' width='4.5' height='8' rx='2.25' fill='%23111827'/%3E%3Crect x='20' y='7' width='4' height='7' rx='2' fill='%23111827'/%3E%3Crect x='4' y='12' width='20' height='11' rx='4' fill='%23111827'/%3E%3Crect x='1' y='14' width='6' height='5' rx='2.5' fill='%23111827'/%3E%3C/svg%3E\") 14 16, grabbing";
+
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
@@ -503,8 +505,8 @@ export const Inventory: React.FC = () => {
                 key={catId}
                 className="relative group flex-shrink-0"
                 draggable={catId !== 'all'}
-                onMouseDown={catId !== 'all' ? () => setPressedCatId(catId) : undefined}
-                onMouseUp={() => setPressedCatId(null)}
+                onMouseDown={catId !== 'all' ? () => { setPressedCatId(catId); document.body.style.cursor = GRABBING_CURSOR; } : undefined}
+                onMouseUp={() => { setPressedCatId(null); document.body.style.cursor = ''; }}
                 onDragStart={catId !== 'all' ? e => {
                   e.dataTransfer.effectAllowed = 'move';
                   setPressedCatId(null);
@@ -522,7 +524,7 @@ export const Inventory: React.FC = () => {
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
                 onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
-                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); setPressedCatId(null); } : undefined}
+                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); setPressedCatId(null); document.body.style.cursor = ''; } : undefined}
               >
                 {dragOverCatId === catId && draggedCatId !== catId && (
                   <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-full z-10" />
