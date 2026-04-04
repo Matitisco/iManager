@@ -108,7 +108,6 @@ export const Inventory: React.FC = () => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
       if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
       if (showSort && sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false);
-      setContextMenu(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
