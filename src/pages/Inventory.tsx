@@ -21,7 +21,6 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
-const GRABBING_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Crect x='5' y='6' width='4.5' height='8' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='10' y='5' width='4.5' height='9' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='15' y='6' width='4.5' height='8' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='20' y='7' width='4' height='7' rx='2' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='4' y='12' width='20' height='11' rx='4' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='1' y='14' width='6' height='5' rx='2.5' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3C/svg%3E\") 14 16, grabbing";
 
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
@@ -48,7 +47,6 @@ export const Inventory: React.FC = () => {
   const [contextMoveOpen, setContextMoveOpen] = useState(false);
   const [draggedCatId, setDraggedCatId] = useState<string | null>(null);
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
-  const [pressedCatId, setPressedCatId] = useState<string | null>(null);
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -505,37 +503,11 @@ export const Inventory: React.FC = () => {
                 key={catId}
                 className="relative group flex-shrink-0"
                 draggable={catId !== 'all'}
-                onMouseDown={catId !== 'all' ? () => {
-                  setPressedCatId(catId);
-                  if (!document.getElementById('cat-grab-style')) {
-                    const s = document.createElement('style');
-                    s.id = 'cat-grab-style';
-                    s.textContent = `* { cursor: ${GRABBING_CURSOR} !important; }`;
-                    document.head.appendChild(s);
-                  }
-                } : undefined}
-                onMouseUp={() => {
-                  setPressedCatId(null);
-                  document.getElementById('cat-grab-style')?.remove();
-                }}
-                onDragStart={catId !== 'all' ? e => {
-                  e.dataTransfer.effectAllowed = 'move';
-                  setPressedCatId(null);
-                  setDraggedCatId(catId);
-                  const btn = (e.currentTarget as HTMLElement).querySelector('button');
-                  if (btn) {
-                    const ghost = btn.cloneNode(true) as HTMLElement;
-                    ghost.style.cssText = 'position:fixed;top:-9999px;left:0;transform:rotate(-4deg) scale(1.1);box-shadow:0 10px 24px rgba(0,0,0,0.18);border-radius:10px;background:#111827;color:white;border:none;padding:6px 14px;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;';
-                    document.body.appendChild(ghost);
-                    ghost.getBoundingClientRect();
-                    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
-                    requestAnimationFrame(() => document.body.removeChild(ghost));
-                  }
-                } : undefined}
+                onDragStart={catId !== 'all' ? e => { e.dataTransfer.effectAllowed = 'move'; setDraggedCatId(catId); } : undefined}
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
                 onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
-                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); setPressedCatId(null); document.getElementById('cat-grab-style')?.remove(); } : undefined}
+                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); } : undefined}
               >
                 {dragOverCatId === catId && draggedCatId !== catId && (
                   <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-full z-10" />
@@ -584,12 +556,10 @@ export const Inventory: React.FC = () => {
                     onDoubleClick={() => { if (catId !== 'all') { renameDoneRef.current = false; setEditingCategoryId(catId); setEditingCategoryName(label); } }}
                     className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-all duration-100 border-b-2 ${
                       draggedCatId === catId
-                        ? 'opacity-40 scale-95 border-transparent text-gray-400'
-                        : pressedCatId === catId
-                          ? 'bg-gray-900 text-white border-gray-900 scale-95 rounded-lg'
-                          : active
-                            ? 'border-gray-900 text-gray-900'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'bg-gray-900 text-white border-gray-900 rounded-lg scale-95'
+                        : active
+                          ? 'border-gray-900 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
                     {label}
