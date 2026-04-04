@@ -12,6 +12,7 @@ import {
   updateInventoryItem,
   listCategories,
   createCategory,
+  renameCategory,
   deleteCategory,
   bulkMoveCategory,
 } from "./inventory.service.js";
@@ -23,7 +24,7 @@ const inventoryItemSchema = z.object({
   color: z.string().trim().min(1).max(50),
   condition: z.enum(["NUEVO", "USADO", "PRE-OWNED"]),
   grade: z.enum(["A+", "A", "B", "C", "N/A"]),
-  batteryHealth: z.number().int().min(0).max(100),
+  batteryHealth: z.string().trim().max(50),
   cost: z.number().nonnegative(),
   price: z.number().nonnegative(),
   status: z.enum(["DISPONIBLE", "VENDIDO", "EN_REVISION"]),
@@ -181,6 +182,21 @@ export async function inventoryRoutes(app: FastifyInstance) {
     try {
       const category = await createCategory(request.appUser.storeId, name);
       return reply.code(201).send({ category });
+    } catch (error) {
+      const mapped = getInventoryErrorStatus(error);
+      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
+      throw error;
+    }
+  });
+
+  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
+    try {
+      const category = await renameCategory(request.appUser.storeId, id, name);
+      if (!category) return reply.code(404).send({ error: "Category not found" });
+      return { category };
     } catch (error) {
       const mapped = getInventoryErrorStatus(error);
       if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });

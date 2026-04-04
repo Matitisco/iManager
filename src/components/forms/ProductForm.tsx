@@ -14,7 +14,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     color: '',
     condition: 'NUEVO' as any,
     grade: 'A+' as any,
-    batteryHealth: 100,
+    batteryHealth: '100',
     cost: 0,
     price: 0,
     customFields: {} as Record<string, string | number>
@@ -32,8 +32,8 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       return;
     }
 
-    if (!Number.isFinite(formData.batteryHealth) || formData.batteryHealth < 0 || formData.batteryHealth > 100) {
-      setError('La salud de batería debe estar entre 0 y 100.');
+    if (!formData.batteryHealth.trim()) {
+      setError('Completá el campo de batería.');
       return;
     }
 

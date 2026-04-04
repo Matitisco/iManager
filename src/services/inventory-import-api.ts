@@ -9,7 +9,7 @@ export interface ImportRow {
   color?: string;
   condition?: string;
   grade?: string;
-  batteryHealth?: number;
+  batteryHealth?: string;
   cost?: number;
   price: number;
   status?: string;

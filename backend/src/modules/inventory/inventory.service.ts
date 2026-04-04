@@ -9,7 +9,7 @@ export interface InventoryItemInput {
   color: string;
   condition: "NUEVO" | "USADO" | "PRE-OWNED";
   grade: "A+" | "A" | "B" | "C" | "N/A";
-  batteryHealth: number;
+  batteryHealth: string;
   cost: number;
   price: number;
   status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
@@ -25,7 +25,7 @@ export interface InventoryItemResponse {
   color: string;
   condition: "NUEVO" | "USADO" | "PRE-OWNED";
   grade: "A+" | "A" | "B" | "C" | "N/A";
-  batteryHealth: number;
+  batteryHealth: string;
   cost: number;
   price: number;
   status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
@@ -47,7 +47,7 @@ type InventoryRecord = {
   color: string;
   condition: string;
   grade: string;
-  batteryHealth: number;
+  batteryHealth: string;
   categoryId: string | null;
   cost: Decimal;
   price: Decimal;
@@ -241,6 +241,15 @@ export async function createCategory(storeId: string, name: string): Promise<Inv
   return cat;
 }
 
+export async function renameCategory(storeId: string, id: string, name: string): Promise<InventoryCategoryResponse | null> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new InventoryError("Category name required", 400);
+  const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return null;
+  const updated = await inventoryPrisma.inventoryCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
+  return updated;
+}
+
 export async function deleteCategory(storeId: string, id: string): Promise<boolean> {
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { id, storeId } });
   if (!existing) return false;
@@ -271,7 +280,7 @@ export interface ImportRow {
   color?: string;
   condition?: string;
   grade?: string;
-  batteryHealth?: number;
+  batteryHealth?: string;
   cost?: number;
   price: number;
   status?: string;
