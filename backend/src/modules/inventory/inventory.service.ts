@@ -13,6 +13,7 @@ export interface InventoryItemInput {
   cost: number;
   price: number;
   status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
+  categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
 }
 
@@ -28,8 +29,14 @@ export interface InventoryItemResponse {
   cost: number;
   price: number;
   status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
+  categoryId: string | null;
   customFields: Record<string, unknown>;
   soldAt: string | null;
+}
+
+export interface InventoryCategoryResponse {
+  id: string;
+  name: string;
 }
 
 type InventoryRecord = {
@@ -41,6 +48,7 @@ type InventoryRecord = {
   condition: string;
   grade: string;
   batteryHealth: number;
+  categoryId: string | null;
   cost: Decimal;
   price: Decimal;
   status: string;
@@ -82,6 +90,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     cost: item.cost.toNumber(),
     price: item.price.toNumber(),
     status: item.status as InventoryItemResponse["status"],
+    categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
   };
@@ -134,6 +143,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       cost: toDecimal(input.cost),
       price: toDecimal(input.price),
       status: input.status,
+      categoryId: input.categoryId ?? null,
       customFields: normalizeCustomFields(input.customFields),
     },
   });
@@ -183,6 +193,7 @@ export async function updateInventoryItem(
       cost: input.cost !== undefined ? toDecimal(input.cost) : existing.cost,
       price: input.price !== undefined ? toDecimal(input.price) : existing.price,
       status: input.status ?? existing.status,
+      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       customFields:
         input.customFields !== undefined
           ? normalizeCustomFields(input.customFields)
@@ -209,6 +220,49 @@ export async function deleteInventoryItem(storeId: string, id: string) {
 
   return true;
 }
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export async function listCategories(storeId: string): Promise<InventoryCategoryResponse[]> {
+  const cats = await inventoryPrisma.inventoryCategory.findMany({
+    where: { storeId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true },
+  });
+  return cats;
+}
+
+export async function createCategory(storeId: string, name: string): Promise<InventoryCategoryResponse> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new InventoryError("Category name required", 400);
+  const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing) throw new InventoryError("Category already exists", 409);
+  const cat = await inventoryPrisma.inventoryCategory.create({ data: { storeId, name: trimmed }, select: { id: true, name: true } });
+  return cat;
+}
+
+export async function deleteCategory(storeId: string, id: string): Promise<boolean> {
+  const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return false;
+  // Unassign items before deleting
+  await inventoryPrisma.inventoryItem.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } });
+  await inventoryPrisma.inventoryCategory.delete({ where: { id } });
+  return true;
+}
+
+export async function bulkMoveCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
+  if (categoryId !== null) {
+    const cat = await inventoryPrisma.inventoryCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new InventoryError("Category not found", 404);
+  }
+  const result = await inventoryPrisma.inventoryItem.updateMany({
+    where: { id: { in: ids }, storeId },
+    data: { categoryId },
+  });
+  return result.count;
+}
+
+// ─── Import ───────────────────────────────────────────────────────────────────
 
 export interface ImportRow {
   imei: string;

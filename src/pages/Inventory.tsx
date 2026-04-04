@@ -21,7 +21,7 @@ const item: Variants = {
 };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns, deleteProduct, updateProduct } = useAppContext();
+  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, deleteCategory, bulkMoveCategory } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -38,6 +38,14 @@ export const Inventory: React.FC = () => {
   const PAGE_SIZE = 20;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkMoveConfirm, setShowBulkMoveConfirm] = useState(false);
+  const [bulkMoveTargetId, setBulkMoveTargetId] = useState<string | null>(null);
+
+  // Categories
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -120,6 +128,11 @@ export const Inventory: React.FC = () => {
       if (filterBattery === '< 80%' && minBat >= 80) return false;
     }
 
+    if (activeCategoryId !== 'all') {
+      if (activeCategoryId === null && item.categoryId != null) return false;
+      if (activeCategoryId !== null && item.categoryId !== activeCategoryId) return false;
+    }
+
     return true;
   });
 
@@ -175,6 +188,24 @@ export const Inventory: React.FC = () => {
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
+                  {inventoryCategories.length > 0 && (
+                    <div className="relative">
+                      <button onClick={() => setShowBulkMoveConfirm(v => !v)} className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-gray-50 transition-colors">
+                        Mover a...
+                      </button>
+                      <AnimatePresence>
+                        {showBulkMoveConfirm && (
+                          <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
+                            <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
+                            <div className="border-t border-gray-100" />
+                            {inventoryCategories.map(cat => (
+                              <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700">{cat.name}</button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
                   <button onClick={() => setShowBulkDeleteConfirm(true)} className="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-red-700 transition-colors">
                     <Trash2 size={14} /> Eliminar {selectedIds.size}
                   </button>
@@ -335,6 +366,54 @@ export const Inventory: React.FC = () => {
           </div>
         </div>
 
+        {/* Category tabs */}
+        <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-100 overflow-x-auto">
+          {(['all', ...inventoryCategories.map(c => c.id)] as const).map(catId => {
+            const label = catId === 'all' ? 'Todas' : inventoryCategories.find(c => c.id === catId)?.name ?? '';
+            const active = activeCategoryId === catId;
+            return (
+              <div key={catId} className="relative group flex-shrink-0">
+                <button
+                  onClick={() => setActiveCategoryId(catId)}
+                  className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  {label}
+                </button>
+                {catId !== 'all' && (
+                  <button
+                    onClick={async (e) => { e.stopPropagation(); if (activeCategoryId === catId) setActiveCategoryId('all'); await deleteCategory(catId); }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-gray-200 hover:bg-red-200 text-gray-500 hover:text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {/* New category */}
+          {showNewCategory ? (
+            <form
+              onSubmit={async (e) => { e.preventDefault(); if (!newCategoryName.trim() || creatingCategory) return; setCreatingCategory(true); try { const cat = await createCategory(newCategoryName.trim()); setActiveCategoryId(cat.id); setNewCategoryName(''); setShowNewCategory(false); } finally { setCreatingCategory(false); } }}
+              className="flex items-center gap-1 ml-1"
+            >
+              <input
+                autoFocus
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                onKeyDown={e => e.key === 'Escape' && (setShowNewCategory(false), setNewCategoryName(''))}
+                placeholder="Nombre..."
+                className="text-sm px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 w-32"
+              />
+              <button type="submit" disabled={creatingCategory} className="text-xs px-2 py-1 bg-gray-900 text-white rounded-lg disabled:opacity-50">OK</button>
+              <button type="button" onClick={() => { setShowNewCategory(false); setNewCategoryName(''); }} className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700">✕</button>
+            </form>
+          ) : (
+            <button onClick={() => setShowNewCategory(true)} className="flex-shrink-0 ml-1 px-2 py-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium">
+              <Plus size={13} /> Nueva
+            </button>
+          )}
+        </div>
+
         <div className="hidden md:block overflow-x-auto flex-1">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50/50">
@@ -422,7 +501,7 @@ export const Inventory: React.FC = () => {
 
       <AnimatePresence>
         {selectedItem && (
-          <InventoryEditPanel item={selectedItem} onClose={() => setSelectedItem(null)} onDelete={(id) => { setSelectedItem(null); setItemToDelete(id); }} />
+          <InventoryEditPanel item={selectedItem} onClose={() => setSelectedItem(null)} onDelete={(id) => { setSelectedItem(null); setItemToDelete(id); }} categories={inventoryCategories} />
         )}
       </AnimatePresence>
       <AnimatePresence>
@@ -470,7 +549,7 @@ const PageButton = ({ icon, disabled, onClick }: { icon: React.ReactNode, disabl
   <button onClick={onClick} disabled={disabled} className={`w-8 h-8 flex items-center justify-center rounded border ${disabled ? 'text-gray-300' : 'text-gray-600 hover:bg-gray-50'}`}>{icon}</button>
 );
 
-const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClose: () => void, onDelete: (id: string) => void }) => {
+const InventoryEditPanel = ({ item, onClose, onDelete, categories }: { item: Product, onClose: () => void, onDelete: (id: string) => void, categories: import('../types').InventoryCategory[] }) => {
   const { updateProduct, customColumns } = useAppContext();
   const [formData, setFormData] = useState<Product>(item);
   const [isSaving, setIsSaving] = useState(false);
@@ -497,7 +576,7 @@ const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClos
     setIsSaving(true);
     setError(null);
     try {
-      await updateProduct({ ...formData, imei, model });
+      await updateProduct({ ...formData, imei, model, categoryId: formData.categoryId || null });
       onClose();
     } catch (submitError) {
       setError(getFriendlyErrorMessage(submitError, 'No se pudo guardar el equipo.'));
@@ -594,6 +673,15 @@ const InventoryEditPanel = ({ item, onClose, onDelete }: { item: Product, onClos
               <label className={labelCls}>Precio ($)</label>
               <input type="number" min={0} name="price" value={formData.price} onChange={handleChange} className={inputCls} />
             </div>
+            {categories.length > 0 && (
+              <div className="col-span-2">
+                <label className={labelCls}>Categoría</label>
+                <select name="categoryId" value={formData.categoryId ?? ''} onChange={handleChange} className={`${inputCls} appearance-none`}>
+                  <option value="">Sin categoría</option>
+                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                </select>
+              </div>
+            )}
             {customColumns.map(col => (
               <div key={col.id} className="col-span-2 sm:col-span-1">
                 <label className={labelCls}>{col.label}</label>

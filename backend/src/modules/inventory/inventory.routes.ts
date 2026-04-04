@@ -10,6 +10,10 @@ import {
   importInventoryItems,
   listInventory,
   updateInventoryItem,
+  listCategories,
+  createCategory,
+  deleteCategory,
+  bulkMoveCategory,
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
@@ -23,6 +27,7 @@ const inventoryItemSchema = z.object({
   cost: z.number().nonnegative(),
   price: z.number().nonnegative(),
   status: z.enum(["DISPONIBLE", "VENDIDO", "EN_REVISION"]),
+  categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 
@@ -161,4 +166,49 @@ export async function inventoryRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     }
   );
+
+  // ─── Categories ─────────────────────────────────────────────────────────────
+
+  app.get("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const categories = await listCategories(request.appUser.storeId);
+    return { categories };
+  });
+
+  app.post("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
+    try {
+      const category = await createCategory(request.appUser.storeId, name);
+      return reply.code(201).send({ category });
+    } catch (error) {
+      const mapped = getInventoryErrorStatus(error);
+      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
+      throw error;
+    }
+  });
+
+  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const deleted = await deleteCategory(request.appUser.storeId, id);
+    if (!deleted) return reply.code(404).send({ error: "Category not found" });
+    return reply.code(204).send();
+  });
+
+  app.post("/bulk-move", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { ids, categoryId } = z.object({
+      ids: z.array(z.string()).min(1).max(500),
+      categoryId: z.string().nullable(),
+    }).parse(request.body);
+    try {
+      const count = await bulkMoveCategory(request.appUser.storeId, ids, categoryId);
+      return { count };
+    } catch (error) {
+      const mapped = getInventoryErrorStatus(error);
+      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
+      throw error;
+    }
+  });
 }

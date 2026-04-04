@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory } from '../types';
 import { auth, db, googleProvider } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
-import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
+import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, deleteCategoryApi, bulkMoveCategoryApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
@@ -32,6 +32,10 @@ interface AppState {
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
   removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
+  inventoryCategories: InventoryCategory[];
+  createCategory: (name: string) => Promise<InventoryCategory>;
+  deleteCategory: (id: string) => Promise<void>;
+  bulkMoveCategory: (ids: string[], categoryId: string | null) => Promise<void>;
   user: User | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -93,6 +97,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [appSession, setAppSession] = useState<AppSession | null>(null);
@@ -210,9 +215,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const loadBackendInventory = async () => {
       try {
-        const backendInventory = await fetchBackendInventory(user);
+        const [backendInventory, cats] = await Promise.all([fetchBackendInventory(user), fetchCategories(user).catch(() => [])]);
         if (cancelled) return;
         setInventory(backendInventory);
+        setInventoryCategories(cats);
         setInventorySource('backend');
       } catch (error) {
         if (cancelled) return;
@@ -739,6 +745,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInventory(items);
   };
 
+  const reloadCategories = async () => {
+    if (!user) return;
+    try {
+      const cats = await fetchCategories(user);
+      setInventoryCategories(cats);
+    } catch { /* ignore */ }
+  };
+
+  const createCategory = async (name: string): Promise<InventoryCategory> => {
+    if (!user) throw new Error('No authenticated user');
+    const cat = await createCategoryApi(user, name);
+    setInventoryCategories(prev => [...prev, cat]);
+    return cat;
+  };
+
+  const deleteCategory = async (id: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await deleteCategoryApi(user, id);
+    setInventoryCategories(prev => prev.filter(c => c.id !== id));
+    setInventory(prev => prev.map(item => item.categoryId === id ? { ...item, categoryId: null } : item));
+  };
+
+  const bulkMoveCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await bulkMoveCategoryApi(user, ids, categoryId);
+    setInventory(prev => prev.map(item => ids.includes(item.id) ? { ...item, categoryId } : item));
+  };
+
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -964,6 +998,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
       reloadInventory,
+      inventoryCategories, createCategory, deleteCategory, bulkMoveCategory,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

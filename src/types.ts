@@ -10,8 +10,14 @@ export interface Product {
   cost: number;
   price: number;
   status: 'DISPONIBLE' | 'VENDIDO' | 'EN_REVISION';
+  categoryId?: string | null;
   soldAt?: string | null;
   customFields?: Record<string, any>;
+}
+
+export interface InventoryCategory {
+  id: string;
+  name: string;
 }
 
 export interface CustomColumn {

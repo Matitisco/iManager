@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import type { Product } from '../types';
+import type { Product, InventoryCategory } from '../types';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -109,4 +109,41 @@ export async function deleteBackendInventoryItem(user: User, itemId: string): Pr
     const body = await response.json().catch(() => null);
     throw new Error(body?.error || `No se pudo eliminar el equipo (${response.status})`);
   }
+}
+
+export async function fetchCategories(user: User): Promise<InventoryCategory[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories`, { headers: await getAuthHeaders(user) });
+  if (!response.ok) throw new Error(`No se pudieron cargar las categorías (${response.status})`);
+  const data = await parseJson<{ categories: InventoryCategory[] }>(response);
+  return data.categories;
+}
+
+export async function createCategoryApi(user: User, name: string): Promise<InventoryCategory> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories`, {
+    method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al crear categoría`); }
+  const data = await parseJson<{ category: InventoryCategory }>(response);
+  return data.category;
+}
+
+export async function deleteCategoryApi(user: User, id: string): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const token = await user.getIdToken();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/${id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (!response.ok && response.status !== 204) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al eliminar categoría`); }
+}
+
+export async function bulkMoveCategoryApi(user: User, ids: string[], categoryId: string | null): Promise<number> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/bulk-move`, {
+    method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ ids, categoryId }),
+  });
+  if (!response.ok) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al mover equipos`); }
+  const data = await parseJson<{ count: number }>(response);
+  return data.count;
 }
