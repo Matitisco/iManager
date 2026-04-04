@@ -416,7 +416,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
                 <AlertCircle size={15} className="mt-0.5 shrink-0 text-gray-400" />
-                Hacé click en la fila que contiene los <strong className="text-gray-700">nombres de las columnas</strong>. Las filas de arriba se ignoran.
+                <span>Hacé click en la fila que contiene los <strong className="text-gray-700">nombres de las columnas</strong>. Las filas de arriba se ignoran.</span>
               </div>
 
               <div className="border border-gray-200 rounded-xl overflow-hidden">
