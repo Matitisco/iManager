@@ -505,8 +505,19 @@ export const Inventory: React.FC = () => {
                 key={catId}
                 className="relative group flex-shrink-0"
                 draggable={catId !== 'all'}
-                onMouseDown={catId !== 'all' ? () => { setPressedCatId(catId); document.body.style.cursor = GRABBING_CURSOR; } : undefined}
-                onMouseUp={() => { setPressedCatId(null); document.body.style.cursor = ''; }}
+                onMouseDown={catId !== 'all' ? () => {
+                  setPressedCatId(catId);
+                  if (!document.getElementById('cat-grab-style')) {
+                    const s = document.createElement('style');
+                    s.id = 'cat-grab-style';
+                    s.textContent = `* { cursor: ${GRABBING_CURSOR} !important; }`;
+                    document.head.appendChild(s);
+                  }
+                } : undefined}
+                onMouseUp={() => {
+                  setPressedCatId(null);
+                  document.getElementById('cat-grab-style')?.remove();
+                }}
                 onDragStart={catId !== 'all' ? e => {
                   e.dataTransfer.effectAllowed = 'move';
                   setPressedCatId(null);
@@ -524,7 +535,7 @@ export const Inventory: React.FC = () => {
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
                 onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
-                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); setPressedCatId(null); document.body.style.cursor = ''; } : undefined}
+                onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); setPressedCatId(null); document.getElementById('cat-grab-style')?.remove(); } : undefined}
               >
                 {dragOverCatId === catId && draggedCatId !== catId && (
                   <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-full z-10" />
