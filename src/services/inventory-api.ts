@@ -129,6 +129,16 @@ export async function createCategoryApi(user: User, name: string): Promise<Inven
   return data.category;
 }
 
+export async function renameCategoryApi(user: User, id: string, name: string): Promise<InventoryCategory> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/${id}`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al renombrar categoría`); }
+  const data = await parseJson<{ category: InventoryCategory }>(response);
+  return data.category;
+}
+
 export async function deleteCategoryApi(user: User, id: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const token = await user.getIdToken();
