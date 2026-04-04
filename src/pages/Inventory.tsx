@@ -39,7 +39,8 @@ export const Inventory: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkMoveConfirm, setShowBulkMoveConfirm] = useState(false);
-  const [bulkMoveTargetId, setBulkMoveTargetId] = useState<string | null>(null);
+  const [bulkMovePos, setBulkMovePos] = useState({ top: 0, left: 0 });
+  const bulkMoveRef = useRef<HTMLButtonElement>(null);
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -129,8 +130,8 @@ export const Inventory: React.FC = () => {
     }
 
     if (activeCategoryId !== 'all') {
-      if (activeCategoryId === null && item.categoryId != null) return false;
-      if (activeCategoryId !== null && item.categoryId !== activeCategoryId) return false;
+      const itemCat = item.categoryId ?? null;
+      if (itemCat !== activeCategoryId) return false;
     }
 
     return true;
@@ -190,15 +191,34 @@ export const Inventory: React.FC = () => {
                   <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
                   {inventoryCategories.length > 0 && (
                     <>
-                      <button onClick={() => setShowBulkMoveConfirm(v => !v)} className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-gray-50 transition-colors">
+                      <button
+                        ref={bulkMoveRef}
+                        onClick={() => {
+                          if (bulkMoveRef.current) {
+                            const r = bulkMoveRef.current.getBoundingClientRect();
+                            setBulkMovePos({ top: r.bottom + 6, left: r.left });
+                          }
+                          setShowBulkMoveConfirm(v => !v);
+                        }}
+                        className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-gray-50 transition-colors"
+                      >
                         Mover a...
                       </button>
                       <AnimatePresence>
                         {showBulkMoveConfirm && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowBulkMoveConfirm(false)} />
-                            <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="fixed top-16 left-1/2 -translate-x-1/2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
-                              <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50"><p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mover {selectedIds.size} equipo{selectedIds.size !== 1 ? 's' : ''} a</p></div>
+                            <motion.div
+                              initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                              transition={{ duration: 0.12 }}
+                              style={{ top: bulkMovePos.top, left: bulkMovePos.left }}
+                              className="fixed w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
+                            >
+                              <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mover {selectedIds.size} equipo{selectedIds.size !== 1 ? 's' : ''} a</p>
+                              </div>
                               <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
                               <div className="border-t border-gray-100" />
                               {inventoryCategories.map(cat => (
