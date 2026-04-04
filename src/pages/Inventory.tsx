@@ -503,7 +503,13 @@ export const Inventory: React.FC = () => {
                 key={catId}
                 className="relative group flex-shrink-0"
                 draggable={catId !== 'all'}
-                onDragStart={catId !== 'all' ? e => { e.dataTransfer.effectAllowed = 'move'; setDraggedCatId(catId); } : undefined}
+                onDragStart={catId !== 'all' ? e => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedCatId(catId);
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1; canvas.height = 1;
+                  e.dataTransfer.setDragImage(canvas, 0, 0);
+                } : undefined}
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
                 onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
