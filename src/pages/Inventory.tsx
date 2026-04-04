@@ -54,6 +54,8 @@ export const Inventory: React.FC = () => {
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
+  // Optimistic display override: shows the new value immediately while the API call is in flight
+  const [pendingCell, setPendingCell] = useState<{ id: string; field: string; value: any } | null>(null);
   // Refs to avoid stale closures in async save handlers
   const inlineEditCellRef = useRef<{ id: string; field: string } | null>(null);
   const inlineEditValueRef = useRef('');
@@ -221,7 +223,14 @@ export const Inventory: React.FC = () => {
     if (currentVal === newVal) return;
     let parsed: any = newVal;
     if (field === 'price' || field === 'cost') parsed = Number(newVal) || 0;
-    await updateProduct({ ...invItem, [field]: parsed });
+    // Set pending optimistic value in the same synchronous call as setInlineEditCell(null)
+    // so React batches them into one render — cell immediately shows the new value
+    setPendingCell({ id: invItem.id, field, value: parsed });
+    try {
+      await updateProduct({ ...invItem, [field]: parsed });
+    } finally {
+      setPendingCell(null);
+    }
   };
 
   const handleEditableCellClick = (e: React.MouseEvent, invItem: Product, field: string, rawValue: string) => {
@@ -557,7 +566,12 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {pagedInventory.map((invItem, idx) => (
+              {pagedInventory.map((invItem, idx) => {
+                // Apply local optimistic override so the new value shows instantly on commit
+                const effectiveItem: typeof invItem = pendingCell?.id === invItem.id
+                  ? { ...invItem, [pendingCell.field]: pendingCell.value }
+                  : invItem;
+                return (
                 <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} className="hover:bg-gray-50 cursor-pointer group">
                   <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
                   {visibleColumns.imei !== false && (() => {
@@ -572,7 +586,7 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
-                        ) : invItem.imei}
+                        ) : effectiveItem.imei}
                       </td>
                     );
                   })()}
@@ -588,7 +602,7 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
-                        ) : invItem.model}
+                        ) : effectiveItem.model}
                       </td>
                     );
                   })()}
@@ -607,10 +621,10 @@ export const Inventory: React.FC = () => {
                         ) : (
                           <div className="flex items-center gap-2">
                             <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(invItem.batteryHealth)}%` }} className={`h-full ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(effectiveItem.batteryHealth)}%` }} className={`h-full ${extractMinBattery(effectiveItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                             </div>
-                            <span className={`font-bold ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {formatBatteryDisplay(invItem.batteryHealth)}
+                            <span className={`font-bold ${extractMinBattery(effectiveItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {formatBatteryDisplay(effectiveItem.batteryHealth)}
                             </span>
                           </div>
                         )}
@@ -629,14 +643,14 @@ export const Inventory: React.FC = () => {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                             onClick={e => e.stopPropagation()}
                             className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                        ) : `$${Number(invItem.price).toLocaleString('en-US')}`}
+                        ) : `$${Number(effectiveItem.price).toLocaleString('en-US')}`}
                       </td>
                     );
                   })()}
                   <td className="px-6 py-4"><span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{invItem.status}</span></td>
                   <td className="px-6 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
