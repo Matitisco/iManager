@@ -6,7 +6,7 @@ import { importBackendInventoryItems, type ImportRow, type ImportResult } from '
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = 'upload' | 'header-select' | 'mapping' | 'result';
+type Step = 'upload' | 'sheet-select' | 'header-select' | 'mapping' | 'result';
 
 interface FieldDef {
   key: keyof ImportRow;
@@ -30,17 +30,22 @@ const INVENTORY_FIELDS: FieldDef[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Parse file into raw rows (array of arrays, no header assumption) */
-function parseFile(file: File): Promise<string[][]> {
+/** Parse workbook — returns sheet names and a getter to read any sheet */
+function parseWorkbook(file: File): Promise<{ sheetNames: string[]; getSheet: (name: string) => string[][] }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target!.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
-        resolve(raw.map(row => row.map(cell => String(cell ?? '').trim())));
+        resolve({
+          sheetNames: wb.SheetNames,
+          getSheet: (name: string) => {
+            const ws = wb.Sheets[name];
+            const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+            return raw.map(row => row.map(cell => String(cell ?? '').trim()));
+          },
+        });
       } catch {
         reject(new Error('No se pudo leer el archivo'));
       }
@@ -190,6 +195,11 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
 
+  // Sheet selection
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [getSheet, setGetSheet] = useState<((name: string) => string[][]) | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+
   // Raw parsed state
   const [rawRows, setRawRows] = useState<string[][]>([]);
   const [headerRowIndex, setHeaderRowIndex] = useState(0);
@@ -215,6 +225,15 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
 
   // ── Step 1: Upload ──────────────────────────────────────────────────────────
 
+  const loadSheet = (getter: (name: string) => string[][], name: string) => {
+    const rows = getter(name);
+    if (rows.length === 0) { setFileError('La hoja está vacía'); return; }
+    const suggested = autoDetectHeaderRow(rows);
+    setRawRows(rows);
+    setHeaderRowIndex(suggested);
+    setStep('header-select');
+  };
+
   const handleFile = async (file: File) => {
     setFileError(null);
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -223,12 +242,16 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
       return;
     }
     try {
-      const rows = await parseFile(file);
-      if (rows.length === 0) { setFileError('El archivo está vacío'); return; }
-      const suggested = autoDetectHeaderRow(rows);
-      setRawRows(rows);
-      setHeaderRowIndex(suggested);
-      setStep('header-select');
+      const wb = await parseWorkbook(file);
+      if (wb.sheetNames.length === 0) { setFileError('El archivo está vacío'); return; }
+      if (wb.sheetNames.length === 1) {
+        loadSheet(wb.getSheet, wb.sheetNames[0]);
+      } else {
+        setSheetNames(wb.sheetNames);
+        setGetSheet(() => wb.getSheet);
+        setSelectedSheet(wb.sheetNames[0]);
+        setStep('sheet-select');
+      }
     } catch (e: unknown) {
       setFileError(e instanceof Error ? e.message : 'Error al leer el archivo');
     }
@@ -309,6 +332,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
 
   const subtitle = {
     'upload': 'Subí un archivo CSV, XLSX o XLS',
+    'sheet-select': `${sheetNames.length} hojas encontradas — elegí cuál importar`,
     'header-select': 'Indicá cuál fila tiene los nombres de columna',
     'mapping': `${fileRows.length} filas detectadas — mapeá las columnas`,
     'result': 'Importación completada',
@@ -367,6 +391,22 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                   <AlertCircle size={15} /> {fileError}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Step: Sheet selection ── */}
+          {step === 'sheet-select' && (
+            <div className="space-y-3">
+              {sheetNames.map(name => (
+                <button
+                  key={name}
+                  onClick={() => setSelectedSheet(name)}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-sm font-medium transition-colors ${selectedSheet === name ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                >
+                  <span>{name}</span>
+                  {selectedSheet === name && <CheckCircle2 size={16} />}
+                </button>
+              ))}
             </div>
           )}
 
@@ -633,10 +673,25 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </button>
           )}
 
+          {step === 'sheet-select' && (
+            <>
+              <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Volver
+              </button>
+              <button
+                onClick={() => getSheet && loadSheet(getSheet, selectedSheet)}
+                disabled={!selectedSheet}
+                className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg hover:bg-gray-900 disabled:opacity-40 transition-colors flex items-center gap-2"
+              >
+                Usar esta hoja <ArrowRight size={15} />
+              </button>
+            </>
+          )}
+
           {step === 'header-select' && (
             <>
               <button
-                onClick={() => { setStep('upload'); setFileError(null); }}
+                onClick={() => { setStep(sheetNames.length > 1 ? 'sheet-select' : 'upload'); setFileError(null); }}
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Volver
