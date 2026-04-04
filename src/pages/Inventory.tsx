@@ -500,14 +500,28 @@ export const Inventory: React.FC = () => {
             return (
               <div
                 key={catId}
-                className={`relative group flex-shrink-0 transition-opacity ${draggedCatId === catId ? 'opacity-40' : ''} ${dragOverCatId === catId && draggedCatId !== catId ? 'bg-gray-100 rounded-t-lg' : ''}`}
+                className={`relative group flex-shrink-0 transition-all duration-150 ${draggedCatId === catId ? 'opacity-30 scale-95' : ''}`}
                 draggable={catId !== 'all'}
-                onDragStart={catId !== 'all' ? e => { e.dataTransfer.effectAllowed = 'move'; setDraggedCatId(catId); } : undefined}
+                onDragStart={catId !== 'all' ? e => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedCatId(catId);
+                  const btn = (e.currentTarget as HTMLElement).querySelector('button');
+                  if (btn) {
+                    const ghost = btn.cloneNode(true) as HTMLElement;
+                    ghost.style.cssText = 'position:fixed;top:-9999px;left:0;transform:rotate(-4deg) scale(1.1);box-shadow:0 10px 24px rgba(0,0,0,0.18);border-radius:10px;background:white;border:1px solid #e5e7eb;padding:6px 14px;font-size:13px;font-weight:600;color:#111827;white-space:nowrap;pointer-events:none;';
+                    document.body.appendChild(ghost);
+                    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
+                    requestAnimationFrame(() => document.body.removeChild(ghost));
+                  }
+                } : undefined}
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
                 onDrop={catId !== 'all' ? e => { e.preventDefault(); handleCategoryDrop(catId); } : undefined}
                 onDragEnd={catId !== 'all' ? () => { setDraggedCatId(null); setDragOverCatId(null); } : undefined}
               >
+                {dragOverCatId === catId && draggedCatId !== catId && (
+                  <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-full z-10" />
+                )}
                 {catId !== 'all' && editingCategoryId === catId ? (
                   <input
                     autoFocus
@@ -550,7 +564,7 @@ export const Inventory: React.FC = () => {
                   <button
                     onClick={() => setActiveCategoryId(catId)}
                     onDoubleClick={() => { if (catId !== 'all') { renameDoneRef.current = false; setEditingCategoryId(catId); setEditingCategoryName(label); } }}
-                    className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${active ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'} ${catId !== 'all' ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   >
                     {label}
                   </button>
