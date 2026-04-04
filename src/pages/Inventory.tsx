@@ -113,6 +113,14 @@ export const Inventory: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [showColumns, showFilters, showSort]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedIds(new Set());
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => ({ ...prev, [key]: prev[key] === false ? true : false }));
   };
