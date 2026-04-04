@@ -54,6 +54,9 @@ export const Inventory: React.FC = () => {
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
+  // Refs to avoid stale closures in async save handlers
+  const inlineEditCellRef = useRef<{ id: string; field: string } | null>(null);
+  const inlineEditValueRef = useRef('');
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showColumns, setShowColumns] = useState(false);
@@ -195,30 +198,44 @@ export const Inventory: React.FC = () => {
     return `${sVal}%`;
   };
 
+  const startInlineEdit = (id: string, field: string, value: string) => {
+    inlineEditCellRef.current = { id, field };
+    inlineEditValueRef.current = value;
+    setInlineEditCell({ id, field });
+    setInlineEditValue(value);
+  };
+
+  const cancelInlineEdit = () => {
+    inlineEditCellRef.current = null;
+    setInlineEditCell(null);
+  };
+
+  const commitInlineEdit = async (invItem: Product) => {
+    const cell = inlineEditCellRef.current;
+    if (!cell) return; // already committed or cancelled
+    const { field } = cell;
+    const newVal = inlineEditValueRef.current.trim();
+    inlineEditCellRef.current = null; // clear ref first to prevent double-save on blur after Enter
+    setInlineEditCell(null);
+    const currentVal = String((invItem as any)[field] ?? '');
+    if (currentVal === newVal) return;
+    let parsed: any = newVal;
+    if (field === 'price' || field === 'cost') parsed = Number(newVal) || 0;
+    await updateProduct({ ...invItem, [field]: parsed });
+  };
+
   const handleEditableCellClick = (e: React.MouseEvent, invItem: Product, field: string, rawValue: string) => {
     e.stopPropagation();
     if (e.detail >= 2) {
       if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
-      setInlineEditCell({ id: invItem.id, field });
-      setInlineEditValue(rawValue);
+      startInlineEdit(invItem.id, field, rawValue);
     } else {
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
         setSelectedItem(invItem);
-      }, 220);
+      }, 250);
     }
-  };
-
-  const saveInlineEdit = async (invItem: Product) => {
-    if (!inlineEditCell) return;
-    const { field } = inlineEditCell;
-    const currentVal = String((invItem as any)[field] ?? '');
-    setInlineEditCell(null);
-    if (currentVal === inlineEditValue.trim()) return;
-    let parsed: any = inlineEditValue.trim();
-    if (field === 'price' || field === 'cost') parsed = Number(inlineEditValue) || 0;
-    await updateProduct({ ...invItem, [field]: parsed });
   };
 
   return (
@@ -543,57 +560,79 @@ export const Inventory: React.FC = () => {
               {pagedInventory.map((invItem, idx) => (
                 <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} className="hover:bg-gray-50 cursor-pointer group">
                   <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
-                  {visibleColumns.imei !== false && (
-                    <td className="px-6 py-4 font-mono text-gray-500" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
-                      {inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei' ? (
-                        <input autoFocus value={inlineEditValue} onChange={e => setInlineEditValue(e.target.value)}
-                          onBlur={() => saveInlineEdit(invItem)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); setInlineEditCell(null); } }}
-                          onClick={e => e.stopPropagation()}
-                          className="w-full bg-transparent border-b-2 border-blue-500 outline-none font-mono text-gray-500 text-sm" />
-                      ) : invItem.imei}
-                    </td>
-                  )}
-                  {visibleColumns.model !== false && (
-                    <td className="px-6 py-4 font-bold text-gray-900" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
-                      {inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model' ? (
-                        <input autoFocus value={inlineEditValue} onChange={e => setInlineEditValue(e.target.value)}
-                          onBlur={() => saveInlineEdit(invItem)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); setInlineEditCell(null); } }}
-                          onClick={e => e.stopPropagation()}
-                          className="w-full bg-transparent border-b-2 border-blue-500 outline-none font-bold text-gray-900 text-sm" />
-                      ) : invItem.model}
-                    </td>
-                  )}
-                  {visibleColumns.battery !== false && (
-                    <td className="px-6 py-4" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
-                      {inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth' ? (
-                        <input autoFocus value={inlineEditValue} onChange={e => setInlineEditValue(e.target.value)}
-                          onBlur={() => saveInlineEdit(invItem)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); setInlineEditCell(null); } }}
-                          onClick={e => e.stopPropagation()} placeholder="ej: 87%"
-                          className="w-20 bg-transparent border-b-2 border-blue-500 outline-none font-bold text-sm" />
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(invItem.batteryHealth)}%` }} className={`h-full ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  {visibleColumns.imei !== false && (() => {
+                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
+                    return (
+                      <td className={`px-6 py-4 font-mono text-gray-500 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
+                        {isEditing ? (
+                          <input autoFocus value={inlineEditValue}
+                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                            onFocus={e => e.target.select()}
+                            onBlur={() => commitInlineEdit(invItem)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
+                        ) : invItem.imei}
+                      </td>
+                    );
+                  })()}
+                  {visibleColumns.model !== false && (() => {
+                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
+                    return (
+                      <td className={`px-6 py-4 font-bold text-gray-900 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
+                        {isEditing ? (
+                          <input autoFocus value={inlineEditValue}
+                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                            onFocus={e => e.target.select()}
+                            onBlur={() => commitInlineEdit(invItem)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
+                        ) : invItem.model}
+                      </td>
+                    );
+                  })()}
+                  {visibleColumns.battery !== false && (() => {
+                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
+                    return (
+                      <td className={`px-6 py-4 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
+                        {isEditing ? (
+                          <input autoFocus value={inlineEditValue} placeholder="ej: 87%"
+                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                            onFocus={e => e.target.select()}
+                            onBlur={() => commitInlineEdit(invItem)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-24 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-sm" />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(invItem.batteryHealth)}%` }} className={`h-full ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            </div>
+                            <span className={`font-bold ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {formatBatteryDisplay(invItem.batteryHealth)}
+                            </span>
                           </div>
-                          <span className={`font-bold ${extractMinBattery(invItem.batteryHealth) >= 90 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            {formatBatteryDisplay(invItem.batteryHealth)}
-                          </span>
-                        </div>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-6 py-4 font-bold text-gray-900 text-right" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
-                    {inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price' ? (
-                      <input autoFocus type="number" value={inlineEditValue} onChange={e => setInlineEditValue(e.target.value)}
-                        onBlur={() => saveInlineEdit(invItem)}
-                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); setInlineEditCell(null); } }}
-                        onClick={e => e.stopPropagation()}
-                        className="w-28 bg-transparent border-b-2 border-blue-500 outline-none font-bold text-gray-900 text-sm text-right" />
-                    ) : `$${Number(invItem.price).toLocaleString('en-US')}`}
-                  </td>
+                        )}
+                      </td>
+                    );
+                  })()}
+                  {(() => {
+                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
+                    return (
+                      <td className={`px-6 py-4 font-bold text-gray-900 text-right transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
+                        {isEditing ? (
+                          <input autoFocus type="number" value={inlineEditValue}
+                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                            onFocus={e => e.target.select()}
+                            onBlur={() => commitInlineEdit(invItem)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        ) : `$${Number(invItem.price).toLocaleString('en-US')}`}
+                      </td>
+                    );
+                  })()}
                   <td className="px-6 py-4"><span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{invItem.status}</span></td>
                   <td className="px-6 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
