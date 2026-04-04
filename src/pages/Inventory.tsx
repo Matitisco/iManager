@@ -155,6 +155,8 @@ export const Inventory: React.FC = () => {
   useEffect(() => { setCurrentPage(1); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
 
+  const lastSelectedIndex = useRef<number>(-1);
+
   const allPageSelected = pagedInventory.length > 0 && pagedInventory.every(i => selectedIds.has(i.id));
   const toggleSelectAll = () => {
     if (allPageSelected) {
@@ -162,9 +164,20 @@ export const Inventory: React.FC = () => {
     } else {
       setSelectedIds(prev => { const n = new Set(prev); pagedInventory.forEach(i => n.add(i.id)); return n; });
     }
+    lastSelectedIndex.current = -1;
   };
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const handleCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
+    e.stopPropagation();
+    if (e.shiftKey && lastSelectedIndex.current !== -1) {
+      const from = Math.min(lastSelectedIndex.current, index);
+      const to = Math.max(lastSelectedIndex.current, index);
+      const rangeIds = pagedInventory.slice(from, to + 1).map(i => i.id);
+      setSelectedIds(prev => { const n = new Set(prev); rangeIds.forEach(rid => n.add(rid)); return n; });
+    } else {
+      setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+      lastSelectedIndex.current = index;
+    }
   };
 
   const formatBatteryDisplay = (val: string | number) => {
@@ -453,9 +466,9 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {pagedInventory.map(invItem => (
+              {pagedInventory.map((invItem, idx) => (
                 <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} className="hover:bg-gray-50 cursor-pointer group">
-                  <td className="px-4 py-4" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => toggleSelect(invItem.id)} className="w-4 h-4 rounded" /></td>
+                  <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
                   {visibleColumns.imei !== false && <td className="px-6 py-4 font-mono text-gray-500">{invItem.imei}</td>}
                   {visibleColumns.model !== false && <td className="px-6 py-4 font-bold text-gray-900">{invItem.model}</td>}
                   {visibleColumns.battery !== false && <td className="px-6 py-4">
