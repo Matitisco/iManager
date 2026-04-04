@@ -21,7 +21,7 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
-const GRABBING_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Crect x='5' y='6' width='4.5' height='8' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='10' y='5' width='4.5' height='9' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='15' y='6' width='4.5' height='8' rx='2.25' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='20' y='7' width='4' height='7' rx='2' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='4' y='12' width='20' height='11' rx='4' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='1' y='14' width='6' height='5' rx='2.5' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3C/svg%3E\") 14 16, grabbing";
+const GRABBING_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect x='1' y='17' width='8' height='9' rx='4' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='7' y='5' width='6' height='14' rx='3' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='14' y='4' width='6' height='15' rx='3' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='21' y='5' width='6' height='14' rx='3' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='27' y='7' width='5' height='12' rx='2.5' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3Crect x='6' y='15' width='26' height='14' rx='6' fill='%23ffffff' stroke='%23374151' stroke-width='1.5'/%3E%3C/svg%3E\") 16 18, grabbing";
 
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
@@ -522,15 +522,11 @@ export const Inventory: React.FC = () => {
                   e.dataTransfer.effectAllowed = 'move';
                   setPressedCatId(null);
                   setDraggedCatId(catId);
-                  const btn = (e.currentTarget as HTMLElement).querySelector('button');
-                  if (btn) {
-                    const ghost = btn.cloneNode(true) as HTMLElement;
-                    ghost.style.cssText = 'position:fixed;top:-9999px;left:0;transform:rotate(-4deg) scale(1.1);box-shadow:0 10px 24px rgba(0,0,0,0.18);border-radius:10px;background:#111827;color:white;border:none;padding:6px 14px;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;';
-                    document.body.appendChild(ghost);
-                    ghost.getBoundingClientRect();
-                    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
-                    requestAnimationFrame(() => document.body.removeChild(ghost));
-                  }
+                  // Transparent drag image: removes Windows dotted ghost AND prevents
+                  // the browser from overriding our custom cursor during drag
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1; canvas.height = 1;
+                  e.dataTransfer.setDragImage(canvas, 0, 0);
                 } : undefined}
                 onDragOver={catId !== 'all' ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCatId !== catId) setDragOverCatId(catId); } : undefined}
                 onDragLeave={catId !== 'all' ? () => setDragOverCatId(null) : undefined}
