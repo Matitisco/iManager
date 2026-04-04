@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPas
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
-import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, deleteCategoryApi, bulkMoveCategoryApi } from '../services/inventory-api';
+import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
@@ -34,6 +34,7 @@ interface AppState {
   reloadInventory: () => Promise<void>;
   inventoryCategories: InventoryCategory[];
   createCategory: (name: string) => Promise<InventoryCategory>;
+  renameCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   bulkMoveCategory: (ids: string[], categoryId: string | null) => Promise<void>;
   user: User | null;
@@ -681,6 +682,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
     const backendConfigured = backendStatus !== 'unconfigured';
+
+    // Optimistic update — show new value immediately before the API responds
+    let previousItem: Product | undefined;
+    setInventory(prev => {
+      previousItem = prev.find(p => p.id === updatedProduct.id);
+      return prev.map(product => product.id === updatedProduct.id ? updatedProduct : product);
+    });
+
     try {
       if (backendConfigured) {
         if (!backendInventoryEnabled) {
@@ -700,6 +709,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { id, ...data } = updatedProduct;
       await updateDoc(doc(db, 'inventory', id), data as any);
     } catch (error) {
+      // Revert optimistic update on failure
+      if (previousItem) {
+        setInventory(prev => prev.map(product => product.id === updatedProduct.id ? previousItem! : product));
+      }
       if (backendConfigured) {
         throw error;
       }
@@ -758,6 +771,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const cat = await createCategoryApi(user, name);
     setInventoryCategories(prev => [...prev, cat]);
     return cat;
+  };
+
+  const renameCategory = async (id: string, name: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const updated = await renameCategoryApi(user, id, name);
+    setInventoryCategories(prev => prev.map(c => c.id === id ? updated : c));
   };
 
   const deleteCategory = async (id: string): Promise<void> => {
@@ -998,7 +1017,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
       reloadInventory,
-      inventoryCategories, createCategory, deleteCategory, bulkMoveCategory,
+      inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
