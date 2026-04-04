@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical, Upload } from 'lucide-react';
+import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical, Upload, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { Product } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -40,8 +40,12 @@ export const Inventory: React.FC = () => {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [showColumns, setShowColumns] = useState(false);
+  const [showSort, setShowSort] = useState(false);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const columnsRef = useRef<HTMLDivElement>(null);
   const filtersRef = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('inventoryVisibleColumns');
     if (saved) {
@@ -77,10 +81,11 @@ export const Inventory: React.FC = () => {
     const handler = (e: MouseEvent) => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
       if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
+      if (showSort && sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showColumns, showFilters]);
+  }, [showColumns, showFilters, showSort]);
 
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => ({ ...prev, [key]: prev[key] === false ? true : false }));
@@ -118,9 +123,19 @@ export const Inventory: React.FC = () => {
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredInventory.length / PAGE_SIZE));
+  const sortedInventory = sortKey ? [...filteredInventory].sort((a, b) => {
+    let av: number | string = 0, bv: number | string = 0;
+    if (sortKey === 'model') { av = a.model.toLowerCase(); bv = b.model.toLowerCase(); }
+    else if (sortKey === 'price') { av = a.price; bv = b.price; }
+    else if (sortKey === 'battery') { av = extractMinBattery(a.batteryHealth); bv = extractMinBattery(b.batteryHealth); }
+    else if (sortKey === 'condition') { av = a.condition; bv = b.condition; }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return av < bv ? -dir : av > bv ? dir : 0;
+  }) : filteredInventory;
+
+  const totalPages = Math.max(1, Math.ceil(sortedInventory.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const pagedInventory = filteredInventory.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedInventory = sortedInventory.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   useEffect(() => { setCurrentPage(1); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
@@ -194,9 +209,47 @@ export const Inventory: React.FC = () => {
                 )}
               </AnimatePresence>
             </div>
-            <button onClick={() => { setShowImportModal(true); setShowColumns(false); setShowFilters(false); }} className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50">
+            <button onClick={() => { setShowImportModal(true); setShowColumns(false); setShowFilters(false); setShowSort(false); }} className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50">
               <Upload size={16} /> <span className="hidden sm:inline">Importar</span>
             </button>
+            <div className="relative" ref={sortRef}>
+              <button onClick={() => { setShowSort(v => !v); setShowColumns(false); setShowFilters(false); }} className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showSort || sortKey ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                <ArrowUpDown size={16} /> <span className="hidden sm:inline">Ordenar</span>
+              </button>
+              <AnimatePresence>
+                {showSort && (
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
+                    <div className="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                      <h3 className="font-bold text-gray-900 text-sm">Ordenar por</h3>
+                      {sortKey && <button onClick={() => { setSortKey(null); setSortDir('asc'); }} className="text-xs text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button>}
+                    </div>
+                    <div className="p-1.5">
+                      {[
+                        { key: 'model', label: 'Modelo' },
+                        { key: 'price', label: 'Precio' },
+                        { key: 'battery', label: 'Batería' },
+                        { key: 'condition', label: 'Condición' },
+                      ].map(opt => {
+                        const active = sortKey === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            onClick={() => {
+                              if (active) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                              else { setSortKey(opt.key); setSortDir('asc'); }
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${active ? 'bg-gray-900 text-white' : 'hover:bg-gray-50 text-gray-700'}`}
+                          >
+                            <span className="font-medium">{opt.label}</span>
+                            {active && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="relative" ref={filtersRef}>
               <button onClick={() => { setShowFilters(v => !v); setShowColumns(false); }} className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showFilters ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                 <Filter size={16} /> <span className="hidden sm:inline">Filtros</span> {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
