@@ -1206,7 +1206,7 @@ export const Inventory: React.FC = () => {
                     }, HOLD_DURATION);
                   }}
                   onContextMenu={e => handleContextMenu(e, invItem)}
-                  style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.25s ease, transform 0.25s ease' } : {}}
+                  style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.12s ease, transform 0.12s ease' } : {}}
                   className="hover:bg-gray-50 cursor-default group"
                 >
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
@@ -1437,7 +1437,7 @@ export const Inventory: React.FC = () => {
           const { categoryId } = pendingItemMove;
           setPendingItemMove(null);
           setMovingIds(new Set(ids));
-          await new Promise(r => setTimeout(r, 280));
+          await new Promise(r => setTimeout(r, 130));
           await bulkMoveCategory(ids, categoryId);
           setMovingIds(new Set());
           setSelectedIds(new Set());
