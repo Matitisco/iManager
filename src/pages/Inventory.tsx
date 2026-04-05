@@ -1226,9 +1226,14 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
+              <AnimatePresence mode="popLayout">
               {pagedInventory.map((invItem, idx) => (
-                <tr
+                <motion.tr
                   key={invItem.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, x: 16 }}
+                  transition={{ duration: 0.1, delay: idx * 0.015 }}
                   onPointerDown={(e) => {
                     const target = e.target as HTMLElement;
                     const inputEl = target.closest('input') as HTMLInputElement | null;
@@ -1243,8 +1248,9 @@ export const Inventory: React.FC = () => {
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} className="w-4 h-4 rounded pointer-events-none" /></td>
                   {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
-                </tr>
+                </motion.tr>
               ))}
+              </AnimatePresence>
               {addingRow && (
                 <tr ref={addingRowTrRef} className="bg-blue-50/40 border-t-2 border-blue-200">
                   <td className="px-3 py-3" />
