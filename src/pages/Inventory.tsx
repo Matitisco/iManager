@@ -22,6 +22,14 @@ const item: Variants = {
 };
 
 
+type ColId = 'imei' | 'model' | 'battery' | 'price' | 'status';
+const ALL_COL_IDS: ColId[] = ['imei', 'model', 'battery', 'price', 'status'];
+const ALWAYS_VISIBLE_COLS = new Set<ColId>(['price', 'status']);
+const DEFAULT_COL_ORDER: ColId[] = ['imei', 'model', 'battery', 'price', 'status'];
+const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo', battery: 'Batería', price: 'Precio', status: 'Disponibilidad' };
+const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
+const MIN_COL_WIDTH = 80;
+
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
@@ -114,20 +122,39 @@ export const Inventory: React.FC = () => {
     localStorage.setItem('inventoryVisibleColumns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
-  const DEFAULT_COL_WIDTHS = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
-  const MIN_COL_WIDTHS: Record<string, number> = { imei: 80, model: 100, battery: 80, price: 80, status: 90 };
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
       const s = localStorage.getItem('inventoryColWidths');
-      return s ? { ...DEFAULT_COL_WIDTHS, ...JSON.parse(s) } : DEFAULT_COL_WIDTHS;
-    } catch { return DEFAULT_COL_WIDTHS; }
+      return s ? { ...DEFAULT_COL_WIDTHS, ...JSON.parse(s) } : { ...DEFAULT_COL_WIDTHS };
+    } catch { return { ...DEFAULT_COL_WIDTHS }; }
   });
   const [activeResizeCol, setActiveResizeCol] = useState<string | null>(null);
   const resizingRef = useRef<{ col: string; startX: number; startW: number } | null>(null);
+  const [colOrder, setColOrder] = useState<ColId[]>(() => {
+    try {
+      const s = localStorage.getItem('inventoryColOrder');
+      if (s) {
+        const parsed: ColId[] = JSON.parse(s);
+        const missing = ALL_COL_IDS.filter(c => !parsed.includes(c));
+        return [...parsed, ...missing];
+      }
+    } catch { /* ignore */ }
+    return [...DEFAULT_COL_ORDER];
+  });
+  const [colNames, setColNames] = useState<Record<string, string>>(() => {
+    try { const s = localStorage.getItem('inventoryColNames'); return s ? JSON.parse(s) : {}; }
+    catch { return {}; }
+  });
+  const [renamingCol, setRenamingCol] = useState<ColId | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [draggingColId, setDraggingColId] = useState<ColId | null>(null);
+  const [dropBeforeColId, setDropBeforeColId] = useState<ColId | null>(null);
+  const colDragStateRef = useRef<{ id: ColId; dragging: boolean; dropBefore: ColId | null } | null>(null);
+  const thRefs = useRef<Partial<Record<ColId, HTMLTableCellElement | null>>>({});
 
-  useEffect(() => {
-    localStorage.setItem('inventoryColWidths', JSON.stringify(colWidths));
-  }, [colWidths]);
+  useEffect(() => { localStorage.setItem('inventoryColWidths', JSON.stringify(colWidths)); }, [colWidths]);
+  useEffect(() => { localStorage.setItem('inventoryColOrder', JSON.stringify(colOrder)); }, [colOrder]);
+  useEffect(() => { localStorage.setItem('inventoryColNames', JSON.stringify(colNames)); }, [colNames]);
 
   useEffect(() => {
     if (activeResizeCol) {
@@ -375,9 +402,7 @@ export const Inventory: React.FC = () => {
     setActiveResizeCol(col);
     const onMove = (ev: PointerEvent) => {
       if (!resizingRef.current) return;
-      const delta = ev.clientX - resizingRef.current.startX;
-      const minW = MIN_COL_WIDTHS[resizingRef.current.col] ?? 60;
-      const newW = Math.max(minW, resizingRef.current.startW + delta);
+      const newW = Math.max(MIN_COL_WIDTH, resizingRef.current.startW + (ev.clientX - resizingRef.current.startX));
       setColWidths(prev => ({ ...prev, [resizingRef.current!.col]: newW }));
     };
     const onUp = () => {
@@ -390,6 +415,66 @@ export const Inventory: React.FC = () => {
     window.addEventListener('pointerup', onUp);
   };
 
+  const handleColPointerDown = (e: React.PointerEvent, col: ColId) => {
+    const startX = e.clientX, startY = e.clientY;
+    colDragStateRef.current = { id: col, dragging: false, dropBefore: null };
+    const onMove = (ev: PointerEvent) => {
+      const state = colDragStateRef.current;
+      if (!state) return;
+      if (!state.dragging) {
+        if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
+        state.dragging = true;
+        setDraggingColId(col);
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+      }
+      const sorted = ALL_COL_IDS
+        .map(c => ({ c, el: thRefs.current[c] }))
+        .filter(({ el }) => !!el)
+        .map(({ c, el }) => ({ c, mid: el!.getBoundingClientRect().left + el!.getBoundingClientRect().width / 2 }))
+        .sort((a, b) => a.mid - b.mid);
+      let dropBefore: ColId | null = null;
+      for (const { c, mid } of sorted) {
+        if (c === col) continue;
+        if (ev.clientX < mid) { dropBefore = c; break; }
+      }
+      state.dropBefore = dropBefore;
+      setDropBeforeColId(dropBefore);
+    };
+    const onUp = () => {
+      const state = colDragStateRef.current;
+      if (state?.dragging) {
+        const from = state.id, before = state.dropBefore;
+        setColOrder(prev => {
+          const next = prev.filter(c => c !== from);
+          const idx = before !== null ? next.indexOf(before) : -1;
+          next.splice(idx >= 0 ? idx : next.length, 0, from);
+          return next;
+        });
+      }
+      colDragStateRef.current = null;
+      setDraggingColId(null);
+      setDropBeforeColId(null);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const commitColRename = (col: ColId) => {
+    const trimmed = renameValue.trim();
+    setColNames(prev => {
+      if (!trimmed || trimmed === DEFAULT_COL_NAMES[col]) {
+        const next = { ...prev }; delete next[col]; return next;
+      }
+      return { ...prev, [col]: trimmed };
+    });
+    setRenamingCol(null);
+  };
+
   const resizeHandle = (col: string) => (
     <div
       className={`absolute right-0 top-0 bottom-0 w-4 flex items-center justify-center cursor-col-resize z-10 transition-opacity duration-150 ${activeResizeCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
@@ -397,11 +482,132 @@ export const Inventory: React.FC = () => {
       onClick={e => e.stopPropagation()}
     >
       <div className="flex gap-[3px]">
-        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-blue-500' : 'bg-gray-400'}`} />
-        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-blue-500' : 'bg-gray-400'}`} />
+        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-white' : 'bg-gray-400'}`} />
+        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-white' : 'bg-gray-400'}`} />
       </div>
     </div>
   );
+
+  const orderedVisibleCols: ColId[] = colOrder.filter(col =>
+    ALWAYS_VISIBLE_COLS.has(col) || visibleColumns[col] !== false
+  );
+
+  const renderTh = (col: ColId) => (
+    <th
+      key={col}
+      ref={el => { thRefs.current[col] = el; }}
+      className={`relative group px-3 py-4 select-none cursor-grab transition-colors duration-100
+        ${activeResizeCol === col ? 'bg-gray-900 text-white' : ''}
+        ${draggingColId === col ? 'opacity-30' : ''}
+        ${dropBeforeColId === col ? 'shadow-[inset_2px_0_0_0_#3b82f6]' : ''}`}
+      style={{ width: colWidths[col] }}
+      onPointerDown={e => handleColPointerDown(e, col)}
+    >
+      {renamingCol === col ? (
+        <input
+          autoFocus
+          value={renameValue}
+          className="w-full bg-transparent outline-none text-[10px] font-bold tracking-wider uppercase border-b-2 border-current pb-0.5 min-w-0"
+          onChange={e => setRenameValue(e.target.value)}
+          onBlur={() => commitColRename(col)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
+            if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
+          }}
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+        />
+      ) : (
+        <span onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}>
+          {colNames[col] || DEFAULT_COL_NAMES[col]}
+        </span>
+      )}
+      {resizeHandle(col)}
+    </th>
+  );
+
+  const renderTd = (col: ColId, invItem: Product): React.ReactNode => {
+    switch (col) {
+      case 'imei': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
+        return (
+          <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
+            {isEditing ? (
+              <input autoFocus value={inlineEditValue}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onClick={e => e.stopPropagation()}
+                className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
+            ) : cellDisplay(invItem, 'imei', invItem.imei)}
+          </td>
+        );
+      }
+      case 'model': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
+        return (
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
+            {isEditing ? (
+              <input autoFocus value={inlineEditValue}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onClick={e => e.stopPropagation()}
+                className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
+            ) : cellDisplay(invItem, 'model', invItem.model)}
+          </td>
+        );
+      }
+      case 'battery': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
+        return (
+          <td key={col} className={`px-3 py-4 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
+            {isEditing ? (
+              <input autoFocus value={inlineEditValue} placeholder="ej: 87%"
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onClick={e => e.stopPropagation()}
+                className="w-24 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-sm" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
+                </div>
+                <span className={`font-bold ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).text}`}>
+                  {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
+                </span>
+              </div>
+            )}
+          </td>
+        );
+      }
+      case 'price': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
+        return (
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
+            {isEditing ? (
+              <input autoFocus type="number" value={inlineEditValue}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onClick={e => e.stopPropagation()}
+                className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+            ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
+          </td>
+        );
+      }
+      case 'status': {
+        return (
+          <td key={col} className="px-3 py-4">
+            <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+              {invItem.status}
+            </span>
+          </td>
+        );
+      }
+    }
+  };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
@@ -728,94 +934,17 @@ export const Inventory: React.FC = () => {
           <table className="w-full text-left text-sm table-fixed">
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
-                <th className="px-4 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
-                {visibleColumns.imei !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.imei }}>IMEI{resizeHandle('imei')}</th>}
-                {visibleColumns.model !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.model }}>Modelo{resizeHandle('model')}</th>}
-                {visibleColumns.battery !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.battery }}>Batería{resizeHandle('battery')}</th>}
-                <th className="relative group px-6 py-4 select-none text-right" style={{ width: colWidths.price }}>Precio{resizeHandle('price')}</th>
-                <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.status }}>Disponibilidad{resizeHandle('status')}</th>
-                <th className="px-6 py-4 w-10"></th>
+                <th className="px-3 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
+                {orderedVisibleCols.map(col => renderTh(col))}
+                <th className="px-3 py-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {pagedInventory.map((invItem, idx) => (
                 <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} onContextMenu={e => handleContextMenu(e, invItem)} className="hover:bg-gray-50 cursor-pointer group">
-                  <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
-                  {visibleColumns.imei !== false && (() => {
-                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
-                    return (
-                      <td className={`px-6 py-4 font-mono text-gray-500 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
-                        {isEditing ? (
-                          <input autoFocus value={inlineEditValue}
-                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                            onFocus={e => e.target.select()}
-                            onBlur={() => commitInlineEdit(invItem)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
-                        ) : cellDisplay(invItem, 'imei', invItem.imei)}
-                      </td>
-                    );
-                  })()}
-                  {visibleColumns.model !== false && (() => {
-                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
-                    return (
-                      <td className={`px-6 py-4 font-bold text-gray-900 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
-                        {isEditing ? (
-                          <input autoFocus value={inlineEditValue}
-                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                            onFocus={e => e.target.select()}
-                            onBlur={() => commitInlineEdit(invItem)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
-                        ) : cellDisplay(invItem, 'model', invItem.model)}
-                      </td>
-                    );
-                  })()}
-                  {visibleColumns.battery !== false && (() => {
-                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
-                    return (
-                      <td className={`px-6 py-4 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
-                        {isEditing ? (
-                          <input autoFocus value={inlineEditValue} placeholder="ej: 87%"
-                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                            onFocus={e => e.target.select()}
-                            onBlur={() => commitInlineEdit(invItem)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-24 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-sm" />
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
-                            </div>
-                            <span className={`font-bold ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).text}`}>
-                              {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })()}
-                  {(() => {
-                    const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
-                    return (
-                      <td className={`px-6 py-4 font-bold text-gray-900 text-right transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
-                        {isEditing ? (
-                          <input autoFocus type="number" value={inlineEditValue}
-                            onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                            onFocus={e => e.target.select()}
-                            onBlur={() => commitInlineEdit(invItem)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                        ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
-                      </td>
-                    );
-                  })()}
-                  <td className="px-6 py-4"><span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{invItem.status}</span></td>
-                  <td className="px-6 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
+                  <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
+                  {orderedVisibleCols.map(col => renderTd(col, invItem))}
+                  <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
               ))}
             </tbody>
