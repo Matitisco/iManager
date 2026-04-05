@@ -1,0 +1,72 @@
+schema: spec-driven
+
+context: |
+  ## Proyecto: iManager
+  Sistema de gestión POS para tiendas de celulares y dispositivos electrónicos.
+
+  ## Stack tecnológico
+  - **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS 4
+  - **Backend**: Fastify + Prisma + Firebase Admin — desplegado en Railway (proyecto "efficient-magic")
+  - **Base de datos**: PostgreSQL en Railway (fuente de verdad del negocio)
+  - **Autenticación**: Firebase Auth (Google + email/password)
+
+  ## Arquitectura general
+  - Firebase Auth emite tokens → validados en `/api/me` → devuelve User + Store + StoreMember
+  - Si el usuario no tiene contexto de negocio → flujo Onboarding (crea Store + StoreMember OWNER)
+  - No hay dual-write permanente entre Firestore y Postgres
+  - Lógica sensible vive en el backend — nunca en el frontend
+
+  ## Estructura del repo
+  ```
+  /                        → frontend (React + Vite)
+    src/
+      App.tsx              → shell, navegación, modales globales
+      context/AppContext.tsx → estado global y todo el CRUD (bridge frontend↔backend)
+      services/*.ts        → clientes HTTP al backend
+      pages/               → una página por módulo
+      components/          → layout, header, modales, formularios
+  backend/                 → API Fastify + Prisma
+    src/modules/           → auth, clients, inventory, sales, trade-ins, onboarding, stores, users
+    prisma/                → schema.prisma y migraciones
+  ```
+
+  ## Módulos y estado
+  - **Auth/Sesión**: Firebase + PG — producción, bridge `/api/me` operativo
+  - **Onboarding**: PG — producción, crea Store + StoreMember OWNER
+  - **Inventory**: PG — producción, con categorías, import XLSX, inline edit, bulk actions, paginación, columnas custom
+  - **Clients**: PG — producción, CRUD real
+  - **Sales**: PG — producción, transaccional (muta stock y cliente)
+  - **Trade-ins**: PG — producción, CRUD real por storeId
+  - **Dashboard**: demo (sin SQL real)
+  - **Reports**: placeholder
+  - **Notifications**: local, sin persistencia
+  - **Settings**: UI presente, sin persistencia real
+
+  ## Convenciones de código
+  - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, etc.)
+  - Servicios HTTP: todos usan `fetch-with-timeout.ts` (timeout 15 s)
+  - `batteryHealth` es `string` para soportar rangos como `"83-85%"`
+  - No hay build local — Railway hace el build en deploy
+  - Sin fallback silencioso a Firestore en módulos migrados a PG; si el backend falla, error visible
+  - No se cierran modales como éxito si la persistencia real falló
+
+  ## Reglas que NO se rompen
+  1. No ejecutar `npm run build` localmente
+  2. No fallback silencioso a Firestore en módulos ya migrados
+  3. No mezclar Firestore y Postgres como fuentes activas del mismo dato
+  4. No cerrar modales como éxito si la persistencia falló
+  5. No asumir que un usuario autenticado tiene contexto de negocio (puede necesitar onboarding)
+
+  ## Comandos útiles
+  - Frontend: `npm run dev` (puerto 5173), `npm run lint` (tsc --noEmit)
+  - Backend (desde backend/): `npm run dev`, `npm run lint`, `npx prisma studio`
+
+rules:
+  proposal:
+    - Incluir siempre sección "Non-goals" para delimitar el alcance
+    - Referenciar el módulo afectado (Inventory, Sales, Clients, etc.)
+    - Si hay cambio de schema Prisma, mencionarlo explícitamente
+  tasks:
+    - Separar tareas de backend (Fastify/Prisma) de tareas de frontend (React/AppContext)
+    - Cada tarea debe ser atómica y verificable de forma independiente
+    - Si una tarea toca AppContext.tsx, indicarlo explícitamente

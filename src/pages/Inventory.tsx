@@ -30,6 +30,10 @@ const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo'
 const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
 const MIN_COL_WIDTH = 40;
 
+const EDITABLE_COL_IDS = new Set<ColId>(['imei', 'model', 'battery', 'price']);
+const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'model', battery: 'batteryHealth', price: 'price' };
+const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price' };
+
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
@@ -76,10 +80,11 @@ export const Inventory: React.FC = () => {
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
+  const [focusedCell, setFocusedCell] = useState<{ rowIndex: number; colKey: ColId } | null>(null);
   // Refs to avoid stale closures in async save handlers
   const inlineEditCellRef = useRef<{ id: string; field: string } | null>(null);
   const inlineEditValueRef = useRef('');
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigatingRef = useRef(false);
   // Display override: set BEFORE setInlineEditCell(null) so the render that hides the input
   // already reads the new value — eliminates the flash of the old value.
   const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
@@ -400,17 +405,84 @@ export const Inventory: React.FC = () => {
       ? committedDisplayRef.current.value
       : fallback;
 
-  const handleEditableCellClick = (e: React.MouseEvent, invItem: Product, field: string, rawValue: string) => {
-    e.stopPropagation();
-    if (e.detail >= 2) {
-      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
-      startInlineEdit(invItem.id, field, rawValue);
+  const handleCellBlur = (invItem: Product) => {
+    if (navigatingRef.current) { navigatingRef.current = false; return; }
+    commitInlineEdit(invItem);
+  };
+
+  const navigateFrom = (currentId: string, currentField: string, dir: 'tab' | 'shift-tab' | 'enter' | 'down' | 'up') => {
+    const currentColId = FIELD_TO_COL[currentField];
+    if (!currentColId) return;
+    const editableCols = orderedVisibleCols.filter(c => EDITABLE_COL_IDS.has(c));
+    const rowIdx = pagedInventory.findIndex(i => i.id === currentId);
+    const colIdx = editableCols.indexOf(currentColId);
+    if (rowIdx === -1 || colIdx === -1) return;
+
+    let nextRowIdx = rowIdx;
+    let nextColIdx = colIdx;
+    let openEdit = true;
+
+    if (dir === 'tab') {
+      nextColIdx++;
+      if (nextColIdx >= editableCols.length) { nextColIdx = 0; nextRowIdx++; }
+    } else if (dir === 'shift-tab') {
+      nextColIdx--;
+      if (nextColIdx < 0) { nextColIdx = editableCols.length - 1; nextRowIdx--; }
+    } else if (dir === 'enter') {
+      nextRowIdx++;
+    } else if (dir === 'down') {
+      nextRowIdx++;
+      openEdit = false;
+    } else if (dir === 'up') {
+      nextRowIdx--;
+      openEdit = false;
+    }
+
+    if (nextRowIdx < 0 || nextRowIdx >= pagedInventory.length) return;
+    if (nextColIdx < 0 || nextColIdx >= editableCols.length) return;
+
+    const nextItem = pagedInventory[nextRowIdx];
+    const nextColId = editableCols[nextColIdx];
+    const nextField = COL_TO_FIELD[nextColId];
+    if (!nextField) return;
+    const nextValue = String((nextItem as any)[nextField] ?? '');
+
+    if (openEdit) {
+      startInlineEdit(nextItem.id, nextField, nextValue);
     } else {
-      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = setTimeout(() => {
-        clickTimerRef.current = null;
-        setSelectedItem(invItem);
-      }, 250);
+      setFocusedCell({ rowIndex: nextRowIdx, colKey: nextColId });
+    }
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent, invItem: Product) => {
+    const cell = inlineEditCellRef.current;
+    if (!cell) return;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      navigatingRef.current = true;
+      commitInlineEdit(invItem);
+      navigateFrom(cell.id, cell.field, e.shiftKey ? 'shift-tab' : 'tab');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      navigatingRef.current = true;
+      commitInlineEdit(invItem);
+      navigateFrom(cell.id, cell.field, 'enter');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      navigatingRef.current = true;
+      commitInlineEdit(invItem);
+      navigateFrom(cell.id, cell.field, 'down');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigatingRef.current = true;
+      commitInlineEdit(invItem);
+      navigateFrom(cell.id, cell.field, 'up');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      const rowIndex = pagedInventory.findIndex(i => i.id === cell.id);
+      const colKey = FIELD_TO_COL[cell.field];
+      if (rowIndex !== -1 && colKey) setFocusedCell({ rowIndex, colKey });
+      cancelInlineEdit();
     }
   };
 
@@ -544,17 +616,19 @@ export const Inventory: React.FC = () => {
     </th>
   );
 
-  const renderTd = (col: ColId, invItem: Product): React.ReactNode => {
+  const renderTd = (col: ColId, invItem: Product, rowIndex: number): React.ReactNode => {
+    const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === col;
+    const focusRing = isFocused ? ' ring-1 ring-inset ring-gray-300' : '';
     switch (col) {
       case 'imei': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
         return (
-          <td key={col} className="px-3 py-4 font-mono text-gray-500 transition-colors truncate" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
+          <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'imei', invItem.imei); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-mono text-gray-500 text-sm" />
             ) : cellDisplay(invItem, 'imei', invItem.imei)}
@@ -564,12 +638,12 @@ export const Inventory: React.FC = () => {
       case 'model': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
         return (
-          <td key={col} className="px-3 py-4 font-bold text-gray-900 transition-colors truncate" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'model', invItem.model); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
             ) : cellDisplay(invItem, 'model', invItem.model)}
@@ -579,14 +653,14 @@ export const Inventory: React.FC = () => {
       case 'battery': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
         return (
-          <td key={col} className="px-3 py-4 transition-colors" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
+          <td key={col} className={`px-3 py-4 transition-colors${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'batteryHealth', String(invItem.batteryHealth ?? '')); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} placeholder="ej: 87%" maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
-                className="w-24 outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
             ) : (
               <div className="flex items-center gap-2">
                 <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -603,14 +677,14 @@ export const Inventory: React.FC = () => {
       case 'price': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
         return (
-          <td key={col} className="px-3 py-4 font-bold text-gray-900 transition-colors" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'price', String(invItem.price)); }}>
             {isEditing ? (
               <input autoFocus type="number" value={inlineEditValue}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
-                onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
-                className="w-28 outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
           </td>
         );
@@ -963,9 +1037,9 @@ export const Inventory: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {pagedInventory.map((invItem, idx) => (
-                <tr key={invItem.id} onClick={() => setSelectedItem(invItem)} onContextMenu={e => handleContextMenu(e, invItem)} className="hover:bg-gray-50 cursor-pointer group">
+                <tr key={invItem.id} onContextMenu={e => handleContextMenu(e, invItem)} className="hover:bg-gray-50 cursor-default group">
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
-                  {orderedVisibleCols.map(col => renderTd(col, invItem))}
+                  {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
               ))}
