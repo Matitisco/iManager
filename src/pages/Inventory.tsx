@@ -507,6 +507,7 @@ export const Inventory: React.FC = () => {
         <input
           autoFocus
           value={renameValue}
+          maxLength={30}
           className="w-full bg-transparent outline-none text-[10px] font-bold tracking-wider uppercase border-b-2 border-current pb-0.5 min-w-0"
           onChange={e => setRenameValue(e.target.value)}
           onBlur={() => commitColRename(col)}
@@ -533,7 +534,7 @@ export const Inventory: React.FC = () => {
         return (
           <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
             {isEditing ? (
-              <input autoFocus value={inlineEditValue}
+              <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
@@ -548,7 +549,7 @@ export const Inventory: React.FC = () => {
         return (
           <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
             {isEditing ? (
-              <input autoFocus value={inlineEditValue}
+              <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
@@ -563,7 +564,7 @@ export const Inventory: React.FC = () => {
         return (
           <td key={col} className={`px-3 py-4 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
             {isEditing ? (
-              <input autoFocus value={inlineEditValue} placeholder="ej: 87%"
+              <input autoFocus value={inlineEditValue} placeholder="ej: 87%" maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
