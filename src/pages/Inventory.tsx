@@ -319,7 +319,8 @@ export const Inventory: React.FC = () => {
         if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
           // Select item if not already in selection
           if (!selectedIdsRef.current.has(itemDragStartRef.current.itemId)) {
-            const newIds = new Set([itemDragStartRef.current.itemId]);
+            const newIds = new Set(selectedIdsRef.current);
+            newIds.add(itemDragStartRef.current.itemId);
             selectedIdsRef.current = newIds;
             setSelectedIds(newIds);
           }
