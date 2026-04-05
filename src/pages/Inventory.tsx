@@ -151,6 +151,7 @@ export const Inventory: React.FC = () => {
   const [dropBeforeColId, setDropBeforeColId] = useState<ColId | null>(null);
   const colDragStateRef = useRef<{ id: ColId; dragging: boolean; dropBefore: ColId | null } | null>(null);
   const thRefs = useRef<Partial<Record<ColId, HTMLTableCellElement | null>>>({});
+  const [colDragPos, setColDragPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => { localStorage.setItem('inventoryColWidths', JSON.stringify(colWidths)); }, [colWidths]);
   useEffect(() => { localStorage.setItem('inventoryColOrder', JSON.stringify(colOrder)); }, [colOrder]);
@@ -425,9 +426,11 @@ export const Inventory: React.FC = () => {
         if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) return;
         state.dragging = true;
         setDraggingColId(col);
-        document.body.style.cursor = 'grabbing';
+        setColDragPos({ x: ev.clientX, y: ev.clientY });
+        document.body.style.cursor = 'none';
         document.body.style.userSelect = 'none';
       }
+      setColDragPos({ x: ev.clientX, y: ev.clientY });
       const sorted = ALL_COL_IDS
         .map(c => ({ c, el: thRefs.current[c] }))
         .filter(({ el }) => !!el)
@@ -496,33 +499,37 @@ export const Inventory: React.FC = () => {
     <th
       key={col}
       ref={el => { thRefs.current[col] = el; }}
-      className={`relative group px-3 py-4 select-none cursor-grab transition-colors duration-100
-        ${activeResizeCol === col ? 'bg-gray-900 text-white' : ''}
-        ${draggingColId === col ? 'opacity-30' : ''}
-        ${dropBeforeColId === col ? 'shadow-[inset_2px_0_0_0_#3b82f6]' : ''}`}
+      className={`relative group px-3 py-3 select-none cursor-grab ${draggingColId === col ? 'opacity-30' : ''}`}
       style={{ width: colWidths[col] }}
       onPointerDown={e => handleColPointerDown(e, col)}
     >
-      {renamingCol === col ? (
-        <input
-          autoFocus
-          value={renameValue}
-          maxLength={30}
-          className="w-full bg-transparent outline-none text-[10px] font-bold tracking-wider uppercase border-b-2 border-current pb-0.5 min-w-0"
-          onChange={e => setRenameValue(e.target.value)}
-          onBlur={() => commitColRename(col)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
-            if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
-          }}
-          onClick={e => e.stopPropagation()}
-          onPointerDown={e => e.stopPropagation()}
-        />
-      ) : (
-        <span onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}>
-          {colNames[col] || DEFAULT_COL_NAMES[col]}
-        </span>
+      {dropBeforeColId === col && draggingColId !== col && (
+        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-900 rounded-full z-10" />
       )}
+      <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors duration-100 max-w-full overflow-hidden
+        ${activeResizeCol === col ? 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+      >
+        {renamingCol === col ? (
+          <input
+            autoFocus
+            value={renameValue}
+            maxLength={30}
+            className="bg-transparent outline-none text-[10px] font-bold tracking-wider uppercase min-w-0 w-20"
+            onChange={e => setRenameValue(e.target.value)}
+            onBlur={() => commitColRename(col)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
+              if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
+            }}
+            onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
+          />
+        ) : (
+          <span className="truncate" onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}>
+            {colNames[col] || DEFAULT_COL_NAMES[col]}
+          </span>
+        )}
+      </div>
       {resizeHandle(col)}
     </th>
   );
@@ -1040,6 +1047,14 @@ export const Inventory: React.FC = () => {
           className="px-3 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg shadow-xl"
         >
           {draggingCat.label}
+        </div>
+      )}
+      {draggingColId && (
+        <div
+          style={{ position: 'fixed', left: colDragPos.x - 24, top: colDragPos.y - 14, pointerEvents: 'none', zIndex: 9999 }}
+          className="px-3 py-1.5 bg-gray-900 text-white text-[10px] font-bold tracking-wider uppercase rounded-full shadow-xl"
+        >
+          {colNames[draggingColId] || DEFAULT_COL_NAMES[draggingColId]}
         </div>
       )}
 

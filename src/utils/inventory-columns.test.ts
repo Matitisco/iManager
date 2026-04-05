@@ -68,12 +68,17 @@ describe('Inventory table column layout', () => {
     expect(src).toContain('renamingCol');
   });
 
-  it('active resize column gets dark cell visual', () => {
-    expect(src).toContain("activeResizeCol === col ? 'bg-gray-900 text-white'");
+  it('active resize column highlights the pill, not the whole cell', () => {
+    expect(src).toContain("activeResizeCol === col ? 'bg-gray-200 text-gray-700'");
   });
 
-  it('drop indicator uses box-shadow to avoid layout shift', () => {
-    expect(src).toContain('shadow-[inset_2px_0_0_0_#3b82f6]');
+  it('drop indicator uses an absolute vertical line (like category tabs)', () => {
+    expect(src).toContain('w-0.5 bg-gray-900 rounded-full');
+  });
+
+  it('column drag shows a floating pill following the cursor', () => {
+    expect(src).toContain('draggingColId &&');
+    expect(src).toContain('colDragPos');
   });
 
   it('all cells use consistent px-3 padding', () => {
