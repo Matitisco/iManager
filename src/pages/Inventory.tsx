@@ -114,6 +114,32 @@ export const Inventory: React.FC = () => {
     localStorage.setItem('inventoryVisibleColumns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
+  const DEFAULT_COL_WIDTHS = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
+  const MIN_COL_WIDTHS: Record<string, number> = { imei: 80, model: 100, battery: 80, price: 80, status: 90 };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const s = localStorage.getItem('inventoryColWidths');
+      return s ? { ...DEFAULT_COL_WIDTHS, ...JSON.parse(s) } : DEFAULT_COL_WIDTHS;
+    } catch { return DEFAULT_COL_WIDTHS; }
+  });
+  const [activeResizeCol, setActiveResizeCol] = useState<string | null>(null);
+  const resizingRef = useRef<{ col: string; startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('inventoryColWidths', JSON.stringify(colWidths));
+  }, [colWidths]);
+
+  useEffect(() => {
+    if (activeResizeCol) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => { document.body.style.cursor = ''; document.body.style.userSelect = ''; };
+  }, [activeResizeCol]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
@@ -341,6 +367,41 @@ export const Inventory: React.FC = () => {
       }, 250);
     }
   };
+
+  const handleResizeStart = (e: React.PointerEvent, col: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { col, startX: e.clientX, startW: colWidths[col] };
+    setActiveResizeCol(col);
+    const onMove = (ev: PointerEvent) => {
+      if (!resizingRef.current) return;
+      const delta = ev.clientX - resizingRef.current.startX;
+      const minW = MIN_COL_WIDTHS[resizingRef.current.col] ?? 60;
+      const newW = Math.max(minW, resizingRef.current.startW + delta);
+      setColWidths(prev => ({ ...prev, [resizingRef.current!.col]: newW }));
+    };
+    const onUp = () => {
+      setActiveResizeCol(null);
+      resizingRef.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const resizeHandle = (col: string) => (
+    <div
+      className={`absolute right-0 top-0 bottom-0 w-4 flex items-center justify-center cursor-col-resize z-10 transition-opacity duration-150 ${activeResizeCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+      onPointerDown={e => handleResizeStart(e, col)}
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex gap-[3px]">
+        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-blue-500' : 'bg-gray-400'}`} />
+        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-blue-500' : 'bg-gray-400'}`} />
+      </div>
+    </div>
+  );
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">
@@ -668,11 +729,11 @@ export const Inventory: React.FC = () => {
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
                 <th className="px-4 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
-                {visibleColumns.imei !== false && <th className="px-6 py-4">IMEI</th>}
-                {visibleColumns.model !== false && <th className="px-6 py-4 w-[260px]">Modelo</th>}
-                {visibleColumns.battery !== false && <th className="px-6 py-4 w-[140px]">Batería</th>}
-                <th className="px-6 py-4 w-[120px] text-right">Precio</th>
-                <th className="px-6 py-4 w-[150px]">Disponibilidad</th>
+                {visibleColumns.imei !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.imei }}>IMEI{resizeHandle('imei')}</th>}
+                {visibleColumns.model !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.model }}>Modelo{resizeHandle('model')}</th>}
+                {visibleColumns.battery !== false && <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.battery }}>Batería{resizeHandle('battery')}</th>}
+                <th className="relative group px-6 py-4 select-none text-right" style={{ width: colWidths.price }}>Precio{resizeHandle('price')}</th>
+                <th className="relative group px-6 py-4 select-none" style={{ width: colWidths.status }}>Disponibilidad{resizeHandle('status')}</th>
                 <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
@@ -683,7 +744,7 @@ export const Inventory: React.FC = () => {
                   {visibleColumns.imei !== false && (() => {
                     const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
                     return (
-                      <td className={`px-6 py-4 font-mono text-gray-500 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
+                      <td className={`px-6 py-4 font-mono text-gray-500 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
                         {isEditing ? (
                           <input autoFocus value={inlineEditValue}
                             onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}

@@ -1,13 +1,9 @@
 /**
  * Tests that enforce the column layout contract of the Inventory table.
  *
- * The table uses `table-fixed` + explicit column widths to prevent text-heavy
- * columns (Modelo, Batería) from dominating the layout and squishing
- * Precio/Disponibilidad. If these constraints are removed the table regresses
- * to unbalanced proportions.
- *
- * These tests read Inventory.tsx as a string and assert structural CSS classes
- * because the project uses node-only Vitest (no jsdom / React Testing Library).
+ * Columns use `table-fixed` + pointer-event resize handles. Widths are applied
+ * via inline `style={{ width }}` driven by `colWidths` state (localStorage-
+ * persisted). These tests guard against accidental removal of those mechanisms.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -23,37 +19,47 @@ describe('Inventory table column layout', () => {
     expect(src).toContain('table-fixed');
   });
 
-  it('Modelo column header is capped at 260px', () => {
-    // th must carry w-[260px] immediately before closing > and then "Modelo"
-    expect(src).toMatch(/w-\[260px\][^>]*>Modelo</);
+  it('column widths are driven by colWidths state, not hard-coded Tailwind classes', () => {
+    expect(src).toContain('colWidths.model');
+    expect(src).toContain('colWidths.battery');
+    expect(src).toContain('colWidths.price');
+    expect(src).toContain('colWidths.status');
+    expect(src).toContain('colWidths.imei');
   });
 
-  it('Batería column header is capped at 140px', () => {
-    expect(src).toMatch(/w-\[140px\][^>]*>Bat/);
+  it('default widths exist for all resizable columns', () => {
+    expect(src).toContain('DEFAULT_COL_WIDTHS');
+    // model default fits "iPhone 16 Pro Max 256GB" (~200px content at bold 14px)
+    const match = src.match(/model:\s*(\d+)/);
+    expect(match).not.toBeNull();
+    const modelDefault = parseInt(match![1], 10);
+    // 260px column - 48px padding (px-6 × 2) = 212px content area ≥ 200px needed
+    expect(modelDefault - 48).toBeGreaterThanOrEqual(200);
   });
 
-  it('Precio column header is capped at 120px', () => {
-    expect(src).toMatch(/w-\[120px\][^>]*>Precio</);
+  it('minimum column widths are defined to prevent collapsing', () => {
+    expect(src).toContain('MIN_COL_WIDTHS');
   });
 
-  it('Disponibilidad column header is capped at 150px', () => {
-    expect(src).toMatch(/w-\[150px\][^>]*>Disponibilidad</);
+  it('resize handles are rendered on all resizable columns', () => {
+    expect(src).toContain("resizeHandle('model')");
+    expect(src).toContain("resizeHandle('battery')");
+    expect(src).toContain("resizeHandle('price')");
+    expect(src).toContain("resizeHandle('status')");
+    expect(src).toContain("resizeHandle('imei')");
   });
 
-  it('Modelo td has truncate so overflowing model names get an ellipsis', () => {
-    // The Modelo <td> className template literal contains "transition-colors truncate"
-    // (unique to that cell; Price td uses "text-right" instead of "truncate").
+  it('handleResizeStart respects minimum column width', () => {
+    expect(src).toContain('MIN_COL_WIDTHS[resizingRef.current.col]');
+    expect(src).toContain('Math.max(minW');
+  });
+
+  it('colWidths is persisted to localStorage', () => {
+    expect(src).toContain("localStorage.setItem('inventoryColWidths'");
+    expect(src).toContain("localStorage.getItem('inventoryColWidths')");
+  });
+
+  it('Modelo td has truncate to ellipsize overflowing model names', () => {
     expect(src).toContain('transition-colors truncate');
-  });
-
-  it('target string "iPhone 16 Pro Max 256GB" fits the 260px column (content area ≥ 200px)', () => {
-    // 260px column - 48px horizontal padding (px-6 = 24px × 2) = 212px content area.
-    // "iPhone 16 Pro Max 256GB" at bold 14px is ≈ 195-200px — fits without truncation.
-    // This test validates the chosen width constant rather than rendering.
-    const colMatch = src.match(/w-\[(\d+)px\][^>]*>Modelo</);
-    expect(colMatch).not.toBeNull();
-    const colWidth = parseInt(colMatch![1], 10);
-    const contentArea = colWidth - 48; // subtract px-6 padding (24px × 2)
-    expect(contentArea).toBeGreaterThanOrEqual(200);
   });
 });
