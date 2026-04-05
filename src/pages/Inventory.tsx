@@ -351,6 +351,7 @@ export const Inventory: React.FC = () => {
     };
     const onUp = () => {
       itemDragStartRef.current = null;
+      document.body.style.userSelect = '';
       if (justItemDraggedRef.current) setTimeout(() => { justItemDraggedRef.current = false; }, 50);
       if (draggingItemsRef.current) {
         if (itemDropTargetRef.current) {
@@ -1197,6 +1198,7 @@ export const Inventory: React.FC = () => {
                     const inputEl = target.closest('input') as HTMLInputElement | null;
                     if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
                     itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: invItem.id };
+                    document.body.style.userSelect = 'none';
                   }}
                   onClick={e => handleRowClick(e, invItem.id, idx)}
                   onContextMenu={e => handleContextMenu(e, invItem)}
