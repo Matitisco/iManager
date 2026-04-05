@@ -55,7 +55,7 @@ describe('Inventory table column layout', () => {
   it('columns are rendered in order via orderedVisibleCols map', () => {
     expect(src).toContain('orderedVisibleCols');
     expect(src).toContain('orderedVisibleCols.map(col => renderTh(col))');
-    expect(src).toContain('orderedVisibleCols.map(col => renderTd(col, invItem))');
+    expect(src).toContain('orderedVisibleCols.map(col => renderTd(col, invItem, idx))');
   });
 
   it('column drag-to-reorder handler exists', () => {
