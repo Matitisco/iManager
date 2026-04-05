@@ -732,12 +732,13 @@ export const Inventory: React.FC = () => {
                       {sortKey && <button onClick={() => { setSortKey(null); setSortDir('asc'); }} className="text-xs text-gray-500 hover:text-gray-900 transition-colors">Limpiar</button>}
                     </div>
                     <div className="p-1.5">
-                      {[
-                        { key: 'model', label: 'Modelo' },
-                        { key: 'price', label: 'Precio' },
-                        { key: 'battery', label: 'Batería' },
+                      {([
+                        { key: 'model' as ColId },
+                        { key: 'price' as ColId },
+                        { key: 'battery' as ColId },
                         { key: 'condition', label: 'Condición' },
-                      ].map(opt => {
+                      ] as Array<{ key: string; label?: string }>).map(opt => {
+                        const label = opt.label ?? (colNames[opt.key] || DEFAULT_COL_NAMES[opt.key as ColId]);
                         const active = sortKey === opt.key;
                         return (
                           <button
@@ -748,7 +749,7 @@ export const Inventory: React.FC = () => {
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${active ? 'bg-gray-900 text-white' : 'hover:bg-gray-50 text-gray-700'}`}
                           >
-                            <span className="font-medium">{opt.label}</span>
+                            <span className="font-medium">{label}</span>
                             {active && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
                           </button>
                         );
