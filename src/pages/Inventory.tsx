@@ -809,7 +809,7 @@ export const Inventory: React.FC = () => {
       case 'imei': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
         return (
-          <td key={col} data-col="imei" className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate${focusRing}`} title="Doble click para editar">
+          <td key={col} data-col="imei" className={`px-3 py-4 font-mono text-gray-500 overflow-hidden${focusRing}`} title="Doble click para editar">
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -817,14 +817,14 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-mono text-gray-500 text-sm" />
-            ) : cellDisplay(invItem, 'imei', invItem.imei)}
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5">{cellDisplay(invItem, 'imei', invItem.imei)}</div>}
           </td>
         );
       }
       case 'model': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
         return (
-          <td key={col} data-col="model" className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate${focusRing}`} title="Doble click para editar">
+          <td key={col} data-col="model" className={`px-3 py-4 font-bold text-gray-900 overflow-hidden${focusRing}`} title="Doble click para editar">
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -832,14 +832,14 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
-            ) : cellDisplay(invItem, 'model', invItem.model)}
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5">{cellDisplay(invItem, 'model', invItem.model)}</div>}
           </td>
         );
       }
       case 'battery': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
         return (
-          <td key={col} data-col="battery" className={`px-3 py-4 transition-colors${focusRing}`} title="Doble click para editar">
+          <td key={col} data-col="battery" className={`px-3 py-4${focusRing}`} title="Doble click para editar">
             {isEditing ? (
               <input autoFocus value={inlineEditValue} placeholder="ej: 87%" maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -848,7 +848,7 @@ export const Inventory: React.FC = () => {
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5">
                 <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
                 </div>
@@ -863,7 +863,7 @@ export const Inventory: React.FC = () => {
       case 'price': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
         return (
-          <td key={col} data-col="price" className={`px-3 py-4 font-bold text-gray-900 transition-colors${focusRing}`} title="Doble click para editar">
+          <td key={col} data-col="price" className={`px-3 py-4 font-bold text-gray-900${focusRing}`} title="Doble click para editar">
             {isEditing ? (
               <input autoFocus type="number" value={inlineEditValue}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -871,7 +871,7 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-            ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
+            ) : <div className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5">{`$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}</div>}
           </td>
         );
       }
