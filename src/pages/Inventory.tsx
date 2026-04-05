@@ -734,7 +734,7 @@ export const Inventory: React.FC = () => {
     <th
       key={col}
       ref={el => { thRefs.current[col] = el; }}
-      className={`relative group px-3 py-4 text-center select-none cursor-grab overflow-hidden ${draggingColId === col ? 'opacity-30' : ''}`}
+      className={`relative group px-3 py-4 text-left select-none cursor-grab overflow-hidden ${draggingColId === col ? 'opacity-30' : ''}`}
       style={{ width: colWidths[col] }}
       onPointerDown={e => handleColPointerDown(e, col)}
     >
@@ -758,7 +758,7 @@ export const Inventory: React.FC = () => {
         />
       ) : (
         <span
-          className="block truncate text-xs font-bold tracking-wider uppercase text-gray-400"
+          className="block truncate text-xs font-bold tracking-wider uppercase text-gray-400 pr-5"
           onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}
         >
           {colNames[col] || DEFAULT_COL_NAMES[col]}
@@ -775,7 +775,7 @@ export const Inventory: React.FC = () => {
       case 'imei': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
         return (
-          <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate text-center${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'imei', invItem.imei); }}>
+          <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'imei', invItem.imei); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -790,7 +790,7 @@ export const Inventory: React.FC = () => {
       case 'model': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
         return (
-          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate text-center${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'model', invItem.model); }}>
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'model', invItem.model); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -805,7 +805,7 @@ export const Inventory: React.FC = () => {
       case 'battery': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
         return (
-          <td key={col} className={`px-3 py-4 transition-colors text-center${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'batteryHealth', String(invItem.batteryHealth ?? '')); }}>
+          <td key={col} className={`px-3 py-4 transition-colors${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'batteryHealth', String(invItem.batteryHealth ?? '')); }}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} placeholder="ej: 87%" maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -814,7 +814,7 @@ export const Inventory: React.FC = () => {
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
             ) : (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
                 </div>
@@ -829,7 +829,7 @@ export const Inventory: React.FC = () => {
       case 'price': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
         return (
-          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors text-center${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'price', String(invItem.price)); }}>
+          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors${focusRing}`} title="Doble click para editar" onDoubleClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'price', String(invItem.price)); }}>
             {isEditing ? (
               <input autoFocus type="number" value={inlineEditValue}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
@@ -843,7 +843,7 @@ export const Inventory: React.FC = () => {
       }
       case 'status': {
         return (
-          <td key={col} className="px-3 py-4 text-center">
+          <td key={col} className="px-3 py-4">
             <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
               {invItem.status}
             </span>
@@ -1183,7 +1183,7 @@ export const Inventory: React.FC = () => {
         </div>
 
         <div className="hidden md:block overflow-x-auto flex-1">
-          <table className="w-full text-center text-sm table-fixed">
+          <table className="w-full text-left text-sm table-fixed">
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
                 <th className="px-3 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
