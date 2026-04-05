@@ -86,6 +86,8 @@ export const Inventory: React.FC = () => {
   const itemDragStartRef = useRef<{ x: number; y: number; itemId: string } | null>(null);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   const justItemDraggedRef = useRef(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingClickRef = useRef<{ invItem: Product; index: number; shiftKey: boolean } | null>(null);
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
@@ -435,6 +437,18 @@ export const Inventory: React.FC = () => {
     lastSelectedIndex.current = -1;
   };
 
+  const applySelection = (invItem: Product, index: number, shiftKey: boolean) => {
+    if (shiftKey && lastSelectedIndex.current !== -1) {
+      const from = Math.min(lastSelectedIndex.current, index);
+      const to = Math.max(lastSelectedIndex.current, index);
+      const rangeIds = pagedInventory.slice(from, to + 1).map(i => i.id);
+      setSelectedIds(prev => { const n = new Set(prev); rangeIds.forEach(rid => n.add(rid)); return n; });
+    } else {
+      setSelectedIds(prev => { const n = new Set(prev); n.has(invItem.id) ? n.delete(invItem.id) : n.add(invItem.id); return n; });
+      lastSelectedIndex.current = index;
+    }
+  };
+
   const handleRowClick = (e: React.MouseEvent, invItem: Product, index: number) => {
     if (justItemDraggedRef.current) return;
     const target = e.target as HTMLElement;
@@ -442,9 +456,26 @@ export const Inventory: React.FC = () => {
     if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
 
     if (e.detail >= 2) {
-      // Double-click: start inline edit for whichever editable column was clicked
+      // Cancel any pending single-click selection
+      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+      pendingClickRef.current = null;
+
+      // Determine column: first try data-col on td, then fall back to X position
+      let col: ColId | undefined;
       const td = target.closest('td[data-col]') as HTMLElement | null;
-      const col = td?.dataset.col as ColId | undefined;
+      col = td?.dataset.col as ColId | undefined;
+      if (!col || !EDITABLE_COL_IDS.has(col)) {
+        // Find which editable column the click X coordinate falls in
+        const clickX = e.clientX;
+        for (const candidateCol of (colOrder.filter(c => visibleColumns[c] !== false) as ColId[])) {
+          if (!EDITABLE_COL_IDS.has(candidateCol)) continue;
+          const th = thRefs.current[candidateCol];
+          if (!th) continue;
+          const rect = th.getBoundingClientRect();
+          if (clickX >= rect.left && clickX <= rect.right) { col = candidateCol; break; }
+        }
+      }
+
       if (col && EDITABLE_COL_IDS.has(col)) {
         const field = COL_TO_FIELD[col];
         if (field) {
@@ -458,15 +489,15 @@ export const Inventory: React.FC = () => {
       return;
     }
 
-    if (e.shiftKey && lastSelectedIndex.current !== -1) {
-      const from = Math.min(lastSelectedIndex.current, index);
-      const to = Math.max(lastSelectedIndex.current, index);
-      const rangeIds = pagedInventory.slice(from, to + 1).map(i => i.id);
-      setSelectedIds(prev => { const n = new Set(prev); rangeIds.forEach(rid => n.add(rid)); return n; });
-    } else {
-      setSelectedIds(prev => { const n = new Set(prev); n.has(invItem.id) ? n.delete(invItem.id) : n.add(invItem.id); return n; });
-      lastSelectedIndex.current = index;
-    }
+    // Single click: debounce 250ms so double-click doesn't also trigger selection
+    if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+    pendingClickRef.current = { invItem, index, shiftKey: e.shiftKey };
+    clickTimerRef.current = setTimeout(() => {
+      const pending = pendingClickRef.current;
+      if (pending) { applySelection(pending.invItem, pending.index, pending.shiftKey); }
+      pendingClickRef.current = null;
+      clickTimerRef.current = null;
+    }, 250);
   };
 
 
