@@ -85,6 +85,7 @@ export const Inventory: React.FC = () => {
   const itemDropTargetRef = useRef<string | null>(null);
   const itemDragStartRef = useRef<{ x: number; y: number; itemId: string } | null>(null);
   const selectedIdsRef = useRef<Set<string>>(new Set());
+  const justItemDraggedRef = useRef(false);
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
@@ -322,6 +323,7 @@ export const Inventory: React.FC = () => {
             selectedIdsRef.current = newIds;
             setSelectedIds(newIds);
           }
+          justItemDraggedRef.current = true;
           draggingItemsRef.current = true;
           setDraggingItems(true);
           setItemDragPos({ x: e.clientX, y: e.clientY });
@@ -349,6 +351,7 @@ export const Inventory: React.FC = () => {
     };
     const onUp = () => {
       itemDragStartRef.current = null;
+      if (justItemDraggedRef.current) setTimeout(() => { justItemDraggedRef.current = false; }, 50);
       if (draggingItemsRef.current) {
         if (itemDropTargetRef.current) {
           const catId = itemDropTargetRef.current;
@@ -430,8 +433,11 @@ export const Inventory: React.FC = () => {
     lastSelectedIndex.current = -1;
   };
 
-  const handleCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
-    e.stopPropagation();
+  const handleRowClick = (e: React.MouseEvent, id: string, index: number) => {
+    if (justItemDraggedRef.current) return;
+    const target = e.target as HTMLElement;
+    const inputEl = target.closest('input') as HTMLInputElement | null;
+    if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
     if (e.shiftKey && lastSelectedIndex.current !== -1) {
       const from = Math.min(lastSelectedIndex.current, index);
       const to = Math.max(lastSelectedIndex.current, index);
@@ -1187,13 +1193,16 @@ export const Inventory: React.FC = () => {
                 <tr
                   key={invItem.id}
                   onPointerDown={(e) => {
-                    if ((e.target as HTMLElement).closest('input, button, select')) return;
+                    const target = e.target as HTMLElement;
+                    const inputEl = target.closest('input') as HTMLInputElement | null;
+                    if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
                     itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: invItem.id };
                   }}
+                  onClick={e => handleRowClick(e, invItem.id, idx)}
                   onContextMenu={e => handleContextMenu(e, invItem)}
-                  className="hover:bg-gray-50 cursor-default group"
+                  className={`hover:bg-gray-50 cursor-pointer group ${selectedIds.has(invItem.id) ? 'bg-gray-50' : ''}`}
                 >
-                  <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
+                  <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} className="w-4 h-4 rounded pointer-events-none" /></td>
                   {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
