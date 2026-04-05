@@ -64,7 +64,6 @@ export const Inventory: React.FC = () => {
   const [itemDragPos, setItemDragPos] = useState({ x: 0, y: 0 });
   const [itemDropTarget, setItemDropTarget] = useState<string | null>(null);
   const [pendingItemMove, setPendingItemMove] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
-  const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -1192,7 +1191,6 @@ export const Inventory: React.FC = () => {
                     itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: invItem.id };
                   }}
                   onContextMenu={e => handleContextMenu(e, invItem)}
-                  style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.12s ease, transform 0.12s ease' } : {}}
                   className="hover:bg-gray-50 cursor-default group"
                 >
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
@@ -1422,10 +1420,7 @@ export const Inventory: React.FC = () => {
           const ids = Array.from(selectedIdsRef.current);
           const { categoryId } = pendingItemMove;
           setPendingItemMove(null);
-          setMovingIds(new Set(ids));
-          await new Promise(r => setTimeout(r, 130));
           await bulkMoveCategory(ids, categoryId);
-          setMovingIds(new Set());
           setSelectedIds(new Set());
         }}
         onCancel={() => setPendingItemMove(null)}
