@@ -60,6 +60,11 @@ export const Inventory: React.FC = () => {
   const [draggingCat, setDraggingCat] = useState<{ id: string; label: string } | null>(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [draggingItems, setDraggingItems] = useState(false);
+  const [itemDragPos, setItemDragPos] = useState({ x: 0, y: 0 });
+  const [itemDropTarget, setItemDropTarget] = useState<string | null>(null);
+  const [pendingItemMove, setPendingItemMove] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
+  const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
 
   // Categories
   const [activeCategoryId, setActiveCategoryId] = useState<string | null | 'all'>('all');
@@ -77,6 +82,10 @@ export const Inventory: React.FC = () => {
   const inventoryCategoriesRef = useRef(inventoryCategories);
   const reorderCategoriesRef = useRef(reorderCategories);
   const justDraggedRef = useRef(false);
+  const draggingItemsRef = useRef(false);
+  const itemDropTargetRef = useRef<string | null>(null);
+  const itemDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const selectedIdsRef = useRef<Set<string>>(new Set());
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
@@ -201,6 +210,17 @@ export const Inventory: React.FC = () => {
   }, [draggingCat]);
 
   useEffect(() => {
+    if (draggingItems) {
+      document.body.style.cursor = 'none';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => { document.body.style.cursor = ''; document.body.style.userSelect = ''; };
+  }, [draggingItems]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
       if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
@@ -220,6 +240,7 @@ export const Inventory: React.FC = () => {
 
   useEffect(() => { inventoryCategoriesRef.current = inventoryCategories; }, [inventoryCategories]);
   useEffect(() => { reorderCategoriesRef.current = reorderCategories; }, [reorderCategories]);
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
   const addingRowActive = !!addingRow;
   useEffect(() => { if (addingRowActive) addModelInputRef.current?.focus(); }, [addingRowActive]);
 
@@ -279,6 +300,62 @@ export const Inventory: React.FC = () => {
       pointerStartRef.current = null;
       setDraggingCat(null);
       setDropTargetId(null);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+  }, []);
+
+  // Item-to-category drag
+  useEffect(() => {
+    const DRAG_THRESHOLD = 5;
+    const onMove = (e: PointerEvent) => {
+      if (itemDragStartRef.current && !draggingItemsRef.current) {
+        const dx = e.clientX - itemDragStartRef.current.x;
+        const dy = e.clientY - itemDragStartRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+          draggingItemsRef.current = true;
+          setDraggingItems(true);
+          setItemDragPos({ x: e.clientX, y: e.clientY });
+        }
+      }
+      if (draggingItemsRef.current) {
+        setItemDragPos({ x: e.clientX, y: e.clientY });
+        const container = catTabsContainerRef.current;
+        if (container) {
+          const tabEls = container.querySelectorAll<HTMLElement>('[data-cat-id]');
+          let found: string | null = null;
+          for (const tab of tabEls) {
+            const rect = tab.getBoundingClientRect();
+            if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+              const id = tab.getAttribute('data-cat-id');
+              if (id) { found = id; break; }
+            }
+          }
+          if (found !== itemDropTargetRef.current) {
+            itemDropTargetRef.current = found;
+            setItemDropTarget(found);
+          }
+        }
+      }
+    };
+    const onUp = () => {
+      if (draggingItemsRef.current) {
+        if (itemDropTargetRef.current) {
+          const catId = itemDropTargetRef.current;
+          const catName = inventoryCategoriesRef.current.find(c => c.id === catId)?.name ?? catId;
+          const count = selectedIdsRef.current.size;
+          setPendingItemMove({ categoryId: catId, categoryName: catName, count });
+        }
+        draggingItemsRef.current = false;
+        itemDropTargetRef.current = null;
+        setDraggingItems(false);
+        setItemDropTarget(null);
+      }
+      itemDragStartRef.current = null;
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -364,6 +441,7 @@ export const Inventory: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent, invItem: Product) => {
     e.preventDefault();
+    if (draggingItemsRef.current) return;
     const isBulk = selectedIds.has(invItem.id) && selectedIds.size > 1;
     const MENU_W = 208;
     const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
@@ -1040,12 +1118,16 @@ export const Inventory: React.FC = () => {
                   <button
                     onClick={() => { if (!justDraggedRef.current) setActiveCategoryId(catId); }}
                     onDoubleClick={() => { if (catId !== 'all') { renameDoneRef.current = false; setEditingCategoryId(catId); setEditingCategoryName(label); } }}
-                    className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-all duration-100 border-b-2 ${
+                    className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-all duration-150 border-b-2 ${
                       draggingCat?.id === catId
                         ? 'opacity-40 border-dashed border-gray-300 text-gray-400'
-                        : active
-                          ? 'border-gray-900 text-gray-900'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : draggingItems && itemDropTarget === catId
+                          ? 'border-gray-900 text-gray-900 bg-gray-100 scale-110 shadow-sm'
+                          : draggingItems && catId !== 'all'
+                            ? 'border-transparent text-gray-500 hover:text-gray-600 opacity-70'
+                            : active
+                              ? 'border-gray-900 text-gray-900'
+                              : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
                     {label}
@@ -1097,7 +1179,16 @@ export const Inventory: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {pagedInventory.map((invItem, idx) => (
-                <tr key={invItem.id} onContextMenu={e => handleContextMenu(e, invItem)} className="hover:bg-gray-50 cursor-default group">
+                <tr
+                  key={invItem.id}
+                  onPointerDown={selectedIds.has(invItem.id) ? (e) => {
+                    if ((e.target as HTMLElement).closest('input, button, select')) return;
+                    itemDragStartRef.current = { x: e.clientX, y: e.clientY };
+                  } : undefined}
+                  onContextMenu={e => handleContextMenu(e, invItem)}
+                  style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.25s ease, transform 0.25s ease' } : {}}
+                  className={`hover:bg-gray-50 cursor-default group ${selectedIds.has(invItem.id) && selectedIds.size > 0 && !draggingItems ? 'cursor-grab' : ''}`}
+                >
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
                   {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
@@ -1314,6 +1405,25 @@ export const Inventory: React.FC = () => {
         }}
         onCancel={() => setShowBulkDeleteConfirm(false)}
       />
+      <ConfirmModal
+        isOpen={!!pendingItemMove}
+        title={`Mover ${pendingItemMove?.count ?? 0} equipo${(pendingItemMove?.count ?? 0) !== 1 ? 's' : ''}`}
+        message={`¿Mover ${pendingItemMove?.count ?? 0} equipo${(pendingItemMove?.count ?? 0) !== 1 ? 's' : ''} a "${pendingItemMove?.categoryName}"?`}
+        confirmLabel="Mover"
+        confirmClassName="bg-black hover:bg-gray-800"
+        onConfirm={async () => {
+          if (!pendingItemMove) return;
+          const ids = Array.from(selectedIdsRef.current);
+          const { categoryId } = pendingItemMove;
+          setPendingItemMove(null);
+          setMovingIds(new Set(ids));
+          await new Promise(r => setTimeout(r, 280));
+          await bulkMoveCategory(ids, categoryId);
+          setMovingIds(new Set());
+          setSelectedIds(new Set());
+        }}
+        onCancel={() => setPendingItemMove(null)}
+      />
 
       {draggingCat && (
         <div
@@ -1329,6 +1439,18 @@ export const Inventory: React.FC = () => {
           className="px-3 py-1.5 bg-gray-900 text-white text-[10px] font-bold tracking-wider uppercase rounded-full shadow-xl"
         >
           {colNames[draggingColId] || DEFAULT_COL_NAMES[draggingColId]}
+        </div>
+      )}
+      {draggingItems && (
+        <div
+          style={{ position: 'fixed', left: itemDragPos.x + 14, top: itemDragPos.y - 14, pointerEvents: 'none', zIndex: 9999 }}
+          className="px-3 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2"
+        >
+          <span className="w-5 h-5 bg-white text-gray-900 text-xs font-bold rounded-full flex items-center justify-center shrink-0">{selectedIds.size}</span>
+          {itemDropTarget
+            ? <span>Soltar en {inventoryCategories.find(c => c.id === itemDropTarget)?.name ?? '…'}</span>
+            : <span>equipo{selectedIds.size !== 1 ? 's' : ''}</span>
+          }
         </div>
       )}
 

@@ -8,6 +8,8 @@ interface ConfirmModalProps {
   message: string;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
+  confirmLabel?: string;
+  confirmClassName?: string;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -16,6 +18,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
   onConfirm,
   onCancel,
+  confirmLabel = 'Eliminar',
+  confirmClassName = 'bg-red-600 hover:bg-red-700',
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,10 +93,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               <button
                 onClick={handleConfirm}
                 disabled={loading}
-                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-70 flex items-center gap-2"
+                className={`px-4 py-2 text-sm font-bold text-white rounded-lg transition-colors disabled:opacity-70 flex items-center gap-2 ${confirmClassName}`}
               >
                 {loading && <Loader2 size={14} className="animate-spin" />}
-                Eliminar
+                {confirmLabel}
               </button>
             </div>
           </motion.div>
