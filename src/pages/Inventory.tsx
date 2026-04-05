@@ -84,7 +84,9 @@ export const Inventory: React.FC = () => {
   const justDraggedRef = useRef(false);
   const draggingItemsRef = useRef(false);
   const itemDropTargetRef = useRef<string | null>(null);
-  const itemDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
   const selectedIdsRef = useRef<Set<string>>(new Set());
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
@@ -309,17 +311,19 @@ export const Inventory: React.FC = () => {
     };
   }, []);
 
-  // Item-to-category drag
+  // Item-to-category drag (hold to grab)
+  const HOLD_DURATION = 150;
   useEffect(() => {
-    const DRAG_THRESHOLD = 5;
+    const CANCEL_THRESHOLD = 5;
     const onMove = (e: PointerEvent) => {
-      if (itemDragStartRef.current && !draggingItemsRef.current) {
-        const dx = e.clientX - itemDragStartRef.current.x;
-        const dy = e.clientY - itemDragStartRef.current.y;
-        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
-          draggingItemsRef.current = true;
-          setDraggingItems(true);
-          setItemDragPos({ x: e.clientX, y: e.clientY });
+      lastPointerRef.current = { x: e.clientX, y: e.clientY };
+      // Cancel hold timer if moved too much before it fires
+      if (holdStartRef.current && !draggingItemsRef.current) {
+        const dx = e.clientX - holdStartRef.current.x;
+        const dy = e.clientY - holdStartRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) > CANCEL_THRESHOLD) {
+          if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+          holdStartRef.current = null;
         }
       }
       if (draggingItemsRef.current) {
@@ -343,6 +347,8 @@ export const Inventory: React.FC = () => {
       }
     };
     const onUp = () => {
+      if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+      holdStartRef.current = null;
       if (draggingItemsRef.current) {
         if (itemDropTargetRef.current) {
           const catId = itemDropTargetRef.current;
@@ -355,7 +361,6 @@ export const Inventory: React.FC = () => {
         setDraggingItems(false);
         setItemDropTarget(null);
       }
-      itemDragStartRef.current = null;
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -1181,13 +1186,28 @@ export const Inventory: React.FC = () => {
               {pagedInventory.map((invItem, idx) => (
                 <tr
                   key={invItem.id}
-                  onPointerDown={selectedIds.has(invItem.id) ? (e) => {
+                  onPointerDown={(e) => {
                     if ((e.target as HTMLElement).closest('input, button, select')) return;
-                    itemDragStartRef.current = { x: e.clientX, y: e.clientY };
-                  } : undefined}
+                    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+                    holdStartRef.current = { x: e.clientX, y: e.clientY };
+                    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+                    holdTimerRef.current = setTimeout(() => {
+                      holdTimerRef.current = null;
+                      holdStartRef.current = null;
+                      // If not already selected, clear selection and grab only this item
+                      if (!selectedIdsRef.current.has(invItem.id)) {
+                        const newIds = new Set([invItem.id]);
+                        selectedIdsRef.current = newIds;
+                        setSelectedIds(newIds);
+                      }
+                      draggingItemsRef.current = true;
+                      setDraggingItems(true);
+                      setItemDragPos(lastPointerRef.current);
+                    }, HOLD_DURATION);
+                  }}
                   onContextMenu={e => handleContextMenu(e, invItem)}
                   style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.25s ease, transform 0.25s ease' } : {}}
-                  className={`hover:bg-gray-50 cursor-default group ${selectedIds.has(invItem.id) && selectedIds.size > 0 && !draggingItems ? 'cursor-grab' : ''}`}
+                  className="hover:bg-gray-50 cursor-default group"
                 >
                   <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} onClick={e => handleCheckboxClick(e as React.MouseEvent, invItem.id, idx)} className="w-4 h-4 rounded cursor-pointer" /></td>
                   {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
