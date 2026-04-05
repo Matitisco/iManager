@@ -169,6 +169,26 @@ export const Inventory: React.FC = () => {
   }, [activeResizeCol]);
 
   useEffect(() => {
+    if (draggingColId) {
+      document.body.style.cursor = 'none';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => { document.body.style.cursor = ''; document.body.style.userSelect = ''; };
+  }, [draggingColId]);
+
+  useEffect(() => {
+    if (draggingCat) {
+      document.body.style.cursor = 'none';
+    } else {
+      document.body.style.cursor = '';
+    }
+    return () => { document.body.style.cursor = ''; };
+  }, [draggingCat]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
       if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
@@ -200,7 +220,6 @@ export const Inventory: React.FC = () => {
           draggingCatRef.current = { id: catId, label };
           setDraggingCat({ id: catId, label });
           setDragPos({ x: e.clientX, y: e.clientY });
-          document.body.style.cursor = 'none';
         }
       }
       if (draggingCatRef.current) {
@@ -240,7 +259,6 @@ export const Inventory: React.FC = () => {
             reorderCategoriesRef.current(reordered.map(c => c.id));
           }
         }
-        document.body.style.cursor = '';
       }
       draggingCatRef.current = null;
       dropTargetIdRef.current = null;
@@ -427,8 +445,6 @@ export const Inventory: React.FC = () => {
         state.dragging = true;
         setDraggingColId(col);
         setColDragPos({ x: ev.clientX, y: ev.clientY });
-        document.body.style.cursor = 'none';
-        document.body.style.userSelect = 'none';
       }
       setColDragPos({ x: ev.clientX, y: ev.clientY });
       const sorted = ALL_COL_IDS
@@ -458,8 +474,6 @@ export const Inventory: React.FC = () => {
       colDragStateRef.current = null;
       setDraggingColId(null);
       setDropBeforeColId(null);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
