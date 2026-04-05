@@ -35,7 +35,7 @@ const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'mod
 const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price' };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
+  const { inventory, customColumns, addProduct, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -88,6 +88,11 @@ export const Inventory: React.FC = () => {
   // Display override: set BEFORE setInlineEditCell(null) so the render that hides the input
   // already reads the new value — eliminates the flash of the old value.
   const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
+
+  type AddingRow = { model: string; price: string; condition: Product['condition']; nameError: boolean };
+  const [addingRow, setAddingRow] = useState<AddingRow | null>(null);
+  const addingRowRef = useRef<HTMLTableRowElement | null>(null);
+  const addModelInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showColumns, setShowColumns] = useState(false);
   const [showSort, setShowSort] = useState(false);
@@ -213,6 +218,8 @@ export const Inventory: React.FC = () => {
 
   useEffect(() => { inventoryCategoriesRef.current = inventoryCategories; }, [inventoryCategories]);
   useEffect(() => { reorderCategoriesRef.current = reorderCategories; }, [reorderCategories]);
+  const addingRowActive = !!addingRow;
+  useEffect(() => { if (addingRowActive) addModelInputRef.current?.focus(); }, [addingRowActive]);
 
   useEffect(() => {
     const DRAG_THRESHOLD = 5;
@@ -373,6 +380,41 @@ export const Inventory: React.FC = () => {
   const cancelInlineEdit = () => {
     inlineEditCellRef.current = null;
     setInlineEditCell(null);
+  };
+
+  const startAddRow = () => {
+    if (addingRow) {
+      addModelInputRef.current?.focus();
+      return;
+    }
+    setAddingRow({ model: '', price: '', condition: 'NUEVO', nameError: false });
+  };
+
+  const cancelAddRow = () => setAddingRow(null);
+
+  const commitAddRow = async () => {
+    if (!addingRow) return;
+    const model = addingRow.model.trim();
+    if (!model) {
+      setAddingRow(prev => prev ? { ...prev, nameError: true } : null);
+      addModelInputRef.current?.focus();
+      return;
+    }
+    const data: Omit<Product, 'id'> = {
+      model,
+      price: Number(addingRow.price) || 0,
+      condition: addingRow.condition,
+      imei: '',
+      capacity: '',
+      color: '',
+      grade: 'N/A',
+      batteryHealth: 'N/A',
+      cost: 0,
+      status: 'DISPONIBLE',
+      categoryId: activeCategoryId !== 'all' ? (activeCategoryId as string) : null,
+    };
+    setAddingRow(null);
+    await addProduct(data);
   };
 
   const commitInlineEdit = async (invItem: Product) => {
@@ -1043,6 +1085,74 @@ export const Inventory: React.FC = () => {
                   <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
                 </tr>
               ))}
+              {addingRow && (
+                <tr ref={addingRowRef} className="bg-blue-50/40 border-t-2 border-blue-200">
+                  <td className="px-3 py-3" />
+                  {orderedVisibleCols.map(col => {
+                    if (col === 'model') return (
+                      <td key={col} className="px-3 py-3">
+                        <input
+                          ref={addModelInputRef}
+                          value={addingRow.model}
+                          placeholder="Modelo..."
+                          maxLength={30}
+                          onChange={e => setAddingRow(prev => prev ? { ...prev, model: e.target.value, nameError: false } : null)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                          }}
+                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          className={`w-full outline-none border rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 ${addingRow.nameError ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+                        />
+                        {addingRow.nameError && <p className="text-[10px] text-red-500 mt-0.5 px-1">Requerido</p>}
+                      </td>
+                    );
+                    if (col === 'price') return (
+                      <td key={col} className="px-3 py-3">
+                        <input
+                          type="number"
+                          value={addingRow.price}
+                          placeholder="0"
+                          onChange={e => setAddingRow(prev => prev ? { ...prev, price: e.target.value } : null)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                          }}
+                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                      </td>
+                    );
+                    if (col === 'status') return (
+                      <td key={col} className="px-3 py-3">
+                        <select
+                          value={addingRow.condition}
+                          onChange={e => setAddingRow(prev => prev ? { ...prev, condition: e.target.value as Product['condition'] } : null)}
+                          onKeyDown={e => {
+                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                          }}
+                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          className="outline-none border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-gray-700 bg-white focus:border-gray-400"
+                        >
+                          <option value="NUEVO">NUEVO</option>
+                          <option value="USADO">USADO</option>
+                          <option value="PRE-OWNED">PRE-OWNED</option>
+                        </select>
+                      </td>
+                    );
+                    return <td key={col} className="px-3 py-3 text-gray-300 text-sm">–</td>;
+                  })}
+                  <td className="px-3 py-3">
+                    <button
+                      onClick={cancelAddRow}
+                      className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
+                      title="Cancelar"
+                    >
+                      <X size={14} />
+                    </button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1073,10 +1183,15 @@ export const Inventory: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-gray-200 flex items-center justify-between">
-          <span className="text-sm text-gray-500">Mostrando {pagedInventory.length} de {filteredInventory.length}</span>
+          <span className="text-sm text-gray-500">
+            {addingRow
+              ? <span className="text-amber-600 font-medium text-xs">Ítem sin guardar — presioná Enter o Escape</span>
+              : `Mostrando ${pagedInventory.length} de ${filteredInventory.length}`
+            }
+          </span>
           {totalPages > 1 && (
-            <div className="flex items-center gap-1">
-              <PageButton icon={<ChevronLeft size={16} />} disabled={safePage === 1} onClick={() => setCurrentPage(p => p - 1)} />
+            <div className={`flex items-center gap-1 ${addingRow ? 'opacity-40 pointer-events-none' : ''}`}>
+              <PageButton icon={<ChevronLeft size={16} />} disabled={safePage === 1 || !!addingRow} onClick={() => setCurrentPage(p => p - 1)} />
               {Array.from({ length: totalPages }, (_, i) => i + 1).reduce<(number | '...')[]>((acc, page) => {
                 if (page === 1 || page === totalPages || Math.abs(page - safePage) <= 1) {
                   if (acc.length && acc[acc.length - 1] !== '...' && (page as number) - (acc[acc.length - 1] as number) > 1) acc.push('...');
@@ -1086,9 +1201,9 @@ export const Inventory: React.FC = () => {
               }, []).map((page, i) =>
                 page === '...'
                   ? <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
-                  : <button key={page} onClick={() => setCurrentPage(page as number)} className={`w-8 h-8 flex items-center justify-center rounded border text-sm font-medium transition-colors ${safePage === page ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>{page}</button>
+                  : <button key={page} onClick={() => !addingRow && setCurrentPage(page as number)} className={`w-8 h-8 flex items-center justify-center rounded border text-sm font-medium transition-colors ${safePage === page ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>{page}</button>
               )}
-              <PageButton icon={<ChevronRight size={16} />} disabled={safePage === totalPages} onClick={() => setCurrentPage(p => p + 1)} />
+              <PageButton icon={<ChevronRight size={16} />} disabled={safePage === totalPages || !!addingRow} onClick={() => setCurrentPage(p => p + 1)} />
             </div>
           )}
         </div>
@@ -1161,6 +1276,10 @@ export const Inventory: React.FC = () => {
                 <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{selectedIds.size} equipos seleccionados</p>
                 </div>
+                <button onClick={() => { startAddRow(); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
+                  <Plus size={14} /> Agregar ítem
+                </button>
+                <div className="border-t border-gray-100" />
                 {inventoryCategories.length > 0 && (
                   <>
                     <button onClick={() => setContextMoveOpen(v => !v)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center justify-between">
@@ -1184,6 +1303,10 @@ export const Inventory: React.FC = () => {
               </>
             ) : (
               <>
+                <button onClick={() => { startAddRow(); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
+                  <Plus size={14} /> Agregar ítem
+                </button>
+                <div className="border-t border-gray-100" />
                 <button onClick={() => { setSelectedItem(contextMenu.item); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
                   <Edit2 size={14} /> Editar
                 </button>
