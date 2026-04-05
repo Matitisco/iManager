@@ -706,12 +706,15 @@ export const Inventory: React.FC = () => {
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 sm:left-0 sm:right-auto mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
                     <div className="p-4 border-b border-gray-100 bg-gray-50/50"><h3 className="font-bold text-gray-900">Mostrar Columnas</h3></div>
                     <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto">
-                      {['imei', 'model', 'condition', 'capacity', 'color', 'grade', 'battery', 'cost', 'price'].map(key => (
-                        <label key={key} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                          <input type="checkbox" checked={visibleColumns[key] !== false} onChange={() => toggleColumn(key)} className="w-4 h-4 text-black rounded border-gray-300 focus:ring-black" />
-                          <span className="text-sm font-medium text-gray-700 uppercase">{key}</span>
-                        </label>
-                      ))}
+                      {['imei', 'model', 'condition', 'capacity', 'color', 'grade', 'battery', 'cost', 'price'].map(key => {
+                        const displayName = colNames[key] || (DEFAULT_COL_NAMES as Record<string, string>)[key] || customColumns.find(c => c.id === key)?.label || key;
+                        return (
+                          <label key={key} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                            <input type="checkbox" checked={visibleColumns[key] !== false} onChange={() => toggleColumn(key)} className="w-4 h-4 text-black rounded border-gray-300 focus:ring-black" />
+                            <span className="text-sm font-medium text-gray-700">{displayName}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}
