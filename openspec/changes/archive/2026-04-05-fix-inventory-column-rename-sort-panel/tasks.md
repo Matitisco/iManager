@@ -4,6 +4,6 @@
 
 ## 2. Verificación
 
-- [ ] 2.1 Verificar manualmente: renombrar "Modelo" → "Marca", abrir panel Ordenar → debe mostrar "Marca"
-- [ ] 2.2 Verificar manualmente: recargar la página → header y panel Ordenar muestran "Marca"
+- [x] 2.1 Verificar manualmente: renombrar "Modelo" → "Marca", abrir panel Ordenar → debe mostrar "Marca"
+- [x] 2.2 Verificar manualmente: recargar la página → header y panel Ordenar muestran "Marca"
 - [x] 2.3 Correr lint: `npm run lint` en frontend sin errores de TypeScript

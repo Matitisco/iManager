@@ -23,6 +23,6 @@
 ## 4. Verificación final
 
 - [x] 4.1 Correr `npm run lint` en el frontend — cero errores TypeScript
-- [ ] 4.2 Probar manualmente el flujo completo: doble-click → editar → Tab → editar otra celda → Enter → baja fila → Escape → cancela
-- [ ] 4.3 Probar que click derecho → "Editar" sigue abriendo el modal completo
-- [ ] 4.4 Probar que click simple en fila ya no abre el modal
+- [x] 4.2 Probar manualmente el flujo completo: doble-click → editar → Tab → editar otra celda → Enter → baja fila → Escape → cancela
+- [x] 4.3 Probar que click derecho → "Editar" sigue abriendo el modal completo
+- [x] 4.4 Probar que click simple en fila ya no abre el modal

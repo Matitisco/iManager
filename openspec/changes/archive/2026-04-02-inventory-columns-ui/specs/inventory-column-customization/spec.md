@@ -1,3 +1,5 @@
+## ADDED Requirements
+
 ### Requirement: Columnas redimensionables con drag handle
 Cada columna de la tabla SHALL tener un drag handle en su borde derecho que permite ajustar el ancho arrastrando. El ancho mínimo (MIN_COL_WIDTH) MUST respetarse.
 
@@ -13,16 +15,8 @@ El usuario SHALL poder reordenar columnas arrastrando el header. Durante el drag
 - **THEN** las columnas se reorganizan en el nuevo orden; se muestra un indicador vertical de posición de drop
 
 ### Requirement: Columnas renombrables con doble click en header
-El usuario SHALL poder renombrar una columna haciendo doble click en su header. El nombre tiene un límite de 30 caracteres. El nombre renombrado MUST reflejarse en todos los controles de la UI que muestran ese nombre de columna, incluyendo el panel Ordenar.
+El usuario SHALL poder renombrar una columna haciendo doble click en su header. El nombre tiene un límite de 30 caracteres.
 
 #### Scenario: Rename de columna
 - **WHEN** el usuario hace doble click en un header de columna
 - **THEN** aparece un input inline; Enter o blur guarda; Escape cancela
-
-#### Scenario: Rename reflejado en panel Ordenar
-- **WHEN** el usuario renombra una columna (ej. "Modelo" → "Marca")
-- **THEN** el panel Ordenar muestra "Marca" en lugar de "Modelo" para esa opción de ordenación
-
-#### Scenario: Persistencia tras recarga
-- **WHEN** el usuario renombra una columna y recarga la página
-- **THEN** el header y el panel Ordenar muestran el nombre renombrado; no el nombre por defecto
