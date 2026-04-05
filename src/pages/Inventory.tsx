@@ -664,15 +664,15 @@ export const Inventory: React.FC = () => {
         </div>
 
         <div className="hidden md:block overflow-x-auto flex-1">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm table-fixed">
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
                 <th className="px-4 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
                 {visibleColumns.imei !== false && <th className="px-6 py-4">IMEI</th>}
-                {visibleColumns.model !== false && <th className="px-6 py-4">Modelo</th>}
-                {visibleColumns.battery !== false && <th className="px-6 py-4">Batería</th>}
-                <th className="px-6 py-4 text-right">Precio</th>
-                <th className="px-6 py-4">Disponibilidad</th>
+                {visibleColumns.model !== false && <th className="px-6 py-4 w-[260px]">Modelo</th>}
+                {visibleColumns.battery !== false && <th className="px-6 py-4 w-[140px]">Batería</th>}
+                <th className="px-6 py-4 w-[120px] text-right">Precio</th>
+                <th className="px-6 py-4 w-[150px]">Disponibilidad</th>
                 <th className="px-6 py-4 w-10"></th>
               </tr>
             </thead>
@@ -699,7 +699,7 @@ export const Inventory: React.FC = () => {
                   {visibleColumns.model !== false && (() => {
                     const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
                     return (
-                      <td className={`px-6 py-4 font-bold text-gray-900 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
+                      <td className={`px-6 py-4 font-bold text-gray-900 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
                         {isEditing ? (
                           <input autoFocus value={inlineEditValue}
                             onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
