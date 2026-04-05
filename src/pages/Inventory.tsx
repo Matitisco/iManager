@@ -84,9 +84,7 @@ export const Inventory: React.FC = () => {
   const justDraggedRef = useRef(false);
   const draggingItemsRef = useRef(false);
   const itemDropTargetRef = useRef<string | null>(null);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdStartRef = useRef<{ x: number; y: number } | null>(null);
-  const lastPointerRef = useRef({ x: 0, y: 0 });
+  const itemDragStartRef = useRef<{ x: number; y: number; itemId: string } | null>(null);
   const selectedIdsRef = useRef<Set<string>>(new Set());
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
@@ -311,19 +309,23 @@ export const Inventory: React.FC = () => {
     };
   }, []);
 
-  // Item-to-category drag (hold to grab)
-  const HOLD_DURATION = 1000;
+  // Item-to-category drag (press + move to grab)
   useEffect(() => {
-    const CANCEL_THRESHOLD = 5;
+    const DRAG_THRESHOLD = 5;
     const onMove = (e: PointerEvent) => {
-      lastPointerRef.current = { x: e.clientX, y: e.clientY };
-      // Cancel hold timer if moved too much before it fires
-      if (holdStartRef.current && !draggingItemsRef.current) {
-        const dx = e.clientX - holdStartRef.current.x;
-        const dy = e.clientY - holdStartRef.current.y;
-        if (Math.sqrt(dx * dx + dy * dy) > CANCEL_THRESHOLD) {
-          if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
-          holdStartRef.current = null;
+      if (itemDragStartRef.current && !draggingItemsRef.current) {
+        const dx = e.clientX - itemDragStartRef.current.x;
+        const dy = e.clientY - itemDragStartRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+          // Select item if not already in selection
+          if (!selectedIdsRef.current.has(itemDragStartRef.current.itemId)) {
+            const newIds = new Set([itemDragStartRef.current.itemId]);
+            selectedIdsRef.current = newIds;
+            setSelectedIds(newIds);
+          }
+          draggingItemsRef.current = true;
+          setDraggingItems(true);
+          setItemDragPos({ x: e.clientX, y: e.clientY });
         }
       }
       if (draggingItemsRef.current) {
@@ -347,8 +349,7 @@ export const Inventory: React.FC = () => {
       }
     };
     const onUp = () => {
-      if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
-      holdStartRef.current = null;
+      itemDragStartRef.current = null;
       if (draggingItemsRef.current) {
         if (itemDropTargetRef.current) {
           const catId = itemDropTargetRef.current;
@@ -1188,22 +1189,7 @@ export const Inventory: React.FC = () => {
                   key={invItem.id}
                   onPointerDown={(e) => {
                     if ((e.target as HTMLElement).closest('input, button, select')) return;
-                    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-                    holdStartRef.current = { x: e.clientX, y: e.clientY };
-                    lastPointerRef.current = { x: e.clientX, y: e.clientY };
-                    holdTimerRef.current = setTimeout(() => {
-                      holdTimerRef.current = null;
-                      holdStartRef.current = null;
-                      // If not already selected, clear selection and grab only this item
-                      if (!selectedIdsRef.current.has(invItem.id)) {
-                        const newIds = new Set([invItem.id]);
-                        selectedIdsRef.current = newIds;
-                        setSelectedIds(newIds);
-                      }
-                      draggingItemsRef.current = true;
-                      setDraggingItems(true);
-                      setItemDragPos(lastPointerRef.current);
-                    }, HOLD_DURATION);
+                    itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: invItem.id };
                   }}
                   onContextMenu={e => handleContextMenu(e, invItem)}
                   style={movingIds.has(invItem.id) ? { opacity: 0, transform: 'translateX(24px)', transition: 'opacity 0.12s ease, transform 0.12s ease' } : {}}
