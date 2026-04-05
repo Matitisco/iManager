@@ -68,8 +68,18 @@ describe('Inventory table column layout', () => {
     expect(src).toContain('renamingCol');
   });
 
-  it('active resize column highlights the pill, not the whole cell', () => {
-    expect(src).toContain("activeResizeCol === col ? 'bg-gray-200 text-gray-700'");
+  it('resize handle is a visible rounded rectangle that changes color when active', () => {
+    expect(src).toContain("rounded-[4px]");
+    expect(src).toContain("activeResizeCol === col ? 'bg-gray-400'");
+  });
+
+  it('column header shows plain big text, rename mode shows rounded input', () => {
+    expect(src).toContain('tracking-wider uppercase text-gray-400');
+    expect(src).toContain('rounded-lg px-2 py-0.5 bg-white');
+  });
+
+  it('inline edit inputs use rounded rectangle style', () => {
+    expect(src).toContain('rounded-lg px-2 py-1 bg-white focus:border-gray-400');
   });
 
   it('drop indicator uses an absolute vertical line (like category tabs)', () => {

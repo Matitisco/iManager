@@ -28,7 +28,7 @@ const ALWAYS_VISIBLE_COLS = new Set<ColId>(['price', 'status']);
 const DEFAULT_COL_ORDER: ColId[] = ['imei', 'model', 'battery', 'price', 'status'];
 const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo', battery: 'Batería', price: 'Precio', status: 'Disponibilidad' };
 const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
-const MIN_COL_WIDTH = 80;
+const MIN_COL_WIDTH = 40;
 
 export const Inventory: React.FC = () => {
   const { inventory, customColumns, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
@@ -480,14 +480,11 @@ export const Inventory: React.FC = () => {
 
   const resizeHandle = (col: string) => (
     <div
-      className={`absolute right-0 top-0 bottom-0 w-4 flex items-center justify-center cursor-col-resize z-10 transition-opacity duration-150 ${activeResizeCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+      className={`absolute right-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-col-resize z-10 transition-opacity duration-150 ${activeResizeCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
       onPointerDown={e => handleResizeStart(e, col)}
       onClick={e => e.stopPropagation()}
     >
-      <div className="flex gap-[3px]">
-        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-white' : 'bg-gray-400'}`} />
-        <div className={`w-px h-4 rounded-full transition-colors duration-150 ${activeResizeCol === col ? 'bg-white' : 'bg-gray-400'}`} />
-      </div>
+      <div className={`w-2.5 h-6 rounded-[4px] transition-colors duration-150 ${activeResizeCol === col ? 'bg-gray-400' : 'bg-gray-200 hover:bg-gray-300'}`} />
     </div>
   );
 
@@ -499,37 +496,36 @@ export const Inventory: React.FC = () => {
     <th
       key={col}
       ref={el => { thRefs.current[col] = el; }}
-      className={`relative group px-3 py-3 select-none cursor-grab ${draggingColId === col ? 'opacity-30' : ''}`}
+      className={`relative group px-3 py-4 text-left select-none cursor-grab overflow-hidden ${draggingColId === col ? 'opacity-30' : ''}`}
       style={{ width: colWidths[col] }}
       onPointerDown={e => handleColPointerDown(e, col)}
     >
       {dropBeforeColId === col && draggingColId !== col && (
         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-900 rounded-full z-10" />
       )}
-      <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase transition-colors duration-100 max-w-full overflow-hidden
-        ${activeResizeCol === col ? 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-      >
-        {renamingCol === col ? (
-          <input
-            autoFocus
-            value={renameValue}
-            maxLength={30}
-            className="bg-transparent outline-none text-[10px] font-bold tracking-wider uppercase min-w-0 w-20"
-            onChange={e => setRenameValue(e.target.value)}
-            onBlur={() => commitColRename(col)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
-              if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
-            }}
-            onClick={e => e.stopPropagation()}
-            onPointerDown={e => e.stopPropagation()}
-          />
-        ) : (
-          <span className="truncate" onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}>
-            {colNames[col] || DEFAULT_COL_NAMES[col]}
-          </span>
-        )}
-      </div>
+      {renamingCol === col ? (
+        <input
+          autoFocus
+          value={renameValue}
+          maxLength={30}
+          className="text-xs font-bold tracking-wider uppercase text-gray-700 outline-none border border-gray-300 rounded-lg px-2 py-0.5 bg-white min-w-0 w-full focus:border-gray-400"
+          onChange={e => setRenameValue(e.target.value)}
+          onBlur={() => commitColRename(col)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
+            if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
+          }}
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+        />
+      ) : (
+        <span
+          className="block truncate text-xs font-bold tracking-wider uppercase text-gray-400 pr-5"
+          onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}
+        >
+          {colNames[col] || DEFAULT_COL_NAMES[col]}
+        </span>
+      )}
       {resizeHandle(col)}
     </th>
   );
@@ -539,14 +535,14 @@ export const Inventory: React.FC = () => {
       case 'imei': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'imei';
         return (
-          <td key={col} className={`px-3 py-4 font-mono text-gray-500 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
+          <td key={col} className="px-3 py-4 font-mono text-gray-500 transition-colors truncate" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'imei', invItem.imei)}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                 onClick={e => e.stopPropagation()}
-                className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-mono text-gray-500 text-sm" />
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-mono text-gray-500 text-sm" />
             ) : cellDisplay(invItem, 'imei', invItem.imei)}
           </td>
         );
@@ -554,14 +550,14 @@ export const Inventory: React.FC = () => {
       case 'model': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'model';
         return (
-          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors truncate ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
+          <td key={col} className="px-3 py-4 font-bold text-gray-900 transition-colors truncate" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'model', invItem.model)}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                 onClick={e => e.stopPropagation()}
-                className="w-full bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm" />
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
             ) : cellDisplay(invItem, 'model', invItem.model)}
           </td>
         );
@@ -569,14 +565,14 @@ export const Inventory: React.FC = () => {
       case 'battery': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'batteryHealth';
         return (
-          <td key={col} className={`px-3 py-4 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
+          <td key={col} className="px-3 py-4 transition-colors" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'batteryHealth', String(invItem.batteryHealth ?? ''))}>
             {isEditing ? (
               <input autoFocus value={inlineEditValue} placeholder="ej: 87%" maxLength={30}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                 onClick={e => e.stopPropagation()}
-                className="w-24 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-sm" />
+                className="w-24 outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
             ) : (
               <div className="flex items-center gap-2">
                 <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -593,14 +589,14 @@ export const Inventory: React.FC = () => {
       case 'price': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'price';
         return (
-          <td key={col} className={`px-3 py-4 font-bold text-gray-900 transition-colors ${isEditing ? 'bg-blue-50/40' : ''}`} title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
+          <td key={col} className="px-3 py-4 font-bold text-gray-900 transition-colors" title="Doble click para editar" onClick={e => handleEditableCellClick(e, invItem, 'price', String(invItem.price))}>
             {isEditing ? (
               <input autoFocus type="number" value={inlineEditValue}
                 onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
                 onFocus={e => e.target.select()} onBlur={() => commitInlineEdit(invItem)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitInlineEdit(invItem); } if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit(); } }}
                 onClick={e => e.stopPropagation()}
-                className="w-28 bg-transparent outline-none border-0 border-b border-blue-400 pb-px font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                className="w-28 outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             ) : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}
           </td>
         );
