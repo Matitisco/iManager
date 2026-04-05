@@ -89,7 +89,7 @@ export const Inventory: React.FC = () => {
   // already reads the new value — eliminates the flash of the old value.
   const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
 
-  type AddingRow = { model: string; price: string; batteryHealth: string; condition: Product['condition']; nameError: boolean };
+  type AddingRow = { model: string; imei: string; price: string; batteryHealth: string; condition: Product['condition']; nameError: boolean };
   const [addingRow, setAddingRow] = useState<AddingRow | null>(null);
   // Mirror ref — always up-to-date even inside async callbacks (avoids stale closure)
   const addingRowDataRef = useRef<AddingRow | null>(null);
@@ -389,7 +389,7 @@ export const Inventory: React.FC = () => {
       addModelInputRef.current?.focus();
       return;
     }
-    const initial: AddingRow = { model: '', price: '', batteryHealth: '', condition: 'NUEVO', nameError: false };
+    const initial: AddingRow = { model: '', imei: '', price: '', batteryHealth: '', condition: 'NUEVO', nameError: false };
     addingRowDataRef.current = initial;
     setAddingRow(initial);
   };
@@ -419,14 +419,15 @@ export const Inventory: React.FC = () => {
     }
     addingRowDataRef.current = null;
     setAddingRow(null);
+    const imei = current.imei.trim() || `TEMP-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     await addProduct({
       model,
+      imei,
       price: Number(current.price) || 0,
       condition: current.condition,
       batteryHealth: current.batteryHealth.trim() || 'N/A',
-      imei: '',
-      capacity: '',
-      color: '',
+      capacity: '-',
+      color: '-',
       grade: 'N/A',
       cost: 0,
       status: 'DISPONIBLE',
@@ -1126,6 +1127,26 @@ export const Inventory: React.FC = () => {
                           className={`w-full outline-none border rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 ${addingRow.nameError ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
                         />
                         {addingRow.nameError && <p className="text-[10px] text-red-500 mt-0.5 px-1">Requerido</p>}
+                      </td>
+                    );
+                    if (col === 'imei') return (
+                      <td key={col} className="px-3 py-3">
+                        <input
+                          value={addingRow.imei}
+                          placeholder="IMEI (opcional)"
+                          maxLength={20}
+                          onChange={e => {
+                            const next = { ...addingRowDataRef.current!, imei: e.target.value };
+                            addingRowDataRef.current = next;
+                            setAddingRow(next);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
+                          }}
+                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 font-mono text-gray-500 text-sm bg-white focus:border-gray-400"
+                        />
                       </td>
                     );
                     if (col === 'battery') return (
