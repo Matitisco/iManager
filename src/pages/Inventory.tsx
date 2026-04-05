@@ -89,9 +89,11 @@ export const Inventory: React.FC = () => {
   // already reads the new value — eliminates the flash of the old value.
   const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
 
-  type AddingRow = { model: string; price: string; condition: Product['condition']; nameError: boolean };
+  type AddingRow = { model: string; price: string; batteryHealth: string; condition: Product['condition']; nameError: boolean };
   const [addingRow, setAddingRow] = useState<AddingRow | null>(null);
-  const addingRowRef = useRef<HTMLTableRowElement | null>(null);
+  // Mirror ref — always up-to-date even inside async callbacks (avoids stale closure)
+  const addingRowDataRef = useRef<AddingRow | null>(null);
+  const addingRowTrRef = useRef<HTMLTableRowElement | null>(null);
   const addModelInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showColumns, setShowColumns] = useState(false);
@@ -383,38 +385,53 @@ export const Inventory: React.FC = () => {
   };
 
   const startAddRow = () => {
-    if (addingRow) {
+    if (addingRowDataRef.current) {
       addModelInputRef.current?.focus();
       return;
     }
-    setAddingRow({ model: '', price: '', condition: 'NUEVO', nameError: false });
+    const initial: AddingRow = { model: '', price: '', batteryHealth: '', condition: 'NUEVO', nameError: false };
+    addingRowDataRef.current = initial;
+    setAddingRow(initial);
   };
 
-  const cancelAddRow = () => setAddingRow(null);
+  const cancelAddRow = () => {
+    addingRowDataRef.current = null;
+    setAddingRow(null);
+  };
 
-  const commitAddRow = async () => {
-    if (!addingRow) return;
-    const model = addingRow.model.trim();
+  // showErrorIfEmpty=true (Enter, click-outside): muestra error si model vacío
+  // showErrorIfEmpty=false (ESC): cierra sin error si model vacío; guarda si model lleno
+  const commitAddRow = async (showErrorIfEmpty = true) => {
+    const current = addingRowDataRef.current;
+    if (!current) return;
+    const model = current.model.trim();
     if (!model) {
-      setAddingRow(prev => prev ? { ...prev, nameError: true } : null);
-      addModelInputRef.current?.focus();
+      if (showErrorIfEmpty) {
+        const withError = { ...current, nameError: true };
+        addingRowDataRef.current = withError;
+        setAddingRow(withError);
+        addModelInputRef.current?.focus();
+      } else {
+        addingRowDataRef.current = null;
+        setAddingRow(null);
+      }
       return;
     }
-    const data: Omit<Product, 'id'> = {
+    addingRowDataRef.current = null;
+    setAddingRow(null);
+    await addProduct({
       model,
-      price: Number(addingRow.price) || 0,
-      condition: addingRow.condition,
+      price: Number(current.price) || 0,
+      condition: current.condition,
+      batteryHealth: current.batteryHealth.trim() || 'N/A',
       imei: '',
       capacity: '',
       color: '',
       grade: 'N/A',
-      batteryHealth: 'N/A',
       cost: 0,
       status: 'DISPONIBLE',
       categoryId: activeCategoryId !== 'all' ? (activeCategoryId as string) : null,
-    };
-    setAddingRow(null);
-    await addProduct(data);
+    });
   };
 
   const commitInlineEdit = async (invItem: Product) => {
@@ -1086,7 +1103,7 @@ export const Inventory: React.FC = () => {
                 </tr>
               ))}
               {addingRow && (
-                <tr ref={addingRowRef} className="bg-blue-50/40 border-t-2 border-blue-200">
+                <tr ref={addingRowTrRef} className="bg-blue-50/40 border-t-2 border-blue-200">
                   <td className="px-3 py-3" />
                   {orderedVisibleCols.map(col => {
                     if (col === 'model') return (
@@ -1096,15 +1113,39 @@ export const Inventory: React.FC = () => {
                           value={addingRow.model}
                           placeholder="Modelo..."
                           maxLength={30}
-                          onChange={e => setAddingRow(prev => prev ? { ...prev, model: e.target.value, nameError: false } : null)}
+                          onChange={e => {
+                            const next = { ...addingRowDataRef.current!, model: e.target.value, nameError: false };
+                            addingRowDataRef.current = next;
+                            setAddingRow(next);
+                          }}
                           onKeyDown={e => {
                             if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
                           }}
-                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
                           className={`w-full outline-none border rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 ${addingRow.nameError ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
                         />
                         {addingRow.nameError && <p className="text-[10px] text-red-500 mt-0.5 px-1">Requerido</p>}
+                      </td>
+                    );
+                    if (col === 'battery') return (
+                      <td key={col} className="px-3 py-3">
+                        <input
+                          value={addingRow.batteryHealth}
+                          placeholder="ej: 87%"
+                          maxLength={10}
+                          onChange={e => {
+                            const next = { ...addingRowDataRef.current!, batteryHealth: e.target.value };
+                            addingRowDataRef.current = next;
+                            setAddingRow(next);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
+                          }}
+                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white focus:border-gray-400"
+                        />
                       </td>
                     );
                     if (col === 'price') return (
@@ -1113,12 +1154,16 @@ export const Inventory: React.FC = () => {
                           type="number"
                           value={addingRow.price}
                           placeholder="0"
-                          onChange={e => setAddingRow(prev => prev ? { ...prev, price: e.target.value } : null)}
+                          onChange={e => {
+                            const next = { ...addingRowDataRef.current!, price: e.target.value };
+                            addingRowDataRef.current = next;
+                            setAddingRow(next);
+                          }}
                           onKeyDown={e => {
                             if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
                           }}
-                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
                           className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </td>
@@ -1127,11 +1172,16 @@ export const Inventory: React.FC = () => {
                       <td key={col} className="px-3 py-3">
                         <select
                           value={addingRow.condition}
-                          onChange={e => setAddingRow(prev => prev ? { ...prev, condition: e.target.value as Product['condition'] } : null)}
-                          onKeyDown={e => {
-                            if (e.key === 'Escape') { e.preventDefault(); cancelAddRow(); }
+                          onChange={e => {
+                            const next = { ...addingRowDataRef.current!, condition: e.target.value as Product['condition'] };
+                            addingRowDataRef.current = next;
+                            setAddingRow(next);
                           }}
-                          onBlur={e => { if (!addingRowRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
+                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
+                          }}
+                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
                           className="outline-none border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-gray-700 bg-white focus:border-gray-400"
                         >
                           <option value="NUEVO">NUEVO</option>
@@ -1146,7 +1196,7 @@ export const Inventory: React.FC = () => {
                     <button
                       onClick={cancelAddRow}
                       className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
-                      title="Cancelar"
+                      title="Cancelar (descartar)"
                     >
                       <X size={14} />
                     </button>
