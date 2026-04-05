@@ -312,7 +312,7 @@ export const Inventory: React.FC = () => {
   }, []);
 
   // Item-to-category drag (hold to grab)
-  const HOLD_DURATION = 150;
+  const HOLD_DURATION = 1000;
   useEffect(() => {
     const CANCEL_THRESHOLD = 5;
     const onMove = (e: PointerEvent) => {
