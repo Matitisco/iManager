@@ -437,6 +437,7 @@ export const Inventory: React.FC = () => {
 
   const handleRowClick = (e: React.MouseEvent, id: string, index: number) => {
     if (justItemDraggedRef.current) return;
+    if (e.detail > 1) return; // ignore double/triple click — let onDoubleClick on td handle it
     const target = e.target as HTMLElement;
     const inputEl = target.closest('input') as HTMLInputElement | null;
     if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
