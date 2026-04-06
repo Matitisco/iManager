@@ -7,7 +7,16 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportInventoryModal } from '../components/ImportInventoryModal';
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
-import { fetchInventoryPage, fetchInventoryFilteredIds, type InventoryPageParams } from '../services/inventory-api';
+import { type InventoryPageParams } from '../services/inventory-api';
+import { exportInventoryTableRows, loadInventoryTableFilteredIds, loadInventoryTablePage } from '../services/inventory-table-adapter';
+import { TableEngine } from '../components/TableEngine/TableEngine';
+import {
+  buildInventoryTableColumns,
+  buildInventoryTableMenuActions,
+  renderInventoryAddRow,
+  type InventoryAddingRow,
+  type InventoryColumnId,
+} from '../components/inventory-table-domain';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -21,7 +30,6 @@ const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
-
 
 type ColId = 'imei' | 'model' | 'battery' | 'price' | 'status' | 'condition' | 'capacity' | 'color' | 'grade' | 'cost';
 const ALL_COL_IDS: ColId[] = ['imei', 'model', 'battery', 'price', 'status', 'condition', 'capacity', 'color', 'grade', 'cost'];
@@ -71,7 +79,6 @@ export const Inventory: React.FC = () => {
   const [bulkMovePos, setBulkMovePos] = useState({ top: 0, left: 0 });
   const bulkMoveRef = useRef<HTMLButtonElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: Product; isBulk: boolean } | null>(null);
-  const [contextMoveOpen, setContextMoveOpen] = useState(false);
   const [draggingCat, setDraggingCat] = useState<{ id: string; label: string } | null>(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -121,10 +128,9 @@ export const Inventory: React.FC = () => {
   // already reads the new value — eliminates the flash of the old value.
   const committedDisplayRef = useRef<{ id: string; field: string; value: any } | null>(null);
 
-  type AddingRow = { model: string; imei: string; price: string; batteryHealth: string; condition: Product['condition']; nameError: boolean };
-  const [addingRow, setAddingRow] = useState<AddingRow | null>(null);
-  // Mirror ref — always up-to-date even inside async callbacks (avoids stale closure)
-  const addingRowDataRef = useRef<AddingRow | null>(null);
+  const [addingRow, setAddingRow] = useState<InventoryAddingRow | null>(null);
+  // Mirror ref ? always up-to-date even inside async callbacks (avoids stale closure)
+  const addingRowDataRef = useRef<InventoryAddingRow | null>(null);
   const addingRowTrRef = useRef<HTMLTableRowElement | null>(null);
   const addModelInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -433,8 +439,8 @@ export const Inventory: React.FC = () => {
     setIsInitialLoading(true);
     setSelectedIds(new Set());
     const params = buildFilterParams();
-    fetchInventoryPage(user, { skip: 0, take: PAGE_SIZE, ...params })
-      .then(result => { setItems(result.items); setTotal(result.total); })
+    loadInventoryTablePage(user, params, 0, PAGE_SIZE)
+      .then(result => { setItems(result.rows); setTotal(result.total); })
       .catch(() => {})
       .finally(() => setIsInitialLoading(false));
   }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId, sortKey, sortDir, user]);
@@ -448,12 +454,13 @@ export const Inventory: React.FC = () => {
       const currentUser = userRef.current;
       if (!currentUser) return;
       setIsLoadingMore(true);
-      fetchInventoryPage(currentUser, {
-        skip: itemsLengthRef.current,
-        take: PAGE_SIZE,
-        ...filterParamsRef.current,
-      }).then(result => {
-        setItems(prev => [...prev, ...result.items]);
+      loadInventoryTablePage(
+        currentUser,
+        filterParamsRef.current,
+        itemsLengthRef.current,
+        PAGE_SIZE,
+      ).then(result => {
+        setItems(prev => [...prev, ...result.rows]);
         setTotal(result.total);
       }).catch(() => {}).finally(() => setIsLoadingMore(false));
     }, { threshold: 0 });
@@ -471,7 +478,7 @@ export const Inventory: React.FC = () => {
       const currentUser = userRef.current;
       if (!currentUser) return;
       try {
-        const ids = await fetchInventoryFilteredIds(currentUser, filterParamsRef.current);
+        const ids = await loadInventoryTableFilteredIds(currentUser, filterParamsRef.current);
         setSelectedIds(new Set(ids));
       } catch {
         setSelectedIds(new Set(items.map(i => i.id)));
@@ -539,7 +546,6 @@ export const Inventory: React.FC = () => {
     const MENU_W = 208;
     const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
     const y = Math.min(e.clientY, window.innerHeight - 200);
-    setContextMoveOpen(false);
     setContextMenu({ x, y, item: invItem, isBulk });
   };
 
@@ -560,7 +566,7 @@ export const Inventory: React.FC = () => {
       addModelInputRef.current?.focus();
       return;
     }
-    const initial: AddingRow = { model: '', imei: '', price: '', batteryHealth: '', condition: 'NUEVO', nameError: false };
+    const initial: InventoryAddingRow = { model: '', imei: '', price: '', batteryHealth: '', condition: 'NUEVO', nameError: false };
     addingRowDataRef.current = initial;
     setAddingRow(initial);
   };
@@ -607,8 +613,8 @@ export const Inventory: React.FC = () => {
     // Refetch first page so new item appears (sorted by createdAt desc)
     const currentUser = userRef.current;
     if (currentUser) {
-      const result = await fetchInventoryPage(currentUser, { skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
-      setItems(result.items);
+      const result = await loadInventoryTablePage(currentUser, filterParamsRef.current, 0, PAGE_SIZE);
+      setItems(result.rows);
       setTotal(result.total);
     }
   };
@@ -832,70 +838,42 @@ export const Inventory: React.FC = () => {
     ALWAYS_VISIBLE_COLS.has(col) || visibleColumns[col] !== false
   );
 
+  const tableColumns = React.useMemo(() => buildInventoryTableColumns(), []);
+
+  const contextMenuActions = React.useMemo(() => {
+    if (!contextMenu) return [];
+    return buildInventoryTableMenuActions({
+      categories: inventoryCategories,
+      isBulk: contextMenu.isBulk,
+      selectedCount: selectedIds.size,
+      item: contextMenu.item,
+      onStartAddRow: startAddRow,
+      onEditItem: (item) => setSelectedItem(item),
+      onDeleteItem: (item) => setItemToDelete(item.id),
+      onDeleteBulk: () => setShowBulkDeleteConfirm(true),
+      onMoveItems: (ids, categoryId) => {
+        if (contextMenu.isBulk) {
+          void handleBulkMoveCategory(ids, categoryId);
+          return;
+        }
+        void bulkMoveCategory(ids, categoryId);
+      },
+      selectedIds: Array.from(selectedIds),
+    });
+  }, [contextMenu, inventoryCategories, selectedIds, startAddRow, handleBulkMoveCategory, bulkMoveCategory]);
+
   const handleExport = async () => {
     if (!user || total === 0) return;
     setIsExporting(true);
     try {
       const filterParams = buildFilterParams();
-      const result = await fetchInventoryPage(user, { skip: 0, take: total, ...filterParams });
-      const rows = result.items.map(invItem => {
-        const row: Record<string, string | number> = {};
-        orderedVisibleCols.forEach(col => {
-          const label = colNames[col] || DEFAULT_COL_NAMES[col] || col;
-          const field = COL_TO_FIELD[col];
-          const rawValue = field ? (invItem as unknown as Record<string, unknown>)[field] : undefined;
-          row[label] = (rawValue == null || rawValue === '' || rawValue === '---') ? '' : rawValue as string | number;
-        });
-        return row;
-      });
-      const { utils, writeFile } = await import('xlsx');
-      const ws = utils.json_to_sheet(rows);
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, 'Inventario');
-      const fecha = new Date().toISOString().slice(0, 10);
-      writeFile(wb, `inventory_${fecha}.xlsx`);
+      await exportInventoryTableRows(user, total, filterParams, orderedVisibleCols, colNames, DEFAULT_COL_NAMES, COL_TO_FIELD);
     } finally {
       setIsExporting(false);
     }
   };
 
-  const renderTh = (col: ColId) => (
-    <th
-      key={col}
-      ref={el => { thRefs.current[col] = el; }}
-      className={`relative group px-3 py-4 text-left select-none cursor-grab overflow-hidden ${draggingColId === col ? 'opacity-30' : ''}`}
-      style={{ width: colWidths[col] }}
-      onPointerDown={e => handleColPointerDown(e, col)}
-    >
-      {dropBeforeColId === col && draggingColId !== col && (
-        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-900 rounded-full z-10" />
-      )}
-      {renamingCol === col ? (
-        <input
-          autoFocus
-          value={renameValue}
-          maxLength={30}
-          className="text-xs font-bold tracking-wider uppercase text-gray-700 outline-none border border-gray-300 rounded-lg px-2 py-0.5 bg-white min-w-0 w-full focus:border-gray-400"
-          onChange={e => setRenameValue(e.target.value)}
-          onBlur={() => commitColRename(col)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
-            if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
-          }}
-          onClick={e => e.stopPropagation()}
-          onPointerDown={e => e.stopPropagation()}
-        />
-      ) : (
-        <span
-          className="block truncate text-xs font-bold tracking-wider uppercase text-gray-400 pr-5"
-          onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); setRenameValue(colNames[col] || DEFAULT_COL_NAMES[col]); }}
-        >
-          {colNames[col] || DEFAULT_COL_NAMES[col]}
-        </span>
-      )}
-      {resizeHandle(col)}
-    </th>
-  );
+  
 
   const renderTd = (col: ColId, invItem: Product, rowIndex: number): React.ReactNode => {
     const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === col;
@@ -1479,157 +1457,56 @@ export const Inventory: React.FC = () => {
         </div>
 
         <div ref={tableContainerRef} className="hidden md:block overflow-x-auto flex-1">
-          <table className="w-full text-left text-sm table-fixed">
-            <thead className="bg-gray-50/50">
-              <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
-                <th className="px-3 py-4 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
-                {orderedVisibleCols.map(col => renderTh(col))}
-                <th className="px-3 py-4 w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((invItem, idx) => (
-                <tr
-                  key={invItem.id}
-                  onPointerDown={(e) => {
-                    const target = e.target as HTMLElement;
-                    const inputEl = target.closest('input') as HTMLInputElement | null;
-                    if (target.closest('button, select') || (inputEl && inputEl.type !== 'checkbox')) return;
-                    itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: invItem.id };
-                    document.body.style.userSelect = 'none';
-                  }}
-                  onClick={e => handleRowClick(e, invItem, idx)}
-                  onContextMenu={e => handleContextMenu(e, invItem)}
-                  className={`hover:bg-gray-50 cursor-pointer group ${selectedIds.has(invItem.id) ? 'bg-gray-50' : ''}`}
-                >
-                  <td className="px-3 py-4"><input type="checkbox" checked={selectedIds.has(invItem.id)} onChange={() => {}} className="w-4 h-4 rounded pointer-events-none" /></td>
-                  {orderedVisibleCols.map(col => renderTd(col, invItem, idx))}
-                  <td className="px-3 py-4" onClick={e => e.stopPropagation()}><div className="opacity-0 group-hover:opacity-100"><ActionMenu onEdit={() => setSelectedItem(invItem)} onDelete={() => setItemToDelete(invItem.id)} /></div></td>
-                </tr>
-              ))}
-              {addingRow && (
-                <tr ref={addingRowTrRef} className="bg-blue-50/40 border-t-2 border-blue-200">
-                  <td className="px-3 py-3" />
-                  {orderedVisibleCols.map(col => {
-                    if (col === 'model') return (
-                      <td key={col} className="px-3 py-3">
-                        <input
-                          ref={addModelInputRef}
-                          value={addingRow.model}
-                          placeholder="Modelo..."
-                          maxLength={30}
-                          onChange={e => {
-                            const next = { ...addingRowDataRef.current!, model: e.target.value, nameError: false };
-                            addingRowDataRef.current = next;
-                            setAddingRow(next);
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
-                          }}
-                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
-                          className={`w-full outline-none border rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 ${addingRow.nameError ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-                        />
-                        {addingRow.nameError && <p className="text-[10px] text-red-500 mt-0.5 px-1">Requerido</p>}
-                      </td>
-                    );
-                    if (col === 'imei') return (
-                      <td key={col} className="px-3 py-3">
-                        <input
-                          value={addingRow.imei}
-                          placeholder="IMEI (opcional)"
-                          maxLength={20}
-                          onChange={e => {
-                            const next = { ...addingRowDataRef.current!, imei: e.target.value };
-                            addingRowDataRef.current = next;
-                            setAddingRow(next);
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
-                          }}
-                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
-                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 font-mono text-gray-500 text-sm bg-white focus:border-gray-400"
-                        />
-                      </td>
-                    );
-                    if (col === 'battery') return (
-                      <td key={col} className="px-3 py-3">
-                        <input
-                          value={addingRow.batteryHealth}
-                          placeholder="ej: 87%"
-                          maxLength={10}
-                          onChange={e => {
-                            const next = { ...addingRowDataRef.current!, batteryHealth: e.target.value };
-                            addingRowDataRef.current = next;
-                            setAddingRow(next);
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
-                          }}
-                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
-                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white focus:border-gray-400"
-                        />
-                      </td>
-                    );
-                    if (col === 'price') return (
-                      <td key={col} className="px-3 py-3">
-                        <input
-                          type="number"
-                          value={addingRow.price}
-                          placeholder="0"
-                          onChange={e => {
-                            const next = { ...addingRowDataRef.current!, price: e.target.value };
-                            addingRowDataRef.current = next;
-                            setAddingRow(next);
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
-                          }}
-                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
-                          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 text-sm bg-white focus:border-gray-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                      </td>
-                    );
-                    if (col === 'status') return (
-                      <td key={col} className="px-3 py-3">
-                        <select
-                          value={addingRow.condition}
-                          onChange={e => {
-                            const next = { ...addingRowDataRef.current!, condition: e.target.value as Product['condition'] };
-                            addingRowDataRef.current = next;
-                            setAddingRow(next);
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitAddRow(); }
-                            if (e.key === 'Escape') { e.preventDefault(); commitAddRow(false); }
-                          }}
-                          onBlur={e => { if (!addingRowTrRef.current?.contains(e.relatedTarget as Node)) commitAddRow(); }}
-                          className="outline-none border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-gray-700 bg-white focus:border-gray-400"
-                        >
-                          <option value="NUEVO">NUEVO</option>
-                          <option value="USADO">USADO</option>
-                          <option value="PRE-OWNED">PRE-OWNED</option>
-                        </select>
-                      </td>
-                    );
-                    return <td key={col} className="px-3 py-3 text-gray-300 text-sm">–</td>;
-                  })}
-                  <td className="px-3 py-3">
-                    <button
-                      onClick={cancelAddRow}
-                      className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
-                      title="Cancelar (descartar)"
-                    >
-                      <X size={14} />
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <TableEngine
+            data={items}
+            columns={tableColumns}
+            selectedIds={Array.from(selectedIds)}
+            features={{
+              sorting: true,
+              pagination: false,
+              rowSelection: true,
+              dragAndDrop: true,
+              contextMenu: true,
+              inlineEditing: true,
+              columnCustomization: true,
+              bulkActions: true,
+            }}
+            callbacks={{
+              onSelectionChange: (ids) => {
+                setSelectedIds(new Set(ids));
+              },
+              onContextMenu: (e, row) => handleContextMenu(e, row as Product),
+              onRowDragStart: (e, row) => {
+                itemDragStartRef.current = { x: e.clientX, y: e.clientY, itemId: row.id };
+                document.body.style.userSelect = 'none';
+              },
+              onRowDoubleClick: (e, row) => {
+                setSelectedItem(row as Product);
+              },
+              onRowEdit: async (row, field, value) => {
+                const updated = { ...row, [field]: value };
+                await updateProduct(updated as Product);
+                setItems(prev => prev.map(p => p.id === row.id ? (updated as Product) : p));
+              },
+              onSortChange: (colId, dir) => {
+                setSortKey(dir ? colId : null);
+                setSortDir(dir || 'asc');
+              }
+            }}
+            appendRow={
+              addingRow && renderInventoryAddRow({
+                addingRow,
+                addingRowDataRef,
+                addingRowTrRef,
+                addModelInputRef,
+                orderedColumns: orderedVisibleCols,
+                activeCategoryId: activeCategoryId ?? 'all',
+                onCancel: cancelAddRow,
+                onCommit: commitAddRow,
+                onChange: setAddingRow,
+              })
+            }
+          />
           {isLoadingMore && (
             <div className="flex justify-center py-4">
               <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -1765,69 +1642,25 @@ export const Inventory: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.1 }}
             style={{ top: contextMenu.y, left: contextMenu.x, position: 'fixed' }}
-            className="w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[80]"
+            className="w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[80]"
           >
-            {contextMenu.isBulk ? (
-              <>
-                <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{selectedIds.size} equipos seleccionados</p>
-                </div>
-                <button onClick={() => { startAddRow(); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
-                  <Plus size={14} /> Agregar ítem
-                </button>
-                <div className="border-t border-gray-100" />
-                {inventoryCategories.length > 0 && (
-                  <>
-                    <button onClick={() => setContextMoveOpen(v => !v)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center justify-between">
-                      <span>Mover a...</span>
-                      <ChevronDown size={14} className={`transition-transform ${contextMoveOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {contextMoveOpen && (
-                      <div className="border-t border-gray-100 bg-gray-50/30">
-                        <button onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), null); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
-                        {inventoryCategories.map(cat => (
-                          <button key={cat.id} onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), cat.id); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="border-t border-gray-100" />
-                <button onClick={() => { setShowBulkDeleteConfirm(true); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2">
-                  <Trash2 size={14} /> Eliminar {selectedIds.size}
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => { startAddRow(); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
-                  <Plus size={14} /> Agregar ítem
-                </button>
-                <div className="border-t border-gray-100" />
-                <button onClick={() => { setSelectedItem(contextMenu.item); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
-                  <Edit2 size={14} /> Editar
-                </button>
-                {inventoryCategories.length > 0 && (
-                  <>
-                    <button onClick={() => setContextMoveOpen(v => !v)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700 flex items-center justify-between">
-                      <span>Mover a...</span>
-                      <ChevronDown size={14} className={`transition-transform ${contextMoveOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {contextMoveOpen && (
-                      <div className="border-t border-gray-100 bg-gray-50/30">
-                        <button onClick={async () => { await bulkMoveCategory([contextMenu.item.id], null); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
-                        {inventoryCategories.map(cat => (
-                          <button key={cat.id} onClick={async () => { await bulkMoveCategory([contextMenu.item.id], cat.id); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="border-t border-gray-100" />
-                <button onClick={() => { setItemToDelete(contextMenu.item.id); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2">
-                  <Trash2 size={14} /> Eliminar
-                </button>
-              </>
-            )}
+            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                {contextMenu.isBulk ? `${selectedIds.size} equipos seleccionados` : 'Acciones de ?tem'}
+              </p>
+            </div>
+            {contextMenuActions.map((action) => (
+              <button
+                key={action.id}
+                onClick={async () => {
+                  await action.onClick();
+                  setContextMenu(null);
+                }}
+                className={"w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-2 transition-colors " + (action.tone === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50')}
+              >
+                {action.label}
+              </button>
+            ))}
           </motion.div>
         </>
       )}
