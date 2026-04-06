@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import {
   TrendingUp,
@@ -6,6 +6,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   Download,
   X,
   Edit2,
@@ -67,9 +68,12 @@ export const Sales: React.FC = () => {
   const [filterModel, setFilterModel] = useState<string>('Todos');
   const [filterPayment, setFilterPayment] = useState<string>('Todos');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSort, setShowSort] = useState(false);
   const [selectionState, setSelectionState] = useState<TableSelectionState>(emptySelectionState);
   const [sortState, setSortState] = useState<TableSortState | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
 
   const getClient = (clientId: string): Client | undefined =>
     clients.find((client) => client.id === clientId);
@@ -93,6 +97,10 @@ export const Sales: React.FC = () => {
   const saleRows = useMemo(
     () => buildSalesTableRows(filteredSales, clients, inventory),
     [clients, filteredSales, inventory],
+  );
+  const selectedSaleRows = useMemo(
+    () => saleRows.filter((row) => selectionState.selectedIds.includes(row.id)),
+    [saleRows, selectionState.selectedIds],
   );
 
   const salesColumns = useMemo(() => buildSalesTableColumns(), []);
@@ -118,6 +126,20 @@ export const Sales: React.FC = () => {
     setSelectionState(emptySelectionState());
     setSortState(null);
   }, [filterClient, filterDate, filterModel, filterPayment]);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (showFilters && filtersRef.current && !filtersRef.current.contains(event.target as Node)) {
+        setShowFilters(false);
+      }
+      if (showSort && sortRef.current && !sortRef.current.contains(event.target as Node)) {
+        setShowSort(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showFilters, showSort]);
 
   const handleRowEdit = async (row: SalesTableRow, field: string, value: unknown) => {
     const baseSale = saleToBaseRecord(row);
@@ -167,68 +189,165 @@ export const Sales: React.FC = () => {
   };
 
   const tableKey = `${filterDate}-${filterClient}-${filterModel}-${filterPayment}`;
+  const hasSelection = selectionState.selectedIds.length > 0;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6 flex-1 relative">
-      <div className="flex flex-col space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <motion.div variants={item}>
-            <StatCard
-              title="FACTURACIÓN TOTAL"
-              value={formatCurrency(totalRevenue)}
-              trend={`${sales.length} ventas`}
-              icon={<TrendingUp size={16} className="text-emerald-500" />}
-            />
-          </motion.div>
-          <motion.div variants={item}>
-            <StatCard
-              title="TICKET PROMEDIO"
-              value={formatCurrency(averageTicket)}
-              trend={sales.length > 0 ? 'Datos reales' : 'Sin ventas'}
-              icon={<BarChart size={16} className="text-gray-400" />}
-            />
-          </motion.div>
-          <motion.div variants={item}>
-            <StatCard
-              title="MARGEN BRUTO ESTIMADO"
-              value={`${marginRate.toFixed(1)}%`}
-              trend={formatCurrency(totalMarginAmount)}
-            />
-          </motion.div>
-        </div>
+    <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6 flex-1">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <motion.div variants={item}>
+          <StatCard
+            title="FACTURACI?N TOTAL"
+            value={formatCurrency(totalRevenue)}
+            trend={`${sales.length} ventas`}
+            icon={<TrendingUp size={16} className="text-emerald-500" />}
+          />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatCard
+            title="TICKET PROMEDIO"
+            value={formatCurrency(averageTicket)}
+            trend={sales.length > 0 ? 'Datos reales' : 'Sin ventas'}
+            icon={<BarChart size={16} className="text-gray-400" />}
+          />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatCard
+            title="MARGEN BRUTO ESTIMADO"
+            value={`${marginRate.toFixed(1)}%`}
+            trend={formatCurrency(totalMarginAmount)}
+          />
+        </motion.div>
+      </div>
 
-        <motion.div variants={item} className="bg-white border border-gray-200 rounded-2xl flex-1 flex flex-col">
-          <div className="p-4 border-b border-gray-200 flex flex-col gap-4 bg-white rounded-t-2xl z-10 relative lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Ventas Registradas</h2>
-              <p className="text-sm text-gray-500">
-                {saleRows.length} venta{saleRows.length === 1 ? '' : 's'} en la vista actual
-              </p>
+      <motion.div variants={item} className="bg-white border border-gray-200 rounded-2xl flex-1 flex flex-col">
+        <AnimatePresence>
+          {hasSelection && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden rounded-t-2xl"
+            >
+              <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 flex items-center justify-between">
+                <span className="text-sm font-semibold text-red-700">
+                  {selectionState.selectedIds.length} venta{selectionState.selectedIds.length !== 1 ? 's' : ''} seleccionada{selectionState.selectedIds.length !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectionState(emptySelectionState())}
+                    className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => setBulkDeleteSales(selectedSaleRows)}
+                    className="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 size={14} /> Eliminar {selectionState.selectedIds.length}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="p-4 border-b border-gray-200 flex flex-col gap-4 bg-white rounded-t-2xl z-10 relative lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Ventas</h2>
+            <p className="text-sm text-gray-500">
+              {saleRows.length} venta{saleRows.length === 1 ? '' : 's'} en la vista actual
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleExport}
+              disabled={isExporting || saleRows.length === 0}
+              className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={16} /> <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar'}</span>
+            </button>
+
+            <div className="relative" ref={sortRef}>
+              <button
+                onClick={() => {
+                  setShowSort((current) => !current);
+                  setShowFilters(false);
+                }}
+                className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                  showSort || sortState
+                    ? 'bg-gray-100 border-gray-300 text-gray-900'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <ArrowUpDown size={16} /> <span className="hidden sm:inline">Ordenar</span>
+              </button>
+              <AnimatePresence>
+                {showSort && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
+                  >
+                    <div className="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                      <h3 className="font-bold text-gray-900 text-sm">Ordenar por</h3>
+                      {sortState && (
+                        <button onClick={() => setSortState(null)} className="text-xs text-gray-500 hover:text-gray-900 transition-colors">
+                          Limpiar
+                        </button>
+                      )}
+                    </div>
+                    <div className="p-1.5">
+                      {[
+                        { columnId: 'date', label: 'Fecha' },
+                        { columnId: 'amount', label: 'Monto' },
+                        { columnId: 'client', label: 'Cliente' },
+                        { columnId: 'product', label: 'Modelo / IMEI' },
+                        { columnId: 'paymentMethod', label: 'Pago' },
+                        { columnId: 'status', label: 'Estado' },
+                      ].map((option) => {
+                        const active = sortState?.columnId === option.columnId;
+                        return (
+                          <button
+                            key={option.columnId}
+                            onClick={() => {
+                              setSortState({
+                                columnId: option.columnId,
+                                direction: active && sortState?.direction === 'asc' ? 'desc' : 'asc',
+                              });
+                              setShowSort(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-between ${
+                              active ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                            {active && <span className="text-[10px] font-bold uppercase">{sortState?.direction ?? 'asc'}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative" ref={filtersRef}>
               <button
-                onClick={handleExport}
-                disabled={isExporting || saleRows.length === 0}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium bg-white text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                <Download size={16} />
-                {isExporting ? 'Exportando...' : 'Exportar'}
-              </button>
-
-              <button
-                onClick={() => setShowFilters((current) => !current)}
+                onClick={() => {
+                  setShowFilters((current) => !current);
+                  setShowSort(false);
+                }}
                 className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
                   showFilters
                     ? 'bg-gray-100 border-gray-300 text-gray-900'
                     : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                <Filter size={16} />
-                <span className="hidden sm:inline">Filtros</span>
-                {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                <Filter size={16} /> <span className="hidden sm:inline">Filtros</span> {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
-
               <AnimatePresence>
                 {showFilters && (
                   <motion.div
@@ -237,7 +356,7 @@ export const Sales: React.FC = () => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-16 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
+                    className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
                   >
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                       <h3 className="font-bold text-gray-900">Filtros</h3>
@@ -256,11 +375,13 @@ export const Sales: React.FC = () => {
                     <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
                       <FilterField label="Fecha" value={filterDate} onChange={setFilterDate}>
                         <option value="Todas">Todas</option>
-                        {Array.from(new Set(sales.map((sale) => sale.date))).sort().map((date) => (
-                          <option key={date} value={date}>
-                            {date}
-                          </option>
-                        ))}
+                        {Array.from(new Set(sales.map((sale) => sale.date)))
+                          .sort()
+                          .map((date) => (
+                            <option key={date} value={date}>
+                              {date}
+                            </option>
+                          ))}
                       </FilterField>
 
                       <FilterField label="Cliente" value={filterClient} onChange={setFilterClient}>
@@ -287,7 +408,7 @@ export const Sales: React.FC = () => {
                         })}
                       </FilterField>
 
-                      <FilterField label="Método de Pago" value={filterPayment} onChange={setFilterPayment}>
+                      <FilterField label="M?todo de Pago" value={filterPayment} onChange={setFilterPayment}>
                         <option value="Todos">Todos</option>
                         {uniquePayments.map((payment) => (
                           <option key={payment} value={payment}>
@@ -301,43 +422,93 @@ export const Sales: React.FC = () => {
               </AnimatePresence>
             </div>
           </div>
+        </div>
 
-          <div className="overflow-x-auto flex-1">
-            <TableEngine
-              key={tableKey}
-              data={saleRows}
-              columns={salesColumns}
-              features={{
-                sorting: true,
-                pagination: true,
-                rowSelection: true,
-                contextMenu: true,
-                inlineEditing: true,
-                bulkActions: true,
-                columnCustomization: true,
-                keyboardNavigation: true,
-                rangeSelection: true,
-                placeholderAwareRendering: true,
-              }}
-              plugins={[salesPlugin]}
-              viewId={SALES_TABLE_VIEW_ID}
-              state={{ selection: selectionState }}
-              onStateChange={{
-                onSelectionChange: (next) => setSelectionState(next),
-                onSortingChange: (next) => setSortState(next),
-              }}
-              callbacks={{
-                onRowEdit: handleRowEdit,
-              }}
-              emptyState={
-                <div className="p-10 text-center text-sm text-gray-500">
-                  Todavía no hay ventas para mostrar con los filtros actuales.
+        <div className="hidden md:block overflow-x-auto flex-1">
+          <TableEngine
+            key={tableKey}
+            data={saleRows}
+            columns={salesColumns}
+            features={{
+              sorting: true,
+              pagination: true,
+              rowSelection: true,
+              contextMenu: true,
+              inlineEditing: true,
+              bulkActions: true,
+              columnCustomization: true,
+              keyboardNavigation: true,
+              rangeSelection: true,
+              placeholderAwareRendering: true,
+            }}
+            plugins={[salesPlugin]}
+            viewId={SALES_TABLE_VIEW_ID}
+            state={{ selection: selectionState, sorting: sortState ?? undefined }}
+            onStateChange={{
+              onSelectionChange: (next) => setSelectionState(next),
+              onSortingChange: (next) => setSortState(next),
+            }}
+            callbacks={{
+              onRowEdit: handleRowEdit,
+            }}
+            emptyState={
+              <div className="p-10 text-center text-sm text-gray-500">
+                Todav?a no hay ventas para mostrar con los filtros actuales.
+              </div>
+            }
+          />
+        </div>
+
+        <div className="md:hidden flex-1 overflow-y-auto divide-y divide-gray-100">
+          {saleRows.map((sale) => {
+            const client = getClient(sale.clientId);
+            const product = getProduct(sale.productId);
+            return (
+              <div
+                key={sale.id}
+                className="p-4 hover:bg-gray-50"
+                onClick={() => setEditingSale(saleToBaseRecord(sale))}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-900 truncate">{client?.name ?? sale.client}</h3>
+                    <p className="text-xs text-gray-400 truncate">{product?.model ?? sale.product}</p>
+                  </div>
+                  <div className="font-bold text-gray-900">{formatCurrency(sale.amount)}</div>
                 </div>
-              }
-            />
-          </div>
-        </motion.div>
-      </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-700 uppercase">
+                    {sale.status}
+                  </span>
+                  <span className="text-xs text-gray-500">{sale.paymentMethod}</span>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSaleToDelete(sale);
+                    }}
+                    className="ml-auto text-gray-400 hover:text-red-600"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {saleRows.length === 0 && (
+            <div className="p-10 text-center text-sm text-gray-500">
+              Todav?a no hay ventas para mostrar con los filtros actuales.
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200">
+          <span className="text-sm text-gray-500">
+            {isExporting
+              ? 'Exportando...'
+              : `Mostrando ${saleRows.length} de ${sales.length}`}
+          </span>
+        </div>
+      </motion.div>
 
       <AnimatePresence>
         {editingSale && <SaleEditPanel sale={editingSale} onClose={() => setEditingSale(null)} />}
@@ -378,6 +549,7 @@ export const Sales: React.FC = () => {
     </motion.div>
   );
 };
+
 
 const FilterField = ({
   label,
