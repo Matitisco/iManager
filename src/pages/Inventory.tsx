@@ -1182,7 +1182,10 @@ export const Inventory: React.FC = () => {
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white rounded-t-2xl z-10 relative">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-gray-900">Inventario</h2>
-            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">{total}</span>
+            {isInitialLoading
+              ? <span className="animate-pulse bg-gray-200 rounded-full w-6 h-4 inline-block" />
+              : <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">{total}</span>
+            }
           </div>
           <div className="flex items-center gap-2">
             <div className="relative" ref={columnsRef}>
@@ -1633,7 +1636,9 @@ export const Inventory: React.FC = () => {
           <span className="text-sm text-gray-500">
             {addingRow
               ? <span className="text-amber-600 font-medium text-xs">Ítem sin guardar — presioná Enter o Escape</span>
-              : `Mostrando ${items.length} de ${total}`
+              : isInitialLoading
+                ? 'Cargando...'
+                : `Mostrando ${items.length} de ${total}`
             }
           </span>
         </div>
