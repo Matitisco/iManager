@@ -48,8 +48,9 @@ export const Inventory: React.FC = () => {
   const [filterBattery, setFilterBattery] = useState<string>('Todas');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
-  const [visibleCount, setVisibleCount] = useState(20);
-  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(30);
+  const PAGE_SIZE = 30;
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkMoveConfirm, setShowBulkMoveConfirm] = useState(false);
@@ -422,20 +423,23 @@ export const Inventory: React.FC = () => {
   const visibleInventory = sortedInventory.slice(0, visibleCount);
 
   useEffect(() => { sortedLengthRef.current = sortedInventory.length; });
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); setIsLoadingMore(false); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    const root = tableContainerRef.current;
-    if (!sentinel || !root) return;
+    if (!sentinel) return;
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        setVisibleCount(c => Math.min(c + PAGE_SIZE, sortedLengthRef.current));
+      if (entries[0].isIntersecting && !isLoadingMore) {
+        setIsLoadingMore(true);
+        setTimeout(() => {
+          setVisibleCount(c => Math.min(c + PAGE_SIZE, sortedLengthRef.current));
+          setIsLoadingMore(false);
+        }, 300);
       }
-    }, { root, threshold: 0 });
+    }, { threshold: 0 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, []);
+  }, [isLoadingMore]);
 
   const lastSelectedIndex = useRef<number>(-1);
 
@@ -1382,6 +1386,11 @@ export const Inventory: React.FC = () => {
               )}
             </tbody>
           </table>
+          {isLoadingMore && (
+            <div className="flex justify-center py-4">
+              <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+            </div>
+          )}
           <div ref={sentinelRef} className="h-4" />
         </div>
 
