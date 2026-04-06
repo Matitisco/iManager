@@ -64,6 +64,7 @@ export const Inventory: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkMoveConfirm, setShowBulkMoveConfirm] = useState(false);
@@ -831,6 +832,33 @@ export const Inventory: React.FC = () => {
     ALWAYS_VISIBLE_COLS.has(col) || visibleColumns[col] !== false
   );
 
+  const handleExport = async () => {
+    if (!user || total === 0) return;
+    setIsExporting(true);
+    try {
+      const filterParams = buildFilterParams();
+      const result = await fetchInventoryPage(user, { skip: 0, take: total, ...filterParams });
+      const rows = result.items.map(invItem => {
+        const row: Record<string, string | number> = {};
+        orderedVisibleCols.forEach(col => {
+          const label = colNames[col] || DEFAULT_COL_NAMES[col] || col;
+          const field = COL_TO_FIELD[col];
+          const rawValue = field ? (invItem as unknown as Record<string, unknown>)[field] : undefined;
+          row[label] = (rawValue == null || rawValue === '' || rawValue === '---') ? '' : rawValue as string | number;
+        });
+        return row;
+      });
+      const { utils, writeFile } = await import('xlsx');
+      const ws = utils.json_to_sheet(rows);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, 'Inventario');
+      const fecha = new Date().toISOString().slice(0, 10);
+      writeFile(wb, `inventory_${fecha}.xlsx`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const renderTh = (col: ColId) => (
     <th
       key={col}
@@ -1213,6 +1241,9 @@ export const Inventory: React.FC = () => {
             </div>
             <button onClick={() => { setShowImportModal(true); setShowColumns(false); setShowFilters(false); setShowSort(false); }} className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50">
               <Upload size={16} /> <span className="hidden sm:inline">Importar</span>
+            </button>
+            <button onClick={handleExport} disabled={isExporting || total === 0} className="px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-white border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Download size={16} /> <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar'}</span>
             </button>
             <div className="relative" ref={sortRef}>
               <button onClick={() => { setShowSort(v => !v); setShowColumns(false); setShowFilters(false); }} className={`px-3 py-1.5 border rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${showSort || sortKey ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>

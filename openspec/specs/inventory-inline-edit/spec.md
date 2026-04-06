@@ -1,9 +1,13 @@
 ### Requirement: Edición inline de celdas con doble click
-La tabla de inventario SHALL permitir editar el valor de una celda haciendo doble click sobre ella, sin abrir el panel lateral. El mecanismo SHALL también soportar filas inline vacías para alta rápida (donde los inputs parten de valores vacíos en lugar de valores existentes). El área de doble-click SHALL cubrir toda la columna horizontal de la celda — si el click no aterriza exactamente sobre el contenido del `<td>`, el sistema SHALL detectar la columna por posición X del click usando las dimensiones de los headers (`thRefs`). Las celdas de tipo enum SHALL activarse con single-click y mostrar un `<select>` en lugar de un `<input>`.
+La tabla de inventario SHALL permitir editar el valor de una celda haciendo doble click sobre ella, sin abrir el panel lateral. El mecanismo SHALL también soportar filas inline vacías para alta rápida (donde los inputs parten de valores vacíos en lugar de valores existentes). El área de doble-click SHALL cubrir toda la columna horizontal de la celda — si el click no aterriza exactamente sobre el contenido del `<td>`, el sistema SHALL detectar la columna por posición X del click usando las dimensiones de los headers (`thRefs`). Las celdas de tipo enum SHALL activarse con single-click y mostrar un `<select>` en lugar de un `<input>`. Las celdas que muestran el placeholder `---` SHALL activar el inline edit igual que si tuvieran valor; el input aparece vacío.
 
 #### Scenario: Activar edición inline en celda de texto/número
 - **WHEN** el usuario hace click en una celda editable de texto o número (imei, model, battery, price)
 - **THEN** aparece un input inline sobre la celda con el valor actual; la celda muestra un indicador de edición (borde redondeado)
+
+#### Scenario: Activar edición inline en celda con placeholder
+- **WHEN** el usuario hace click en una celda que muestra `---` (valor vacío)
+- **THEN** aparece un input inline vacío; el string `---` no es el valor inicial del input
 
 #### Scenario: Activar selección inline en celda enum
 - **WHEN** el usuario hace click en una celda editable de tipo enum (ej. status/Disponibilidad)

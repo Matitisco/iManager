@@ -13,6 +13,6 @@
 ## 3. verificación
 
 - [x] 3.1 Correr `npm run lint` en frontend — sin errores TypeScript
-- [ ] 3.2 Verificar en dev que ítems con campos vacíos muestran `---` en todas las columnas afectadas
-- [ ] 3.3 Verificar que hacer click en una celda con `---` activa el input vacío (no el string `---`)
-- [ ] 3.4 Verificar que `price = 0` muestra `$0` (no `---`)
+- [x] 3.2 Verificar en dev que ítems con campos vacíos muestran `---` en todas las columnas afectadas
+- [x] 3.3 Verificar que hacer click en una celda con `---` activa el input vacío (no el string `---`)
+- [x] 3.4 Verificar que `price = 0` muestra `$0` (no `---`)
