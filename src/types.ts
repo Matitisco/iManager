@@ -23,7 +23,8 @@ export interface InventoryCategory {
 export interface CustomColumn {
   id: string;
   label: string;
-  type: 'text' | 'number';
+  type: 'text' | 'number' | 'enum';
+  options?: string[];
 }
 
 export interface Sale {

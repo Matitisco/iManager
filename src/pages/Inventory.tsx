@@ -31,9 +31,14 @@ const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo'
 const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
 const MIN_COL_WIDTH = 40;
 
-const EDITABLE_COL_IDS = new Set<ColId>(['imei', 'model', 'battery', 'price']);
-const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'model', battery: 'batteryHealth', price: 'price' };
-const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price' };
+const EDITABLE_COL_IDS = new Set<ColId>(['imei', 'model', 'battery', 'price', 'status']);
+const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'model', battery: 'batteryHealth', price: 'price', status: 'status' };
+const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price', status: 'status' };
+const ENUM_COL_OPTIONS: Partial<Record<ColId, string[]>> = {
+  status: ['DISPONIBLE', 'VENDIDO', 'EN_REVISION'],
+  // condition: ['NUEVO', 'USADO', 'PRE-OWNED'],
+  // grade: ['A+', 'A', 'B', 'C', 'N/A'],
+};
 
 export const Inventory: React.FC = () => {
   const { user, inventory, customColumns, addProduct, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
@@ -930,11 +935,42 @@ export const Inventory: React.FC = () => {
         );
       }
       case 'status': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'status';
+        const statusVal = cellDisplay(invItem, 'status', invItem.status) as Product['status'];
+        const statusBadge = (val: string) => (
+          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${val === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : val === 'VENDIDO' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
+            {val}
+          </span>
+        );
         return (
-          <td key={col} className="px-3 py-4">
-            <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${invItem.status === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-              {invItem.status}
-            </span>
+          <td key={col} data-col="status" className={`px-3 py-4${focusRing}`} title="Click para editar">
+            {isEditing ? (
+              <select
+                autoFocus
+                value={inlineEditValue}
+                onChange={e => {
+                  const next = e.target.value;
+                  setInlineEditValue(next);
+                  inlineEditValueRef.current = next;
+                  commitInlineEdit(invItem);
+                }}
+                onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
+                onClick={e => e.stopPropagation()}
+                className="outline-none border border-gray-200 rounded-lg px-2 py-1 text-[10px] font-bold uppercase text-gray-700 bg-white focus:border-gray-400 cursor-pointer"
+              >
+                {(ENUM_COL_OPTIONS.status ?? []).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            ) : (
+              <div
+                className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
+                onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'status', invItem.status); }}
+              >
+                {statusBadge(statusVal)}
+              </div>
+            )}
           </td>
         );
       }
