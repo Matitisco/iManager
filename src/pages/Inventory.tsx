@@ -48,7 +48,7 @@ export const Inventory: React.FC = () => {
   const [filterBattery, setFilterBattery] = useState<string>('Todas');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(20);
   const PAGE_SIZE = 20;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -86,6 +86,9 @@ export const Inventory: React.FC = () => {
   const itemDragStartRef = useRef<{ x: number; y: number; itemId: string } | null>(null);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   const justItemDraggedRef = useRef(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const sortedLengthRef = useRef(0);
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
@@ -416,21 +419,32 @@ export const Inventory: React.FC = () => {
     return av < bv ? -dir : av > bv ? dir : 0;
   }) : filteredInventory;
 
-  const totalPages = Math.max(1, Math.ceil(sortedInventory.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const pagedInventory = sortedInventory.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const visibleInventory = sortedInventory.slice(0, visibleCount);
 
-  useEffect(() => { setCurrentPage(1); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
+  useEffect(() => { sortedLengthRef.current = sortedInventory.length; });
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = tableContainerRef.current;
+    if (!sentinel || !root) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(c => Math.min(c + PAGE_SIZE, sortedLengthRef.current));
+      }
+    }, { root, threshold: 0 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   const lastSelectedIndex = useRef<number>(-1);
 
-  const allPageSelected = pagedInventory.length > 0 && pagedInventory.every(i => selectedIds.has(i.id));
+  const allSelected = sortedInventory.length > 0 && sortedInventory.every(i => selectedIds.has(i.id));
   const toggleSelectAll = () => {
-    if (allPageSelected) {
-      setSelectedIds(prev => { const n = new Set(prev); pagedInventory.forEach(i => n.delete(i.id)); return n; });
+    if (allSelected) {
+      setSelectedIds(prev => { const n = new Set(prev); sortedInventory.forEach(i => n.delete(i.id)); return n; });
     } else {
-      setSelectedIds(prev => { const n = new Set(prev); pagedInventory.forEach(i => n.add(i.id)); return n; });
+      setSelectedIds(prev => { const n = new Set(prev); sortedInventory.forEach(i => n.add(i.id)); return n; });
     }
     lastSelectedIndex.current = -1;
   };
@@ -439,7 +453,7 @@ export const Inventory: React.FC = () => {
     if (shiftKey && lastSelectedIndex.current !== -1) {
       const from = Math.min(lastSelectedIndex.current, index);
       const to = Math.max(lastSelectedIndex.current, index);
-      const rangeIds = pagedInventory.slice(from, to + 1).map(i => i.id);
+      const rangeIds = visibleInventory.slice(from, to + 1).map(i => i.id);
       setSelectedIds(prev => { const n = new Set(prev); rangeIds.forEach(rid => n.add(rid)); return n; });
     } else {
       setSelectedIds(prev => { const n = new Set(prev); n.has(invItem.id) ? n.delete(invItem.id) : n.add(invItem.id); return n; });
@@ -600,7 +614,7 @@ export const Inventory: React.FC = () => {
     const currentColId = FIELD_TO_COL[currentField];
     if (!currentColId) return;
     const editableCols = orderedVisibleCols.filter(c => EDITABLE_COL_IDS.has(c));
-    const rowIdx = pagedInventory.findIndex(i => i.id === currentId);
+    const rowIdx = visibleInventory.findIndex(i => i.id === currentId);
     const colIdx = editableCols.indexOf(currentColId);
     if (rowIdx === -1 || colIdx === -1) return;
 
@@ -624,10 +638,10 @@ export const Inventory: React.FC = () => {
       openEdit = false;
     }
 
-    if (nextRowIdx < 0 || nextRowIdx >= pagedInventory.length) return;
+    if (nextRowIdx < 0 || nextRowIdx >= visibleInventory.length) return;
     if (nextColIdx < 0 || nextColIdx >= editableCols.length) return;
 
-    const nextItem = pagedInventory[nextRowIdx];
+    const nextItem = visibleInventory[nextRowIdx];
     const nextColId = editableCols[nextColIdx];
     const nextField = COL_TO_FIELD[nextColId];
     if (!nextField) return;
@@ -665,7 +679,7 @@ export const Inventory: React.FC = () => {
       navigateFrom(cell.id, cell.field, 'up');
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      const rowIndex = pagedInventory.findIndex(i => i.id === cell.id);
+      const rowIndex = visibleInventory.findIndex(i => i.id === cell.id);
       const colKey = FIELD_TO_COL[cell.field];
       if (rowIndex !== -1 && colKey) setFocusedCell({ rowIndex, colKey });
       cancelInlineEdit();
@@ -1216,17 +1230,17 @@ export const Inventory: React.FC = () => {
           )}
         </div>
 
-        <div className="hidden md:block overflow-x-auto flex-1">
+        <div ref={tableContainerRef} className="hidden md:block overflow-x-auto flex-1">
           <table className="w-full text-left text-sm table-fixed">
             <thead className="bg-gray-50/50">
               <tr className="text-gray-400 text-xs font-bold tracking-wider uppercase border-b border-gray-200">
-                <th className="px-3 py-4 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
+                <th className="px-3 py-4 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300" /></th>
                 {orderedVisibleCols.map(col => renderTh(col))}
                 <th className="px-3 py-4 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {pagedInventory.map((invItem, idx) => (
+              {visibleInventory.map((invItem, idx) => (
                 <tr
                   key={invItem.id}
                   onPointerDown={(e) => {
@@ -1368,11 +1382,12 @@ export const Inventory: React.FC = () => {
               )}
             </tbody>
           </table>
+          <div ref={sentinelRef} className="h-4" />
         </div>
 
         {/* Mobile View */}
         <div className="md:hidden flex-1 overflow-y-auto divide-y divide-gray-100">
-          {pagedInventory.map(invItem => (
+          {visibleInventory.map(invItem => (
             <div key={invItem.id} onClick={() => setSelectedItem(invItem)} className="p-4 hover:bg-gray-50">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
@@ -1395,30 +1410,13 @@ export const Inventory: React.FC = () => {
           ))}
         </div>
 
-        <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+        <div className="p-4 border-t border-gray-200">
           <span className="text-sm text-gray-500">
             {addingRow
               ? <span className="text-amber-600 font-medium text-xs">Ítem sin guardar — presioná Enter o Escape</span>
-              : `Mostrando ${pagedInventory.length} de ${filteredInventory.length}`
+              : `Mostrando ${visibleInventory.length} de ${sortedInventory.length}`
             }
           </span>
-          {totalPages > 1 && (
-            <div className={`flex items-center gap-1 ${addingRow ? 'opacity-40 pointer-events-none' : ''}`}>
-              <PageButton icon={<ChevronLeft size={16} />} disabled={safePage === 1 || !!addingRow} onClick={() => setCurrentPage(p => p - 1)} />
-              {Array.from({ length: totalPages }, (_, i) => i + 1).reduce<(number | '...')[]>((acc, page) => {
-                if (page === 1 || page === totalPages || Math.abs(page - safePage) <= 1) {
-                  if (acc.length && acc[acc.length - 1] !== '...' && (page as number) - (acc[acc.length - 1] as number) > 1) acc.push('...');
-                  acc.push(page);
-                }
-                return acc;
-              }, []).map((page, i) =>
-                page === '...'
-                  ? <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
-                  : <button key={page} onClick={() => !addingRow && setCurrentPage(page as number)} className={`w-8 h-8 flex items-center justify-center rounded border text-sm font-medium transition-colors ${safePage === page ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>{page}</button>
-              )}
-              <PageButton icon={<ChevronRight size={16} />} disabled={safePage === totalPages || !!addingRow} onClick={() => setCurrentPage(p => p + 1)} />
-            </div>
-          )}
         </div>
       </motion.div>
 
