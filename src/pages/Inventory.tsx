@@ -655,6 +655,9 @@ export const Inventory: React.FC = () => {
       ? committedDisplayRef.current.value
       : fallback;
 
+  const displayVal = (v: any): string | null =>
+    v === null || v === undefined || v === '' ? null : String(v);
+
   const handleCellBlur = (invItem: Product) => {
     if (navigatingRef.current) { navigatingRef.current = false; return; }
     commitInlineEdit(invItem);
@@ -881,7 +884,7 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-mono text-gray-500 text-sm" />
-            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'imei', invItem.imei); }}>{cellDisplay(invItem, 'imei', invItem.imei)}</div>}
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'imei', invItem.imei); }}>{displayVal(cellDisplay(invItem, 'imei', invItem.imei)) ?? <span className="text-gray-300">---</span>}</div>}
           </td>
         );
       }
@@ -896,7 +899,7 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
-            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'model', invItem.model); }}>{cellDisplay(invItem, 'model', invItem.model)}</div>}
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'model', invItem.model); }}>{displayVal(cellDisplay(invItem, 'model', invItem.model)) ?? <span className="text-gray-300">---</span>}</div>}
           </td>
         );
       }
@@ -913,12 +916,18 @@ export const Inventory: React.FC = () => {
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm" />
             ) : (
               <div className="inline-flex items-center gap-2 rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'batteryHealth', String(invItem.batteryHealth ?? '')); }}>
-                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
-                </div>
-                <span className={`font-bold ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).text}`}>
-                  {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
-                </span>
+                {displayVal(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth)) === null ? (
+                  <span className="text-gray-300">---</span>
+                ) : (
+                  <>
+                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}%` }} className={`h-full ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).bg}`} />
+                    </div>
+                    <span className={`font-bold ${batteryColor(extractMinBattery(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))).text}`}>
+                      {formatBatteryDisplay(cellDisplay(invItem, 'batteryHealth', invItem.batteryHealth))}
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </td>
@@ -935,27 +944,32 @@ export const Inventory: React.FC = () => {
                 onKeyDown={e => handleCellKeyDown(e, invItem)}
                 onClick={e => e.stopPropagation()}
                 className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-            ) : <div className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'price', String(invItem.price)); }}>{`$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}</div>}
+            ) : <div className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'price', String(invItem.price ?? '')); }}>{invItem.price === null || invItem.price === undefined ? <span className="text-gray-300">---</span> : `$${Number(cellDisplay(invItem, 'price', invItem.price)).toLocaleString('en-US')}`}</div>}
           </td>
         );
       }
       case 'status': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'status';
         const statusVal = cellDisplay(invItem, 'status', invItem.status) as string;
-        const meta = STATUS_META[statusVal] ?? STATUS_META['EN_REVISION'];
+        const hasStatus = displayVal(statusVal) !== null;
+        const meta = hasStatus ? (STATUS_META[statusVal] ?? STATUS_META['EN_REVISION']) : STATUS_META['EN_REVISION'];
         const cancelStatus = (e?: React.MouseEvent) => { e?.stopPropagation(); inlineEditCellRef.current = null; setInlineEditCell(null); };
         return (
           <td key={col} data-col="status" className={`px-3 py-4${focusRing}`} title="Click para editar">
             <div className="relative">
               <div
                 className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
-                onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'status', invItem.status); }}
+                onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'status', invItem.status ?? ''); }}
               >
+                {!hasStatus ? (
+                  <span className="text-gray-300">---</span>
+                ) : (
                 <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
                   {meta.label}
                   <ChevronDown size={9} className="opacity-50 flex-shrink-0" />
                 </span>
+                )}
               </div>
               <AnimatePresence>
                 {isEditing && (

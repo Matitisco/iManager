@@ -24,8 +24,7 @@
 ## 5. verificación
 
 - [x] 5.1 Correr `npm run lint` en frontend — sin errores TypeScript
-- [ ] 5.2 Verificar en dev que click en Disponibilidad abre select con 3 opciones
-- [ ] 5.3 Verificar que el hover hitbox aparece sobre la celda status
-- [ ] 5.4 Verificar que seleccionar una opción guarda y actualiza el badge
-- [ ] 5.5 Verificar que Escape cierra el select sin guardar
-<!-- verificación manual pendiente -->
+- [x] 5.2 Verificar en dev que click en Disponibilidad abre select con 3 opciones
+- [x] 5.3 Verificar que el hover hitbox aparece sobre la celda status
+- [x] 5.4 Verificar que seleccionar una opción guarda y actualiza el badge
+- [x] 5.5 Verificar que Escape cierra el select sin guardar
