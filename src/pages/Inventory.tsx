@@ -23,21 +23,21 @@ const item: Variants = {
 };
 
 
-type ColId = 'imei' | 'model' | 'battery' | 'price' | 'status';
-const ALL_COL_IDS: ColId[] = ['imei', 'model', 'battery', 'price', 'status'];
+type ColId = 'imei' | 'model' | 'battery' | 'price' | 'status' | 'condition' | 'capacity' | 'color' | 'grade' | 'cost';
+const ALL_COL_IDS: ColId[] = ['imei', 'model', 'battery', 'price', 'status', 'condition', 'capacity', 'color', 'grade', 'cost'];
 const ALWAYS_VISIBLE_COLS = new Set<ColId>(['price', 'status']);
-const DEFAULT_COL_ORDER: ColId[] = ['imei', 'model', 'battery', 'price', 'status'];
-const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo', battery: 'Batería', price: 'Precio', status: 'Disponibilidad' };
-const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150 };
+const DEFAULT_COL_ORDER: ColId[] = ['imei', 'model', 'condition', 'capacity', 'color', 'grade', 'battery', 'cost', 'price', 'status'];
+const DEFAULT_COL_NAMES: Record<ColId, string> = { imei: 'IMEI', model: 'Modelo', battery: 'Batería', price: 'Precio', status: 'Disponibilidad', condition: 'Condición', capacity: 'Capacidad', color: 'Color', grade: 'Grado', cost: 'Costo' };
+const DEFAULT_COL_WIDTHS: Record<ColId, number> = { imei: 180, model: 260, battery: 140, price: 120, status: 150, condition: 120, capacity: 110, color: 110, grade: 90, cost: 110 };
 const MIN_COL_WIDTH = 40;
 
-const EDITABLE_COL_IDS = new Set<ColId>(['imei', 'model', 'battery', 'price', 'status']);
-const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'model', battery: 'batteryHealth', price: 'price', status: 'status' };
-const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price', status: 'status' };
+const EDITABLE_COL_IDS = new Set<ColId>(['imei', 'model', 'battery', 'price', 'status', 'condition', 'capacity', 'color', 'grade', 'cost']);
+const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'model', battery: 'batteryHealth', price: 'price', status: 'status', condition: 'condition', capacity: 'capacity', color: 'color', grade: 'grade', cost: 'cost' };
+const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price', status: 'status', condition: 'condition', capacity: 'capacity', color: 'color', grade: 'grade', cost: 'cost' };
 const ENUM_COL_OPTIONS: Partial<Record<ColId, string[]>> = {
   status: ['DISPONIBLE', 'VENDIDO', 'EN_REVISION'],
-  // condition: ['NUEVO', 'USADO', 'PRE-OWNED'],
-  // grade: ['A+', 'A', 'B', 'C', 'N/A'],
+  condition: ['NUEVO', 'USADO', 'PRE-OWNED'],
+  grade: ['A+', 'A', 'B', 'C', 'N/A'],
 };
 const STATUS_META: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
@@ -1009,6 +1009,109 @@ export const Inventory: React.FC = () => {
           </td>
         );
       }
+      case 'condition': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'condition';
+        const opts = ENUM_COL_OPTIONS.condition ?? [];
+        const cancelCond = (e?: React.MouseEvent) => { e?.stopPropagation(); inlineEditCellRef.current = null; setInlineEditCell(null); };
+        const val = cellDisplay(invItem, 'condition', invItem.condition) as string;
+        return (
+          <td key={col} data-col="condition" className={`px-3 py-4${focusRing}`} title="Click para editar">
+            <div className="relative">
+              <div className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'condition', invItem.condition ?? ''); }}>
+                {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-medium text-gray-700">{val}</span>}
+              </div>
+              <AnimatePresence>
+                {isEditing && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={cancelCond} />
+                    <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 top-full mt-1.5 w-40 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
+                      <div className="p-1">
+                        {opts.map(opt => (
+                          <button key={opt} onClick={e => { e.stopPropagation(); inlineEditValueRef.current = opt; setInlineEditValue(opt); commitInlineEdit(invItem); }} className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${opt === val ? 'bg-gray-50 font-semibold' : 'hover:bg-gray-50'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </td>
+        );
+      }
+      case 'grade': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'grade';
+        const opts = ENUM_COL_OPTIONS.grade ?? [];
+        const cancelGrade = (e?: React.MouseEvent) => { e?.stopPropagation(); inlineEditCellRef.current = null; setInlineEditCell(null); };
+        const val = cellDisplay(invItem, 'grade', invItem.grade) as string;
+        return (
+          <td key={col} data-col="grade" className={`px-3 py-4${focusRing}`} title="Click para editar">
+            <div className="relative">
+              <div className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'grade', invItem.grade ?? ''); }}>
+                {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-semibold text-gray-700">{val}</span>}
+              </div>
+              <AnimatePresence>
+                {isEditing && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={cancelGrade} />
+                    <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
+                      <div className="p-1">
+                        {opts.map(opt => (
+                          <button key={opt} onClick={e => { e.stopPropagation(); inlineEditValueRef.current = opt; setInlineEditValue(opt); commitInlineEdit(invItem); }} className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${opt === val ? 'bg-gray-50 font-semibold' : 'hover:bg-gray-50'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </td>
+        );
+      }
+      case 'capacity': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'capacity';
+        return (
+          <td key={col} data-col="capacity" className={`px-3 py-4 text-gray-700 overflow-hidden${focusRing}`} title="Click para editar">
+            {isEditing ? (
+              <input autoFocus value={inlineEditValue} maxLength={30}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
+                onClick={e => e.stopPropagation()}
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 text-gray-700 text-sm" />
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'capacity', invItem.capacity ?? ''); }}>{displayVal(cellDisplay(invItem, 'capacity', invItem.capacity)) ?? <span className="text-gray-300">---</span>}</div>}
+          </td>
+        );
+      }
+      case 'color': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'color';
+        return (
+          <td key={col} data-col="color" className={`px-3 py-4 text-gray-700 overflow-hidden${focusRing}`} title="Click para editar">
+            {isEditing ? (
+              <input autoFocus value={inlineEditValue} maxLength={30}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
+                onClick={e => e.stopPropagation()}
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 text-gray-700 text-sm" />
+            ) : <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'color', invItem.color ?? ''); }}>{displayVal(cellDisplay(invItem, 'color', invItem.color)) ?? <span className="text-gray-300">---</span>}</div>}
+          </td>
+        );
+      }
+      case 'cost': {
+        const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'cost';
+        return (
+          <td key={col} data-col="cost" className={`px-3 py-4 font-bold text-gray-900${focusRing}`} title="Click para editar">
+            {isEditing ? (
+              <input autoFocus type="number" value={inlineEditValue}
+                onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
+                onFocus={e => e.target.select()} onBlur={() => handleCellBlur(invItem)}
+                onKeyDown={e => handleCellKeyDown(e, invItem)}
+                onClick={e => e.stopPropagation()}
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+            ) : <div className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text" onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'cost', String(invItem.cost ?? '')); }}>{invItem.cost === null || invItem.cost === undefined ? <span className="text-gray-300">---</span> : `$${Number(cellDisplay(invItem, 'cost', invItem.cost)).toLocaleString('en-US')}`}</div>}
+          </td>
+        );
+      }
     }
   };
 
@@ -1091,7 +1194,7 @@ export const Inventory: React.FC = () => {
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute right-0 sm:left-0 sm:right-auto mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
                     <div className="p-4 border-b border-gray-100 bg-gray-50/50"><h3 className="font-bold text-gray-900">Mostrar Columnas</h3></div>
                     <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto">
-                      {['imei', 'model', 'condition', 'capacity', 'color', 'grade', 'battery', 'cost', 'price'].map(key => {
+                      {ALL_COL_IDS.filter(key => !ALWAYS_VISIBLE_COLS.has(key)).map(key => {
                         const displayName = colNames[key] || (DEFAULT_COL_NAMES as Record<string, string>)[key] || customColumns.find(c => c.id === key)?.label || key;
                         return (
                           <label key={key} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
