@@ -1,5 +1,5 @@
 ### Requirement: Edición inline de celdas con doble click
-La tabla de inventario SHALL permitir editar el valor de una celda haciendo doble click sobre ella, sin abrir el panel lateral. El mecanismo SHALL también soportar filas inline vacías para alta rápida (donde los inputs parten de valores vacíos en lugar de valores existentes). El área de doble-click SHALL ocupar exactamente el espacio de contenido de la celda, sin padding sobrante que genere zonas muertas.
+La tabla de inventario SHALL permitir editar el valor de una celda haciendo doble click sobre ella, sin abrir el panel lateral. El mecanismo SHALL también soportar filas inline vacías para alta rápida (donde los inputs parten de valores vacíos en lugar de valores existentes). El área de doble-click SHALL cubrir toda la columna horizontal de la celda — si el click no aterriza exactamente sobre el contenido del `<td>`, el sistema SHALL detectar la columna por posición X del click usando las dimensiones de los headers (`thRefs`).
 
 #### Scenario: Activar edición inline en celda existente
 - **WHEN** el usuario hace doble click en una celda editable de una fila existente
@@ -21,9 +21,13 @@ La tabla de inventario SHALL permitir editar el valor de una celda haciendo dobl
 - **WHEN** el usuario presiona Escape mientras edita una celda de una fila existente
 - **THEN** el input se cierra sin guardar; la celda vuelve al valor anterior y permanece enfocada (sin input activo)
 
-#### Scenario: Hitbox sin zonas muertas
-- **WHEN** el usuario hace doble click sobre el texto visible de una celda
-- **THEN** el input inline se activa; no hay área dentro de la celda donde el doble click no tenga efecto
+#### Scenario: Hitbox columna completa
+- **WHEN** el usuario hace doble click en cualquier punto del eje X de una columna editable, incluso fuera del contenido del `<td>`
+- **THEN** el input inline se activa para esa columna; no hay área horizontal dentro de la columna donde el doble click no tenga efecto
+
+#### Scenario: Single-click no interfiere con doble-click
+- **WHEN** el usuario hace doble click sobre una fila
+- **THEN** el primer click no dispara selección de fila (la selección se debouncea 250ms y se cancela si llega un segundo click); solo se ejecuta la edición inline
 
 ### Requirement: Actualización optimista sin flash visual
 El sistema SHALL mostrar el nuevo valor inmediatamente al guardar, sin un flash del valor anterior mientras el API responde.
@@ -44,7 +48,7 @@ El sistema SHALL abrir el panel de edición completo (InventoryEditPanel) única
 
 #### Scenario: Click simple en fila no abre modal
 - **WHEN** el usuario hace un click simple sobre cualquier celda de una fila
-- **THEN** no se abre el panel de edición completo; la fila queda visualmente enfocada o se activa la selección si corresponde
+- **THEN** no se abre el panel de edición completo; la fila queda visualmente enfocada o se activa la selección si corresponde (tras el debounce de 250ms)
 
 #### Scenario: Editar desde menú contextual
 - **WHEN** el usuario hace click derecho sobre una fila y selecciona "Editar"
