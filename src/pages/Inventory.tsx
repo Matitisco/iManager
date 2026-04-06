@@ -39,6 +39,11 @@ const ENUM_COL_OPTIONS: Partial<Record<ColId, string[]>> = {
   // condition: ['NUEVO', 'USADO', 'PRE-OWNED'],
   // grade: ['A+', 'A', 'B', 'C', 'N/A'],
 };
+const STATUS_META: Record<string, { bg: string; text: string; dot: string; label: string }> = {
+  DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
+  VENDIDO:    { bg: 'bg-gray-100',    text: 'text-gray-500',    dot: 'bg-gray-400',    label: 'VENDIDO' },
+  EN_REVISION:{ bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'EN REVISIÓN' },
+};
 
 export const Inventory: React.FC = () => {
   const { user, inventory, customColumns, addProduct, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
@@ -936,41 +941,57 @@ export const Inventory: React.FC = () => {
       }
       case 'status': {
         const isEditing = inlineEditCell?.id === invItem.id && inlineEditCell.field === 'status';
-        const statusVal = cellDisplay(invItem, 'status', invItem.status) as Product['status'];
-        const statusBadge = (val: string) => (
-          <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${val === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-700' : val === 'VENDIDO' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
-            {val}
-          </span>
-        );
+        const statusVal = cellDisplay(invItem, 'status', invItem.status) as string;
+        const meta = STATUS_META[statusVal] ?? STATUS_META['EN_REVISION'];
+        const cancelStatus = (e?: React.MouseEvent) => { e?.stopPropagation(); inlineEditCellRef.current = null; setInlineEditCell(null); };
         return (
           <td key={col} data-col="status" className={`px-3 py-4${focusRing}`} title="Click para editar">
-            {isEditing ? (
-              <select
-                autoFocus
-                value={inlineEditValue}
-                onChange={e => {
-                  const next = e.target.value;
-                  setInlineEditValue(next);
-                  inlineEditValueRef.current = next;
-                  commitInlineEdit(invItem);
-                }}
-                onBlur={() => handleCellBlur(invItem)}
-                onKeyDown={e => handleCellKeyDown(e, invItem)}
-                onClick={e => e.stopPropagation()}
-                className="outline-none border border-gray-200 rounded-lg px-2 py-1 text-[10px] font-bold uppercase text-gray-700 bg-white focus:border-gray-400 cursor-pointer"
-              >
-                {(ENUM_COL_OPTIONS.status ?? []).map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
+            <div className="relative">
               <div
                 className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
                 onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(invItem.id, 'status', invItem.status); }}
               >
-                {statusBadge(statusVal)}
+                <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+                  {meta.label}
+                  <ChevronDown size={9} className="opacity-50 flex-shrink-0" />
+                </span>
               </div>
-            )}
+              <AnimatePresence>
+                {isEditing && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={cancelStatus} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30"
+                    >
+                      <div className="p-1">
+                        {(ENUM_COL_OPTIONS.status ?? []).map(opt => {
+                          const m = STATUS_META[opt] ?? STATUS_META['EN_REVISION'];
+                          const selected = opt === statusVal;
+                          return (
+                            <button
+                              key={opt}
+                              onClick={e => { e.stopPropagation(); inlineEditValueRef.current = opt; setInlineEditValue(opt); commitInlineEdit(invItem); }}
+                              className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg transition-colors ${selected ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${m.bg} ${m.text}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.dot}`} />
+                                {m.label}
+                              </span>
+                              {selected && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.dot}`} />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </td>
         );
       }
