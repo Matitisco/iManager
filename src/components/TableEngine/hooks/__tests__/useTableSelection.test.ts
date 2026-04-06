@@ -27,7 +27,13 @@ describe('useTableSelection', () => {
     expect(result.current.selectedIds).toEqual(['1', '2', '3']);
     expect(result.current.isAllSelected).toBe(true);
     expect(result.current.isSomeSelected).toBe(false);
-    expect(onSelectionChange).toHaveBeenCalledWith(['1', '2', '3']);
+    expect(onSelectionChange).toHaveBeenCalledWith({
+      selectedIds: ['1', '2', '3'],
+      allMatching: false,
+      matchingIds: undefined,
+      anchorId: '1',
+      scope: 'page',
+    });
 
     act(() => {
       result.current.handleSelectAll(false);
@@ -36,7 +42,13 @@ describe('useTableSelection', () => {
     expect(result.current.selectedIds).toEqual([]);
     expect(result.current.isAllSelected).toBe(false);
     expect(result.current.isSomeSelected).toBe(false);
-    expect(onSelectionChange).toHaveBeenCalledWith([]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith({
+      selectedIds: [],
+      allMatching: false,
+      matchingIds: [],
+      anchorId: null,
+      scope: 'page',
+    });
   });
 
   it('should handle selecting and deselecting individual rows', () => {
@@ -50,7 +62,13 @@ describe('useTableSelection', () => {
     expect(result.current.selectedIds).toEqual(['2']);
     expect(result.current.isAllSelected).toBe(false);
     expect(result.current.isSomeSelected).toBe(true);
-    expect(onSelectionChange).toHaveBeenCalledWith(['2']);
+    expect(onSelectionChange).toHaveBeenCalledWith({
+      selectedIds: ['2'],
+      allMatching: undefined,
+      matchingIds: undefined,
+      anchorId: '2',
+      scope: 'page',
+    });
 
     act(() => {
       result.current.handleSelectRow('2', false);

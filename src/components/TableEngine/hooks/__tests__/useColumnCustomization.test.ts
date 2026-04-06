@@ -12,8 +12,12 @@ const initialColumns: ColumnDef<any>[] = [
 describe('useColumnCustomization', () => {
   it('should initialize correctly with visible columns', () => {
     const { result } = renderHook(() => useColumnCustomization(initialColumns));
-    
-    expect(result.current.columns).toEqual(initialColumns);
+
+    expect(result.current.columns).toEqual([
+      { id: 'col1', header: 'Col 1', visible: true, width: undefined },
+      { id: 'col2', header: 'Col 2', visible: false, width: undefined },
+      { id: 'col3', header: 'Col 3', visible: true, width: undefined },
+    ]);
     expect(result.current.visibleColumns.length).toBe(2);
     expect(result.current.visibleColumns[0].id).toBe('col1');
     expect(result.current.visibleColumns[1].id).toBe('col3');
