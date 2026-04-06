@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Filter, Download, Printer, ChevronLeft, ChevronRight, X, ChevronDown, ChevronUp, Save, Edit2, Columns, Plus, Trash2, MoreVertical, Upload, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
@@ -7,6 +7,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportInventoryModal } from '../components/ImportInventoryModal';
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
+import { fetchInventoryPage, fetchInventoryFilteredIds, type InventoryPageParams } from '../services/inventory-api';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -35,7 +36,7 @@ const COL_TO_FIELD: Partial<Record<ColId, string>> = { imei: 'imei', model: 'mod
 const FIELD_TO_COL: Record<string, ColId> = { imei: 'imei', model: 'model', batteryHealth: 'battery', price: 'price' };
 
 export const Inventory: React.FC = () => {
-  const { inventory, customColumns, addProduct, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
+  const { user, inventory, customColumns, addProduct, deleteProduct, updateProduct, inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories } = useAppContext();
   const [showFilters, setShowFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
@@ -48,8 +49,10 @@ export const Inventory: React.FC = () => {
   const [filterBattery, setFilterBattery] = useState<string>('Todas');
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
-  const [visibleCount, setVisibleCount] = useState(30);
   const PAGE_SIZE = 30;
+  const [items, setItems] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -89,7 +92,12 @@ export const Inventory: React.FC = () => {
   const justItemDraggedRef = useRef(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const sortedLengthRef = useRef(0);
+  // Refs for IntersectionObserver callback (avoids stale closures)
+  const isLoadingRef = useRef(false);
+  const itemsLengthRef = useRef(0);
+  const totalRef = useRef(0);
+  const userRef = useRef(user);
+  const filterParamsRef = useRef<Omit<InventoryPageParams, 'skip' | 'take'>>({});
 
   const [inlineEditCell, setInlineEditCell] = useState<{ id: string; field: string } | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
@@ -383,72 +391,80 @@ export const Inventory: React.FC = () => {
     setVisibleColumns(prev => ({ ...prev, [key]: prev[key] === false ? true : false }));
   };
 
+  // Filter options still computed from AppContext's full inventory (for dropdowns)
   const uniqueModels = Array.from(new Set(inventory.map(item => item.model))).sort();
   const uniqueCapacities = Array.from(new Set(inventory.map(item => item.capacity))).sort();
 
+  // Build the current filter params object (used for fetching)
+  const buildFilterParams = useCallback((): Omit<InventoryPageParams, 'skip' | 'take'> => ({
+    categoryId: activeCategoryId === 'all' ? undefined : activeCategoryId,
+    sortKey: sortKey ?? undefined,
+    sortDir,
+    condition: filterCondition !== 'Todos' ? filterCondition : undefined,
+    status: filterStatus !== 'Todos' ? filterStatus : undefined,
+    capacity: filterCapacity !== 'Todas' ? filterCapacity : undefined,
+    model: filterModel !== 'Todos' ? filterModel : undefined,
+    grade: filterGrade !== 'Todos' ? filterGrade : undefined,
+    battery: filterBattery !== 'Todas' ? filterBattery : undefined,
+  }), [activeCategoryId, sortKey, sortDir, filterCondition, filterStatus, filterCapacity, filterModel, filterGrade, filterBattery]);
 
-  const filteredInventory = inventory.filter(item => {
-    if (filterCondition !== 'Todos' && item.condition !== filterCondition) return false;
-    if (filterGrade !== 'Todos' && item.grade !== filterGrade) return false;
-    if (filterModel !== 'Todos' && item.model !== filterModel) return false;
-    if (filterCapacity !== 'Todas' && item.capacity !== filterCapacity) return false;
-    if (filterStatus !== 'Todos' && item.status !== filterStatus) return false;
+  // Keep refs in sync for observer callback
+  useEffect(() => { isLoadingRef.current = isInitialLoading || isLoadingMore; }, [isInitialLoading, isLoadingMore]);
+  useEffect(() => { itemsLengthRef.current = items.length; }, [items.length]);
+  useEffect(() => { totalRef.current = total; }, [total]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { filterParamsRef.current = buildFilterParams(); }, [buildFilterParams]);
 
-    if (filterBattery !== 'Todas') {
-      const minBat = extractMinBattery(item.batteryHealth);
-      if (filterBattery === '100%' && minBat !== 100) return false;
-      if (filterBattery === '> 90%' && minBat <= 90) return false;
-      if (filterBattery === '80% - 90%' && (minBat < 80 || minBat > 90)) return false;
-      if (filterBattery === '< 80%' && minBat >= 80) return false;
-    }
+  // Fetch first page when filters / sort / category / user change
+  useEffect(() => {
+    if (!user) return;
+    setItems([]);
+    setIsInitialLoading(true);
+    setSelectedIds(new Set());
+    const params = buildFilterParams();
+    fetchInventoryPage(user, { skip: 0, take: PAGE_SIZE, ...params })
+      .then(result => { setItems(result.items); setTotal(result.total); })
+      .catch(() => {})
+      .finally(() => setIsInitialLoading(false));
+  }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId, sortKey, sortDir, user]);
 
-    if (activeCategoryId !== 'all') {
-      const itemCat = item.categoryId ?? null;
-      if (itemCat !== activeCategoryId) return false;
-    }
-
-    return true;
-  });
-
-  const sortedInventory = sortKey ? [...filteredInventory].sort((a, b) => {
-    let av: number | string = 0, bv: number | string = 0;
-    if (sortKey === 'model') { av = a.model.toLowerCase(); bv = b.model.toLowerCase(); }
-    else if (sortKey === 'price') { av = a.price; bv = b.price; }
-    else if (sortKey === 'battery') { av = extractMinBattery(a.batteryHealth); bv = extractMinBattery(b.batteryHealth); }
-    else if (sortKey === 'condition') { av = a.condition; bv = b.condition; }
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return av < bv ? -dir : av > bv ? dir : 0;
-  }) : filteredInventory;
-
-  const visibleInventory = sortedInventory.slice(0, visibleCount);
-
-  useEffect(() => { sortedLengthRef.current = sortedInventory.length; });
-  useEffect(() => { setVisibleCount(PAGE_SIZE); setIsLoadingMore(false); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus, activeCategoryId]);
-  useEffect(() => { setSelectedIds(new Set()); }, [filterCondition, filterGrade, filterModel, filterCapacity, filterBattery, filterStatus]);
+  // IntersectionObserver — static effect, uses refs to avoid stale closures
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && !isLoadingMore) {
-        setIsLoadingMore(true);
-        setTimeout(() => {
-          setVisibleCount(c => Math.min(c + PAGE_SIZE, sortedLengthRef.current));
-          setIsLoadingMore(false);
-        }, 300);
-      }
+      if (!entries[0].isIntersecting || isLoadingRef.current || itemsLengthRef.current >= totalRef.current) return;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+      setIsLoadingMore(true);
+      fetchInventoryPage(currentUser, {
+        skip: itemsLengthRef.current,
+        take: PAGE_SIZE,
+        ...filterParamsRef.current,
+      }).then(result => {
+        setItems(prev => [...prev, ...result.items]);
+        setTotal(result.total);
+      }).catch(() => {}).finally(() => setIsLoadingMore(false));
     }, { threshold: 0 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [isLoadingMore]);
+  }, []);
 
   const lastSelectedIndex = useRef<number>(-1);
 
-  const allSelected = sortedInventory.length > 0 && sortedInventory.every(i => selectedIds.has(i.id));
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedIds(prev => { const n = new Set(prev); sortedInventory.forEach(i => n.delete(i.id)); return n; });
+  const allSelected = selectedIds.size > 0 && selectedIds.size >= total;
+  const toggleSelectAll = async () => {
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set());
     } else {
-      setSelectedIds(prev => { const n = new Set(prev); sortedInventory.forEach(i => n.add(i.id)); return n; });
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+      try {
+        const ids = await fetchInventoryFilteredIds(currentUser, filterParamsRef.current);
+        setSelectedIds(new Set(ids));
+      } catch {
+        setSelectedIds(new Set(items.map(i => i.id)));
+      }
     }
     lastSelectedIndex.current = -1;
   };
@@ -457,7 +473,7 @@ export const Inventory: React.FC = () => {
     if (shiftKey && lastSelectedIndex.current !== -1) {
       const from = Math.min(lastSelectedIndex.current, index);
       const to = Math.max(lastSelectedIndex.current, index);
-      const rangeIds = visibleInventory.slice(from, to + 1).map(i => i.id);
+      const rangeIds = items.slice(from, to + 1).map(i => i.id);
       setSelectedIds(prev => { const n = new Set(prev); rangeIds.forEach(rid => n.add(rid)); return n; });
     } else {
       setSelectedIds(prev => { const n = new Set(prev); n.has(invItem.id) ? n.delete(invItem.id) : n.add(invItem.id); return n; });
@@ -577,6 +593,24 @@ export const Inventory: React.FC = () => {
       status: 'DISPONIBLE',
       categoryId: activeCategoryId !== 'all' ? (activeCategoryId as string) : null,
     });
+    // Refetch first page so new item appears (sorted by createdAt desc)
+    const currentUser = userRef.current;
+    if (currentUser) {
+      const result = await fetchInventoryPage(currentUser, { skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
+      setItems(result.items);
+      setTotal(result.total);
+    }
+  };
+
+  const handleBulkMoveCategory = async (ids: string[], categoryId: string | null) => {
+    await bulkMoveCategory(ids, categoryId);
+    if (activeCategoryId !== 'all') {
+      setItems(prev => prev.filter(p => !ids.includes(p.id)));
+      setTotal(prev => prev - ids.length);
+    } else {
+      setItems(prev => prev.map(p => ids.includes(p.id) ? { ...p, categoryId } : p));
+    }
+    setSelectedIds(new Set());
   };
 
   const commitInlineEdit = async (invItem: Product) => {
@@ -597,10 +631,12 @@ export const Inventory: React.FC = () => {
     // setInlineEditCell(null) will always see the new value — no batching required.
     committedDisplayRef.current = { id: invItem.id, field, value: parsed };
     setInlineEditCell(null);
+    const updatedItem = { ...invItem, [field]: parsed };
     try {
-      await updateProduct({ ...invItem, [field]: parsed });
+      await updateProduct(updatedItem);
+      setItems(prev => prev.map(p => p.id === invItem.id ? updatedItem : p));
     } finally {
-      committedDisplayRef.current = null; // inventory is now up-to-date, clear override
+      committedDisplayRef.current = null; // clear override after local state is updated
     }
   };
 
@@ -618,7 +654,7 @@ export const Inventory: React.FC = () => {
     const currentColId = FIELD_TO_COL[currentField];
     if (!currentColId) return;
     const editableCols = orderedVisibleCols.filter(c => EDITABLE_COL_IDS.has(c));
-    const rowIdx = visibleInventory.findIndex(i => i.id === currentId);
+    const rowIdx = items.findIndex(i => i.id === currentId);
     const colIdx = editableCols.indexOf(currentColId);
     if (rowIdx === -1 || colIdx === -1) return;
 
@@ -642,10 +678,10 @@ export const Inventory: React.FC = () => {
       openEdit = false;
     }
 
-    if (nextRowIdx < 0 || nextRowIdx >= visibleInventory.length) return;
+    if (nextRowIdx < 0 || nextRowIdx >= items.length) return;
     if (nextColIdx < 0 || nextColIdx >= editableCols.length) return;
 
-    const nextItem = visibleInventory[nextRowIdx];
+    const nextItem = items[nextRowIdx];
     const nextColId = editableCols[nextColIdx];
     const nextField = COL_TO_FIELD[nextColId];
     if (!nextField) return;
@@ -683,7 +719,7 @@ export const Inventory: React.FC = () => {
       navigateFrom(cell.id, cell.field, 'up');
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      const rowIndex = visibleInventory.findIndex(i => i.id === cell.id);
+      const rowIndex = items.findIndex(i => i.id === cell.id);
       const colKey = FIELD_TO_COL[cell.field];
       if (rowIndex !== -1 && colKey) setFocusedCell({ rowIndex, colKey });
       cancelInlineEdit();
@@ -950,10 +986,10 @@ export const Inventory: React.FC = () => {
                               <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mover {selectedIds.size} equipo{selectedIds.size !== 1 ? 's' : ''} a</p>
                               </div>
-                              <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
+                              <button onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), null); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-500 italic">Sin categoría</button>
                               <div className="border-t border-gray-100" />
                               {inventoryCategories.map(cat => (
-                                <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700">{cat.name}</button>
+                                <button key={cat.id} onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), cat.id); setShowBulkMoveConfirm(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 font-medium text-gray-700">{cat.name}</button>
                               ))}
                             </motion.div>
                           </>
@@ -972,7 +1008,7 @@ export const Inventory: React.FC = () => {
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white rounded-t-2xl z-10 relative">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-gray-900">Inventario</h2>
-            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">{filteredInventory.length}</span>
+            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">{total}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative" ref={columnsRef}>
@@ -1244,7 +1280,7 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {visibleInventory.map((invItem, idx) => (
+              {items.map((invItem, idx) => (
                 <tr
                   key={invItem.id}
                   onPointerDown={(e) => {
@@ -1396,7 +1432,7 @@ export const Inventory: React.FC = () => {
 
         {/* Mobile View */}
         <div className="md:hidden flex-1 overflow-y-auto divide-y divide-gray-100">
-          {visibleInventory.map(invItem => (
+          {items.map(invItem => (
             <div key={invItem.id} onClick={() => setSelectedItem(invItem)} className="p-4 hover:bg-gray-50">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
@@ -1423,7 +1459,7 @@ export const Inventory: React.FC = () => {
           <span className="text-sm text-gray-500">
             {addingRow
               ? <span className="text-amber-600 font-medium text-xs">Ítem sin guardar — presioná Enter o Escape</span>
-              : `Mostrando ${visibleInventory.length} de ${sortedInventory.length}`
+              : `Mostrando ${items.length} de ${total}`
             }
           </span>
         </div>
@@ -1437,7 +1473,7 @@ export const Inventory: React.FC = () => {
       <AnimatePresence>
         {showImportModal && <ImportInventoryModal onClose={() => setShowImportModal(false)} />}
       </AnimatePresence>
-      <ConfirmModal isOpen={!!itemToDelete} title="Eliminar" message="¿Confirmás?" onConfirm={async () => itemToDelete && await deleteProduct(itemToDelete)} onCancel={() => setItemToDelete(null)} />
+      <ConfirmModal isOpen={!!itemToDelete} title="Eliminar" message="¿Confirmás?" onConfirm={async () => { if (!itemToDelete) return; await deleteProduct(itemToDelete); setItems(prev => prev.filter(p => p.id !== itemToDelete)); setTotal(prev => prev - 1); setItemToDelete(null); }} onCancel={() => setItemToDelete(null)} />
       <ConfirmModal
         isOpen={!!categoryToDelete}
         title={`Eliminar categoría "${categoryToDelete?.name}"`}
@@ -1455,9 +1491,12 @@ export const Inventory: React.FC = () => {
         title={`Eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}`}
         message={`¿Estás seguro de que querés eliminar ${selectedIds.size} equipo${selectedIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
         onConfirm={async () => {
-          for (const id of Array.from(selectedIds)) {
+          const toDelete = Array.from(selectedIds);
+          for (const id of toDelete) {
             await deleteProduct(id);
           }
+          setItems(prev => prev.filter(p => !selectedIds.has(p.id)));
+          setTotal(prev => prev - toDelete.length);
           setSelectedIds(new Set());
           setShowBulkDeleteConfirm(false);
         }}
@@ -1474,8 +1513,7 @@ export const Inventory: React.FC = () => {
           const ids = Array.from(selectedIdsRef.current);
           const { categoryId } = pendingItemMove;
           setPendingItemMove(null);
-          await bulkMoveCategory(ids, categoryId);
-          setSelectedIds(new Set());
+          await handleBulkMoveCategory(ids, categoryId);
         }}
         onCancel={() => setPendingItemMove(null)}
       />
@@ -1536,9 +1574,9 @@ export const Inventory: React.FC = () => {
                     </button>
                     {contextMoveOpen && (
                       <div className="border-t border-gray-100 bg-gray-50/30">
-                        <button onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), null); setSelectedIds(new Set()); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
+                        <button onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), null); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 text-gray-500 italic">Sin categoría</button>
                         {inventoryCategories.map(cat => (
-                          <button key={cat.id} onClick={async () => { await bulkMoveCategory(Array.from(selectedIds), cat.id); setSelectedIds(new Set()); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
+                          <button key={cat.id} onClick={async () => { await handleBulkMoveCategory(Array.from(selectedIds), cat.id); setContextMenu(null); }} className="w-full text-left px-6 py-2 text-sm hover:bg-gray-100 font-medium text-gray-700">{cat.name}</button>
                         ))}
                       </div>
                     )}

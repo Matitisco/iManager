@@ -2,13 +2,15 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
-import type { InventoryItemInput, ImportRow } from "./inventory.service.js";
+import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
   deleteInventoryItem,
   getInventoryErrorStatus,
   importInventoryItems,
   listInventory,
+  listInventoryPaged,
+  getInventoryFilteredIds,
   updateInventoryItem,
   listCategories,
   createCategory,
@@ -41,18 +43,70 @@ const inventoryPatchSchema = inventoryItemSchema
   .partial();
 
 export async function inventoryRoutes(app: FastifyInstance) {
+  const pagedQuerySchema = z.object({
+    skip: z.coerce.number().int().nonnegative().optional(),
+    take: z.coerce.number().int().min(1).max(100).optional(),
+    categoryId: z.string().optional().transform(v =>
+      v === undefined ? undefined : v === 'null' ? null : v === 'all' ? undefined : v
+    ),
+    sortKey: z.string().optional(),
+    sortDir: z.enum(['asc', 'desc']).optional(),
+    condition: z.string().optional(),
+    status: z.string().optional(),
+    capacity: z.string().optional(),
+    model: z.string().optional(),
+    grade: z.string().optional(),
+    battery: z.string().optional(),
+  });
+
   app.get(
     "/",
-    {
-      preHandler: [authenticate, resolveAppUser],
-    },
+    { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
+      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+
+      const query = pagedQuerySchema.parse(request.query);
+
+      if (query.skip !== undefined || query.take !== undefined) {
+        const params: ListInventoryParams = {
+          skip: query.skip ?? 0,
+          take: query.take ?? 30,
+          categoryId: query.categoryId,
+          sortKey: query.sortKey,
+          sortDir: query.sortDir,
+          condition: query.condition,
+          status: query.status,
+          capacity: query.capacity,
+          model: query.model,
+          grade: query.grade,
+          battery: query.battery,
+        };
+        const { items, total } = await listInventoryPaged(request.appUser.storeId, params);
+        return { items, total };
       }
 
       const inventory = await listInventory(request.appUser.storeId);
       return { inventory };
+    }
+  );
+
+  app.get(
+    "/ids",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+
+      const query = pagedQuerySchema.parse(request.query);
+      const ids = await getInventoryFilteredIds(request.appUser.storeId, {
+        categoryId: query.categoryId,
+        condition: query.condition,
+        status: query.status,
+        capacity: query.capacity,
+        model: query.model,
+        grade: query.grade,
+        battery: query.battery,
+      });
+      return { ids };
     }
   );
 

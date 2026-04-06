@@ -104,6 +104,132 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
   return Object.keys(customFields).length > 0 ? customFields : {};
 }
 
+// ─── Paged listing ────────────────────────────────────────────────────────────
+
+export interface ListInventoryParams {
+  skip: number;
+  take: number;
+  categoryId?: string | null;
+  sortKey?: string;
+  sortDir?: 'asc' | 'desc';
+  condition?: string;
+  status?: string;
+  capacity?: string;
+  model?: string;
+  grade?: string;
+  battery?: string;
+}
+
+function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>): Prisma.Sql {
+  const parts: Prisma.Sql[] = [Prisma.sql`"storeId" = ${storeId}`];
+
+  if (params.categoryId !== undefined) {
+    if (params.categoryId === null) {
+      parts.push(Prisma.sql`"categoryId" IS NULL`);
+    } else {
+      parts.push(Prisma.sql`"categoryId" = ${params.categoryId}`);
+    }
+  }
+
+  if (params.condition) parts.push(Prisma.sql`"condition" = ${params.condition}`);
+  if (params.status) parts.push(Prisma.sql`"status" = ${params.status}`);
+  if (params.capacity) parts.push(Prisma.sql`"capacity" = ${params.capacity}`);
+  if (params.model) parts.push(Prisma.sql`"model" = ${params.model}`);
+  if (params.grade) parts.push(Prisma.sql`"grade" = ${params.grade}`);
+
+  if (params.battery) {
+    const expr = `(CASE WHEN "batteryHealth" ~ '^[0-9]' THEN CAST(SUBSTRING("batteryHealth" FROM '^([0-9]+)') AS INTEGER) ELSE 0 END)`;
+    if (params.battery === '100%') {
+      parts.push(Prisma.sql`${Prisma.raw(expr)} = 100`);
+    } else if (params.battery === '> 90%') {
+      parts.push(Prisma.sql`${Prisma.raw(expr)} > 90`);
+    } else if (params.battery === '80% - 90%') {
+      parts.push(Prisma.sql`${Prisma.raw(expr)} BETWEEN 80 AND 90`);
+    } else if (params.battery === '< 80%') {
+      parts.push(Prisma.sql`${Prisma.raw(expr)} < 80 AND ${Prisma.raw(expr)} > 0`);
+    }
+  }
+
+  return Prisma.join(parts, ' AND ');
+}
+
+function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.Sql {
+  const dir = sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+  if (sortKey === 'model') return Prisma.sql`LOWER("model") ${dir}`;
+  if (sortKey === 'price') return Prisma.sql`"price" ${dir}`;
+  if (sortKey === 'battery') {
+    const expr = Prisma.raw(`(CASE WHEN "batteryHealth" ~ '^[0-9]' THEN CAST(SUBSTRING("batteryHealth" FROM '^([0-9]+)') AS INTEGER) ELSE 0 END)`);
+    return Prisma.sql`${expr} ${dir}`;
+  }
+  if (sortKey === 'condition') return Prisma.sql`"condition" ${dir}`;
+  return Prisma.sql`"createdAt" DESC`;
+}
+
+type RawInventoryRow = {
+  id: string; imei: string; model: string; capacity: string; color: string;
+  condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
+  status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
+};
+
+function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
+  return {
+    id: row.id,
+    imei: row.imei,
+    model: row.model,
+    capacity: row.capacity,
+    color: row.color,
+    condition: row.condition as InventoryItemResponse['condition'],
+    grade: row.grade as InventoryItemResponse['grade'],
+    batteryHealth: row.batteryHealth,
+    cost: Number(row.cost),
+    price: Number(row.price),
+    status: row.status as InventoryItemResponse['status'],
+    categoryId: row.categoryId ?? null,
+    customFields: toCustomFields(row.customFields),
+    soldAt: null,
+  };
+}
+
+export async function listInventoryPaged(
+  storeId: string,
+  params: ListInventoryParams
+): Promise<{ items: InventoryItemResponse[]; total: number }> {
+  const where = buildWhereConditions(storeId, params);
+  const orderBy = buildOrderByClause(params.sortKey, params.sortDir);
+
+  const [rows, countResult] = await Promise.all([
+    prisma.$queryRaw<RawInventoryRow[]>`
+      SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
+             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields"
+      FROM "InventoryItem"
+      WHERE ${where}
+      ORDER BY ${orderBy}
+      LIMIT ${params.take} OFFSET ${params.skip}
+    `,
+    prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::bigint AS count FROM "InventoryItem" WHERE ${where}
+    `,
+  ]);
+
+  return {
+    items: rows.map(deserializeRawRow),
+    total: Number(countResult[0].count),
+  };
+}
+
+export async function getInventoryFilteredIds(
+  storeId: string,
+  params: Omit<ListInventoryParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>
+): Promise<string[]> {
+  const where = buildWhereConditions(storeId, params);
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "InventoryItem" WHERE ${where}
+  `;
+  return rows.map(r => r.id);
+}
+
+// ─── Full listing (legacy, used by AppContext) ─────────────────────────────────
+
 export async function listInventory(storeId: string) {
   const inventory = await inventoryPrisma.inventoryItem.findMany({
     where: { storeId },

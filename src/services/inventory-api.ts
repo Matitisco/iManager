@@ -34,6 +34,74 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface InventoryPageParams {
+  skip: number;
+  take: number;
+  categoryId?: string | null;
+  sortKey?: string;
+  sortDir?: 'asc' | 'desc';
+  condition?: string;
+  status?: string;
+  capacity?: string;
+  model?: string;
+  grade?: string;
+  battery?: string;
+}
+
+export async function fetchInventoryPage(
+  user: User,
+  params: InventoryPageParams
+): Promise<{ items: Product[]; total: number }> {
+  const baseUrl = getBaseUrlOrThrow();
+  const qs = new URLSearchParams();
+  qs.set('skip', String(params.skip));
+  qs.set('take', String(params.take));
+  if (params.categoryId !== undefined) qs.set('categoryId', params.categoryId === null ? 'null' : params.categoryId);
+  if (params.sortKey) qs.set('sortKey', params.sortKey);
+  if (params.sortDir) qs.set('sortDir', params.sortDir);
+  if (params.condition) qs.set('condition', params.condition);
+  if (params.status) qs.set('status', params.status);
+  if (params.capacity) qs.set('capacity', params.capacity);
+  if (params.model) qs.set('model', params.model);
+  if (params.grade) qs.set('grade', params.grade);
+  if (params.battery) qs.set('battery', params.battery);
+
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory?${qs}`, {
+    headers: await getAuthHeaders(user),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || `Error al cargar inventario (${response.status})`);
+  }
+  const data = await parseJson<{ items: Product[]; total: number }>(response);
+  return { items: data.items ?? [], total: data.total ?? 0 };
+}
+
+export async function fetchInventoryFilteredIds(
+  user: User,
+  params: Omit<InventoryPageParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>
+): Promise<string[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const qs = new URLSearchParams();
+  if (params.categoryId !== undefined) qs.set('categoryId', params.categoryId === null ? 'null' : params.categoryId);
+  if (params.condition) qs.set('condition', params.condition);
+  if (params.status) qs.set('status', params.status);
+  if (params.capacity) qs.set('capacity', params.capacity);
+  if (params.model) qs.set('model', params.model);
+  if (params.grade) qs.set('grade', params.grade);
+  if (params.battery) qs.set('battery', params.battery);
+
+  const response = await fetchWithTimeout(`${baseUrl}/api/inventory/ids?${qs}`, {
+    headers: await getAuthHeaders(user),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || `Error al obtener IDs (${response.status})`);
+  }
+  const data = await parseJson<{ ids: string[] }>(response);
+  return data.ids ?? [];
+}
+
 export async function fetchBackendInventory(user: User): Promise<Product[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory`, {
