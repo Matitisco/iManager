@@ -21,7 +21,12 @@ function normalizeBackendErrorMessage(status: number, body: any) {
 
 export function getBackendBaseUrl() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-  if (!baseUrl) return null;
+  if (!baseUrl) {
+    if (import.meta.env.DEV) {
+      return 'http://localhost:3001';
+    }
+    return null;
+  }
   return trimTrailingSlash(baseUrl);
 }
 

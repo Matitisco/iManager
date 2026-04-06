@@ -43,7 +43,7 @@ Ver `PROJECT_STATUS.md` para el estado detallado y el roadmap.
 ```bash
 # Frontend
 npm install
-npm run dev       # http://localhost:5173
+npm run dev       # http://localhost:3000
 npm run lint      # tsc --noEmit
 
 # Backend (desde backend/)
@@ -57,7 +57,7 @@ npx prisma studio # UI de PostgreSQL
 
 **Frontend (`.env.local`):**
 ```
-VITE_BACKEND_URL=http://localhost:3001
+VITE_API_BASE_URL=http://localhost:3001
 VITE_FIREBASE_API_KEY=...
 VITE_FIREBASE_AUTH_DOMAIN=...
 VITE_FIREBASE_PROJECT_ID=...
@@ -66,12 +66,19 @@ VITE_FIREBASE_APP_ID=...
 
 **Backend (`backend/.env`):**
 ```
+PORT=3001
 DATABASE_URL=postgresql://...
 FIREBASE_PROJECT_ID=...
 FIREBASE_CLIENT_EMAIL=...
 FIREBASE_PRIVATE_KEY=...
 FIRESTORE_DATABASE_ID=...
 ```
+
+### Desarrollo local
+
+- El frontend en modo dev usa `http://localhost:3001` como backend si `VITE_API_BASE_URL` está vacío.
+- El backend escucha por defecto en `3001` para no chocar con el servidor local del frontend.
+- Si querés cambiar el puerto, seteá `PORT` en `backend/.env` y `VITE_API_BASE_URL` en el frontend.
 
 ---
 
