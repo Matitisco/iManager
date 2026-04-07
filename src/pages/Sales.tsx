@@ -228,7 +228,7 @@ export const Sales: React.FC = () => {
 
     fetchPage: (params) => fetchSalesPage(user!, params),
     addRowFields: [
-      { colId: 'dateLabel', placeholder: 'Etiqueta (ej. Venta local)', required: true },
+      { colId: 'date', placeholder: 'Fecha (ej. 2025-04-07)', required: true },
       { colId: 'amount', placeholder: 'Monto', required: true },
       {
         colId: 'paymentMethod',
@@ -241,7 +241,6 @@ export const Sales: React.FC = () => {
       // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
     ],
     buildNewItem: (formData, categoryId) => ({
-      dateLabel: formData.dateLabel ?? 'Venta manual',
       amount: Number(formData.amount) || 0,
       paymentMethod: formData.paymentMethod || 'EFECTIVO',
       status: formData.status || 'COMPLETADA',
