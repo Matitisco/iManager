@@ -276,7 +276,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       </div>
 
       {/* ── Category tabs ── */}
-      {categories.length > 0 && (
+      {(categories.length > 0 || !!onCreateCategory) && (
         <div className="bg-white border-b border-gray-100">
           <CategoryTabs
             categories={categories} activeCategoryId={activeCategoryId} setActiveCategoryId={setActiveCategoryId}
