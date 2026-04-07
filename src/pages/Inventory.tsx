@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
-import type { TableEngineConfig, TablePageParams, TableFilterParams } from '../components/table-engine';
+import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers } from '../components/table-engine';
 import type { Product } from '../types';
 import { ImportInventoryModal } from '../components/ImportInventoryModal';
 import {
@@ -36,6 +36,57 @@ const GRADE_META: Record<string, { bg: string; text: string; dot: string; label:
   'C':  { bg: 'bg-orange-100',  text: 'text-orange-700',  dot: 'bg-orange-400',  label: 'C' },
   'N/A':{ bg: 'bg-gray-100',   text: 'text-gray-500',    dot: 'bg-gray-400',    label: 'N/A' },
 };
+
+// ── Battery cell ──────────────────────────────────────────────────────────────
+function BatteryCell({ value, row, helpers }: { value: string; row: Product; helpers: CellHelpers<Product> }) {
+  if (helpers.isEditing(row.id, 'batteryHealth')) {
+    return (
+      <input
+        autoFocus
+        value={helpers.inlineValue}
+        placeholder="ej: 87%"
+        maxLength={30}
+        onChange={e => helpers.setInlineValue(e.target.value)}
+        onBlur={() => helpers.onBlur(row)}
+        onKeyDown={e => helpers.onKeyDown(e, row)}
+        onClick={e => e.stopPropagation()}
+        className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm"
+      />
+    );
+  }
+
+  if (!value) {
+    return (
+      <div
+        className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text text-gray-300"
+        onClick={e => { e.stopPropagation(); helpers.startEdit(row.id, 'batteryHealth', ''); }}
+      >
+        ---
+      </div>
+    );
+  }
+
+  const min = extractMinBattery(value);
+  const colorMeta = batteryColor(min);
+
+  return (
+    <div
+      className="inline-flex items-center gap-2 rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+      onClick={e => { e.stopPropagation(); helpers.startEdit(row.id, 'batteryHealth', value); }}
+    >
+      <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${min}%` }}
+          className={`h-full ${colorMeta.bg}`}
+        />
+      </div>
+      <span className={`font-bold ${colorMeta.text}`}>
+        {formatBatteryDisplay(value)}
+      </span>
+    </div>
+  );
+}
 
 /**
  * Adapts TablePageParams (generic engine format) → InventoryPageParams
@@ -153,55 +204,7 @@ export const Inventory: React.FC = () => {
         defaultWidth: 140,
         type: 'custom',
         editable: true,
-        renderCell: (value: string, _row, helpers) => {
-          if (helpers.isEditing(_row.id, 'batteryHealth')) {
-            return (
-              <input
-                autoFocus
-                value={helpers.inlineValue}
-                placeholder="ej: 87%"
-                maxLength={30}
-                onChange={e => helpers.setInlineValue(e.target.value)}
-                onBlur={() => helpers.onBlur(_row)}
-                onKeyDown={e => helpers.onKeyDown(e, _row)}
-                onClick={e => e.stopPropagation()}
-                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm"
-              />
-            );
-          }
-
-          if (!value) {
-            return (
-              <div
-                className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text text-gray-300"
-                onClick={e => { e.stopPropagation(); helpers.startEdit(_row.id, 'batteryHealth', ''); }}
-              >
-                ---
-              </div>
-            );
-          }
-
-          const min = extractMinBattery(value);
-          const colorMeta = batteryColor(min);
-
-          return (
-            <div
-              className="inline-flex items-center gap-2 rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
-              onClick={e => { e.stopPropagation(); helpers.startEdit(_row.id, 'batteryHealth', value); }}
-            >
-              <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${min}%` }}
-                  className={`h-full ${colorMeta.bg}`}
-                />
-              </div>
-              <span className={`font-bold ${colorMeta.text}`}>
-                {formatBatteryDisplay(value)}
-              </span>
-            </div>
-          );
-        },
+        renderCell: (value: string, _row, helpers) => <BatteryCell value={value} row={_row} helpers={helpers} />,
       },
       {
         id: 'cost',
