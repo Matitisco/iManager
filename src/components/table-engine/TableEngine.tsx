@@ -79,9 +79,11 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const { activeResizeCol, handleResizeStart } = useColResize(colState.colWidths, colState.setColWidths);
   const { draggingColId, dropBeforeColId, colDragPos, handleColPointerDown } = useColDrag(colState.ALL_COL_IDS, thRefs, colState.setColOrder);
   const catDrag = useCategoryDrag(categories, onReorderCategories);
+  const onPendingMove = useCallback((catId: string, catName: string, count: number) => {
+    setPendingItemMove({ categoryId: catId, categoryName: catName, count });
+  }, []);
   const itemDrag = useItemDrag(
-    categories, selectedIdsRef, catDrag.catTabsContainerRef, setSelectedIds,
-    (catId, catName, count) => setPendingItemMove({ categoryId: catId, categoryName: catName, count })
+    categories, selectedIdsRef, catDrag.catTabsContainerRef, setSelectedIds, onPendingMove
   );
 
   // ── Build filter params ────────────────────────────────────────────────────

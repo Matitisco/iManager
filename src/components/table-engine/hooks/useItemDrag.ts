@@ -62,12 +62,13 @@ export function useItemDrag(
         }
       }
     };
-    const onUp = () => {
+    const onUp = (e?: Event) => {
+      const isCancel = e?.type === 'pointercancel';
       itemDragStartRef.current = null;
       document.body.style.userSelect = '';
       if (justItemDraggedRef.current) setTimeout(() => { justItemDraggedRef.current = false; }, 50);
       if (draggingItemsRef.current) {
-        if (itemDropTargetRef.current) {
+        if (!isCancel && itemDropTargetRef.current) {
           const catId = itemDropTargetRef.current;
           const catName = categoriesRef.current.find(c => c.id === catId)?.name ?? catId;
           const count = selectedIdsRef.current.size;
@@ -79,7 +80,14 @@ export function useItemDrag(
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
-    return () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+    document.addEventListener('pointercancel', onUp);
+    window.addEventListener('blur', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('blur', onUp);
+    };
   }, [catTabsContainerRef, selectedIdsRef, setSelectedIds, onPendingMove]);
 
   const startItemDrag = (e: React.PointerEvent, itemId: string) => {
