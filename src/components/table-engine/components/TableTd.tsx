@@ -64,8 +64,6 @@ export function TableTd<TRow extends WithId>({
     const hasVal = displayVal(statusVal) !== null;
     const metaKeys = Object.keys(colDef.badgeMeta);
     const meta = hasVal ? (colDef.badgeMeta[statusVal] ?? colDef.badgeMeta[metaKeys[0]]) : colDef.badgeMeta[metaKeys[0]];
-    const cancel = (e?: React.MouseEvent) => { e?.stopPropagation(); inlineEditCellRef.current = null; setInlineEditCell(null); };
-    // Fix: need setInlineEditCell passed in — we use cancelInlineEdit instead for cancel
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing}`}>
         <div className="relative">
@@ -181,6 +179,3 @@ export function TableTd<TRow extends WithId>({
     </td>
   );
 }
-
-// Helper to silence the missing setInlineEditCell in cancel for badge
-function setInlineEditCell(_: null) {}

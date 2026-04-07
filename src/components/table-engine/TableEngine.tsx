@@ -517,8 +517,66 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
         )}
       </AnimatePresence>
 
+      {/* ── Category delete confirm ── */}
+      <AnimatePresence>
+        {categoryToDelete && (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-50" onClick={() => setCategoryToDelete(null)} />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl p-6 z-50 w-80">
+              <h3 className="text-base font-bold text-gray-900 mb-2">Eliminar categoría</h3>
+              <p className="text-sm text-gray-500 mb-5">
+                ¿Eliminar <strong>{categoryToDelete.name}</strong>? Los {nounPlural} de esta categoría quedarán sin categoría.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setCategoryToDelete(null)} className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    if (!onDeleteCategory) return;
+                    await onDeleteCategory(categoryToDelete.id);
+                    setCategoryToDelete(null);
+                    const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...buildFilterParams() });
+                    setItems(result.items); setTotal(result.total);
+                  }}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
+                  Eliminar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Item delete confirm ── */}
+      <AnimatePresence>
+        {itemToDelete && (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-50" onClick={() => setItemToDelete(null)} />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl p-6 z-50 w-80">
+              <h3 className="text-base font-bold text-gray-900 mb-2">Eliminar {noun}</h3>
+              <p className="text-sm text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setItemToDelete(null)} className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    const id = itemToDelete;
+                    setItemToDelete(null);
+                    await onDelete(id);
+                    setItems(prev => prev.filter(p => p.id !== id));
+                    setTotal(prev => prev - 1);
+                  }}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
+                  Eliminar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ── Import modal ── */}
-      {showImportModal && ImportModal && <ImportModal onClose={() => setShowImportModal(false)} />}
+      {showImportModal && ImportModal && <ImportModal onClose={() => { setShowImportModal(false); loadFirstPage(buildFilterParams()); }} />}
     </div>
   );
 }
