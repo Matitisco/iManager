@@ -13,7 +13,8 @@ import {
   bulkMoveCategoryApi,
   reorderCategoriesApi,
 } from '../services/inventory-api';
-import { extractMinBattery } from '../utils/inventory';
+import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
+import { motion } from 'motion/react';
 
 // ── Badge metadata ────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { bg: string; text: string; dot: string; label: string }> = {
@@ -153,38 +154,51 @@ export const Inventory: React.FC = () => {
         type: 'custom',
         editable: true,
         renderCell: (value: string, _row, helpers) => {
-          const min = extractMinBattery(value);
-          const color =
-            min === null ? 'text-gray-300'
-            : min >= 85 ? 'text-emerald-600'
-            : min >= 70 ? 'text-amber-600'
-            : 'text-red-600';
-
           if (helpers.isEditing(_row.id, 'batteryHealth')) {
             return (
               <input
                 autoFocus
                 value={helpers.inlineValue}
-                maxLength={20}
+                placeholder="ej: 87%"
+                maxLength={30}
                 onChange={e => helpers.setInlineValue(e.target.value)}
                 onBlur={() => helpers.onBlur(_row)}
                 onKeyDown={e => helpers.onKeyDown(e, _row)}
                 onClick={e => e.stopPropagation()}
-                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white focus:border-gray-400"
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-sm"
               />
             );
           }
 
+          if (!value) {
+            return (
+              <div
+                className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text text-gray-300"
+                onClick={e => { e.stopPropagation(); helpers.startEdit(_row.id, 'batteryHealth', ''); }}
+              >
+                ---
+              </div>
+            );
+          }
+
+          const min = extractMinBattery(value);
+          const colorMeta = batteryColor(min);
+
           return (
             <div
-              className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
-              onClick={e => { e.stopPropagation(); helpers.startEdit(_row.id, 'batteryHealth', value ?? ''); }}
+              className="inline-flex items-center gap-2 rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+              onClick={e => { e.stopPropagation(); helpers.startEdit(_row.id, 'batteryHealth', value); }}
             >
-              {value ? (
-                <span className={`text-sm font-bold ${color}`}>{value}</span>
-              ) : (
-                <span className="text-gray-300">---</span>
-              )}
+              <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${min}%` }}
+                  className={`h-full ${colorMeta.bg}`}
+                />
+              </div>
+              <span className={`font-bold ${colorMeta.text}`}>
+                {formatBatteryDisplay(value)}
+              </span>
             </div>
           );
         },
