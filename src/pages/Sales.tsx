@@ -228,32 +228,24 @@ export const Sales: React.FC = () => {
 
     fetchPage: (params) => fetchSalesPage(user!, params),
     addRowFields: [
-      { colId: 'dateLabel', placeholder: 'Etiqueta (ej. Venta local)', required: true, type: 'text' },
-      { colId: 'amount', placeholder: 'Monto', required: true, type: 'number' },
-      { 
-        colId: 'paymentMethod', 
-        type: 'select', 
+      { colId: 'dateLabel', placeholder: 'Etiqueta (ej. Venta local)', required: true },
+      { colId: 'amount', placeholder: 'Monto', required: true },
+      {
+        colId: 'paymentMethod',
         selectOptions: [
           { value: 'EFECTIVO', label: 'Efectivo' },
           { value: 'TRANSFERENCIA', label: 'Transferencia' },
           { value: 'TARJETA', label: 'Tarjeta' },
-        ]
+        ],
       },
-      { 
-        colId: 'status', 
-        type: 'select', 
-        selectOptions: [
-          { value: 'COMPLETADA', label: 'Completada' },
-          { value: 'PENDIENTE', label: 'Pendiente' },
-        ]
-      },
+      // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
     ],
     buildNewItem: (formData, categoryId) => ({
       dateLabel: formData.dateLabel ?? 'Venta manual',
       amount: Number(formData.amount) || 0,
       paymentMethod: formData.paymentMethod || 'EFECTIVO',
       status: formData.status || 'COMPLETADA',
-      date: new Date().toISOString().slice(0, 10),
+      date: (formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
       clientId: null,
       productId: null,
       categoryId: categoryId ?? null,

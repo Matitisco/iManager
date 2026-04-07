@@ -159,7 +159,19 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   // ── Add row ────────────────────────────────────────────────────────────────
   const startAddRow = () => {
     if (addingRowDataRef.current) { addFirstInputRef.current?.focus(); return; }
-    const initial = Object.fromEntries(addRowFields.map(f => [f.colId, f.type === 'select' ? (f.selectOptions?.[0]?.value ?? '') : '']));
+    const initial: Record<string, any> = Object.fromEntries(
+      addRowFields.map(f => [
+        f.colId,
+        (f.type === 'select' || !!f.selectOptions?.length) ? (f.selectOptions?.[0]?.value ?? '') : '',
+      ])
+    );
+    // Auto-initialize all visible editable columns not already covered by addRowFields
+    colState.orderedVisibleCols.forEach(colId => {
+      if (colId in initial) return;
+      const colDef = columns.find(c => c.id === colId);
+      if (!colDef?.editable) return;
+      initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge') ? (colDef.enumOptions?.[0] ?? '') : '';
+    });
     addingRowDataRef.current = initial; setAddingRow(initial);
   };
   const cancelAddRow = () => { addingRowDataRef.current = null; setAddingRow(null); };
@@ -171,7 +183,15 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     if (requiredField && !requiredVal) { if (showErrorIfEmpty) addFirstInputRef.current?.focus(); else { addingRowDataRef.current = null; setAddingRow(null); } return; }
     
     try {
-      const newItemData = buildNewItem ? buildNewItem(current, activeCategoryId !== 'all' ? activeCategoryId : null) : { ...current, categoryId: activeCategoryId !== 'all' ? activeCategoryId : null };
+      // Auto-map colId → field using ColDef so buildNewItem always works with field names
+      const mapped: Record<string, any> = {};
+      for (const [colId, val] of Object.entries(current)) {
+        const colDef = columns.find(c => c.id === colId);
+        mapped[colDef?.field ?? colId] = val;
+      }
+      const newItemData = buildNewItem
+        ? buildNewItem(mapped, activeCategoryId !== 'all' ? activeCategoryId : null)
+        : { ...mapped, categoryId: activeCategoryId !== 'all' ? activeCategoryId : null };
       if (onCreate) {
         await onCreate(newItemData);
       }
@@ -392,41 +412,81 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
             )}
 
             {/* Add row inline */}
-            {addingRow && addRowFields.length > 0 && (
-              <tr className="bg-blue-50/30 border-l-2 border-blue-500">
-                <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
-                {colState.orderedVisibleCols.map((colId, i) => {
-                  const fieldCfg = addRowFields.find(f => f.colId === colId);
-                  return (
-                    <td key={colId} className="px-3 py-3">
-                      {fieldCfg ? (
-                        fieldCfg.type === 'select' ? (
+            {addingRow && !!onCreate && (() => {
+              // First text/number input column gets the focus ref
+              const firstTextColId = colState.orderedVisibleCols.find(colId => {
+                const fc = addRowFields.find(f => f.colId === colId);
+                const cd = columns.find(c => c.id === colId);
+                if (!fc && !cd?.editable) return false;
+                const isSelect = fc?.type === 'select' || !!fc?.selectOptions?.length
+                  || (!fc && cd && (cd.type === 'enum' || cd.type === 'badge') && !!cd.enumOptions?.length);
+                return !isSelect;
+              }) ?? null;
+              return (
+                <tr className="bg-blue-50/30 border-l-2 border-blue-500">
+                  <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
+                  {colState.orderedVisibleCols.map((colId) => {
+                    const fieldCfg = addRowFields.find(f => f.colId === colId);
+                    const colDef = columns.find(c => c.id === colId);
+                    // Skip columns that are not editable and not explicitly in addRowFields
+                    if (!fieldCfg && !colDef?.editable) return <td key={colId} className="px-3 py-3" />;
+
+                    let effectiveType: 'text' | 'number' | 'select' = 'text';
+                    let selectOptions: { value: string; label: string }[] = [];
+                    let placeholder = '';
+
+                    // ColDef as base
+                    if (colDef) {
+                      if (colDef.type === 'number') effectiveType = 'number';
+                      else if ((colDef.type === 'enum' || colDef.type === 'badge') && colDef.enumOptions?.length) {
+                        effectiveType = 'select';
+                        selectOptions = colDef.enumOptions.map(o => ({
+                          value: o,
+                          label: colDef.badgeMeta?.[o]?.label ?? o,
+                        }));
+                      }
+                    }
+
+                    // addRowFields overrides: placeholder, custom select subset, explicit type
+                    if (fieldCfg) {
+                      placeholder = fieldCfg.placeholder ?? '';
+                      if (fieldCfg.selectOptions?.length) {
+                        effectiveType = 'select';
+                        selectOptions = fieldCfg.selectOptions;
+                      } else if (fieldCfg.type != null && fieldCfg.type !== 'select') {
+                        effectiveType = fieldCfg.type;
+                      }
+                    }
+
+                    return (
+                      <td key={colId} className="px-3 py-3">
+                        {effectiveType === 'select' ? (
                           <select
-                            value={addingRow[colId] ?? ''}
+                            value={addingRow[colId] ?? selectOptions[0]?.value ?? ''}
                             onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
                             className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400">
-                            {(fieldCfg.selectOptions ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            {selectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
                         ) : (
                           <input
-                            ref={i === 0 ? addFirstInputRef : undefined}
-                            type={fieldCfg.type === 'number' ? 'number' : 'text'}
-                            placeholder={fieldCfg.placeholder}
+                            ref={colId === firstTextColId ? addFirstInputRef : undefined}
+                            type={effectiveType === 'number' ? 'number' : 'text'}
+                            placeholder={placeholder}
                             value={addingRow[colId] ?? ''}
                             onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
                             onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
                             className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400" />
-                        )
-                      ) : null}
-                    </td>
-                  );
-                })}
-                <td className="px-3 py-3 flex gap-1">
-                  <button onClick={() => commitAddRow()} className="px-2 py-1 text-xs font-bold bg-gray-900 text-white rounded-lg">OK</button>
-                  <button onClick={cancelAddRow} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600 rounded-lg">✕</button>
-                </td>
-              </tr>
-            )}
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-3 flex gap-1">
+                    <button onClick={() => commitAddRow()} className="px-2 py-1 text-xs font-bold bg-gray-900 text-white rounded-lg">OK</button>
+                    <button onClick={cancelAddRow} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600 rounded-lg">✕</button>
+                  </td>
+                </tr>
+              );
+            })()}
           </tbody>
         </table>
 
@@ -488,7 +548,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
           <ContextMenu
             x={contextMenu.x} y={contextMenu.y} item={contextMenu.item} isBulk={contextMenu.isBulk}
             selectedCount={selectedIds.size} categories={categories} onClose={() => setContextMenu(null)}
-            onAddRow={addRowFields.length > 0 ? startAddRow : undefined}
+            onAddRow={!!onCreate ? startAddRow : undefined}
             onEdit={item => { setSelectedItem(item); setContextMenu(null); }}
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
             onBulkDelete={() => { setContextMenu(null); }}

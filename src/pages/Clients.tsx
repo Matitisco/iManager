@@ -178,10 +178,10 @@ export const Clients: React.FC = () => {
     ],
 
     addRowFields: [
-      { colId: 'name', placeholder: 'Nombre', required: true, type: 'text' },
-      { colId: 'dni', placeholder: 'DNI', type: 'text' },
-      { colId: 'phone', placeholder: 'Teléfono', type: 'text' },
-      { colId: 'email', placeholder: 'Email', type: 'text' },
+      { colId: 'name', placeholder: 'Nombre', required: true },
+      { colId: 'dni', placeholder: 'DNI' },
+      { colId: 'phone', placeholder: 'Teléfono' },
+      { colId: 'email', placeholder: 'Email' },
     ],
     buildNewItem: (formData) => ({
       name: formData.name ?? '',

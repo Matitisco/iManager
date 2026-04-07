@@ -343,28 +343,20 @@ export const Inventory: React.FC = () => {
 
     // ── Add row inline ────────────────────────────────────────────────────────
     addRowFields: [
-      { colId: 'model', placeholder: 'Modelo (ej. iPhone 15 Pro)', required: true, type: 'text' },
-      { colId: 'imei', placeholder: 'IMEI', type: 'text' },
-      { colId: 'price', placeholder: 'Precio', type: 'number' },
-      {
-        colId: 'status', type: 'select',
-        selectOptions: [
-          { value: 'DISPONIBLE', label: 'Disponible' },
-          { value: 'EN_REVISION', label: 'En revisión' },
-          { value: 'VENDIDO', label: 'Vendido' },
-        ],
-      },
+      { colId: 'model', placeholder: 'Modelo (ej. iPhone 15 Pro)', required: true },
+      { colId: 'imei', placeholder: 'IMEI' },
+      { colId: 'price', placeholder: 'Precio' },
     ],
     buildNewItem: (formData, categoryId) => ({
       model: formData.model ?? '',
       imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
       price: Number(formData.price) || 0,
-      cost: 0,
-      capacity: '',
-      color: '',
-      batteryHealth: '',
-      condition: 'USADO',
-      grade: 'N/A',
+      cost: Number(formData.cost) || 0,
+      capacity: formData.capacity ?? '',
+      color: formData.color ?? '',
+      batteryHealth: formData.batteryHealth ?? '',
+      condition: formData.condition ?? 'NUEVO',
+      grade: formData.grade ?? 'N/A',
       status: formData.status ?? 'DISPONIBLE',
       categoryId: categoryId ?? null,
     }),
