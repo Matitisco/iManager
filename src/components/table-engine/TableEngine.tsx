@@ -295,7 +295,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
 
       {/* ── Table ── */}
       <div ref={tableContainerRef} className="flex-1 overflow-auto relative">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-sm table-fixed">
           <thead className="sticky top-0 z-20 bg-gray-50 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gray-100">
             <tr>
               <th className="px-4 py-4 text-left w-12 sticky left-0 bg-gray-50">
