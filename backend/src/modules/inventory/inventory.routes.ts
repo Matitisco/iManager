@@ -23,8 +23,8 @@ import {
 const inventoryItemSchema = z.object({
   imei: z.string().trim().min(1).max(100),
   model: z.string().trim().min(1).max(100),
-  capacity: z.string().trim().min(1).max(50),
-  color: z.string().trim().min(1).max(50),
+  capacity: z.string().trim().max(50),
+  color: z.string().trim().max(50),
   condition: z.enum(["NUEVO", "USADO", "PRE-OWNED"]),
   grade: z.enum(["A+", "A", "B", "C", "N/A"]),
   batteryHealth: z.string().trim().max(50),
