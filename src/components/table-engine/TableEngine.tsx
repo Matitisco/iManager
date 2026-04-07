@@ -478,6 +478,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
           <ContextMenu
             x={contextMenu.x} y={contextMenu.y} item={contextMenu.item} isBulk={contextMenu.isBulk}
             selectedCount={selectedIds.size} categories={categories} onClose={() => setContextMenu(null)}
+            onAddRow={addRowFields.length > 0 ? startAddRow : undefined}
             onEdit={item => { setSelectedItem(item); setContextMenu(null); }}
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
             onBulkDelete={() => { setContextMenu(null); }}

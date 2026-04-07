@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { X, Trash2, Edit2 } from 'lucide-react';
+import { X, Trash2, Edit2, Plus } from 'lucide-react';
 import type { WithId, TableCategory } from '../types';
 
 interface ContextMenuProps<TRow extends WithId> {
@@ -11,6 +11,7 @@ interface ContextMenuProps<TRow extends WithId> {
   selectedCount: number;
   categories: TableCategory[];
   onClose: () => void;
+  onAddRow?: () => void;
   onEdit: (item: TRow) => void;
   onDelete: (item: TRow) => void;
   onBulkDelete: () => void;
@@ -21,7 +22,7 @@ interface ContextMenuProps<TRow extends WithId> {
 
 export function ContextMenu<TRow extends WithId>({
   x, y, item, isBulk, selectedCount, categories,
-  onClose, onEdit, onDelete, onBulkDelete, onMoveToCategory,
+  onClose, onAddRow, onEdit, onDelete, onBulkDelete, onMoveToCategory,
   noun = 'ítem', nounPlural = 'ítems',
 }: ContextMenuProps<TRow>) {
   const [moveOpen, setMoveOpen] = React.useState(false);
@@ -40,6 +41,12 @@ export function ContextMenu<TRow extends WithId>({
       >
         {!isBulk && (
           <>
+            {onAddRow && (
+              <button onClick={() => { onAddRow(); onClose(); }}
+                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
+                <Plus size={14} /> Agregar {noun}
+              </button>
+            )}
             <button onClick={() => { onEdit(item); onClose(); }}
               className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
               <Edit2 size={14} /> Editar {noun}
