@@ -108,3 +108,70 @@ export async function deleteBackendSale(user: User, saleId: string): Promise<voi
     throw new Error(body?.error || `No se pudo eliminar la venta (${response.status})`);
   }
 }
+
+// ── Categories ───────────────────────────────────────────────────────────────
+
+export type Category = { id: string; name: string };
+
+export async function fetchSalesCategoriesApi(user: User): Promise<Category[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories`, {
+    headers: await getAuthHeaders(user),
+  });
+  if (!response.ok) throw new Error(`No se pudieron cargar las categorías de ventas`);
+  const data = await response.json();
+  return data.categories ?? [];
+}
+
+export async function createSaleCategoryApi(user: User, name: string): Promise<Category> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error(`Error creando categoría`);
+  const data = await response.json();
+  return data.category;
+}
+
+export async function renameSaleCategoryApi(user: User, id: string, name: string): Promise<Category> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories/${id}`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error(`Error renombrando categoría`);
+  const data = await response.json();
+  return data.category;
+}
+
+export async function deleteSaleCategoryApi(user: User, id: string): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories/${id}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders(user),
+  });
+  if (!response.ok) throw new Error(`Error eliminando categoría`);
+}
+
+export async function reorderSalesCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories/reorder`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ categoryIds }),
+  });
+  if (!response.ok) throw new Error(`Error reordenando categorías`);
+}
+
+export async function bulkMoveSalesCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetch(`${baseUrl}/api/sales/categories/bulk-move`, {
+    method: 'PATCH',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify({ itemIds, categoryId }),
+  });
+  if (!response.ok) throw new Error(`Error moviendo elementos`);
+}

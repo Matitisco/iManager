@@ -8,6 +8,7 @@ export interface SaleInput {
   amount: number;
   paymentMethod: "TRANSFERENCIA" | "EFECTIVO" | "TARJETA" | "CANJE / PAGO" | "T. Crédito";
   status: "COMPLETADA" | "PENDIENTE";
+  categoryId?: string | null;
 }
 
 export interface SalePatchInput {
@@ -15,6 +16,7 @@ export interface SalePatchInput {
   status?: SaleInput["status"];
   date?: string;
   amount?: number;
+  categoryId?: string | null;
 }
 
 export interface SaleResponse {
@@ -25,6 +27,7 @@ export interface SaleResponse {
   amount: number;
   paymentMethod: SaleInput["paymentMethod"];
   status: SaleInput["status"];
+  categoryId: string | null;
 }
 
 type SaleRecord = {
@@ -35,8 +38,14 @@ type SaleRecord = {
   amount: Decimal;
   paymentMethod: string;
   status: string;
+  categoryId: string | null;
   soldAt: Date;
 };
+
+export interface SaleCategoryResponse {
+  id: string;
+  name: string;
+}
 
 class SalesError extends Error {
   statusCode: number;
@@ -112,6 +121,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     amount: sale.amount.toNumber(),
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
     status: sale.status as SaleResponse["status"],
+    categoryId: sale.categoryId ?? null,
   };
 }
 
@@ -158,6 +168,7 @@ export async function createSale(storeId: string, input: SaleInput) {
         amount: toDecimal(input.amount),
         paymentMethod: input.paymentMethod,
         status: input.status,
+        categoryId: input.categoryId ?? null,
         soldAt,
       },
     });
@@ -207,6 +218,7 @@ export async function updateSale(
         dateLabel: newDateLabel,
         soldAt: newSoldAt,
         amount: newAmount,
+        categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       },
     });
 
@@ -284,4 +296,68 @@ export function getSalesErrorStatus(error: unknown) {
   }
 
   return null;
+}
+
+// ── Categories ───────────────────────────────────────────────────────────────
+
+export async function listCategories(storeId: string): Promise<SaleCategoryResponse[]> {
+  const cats = await prisma.saleCategory.findMany({
+    where: { storeId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true },
+  });
+  return cats;
+}
+
+export async function createCategory(storeId: string, name: string): Promise<SaleCategoryResponse> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new SalesError("Category name required", 400);
+  const existing = await prisma.saleCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing) throw new SalesError("Category already exists", 409);
+  const count = await prisma.saleCategory.count({ where: { storeId } });
+  const cat = await prisma.saleCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
+  return cat;
+}
+
+export async function reorderCategories(storeId: string, categoryIds: string[]): Promise<void> {
+  await prisma.$transaction(
+    categoryIds.map((id, idx) =>
+      prisma.saleCategory.updateMany({ where: { id, storeId }, data: { sortOrder: idx } })
+    )
+  );
+}
+
+export async function renameCategory(storeId: string, id: string, name: string): Promise<SaleCategoryResponse | null> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new SalesError("Category name required", 400);
+  const existing = await prisma.saleCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return null;
+  const updated = await prisma.saleCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
+  return updated;
+}
+
+export async function deleteCategory(storeId: string, id: string): Promise<boolean> {
+  const existing = await prisma.saleCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return false;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.sale.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } });
+    await tx.saleCategory.delete({ where: { id } });
+  });
+
+  return true;
+}
+
+export async function bulkMoveCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
+  if (categoryId !== null) {
+    const cat = await prisma.saleCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new SalesError("Category not found", 404);
+  }
+
+  const result = await prisma.sale.updateMany({
+    where: { storeId, id: { in: ids } },
+    data: { categoryId },
+  });
+
+  return result.count;
 }

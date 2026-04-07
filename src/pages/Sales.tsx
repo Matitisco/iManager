@@ -39,7 +39,19 @@ const StatCard = ({ title, value, trend, icon }: { title: string; value: string;
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export const Sales: React.FC = () => {
-  const { user, clients, inventory, sales } = useAppContext();
+  const {
+    user,
+    clients,
+    inventory,
+    sales,
+    salesCategories,
+    createSaleCategory,
+    renameSaleCategory,
+    deleteSaleCategory,
+    reorderSaleCategories,
+    bulkMoveSaleCategory,
+    deleteSale
+  } = useAppContext();
 
   // Stats (computed from the cached full list in AppContext)
   const totalRevenue = sales.reduce((sum, s) => sum + s.amount, 0);
@@ -176,6 +188,20 @@ export const Sales: React.FC = () => {
       { key: 'amount', label: 'Monto' },
     ],
 
+    categories: salesCategories,
+    onCreateCategory: createSaleCategory,
+    onRenameCategory: renameSaleCategory,
+    onDeleteCategory: deleteSaleCategory,
+    onReorderCategories: async (ids) => {
+      await reorderSaleCategories(ids);
+    },
+    onBulkMoveCategory: async (ids, categoryId) => {
+      await bulkMoveSaleCategory(ids, categoryId);
+    },
+    onBulkDelete: async (ids) => {
+      await Promise.all(ids.map(id => deleteSale(id)));
+    },
+
     editPanelTitle: 'Editar Venta',
     editPanelFields: [
       { label: 'Fecha', field: 'date', type: 'text', span: 2 },
@@ -203,7 +229,7 @@ export const Sales: React.FC = () => {
     onCreate: async () => { throw new Error('Las ventas se crean desde el proceso de venta'); },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
-  }), [user, clients, inventory]);
+  }), [user, clients, inventory, salesCategories]);
 
   return (
     <div className="flex flex-col h-full gap-5">

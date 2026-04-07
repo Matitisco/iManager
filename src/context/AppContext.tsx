@@ -6,7 +6,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'fireb
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
-import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
+import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
@@ -14,6 +14,7 @@ import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 interface AppState {
   inventory: Product[];
   sales: Sale[];
+  salesCategories: SaleCategory[];
   tradeIns: TradeIn[];
   clients: Client[];
   customColumns: CustomColumn[];
@@ -38,6 +39,11 @@ interface AppState {
   deleteCategory: (id: string) => Promise<void>;
   bulkMoveCategory: (ids: string[], categoryId: string | null) => Promise<void>;
   reorderCategories: (ids: string[]) => Promise<void>;
+  createSaleCategory: (name: string) => Promise<SaleCategory>;
+  renameSaleCategory: (id: string, name: string) => Promise<void>;
+  deleteSaleCategory: (id: string) => Promise<void>;
+  bulkMoveSaleCategory: (ids: string[], categoryId: string | null) => Promise<void>;
+  reorderSaleCategories: (ids: string[]) => Promise<void>;
   user: User | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -96,6 +102,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [inventory, setInventory] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
@@ -130,6 +137,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) {
       setInventory([]);
       setSales([]);
+      setSalesCategories([]);
       setTradeIns([]);
       setClients([]);
       setCustomColumns([]);
@@ -293,30 +301,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let cancelled = false;
     let unsubscribeFirestore: (() => void) | null = null;
 
-    const startFirestoreFallback = () => {
-      setSalesSource('firestore');
-      unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
-        setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
-    };
-
-    const loadBackendSales = async () => {
+    // Note: Firestore doesn't have sales Categories, so we only fetch them from backend.
+    const loadBackendSalesAndCategories = async () => {
       try {
-        const backendSales = await fetchBackendSales(user);
+        const [backendSales, fetchedSalesCategories] = await Promise.all([
+          fetchBackendSales(user),
+          fetchSalesCategoriesApi(user).catch(() => []) // Gracefull fallback
+        ]);
         if (cancelled) return;
         setSales(backendSales);
+        setSalesCategories(fetchedSalesCategories);
         setSalesSource('backend');
       } catch (error) {
         if (cancelled) return;
         console.warn('Backend sales unavailable, falling back to Firestore.', error);
-        startFirestoreFallback();
+        setSalesSource('firestore');
+        unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
+          setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+        }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
       }
     };
 
     if (backendSalesEnabled) {
-      void loadBackendSales();
+      void loadBackendSalesAndCategories();
     } else {
-      startFirestoreFallback();
+      setSalesSource('firestore');
+      unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
+        setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
     }
 
     return () => {
@@ -805,6 +817,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // ── Sales Categories ───────────────────────────────────────────────────────
+
+  const createSaleCategory = async (name: string): Promise<SaleCategory> => {
+    if (!user) throw new Error('No authenticated user');
+    const { createSaleCategoryApi } = await import('../services/sales-api');
+    const cat = await createSaleCategoryApi(user, name);
+    setSalesCategories(prev => [...prev, cat]);
+    return cat;
+  };
+
+  const renameSaleCategory = async (id: string, name: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const { renameSaleCategoryApi } = await import('../services/sales-api');
+    const updated = await renameSaleCategoryApi(user, id, name);
+    setSalesCategories(prev => prev.map(c => c.id === id ? updated : c));
+  };
+
+  const deleteSaleCategory = async (id: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const { deleteSaleCategoryApi } = await import('../services/sales-api');
+    await deleteSaleCategoryApi(user, id);
+    setSalesCategories(prev => prev.filter(c => c.id !== id));
+    setSales(prev => prev.map(item => item.categoryId === id ? { ...item, categoryId: null } : item));
+  };
+
+  const bulkMoveSaleCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const { bulkMoveSalesCategoryApi } = await import('../services/sales-api');
+    await bulkMoveSalesCategoryApi(user, ids, categoryId);
+    setSales(prev => prev.map(item => ids.includes(item.id) ? { ...item, categoryId } : item));
+  };
+
+  const reorderSaleCategories = async (ids: string[]): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const prev = salesCategories;
+    const map = new Map(prev.map(c => [c.id, c]));
+    setSalesCategories(ids.map(id => map.get(id)!).filter(Boolean));
+    try {
+      const { reorderSalesCategoriesApi } = await import('../services/sales-api');
+      await reorderSalesCategoriesApi(user, ids);
+    } catch {
+      setSalesCategories(prev);
+    }
+  };
+
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -1031,6 +1088,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addCustomColumn, removeCustomColumn,
       reloadInventory,
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
+      salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

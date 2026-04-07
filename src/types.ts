@@ -35,6 +35,7 @@ export interface Sale {
   amount: number;
   paymentMethod: 'TRANSFERENCIA' | 'EFECTIVO' | 'TARJETA' | 'CANJE / PAGO' | 'T. Crédito';
   status: 'COMPLETADA' | 'PENDIENTE';
+  categoryId?: string | null;
 }
 
 export interface TradeIn {
