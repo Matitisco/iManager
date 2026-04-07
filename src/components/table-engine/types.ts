@@ -154,7 +154,7 @@ export interface TableEngineConfig<TRow extends WithId> {
   fetchFilteredIds?: (params: TableFilterParams) => Promise<string[]>;
 
   // CRUD
-  onCreate: (data: Record<string, any>) => Promise<TRow>;
+  onCreate?: (data: Record<string, any>) => Promise<any>;
   onUpdate: (item: TRow) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 

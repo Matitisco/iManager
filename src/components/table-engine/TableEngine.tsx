@@ -169,11 +169,21 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     const requiredField = addRowFields.find(f => f.required);
     const requiredVal = requiredField ? String(current[requiredField.colId] ?? '').trim() : 'ok';
     if (requiredField && !requiredVal) { if (showErrorIfEmpty) addFirstInputRef.current?.focus(); else { addingRowDataRef.current = null; setAddingRow(null); } return; }
-    addingRowDataRef.current = null; setAddingRow(null);
-    const newItemData = buildNewItem ? buildNewItem(current, activeCategoryId !== 'all' ? activeCategoryId : null) : { ...current, categoryId: activeCategoryId !== 'all' ? activeCategoryId : null };
-    await onCreate(newItemData);
-    const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
-    setItems(result.items); setTotal(result.total);
+    
+    try {
+      const newItemData = buildNewItem ? buildNewItem(current, activeCategoryId !== 'all' ? activeCategoryId : null) : { ...current, categoryId: activeCategoryId !== 'all' ? activeCategoryId : null };
+      if (onCreate) {
+        await onCreate(newItemData);
+      }
+      
+      addingRowDataRef.current = null; setAddingRow(null);
+      const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
+      setItems(result.items); setTotal(result.total);
+    } catch (e: any) {
+      alert(e.message || 'Error al agregar el ítem. Verificá los campos e intentá nuevamente.');
+      // Re-focus the first input if possible
+      addFirstInputRef.current?.focus();
+    }
   };
 
   // ── Bulk move confirm ──────────────────────────────────────────────────────

@@ -354,7 +354,7 @@ export const Inventory: React.FC = () => {
     ],
     buildNewItem: (formData, categoryId) => ({
       model: formData.model ?? '',
-      imei: formData.imei ?? '',
+      imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
       price: Number(formData.price) || 0,
       cost: 0,
       capacity: '',

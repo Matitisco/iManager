@@ -50,6 +50,7 @@ export const Sales: React.FC = () => {
     deleteSaleCategory,
     reorderSaleCategories,
     bulkMoveSaleCategory,
+    addSale,
     deleteSale
   } = useAppContext();
 
@@ -226,7 +227,40 @@ export const Sales: React.FC = () => {
     ],
 
     fetchPage: (params) => fetchSalesPage(user!, params),
-    onCreate: async () => { throw new Error('Las ventas se crean desde el proceso de venta'); },
+    addRowFields: [
+      { colId: 'dateLabel', placeholder: 'Etiqueta (ej. Venta local)', required: true, type: 'text' },
+      { colId: 'amount', placeholder: 'Monto', required: true, type: 'number' },
+      { 
+        colId: 'paymentMethod', 
+        type: 'select', 
+        selectOptions: [
+          { value: 'EFECTIVO', label: 'Efectivo' },
+          { value: 'TRANSFERENCIA', label: 'Transferencia' },
+          { value: 'TARJETA', label: 'Tarjeta' },
+        ]
+      },
+      { 
+        colId: 'status', 
+        type: 'select', 
+        selectOptions: [
+          { value: 'COMPLETADA', label: 'Completada' },
+          { value: 'PENDIENTE', label: 'Pendiente' },
+        ]
+      },
+    ],
+    buildNewItem: (formData, categoryId) => ({
+      dateLabel: formData.dateLabel ?? 'Venta manual',
+      amount: Number(formData.amount) || 0,
+      paymentMethod: formData.paymentMethod || 'EFECTIVO',
+      status: formData.status || 'COMPLETADA',
+      date: new Date().toISOString().slice(0, 10),
+      clientId: null,
+      productId: null,
+      categoryId: categoryId ?? null,
+    }),
+    onCreate: async (itemData) => {
+      await addSale(itemData as Omit<Sale, 'id'>);
+    },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
   }), [user, clients, inventory, salesCategories]);
