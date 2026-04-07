@@ -555,7 +555,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
             onBulkDelete={() => { setContextMenu(null); }}
             onMoveToCategory={onBulkMoveCategory ? (catId) => {
-              const ids = Array.from(selectedIds);
+              const ids = contextMenu.isBulk ? Array.from(selectedIds) : [contextMenu.item.id];
               onBulkMoveCategory(ids, catId).then(() => { clearSelection(); });
             } : undefined}
             noun={noun} nounPlural={nounPlural}
