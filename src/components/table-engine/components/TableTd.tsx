@@ -171,7 +171,7 @@ export function TableTd<TRow extends WithId>({
           onKeyDown={e => handleCellKeyDown(e, row)} onClick={e => e.stopPropagation()}
           className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
       ) : (
-        <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+        <div className="inline-block max-w-full truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
           onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(row.id, field, String(rawValue ?? '')); }}>
           {displayVal(displayValue) ?? <span className="text-gray-300">---</span>}
         </div>
