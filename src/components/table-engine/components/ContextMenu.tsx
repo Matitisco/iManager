@@ -36,7 +36,7 @@ export function ContextMenu<TRow extends WithId>({
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.1 }}
         style={{ position: 'fixed', top: y, left: x, zIndex: 50 }}
-        className="w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-sm py-1"
+        className="w-52 bg-white rounded-xl shadow-xl border border-gray-100 text-sm py-1"
         onClick={e => e.stopPropagation()}
       >
         {!isBulk && (
