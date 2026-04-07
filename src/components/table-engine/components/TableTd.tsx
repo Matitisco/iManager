@@ -116,7 +116,7 @@ export function TableTd<TRow extends WithId>({
         <div className="relative">
           <div className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
             onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(row.id, field, val); }}>
-            {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-medium text-gray-700">{val}</span>}
+            {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-bold text-gray-900">{val}</span>}
           </div>
           <AnimatePresence>
             {isEditing && (
@@ -163,13 +163,13 @@ export function TableTd<TRow extends WithId>({
 
   // ── Text cell (default) ────────────────────────────────────────────────────
   return (
-    <td key={colId} data-col={colId} className={`px-3 py-4 text-gray-700 overflow-hidden${focusRing} ${colDef.tdClassName ?? ''}`}>
+    <td key={colId} data-col={colId} className={`px-3 py-4 font-bold text-gray-900 overflow-hidden${focusRing} ${colDef.tdClassName ?? ''}`}>
       {isEditing ? (
         <input autoFocus value={inlineEditValue} maxLength={100}
           onChange={e => { setInlineEditValue(e.target.value); inlineEditValueRef.current = e.target.value; }}
           onFocus={e => e.target.select()} onBlur={() => handleCellBlur(row)}
           onKeyDown={e => handleCellKeyDown(e, row)} onClick={e => e.stopPropagation()}
-          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 text-gray-700 text-sm" />
+          className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 font-bold text-gray-900 text-sm" />
       ) : (
         <div className="truncate rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
           onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(row.id, field, String(rawValue ?? '')); }}>
