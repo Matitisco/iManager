@@ -75,6 +75,48 @@ function normalizeCustomColumn(id: string, raw: Record<string, unknown>): Custom
   };
 }
 
+function getCustomColumnsStorageKey(uid: string) {
+  return `customColumns:${uid}`;
+}
+
+function readLocalCustomColumns(uid: string): CustomColumn[] {
+  try {
+    const raw = window.localStorage.getItem(getCustomColumnsStorageKey(uid));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((value): value is Record<string, unknown> => !!value && typeof value === 'object')
+      .map((value) => normalizeCustomColumn(String(value.id ?? ''), value))
+      .filter((column) => column.id);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
+  try {
+    window.localStorage.setItem(getCustomColumnsStorageKey(uid), JSON.stringify(columns));
+  } catch {
+    // Ignore storage write failures and keep runtime state.
+  }
+}
+
+function mergeCustomColumns(remote: CustomColumn[], local: CustomColumn[]) {
+  const merged = new Map<string, CustomColumn>();
+
+  remote.forEach((column) => merged.set(column.id, column));
+  local.forEach((column) => {
+    if (!merged.has(column.id)) {
+      merged.set(column.id, column);
+    }
+  });
+
+  return Array.from(merged.values());
+}
+
 const AppContext = createContext<AppState | undefined>(undefined);
 
 enum OperationType {
@@ -202,12 +244,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     void loadBackendSession();
 
+    const localCustomColumns = readLocalCustomColumns(user.uid);
+    setCustomColumns(localCustomColumns);
+
     const unsubTradeIns = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
 
     const unsubCustomColumns = onSnapshot(collection(db, 'customColumns'), (snapshot) => {
-      setCustomColumns(snapshot.docs.map(snapshotDoc => normalizeCustomColumn(snapshotDoc.id, snapshotDoc.data())));
+      const remoteColumns = snapshot.docs.map(snapshotDoc => normalizeCustomColumn(snapshotDoc.id, snapshotDoc.data()));
+      const mergedColumns = mergeCustomColumns(remoteColumns, readLocalCustomColumns(user.uid));
+      writeLocalCustomColumns(user.uid, mergedColumns);
+      setCustomColumns(mergedColumns);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'customColumns'));
 
     return () => {
@@ -1078,8 +1126,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ));
       return id;
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
-      return undefined;
+      console.warn('Falling back to local custom column storage.', error);
+      const nextColumns = (
+        customColumns.some((column) => column.id === id)
+          ? customColumns
+          : [...customColumns, createdColumn]
+      );
+      writeLocalCustomColumns(user.uid, nextColumns);
+      setCustomColumns(nextColumns);
+      return id;
     }
   };
 
@@ -1088,11 +1143,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const path = `customColumns/${id}`;
     try {
       await deleteDoc(doc(db, 'customColumns', id));
-      setCustomColumns(prev => prev.filter(column => column.id !== id));
+      setCustomColumns(prev => {
+        const next = prev.filter(column => column.id !== id);
+        writeLocalCustomColumns(user.uid, next);
+        return next;
+      });
       // Optionally, remove the field from all products
       // This would require a batch update
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
+      console.warn('Falling back to local custom column removal.', error);
+      setCustomColumns(prev => {
+        const next = prev.filter(column => column.id !== id);
+        writeLocalCustomColumns(user.uid, next);
+        return next;
+      });
     }
   };
 
