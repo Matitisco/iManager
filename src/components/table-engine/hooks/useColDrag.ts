@@ -17,6 +17,8 @@ export function useColDrag(
   }, [draggingColId]);
 
   const handleColPointerDown = (e: React.PointerEvent, col: string) => {
+    if (e.button !== 0) return;
+
     const startX = e.clientX, startY = e.clientY;
     colDragStateRef.current = { id: col, dragging: false, dropBefore: null };
     const onMove = (ev: PointerEvent) => {
