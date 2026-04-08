@@ -17,4 +17,6 @@ export type {
   ImportFieldDef,
   GenericImportResult,
   TableImportConfig,
+  CreateColumnInput,
+  CustomColumnActions,
 } from './types';

@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import type { WithId, ColDef } from '../types';
+import { getColumnValue } from '../columnAccess';
 
 interface TableTdProps<TRow extends WithId> {
   colId: string;
@@ -36,7 +37,7 @@ export function TableTd<TRow extends WithId>({
   const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === colId;
   const focusRing = isFocused ? ' ring-1 ring-inset ring-gray-300' : '';
   const isEditing = inlineEditCell?.id === row.id && inlineEditCell.field === field;
-  const rawValue = (row as any)[field];
+  const rawValue = getColumnValue(row, colDef);
   const displayValue = cellDisplay(row, field, rawValue);
 
   // ── Custom renderer ────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export function TableTd<TRow extends WithId>({
   // ── Number cell ────────────────────────────────────────────────────────────
   if (colDef.type === 'number') {
     const numVal = displayValue as number;
-    const formatted = colDef.formatDisplay ? colDef.formatDisplay(numVal) : (numVal != null ? `$${Number(numVal).toLocaleString('en-US')}` : null);
+    const formatted = colDef.formatDisplay ? colDef.formatDisplay(numVal) : (numVal != null ? String(numVal) : null);
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4 font-bold text-gray-900${focusRing} ${colDef.tdClassName ?? ''}`}>
         {isEditing ? (

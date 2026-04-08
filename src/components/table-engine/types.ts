@@ -38,9 +38,13 @@ export interface ColDef<TRow extends WithId> {
   /** Custom cell renderer (for type='custom') */
   renderCell?: (value: any, row: TRow, helpers: CellHelpers<TRow>) => React.ReactNode;
   /** Optional formatter for display value */
-  formatDisplay?: (value: any) => string;
+  formatDisplay?: (value: any) => string | null | undefined;
   /** Sort field key sent to backend (defaults to col.id) */
   sortField?: string;
+  /** Optional row accessor for nested or computed values */
+  getValue?: (row: TRow) => any;
+  /** Optional row updater for nested or computed values */
+  setValue?: (row: TRow, value: unknown) => TRow;
 }
 
 export interface CellHelpers<TRow extends WithId> {
@@ -150,6 +154,17 @@ export interface TableImportConfig {
   mapHints?: Record<string, string>;
 }
 
+export interface CreateColumnInput {
+  label: string;
+  type: 'text' | 'number';
+}
+
+export interface CustomColumnActions {
+  onCreate: (input: CreateColumnInput) => Promise<unknown>;
+  onDelete?: (colId: string) => Promise<void>;
+  canDelete?: (colId: string) => boolean;
+}
+
 // ─── Main engine config ───────────────────────────────────────────────────────
 
 export interface TableEngineConfig<TRow extends WithId> {
@@ -202,6 +217,9 @@ export interface TableEngineConfig<TRow extends WithId> {
   ImportModal?: React.ComponentType<{ onClose: () => void }>;
   importConfig?: TableImportConfig;
   showImport?: boolean;
+
+  // Dynamic/custom columns (optional)
+  customColumnActions?: CustomColumnActions;
 
   // Noun for UI labels e.g. "equipo", "cliente", "producto"
   noun?: string;

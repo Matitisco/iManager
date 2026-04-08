@@ -21,6 +21,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { EditPanel } from './components/EditPanel';
 import { FilterPanel, SortPanel, ColumnsPanel } from './components/Panels';
 import { ImportModal as GenericImportModal } from './components/ImportModal';
+import { getColumnValue } from './columnAccess';
 
 interface TableEngineProps<TRow extends WithId> {
   config: TableEngineConfig<TRow>;
@@ -35,6 +36,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     fetchPage, fetchFilteredIds, onCreate, onUpdate, onDelete, onBulkDelete,
     addRowFields = [], buildNewItem, editPanelFields = [], editPanelTitle,
     ImportModal, importConfig, showImport = !!(ImportModal || importConfig),
+    customColumnActions,
     noun = 'ítem', nounPlural = 'ítems',
   } = config;
 
@@ -53,9 +55,14 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const [selectedItem, setSelectedItem] = useState<TRow | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: TRow; isBulk: boolean } | null>(null);
+  const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colId: string } | null>(null);
   const [addingRow, setAddingRow] = useState<Record<string, any> | null>(null);
   const [pendingItemMove, setPendingItemMove] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [newColumnDraft, setNewColumnDraft] = useState<{ label: string; type: 'text' | 'number' } | null>(null);
+  const [columnToDelete, setColumnToDelete] = useState<{ id: string; label: string } | null>(null);
+  const [columnMutationError, setColumnMutationError] = useState<string | null>(null);
+  const [isColumnMutationLoading, setIsColumnMutationLoading] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
 
@@ -150,9 +157,10 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       const colId = td?.dataset.col;
       if (colId && editHook.EDITABLE_COLS.has(colId)) {
         const field = editHook.COL_TO_FIELD[colId];
-        if (field) {
+        const colDef = columns.find(c => c.id === colId);
+        if (field && colDef) {
           editHook.setFocusedCell(null);
-          editHook.startInlineEdit(row.id, field, String((row as any)[field] ?? ''));
+          editHook.startInlineEdit(row.id, field, String(getColumnValue(row, colDef) ?? ''));
         }
       }
       return;
@@ -167,7 +175,56 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     const MENU_W = 208;
     const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
     const y = Math.min(e.clientY, window.innerHeight - 200);
+    setHeaderContextMenu(null);
     setContextMenu({ x, y, item: row, isBulk });
+  };
+
+  const openHeaderContextMenu = (e: React.MouseEvent, colId: string) => {
+    e.preventDefault();
+    const MENU_W = 232;
+    const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
+    const y = Math.min(e.clientY, window.innerHeight - 220);
+    setContextMenu(null);
+    setHeaderContextMenu({ x, y, colId });
+  };
+
+  const canDeleteColumn = (colId: string) =>
+    !!customColumnActions?.onDelete && (customColumnActions.canDelete?.(colId) ?? true);
+
+  const submitCreateColumn = async () => {
+    if (!customColumnActions || !newColumnDraft) return;
+
+    const label = newColumnDraft.label.trim();
+    if (!label) {
+      setColumnMutationError('Poné un nombre para la columna.');
+      return;
+    }
+
+    setIsColumnMutationLoading(true);
+    setColumnMutationError(null);
+    try {
+      await customColumnActions.onCreate({ label, type: newColumnDraft.type });
+      setNewColumnDraft(null);
+    } catch (error) {
+      setColumnMutationError(error instanceof Error ? error.message : 'No se pudo crear la columna.');
+    } finally {
+      setIsColumnMutationLoading(false);
+    }
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!customColumnActions?.onDelete || !columnToDelete) return;
+
+    setIsColumnMutationLoading(true);
+    setColumnMutationError(null);
+    try {
+      await customColumnActions.onDelete(columnToDelete.id);
+      setColumnToDelete(null);
+    } catch (error) {
+      setColumnMutationError(error instanceof Error ? error.message : 'No se pudo eliminar la columna.');
+    } finally {
+      setIsColumnMutationLoading(false);
+    }
   };
 
   // ── Add row ────────────────────────────────────────────────────────────────
@@ -257,7 +314,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
         colState.orderedVisibleCols.forEach(colId => {
           const colDef = columns.find(c => c.id === colId);
           if (!colDef) return;
-          r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = (row as any)[colDef.field] ?? '';
+          r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = getColumnValue(row, colDef) ?? '';
         });
         return r;
       });
@@ -378,6 +435,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                   thRef={el => { thRefs.current[col] = el; }}
                   onPointerDown={e => handleColPointerDown(e, col)}
                   onResizeStart={e => handleResizeStart(e, col)}
+                  onContextMenu={e => openHeaderContextMenu(e, col)}
                 />
               ))}
               <th className="px-3 py-4 w-10 bg-gray-50" />
@@ -598,6 +656,77 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {headerContextMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setHeaderContextMenu(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              style={{ position: 'fixed', top: headerContextMenu.y, left: headerContextMenu.x, zIndex: 50 }}
+              className="w-56 bg-white rounded-xl shadow-xl border border-gray-100 text-sm py-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => {
+                  colState.setRenameValue(colState.colNames[headerContextMenu.colId] || colState.DEFAULT_COL_NAMES[headerContextMenu.colId] || headerContextMenu.colId);
+                  colState.setRenamingCol(headerContextMenu.colId);
+                  setHeaderContextMenu(null);
+                }}
+                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+              >
+                Renombrar columna
+              </button>
+              {customColumnActions && (
+                <>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => {
+                      setColumnMutationError(null);
+                      setNewColumnDraft({ label: '', type: 'text' });
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                  >
+                    Nueva columna de texto
+                  </button>
+                  <button
+                    onClick={() => {
+                      setColumnMutationError(null);
+                      setNewColumnDraft({ label: '', type: 'number' });
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                  >
+                    Nueva columna numérica
+                  </button>
+                </>
+              )}
+              {canDeleteColumn(headerContextMenu.colId) && (
+                <>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => {
+                      setColumnMutationError(null);
+                      setColumnToDelete({
+                        id: headerContextMenu.colId,
+                        label: colState.colNames[headerContextMenu.colId] || colState.DEFAULT_COL_NAMES[headerContextMenu.colId] || headerContextMenu.colId,
+                      });
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-red-600 hover:bg-red-50 font-medium"
+                  >
+                    Eliminar columna
+                  </button>
+                </>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ── Edit panel ── */}
       <EditPanel
         item={selectedItem} fields={editPanelFields} title={editPanelTitle ?? `Editar ${noun}`}
@@ -619,6 +748,62 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
               <div className="flex gap-3">
                 <button onClick={() => setPendingItemMove(null)} className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
                 <button onClick={confirmBulkMove} className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-gray-900 text-white hover:bg-gray-800">Mover</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {newColumnDraft && (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-50" onClick={() => !isColumnMutationLoading && setNewColumnDraft(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl p-6 z-50 w-[26rem]"
+            >
+              <h3 className="text-base font-bold text-gray-900 mb-2">Nueva columna</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Creá una columna {newColumnDraft.type === 'number' ? 'numérica' : 'de texto'} para esta tabla.
+              </p>
+              <div className="space-y-3">
+                <input
+                  autoFocus
+                  maxLength={30}
+                  value={newColumnDraft.label}
+                  onChange={(e) => setNewColumnDraft((prev) => prev ? { ...prev, label: e.target.value } : prev)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void submitCreateColumn();
+                    }
+                  }}
+                  placeholder="Ej: Proveedor"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-gray-400"
+                />
+                {columnMutationError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {columnMutationError}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setNewColumnDraft(null)}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void submitCreateColumn()}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                >
+                  {isColumnMutationLoading ? 'Creando...' : 'Crear'}
+                </button>
               </div>
             </motion.div>
           </>
@@ -648,6 +833,46 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                   }}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
                   Eliminar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {columnToDelete && (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-50" onClick={() => !isColumnMutationLoading && setColumnToDelete(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl p-6 z-50 w-80"
+            >
+              <h3 className="text-base font-bold text-gray-900 mb-2">Eliminar columna</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                ¿Eliminar <strong>{columnToDelete.label}</strong>? La tabla va a dejar de mostrarla y no vas a poder recuperarla desde acá.
+              </p>
+              {columnMutationError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+                  {columnMutationError}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setColumnToDelete(null)}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void confirmDeleteColumn()}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isColumnMutationLoading ? 'Eliminando...' : 'Eliminar'}
                 </button>
               </div>
             </motion.div>

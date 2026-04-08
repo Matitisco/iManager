@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import type { WithId, ColDef } from '../types';
+import { applyColumnValue, getColumnValue } from '../columnAccess';
 
 export function useInlineEdit<TRow extends WithId>(
   items: TRow[],
@@ -39,14 +40,14 @@ export function useInlineEdit<TRow extends WithId>(
     const { field } = cell;
     const newVal = inlineEditValueRef.current.trim();
     inlineEditCellRef.current = null;
-    const currentVal = String((row as any)[field] ?? '');
-    if (currentVal === newVal) { setInlineEditCell(null); return; }
     const colDef = columns.find(c => c.field === field);
+    const currentVal = String(colDef ? getColumnValue(row, colDef) ?? '' : (row as any)[field] ?? '');
+    if (currentVal === newVal) { setInlineEditCell(null); return; }
     let parsed: any = newVal;
     if (colDef?.type === 'number') parsed = Number(newVal) || 0;
     committedDisplayRef.current = { id: row.id, field, value: parsed };
     setInlineEditCell(null);
-    const updatedItem = { ...row, [field]: parsed };
+    const updatedItem = colDef ? applyColumnValue(row, colDef, parsed) : { ...row, [field]: parsed };
     try {
       await onUpdate(updatedItem);
       setItems(prev => prev.map(p => p.id === row.id ? updatedItem : p));
@@ -87,7 +88,11 @@ export function useInlineEdit<TRow extends WithId>(
     const nextColId = editableCols[nextColIdx];
     const nextField = COL_TO_FIELD[nextColId];
     if (!nextField) return;
-    if (openEdit) startInlineEdit(nextItem.id, nextField, String((nextItem as any)[nextField] ?? ''));
+    if (openEdit) {
+      const nextColDef = columns.find((col) => col.id === nextColId);
+      const nextValue = nextColDef ? getColumnValue(nextItem, nextColDef) : (nextItem as any)[nextField];
+      startInlineEdit(nextItem.id, nextField, String(nextValue ?? ''));
+    }
     else setFocusedCell({ rowIndex: nextRowIdx, colKey: nextColId });
   };
 

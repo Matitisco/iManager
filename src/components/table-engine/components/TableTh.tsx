@@ -15,12 +15,13 @@ interface TableThProps {
   thRef: (el: HTMLTableCellElement | null) => void;
   onPointerDown: (e: React.PointerEvent) => void;
   onResizeStart: (e: React.PointerEvent) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }
 
 export function TableTh({
   col, colName, colWidth, isDragging, dropBefore, isResizing,
   renamingCol, renameValue, setRenameValue, setRenamingCol, commitColRename,
-  thRef, onPointerDown, onResizeStart,
+  thRef, onPointerDown, onResizeStart, onContextMenu,
 }: TableThProps) {
   return (
     <th
@@ -28,6 +29,7 @@ export function TableTh({
       className={`relative group px-3 py-4 text-left select-none cursor-grab overflow-hidden ${isDragging ? 'opacity-30' : ''}`}
       style={{ width: colWidth }}
       onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
     >
       {dropBefore && !isDragging && (
         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-900 rounded-full z-10" />

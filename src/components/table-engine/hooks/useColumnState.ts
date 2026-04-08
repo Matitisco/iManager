@@ -43,6 +43,53 @@ export function useColumnState<TRow extends WithId>(
   const [renamingCol, setRenamingCol] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
+  useEffect(() => {
+    setVisibleColumns((prev) => {
+      const next = Object.fromEntries(
+        ALL_COL_IDS.map((colId) => [colId, prev[colId] ?? true])
+      );
+
+      const changed =
+        Object.keys(prev).length !== Object.keys(next).length ||
+        ALL_COL_IDS.some((colId) => prev[colId] !== next[colId]);
+
+      return changed ? next : prev;
+    });
+  }, [storageKey, ALL_COL_IDS.join('|')]);
+
+  useEffect(() => {
+    setColWidths((prev) => {
+      const next = Object.fromEntries(
+        ALL_COL_IDS.map((colId) => [colId, prev[colId] ?? DEFAULT_COL_WIDTHS[colId]])
+      );
+
+      const changed = ALL_COL_IDS.some((colId) => prev[colId] !== next[colId])
+        || Object.keys(prev).length !== Object.keys(next).length;
+
+      return changed ? next : prev;
+    });
+  }, [storageKey, ALL_COL_IDS.join('|')]);
+
+  useEffect(() => {
+    setColOrder((prev) => {
+      const filtered = prev.filter((colId) => ALL_COL_IDS.includes(colId));
+      const missing = ALL_COL_IDS.filter((colId) => !filtered.includes(colId));
+      const next = [...filtered, ...missing];
+      const changed = next.length !== prev.length || next.some((colId, index) => prev[index] !== colId);
+      return changed ? next : prev;
+    });
+  }, [storageKey, ALL_COL_IDS.join('|')]);
+
+  useEffect(() => {
+    setColNames((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([colId]) => ALL_COL_IDS.includes(colId))
+      );
+      const changed = Object.keys(prev).length !== Object.keys(next).length;
+      return changed ? next : prev;
+    });
+  }, [storageKey, ALL_COL_IDS.join('|')]);
+
   useEffect(() => { localStorage.setItem(`${storageKey}:visibleCols`, JSON.stringify(visibleColumns)); }, [storageKey, visibleColumns]);
   useEffect(() => { localStorage.setItem(`${storageKey}:colWidths`, JSON.stringify(colWidths)); }, [storageKey, colWidths]);
   useEffect(() => { localStorage.setItem(`${storageKey}:colOrder`, JSON.stringify(colOrder)); }, [storageKey, colOrder]);

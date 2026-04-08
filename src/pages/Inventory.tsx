@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
-import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers } from '../components/table-engine';
+import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers, ColDef } from '../components/table-engine';
 import type { Product } from '../types';
 import {
   fetchInventoryPage,
@@ -134,6 +134,7 @@ export const Inventory: React.FC = () => {
     reloadInventory,
     customColumns,
     addCustomColumn,
+    removeCustomColumn,
   } = useAppContext();
 
   const config = useMemo((): TableEngineConfig<Product> => ({
@@ -238,6 +239,28 @@ export const Inventory: React.FC = () => {
         enumOptions: ['DISPONIBLE', 'VENDIDO', 'EN_REVISION'],
         badgeMeta: STATUS_META,
       },
+      ...customColumns.map<ColDef<Product>>((column) => ({
+        id: `custom:${column.id}`,
+        field: `custom:${column.id}` as keyof Product & string,
+        label: column.label,
+        defaultWidth: 160,
+        type: column.type === 'number' ? 'number' : column.type === 'enum' ? 'enum' : 'text',
+        editable: true,
+        enumOptions: column.type === 'enum' ? column.options ?? [] : undefined,
+        getValue: (row: Product) => row.customFields?.[column.id] ?? '',
+        setValue: (row: Product, value: unknown) => ({
+          ...row,
+          customFields: {
+            ...(row.customFields ?? {}),
+            [column.id]: column.type === 'number'
+              ? (value === '' || value == null ? '' : Number(value))
+              : value,
+          },
+        }),
+        formatDisplay: column.type === 'number'
+          ? (value: number | string) => value === '' || value == null ? undefined : String(value)
+          : undefined,
+      })),
     ],
 
     // ── Filters ───────────────────────────────────────────────────────────────
@@ -343,25 +366,43 @@ export const Inventory: React.FC = () => {
       await Promise.all(ids.map(id => deleteBackendInventoryItem(user, id)));
     },
 
+    customColumnActions: {
+      onCreate: async ({ label, type }) => {
+        await addCustomColumn({ label, type });
+      },
+      onDelete: async (colId) => {
+        if (!colId.startsWith('custom:')) return;
+        await removeCustomColumn(colId.replace('custom:', ''));
+      },
+      canDelete: (colId) => colId.startsWith('custom:'),
+    },
+
     // ── Add row inline ────────────────────────────────────────────────────────
     addRowFields: [
       { colId: 'model', placeholder: 'Modelo (ej. iPhone 15 Pro)', required: true },
       { colId: 'imei', placeholder: 'IMEI' },
       { colId: 'price', placeholder: 'Precio' },
     ],
-    buildNewItem: (formData, categoryId) => ({
-      model: formData.model ?? '',
-      imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
-      price: Number(formData.price) || 0,
-      cost: Number(formData.cost) || 0,
-      capacity: formData.capacity ?? '',
-      color: formData.color ?? '',
-      batteryHealth: formData.batteryHealth ?? '',
-      condition: formData.condition ?? 'NUEVO',
-      grade: formData.grade ?? 'N/A',
-      status: formData.status ?? 'DISPONIBLE',
-      categoryId: categoryId ?? null,
-    }),
+    buildNewItem: (formData, categoryId) => {
+      const customFieldEntries = Object.entries(formData)
+        .filter(([key, value]) => key.startsWith('custom:') && value !== '' && value != null)
+        .map(([key, value]) => [key.replace('custom:', ''), value]);
+
+      return {
+        model: formData.model ?? '',
+        imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
+        price: Number(formData.price) || 0,
+        cost: Number(formData.cost) || 0,
+        capacity: formData.capacity ?? '',
+        color: formData.color ?? '',
+        batteryHealth: formData.batteryHealth ?? '',
+        condition: formData.condition ?? 'NUEVO',
+        grade: formData.grade ?? 'N/A',
+        status: formData.status ?? 'DISPONIBLE',
+        categoryId: categoryId ?? null,
+        customFields: customFieldEntries.length > 0 ? Object.fromEntries(customFieldEntries) : undefined,
+      };
+    },
 
     // ── Edit panel ────────────────────────────────────────────────────────────
     editPanelTitle: 'Editar equipo',
@@ -479,6 +520,7 @@ export const Inventory: React.FC = () => {
     addProduct,
     customColumns,
     addCustomColumn,
+    removeCustomColumn,
     reloadInventory,
   ]);
 

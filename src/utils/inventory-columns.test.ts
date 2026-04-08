@@ -55,6 +55,18 @@ describe('TableEngine table column layout', () => {
     expect(srcTableEngine).toContain('renamingCol');
   });
 
+  it('column headers expose a context menu for column actions', () => {
+    expect(srcTableTh).toContain('onContextMenu');
+    expect(srcTableEngine).toContain('headerContextMenu');
+    expect(srcTableEngine).toContain('Nueva columna de texto');
+    expect(srcTableEngine).toContain('Eliminar columna');
+  });
+
+  it('column value access supports dynamic getters', () => {
+    expect(srcTableTd).toContain('getColumnValue');
+    expect(srcTableEngine).toContain('getColumnValue');
+  });
+
   it('resize handle is a visible element that changes color when active', () => {
     expect(srcTableTh).toContain('isResizing');
   });
