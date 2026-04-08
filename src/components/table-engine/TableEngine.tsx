@@ -61,6 +61,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const renameDoneRef = useRef(false);
   const addingRowDataRef = useRef<Record<string, any> | null>(null);
   const addFirstInputRef = useRef<HTMLInputElement | null>(null);
+  const addRowFieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -180,9 +181,19 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const commitAddRow = async (showErrorIfEmpty = true) => {
     const current = addingRowDataRef.current;
     if (!current) return;
-    const requiredField = addRowFields.find(f => f.required);
-    const requiredVal = requiredField ? String(current[requiredField.colId] ?? '').trim() : 'ok';
-    if (requiredField && !requiredVal) { if (showErrorIfEmpty) addFirstInputRef.current?.focus(); else { addingRowDataRef.current = null; setAddingRow(null); } return; }
+    const missingRequiredField = addRowFields.find((field) => {
+      if (!field.required) return false;
+      return !String(current[field.colId] ?? '').trim();
+    });
+    if (missingRequiredField) {
+      if (showErrorIfEmpty) {
+        addRowFieldRefs.current[missingRequiredField.colId]?.focus();
+      } else {
+        addingRowDataRef.current = null;
+        setAddingRow(null);
+      }
+      return;
+    }
     
     try {
       // Auto-map colId → field using ColDef so buildNewItem always works with field names
@@ -464,6 +475,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                       <td key={colId} className="px-3 py-3">
                         {effectiveType === 'select' ? (
                           <select
+                            ref={(node) => { addRowFieldRefs.current[colId] = node; }}
                             value={addingRow[colId] ?? selectOptions[0]?.value ?? ''}
                             onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
                             className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400">
@@ -471,7 +483,12 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                           </select>
                         ) : (
                           <input
-                            ref={colId === firstTextColId ? addFirstInputRef : undefined}
+                            ref={(node) => {
+                              addRowFieldRefs.current[colId] = node;
+                              if (colId === firstTextColId) {
+                                addFirstInputRef.current = node;
+                              }
+                            }}
                             type={effectiveType === 'number' ? 'number' : 'text'}
                             placeholder={placeholder}
                             value={addingRow[colId] ?? ''}

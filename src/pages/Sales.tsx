@@ -96,6 +96,7 @@ export const Sales: React.FC = () => {
         label: 'Cliente',
         defaultWidth: 180,
         type: 'custom',
+        alwaysVisible: true,
         editable: false,
         renderCell: (clientId: string) => {
           const client = clients.find((c: Client) => c.id === clientId);
@@ -112,6 +113,7 @@ export const Sales: React.FC = () => {
         label: 'Modelo / IMEI',
         defaultWidth: 200,
         type: 'custom',
+        alwaysVisible: true,
         editable: false,
         renderCell: (productId: string) => {
           const product = inventory.find((p: Product) => p.id === productId);
