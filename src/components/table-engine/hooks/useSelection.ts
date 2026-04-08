@@ -16,16 +16,17 @@ export function useSelection<TRow extends WithId>(
     if (selectedIds.size > 0) {
       setSelectedIds(new Set());
     } else {
-      try {
-        if (fetchFilteredIds && filterParamsRef) {
+      // Select visible items immediately for instant feedback
+      const visibleIds = new Set(items.map(i => i.id));
+      setSelectedIds(visibleIds);
+      if (fetchFilteredIds && filterParamsRef) {
+        try {
           const params = filterParamsRef.current;
           const ids = await fetchFilteredIds({ filters: params.filters ?? {}, categoryId: params.categoryId });
           setSelectedIds(new Set(ids));
-        } else {
-          setSelectedIds(new Set(items.map(i => i.id)));
+        } catch {
+          // keep the visible-items selection already set
         }
-      } catch {
-        setSelectedIds(new Set(items.map(i => i.id)));
       }
     }
     lastSelectedIndex.current = -1;
