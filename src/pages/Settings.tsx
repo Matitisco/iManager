@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, User, Bell, Shield, CreditCard, Smartphone, Save, Check, Key, Lock, Link as LinkIcon, Download } from 'lucide-react';
+import { Store, User, Shield, CreditCard, Save, Check, Key, Lock, Download } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
 import type { StoreUpdateInput } from '../services/settings-api';
@@ -310,36 +310,6 @@ function PreviewBanner() {
   );
 }
 
-function NotificationsTab() {
-  return (
-    <motion.div key="notifications" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
-      <PreviewBanner />
-      <div className="p-8 space-y-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-6">Preferencias de Notificaciones</h2>
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Notificaciones por Email</h3>
-          {[
-            { label: 'Resumen Diario', desc: 'Recibe un resumen de las ventas y canjes del día.', defaultChecked: true },
-            { label: 'Alertas de Stock Bajo', desc: 'Notificar cuando un producto baje del mínimo establecido.', defaultChecked: true },
-            { label: 'Nuevos Canjes', desc: 'Avisar cuando se registre un nuevo equipo para evaluación.', defaultChecked: false },
-          ].map(({ label, desc, defaultChecked }) => (
-            <div key={label} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{label}</p>
-                <p className="text-xs text-gray-500">{desc}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked={defaultChecked} />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black" />
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 function SecurityTab() {
   return (
     <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
@@ -433,45 +403,6 @@ function BillingTab() {
   );
 }
 
-function IntegrationsTab() {
-  const integrations = [
-    { icon: Smartphone, bg: 'bg-blue-50', fg: 'text-blue-600', name: 'WhatsApp Business API', desc: 'Envía notificaciones automáticas a clientes sobre sus reparaciones o canjes.', connected: false },
-    { icon: CreditCard, bg: 'bg-emerald-50', fg: 'text-emerald-600', name: 'Mercado Pago', desc: 'Sincroniza tus cobros y genera links de pago directamente desde la plataforma.', connected: true },
-    { icon: LinkIcon, bg: 'bg-purple-50', fg: 'text-purple-600', name: 'API Personalizada', desc: 'Conecta tu propio e-commerce o sistema contable mediante nuestra API REST.', connected: false },
-  ];
-
-  return (
-    <motion.div key="integrations" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
-      <PreviewBanner />
-      <div className="p-8 space-y-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-6">Integraciones</h2>
-        {integrations.map(({ icon: Icon, bg, fg, name, desc, connected }) => (
-          <div key={name} className="p-4 border border-gray-200 rounded-xl flex items-start sm:items-center justify-between flex-col sm:flex-row gap-4">
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 ${bg} ${fg} rounded-xl flex items-center justify-center shrink-0`}>
-                <Icon size={24} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">{name}</h3>
-                <p className="text-xs text-gray-500 mt-1">{desc}</p>
-              </div>
-            </div>
-            {connected ? (
-              <motion.button type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors whitespace-nowrap flex items-center gap-2">
-                <Check size={16} /> Conectado
-              </motion.button>
-            ) : (
-              <motion.button type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors whitespace-nowrap">
-                Conectar
-              </motion.button>
-            )}
-          </div>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Main Settings component ──────────────────────────────────────────────────
 
 export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab, setActiveTab: externalSetActiveTab }) => {
@@ -483,19 +414,15 @@ export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab
   const tabs = [
     { id: 'store', label: 'Datos de la Tienda', icon: Store },
     { id: 'profile', label: 'Mi Perfil', icon: User },
-    { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'security', label: 'Seguridad', icon: Shield },
     { id: 'billing', label: 'Facturación', icon: CreditCard },
-    { id: 'integrations', label: 'Integraciones', icon: Smartphone },
   ];
 
   const tabContent: Record<string, React.ReactNode> = {
     store: <StoreTab />,
     profile: <ProfileTab />,
-    notifications: <NotificationsTab />,
     security: <SecurityTab />,
     billing: <BillingTab />,
-    integrations: <IntegrationsTab />,
   };
 
   return (
