@@ -89,6 +89,8 @@ npm run migrate:clients                          # migración histórica desde F
 npx prisma studio                               # UI de PG
 ```
 
+> El test de `lint` corre automáticamente al hacer push.
+
 ---
 
 ## Servicios frontend → backend
