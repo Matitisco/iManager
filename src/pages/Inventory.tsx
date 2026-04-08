@@ -368,7 +368,10 @@ export const Inventory: React.FC = () => {
 
     customColumnActions: {
       onCreate: async ({ label, type }) => {
-        await addCustomColumn({ label, type });
+        const id = await addCustomColumn({ label, type });
+        if (!id) {
+          throw new Error('No se pudo crear la columna.');
+        }
       },
       onDelete: async (colId) => {
         if (!colId.startsWith('custom:')) return;

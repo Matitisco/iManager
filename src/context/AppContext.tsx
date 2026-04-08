@@ -1051,8 +1051,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) return undefined;
     const id = generateId('COL');
     const path = `customColumns/${id}`;
+    const createdColumn: CustomColumn = { id, ...columnData };
     try {
       await setDoc(doc(db, 'customColumns', id), { ...columnData, authorUid: user.uid });
+      setCustomColumns(prev => (
+        prev.some(column => column.id === id)
+          ? prev
+          : [...prev, createdColumn]
+      ));
       return id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -1065,6 +1071,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const path = `customColumns/${id}`;
     try {
       await deleteDoc(doc(db, 'customColumns', id));
+      setCustomColumns(prev => prev.filter(column => column.id !== id));
       // Optionally, remove the field from all products
       // This would require a batch update
     } catch (error) {
