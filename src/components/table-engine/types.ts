@@ -165,6 +165,20 @@ export interface CustomColumnActions {
   canDelete?: (colId: string) => boolean;
 }
 
+export interface DynamicColumnDefinition {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'enum';
+  options?: string[];
+}
+
+export interface DynamicColumnsConfig<TRow extends WithId> {
+  columns: DynamicColumnDefinition[];
+  getValue: (row: TRow, columnId: string) => unknown;
+  setValue: (row: TRow, columnId: string, value: unknown) => TRow;
+  defaultWidth?: number;
+}
+
 // ─── Main engine config ───────────────────────────────────────────────────────
 
 export interface TableEngineConfig<TRow extends WithId> {
@@ -220,6 +234,7 @@ export interface TableEngineConfig<TRow extends WithId> {
 
   // Dynamic/custom columns (optional)
   customColumnActions?: CustomColumnActions;
+  dynamicColumns?: DynamicColumnsConfig<TRow>;
 
   // Noun for UI labels e.g. "equipo", "cliente", "producto"
   noun?: string;

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Filter, Download, Columns, Plus, Upload, ArrowUpDown } from 'lucide-react';
 
-import type { TableEngineConfig, WithId, TablePageParams } from './types';
+import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
 import { useTableData } from './hooks/useTableData';
 import { useColumnState } from './hooks/useColumnState';
 import { useSelection } from './hooks/useSelection';
@@ -36,9 +36,34 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     fetchPage, fetchFilteredIds, onCreate, onUpdate, onDelete, onBulkDelete,
     addRowFields = [], buildNewItem, editPanelFields = [], editPanelTitle,
     ImportModal, importConfig, showImport = !!(ImportModal || importConfig),
-    customColumnActions,
+    customColumnActions, dynamicColumns,
     noun = 'ítem', nounPlural = 'ítems',
   } = config;
+
+  const resolvedColumns = React.useMemo<ColDef<TRow>[]>(() => {
+    if (!dynamicColumns?.columns?.length) {
+      return columns;
+    }
+
+    const defaultWidth = dynamicColumns.defaultWidth ?? 160;
+    return [
+      ...columns,
+      ...dynamicColumns.columns.map((column) => ({
+        id: `dynamic:${column.id}`,
+        field: `dynamic:${column.id}` as keyof TRow & string,
+        label: column.label,
+        defaultWidth,
+        type: column.type,
+        editable: true,
+        enumOptions: column.type === 'enum' ? column.options ?? [] : undefined,
+        getValue: (row: TRow) => dynamicColumns.getValue(row, column.id),
+        setValue: (row: TRow, value: unknown) => dynamicColumns.setValue(row, column.id, value),
+        formatDisplay: column.type === 'number'
+          ? (value: number | string) => value === '' || value == null ? undefined : String(value)
+          : undefined,
+      })),
+    ];
+  }, [columns, dynamicColumns]);
 
   const PAGE_SIZE = 30;
 
@@ -81,12 +106,12 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, isExporting, setIsExporting, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
-  const colState = useColumnState(storageKey, columns);
+  const colState = useColumnState(storageKey, resolvedColumns);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
 
-  const editHook = useInlineEdit(items, columns, colState.orderedVisibleCols, onUpdate, setItems);
+  const editHook = useInlineEdit(items, resolvedColumns, colState.orderedVisibleCols, onUpdate, setItems);
   const { activeResizeCol, handleResizeStart } = useColResize(colState.colWidths, colState.setColWidths);
   const { draggingColId, dropBeforeColId, colDragPos, handleColPointerDown } = useColDrag(colState.ALL_COL_IDS, thRefs, colState.setColOrder);
   const catDrag = useCategoryDrag(categories, onReorderCategories);
@@ -157,7 +182,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       const colId = td?.dataset.col;
       if (colId && editHook.EDITABLE_COLS.has(colId)) {
         const field = editHook.COL_TO_FIELD[colId];
-        const colDef = columns.find(c => c.id === colId);
+        const colDef = resolvedColumns.find(c => c.id === colId);
         if (field && colDef) {
           editHook.setFocusedCell(null);
           editHook.startInlineEdit(row.id, field, String(getColumnValue(row, colDef) ?? ''));
@@ -239,7 +264,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     // Auto-initialize all visible editable columns not already covered by addRowFields
     colState.orderedVisibleCols.forEach(colId => {
       if (colId in initial) return;
-      const colDef = columns.find(c => c.id === colId);
+      const colDef = resolvedColumns.find(c => c.id === colId);
       if (!colDef?.editable) return;
       initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge') ? (colDef.enumOptions?.[0] ?? '') : '';
     });
@@ -272,7 +297,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       // Auto-map colId → field using ColDef so buildNewItem always works with field names
       const mapped: Record<string, any> = {};
       for (const [colId, val] of Object.entries(current)) {
-        const colDef = columns.find(c => c.id === colId);
+        const colDef = resolvedColumns.find(c => c.id === colId);
         mapped[colDef?.field ?? colId] = val;
       }
       const newItemData = buildNewItem
@@ -312,7 +337,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       const rows = result.items.map(row => {
         const r: Record<string, any> = {};
         colState.orderedVisibleCols.forEach(colId => {
-          const colDef = columns.find(c => c.id === colId);
+          const colDef = resolvedColumns.find(c => c.id === colId);
           if (!colDef) return;
           r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = getColumnValue(row, colDef) ?? '';
         });
@@ -466,7 +491,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                         className="w-3.5 h-3.5 rounded border-gray-300 accent-gray-900 pointer-events-none" />
                     </td>
                     {colState.orderedVisibleCols.map(colId => {
-                      const colDef = columns.find(c => c.id === colId);
+                      const colDef = resolvedColumns.find(c => c.id === colId);
                       if (!colDef) return null;
                       return (
                         <TableTd key={colId}
@@ -504,7 +529,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
               // First text/number input column gets the focus ref
               const firstTextColId = colState.orderedVisibleCols.find(colId => {
                 const fc = addRowFields.find(f => f.colId === colId);
-                const cd = columns.find(c => c.id === colId);
+                const cd = resolvedColumns.find(c => c.id === colId);
                 if (!fc && !cd?.editable) return false;
                 const isSelect = fc?.type === 'select' || !!fc?.selectOptions?.length
                   || (!fc && cd && (cd.type === 'enum' || cd.type === 'badge') && !!cd.enumOptions?.length);
@@ -515,7 +540,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                   <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
                   {colState.orderedVisibleCols.map((colId) => {
                     const fieldCfg = addRowFields.find(f => f.colId === colId);
-                    const colDef = columns.find(c => c.id === colId);
+                    const colDef = resolvedColumns.find(c => c.id === colId);
                     // Skip columns that are not editable and not explicitly in addRowFields
                     if (!fieldCfg && !colDef?.editable) return <td key={colId} className="px-3 py-3" />;
 
@@ -921,3 +946,4 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     </div>
   );
 }
+

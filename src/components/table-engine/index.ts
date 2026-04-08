@@ -19,4 +19,6 @@ export type {
   TableImportConfig,
   CreateColumnInput,
   CustomColumnActions,
+  DynamicColumnDefinition,
+  DynamicColumnsConfig,
 } from './types';

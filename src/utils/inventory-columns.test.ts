@@ -67,6 +67,11 @@ describe('TableEngine table column layout', () => {
     expect(srcTableEngine).toContain('getColumnValue');
   });
 
+  it('table engine builds dynamic columns from config instead of page-specific coldefs', () => {
+    expect(srcTableEngine).toContain('dynamicColumns');
+    expect(srcTableEngine).toContain('resolvedColumns');
+  });
+
   it('resize handle is a visible element that changes color when active', () => {
     expect(srcTableTh).toContain('isResizing');
   });

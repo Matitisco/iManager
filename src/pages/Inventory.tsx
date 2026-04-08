@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
-import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers, ColDef } from '../components/table-engine';
+import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers } from '../components/table-engine';
 import type { Product } from '../types';
 import {
   fetchInventoryPage,
@@ -239,28 +239,6 @@ export const Inventory: React.FC = () => {
         enumOptions: ['DISPONIBLE', 'VENDIDO', 'EN_REVISION'],
         badgeMeta: STATUS_META,
       },
-      ...customColumns.map<ColDef<Product>>((column) => ({
-        id: `custom:${column.id}`,
-        field: `custom:${column.id}` as keyof Product & string,
-        label: column.label,
-        defaultWidth: 160,
-        type: column.type === 'number' ? 'number' : column.type === 'enum' ? 'enum' : 'text',
-        editable: true,
-        enumOptions: column.type === 'enum' ? column.options ?? [] : undefined,
-        getValue: (row: Product) => row.customFields?.[column.id] ?? '',
-        setValue: (row: Product, value: unknown) => ({
-          ...row,
-          customFields: {
-            ...(row.customFields ?? {}),
-            [column.id]: column.type === 'number'
-              ? (value === '' || value == null ? '' : Number(value))
-              : value,
-          },
-        }),
-        formatDisplay: column.type === 'number'
-          ? (value: number | string) => value === '' || value == null ? undefined : String(value)
-          : undefined,
-      })),
     ],
 
     // ── Filters ───────────────────────────────────────────────────────────────
@@ -374,10 +352,24 @@ export const Inventory: React.FC = () => {
         }
       },
       onDelete: async (colId) => {
-        if (!colId.startsWith('custom:')) return;
-        await removeCustomColumn(colId.replace('custom:', ''));
+        if (!colId.startsWith('dynamic:')) return;
+        await removeCustomColumn(colId.replace('dynamic:', ''));
       },
-      canDelete: (colId) => colId.startsWith('custom:'),
+      canDelete: (colId) => colId.startsWith('dynamic:'),
+    },
+    dynamicColumns: {
+      columns: customColumns,
+      defaultWidth: 160,
+      getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
+      setValue: (row, columnId, value) => ({
+        ...row,
+        customFields: {
+          ...(row.customFields ?? {}),
+          [columnId]: customColumns.find((column) => column.id === columnId)?.type === 'number'
+            ? (value === '' || value == null ? '' : Number(value))
+            : value,
+        },
+      }),
     },
 
     // ── Add row inline ────────────────────────────────────────────────────────
@@ -388,8 +380,8 @@ export const Inventory: React.FC = () => {
     ],
     buildNewItem: (formData, categoryId) => {
       const customFieldEntries = Object.entries(formData)
-        .filter(([key, value]) => key.startsWith('custom:') && value !== '' && value != null)
-        .map(([key, value]) => [key.replace('custom:', ''), value]);
+        .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
+        .map(([key, value]) => [key.replace('dynamic:', ''), value]);
 
       return {
         model: formData.model ?? '',
