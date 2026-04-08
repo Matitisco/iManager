@@ -12,6 +12,8 @@ export interface SaleInput {
 }
 
 export interface SalePatchInput {
+  clientId?: string;
+  productId?: string;
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
   date?: string;
@@ -112,6 +114,26 @@ function formatDateLabel(value: Date) {
   }).format(value);
 }
 
+async function recomputeClientStats(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  storeId: string,
+  clientId: string
+) {
+  const aggregate = await tx.sale.aggregate({
+    where: { storeId, clientId },
+    _sum: { amount: true },
+    _max: { soldAt: true },
+  });
+
+  await tx.client.updateMany({
+    where: { id: clientId, storeId },
+    data: {
+      totalSpent: aggregate._sum.amount ?? new Decimal(0),
+      lastPurchaseAt: aggregate._max.soldAt ?? null,
+    },
+  });
+}
+
 function serializeSale(sale: SaleRecord): SaleResponse {
   return {
     id: sale.id,
@@ -204,6 +226,33 @@ export async function updateSale(
   }
 
   return prisma.$transaction(async (tx) => {
+    const nextClientId = input.clientId ?? existing.clientId ?? undefined;
+    const nextInventoryItemId = input.productId ?? existing.inventoryItemId ?? undefined;
+
+    if (input.clientId) {
+      const client = await tx.client.findFirst({
+        where: { id: input.clientId, storeId },
+      });
+
+      if (!client) {
+        throw new SalesError("Client not found", 404);
+      }
+    }
+
+    if (input.productId && input.productId !== existing.inventoryItemId) {
+      const inventoryItem = await tx.inventoryItem.findFirst({
+        where: { id: input.productId, storeId },
+      });
+
+      if (!inventoryItem) {
+        throw new SalesError("Inventory item not found", 404);
+      }
+
+      if (inventoryItem.status !== "DISPONIBLE") {
+        throw new SalesError("Inventory item is not available", 409);
+      }
+    }
+
     const newSoldAt = input.date ? parseDateLabel(input.date) : existing.soldAt;
     const newDateLabel = input.date
       ? normalizeDateLabel(input.date) || formatDateLabel(newSoldAt)
@@ -218,24 +267,38 @@ export async function updateSale(
         dateLabel: newDateLabel,
         soldAt: newSoldAt,
         amount: newAmount,
+        clientId: nextClientId,
+        inventoryItemId: nextInventoryItemId,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       },
     });
 
-    if (existing.clientId && input.amount !== undefined) {
-      const aggregate = await tx.sale.aggregate({
-        where: { storeId, clientId: existing.clientId },
-        _sum: { amount: true },
-        _max: { soldAt: true },
+    if (existing.inventoryItemId && existing.inventoryItemId !== nextInventoryItemId) {
+      await tx.inventoryItem.updateMany({
+        where: { id: existing.inventoryItemId, storeId },
+        data: { status: "DISPONIBLE" },
       });
+    }
 
-      await tx.client.updateMany({
-        where: { id: existing.clientId, storeId },
-        data: {
-          totalSpent: aggregate._sum.amount ?? new Decimal(0),
-          lastPurchaseAt: aggregate._max.soldAt ?? null,
-        },
+    if (nextInventoryItemId && nextInventoryItemId !== existing.inventoryItemId) {
+      await tx.inventoryItem.updateMany({
+        where: { id: nextInventoryItemId, storeId },
+        data: { status: "VENDIDO" },
       });
+    }
+
+    if (
+      input.amount !== undefined ||
+      input.date !== undefined ||
+      input.clientId !== undefined
+    ) {
+      const affectedClientIds = new Set<string>();
+      if (existing.clientId) affectedClientIds.add(existing.clientId);
+      if (nextClientId) affectedClientIds.add(nextClientId);
+
+      for (const clientId of affectedClientIds) {
+        await recomputeClientStats(tx, storeId, clientId);
+      }
     }
 
     return serializeSale(updated as SaleRecord);

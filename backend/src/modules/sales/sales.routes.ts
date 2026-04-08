@@ -36,6 +36,8 @@ const saleCreateSchema = z.object({
 
 const salePatchSchema = z
   .object({
+    clientId: z.string().min(1).optional(),
+    productId: z.string().min(1).optional(),
     paymentMethod: paymentMethodSchema.optional(),
     status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
     date: z.string().min(1).max(120).optional(),

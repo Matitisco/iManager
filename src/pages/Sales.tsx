@@ -97,11 +97,38 @@ export const Sales: React.FC = () => {
         defaultWidth: 180,
         type: 'custom',
         alwaysVisible: true,
-        editable: false,
-        renderCell: (clientId: string) => {
+        editable: true,
+        renderCell: (clientId: string, row, helpers) => {
+          if (helpers.isEditing(row.id, 'clientId')) {
+            return (
+              <select
+                autoFocus
+                value={helpers.inlineValue}
+                onChange={(e) => {
+                  helpers.setInlineValue(e.target.value);
+                  helpers.commitEdit({ ...row, clientId: e.target.value });
+                }}
+                onBlur={() => helpers.onBlur(row)}
+                onKeyDown={(e) => helpers.onKeyDown(e, row)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 text-sm"
+              >
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            );
+          }
+
           const client = clients.find((c: Client) => c.id === clientId);
           return (
-            <span className="font-medium text-gray-900">
+            <span
+              className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text font-medium text-gray-900"
+              onClick={(e) => {
+                e.stopPropagation();
+                helpers.startEdit(row.id, 'clientId', clientId);
+              }}
+            >
               {client?.name ?? <span className="text-gray-300 italic">Cliente eliminado</span>}
             </span>
           );
@@ -114,11 +141,42 @@ export const Sales: React.FC = () => {
         defaultWidth: 200,
         type: 'custom',
         alwaysVisible: true,
-        editable: false,
-        renderCell: (productId: string) => {
+        editable: true,
+        renderCell: (productId: string, row, helpers) => {
+          if (helpers.isEditing(row.id, 'productId')) {
+            return (
+              <select
+                autoFocus
+                value={helpers.inlineValue}
+                onChange={(e) => {
+                  helpers.setInlineValue(e.target.value);
+                  helpers.commitEdit({ ...row, productId: e.target.value });
+                }}
+                onBlur={() => helpers.onBlur(row)}
+                onKeyDown={(e) => helpers.onKeyDown(e, row)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full outline-none border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-gray-400 text-sm"
+              >
+                {inventory
+                  .filter((product) => product.id === productId || product.status === 'DISPONIBLE')
+                  .map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {`${product.model}${product.capacity ? ` ${product.capacity}` : ''}${product.imei ? ` · ${product.imei}` : ''}`}
+                    </option>
+                  ))}
+              </select>
+            );
+          }
+
           const product = inventory.find((p: Product) => p.id === productId);
           return product ? (
-            <div>
+            <div
+              className="inline-block rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+              onClick={(e) => {
+                e.stopPropagation();
+                helpers.startEdit(row.id, 'productId', productId);
+              }}
+            >
               <div className="font-bold text-gray-900">{product.model} {product.capacity}</div>
               <div className="text-xs text-gray-400 mt-0.5">IMEI: {product.imei || '—'}</div>
             </div>

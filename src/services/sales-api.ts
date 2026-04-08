@@ -76,6 +76,8 @@ export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
     method: 'PATCH',
     headers: await getAuthHeaders(user),
     body: JSON.stringify({
+      clientId: sale.clientId,
+      productId: sale.productId,
       paymentMethod: sale.paymentMethod,
       status: sale.status,
       date: sale.date,
