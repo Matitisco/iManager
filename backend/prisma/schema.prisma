@@ -113,6 +113,7 @@ model InventoryItem {
 
 model Sale {
   id              String         @id @default(cuid())
+  saleNumber      Int            @default(autoincrement())
   storeId         String
   clientId        String?
   categoryId      String?

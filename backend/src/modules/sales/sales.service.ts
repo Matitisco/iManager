@@ -23,6 +23,7 @@ export interface SalePatchInput {
 
 export interface SaleResponse {
   id: string;
+  saleNumber: number;
   date: string;
   clientId: string;
   productId: string;
@@ -34,6 +35,7 @@ export interface SaleResponse {
 
 type SaleRecord = {
   id: string;
+  saleNumber: number;
   clientId: string | null;
   inventoryItemId: string | null;
   dateLabel: string;
@@ -137,6 +139,7 @@ async function recomputeClientStats(
 function serializeSale(sale: SaleRecord): SaleResponse {
   return {
     id: sale.id,
+    saleNumber: sale.saleNumber,
     date: sale.dateLabel || formatDateLabel(sale.soldAt),
     clientId: sale.clientId ?? "",
     productId: sale.inventoryItemId ?? "",

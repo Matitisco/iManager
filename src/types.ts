@@ -29,6 +29,7 @@ export interface CustomColumn {
 
 export interface Sale {
   id: string;
+  saleNumber?: number;
   date: string;
   clientId: string;
   productId: string;

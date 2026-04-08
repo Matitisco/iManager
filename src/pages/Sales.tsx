@@ -76,11 +76,15 @@ export const Sales: React.FC = () => {
         id: 'id',
         field: 'id',
         label: 'ID Venta',
-        defaultWidth: 120,
-        type: 'text',
+        defaultWidth: 100,
+        type: 'custom',
         alwaysVisible: true,
         editable: false,
-        tdClassName: 'font-mono text-xs text-gray-500',
+        renderCell: (_id: string, row) => (
+          <span className="font-mono text-xs text-gray-500">
+            #{(row as Sale).saleNumber ?? '—'}
+          </span>
+        ),
       },
       {
         id: 'date',
@@ -181,7 +185,15 @@ export const Sales: React.FC = () => {
               <div className="text-xs text-gray-400 mt-0.5">IMEI: {product.imei || '—'}</div>
             </div>
           ) : (
-            <span className="text-gray-300 italic">Producto eliminado</span>
+            <span
+              className="inline-block rounded-2xl text-gray-400 italic hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+              onClick={(e) => {
+                e.stopPropagation();
+                helpers.startEdit(row.id, 'productId', productId);
+              }}
+            >
+              Producto eliminado
+            </span>
           );
         },
       },
