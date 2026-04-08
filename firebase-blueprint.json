@@ -69,6 +69,18 @@
         "authorUid": { "type": "string" }
       },
       "required": ["dni", "name", "email", "phone", "lastPurchaseDate", "totalSpent", "pendingBalance", "authorUid"]
+    },
+    "CustomColumn": {
+      "title": "CustomColumn",
+      "description": "A user-defined table column",
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "number"] },
+        "entity": { "type": "string", "enum": ["inventory", "clients", "sales", "trade-ins"] },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["label", "type", "entity", "authorUid"]
     }
   },
   "firestore": {
@@ -87,6 +99,10 @@
     "/clients/{clientId}": {
       "schema": { "$ref": "#/entities/Client" },
       "description": "Customers"
+    },
+    "/customColumns/{columnId}": {
+      "schema": { "$ref": "#/entities/CustomColumn" },
+      "description": "User-defined table columns"
     }
   }
 }
