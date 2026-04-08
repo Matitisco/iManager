@@ -7,6 +7,7 @@ import type { TableEngineConfig } from '../components/table-engine';
 import type { Sale, Client, Product } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache } from '../services/sales-table-api';
+import { importBackendSales } from '../services/sales-import-api';
 
 // ── Payment method badge metadata ─────────────────────────────────────────────
 const PAYMENT_BADGE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
@@ -355,6 +356,27 @@ export const Sales: React.FC = () => {
     },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
+
+    importConfig: {
+      title: 'Importar ventas',
+      fields: [
+        { key: 'clientName',    label: 'Cliente (nombre)',  required: true },
+        { key: 'productImei',   label: 'IMEI del producto', required: true },
+        { key: 'amount',        label: 'Monto',             required: false },
+        { key: 'date',          label: 'Fecha',             required: false, hint: 'ej: 01 abr 2026' },
+        { key: 'paymentMethod', label: 'Método de pago',    required: false, hint: 'EFECTIVO / TRANSFERENCIA / TARJETA' },
+        { key: 'status',        label: 'Estado',            required: false, hint: 'COMPLETADA / PENDIENTE' },
+      ],
+      mapHints: {
+        cliente: 'clientName', nombre: 'clientName',
+        imei: 'productImei', serial: 'productImei', equipo: 'productImei',
+        monto: 'amount', precio: 'amount', total: 'amount',
+        fecha: 'date',
+        metodopago: 'paymentMethod', pago: 'paymentMethod',
+        estado: 'status',
+      },
+      onImport: async (rows) => importBackendSales(user!, rows),
+    },
   }), [user, clients, inventory, salesCategories]);
 
   return (

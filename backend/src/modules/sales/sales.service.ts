@@ -364,6 +364,121 @@ export function getSalesErrorStatus(error: unknown) {
   return null;
 }
 
+// ── Import ────────────────────────────────────────────────────────────────────
+
+export interface SaleImportRow {
+  date?: string;
+  clientName?: string;
+  productImei?: string;
+  amount?: string;
+  paymentMethod?: string;
+  status?: string;
+}
+
+export interface SaleImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; message: string }[];
+}
+
+const VALID_PAYMENT_METHODS = [
+  "TRANSFERENCIA",
+  "EFECTIVO",
+  "TARJETA",
+  "CANJE / PAGO",
+  "T. Crédito",
+] as const;
+
+export async function importSales(
+  storeId: string,
+  rows: SaleImportRow[]
+): Promise<SaleImportResult> {
+  let imported = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const rowNum = i + 2;
+
+    try {
+      // Resolve client by name
+      const clientName = r.clientName?.trim();
+      if (!clientName) {
+        errors.push({ row: rowNum, message: "Nombre de cliente requerido" });
+        continue;
+      }
+      const client = await prisma.client.findFirst({
+        where: { storeId, name: { equals: clientName, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (!client) {
+        errors.push({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` });
+        continue;
+      }
+
+      // Resolve inventory item by IMEI
+      const imei = r.productImei?.trim();
+      if (!imei) {
+        errors.push({ row: rowNum, message: "IMEI del producto requerido" });
+        continue;
+      }
+      const item = await prisma.inventoryItem.findFirst({
+        where: { storeId, imei },
+        select: { id: true },
+      });
+      if (!item) {
+        errors.push({ row: rowNum, message: `Producto no encontrado (IMEI): "${imei}"` });
+        continue;
+      }
+
+      const rawAmount = (r.amount ?? "").replace(",", ".");
+      const amount = parseFloat(rawAmount) || 0;
+
+      const pm = (r.paymentMethod ?? "").trim();
+      const paymentMethod = (VALID_PAYMENT_METHODS as readonly string[]).includes(pm)
+        ? (pm as typeof VALID_PAYMENT_METHODS[number])
+        : "EFECTIVO";
+
+      const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
+
+      const dateStr = r.date?.trim() || "";
+      const soldAt  = parseDateLabel(dateStr) || new Date();
+      const dateLabel = dateStr || formatDateLabel(soldAt);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.sale.create({
+          data: {
+            storeId,
+            clientId: client.id,
+            inventoryItemId: item.id,
+            dateLabel,
+            amount: toDecimal(amount),
+            paymentMethod,
+            status,
+            soldAt,
+          },
+        });
+
+        await tx.inventoryItem.update({
+          where: { id: item.id },
+          data: { status: "VENDIDO" },
+        });
+
+        await recomputeClientStats(tx, storeId, client.id);
+      });
+
+      imported++;
+    } catch (e) {
+      errors.push({
+        row: rowNum,
+        message: e instanceof Error ? e.message : "Error desconocido",
+      });
+    }
+  }
+
+  return { imported, updated: 0, errors };
+}
+
 // ── Categories ───────────────────────────────────────────────────────────────
 
 export async function listCategories(storeId: string): Promise<SaleCategoryResponse[]> {

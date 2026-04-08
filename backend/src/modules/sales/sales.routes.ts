@@ -6,6 +6,7 @@ import {
   createSale,
   deleteSale,
   getSalesErrorStatus,
+  importSales,
   listSales,
   updateSale,
   listCategories,
@@ -49,6 +50,28 @@ const salePatchSchema = z
   });
 
 export async function salesRoutes(app: FastifyInstance) {
+  // ── Import ──────────────────────────────────────────────────────────────── //
+
+  app.post(
+    "/import",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+
+      const rowSchema = z.object({
+        date:          z.string().trim().optional(),
+        clientName:    z.string().trim().optional(),
+        productImei:   z.string().trim().optional(),
+        amount:        z.string().trim().optional(),
+        paymentMethod: z.string().trim().optional(),
+        status:        z.string().trim().optional(),
+      });
+      const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);
+      const result = await importSales(request.appUser.storeId, rows);
+      return reply.code(200).send(result);
+    }
+  );
+
   // ── Categories ─────────────────────────────────────────────────────────── //
 
   app.get(

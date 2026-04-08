@@ -122,6 +122,34 @@ export interface EditPanelField<TRow extends WithId> {
   mono?: boolean;
 }
 
+// ─── Import config ───────────────────────────────────────────────────────────
+
+export interface ImportFieldDef {
+  key: string;
+  label: string;
+  required: boolean;
+  hint?: string;
+}
+
+export interface GenericImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; message: string; [key: string]: any }[];
+}
+
+export interface TableImportConfig {
+  fields: ImportFieldDef[];
+  onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
+  title?: string;
+  /** Optional: allow unmapped file columns to become extra/custom columns */
+  extraColumns?: {
+    existing: { id: string; label: string }[];
+    onCreate: (label: string, type: 'text' | 'number') => Promise<string | null>;
+  };
+  /** Normalized header → field key aliases for auto-mapping */
+  mapHints?: Record<string, string>;
+}
+
 // ─── Main engine config ───────────────────────────────────────────────────────
 
 export interface TableEngineConfig<TRow extends WithId> {
@@ -170,8 +198,9 @@ export interface TableEngineConfig<TRow extends WithId> {
   editPanelFields?: EditPanelField<TRow>[];
   editPanelTitle?: string;
 
-  // Import (optional)
+  // Import (optional) — pass either a custom ImportModal component or a declarative importConfig
   ImportModal?: React.ComponentType<{ onClose: () => void }>;
+  importConfig?: TableImportConfig;
   showImport?: boolean;
 
   // Noun for UI labels e.g. "equipo", "cliente", "producto"

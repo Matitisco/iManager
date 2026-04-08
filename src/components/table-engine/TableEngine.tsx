@@ -20,6 +20,7 @@ import { BulkActionsBar } from './components/BulkActionsBar';
 import { ContextMenu } from './components/ContextMenu';
 import { EditPanel } from './components/EditPanel';
 import { FilterPanel, SortPanel, ColumnsPanel } from './components/Panels';
+import { ImportModal as GenericImportModal } from './components/ImportModal';
 
 interface TableEngineProps<TRow extends WithId> {
   config: TableEngineConfig<TRow>;
@@ -33,7 +34,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     onReorderCategories, onBulkMoveCategory,
     fetchPage, fetchFilteredIds, onCreate, onUpdate, onDelete, onBulkDelete,
     addRowFields = [], buildNewItem, editPanelFields = [], editPanelTitle,
-    ImportModal, showImport = !!ImportModal,
+    ImportModal, importConfig, showImport = !!(ImportModal || importConfig),
     noun = 'ítem', nounPlural = 'ítems',
   } = config;
 
@@ -322,7 +323,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 disabled:opacity-40 transition-all">
           <Download size={14} /> {isExporting ? 'Exportando...' : 'Exportar'}
         </button>
-        {showImport && ImportModal && (
+        {showImport && (
           <button onClick={() => setShowImportModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-all">
             <Upload size={14} /> Importar
@@ -683,7 +684,15 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       </AnimatePresence>
 
       {/* ── Import modal ── */}
-      {showImportModal && ImportModal && <ImportModal onClose={() => { setShowImportModal(false); loadFirstPage(buildFilterParams()); }} />}
+      {showImportModal && ImportModal && (
+        <ImportModal onClose={() => { setShowImportModal(false); loadFirstPage(buildFilterParams()); }} />
+      )}
+      {showImportModal && !ImportModal && importConfig && (
+        <GenericImportModal
+          {...importConfig}
+          onClose={() => { setShowImportModal(false); loadFirstPage(buildFilterParams()); }}
+        />
+      )}
     </div>
   );
 }

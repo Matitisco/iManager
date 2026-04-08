@@ -3,7 +3,6 @@ import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
 import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers } from '../components/table-engine';
 import type { Product } from '../types';
-import { ImportInventoryModal } from '../components/ImportInventoryModal';
 import {
   fetchInventoryPage,
   fetchInventoryFilteredIds,
@@ -13,6 +12,7 @@ import {
   bulkMoveCategoryApi,
   reorderCategoriesApi,
 } from '../services/inventory-api';
+import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
 import { motion } from 'motion/react';
 
@@ -132,6 +132,8 @@ export const Inventory: React.FC = () => {
     deleteProduct,
     addProduct,
     reloadInventory,
+    customColumns,
+    addCustomColumn,
   } = useAppContext();
 
   const config = useMemo((): TableEngineConfig<Product> => ({
@@ -400,8 +402,72 @@ export const Inventory: React.FC = () => {
     ],
 
     // ── Import ────────────────────────────────────────────────────────────────
-    ImportModal: ImportInventoryModal,
-    showImport: true,
+    importConfig: {
+      title: 'Importar inventario',
+      fields: [
+        { key: 'model',         label: 'Modelo',       required: true },
+        { key: 'imei',          label: 'IMEI',         required: false },
+        { key: 'price',         label: 'Precio',       required: false },
+        { key: 'capacity',      label: 'Capacidad',    required: false, hint: 'ej: 128GB' },
+        { key: 'color',         label: 'Color',        required: false },
+        { key: 'condition',     label: 'Condición',    required: false, hint: 'NUEVO / USADO / PRE-OWNED' },
+        { key: 'grade',         label: 'Estética',     required: false, hint: 'A+ / A / B / C / N/A' },
+        { key: 'batteryHealth', label: 'Batería %',    required: false, hint: '0–100' },
+        { key: 'cost',          label: 'Costo',        required: false },
+        { key: 'status',        label: 'Estado',       required: false, hint: 'DISPONIBLE / VENDIDO / EN_REVISION' },
+      ],
+      mapHints: {
+        serial: 'imei', numeroserie: 'imei', ns: 'imei', sn: 'imei',
+        modelo: 'model', equipo: 'model', dispositivo: 'model', producto: 'model',
+        precio: 'price', pvp: 'price', precioventa: 'price', venta: 'price', preciofinal: 'price',
+        capacidad: 'capacity', almacenamiento: 'capacity', storage: 'capacity', rom: 'capacity', memoria: 'capacity',
+        colour: 'color', colores: 'color',
+        condicion: 'condition', tipo: 'condition',
+        estetica: 'grade', grado: 'grade', calidad: 'grade', cosmetica: 'grade', estado2: 'grade',
+        bateria: 'batteryHealth', battery: 'batteryHealth', batt: 'batteryHealth',
+        saludbateria: 'batteryHealth', salud: 'batteryHealth', health: 'batteryHealth',
+        bateriasalud: 'batteryHealth',
+        costo: 'cost', costounitario: 'cost', preciocompra: 'cost', compra: 'cost',
+        estado: 'status', disponibilidad: 'status',
+      },
+      extraColumns: {
+        existing: customColumns,
+        onCreate: (label, type) => addCustomColumn({ label, type }).then(id => id ?? null),
+      },
+      onImport: async (rows) => {
+        const STANDARD_KEYS = new Set([
+          'model', 'imei', 'price', 'capacity', 'color',
+          'condition', 'grade', 'batteryHealth', 'cost', 'status',
+        ]);
+        const parseNum = (v: string | undefined) => {
+          if (!v) return undefined;
+          const n = parseFloat(v.replace(',', '.'));
+          return isNaN(n) ? undefined : n;
+        };
+        const importRows: ImportRow[] = rows.map(row => {
+          const customFields: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (!STANDARD_KEYS.has(k) && v) customFields[k] = v;
+          }
+          return {
+            imei:         row.imei ?? '',
+            model:        row.model ?? '',
+            price:        parseNum(row.price) ?? 0,
+            capacity:     row.capacity || undefined,
+            color:        row.color || undefined,
+            condition:    row.condition || undefined,
+            grade:        row.grade || undefined,
+            batteryHealth: row.batteryHealth || undefined,
+            cost:         parseNum(row.cost),
+            status:       row.status || undefined,
+            customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
+          };
+        });
+        const res = await importBackendInventoryItems(user!, importRows);
+        await reloadInventory();
+        return res;
+      },
+    },
   }), [
     user,
     inventoryCategories,
@@ -411,6 +477,9 @@ export const Inventory: React.FC = () => {
     updateProduct,
     deleteProduct,
     addProduct,
+    customColumns,
+    addCustomColumn,
+    reloadInventory,
   ]);
 
   return (

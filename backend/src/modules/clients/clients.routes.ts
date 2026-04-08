@@ -7,6 +7,7 @@ import {
   createClient,
   deleteClient,
   getClientsErrorStatus,
+  importClients,
   listClients,
   updateClient,
 } from "./clients.service.js";
@@ -93,6 +94,31 @@ export async function clientsRoutes(app: FastifyInstance) {
 
         throw error;
       }
+    }
+  );
+
+  app.post(
+    "/import",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) {
+        return reply.code(403).send({ error: "Store membership required" });
+      }
+
+      const bodySchema = z.object({
+        rows: z.array(
+          z.object({
+            name:  z.string().trim().optional(),
+            dni:   z.string().trim().optional(),
+            email: z.string().trim().optional(),
+            phone: z.string().trim().optional(),
+          })
+        ),
+      });
+
+      const { rows } = bodySchema.parse(request.body);
+      const result = await importClients(request.appUser.storeId, rows);
+      return reply.code(200).send(result);
     }
   );
 

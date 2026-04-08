@@ -170,6 +170,83 @@ export async function deleteClient(storeId: string, id: string) {
   return true;
 }
 
+export interface ClientImportRow {
+  name?: string;
+  dni?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface ClientImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; message: string }[];
+}
+
+export async function importClients(
+  storeId: string,
+  rows: ClientImportRow[]
+): Promise<ClientImportResult> {
+  let imported = 0;
+  let updated = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const rowNum = i + 2; // 1-based + header row
+    const name = r.name?.trim();
+    if (!name) {
+      errors.push({ row: rowNum, message: "Nombre requerido" });
+      continue;
+    }
+
+    try {
+      const dni = r.dni?.trim() || "";
+
+      // Match existing: by DNI first, then by name
+      let existing = null;
+      if (dni) {
+        existing = await prisma.client.findFirst({ where: { storeId, dni } });
+      }
+      if (!existing) {
+        existing = await prisma.client.findFirst({
+          where: { storeId, name: { equals: name, mode: "insensitive" } },
+        });
+      }
+
+      if (existing) {
+        await prisma.client.update({
+          where: { id: existing.id },
+          data: {
+            name,
+            ...(dni && { dni }),
+            ...(r.email?.trim() && { email: r.email.trim() }),
+            ...(r.phone?.trim() && { phone: r.phone.trim() }),
+          },
+        });
+        updated++;
+      } else {
+        // Generate unique DNI placeholder if not provided
+        const effectiveDni = dni || `IMP-${Date.now()}-${i}`;
+        await prisma.client.create({
+          data: {
+            storeId,
+            name,
+            dni: effectiveDni,
+            email: r.email?.trim() || null,
+            phone: r.phone?.trim() || null,
+          },
+        });
+        imported++;
+      }
+    } catch (e) {
+      errors.push({ row: rowNum, message: e instanceof Error ? e.message : "Error desconocido" });
+    }
+  }
+
+  return { imported, updated, errors };
+}
+
 export function getClientsErrorStatus(error: unknown) {
   if (error instanceof ClientsError) {
     return {

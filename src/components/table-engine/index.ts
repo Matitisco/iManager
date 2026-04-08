@@ -14,4 +14,7 @@ export type {
   TableFilterParams,
   AddRowField,
   EditPanelField,
+  ImportFieldDef,
+  GenericImportResult,
+  TableImportConfig,
 } from './types';

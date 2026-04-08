@@ -12,6 +12,7 @@ import {
   deleteClientViaApi,
   invalidateClientsCache,
 } from '../services/clients-table-api';
+import { importBackendClients } from '../services/clients-import-api';
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({
@@ -207,6 +208,23 @@ export const Clients: React.FC = () => {
     },
     onBulkDelete: async (ids) => {
       await Promise.all(ids.map(id => deleteClientViaApi(user!, id)));
+    },
+
+    importConfig: {
+      title: 'Importar clientes',
+      fields: [
+        { key: 'name',  label: 'Nombre',    required: true },
+        { key: 'dni',   label: 'DNI',       required: false },
+        { key: 'email', label: 'Email',     required: false },
+        { key: 'phone', label: 'Teléfono',  required: false },
+      ],
+      mapHints: {
+        nombre: 'name', cliente: 'name',
+        documento: 'dni', cedula: 'dni',
+        correo: 'email', mail: 'email',
+        telefono: 'phone', celular: 'phone', tel: 'phone',
+      },
+      onImport: async (rows) => importBackendClients(user!, rows),
     },
   }), [user, addClient]);
 
