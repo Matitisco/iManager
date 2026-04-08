@@ -12,6 +12,7 @@ import {
   fetchTradeInsPage,
   invalidateTradeInsCache,
 } from '../services/trade-ins-table-api';
+import { importBackendTradeIns } from '../services/trade-ins-import-api';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -257,7 +258,6 @@ export const TradeIns: React.FC = () => {
       exportSheetName: 'Canjes',
       noun: 'canje',
       nounPlural: 'canjes',
-      showImport: false,
 
       columns: [
         {
@@ -450,6 +450,47 @@ export const TradeIns: React.FC = () => {
 
       editPanelTitle: 'Editar Canje',
       editPanelFields: [...editPanelFields],
+      importConfig: {
+        title: 'Importar canjes',
+        fields: [
+          { key: 'clientName', label: 'Cliente (nombre)', required: true },
+          { key: 'date', label: 'Fecha', required: false, hint: 'ej: 08 abr 2026' },
+          { key: 'deviceReceived', label: 'Equipo recibido', required: true },
+          { key: 'deviceReceivedImei', label: 'IMEI recibido', required: true },
+          { key: 'takeValue', label: 'Valor toma', required: true },
+          { key: 'deviceGiven', label: 'Equipo entregado', required: true },
+          { key: 'differencePaid', label: 'Diferencia abonada', required: true },
+          { key: 'status', label: 'Estado', required: false, hint: 'PENDIENTE / APROBADO / RECHAZADO' },
+          { key: 'batteryHealth', label: 'Bateria', required: false, hint: 'ej: 85% o 83-85%' },
+          { key: 'grade', label: 'Grado', required: false },
+        ],
+        mapHints: {
+          cliente: 'clientName',
+          nombrecliente: 'clientName',
+          fecha: 'date',
+          equipo: 'deviceReceived',
+          equiporecibido: 'deviceReceived',
+          modelo: 'deviceReceived',
+          imei: 'deviceReceivedImei',
+          imeirecibido: 'deviceReceivedImei',
+          valortoma: 'takeValue',
+          tomado: 'takeValue',
+          entrega: 'deviceGiven',
+          equipoentregado: 'deviceGiven',
+          diferencia: 'differencePaid',
+          diferenciaabonada: 'differencePaid',
+          estado: 'status',
+          bateria: 'batteryHealth',
+          saludbateria: 'batteryHealth',
+          grade: 'grade',
+          grado: 'grade',
+        },
+        onImport: async (rows) => {
+          const result = await importBackendTradeIns(user!, rows);
+          invalidateTradeInsCache();
+          return result;
+        },
+      },
     }),
     [
       addTradeIn,

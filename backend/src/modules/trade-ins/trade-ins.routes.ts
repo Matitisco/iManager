@@ -7,6 +7,7 @@ import {
   createTradeIn,
   deleteTradeIn,
   getTradeInsErrorStatus,
+  importTradeIns,
   listTradeIns,
   updateTradeIn,
 } from "./trade-ins.service.js";
@@ -40,6 +41,35 @@ const tradeInPatchSchema = tradeInCreateSchema
   });
 
 export async function tradeInsRoutes(app: FastifyInstance) {
+  app.post(
+    "/import",
+    {
+      preHandler: [authenticate, resolveAppUser],
+    },
+    async (request, reply) => {
+      if (!request.appUser) {
+        return reply.code(403).send({ error: "Store membership required" });
+      }
+
+      const rowSchema = z.object({
+        date: z.string().trim().optional(),
+        clientName: z.string().trim().optional(),
+        deviceReceived: z.string().trim().optional(),
+        deviceReceivedImei: z.string().trim().optional(),
+        takeValue: z.string().trim().optional(),
+        deviceGiven: z.string().trim().optional(),
+        differencePaid: z.string().trim().optional(),
+        status: z.string().trim().optional(),
+        batteryHealth: z.string().trim().optional(),
+        grade: z.string().trim().optional(),
+      });
+
+      const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);
+      const result = await importTradeIns(request.appUser.storeId, rows);
+      return reply.code(200).send(result);
+    }
+  );
+
   app.get(
     "/",
     {

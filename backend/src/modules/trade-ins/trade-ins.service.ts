@@ -36,6 +36,25 @@ export interface TradeInResponse {
   grade?: string | null;
 }
 
+export interface TradeInImportRow {
+  date?: string;
+  clientName?: string;
+  deviceReceived?: string;
+  deviceReceivedImei?: string;
+  takeValue?: string;
+  deviceGiven?: string;
+  differencePaid?: string;
+  status?: string;
+  batteryHealth?: string;
+  grade?: string;
+}
+
+export interface TradeInImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; message: string }[];
+}
+
 type TradeInRecord = {
   id: string;
   clientId: string | null;
@@ -59,6 +78,15 @@ class TradeInsError extends Error {
     this.statusCode = statusCode;
   }
 }
+
+const VALID_TRADE_IN_STATUSES = [
+  "PENDIENTE",
+  "APROBADO",
+  "RECHAZADO",
+  "EN REVISIÓN",
+  "PERITAJE TÉC.",
+  "LISTO",
+] as const;
 
 const monthMap: Record<string, number> = {
   ene: 0,
@@ -278,4 +306,134 @@ export function getTradeInsErrorStatus(error: unknown) {
   }
 
   return null;
+}
+
+export async function importTradeIns(
+  storeId: string,
+  rows: TradeInImportRow[]
+): Promise<TradeInImportResult> {
+  let imported = 0;
+  let updated = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
+
+    try {
+      const clientName = row.clientName?.trim();
+      if (!clientName) {
+        errors.push({ row: rowNum, message: "Nombre de cliente requerido" });
+        continue;
+      }
+
+      const client = await prisma.client.findFirst({
+        where: {
+          storeId,
+          name: { equals: clientName, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+
+      if (!client) {
+        errors.push({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` });
+        continue;
+      }
+
+      const deviceReceived = row.deviceReceived?.trim();
+      if (!deviceReceived) {
+        errors.push({ row: rowNum, message: "Equipo recibido requerido" });
+        continue;
+      }
+
+      const deviceReceivedImei = row.deviceReceivedImei?.trim();
+      if (!deviceReceivedImei) {
+        errors.push({ row: rowNum, message: "IMEI recibido requerido" });
+        continue;
+      }
+
+      const deviceGiven = row.deviceGiven?.trim();
+      if (!deviceGiven) {
+        errors.push({ row: rowNum, message: "Equipo entregado requerido" });
+        continue;
+      }
+
+      const takeValue = Number.parseFloat((row.takeValue ?? "").replace(",", "."));
+      if (!Number.isFinite(takeValue) || takeValue < 0) {
+        errors.push({ row: rowNum, message: "Valor de toma invalido" });
+        continue;
+      }
+
+      const differencePaid = Number.parseFloat((row.differencePaid ?? "").replace(",", "."));
+      if (!Number.isFinite(differencePaid) || differencePaid < 0) {
+        errors.push({ row: rowNum, message: "Diferencia abonada invalida" });
+        continue;
+      }
+
+      const rawStatus = row.status?.trim().toUpperCase();
+      const status = (VALID_TRADE_IN_STATUSES as readonly string[]).includes(rawStatus ?? "")
+        ? (rawStatus as TradeInInput["status"])
+        : "PENDIENTE";
+
+      const dateInput = row.date?.trim() || "";
+      const tradeAt = parseDateLabel(dateInput);
+      const dateLabel = normalizeDateLabel(dateInput) || formatDateLabel(tradeAt);
+
+      const batteryHealth = normalizeBatteryHealth(row.batteryHealth);
+      const grade = normalizeGrade(row.grade);
+
+      const existing = await prisma.tradeIn.findFirst({
+        where: {
+          storeId,
+          deviceReceivedImei,
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await prisma.tradeIn.update({
+          where: { id: existing.id },
+          data: {
+            clientId: client.id,
+            dateLabel,
+            deviceReceived,
+            deviceReceivedImei,
+            takeValue: toDecimal(takeValue),
+            deviceGiven,
+            differencePaid: toDecimal(differencePaid),
+            status,
+            batteryHealth,
+            grade,
+            tradeAt,
+          },
+        });
+        updated++;
+      } else {
+        await prisma.tradeIn.create({
+          data: {
+            storeId,
+            clientId: client.id,
+            dateLabel,
+            deviceReceived,
+            deviceReceivedImei,
+            takeValue: toDecimal(takeValue),
+            deviceGiven,
+            differencePaid: toDecimal(differencePaid),
+            status,
+            batteryHealth,
+            grade,
+            tradeAt,
+          },
+        });
+        imported++;
+      }
+    } catch (error) {
+      errors.push({
+        row: rowNum,
+        message: error instanceof Error ? error.message : "Error desconocido",
+      });
+    }
+  }
+
+  return { imported, updated, errors };
 }
