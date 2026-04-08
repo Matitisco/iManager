@@ -201,6 +201,7 @@ export const Sales: React.FC = () => {
     },
     onBulkDelete: async (ids) => {
       await Promise.all(ids.map(id => deleteSale(id)));
+      invalidateSalesCache();
     },
 
     editPanelTitle: 'Editar Venta',
@@ -228,29 +229,57 @@ export const Sales: React.FC = () => {
 
     fetchPage: (params) => fetchSalesPage(user!, params),
     addRowFields: [
+      {
+        colId: 'clientName',
+        required: true,
+        selectOptions: [
+          { value: '', label: 'Seleccionar cliente' },
+          ...clients.map((client) => ({
+            value: client.id,
+            label: client.name,
+          })),
+        ],
+      },
+      {
+        colId: 'productModel',
+        required: true,
+        selectOptions: [
+          { value: '', label: 'Seleccionar equipo' },
+          ...inventory
+            .filter((product) => product.status === 'DISPONIBLE')
+            .map((product) => ({
+              value: product.id,
+              label: `${product.model}${product.capacity ? ` ${product.capacity}` : ''}${product.imei ? ` · ${product.imei}` : ''}`,
+            })),
+        ],
+      },
       { colId: 'date', placeholder: 'Fecha (ej. 2025-04-07)', required: true },
       { colId: 'amount', placeholder: 'Monto', required: true },
       {
         colId: 'paymentMethod',
         selectOptions: [
+          { value: '', label: 'Seleccionar medio de pago' },
           { value: 'EFECTIVO', label: 'Efectivo' },
           { value: 'TRANSFERENCIA', label: 'Transferencia' },
           { value: 'TARJETA', label: 'Tarjeta' },
+          { value: 'CANJE / PAGO', label: 'Canje / Pago' },
+          { value: 'T. CrÃ©dito', label: 'T. CrÃ©dito' },
         ],
       },
       // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
     ],
     buildNewItem: (formData, categoryId) => ({
+      clientId: String(formData.clientId ?? '').trim(),
+      productId: String(formData.productId ?? '').trim(),
       amount: Number(formData.amount) || 0,
       paymentMethod: formData.paymentMethod || 'EFECTIVO',
       status: formData.status || 'COMPLETADA',
       date: (formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
-      clientId: null,
-      productId: null,
       categoryId: categoryId ?? null,
     }),
     onCreate: async (itemData) => {
       await addSale(itemData as Omit<Sale, 'id'>);
+      invalidateSalesCache();
     },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
