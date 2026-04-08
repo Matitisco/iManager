@@ -41,6 +41,18 @@ export function getInitials(name: string): string {
     .join('');
 }
 
+export function trimToString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).trim();
+}
+
 export function getFriendlyErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
     try {

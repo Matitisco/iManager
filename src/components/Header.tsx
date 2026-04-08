@@ -2,7 +2,7 @@
 import { Search, Bell, Plus, Menu, User, Settings, LogOut, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
-import { getInitials } from '../lib/utils';
+import { getInitials, trimToString } from '../lib/utils';
 
 interface HeaderProps {
   title?: string;
@@ -20,7 +20,11 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
   const notifications: never[] = [];
   const unreadCount = 0;
   const markAllAsRead = () => {};
-  const profileName = appSession?.user.displayName?.trim() || user?.displayName?.trim() || user?.email?.trim() || 'Usuario';
+  const profileName =
+    trimToString(appSession?.user.displayName) ||
+    trimToString(user?.displayName) ||
+    trimToString(user?.email) ||
+    'Usuario';
   const profileEmail = appSession?.user.email || user?.email || 'Sin correo';
   const profileRole = appSession?.membership?.role || 'SELLER';
   const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'ADMIN' ? 'Administrador' : 'Vendedor';
@@ -63,16 +67,18 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
       </div>
 
       <div className="flex items-center gap-3 md:gap-6 ml-4">
-        <motion.button 
-          whileHover={{ scale: 1.02, y: -1 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onNewAction}
-          className="bg-black text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
-        >
-          <Plus size={18} />
-          <span className="hidden sm:inline">{actionLabel}</span>
-          <span className="sm:hidden">Nuevo</span>
-        </motion.button>
+        {onNewAction && (
+          <motion.button 
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onNewAction}
+            className="bg-black text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">{actionLabel}</span>
+            <span className="sm:hidden">Nuevo</span>
+          </motion.button>
+        )}
         
         <div className="relative" ref={notificationsRef}>
           <motion.button 

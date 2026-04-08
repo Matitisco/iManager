@@ -106,6 +106,8 @@ function AppContent() {
     }
   };
 
+  const showHeaderAction = activeTab !== 'reports' && activeTab !== 'settings';
+
   return (
     <>
       {(showBackendBanner || showOnboardingBanner) && (
@@ -147,7 +149,12 @@ function AppContent() {
         </div>
       )}
       <div className={topPaddingClass}>
-        <Layout activeTab={activeTab} setActiveTab={handleNavigate} actionLabel={getActionLabel()} onNewAction={handleNewAction}>
+        <Layout
+          activeTab={activeTab}
+          setActiveTab={handleNavigate}
+          actionLabel={showHeaderAction ? getActionLabel() : undefined}
+          onNewAction={showHeaderAction ? handleNewAction : undefined}
+        >
           {renderContent()}
         </Layout>
         <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>

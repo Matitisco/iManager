@@ -11,7 +11,8 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Inventory es el modulo mas maduro: categorias, import XLSX, inline edit, bulk actions, paginacion, sort
 - Trade-ins ya usa TableEngine para el historial, alineado con Inventory, Clients y Sales
 - Tests unitarios de frontend + CI con GitHub Actions agregados hoy
-- Dashboard y Reports siguen siendo demo (Fase 3 pendiente)
+- Dashboard sigue siendo demo (Fase 3 pendiente)
+- Reports ahora consume SQL real con rangos dinámicos y export local de resumen
 
 ---
 
@@ -33,7 +34,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 | Modulo        | Estado |
 |---------------|--------|
 | Dashboard     | No consulta SQL real; KPIs hardcodeados |
-| Reports       | Placeholder; graficos con datos falsos |
+| Reports       | SQL real; overview agregado por rango, charts dinámicos y export local |
 | Notifications | Preview local, no persiste |
 | Settings      | UI presente; sin persistencia real por ahora |
 
@@ -77,7 +78,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 ### Fase 3 - Operacion y reporting
 
 - [ ] Dashboard sobre SQL real
-- [ ] Reports sobre SQL real
+- [x] Reports sobre SQL real
 - [ ] Audit logs centralizados
 - [ ] Settings con persistencia
 
