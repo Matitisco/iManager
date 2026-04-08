@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Activity,
   AlertCircle,
-  BarChart2,
   Calendar,
   Download,
   DollarSign,
@@ -249,10 +248,6 @@ export const Reports: React.FC = () => {
 
       <motion.div variants={item} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-gray-500">
-            <BarChart2 size={14} />
-            PostgreSQL en vivo
-          </div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Reportes y analíticas</h1>
           <p className="mt-1 text-sm text-gray-500">
             Resumen operativo de {appSession?.store?.name || 'tu tienda'} para el rango visible.
