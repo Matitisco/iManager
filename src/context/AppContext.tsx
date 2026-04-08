@@ -2,13 +2,14 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity } from '../types';
 import { auth, db, googleProvider } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, setDoc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
+import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
 interface AppState {
@@ -49,6 +50,8 @@ interface AppState {
   appSession: AppSession | null;
   backendStatus: BackendConnectionStatus;
   backendMessage: string | null;
+  updateStore: (data: StoreUpdateInput) => Promise<void>;
+  updateUserProfile: (data: { displayName: string }) => Promise<void>;
   completeOnboarding: (storeName: string) => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
@@ -104,13 +107,33 @@ function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
   }
 }
 
+function getCustomColumnFingerprint(column: CustomColumn) {
+  return [
+    column.entity,
+    column.type,
+    column.label.trim().toLowerCase(),
+    (column.options ?? []).map((option) => option.trim().toLowerCase()).join('|'),
+  ].join('::');
+}
+
 function mergeCustomColumns(remote: CustomColumn[], local: CustomColumn[]) {
   const merged = new Map<string, CustomColumn>();
+  const seenFingerprints = new Set<string>();
 
-  remote.forEach((column) => merged.set(column.id, column));
+  const addColumn = (column: CustomColumn) => {
+    const fingerprint = getCustomColumnFingerprint(column);
+    if (seenFingerprints.has(fingerprint)) {
+      return;
+    }
+
+    merged.set(column.id, column);
+    seenFingerprints.add(fingerprint);
+  };
+
+  remote.forEach(addColumn);
   local.forEach((column) => {
     if (!merged.has(column.id)) {
-      merged.set(column.id, column);
+      addColumn(column);
     }
   });
 
@@ -251,7 +274,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
 
-    const unsubCustomColumns = onSnapshot(collection(db, 'customColumns'), (snapshot) => {
+    const customColumnsQuery = query(collection(db, 'customColumns'), where('authorUid', '==', user.uid));
+
+    const unsubCustomColumns = onSnapshot(customColumnsQuery, (snapshot) => {
       const remoteColumns = snapshot.docs.map(snapshotDoc => normalizeCustomColumn(snapshotDoc.id, snapshotDoc.data()));
       const mergedColumns = mergeCustomColumns(remoteColumns, readLocalCustomColumns(user.uid));
       writeLocalCustomColumns(user.uid, mergedColumns);
@@ -475,6 +500,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const logout = async () => {
     await signOut(auth);
+  };
+
+  const updateStore = async (data: StoreUpdateInput) => {
+    if (!user) throw new Error('No authenticated user');
+    const updatedStore = await updateStoreApi(user, data);
+    setAppSession(prev => prev ? { ...prev, store: updatedStore } : prev);
+  };
+
+  const updateUserProfile = async (data: { displayName: string }) => {
+    if (!user) throw new Error('No authenticated user');
+    const updatedUser = await updateUserProfileApi(user, data);
+    setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
   const completeOnboarding = async (storeName: string) => {
@@ -1114,8 +1151,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addCustomColumn = async (columnData: Omit<CustomColumn, 'id'>): Promise<string | undefined> => {
     if (!user) return undefined;
+    const existingColumn = customColumns.find((column) =>
+      column.entity === columnData.entity &&
+      column.type === columnData.type &&
+      column.label.trim().toLowerCase() === columnData.label.trim().toLowerCase()
+    );
+    if (existingColumn) {
+      return existingColumn.id;
+    }
+
     const id = generateId('COL');
-    const path = `customColumns/${id}`;
     const createdColumn: CustomColumn = { id, ...columnData };
     try {
       await setDoc(doc(db, 'customColumns', id), { ...columnData, authorUid: user.uid });
@@ -1140,7 +1185,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const removeCustomColumn = async (id: string) => {
     if (!user) return;
-    const path = `customColumns/${id}`;
     try {
       await deleteDoc(doc(db, 'customColumns', id));
       setCustomColumns(prev => {
@@ -1177,6 +1221,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       reloadInventory,
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
+      updateStore, updateUserProfile,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

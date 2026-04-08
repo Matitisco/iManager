@@ -38,3 +38,10 @@ export async function findOrCreateUserFromFirebase(auth: FirebaseAuthContext) {
     },
   });
 }
+
+export async function updateUserProfile(userId: string, data: { displayName?: string | null }) {
+  return prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+}

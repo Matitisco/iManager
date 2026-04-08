@@ -13,6 +13,10 @@ export interface AppSessionResponse {
   store: {
     id: string;
     name: string;
+    legalName: string | null;
+    taxId: string | null;
+    phone: string | null;
+    address: string | null;
     currency: string;
     timezone: string;
   } | null;
@@ -51,6 +55,10 @@ export async function buildAppSessionForUser(auth: FirebaseAuthContext): Promise
     store: {
       id: membership.store.id,
       name: membership.store.name,
+      legalName: membership.store.legalName,
+      taxId: membership.store.taxId,
+      phone: membership.store.phone,
+      address: membership.store.address,
       currency: membership.store.currency,
       timezone: membership.store.timezone,
     },

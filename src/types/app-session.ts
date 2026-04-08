@@ -13,6 +13,10 @@ export interface AppUserSummary {
 export interface AppStoreSummary {
   id: string;
   name: string;
+  legalName: string | null;
+  taxId: string | null;
+  phone: string | null;
+  address: string | null;
   currency: string;
   timezone: string;
 }
