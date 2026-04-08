@@ -60,8 +60,10 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
 
   const renameDoneRef = useRef(false);
   const addingRowDataRef = useRef<Record<string, any> | null>(null);
+  const addingRowInitialDataRef = useRef<Record<string, any> | null>(null);
   const addFirstInputRef = useRef<HTMLInputElement | null>(null);
   const addRowFieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
+  const addRowRef = useRef<HTMLTableRowElement | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -111,13 +113,21 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   // ── Click outside popups ───────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (showColumns && columnsRef.current && !columnsRef.current.contains(e.target as Node)) setShowColumns(false);
-      if (showFilters && filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false);
-      if (showSort && sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false);
+      const target = e.target as Node;
+      if (showColumns && columnsRef.current && !columnsRef.current.contains(target)) setShowColumns(false);
+      if (showFilters && filtersRef.current && !filtersRef.current.contains(target)) setShowFilters(false);
+      if (showSort && sortRef.current && !sortRef.current.contains(target)) setShowSort(false);
+      if (addingRow && addRowRef.current && !addRowRef.current.contains(target)) {
+        const current = addingRowDataRef.current ?? {};
+        const initial = addingRowInitialDataRef.current ?? {};
+        const hasChanges = Object.keys(current).some((key) => String(current[key] ?? '') !== String(initial[key] ?? ''));
+        if (hasChanges) void commitAddRow(false);
+        else cancelAddRow();
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showColumns, showFilters, showSort]);
+  }, [showColumns, showFilters, showSort, addingRow]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection(); };
@@ -175,9 +185,14 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       if (!colDef?.editable) return;
       initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge') ? (colDef.enumOptions?.[0] ?? '') : '';
     });
+    addingRowInitialDataRef.current = initial;
     addingRowDataRef.current = initial; setAddingRow(initial);
   };
-  const cancelAddRow = () => { addingRowDataRef.current = null; setAddingRow(null); };
+  const cancelAddRow = () => {
+    addingRowInitialDataRef.current = null;
+    addingRowDataRef.current = null;
+    setAddingRow(null);
+  };
   const commitAddRow = async (showErrorIfEmpty = true) => {
     const current = addingRowDataRef.current;
     if (!current) return;
@@ -209,6 +224,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
         await onCreate(newItemData);
       }
       
+      addingRowInitialDataRef.current = null;
       addingRowDataRef.current = null; setAddingRow(null);
       const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
       setItems(result.items); setTotal(result.total);
@@ -436,7 +452,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                 return !isSelect;
               }) ?? null;
               return (
-                <tr className="bg-blue-50/30 border-l-2 border-blue-500">
+                <tr ref={addRowRef} className="bg-blue-50/30 border-l-2 border-blue-500">
                   <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
                   {colState.orderedVisibleCols.map((colId) => {
                     const fieldCfg = addRowFields.find(f => f.colId === colId);
@@ -478,6 +494,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                             ref={(node) => { addRowFieldRefs.current[colId] = node; }}
                             value={addingRow[colId] ?? selectOptions[0]?.value ?? ''}
                             onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
+                            onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
                             className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400">
                             {selectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
@@ -499,7 +516,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                       </td>
                     );
                   })}
-                  <td className="px-3 py-3 flex gap-1">
+                  <td className="hidden">
                     <button onClick={() => commitAddRow()} className="px-2 py-1 text-xs font-bold bg-gray-900 text-white rounded-lg">OK</button>
                     <button onClick={cancelAddRow} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600 rounded-lg">✕</button>
                   </td>
