@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
@@ -9,6 +10,7 @@ export interface SaleInput {
   paymentMethod: "TRANSFERENCIA" | "EFECTIVO" | "TARJETA" | "CANJE / PAGO" | "T. Crédito";
   status: "COMPLETADA" | "PENDIENTE";
   categoryId?: string | null;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface SalePatchInput {
@@ -19,6 +21,7 @@ export interface SalePatchInput {
   date?: string;
   amount?: number;
   categoryId?: string | null;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface SaleResponse {
@@ -31,6 +34,7 @@ export interface SaleResponse {
   paymentMethod: SaleInput["paymentMethod"];
   status: SaleInput["status"];
   categoryId: string | null;
+  customFields: Record<string, unknown>;
 }
 
 type SaleRecord = {
@@ -44,6 +48,7 @@ type SaleRecord = {
   status: string;
   categoryId: string | null;
   soldAt: Date;
+  customFields: Prisma.JsonValue | null;
 };
 
 export interface SaleCategoryResponse {
@@ -77,6 +82,22 @@ const monthMap: Record<string, number> = {
 };
 
 const toDecimal = (value: number) => new Decimal(value);
+
+const toCustomFields = (value: Prisma.JsonValue | null) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+};
+
+function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
+  if (!customFields) {
+    return {} as Prisma.InputJsonValue;
+  }
+
+  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
+}
 
 function normalizeDateLabel(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -147,6 +168,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
     status: sale.status as SaleResponse["status"],
     categoryId: sale.categoryId ?? null,
+    customFields: toCustomFields(sale.customFields),
   };
 }
 
@@ -194,6 +216,7 @@ export async function createSale(storeId: string, input: SaleInput) {
         paymentMethod: input.paymentMethod,
         status: input.status,
         categoryId: input.categoryId ?? null,
+        customFields: normalizeCustomFields(input.customFields),
         soldAt,
       },
     });
@@ -273,6 +296,10 @@ export async function updateSale(
         clientId: nextClientId,
         inventoryItemId: nextInventoryItemId,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
+        customFields:
+          input.customFields !== undefined
+            ? normalizeCustomFields(input.customFields)
+            : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
       },
     });
 

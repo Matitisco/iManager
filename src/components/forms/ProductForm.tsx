@@ -4,6 +4,7 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 
 export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { addProduct, customColumns } = useAppContext();
+  const inventoryCustomColumns = customColumns.filter((column) => column.entity === 'inventory');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,9 +140,9 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         </div>
       </div>
 
-      {customColumns.length > 0 && (
+      {inventoryCustomColumns.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-          {customColumns.map(col => (
+          {inventoryCustomColumns.map(col => (
             <div key={col.id} className="space-y-1">
               <label className="text-xs font-bold text-gray-700">{col.label}</label>
               <input

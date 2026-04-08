@@ -140,8 +140,22 @@ const EvaluationCard = ({ trade, client, onOpen }: EvaluationCardProps) => (
 );
 
 export const TradeIns: React.FC = () => {
-  const { user, tradeIns, clients, addTradeIn, updateTradeIn, deleteTradeIn } = useAppContext();
+  const {
+    user,
+    tradeIns,
+    clients,
+    addTradeIn,
+    updateTradeIn,
+    deleteTradeIn,
+    customColumns,
+    addCustomColumn,
+    removeCustomColumn,
+  } = useAppContext();
   const [selectedTradeIn, setSelectedTradeIn] = useState<TradeIn | null>(null);
+  const tradeInCustomColumns = useMemo(
+    () => customColumns.filter((column) => column.entity === 'trade-ins'),
+    [customColumns],
+  );
 
   const getClient = useCallback(
     (clientId: string): Client | undefined => clients.find((client) => client.id === clientId),
@@ -426,6 +440,18 @@ export const TradeIns: React.FC = () => {
         { colId: 'differencePaid', placeholder: 'Diferencia abonada', required: true },
       ],
       buildNewItem: (formData) => ({
+        customFields: (() => {
+          const entries = Object.entries(formData)
+            .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
+            .map(([key, value]) => [
+              key.replace('dynamic:', ''),
+              tradeInCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
+                ? Number(value)
+                : value,
+            ]);
+
+          return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+        })(),
         date: String(formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
         clientId: String(formData.clientId ?? '').trim(),
         deviceReceived: String(formData.deviceReceived ?? '').trim(),
@@ -446,6 +472,33 @@ export const TradeIns: React.FC = () => {
       onBulkDelete: async (ids) => {
         await Promise.all(ids.map((id) => deleteTradeIn(id)));
         invalidateTradeInsCache();
+      },
+      customColumnActions: {
+        onCreate: async ({ label, type }) => {
+          const id = await addCustomColumn({ label, type, entity: 'trade-ins' });
+          if (!id) {
+            throw new Error('No se pudo crear la columna.');
+          }
+        },
+        onDelete: async (colId) => {
+          if (!colId.startsWith('dynamic:')) return;
+          await removeCustomColumn(colId.replace('dynamic:', ''));
+        },
+        canDelete: (colId) => colId.startsWith('dynamic:'),
+      },
+      dynamicColumns: {
+        columns: tradeInCustomColumns,
+        defaultWidth: 160,
+        getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
+        setValue: (row, columnId, value) => ({
+          ...row,
+          customFields: {
+            ...(row.customFields ?? {}),
+            [columnId]: tradeInCustomColumns.find((column) => column.id === columnId)?.type === 'number'
+              ? (value === '' || value == null ? '' : Number(value))
+              : value,
+          },
+        }),
       },
 
       editPanelTitle: 'Editar Canje',
@@ -504,6 +557,9 @@ export const TradeIns: React.FC = () => {
       persistTradeInDelete,
       persistTradeInUpdate,
       user,
+      tradeInCustomColumns,
+      addCustomColumn,
+      removeCustomColumn,
     ],
   );
 

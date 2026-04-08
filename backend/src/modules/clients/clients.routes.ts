@@ -20,6 +20,7 @@ const clientCreateSchema = z.object({
   lastPurchaseDate: z.string().trim().optional().nullable(),
   totalSpent: z.number().nonnegative().optional(),
   pendingBalance: z.number().nonnegative().optional(),
+  customFields: z.record(z.unknown()).optional().nullable(),
 });
 
 const clientPatchSchema = clientCreateSchema.partial();

@@ -20,11 +20,14 @@ export interface InventoryCategory {
   name: string;
 }
 
+export type CustomColumnEntity = 'inventory' | 'clients' | 'sales' | 'trade-ins';
+
 export interface CustomColumn {
   id: string;
   label: string;
   type: 'text' | 'number' | 'enum';
   options?: string[];
+  entity: CustomColumnEntity;
 }
 
 export interface Sale {
@@ -37,6 +40,7 @@ export interface Sale {
   paymentMethod: 'TRANSFERENCIA' | 'EFECTIVO' | 'TARJETA' | 'CANJE / PAGO' | 'T. Crédito';
   status: 'COMPLETADA' | 'PENDIENTE';
   categoryId?: string | null;
+  customFields?: Record<string, any>;
 }
 
 export interface TradeIn {
@@ -51,6 +55,7 @@ export interface TradeIn {
   status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'EN REVISIÓN' | 'PERITAJE TÉC.' | 'LISTO';
   batteryHealth?: string;
   grade?: string;
+  customFields?: Record<string, any>;
 }
 
 export interface Client {
@@ -62,4 +67,5 @@ export interface Client {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  customFields?: Record<string, any>;
 }

@@ -33,6 +33,7 @@ const saleCreateSchema = z.object({
   paymentMethod: paymentMethodSchema,
   status: z.enum(["COMPLETADA", "PENDIENTE"]),
   categoryId: z.string().nullable().optional(),
+  customFields: z.record(z.unknown()).optional().nullable(),
 });
 
 const salePatchSchema = z
@@ -44,6 +45,7 @@ const salePatchSchema = z
     date: z.string().min(1).max(120).optional(),
     amount: z.number().nonnegative().optional(),
     categoryId: z.string().nullable().optional(),
+    customFields: z.record(z.unknown()).optional().nullable(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required",

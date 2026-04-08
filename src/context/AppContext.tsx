@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity } from '../types';
 import { auth, db, googleProvider } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -57,6 +57,23 @@ interface AppState {
 }
 
 const generateId = (prefix: string) => `${prefix}-${Math.floor(Math.random() * 1000000)}`;
+
+const CUSTOM_COLUMN_ENTITIES: CustomColumnEntity[] = ['inventory', 'clients', 'sales', 'trade-ins'];
+
+function normalizeCustomColumn(id: string, raw: Record<string, unknown>): CustomColumn {
+  const type = raw.type === 'number' || raw.type === 'enum' ? raw.type : 'text';
+  const entity = CUSTOM_COLUMN_ENTITIES.includes(raw.entity as CustomColumnEntity)
+    ? (raw.entity as CustomColumnEntity)
+    : 'inventory';
+
+  return {
+    id,
+    label: String(raw.label ?? ''),
+    type,
+    options: Array.isArray(raw.options) ? raw.options.map(String) : undefined,
+    entity,
+  };
+}
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
@@ -190,7 +207,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
 
     const unsubCustomColumns = onSnapshot(collection(db, 'customColumns'), (snapshot) => {
-      setCustomColumns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomColumn)));
+      setCustomColumns(snapshot.docs.map(snapshotDoc => normalizeCustomColumn(snapshotDoc.id, snapshotDoc.data())));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'customColumns'));
 
     return () => {

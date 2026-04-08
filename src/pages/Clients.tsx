@@ -45,7 +45,11 @@ const StatCard = ({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export const Clients: React.FC = () => {
-  const { user, clients, sales, addClient } = useAppContext();
+  const { user, clients, sales, addClient, customColumns, addCustomColumn, removeCustomColumn } = useAppContext();
+  const clientCustomColumns = useMemo(
+    () => customColumns.filter((column) => column.entity === 'clients'),
+    [customColumns],
+  );
 
   // Stats computed from the cached full list in AppContext
   const totalClients = clients.length;
@@ -185,6 +189,18 @@ export const Clients: React.FC = () => {
       { colId: 'email', placeholder: 'Email' },
     ],
     buildNewItem: (formData) => ({
+      customFields: (() => {
+        const entries = Object.entries(formData)
+          .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
+          .map(([key, value]) => [
+            key.replace('dynamic:', ''),
+            clientCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
+              ? Number(value)
+              : value,
+          ]);
+
+        return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+      })(),
       name: formData.name ?? '',
       dni: formData.dni ?? '',
       email: formData.email ?? '',
@@ -226,7 +242,34 @@ export const Clients: React.FC = () => {
       },
       onImport: async (rows) => importBackendClients(user!, rows),
     },
-  }), [user, addClient]);
+    customColumnActions: {
+      onCreate: async ({ label, type }) => {
+        const id = await addCustomColumn({ label, type, entity: 'clients' });
+        if (!id) {
+          throw new Error('No se pudo crear la columna.');
+        }
+      },
+      onDelete: async (colId) => {
+        if (!colId.startsWith('dynamic:')) return;
+        await removeCustomColumn(colId.replace('dynamic:', ''));
+      },
+      canDelete: (colId) => colId.startsWith('dynamic:'),
+    },
+    dynamicColumns: {
+      columns: clientCustomColumns,
+      defaultWidth: 160,
+      getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
+      setValue: (row, columnId, value) => ({
+        ...row,
+        customFields: {
+          ...(row.customFields ?? {}),
+          [columnId]: clientCustomColumns.find((column) => column.id === columnId)?.type === 'number'
+            ? (value === '' || value == null ? '' : Number(value))
+            : value,
+        },
+      }),
+    },
+  }), [user, addClient, clientCustomColumns, addCustomColumn, removeCustomColumn]);
 
   return (
     <div className="flex flex-col h-full gap-5">

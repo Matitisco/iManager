@@ -52,8 +52,15 @@ export const Sales: React.FC = () => {
     reorderSaleCategories,
     bulkMoveSaleCategory,
     addSale,
-    deleteSale
+    deleteSale,
+    customColumns,
+    addCustomColumn,
+    removeCustomColumn,
   } = useAppContext();
+  const salesCustomColumns = useMemo(
+    () => customColumns.filter((column) => column.entity === 'sales'),
+    [customColumns],
+  );
 
   // Stats (computed from the cached full list in AppContext)
   const totalRevenue = sales.reduce((sum, s) => sum + s.amount, 0);
@@ -342,6 +349,18 @@ export const Sales: React.FC = () => {
       // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
     ],
     buildNewItem: (formData, categoryId) => ({
+      customFields: (() => {
+        const entries = Object.entries(formData)
+          .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
+          .map(([key, value]) => [
+            key.replace('dynamic:', ''),
+            salesCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
+              ? Number(value)
+              : value,
+          ]);
+
+        return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+      })(),
       clientId: String(formData.clientId ?? '').trim(),
       productId: String(formData.productId ?? '').trim(),
       amount: Number(formData.amount) || 0,
@@ -356,6 +375,33 @@ export const Sales: React.FC = () => {
     },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
+    customColumnActions: {
+      onCreate: async ({ label, type }) => {
+        const id = await addCustomColumn({ label, type, entity: 'sales' });
+        if (!id) {
+          throw new Error('No se pudo crear la columna.');
+        }
+      },
+      onDelete: async (colId) => {
+        if (!colId.startsWith('dynamic:')) return;
+        await removeCustomColumn(colId.replace('dynamic:', ''));
+      },
+      canDelete: (colId) => colId.startsWith('dynamic:'),
+    },
+    dynamicColumns: {
+      columns: salesCustomColumns,
+      defaultWidth: 160,
+      getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
+      setValue: (row, columnId, value) => ({
+        ...row,
+        customFields: {
+          ...(row.customFields ?? {}),
+          [columnId]: salesCustomColumns.find((column) => column.id === columnId)?.type === 'number'
+            ? (value === '' || value == null ? '' : Number(value))
+            : value,
+        },
+      }),
+    },
 
     importConfig: {
       title: 'Importar ventas',
@@ -377,7 +423,7 @@ export const Sales: React.FC = () => {
       },
       onImport: async (rows) => importBackendSales(user!, rows),
     },
-  }), [user, clients, inventory, salesCategories]);
+  }), [user, clients, inventory, salesCategories, salesCustomColumns, addCustomColumn, removeCustomColumn]);
 
   return (
     <div className="flex flex-col h-full gap-5">

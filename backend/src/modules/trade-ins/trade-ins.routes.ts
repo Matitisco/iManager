@@ -32,6 +32,7 @@ const tradeInCreateSchema = z.object({
   status: tradeInStatusSchema,
   batteryHealth: z.string().trim().max(50).optional().nullable(),
   grade: z.string().trim().max(20).optional().nullable(),
+  customFields: z.record(z.unknown()).optional().nullable(),
 });
 
 const tradeInPatchSchema = tradeInCreateSchema

@@ -191,6 +191,10 @@ const PREVIEW_ROWS = 12; // how many raw rows to show in header-select step
 
 export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const { user, reloadInventory, customColumns, addCustomColumn } = useAppContext();
+  const inventoryCustomColumns = useMemo(
+    () => customColumns.filter((column) => column.entity === 'inventory'),
+    [customColumns],
+  );
 
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
@@ -305,14 +309,14 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
       for (const fileColumn of unmappedColumns) {
         if (!extraEnabled[fileColumn]) continue;
         // Check if a custom column with this label already exists
-        const existing = customColumns.find(
+        const existing = inventoryCustomColumns.find(
           c => c.label.toLowerCase() === fileColumn.toLowerCase()
         );
         if (existing) {
           extraCols.push({ fileColumn, colId: existing.id });
         } else {
           const type = detectColumnType(fileRows, fileColumn);
-          const id = await addCustomColumn({ label: fileColumn, type });
+          const id = await addCustomColumn({ label: fileColumn, type, entity: 'inventory' });
           if (id) extraCols.push({ fileColumn, colId: id });
         }
       }
@@ -552,7 +556,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                   </div>
                   <div className="divide-y divide-gray-100">
                     {unmappedColumns.map(col => {
-                      const alreadyExists = customColumns.some(
+                      const alreadyExists = inventoryCustomColumns.some(
                         c => c.label.toLowerCase() === col.toLowerCase()
                       );
                       return (

@@ -82,6 +82,8 @@ export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
       status: sale.status,
       date: sale.date,
       amount: sale.amount,
+      categoryId: sale.categoryId ?? null,
+      customFields: sale.customFields,
     }),
   });
 

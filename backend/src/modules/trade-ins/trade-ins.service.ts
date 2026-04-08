@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
@@ -18,6 +19,7 @@ export interface TradeInInput {
     | "LISTO";
   batteryHealth?: string | null;
   grade?: string | null;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface TradeInPatchInput extends Partial<TradeInInput> {}
@@ -34,6 +36,7 @@ export interface TradeInResponse {
   status: TradeInInput["status"];
   batteryHealth?: string | null;
   grade?: string | null;
+  customFields: Record<string, unknown>;
 }
 
 export interface TradeInImportRow {
@@ -68,6 +71,7 @@ type TradeInRecord = {
   batteryHealth: string | null;
   grade: string | null;
   tradeAt: Date;
+  customFields: Prisma.JsonValue | null;
 };
 
 class TradeInsError extends Error {
@@ -105,6 +109,22 @@ const monthMap: Record<string, number> = {
 };
 
 const toDecimal = (value: number) => new Decimal(value);
+
+const toCustomFields = (value: Prisma.JsonValue | null) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+};
+
+function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
+  if (!customFields) {
+    return {} as Prisma.InputJsonValue;
+  }
+
+  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
+}
 
 function normalizeDateLabel(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -157,6 +177,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     status: tradeIn.status as TradeInResponse["status"],
     batteryHealth: tradeIn.batteryHealth ?? undefined,
     grade: tradeIn.grade ?? undefined,
+    customFields: toCustomFields(tradeIn.customFields),
   };
 }
 
@@ -211,6 +232,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
       status: input.status,
       batteryHealth: input.batteryHealth ?? null,
       grade: input.grade?.trim() ? input.grade.trim() : null,
+      customFields: normalizeCustomFields(input.customFields),
       tradeAt,
     },
   });
@@ -273,6 +295,10 @@ export async function updateTradeIn(
         input.grade !== undefined
           ? normalizeGrade(input.grade)
           : existing.grade,
+      customFields:
+        input.customFields !== undefined
+          ? normalizeCustomFields(input.customFields)
+          : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
       tradeAt: nextDate,
     },
   });

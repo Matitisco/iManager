@@ -137,6 +137,11 @@ export const Inventory: React.FC = () => {
     removeCustomColumn,
   } = useAppContext();
 
+  const inventoryCustomColumns = useMemo(
+    () => customColumns.filter((column) => column.entity === 'inventory'),
+    [customColumns],
+  );
+
   const config = useMemo((): TableEngineConfig<Product> => ({
     title: 'Inventario',
     storageKey: 'inventory',
@@ -346,7 +351,7 @@ export const Inventory: React.FC = () => {
 
     customColumnActions: {
       onCreate: async ({ label, type }) => {
-        const id = await addCustomColumn({ label, type });
+        const id = await addCustomColumn({ label, type, entity: 'inventory' });
         if (!id) {
           throw new Error('No se pudo crear la columna.');
         }
@@ -358,14 +363,14 @@ export const Inventory: React.FC = () => {
       canDelete: (colId) => colId.startsWith('dynamic:'),
     },
     dynamicColumns: {
-      columns: customColumns,
+      columns: inventoryCustomColumns,
       defaultWidth: 160,
       getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
       setValue: (row, columnId, value) => ({
         ...row,
         customFields: {
           ...(row.customFields ?? {}),
-          [columnId]: customColumns.find((column) => column.id === columnId)?.type === 'number'
+          [columnId]: inventoryCustomColumns.find((column) => column.id === columnId)?.type === 'number'
             ? (value === '' || value == null ? '' : Number(value))
             : value,
         },
@@ -467,8 +472,8 @@ export const Inventory: React.FC = () => {
         estado: 'status', disponibilidad: 'status',
       },
       extraColumns: {
-        existing: customColumns,
-        onCreate: (label, type) => addCustomColumn({ label, type }).then(id => id ?? null),
+        existing: inventoryCustomColumns,
+        onCreate: (label, type) => addCustomColumn({ label, type, entity: 'inventory' }).then(id => id ?? null),
       },
       onImport: async (rows) => {
         const STANDARD_KEYS = new Set([
@@ -513,7 +518,7 @@ export const Inventory: React.FC = () => {
     updateProduct,
     deleteProduct,
     addProduct,
-    customColumns,
+    inventoryCustomColumns,
     addCustomColumn,
     removeCustomColumn,
     reloadInventory,

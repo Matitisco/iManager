@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface ClientInput {
@@ -9,6 +10,7 @@ export interface ClientInput {
   lastPurchaseDate?: string | null;
   totalSpent?: number;
   pendingBalance?: number;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface ClientResponse {
@@ -20,6 +22,7 @@ export interface ClientResponse {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  customFields: Record<string, unknown>;
 }
 
 type ClientRecord = {
@@ -31,6 +34,7 @@ type ClientRecord = {
   lastPurchaseAt: Date | null;
   totalSpent: Decimal;
   pendingBalance: Decimal;
+  customFields: Prisma.JsonValue | null;
 };
 
 class ClientsError extends Error {
@@ -43,6 +47,22 @@ class ClientsError extends Error {
 }
 
 const toDecimal = (value?: number) => new Decimal(value ?? 0);
+
+const toCustomFields = (value: Prisma.JsonValue | null) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+};
+
+function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
+  if (!customFields) {
+    return {} as Prisma.InputJsonValue;
+  }
+
+  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
+}
 
 const formatDate = (value: Date | null) => {
   if (!value) return "N/A";
@@ -59,6 +79,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
+    customFields: toCustomFields(client.customFields),
   };
 }
 
@@ -101,6 +122,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
       totalSpent: toDecimal(input.totalSpent),
       pendingBalance: toDecimal(input.pendingBalance),
+      customFields: normalizeCustomFields(input.customFields),
     },
   });
 
@@ -147,6 +169,10 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
         input.totalSpent !== undefined ? toDecimal(input.totalSpent) : existing.totalSpent,
       pendingBalance:
         input.pendingBalance !== undefined ? toDecimal(input.pendingBalance) : existing.pendingBalance,
+      customFields:
+        input.customFields !== undefined
+          ? normalizeCustomFields(input.customFields)
+          : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
     },
   });
 
