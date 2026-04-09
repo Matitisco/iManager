@@ -87,6 +87,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
   const [newColumnDraft, setNewColumnDraft] = useState<{ label: string; type: 'text' | 'number' } | null>(null);
   const [columnToDelete, setColumnToDelete] = useState<{ id: string; label: string } | null>(null);
+  const [columnsToDeleteRight, setColumnsToDeleteRight] = useState<string[] | null>(null);
   const [columnMutationError, setColumnMutationError] = useState<string | null>(null);
   const [isColumnMutationLoading, setIsColumnMutationLoading] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -233,6 +234,22 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
       setNewColumnDraft(null);
     } catch (error) {
       setColumnMutationError(error instanceof Error ? error.message : 'No se pudo crear la columna.');
+    } finally {
+      setIsColumnMutationLoading(false);
+    }
+  };
+
+  const confirmDeleteColumnsRight = async () => {
+    if (!customColumnActions?.onDelete || !columnsToDeleteRight) return;
+    setIsColumnMutationLoading(true);
+    setColumnMutationError(null);
+    try {
+      for (const colId of columnsToDeleteRight) {
+        await customColumnActions.onDelete(colId);
+      }
+      setColumnsToDeleteRight(null);
+    } catch (error) {
+      setColumnMutationError(error instanceof Error ? error.message : 'No se pudo eliminar las columnas.');
     } finally {
       setIsColumnMutationLoading(false);
     }
@@ -782,6 +799,23 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                   >
                     Eliminar columna
                   </button>
+                  {(() => {
+                    const colIdx = colState.colOrder.indexOf(headerContextMenu.colId);
+                    const deletableRight = colState.colOrder.slice(colIdx + 1).filter(cId => canDeleteColumn(cId));
+                    if (deletableRight.length === 0) return null;
+                    return (
+                      <button
+                        onClick={() => {
+                          setColumnMutationError(null);
+                          setColumnsToDeleteRight(deletableRight);
+                          setHeaderContextMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-red-600 hover:bg-red-50 font-medium"
+                      >
+                        Eliminar columnas de la derecha
+                      </button>
+                    );
+                  })()}
                 </>
               )}
             </motion.div>
@@ -931,6 +965,46 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                 </button>
                 <button
                   onClick={() => void confirmDeleteColumn()}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isColumnMutationLoading ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {columnsToDeleteRight && (
+          <>
+            <div className="fixed inset-0 bg-black/20 z-50" onClick={() => !isColumnMutationLoading && setColumnsToDeleteRight(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl p-6 z-50 w-80"
+            >
+              <h3 className="text-base font-bold text-gray-900 mb-2">Eliminar columnas</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                ¿Eliminar <strong>{columnsToDeleteRight.length} columna{columnsToDeleteRight.length !== 1 ? 's' : ''}</strong> a la derecha? Esta acción no se puede deshacer.
+              </p>
+              {columnMutationError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+                  {columnMutationError}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setColumnsToDeleteRight(null)}
+                  disabled={isColumnMutationLoading}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void confirmDeleteColumnsRight()}
                   disabled={isColumnMutationLoading}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
                 >
