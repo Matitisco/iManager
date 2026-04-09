@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Store, User, Shield, CreditCard, Save, Check, Key, Lock, Download } from 'lucide-react';
+import { Store, User, Shield, CreditCard, Save, Check, Key, Download } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import type { StoreUpdateInput } from '../services/settings-api';
 
@@ -311,39 +312,120 @@ function PreviewBanner() {
 }
 
 function SecurityTab() {
+  const { user } = useAppContext();
+
+  const isEmailUser = user?.providerData.some(p => p.providerId === 'password') ?? false;
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !user.email) return;
+    setError(null);
+
+    if (newPassword.length < 6) {
+      setError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Las contraseñas nuevas no coinciden.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      setSaved(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('La contraseña actual es incorrecta.');
+      } else if (code === 'auth/weak-password') {
+        setError('La nueva contraseña es demasiado débil.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Error al cambiar la contraseña.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
-      <PreviewBanner />
+    <motion.div
+      key="security"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.2 }}
+      className="w-full"
+    >
       <div className="p-8 space-y-8">
         <h2 className="text-lg font-bold text-gray-900 mb-6">Seguridad de la Cuenta</h2>
+
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2">
             <Key size={16} /> Cambiar Contraseña
           </h3>
-          <div className="space-y-4">
-            {['Contraseña Actual', 'Nueva Contraseña', 'Confirmar Nueva Contraseña'].map(label => (
-              <FieldGroup key={label} label={label}>
-                <TextInput type="password" placeholder="••••••••" />
+
+          {!isEmailUser ? (
+            <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+              Tu cuenta usa inicio de sesión con Google. No es posible cambiar la contraseña desde aquí.
+            </p>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <FieldGroup label="Contraseña Actual">
+                <TextInput
+                  type="password"
+                  placeholder="••••••••"
+                  value={currentPassword}
+                  onChange={e => { setError(null); setSaved(false); setCurrentPassword(e.target.value); }}
+                  required
+                />
               </FieldGroup>
-            ))}
-            <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-              Actualizar Contraseña
-            </motion.button>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2">
-            <Lock size={16} /> Autenticación de Dos Factores (2FA)
-          </h3>
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-start sm:items-center justify-between flex-col sm:flex-row gap-4">
-            <div>
-              <p className="text-sm font-bold text-gray-900">Protege tu cuenta con 2FA</p>
-              <p className="text-xs text-gray-500 mt-1">Añade una capa extra de seguridad requiriendo un código además de tu contraseña.</p>
-            </div>
-            <motion.button type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors whitespace-nowrap">
-              Activar 2FA
-            </motion.button>
-          </div>
+              <FieldGroup label="Nueva Contraseña">
+                <TextInput
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={e => { setError(null); setSaved(false); setNewPassword(e.target.value); }}
+                  required
+                />
+              </FieldGroup>
+              <FieldGroup label="Confirmar Nueva Contraseña">
+                <TextInput
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={e => { setError(null); setSaved(false); setConfirmPassword(e.target.value); }}
+                  required
+                />
+              </FieldGroup>
+
+              {error && <ErrorBanner message={error} />}
+
+              <motion.button
+                type="submit"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+                className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors disabled:opacity-60"
+              >
+                {saved ? <Check size={16} /> : <Key size={16} />}
+                {saved ? 'Contraseña actualizada' : loading ? 'Actualizando…' : 'Actualizar Contraseña'}
+              </motion.button>
+            </form>
+          )}
         </div>
       </div>
     </motion.div>
