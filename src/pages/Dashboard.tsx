@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { AlertCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { motion, Variants } from 'motion/react';
 import { formatCompactNumber, formatCurrency } from '../lib/utils';
 
@@ -45,24 +45,6 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
     client: clients.find(client => client.id === sale.clientId),
     product: inventory.find(product => product.id === sale.productId),
   }));
-
-  const duplicateImeis = inventory
-    .filter(item => item.imei)
-    .reduce<Record<string, number>>((acc, item) => {
-      acc[item.imei] = (acc[item.imei] || 0) + 1;
-      return acc;
-    }, {});
-
-  const duplicatedImei = Object.entries(duplicateImeis).find(([, count]) => count > 1)?.[0];
-
-  const stockByModel = availableInventory.reduce<Record<string, number>>((acc, item) => {
-    acc[item.model] = (acc[item.model] || 0) + 1;
-    return acc;
-  }, {});
-
-  const lowStockModel = Object.entries(stockByModel)
-    .filter(([, count]) => count <= 2)
-    .sort((a, b) => a[1] - b[1])[0];
 
   const highlightedTradeIns = tradeIns.slice(0, 2).map((trade) => ({
     ...trade,
@@ -157,42 +139,6 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
         </div>
 
         <div className="space-y-6">
-          <motion.div variants={item} className="bg-white p-6 rounded-2xl border border-gray-200">
-            <h2 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-4">
-              <AlertTriangle size={20} />
-              Alertas Críticas
-            </h2>
-            <div className="space-y-3">
-              {duplicatedImei ? (
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-red-50 border border-red-100 p-4 rounded-xl flex gap-3 cursor-default">
-                  <AlertCircle className="text-red-500 shrink-0" size={20} />
-                  <div>
-                    <h3 className="font-bold text-red-900 text-sm">IMEI duplicado detectado</h3>
-                    <p className="text-red-700 text-xs mt-0.5">{duplicatedImei}</p>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-sm text-emerald-800 font-medium">
-                  No se detectaron IMEIs duplicados en el inventario actual.
-                </div>
-              )}
-
-              {lowStockModel ? (
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex gap-3 cursor-default">
-                  <AlertTriangle className="text-amber-500 shrink-0" size={20} />
-                  <div>
-                    <h3 className="font-bold text-amber-900 text-sm">Stock crítico</h3>
-                    <p className="text-amber-700 text-xs mt-0.5">{lowStockModel[0]} - Solo {lowStockModel[1]} unidades</p>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-sm text-gray-600 font-medium">
-                  No hay modelos con stock crítico por ahora.
-                </div>
-              )}
-            </div>
-          </motion.div>
-
           <motion.div variants={item} className="bg-white p-6 rounded-2xl border border-gray-200">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Evaluaciones de Canje</h2>
             <div className="space-y-4">
