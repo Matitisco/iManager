@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, User, Shield, CreditCard, Save, Check, Key, Download } from 'lucide-react';
+import { Store, User, Shield, CreditCard, Save, Check, Key, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
@@ -432,52 +432,84 @@ function SecurityTab() {
   );
 }
 
+// ─── BillingTabFull — UI completa, reservada para cuando se active la facturación real ───
+// function BillingTabFull() {
+//   return (
+//     <motion.div key="billing" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
+//       <PreviewBanner />
+//       <div className="p-8 space-y-8">
+//         <h2 className="text-lg font-bold text-gray-900 mb-6">Facturación y Suscripción</h2>
+//         <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-2xl text-white">
+//           <div className="flex justify-between items-start mb-6">
+//             <div>
+//               <p className="text-gray-400 text-sm font-medium mb-1">Plan Actual</p>
+//               <h3 className="text-2xl font-black">Pro Business</h3>
+//             </div>
+//             <span className="px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-full">Activo</span>
+//           </div>
+//           <div className="flex items-end gap-2 mb-6">
+//             <span className="text-4xl font-black">$49</span>
+//             <span className="text-gray-400 text-sm mb-1">/ mes</span>
+//           </div>
+//           <div className="flex gap-4">
+//             <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">Cambiar Plan</motion.button>
+//             <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-colors">Cancelar</motion.button>
+//           </div>
+//         </div>
+//         <div className="space-y-4">
+//           <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Historial de Facturas</h3>
+//           <div className="border border-gray-200 rounded-xl overflow-hidden">
+//             <table className="w-full text-left text-sm">
+//               <thead className="bg-gray-50">
+//                 <tr className="text-gray-500">
+//                   <th className="px-4 py-3 font-medium">Fecha</th>
+//                   <th className="px-4 py-3 font-medium">Monto</th>
+//                   <th className="px-4 py-3 font-medium">Estado</th>
+//                   <th className="px-4 py-3 font-medium text-right">Factura</th>
+//                 </tr>
+//               </thead>
+//               <tbody className="divide-y divide-gray-100">
+//                 {['01 Mar 2026', '01 Feb 2026'].map(date => (
+//                   <tr key={date}>
+//                     <td className="px-4 py-3 text-gray-900">{date}</td>
+//                     <td className="px-4 py-3 text-gray-900">$49.00</td>
+//                     <td className="px-4 py-3"><span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold">Pagado</span></td>
+//                     <td className="px-4 py-3 text-right"><button type="button" className="text-gray-400 hover:text-gray-900"><Download size={16} /></button></td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         </div>
+//       </div>
+//     </motion.div>
+//   );
+// }
+
 function BillingTab() {
   return (
-    <motion.div key="billing" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="w-full">
-      <PreviewBanner />
-      <div className="p-8 space-y-8">
+    <motion.div
+      key="billing"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.2 }}
+      className="w-full"
+    >
+      <div className="p-8">
         <h2 className="text-lg font-bold text-gray-900 mb-6">Facturación y Suscripción</h2>
-        <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-2xl text-white">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <p className="text-gray-400 text-sm font-medium mb-1">Plan Actual</p>
-              <h3 className="text-2xl font-black">Pro Business</h3>
-            </div>
-            <span className="px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-full">Activo</span>
+        <div className="bg-gradient-to-br from-gray-900 to-black p-8 rounded-2xl text-white flex flex-col items-center text-center gap-4">
+          <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
+            <Sparkles size={24} className="text-white" />
           </div>
-          <div className="flex items-end gap-2 mb-6">
-            <span className="text-4xl font-black">$49</span>
-            <span className="text-gray-400 text-sm mb-1">/ mes</span>
-          </div>
-          <div className="flex gap-4">
-            <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">Cambiar Plan</motion.button>
-            <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-colors">Cancelar</motion.button>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">Historial de Facturas</h3>
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-gray-500">
-                  <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Monto</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
-                  <th className="px-4 py-3 font-medium text-right">Factura</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {['01 Mar 2026', '01 Feb 2026'].map(date => (
-                  <tr key={date}>
-                    <td className="px-4 py-3 text-gray-900">{date}</td>
-                    <td className="px-4 py-3 text-gray-900">$49.00</td>
-                    <td className="px-4 py-3"><span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold">Pagado</span></td>
-                    <td className="px-4 py-3 text-right"><button type="button" className="text-gray-400 hover:text-gray-900"><Download size={16} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            <span className="inline-block px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-full mb-3">
+              Usuario Beta
+            </span>
+            <h3 className="text-xl font-black mb-2">Acceso gratuito durante el beta</h3>
+            <p className="text-gray-400 text-sm max-w-xs">
+              Sos parte del programa de acceso anticipado. Por ahora iManager es completamente gratuito para vos.
+            </p>
           </div>
         </div>
       </div>
