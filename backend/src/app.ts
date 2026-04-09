@@ -12,6 +12,7 @@ import { tradeInsRoutes } from "./modules/trade-ins/trade-ins.routes.js";
 import { storesRoutes } from "./modules/stores/stores.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { securityRoutes } from "./modules/security/security.routes.js";
+import { invitationsRoutes } from "./modules/invitations/invitations.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -36,6 +37,7 @@ export function buildApp() {
   app.register(storesRoutes, { prefix: "/api/stores" });
   app.register(usersRoutes, { prefix: "/api/users" });
   app.register(securityRoutes, { prefix: "/api/security" });
+  app.register(invitationsRoutes, { prefix: "/api/invitations" });
 
   return app;
 }

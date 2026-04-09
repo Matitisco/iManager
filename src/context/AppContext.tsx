@@ -9,6 +9,7 @@ import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInv
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
+import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 
@@ -53,6 +54,7 @@ interface AppState {
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
   completeOnboarding: (storeName: string) => Promise<void>;
+  acceptStoreInvitation: (token: string) => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -523,6 +525,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
+  };
+
+  const acceptStoreInvitation = async (token: string) => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const data = await acceptInvitationApi(user, token);
+    setBackendStatus('ready');
+    setBackendMessage(null);
+    setAppSession(data.session);
+    sessionStorage.removeItem('pendingInviteToken');
   };
 
   const addSale = async (saleData: Omit<Sale, 'id'>) => {
@@ -1222,7 +1236,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
       updateStore, updateUserProfile,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>

@@ -1,0 +1,73 @@
+import type { User } from 'firebase/auth';
+import { getBackendBaseUrl } from './backend-session';
+import { fetchWithTimeout } from './fetch-with-timeout';
+
+export type MemberRole = 'OWNER' | 'ADMIN' | 'SELLER';
+
+export interface TeamMember {
+  id: string;
+  userId: string;
+  role: MemberRole;
+  isDefault: boolean;
+  createdAt: string;
+  user: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+function getBaseUrl(): string {
+  const url = getBackendBaseUrl();
+  if (!url) throw new Error('Backend no configurado');
+  return url.replace(/\/+$/, '');
+}
+
+async function authHeaders(user: User) {
+  const token = await user.getIdToken();
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+}
+
+export async function listMembers(user: User, storeId: string): Promise<TeamMember[]> {
+  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members`, {
+    headers: await authHeaders(user),
+  });
+  if (!res.ok) throw new Error('Error al cargar miembros');
+  const data = await res.json();
+  return data.members;
+}
+
+export async function updateMemberRole(
+  user: User,
+  storeId: string,
+  memberId: string,
+  role: MemberRole
+): Promise<TeamMember> {
+  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
+    method: 'PATCH',
+    headers: await authHeaders(user),
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? 'Error al cambiar rol');
+  }
+  const data = await res.json();
+  return data.member;
+}
+
+export async function removeMember(user: User, storeId: string, memberId: string): Promise<void> {
+  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
+    method: 'DELETE',
+    headers: await authHeaders(user),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? 'Error al remover miembro');
+  }
+}

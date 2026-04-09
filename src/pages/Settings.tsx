@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Store, User, Shield, CreditCard, Save, Check, Key, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Store, User, Shield, CreditCard, Save, Check, Key, Sparkles, Users, UserPlus, Trash2, Copy, ChevronDown, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import type { StoreUpdateInput } from '../services/settings-api';
+import { listMembers, updateMemberRole, removeMember, type TeamMember, type MemberRole } from '../services/members-api';
+import { createInvitation, listInvitations, revokeInvitation, type Invitation, type CreatedInvitation, type InvitationRole } from '../services/invitations-api';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -300,6 +303,406 @@ function ProfileTab() {
   );
 }
 
+// ─── Team Tab ─────────────────────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<MemberRole, string> = {
+  OWNER: 'Propietario',
+  ADMIN: 'Socio',
+  SELLER: 'Vendedor',
+};
+
+const ROLE_COLORS: Record<MemberRole, string> = {
+  OWNER: 'bg-black text-white',
+  ADMIN: 'bg-blue-100 text-blue-800',
+  SELLER: 'bg-gray-100 text-gray-700',
+};
+
+function MemberAvatar({ member }: { member: TeamMember }) {
+  const initials = (member.user.displayName ?? member.user.email ?? '?')
+    .split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '?';
+  return (
+    <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+      {member.user.avatarUrl ? (
+        <img src={member.user.avatarUrl} alt={member.user.displayName ?? ''} className="w-full h-full object-cover" />
+      ) : (
+        <span className="text-xs font-bold text-gray-600">{initials}</span>
+      )}
+    </div>
+  );
+}
+
+function InviteModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (inv: CreatedInvitation) => void;
+}) {
+  const { user } = useAppContext();
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<InvitationRole>('SELLER');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<CreatedInvitation | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const inv = await createInvitation(user, email.trim(), role);
+      setCreated(inv);
+      onCreated(inv);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al crear invitación');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!created) return;
+    navigator.clipboard.writeText(created.inviteUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <h3 className="font-bold text-gray-900 text-base">Invitar a un miembro</h3>
+
+      {created ? (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Invitación creada para <strong>{created.email}</strong> como <strong>{ROLE_LABELS[created.role]}</strong>.
+            Copiá el enlace y enviáselo.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={created.inviteUrl}
+              className="flex-1 px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-700 truncate"
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="shrink-0 px-3 py-2 bg-black text-white rounded-xl text-xs font-medium flex items-center gap-1.5 hover:bg-gray-800 transition-colors"
+            >
+              <Copy size={13} />
+              {copied ? '¡Copiado!' : 'Copiar'}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-600">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="socio@tienda.com"
+              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-black outline-none"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-600">Rol</label>
+            <div className="relative">
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as InvitationRole)}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-black outline-none"
+              >
+                <option value="ADMIN">Socio</option>
+                <option value="SELLER">Vendedor</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-2.5 bg-black text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              {loading ? 'Invitando…' : 'Invitar'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function TeamTab() {
+  const { appSession, user } = useAppContext();
+  const storeId = appSession?.store?.id ?? '';
+  const myRole = appSession?.membership?.role ?? 'SELLER';
+  const isOwner = myRole === 'OWNER';
+
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Confirm modal state
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+  }>({ isOpen: false, title: '', message: '', onConfirm: async () => {} });
+
+  const load = useCallback(async () => {
+    if (!user || !storeId) return;
+    setLoadingMembers(true);
+    setLoadError(null);
+    try {
+      const [m, i] = await Promise.all([listMembers(user, storeId), listInvitations(user)]);
+      setMembers(m);
+      setInvitations(i);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Error al cargar el equipo');
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [user, storeId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleRoleChange = async (member: TeamMember, newRole: MemberRole) => {
+    if (!user) return;
+    setActionError(null);
+    try {
+      await updateMemberRole(user, storeId, member.id, newRole);
+      setMembers((prev) => prev.map((m) => m.id === member.id ? { ...m, role: newRole } : m));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Error al cambiar rol');
+    }
+  };
+
+  const handleRemoveMember = (member: TeamMember) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Remover miembro',
+      message: `¿Remover a ${member.user.displayName ?? member.user.email} del equipo?`,
+      onConfirm: async () => {
+        if (!user) return;
+        await removeMember(user, storeId, member.id);
+        setMembers((prev) => prev.filter((m) => m.id !== member.id));
+        setConfirmState((s) => ({ ...s, isOpen: false }));
+      },
+    });
+  };
+
+  const handleRevokeInvitation = (inv: Invitation) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Revocar invitación',
+      message: `¿Revocar la invitación para ${inv.email}?`,
+      onConfirm: async () => {
+        if (!user) return;
+        await revokeInvitation(user, inv.id);
+        setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+        setConfirmState((s) => ({ ...s, isOpen: false }));
+      },
+    });
+  };
+
+  const canChangeRole = (target: TeamMember) => {
+    if (isOwner) return true;
+    return myRole === 'ADMIN' && target.role !== 'OWNER';
+  };
+
+  const availableRoles = (target: TeamMember): MemberRole[] => {
+    if (isOwner) return ['OWNER', 'ADMIN', 'SELLER'];
+    return target.role === 'OWNER' ? [] : ['ADMIN', 'SELLER'];
+  };
+
+  return (
+    <motion.div
+      key="team"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.2 }}
+      className="p-8 w-full"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-bold text-gray-900">Equipo</h2>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors"
+          >
+            <UserPlus size={15} />
+            Invitar
+          </button>
+        )}
+      </div>
+
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2 mb-4">{loadError}</p>}
+      {actionError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2 mb-4">{actionError}</p>}
+
+      {loadingMembers ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <>
+          {/* Members list */}
+          <div className="space-y-2">
+            {members.map((member) => (
+              <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors">
+                <MemberAvatar member={member} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {member.user.displayName ?? member.user.email ?? 'Sin nombre'}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{member.user.email}</p>
+                </div>
+
+                {/* Role selector */}
+                {canChangeRole(member) && availableRoles(member).length > 1 ? (
+                  <div className="relative shrink-0">
+                    <select
+                      value={member.role}
+                      onChange={(e) => void handleRoleChange(member, e.target.value as MemberRole)}
+                      className={`appearance-none pl-2.5 pr-6 py-1 rounded-lg text-xs font-semibold cursor-pointer border-0 focus:ring-2 focus:ring-black outline-none ${ROLE_COLORS[member.role]}`}
+                    >
+                      {availableRoles(member).map((r) => (
+                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                  </div>
+                ) : (
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold shrink-0 ${ROLE_COLORS[member.role]}`}>
+                    {ROLE_LABELS[member.role]}
+                  </span>
+                )}
+
+                {/* Remove button */}
+                {(isOwner || (myRole === 'ADMIN' && member.role !== 'OWNER')) && member.userId !== appSession?.user.id && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveMember(member)}
+                    className="shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remover miembro"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Pending invitations */}
+          {invitations.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-sm font-bold text-gray-600 mb-3">Invitaciones pendientes</h3>
+              <div className="space-y-2">
+                {invitations.map((inv) => (
+                  <div key={inv.id} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50">
+                    <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center shrink-0">
+                      <User size={15} className="text-gray-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{inv.email}</p>
+                      <p className="text-xs text-gray-500">
+                        {ROLE_LABELS[inv.role as MemberRole]} · Expira{' '}
+                        {new Date(inv.expiresAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 shrink-0">
+                      Pendiente
+                    </span>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => handleRevokeInvitation(inv)}
+                        className="shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Revocar invitación"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Invite modal */}
+      <AnimatePresence>
+        {showInviteModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowInviteModal(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[200]"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-white rounded-2xl shadow-2xl z-[210]"
+            >
+              <InviteModal
+                onClose={() => setShowInviteModal(false)}
+                onCreated={(inv) => {
+                  setInvitations((prev) => [
+                    ...prev,
+                    { id: inv.id, email: inv.email, role: inv.role, createdAt: new Date().toISOString(), expiresAt: inv.expiresAt },
+                  ]);
+                  // Keep modal open to show the link
+                }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm modal for destructive actions */}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel="Confirmar"
+        onConfirm={() => void confirmState.onConfirm()}
+        onCancel={() => setConfirmState((s) => ({ ...s, isOpen: false }))}
+      />
+    </motion.div>
+  );
+}
+
 // ─── Static tabs (UI only) ────────────────────────────────────────────────────
 
 function PreviewBanner() {
@@ -520,16 +923,21 @@ function BillingTab() {
 // ─── Main Settings component ──────────────────────────────────────────────────
 
 export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab, setActiveTab: externalSetActiveTab }) => {
+  const { appSession } = useAppContext();
   const [internalActiveTab, setInternalActiveTab] = useState('store');
 
   const activeTab = externalActiveTab ?? internalActiveTab;
   const setActiveTab = externalSetActiveTab ?? setInternalActiveTab;
+
+  const myRole = appSession?.membership?.role;
+  const canSeeTeam = myRole === 'OWNER' || myRole === 'ADMIN';
 
   const tabs = [
     { id: 'store', label: 'Datos de la Tienda', icon: Store },
     { id: 'profile', label: 'Mi Perfil', icon: User },
     { id: 'security', label: 'Seguridad', icon: Shield },
     { id: 'billing', label: 'Facturación', icon: CreditCard },
+    ...(canSeeTeam ? [{ id: 'team', label: 'Equipo', icon: Users }] : []),
   ];
 
   const tabContent: Record<string, React.ReactNode> = {
@@ -537,6 +945,7 @@ export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab
     profile: <ProfileTab />,
     security: <SecurityTab />,
     billing: <BillingTab />,
+    ...(canSeeTeam ? { team: <TeamTab /> } : {}),
   };
 
   return (

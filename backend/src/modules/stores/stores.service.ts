@@ -1,4 +1,5 @@
 import { prisma } from "../../plugins/prisma.js";
+import type { StoreRole } from "@prisma/client";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
@@ -23,4 +24,85 @@ export async function updateStore(storeId: string, data: StoreUpdateInput) {
     where: { id: storeId },
     data,
   });
+}
+
+export async function listMembers(storeId: string) {
+  const members = await prisma.storeMember.findMany({
+    where: { storeId },
+    include: {
+      user: { select: { id: true, displayName: true, email: true, avatarUrl: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return members.map((m) => ({
+    id: m.id,
+    userId: m.userId,
+    role: m.role,
+    isDefault: m.isDefault,
+    createdAt: m.createdAt,
+    user: m.user,
+  }));
+}
+
+export async function updateMemberRole(
+  storeId: string,
+  memberId: string,
+  newRole: StoreRole,
+  actorRole: StoreRole,
+  actorUserId: string
+) {
+  const target = await prisma.storeMember.findFirst({ where: { id: memberId, storeId } });
+  if (!target) {
+    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+  }
+
+  // ADMIN cannot touch OWNERs
+  if (actorRole === "ADMIN" && target.role === "OWNER") {
+    throw Object.assign(new Error("No podés modificar el rol de un Propietario"), { statusCode: 403 });
+  }
+  // ADMIN cannot assign OWNER role
+  if (actorRole === "ADMIN" && newRole === "OWNER") {
+    throw Object.assign(new Error("No podés asignar el rol Propietario"), { statusCode: 403 });
+  }
+
+  // Cannot leave store without an OWNER
+  if (target.role === "OWNER" && newRole !== "OWNER") {
+    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
+    if (ownerCount <= 1) {
+      throw Object.assign(new Error("No puede haber una tienda sin Propietario"), { statusCode: 400 });
+    }
+  }
+
+  return prisma.storeMember.update({ where: { id: memberId }, data: { role: newRole } });
+}
+
+export async function removeMember(
+  storeId: string,
+  memberId: string,
+  actorRole: StoreRole,
+  actorUserId: string
+) {
+  const target = await prisma.storeMember.findFirst({
+    where: { id: memberId, storeId },
+    include: { user: true },
+  });
+  if (!target) {
+    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+  }
+
+  // ADMIN cannot remove OWNERs
+  if (actorRole === "ADMIN" && target.role === "OWNER") {
+    throw Object.assign(new Error("No podés remover a un Propietario"), { statusCode: 403 });
+  }
+
+  // Cannot remove the only OWNER
+  if (target.role === "OWNER") {
+    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
+    if (ownerCount <= 1) {
+      throw Object.assign(new Error("No puede haber una tienda sin Propietario"), { statusCode: 400 });
+    }
+  }
+
+  await prisma.storeMember.delete({ where: { id: memberId } });
 }

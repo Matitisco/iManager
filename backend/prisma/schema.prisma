@@ -32,6 +32,7 @@ model Store {
   currency            String               @default("ARS") @db.VarChar(10)
   timezone            String               @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
   memberships         StoreMember[]
+  invitations         StoreInvitation[]
   clients             Client[]
   inventory           InventoryItem[]
   inventoryCategories InventoryCategory[]
@@ -179,6 +180,22 @@ model SaleCategory {
   @@unique([storeId, name])
 }
 
+model StoreInvitation {
+  id        String           @id @default(cuid())
+  storeId   String
+  token     String           @unique @default(uuid())
+  email     String           @db.VarChar(255)
+  role      StoreRole
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime
+  store     Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([storeId])
+  @@index([token])
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
@@ -188,5 +205,11 @@ enum StoreRole {
   OWNER
   ADMIN
   SELLER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
 }
 

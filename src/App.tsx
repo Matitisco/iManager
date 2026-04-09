@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -22,11 +22,25 @@ import { ClientForm } from './components/forms/ClientForm';
 import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
 
+const INVITE_TOKEN_KEY = 'pendingInviteToken';
+
+function extractInviteToken(): string | null {
+  const match = window.location.pathname.match(/^\/invite\/([^/]+)/);
+  if (match) {
+    const token = match[1];
+    sessionStorage.setItem(INVITE_TOKEN_KEY, token);
+    window.history.replaceState(null, '', '/');
+    return token;
+  }
+  return sessionStorage.getItem(INVITE_TOKEN_KEY);
+}
+
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [inviteToken] = useState<string | null>(() => extractInviteToken());
 
   if (loading) {
     return (
@@ -41,7 +55,7 @@ function AppContent() {
   }
 
   if (backendStatus === 'ready' && appSession?.onboardingRequired) {
-    return <Onboarding />;
+    return <Onboarding inviteToken={inviteToken} />;
   }
 
   const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
