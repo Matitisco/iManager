@@ -5,7 +5,7 @@ import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
 import type { BadgeMeta, TableEngineConfig } from '../components/table-engine';
 import { EditPanel } from '../components/table-engine/components/EditPanel';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, trimToString } from '../lib/utils';
 import type { Client, TradeIn } from '../types';
 import {
   fetchTradeInFilteredIds,
@@ -123,11 +123,11 @@ const EvaluationCard = ({ trade, client, onOpen }: EvaluationCardProps) => (
           </div>
           <div className="flex justify-between gap-3">
             <span>Batería:</span>
-            <span className="font-medium text-gray-900">{trade.batteryHealth?.trim() || 'N/D'}</span>
+            <span className="font-medium text-gray-900">{trimToString(trade.batteryHealth) || 'N/D'}</span>
           </div>
           <div className="flex justify-between gap-3">
             <span>Grado:</span>
-            <span className="font-medium text-gray-900">{trade.grade?.trim() || 'N/D'}</span>
+            <span className="font-medium text-gray-900">{trimToString(trade.grade) || 'N/D'}</span>
           </div>
         </div>
       </div>
@@ -362,7 +362,7 @@ export const TradeIns: React.FC = () => {
           defaultWidth: 120,
           type: 'text',
           editable: true,
-          formatDisplay: (value: string | undefined) => value?.trim() || '—',
+        formatDisplay: (value: string | undefined) => trimToString(value) || '—',
         },
         {
           id: 'grade',
@@ -371,7 +371,7 @@ export const TradeIns: React.FC = () => {
           defaultWidth: 100,
           type: 'text',
           editable: true,
-          formatDisplay: (value: string | undefined) => value?.trim() || '—',
+        formatDisplay: (value: string | undefined) => trimToString(value) || '—',
         },
       ],
 
@@ -625,7 +625,7 @@ export const TradeIns: React.FC = () => {
 
       <motion.div
         variants={item}
-        className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-[32rem]"
+        className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white h-[32rem]"
       >
         <TableEngine config={config} user={user} />
       </motion.div>
