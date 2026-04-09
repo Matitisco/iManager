@@ -705,6 +705,42 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
               >
                 Renombrar columna
               </button>
+              {!colState.ALWAYS_VISIBLE.has(headerContextMenu.colId) && (
+                <>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => {
+                      colState.setVisibleColumns(prev => ({ ...prev, [headerContextMenu.colId]: false }));
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                  >
+                    Ocultar columna
+                  </button>
+                  {(() => {
+                    const colIdx = colState.colOrder.indexOf(headerContextMenu.colId);
+                    const colsToRight = colState.colOrder
+                      .slice(colIdx + 1)
+                      .filter(cId => !colState.ALWAYS_VISIBLE.has(cId) && colState.visibleColumns[cId] !== false);
+                    if (colsToRight.length === 0) return null;
+                    return (
+                      <button
+                        onClick={() => {
+                          colState.setVisibleColumns(prev => {
+                            const next = { ...prev };
+                            colsToRight.forEach(cId => { next[cId] = false; });
+                            return next;
+                          });
+                          setHeaderContextMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                      >
+                        Ocultar todas las de la derecha
+                      </button>
+                    );
+                  })()}
+                </>
+              )}
               {customColumnActions && (
                 <>
                   <div className="border-t border-gray-100" />
