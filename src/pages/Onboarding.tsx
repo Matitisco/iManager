@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { trimToString } from '../lib/utils';
 
 export function Onboarding() {
   const { appSession, completeOnboarding, logout } = useAppContext();
-  const [storeName, setStoreName] = useState(appSession?.user.displayName?.trim() || '');
+  const [storeName, setStoreName] = useState(trimToString(appSession?.user.displayName));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -11,7 +12,7 @@ export function Onboarding() {
   const avatarUrl = appSession?.user.avatarUrl ?? '';
 
   const initials = useMemo(() => {
-    const base = appSession?.user.displayName?.trim() || email || 'iManager';
+    const base = trimToString(appSession?.user.displayName) || email || 'iManager';
     const result = base
       .split(' ')
       .filter(Boolean)
@@ -87,7 +88,7 @@ export function Onboarding() {
 
           <button
             type="submit"
-            disabled={isSubmitting || !storeName.trim()}
+            disabled={isSubmitting || !trimToString(storeName)}
             className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSubmitting ? 'Creando tienda...' : 'Crear tienda y continuar'}

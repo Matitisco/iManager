@@ -1,6 +1,58 @@
 import { useState, useEffect } from 'react';
 import type { ColDef, WithId } from '../types';
 
+function parseStoredObject(value: string | null): Record<string, unknown> {
+  if (!value) return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseStoredBooleanMap(value: string | null): Record<string, boolean> {
+  return Object.entries(parseStoredObject(value)).reduce<Record<string, boolean>>((acc, [key, storedValue]) => {
+    if (typeof storedValue === 'boolean') {
+      acc[key] = storedValue;
+    }
+
+    return acc;
+  }, {});
+}
+
+function parseStoredNumberMap(value: string | null): Record<string, number> {
+  return Object.entries(parseStoredObject(value)).reduce<Record<string, number>>((acc, [key, storedValue]) => {
+    if (typeof storedValue === 'number' && Number.isFinite(storedValue)) {
+      acc[key] = storedValue;
+    }
+
+    return acc;
+  }, {});
+}
+
+function parseStoredStringMap(value: string | null): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(parseStoredObject(value))
+      .filter(([, storedValue]) => storedValue != null)
+      .map(([key, storedValue]) => [key, String(storedValue)])
+  );
+}
+
+function parseStoredStringArray(value: string | null): string[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export function useColumnState<TRow extends WithId>(
   storageKey: string,
   columns: ColDef<TRow>[]
@@ -11,23 +63,22 @@ export function useColumnState<TRow extends WithId>(
 
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     try {
-      const s = localStorage.getItem(`${storageKey}:visibleCols`);
-      return s ? JSON.parse(s) : Object.fromEntries(columns.map(c => [c.id, true]));
+      const parsed = parseStoredBooleanMap(localStorage.getItem(`${storageKey}:visibleCols`));
+      return Object.keys(parsed).length > 0 ? parsed : Object.fromEntries(columns.map(c => [c.id, true]));
     } catch { return Object.fromEntries(columns.map(c => [c.id, true])); }
   });
 
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
-      const s = localStorage.getItem(`${storageKey}:colWidths`);
-      return s ? { ...DEFAULT_COL_WIDTHS, ...JSON.parse(s) } : { ...DEFAULT_COL_WIDTHS };
+      const parsed = parseStoredNumberMap(localStorage.getItem(`${storageKey}:colWidths`));
+      return { ...DEFAULT_COL_WIDTHS, ...parsed };
     } catch { return { ...DEFAULT_COL_WIDTHS }; }
   });
 
   const [colOrder, setColOrder] = useState<string[]>(() => {
     try {
-      const s = localStorage.getItem(`${storageKey}:colOrder`);
-      if (s) {
-        const parsed: string[] = JSON.parse(s);
+      const parsed = parseStoredStringArray(localStorage.getItem(`${storageKey}:colOrder`));
+      if (parsed.length > 0) {
         const missing = ALL_COL_IDS.filter(c => !parsed.includes(c));
         return [...parsed, ...missing];
       }
@@ -36,7 +87,7 @@ export function useColumnState<TRow extends WithId>(
   });
 
   const [colNames, setColNames] = useState<Record<string, string>>(() => {
-    try { const s = localStorage.getItem(`${storageKey}:colNames`); return s ? JSON.parse(s) : {}; }
+    try { return parseStoredStringMap(localStorage.getItem(`${storageKey}:colNames`)); }
     catch { return {}; }
   });
 
@@ -99,7 +150,7 @@ export function useColumnState<TRow extends WithId>(
     setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
 
   const commitColRename = (col: string) => {
-    const trimmed = renameValue.trim();
+    const trimmed = String(renameValue ?? '').trim();
     setColNames(prev => {
       if (!trimmed || trimmed === DEFAULT_COL_NAMES[col]) {
         const next = { ...prev }; delete next[col]; return next;

@@ -39,6 +39,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     customColumnActions, dynamicColumns,
     noun = 'ítem', nounPlural = 'ítems',
   } = config;
+  const scopedStorageKey = user?.uid ? `${storageKey}:${user.uid}` : storageKey;
 
   const resolvedColumns = React.useMemo<ColDef<TRow>[]>(() => {
     if (!dynamicColumns?.columns?.length) {
@@ -106,7 +107,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, isExporting, setIsExporting, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
-  const colState = useColumnState(storageKey, resolvedColumns);
+  const colState = useColumnState(scopedStorageKey, resolvedColumns);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
@@ -219,7 +220,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
   const submitCreateColumn = async () => {
     if (!customColumnActions || !newColumnDraft) return;
 
-    const label = newColumnDraft.label.trim();
+    const label = String(newColumnDraft.label ?? '').trim();
     if (!label) {
       setColumnMutationError('Poné un nombre para la columna.');
       return;

@@ -8,6 +8,12 @@ const envSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().min(1),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
   FIRESTORE_DATABASE_ID: z.string().min(1),
+  // SMTP — required only when 2FA is enabled
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

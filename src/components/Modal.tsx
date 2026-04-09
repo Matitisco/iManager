@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -10,18 +11,18 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <motion.div 
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -30,10 +31,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
           >
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center shrink-0">
               <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={onClose} 
+                onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X size={20} />
@@ -45,6 +46,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
