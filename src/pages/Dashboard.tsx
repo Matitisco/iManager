@@ -107,7 +107,12 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
           <motion.div variants={item} className="bg-white p-6 rounded-2xl border border-gray-200">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-gray-900">Ventas Recientes</h2>
-              <span className="text-sm font-semibold text-gray-500">Datos reales</span>
+              <button
+                onClick={() => onNavigate?.('sales')}
+                className="text-sm font-semibold text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900"
+              >
+                Ver todas
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
