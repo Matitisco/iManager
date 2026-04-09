@@ -7,6 +7,7 @@ interface TableThProps {
   isDragging: boolean;
   dropBefore: boolean;
   isResizing: boolean;
+  isCustom: boolean;
   renamingCol: string | null;
   renameValue: string;
   setRenameValue: (v: string) => void;
@@ -19,7 +20,7 @@ interface TableThProps {
 }
 
 export function TableTh({
-  col, colName, colWidth, isDragging, dropBefore, isResizing,
+  col, colName, colWidth, isDragging, dropBefore, isResizing, isCustom,
   renamingCol, renameValue, setRenameValue, setRenamingCol, commitColRename,
   thRef, onPointerDown, onResizeStart, onContextMenu,
 }: TableThProps) {
@@ -51,10 +52,15 @@ export function TableTh({
         />
       ) : (
         <span
-          className="block truncate text-xs font-bold tracking-wider uppercase text-gray-400 pr-5"
+          className="flex items-center gap-1.5 min-w-0 pr-5"
           onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); }}
         >
-          {colName}
+          <span className="truncate text-xs font-bold tracking-wider uppercase text-gray-400">
+            {colName}
+          </span>
+          {isCustom && (
+            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400/70" />
+          )}
         </span>
       )}
       {/* Resize handle */}

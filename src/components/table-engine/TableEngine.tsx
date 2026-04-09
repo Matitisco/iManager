@@ -470,6 +470,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
                   isDragging={draggingColId === col}
                   dropBefore={dropBeforeColId === col}
                   isResizing={activeResizeCol === col}
+                  isCustom={col.startsWith('dynamic:')}
                   renamingCol={colState.renamingCol}
                   renameValue={colState.renameValue}
                   setRenameValue={colState.setRenameValue}
