@@ -506,9 +506,9 @@ function BillingTab() {
             <span className="inline-block px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-full mb-3">
               Usuario Beta
             </span>
-            <h3 className="text-xl font-black mb-2">Acceso gratuito durante el beta</h3>
+            <h3 className="text-xl font-black mb-2">Acceso anticipado</h3>
             <p className="text-gray-400 text-sm max-w-xs">
-              Sos parte del programa de acceso anticipado. Por ahora iManager es completamente gratuito para vos.
+              Sos parte del programa beta de iManager. Gracias por ser parte de esta etapa.
             </p>
           </div>
         </div>
