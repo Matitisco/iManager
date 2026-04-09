@@ -11,7 +11,7 @@ import {
 } from "./invitations.service.js";
 
 const createSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional(),
   role: z.enum(["ADMIN", "SELLER"]),
 });
 

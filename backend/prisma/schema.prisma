@@ -184,7 +184,7 @@ model StoreInvitation {
   id        String           @id @default(cuid())
   storeId   String
   token     String           @unique @default(uuid())
-  email     String           @db.VarChar(255)
+  email     String?          @db.VarChar(255)
   role      StoreRole
   status    InvitationStatus @default(PENDING)
   expiresAt DateTime

@@ -308,7 +308,7 @@ function ProfileTab() {
 const ROLE_LABELS: Record<MemberRole, string> = {
   OWNER: 'Propietario',
   ADMIN: 'Socio',
-  SELLER: 'Vendedor',
+  SELLER: 'Agente',
 };
 
 const ROLE_COLORS: Record<MemberRole, string> = {
@@ -339,7 +339,6 @@ function InviteModal({
   onCreated: (inv: CreatedInvitation) => void;
 }) {
   const { user } = useAppContext();
-  const [email, setEmail] = useState('');
   const [role, setRole] = useState<InvitationRole>('SELLER');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -352,7 +351,7 @@ function InviteModal({
     setLoading(true);
     setError(null);
     try {
-      const inv = await createInvitation(user, email.trim(), role);
+      const inv = await createInvitation(user, undefined, role);
       setCreated(inv);
       onCreated(inv);
     } catch (err) {
@@ -377,7 +376,7 @@ function InviteModal({
       {created ? (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
-            Invitación creada para <strong>{created.email}</strong> como <strong>{ROLE_LABELS[created.role]}</strong>.
+            Invitación creada como <strong>{ROLE_LABELS[created.role]}</strong>.
             Copiá el enlace y enviáselo.
           </p>
           <div className="flex items-center gap-2">
@@ -406,17 +405,6 @@ function InviteModal({
       ) : (
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-600">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="socio@tienda.com"
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-black outline-none"
-            />
-          </div>
-          <div className="space-y-1.5">
             <label className="text-xs font-semibold text-gray-600">Rol</label>
             <div className="relative">
               <select
@@ -425,7 +413,7 @@ function InviteModal({
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-black outline-none"
               >
                 <option value="ADMIN">Socio</option>
-                <option value="SELLER">Vendedor</option>
+                <option value="SELLER">Agente</option>
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
@@ -521,7 +509,7 @@ function TeamTab() {
     setConfirmState({
       isOpen: true,
       title: 'Revocar invitación',
-      message: `¿Revocar la invitación para ${inv.email}?`,
+      message: `¿Revocar la invitación para ${inv.email ?? 'este miembro'}?`,
       onConfirm: async () => {
         if (!user) return;
         await revokeInvitation(user, inv.id);
@@ -631,7 +619,7 @@ function TeamTab() {
                       <User size={15} className="text-gray-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{inv.email}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{inv.email ?? 'Invitación por enlace'}</p>
                       <p className="text-xs text-gray-500">
                         {ROLE_LABELS[inv.role as MemberRole]} · Expira{' '}
                         {new Date(inv.expiresAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
@@ -680,7 +668,7 @@ function TeamTab() {
                 onCreated={(inv) => {
                   setInvitations((prev) => [
                     ...prev,
-                    { id: inv.id, email: inv.email, role: inv.role, createdAt: new Date().toISOString(), expiresAt: inv.expiresAt },
+                    { id: inv.id, email: inv.email ?? undefined, role: inv.role, createdAt: new Date().toISOString(), expiresAt: inv.expiresAt },
                   ]);
                   // Keep modal open to show the link
                 }}

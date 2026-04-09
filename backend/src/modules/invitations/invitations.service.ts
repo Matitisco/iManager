@@ -5,18 +5,20 @@ import { buildAppSessionForUser } from "../auth/session.service.js";
 
 const INVITATION_TTL_DAYS = 7;
 
-export async function createInvitation(storeId: string, actorRole: string, email: string, role: "ADMIN" | "SELLER") {
+export async function createInvitation(storeId: string, actorRole: string, email: string | undefined, role: "ADMIN" | "SELLER") {
   if (actorRole !== "OWNER") {
     throw Object.assign(new Error("Solo el Propietario puede crear invitaciones"), { statusCode: 403 });
   }
 
-  // Check if email already belongs to a member
-  const existing = await prisma.user.findFirst({
-    where: { email },
-    include: { memberships: { where: { storeId } } },
-  });
-  if (existing && existing.memberships.length > 0) {
-    throw Object.assign(new Error("Este email ya es miembro de la tienda"), { statusCode: 409 });
+  // Check if email already belongs to a member (only when email is provided)
+  if (email) {
+    const existing = await prisma.user.findFirst({
+      where: { email },
+      include: { memberships: { where: { storeId } } },
+    });
+    if (existing && existing.memberships.length > 0) {
+      throw Object.assign(new Error("Este email ya es miembro de la tienda"), { statusCode: 409 });
+    }
   }
 
   const expiresAt = new Date();

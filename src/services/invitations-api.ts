@@ -7,7 +7,7 @@ export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
 
 export interface Invitation {
   id: string;
-  email: string;
+  email?: string;
   role: InvitationRole;
   createdAt: string;
   expiresAt: string;
@@ -40,13 +40,13 @@ async function authHeaders(user: User) {
 
 export async function createInvitation(
   user: User,
-  email: string,
+  email: string | undefined,
   role: InvitationRole
 ): Promise<CreatedInvitation> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations`, {
     method: 'POST',
     headers: await authHeaders(user),
-    body: JSON.stringify({ email, role }),
+    body: JSON.stringify(email ? { email, role } : { role }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
