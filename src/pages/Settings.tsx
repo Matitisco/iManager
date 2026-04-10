@@ -500,7 +500,6 @@ function TeamTab() {
         if (!user) return;
         await removeMember(user, storeId, member.id);
         setMembers((prev) => prev.filter((m) => m.id !== member.id));
-        setConfirmState((s) => ({ ...s, isOpen: false }));
       },
     });
   };
@@ -514,7 +513,6 @@ function TeamTab() {
         if (!user) return;
         await revokeInvitation(user, inv.id);
         setInvitations((prev) => prev.filter((i) => i.id !== inv.id));
-        setConfirmState((s) => ({ ...s, isOpen: false }));
       },
     });
   };
@@ -684,7 +682,7 @@ function TeamTab() {
         title={confirmState.title}
         message={confirmState.message}
         confirmLabel="Confirmar"
-        onConfirm={() => void confirmState.onConfirm()}
+        onConfirm={confirmState.onConfirm}
         onCancel={() => setConfirmState((s) => ({ ...s, isOpen: false }))}
       />
     </motion.div>
