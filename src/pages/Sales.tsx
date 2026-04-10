@@ -6,7 +6,7 @@ import { TableEngine } from '../components/table-engine';
 import type { TableEngineConfig } from '../components/table-engine';
 import type { Sale, Client, Product } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache } from '../services/sales-table-api';
+import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache, updateCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
 
 // ── Payment method badge metadata ─────────────────────────────────────────────
@@ -278,6 +278,7 @@ export const Sales: React.FC = () => {
     },
     onBulkMoveCategory: async (ids, categoryId) => {
       await bulkMoveSaleCategory(ids, categoryId);
+      updateCategoryInCache(ids, categoryId);
     },
     onBulkDelete: async (ids) => {
       await Promise.all(ids.map(id => deleteSale(id)));

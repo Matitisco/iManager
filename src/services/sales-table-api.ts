@@ -88,3 +88,9 @@ export async function deleteSaleViaApi(user: User, saleId: string): Promise<void
     _cache.data = _cache.data.filter(s => s.id !== saleId);
   }
 }
+
+export function updateCategoryInCache(ids: string[], categoryId: string | null) {
+  if (_cache) {
+    _cache.data = _cache.data.map(s => ids.includes(s.id) ? { ...s, categoryId } : s);
+  }
+}
