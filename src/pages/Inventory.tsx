@@ -10,7 +10,6 @@ import {
   updateBackendInventoryItem,
   deleteBackendInventoryItem,
   bulkMoveCategoryApi,
-  reorderCategoriesApi,
 } from '../services/inventory-api';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
@@ -132,6 +131,7 @@ export const Inventory: React.FC = () => {
     deleteProduct,
     addProduct,
     reloadInventory,
+    reorderCategories,
     customColumns,
     addCustomColumn,
     removeCustomColumn,
@@ -313,10 +313,7 @@ export const Inventory: React.FC = () => {
     onCreateCategory: createCategory,
     onRenameCategory: renameCategory,
     onDeleteCategory: deleteCategory,
-    onReorderCategories: async (ids) => {
-      if (!user) return;
-      await reorderCategoriesApi(user, ids);
-    },
+    onReorderCategories: reorderCategories,
     onBulkMoveCategory: async (ids, categoryId) => {
       if (!user) return;
       await bulkMoveCategoryApi(user, ids, categoryId);
