@@ -109,7 +109,7 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {recentSales.length > 0 ? recentSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={sale.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate?.('sales')}>
                       <td className="py-4 text-gray-400 font-medium">#{sale.id}</td>
                       <td className="py-4 font-bold text-gray-900">{sale.client?.name || 'Cliente eliminado'}</td>
                       <td className="py-4">

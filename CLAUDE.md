@@ -71,7 +71,7 @@ backend/                 → API propia (Fastify + Prisma)
 3. **No mezclar Firestore y Postgres** como fuentes activas del mismo dato
 4. **No cerrar modales como éxito** si la persistencia real falló
 5. **No asumir** que un usuario autenticado tiene contexto de negocio (puede necesitar onboarding)
-6. **Siempre pushear al terminar una feature** — usar `/push` al final de cada sesión o después de cada cambio completo
+6. **Pushear automáticamente al finalizar cada tarea** — usar `/push` sin esperar que el usuario lo pida. Cuando un fix, feature o refactor está completo, commitear y pushear a main de inmediato.
 
 ---
 
