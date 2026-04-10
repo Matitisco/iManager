@@ -118,7 +118,7 @@ export const Sales: React.FC = () => {
                 value={helpers.inlineValue}
                 onChange={(e) => {
                   helpers.setInlineValue(e.target.value);
-                  helpers.commitEdit({ ...row, clientId: e.target.value });
+                  helpers.commitEdit(row);
                 }}
                 onBlur={() => helpers.onBlur(row)}
                 onKeyDown={(e) => helpers.onKeyDown(e, row)}
@@ -162,7 +162,7 @@ export const Sales: React.FC = () => {
                 value={helpers.inlineValue}
                 onChange={(e) => {
                   helpers.setInlineValue(e.target.value);
-                  helpers.commitEdit({ ...row, productId: e.target.value });
+                  helpers.commitEdit(row);
                 }}
                 onBlur={() => helpers.onBlur(row)}
                 onKeyDown={(e) => helpers.onKeyDown(e, row)}
