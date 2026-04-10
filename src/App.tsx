@@ -21,6 +21,7 @@ import { ProductForm } from './components/forms/ProductForm';
 import { ClientForm } from './components/forms/ClientForm';
 import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
+import { previewInvitation, type InvitationPreview } from './services/invitations-api';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 
@@ -35,12 +36,52 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
+const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', ADMIN: 'Socio', SELLER: 'Vendedor' };
+
 function AppContent() {
-  const { user, loading, appSession, backendStatus, backendMessage } = useAppContext();
+  const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inviteToken] = useState<string | null>(() => extractInviteToken());
+  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
+  const [inviteInvalid, setInviteInvalid] = useState(false);
+  const [inviteAccepting, setInviteAccepting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+
+  // Load invite preview for already-onboarded users
+  const showInviteModal = !!(
+    inviteToken && user && !loading &&
+    backendStatus === 'ready' && !appSession?.onboardingRequired &&
+    (invitePreview || inviteInvalid)
+  );
+
+  useEffect(() => {
+    if (!inviteToken || !user || appSession?.onboardingRequired) return;
+    if (backendStatus !== 'ready') return;
+    previewInvitation(inviteToken)
+      .then((data) => data ? setInvitePreview(data) : setInviteInvalid(true))
+      .catch(() => setInviteInvalid(true));
+  }, [inviteToken, user, backendStatus, appSession?.onboardingRequired]);
+
+  const handleAcceptInvite = async () => {
+    if (!inviteToken) return;
+    setInviteError('');
+    setInviteAccepting(true);
+    try {
+      await acceptStoreInvitation(inviteToken);
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
+    } finally {
+      setInviteAccepting(false);
+    }
+  };
+
+  const dismissInvite = () => {
+    sessionStorage.removeItem('pendingInviteToken');
+    setInvitePreview(null);
+    setInviteInvalid(false);
+  };
 
   if (loading) {
     return (
@@ -175,6 +216,56 @@ function AppContent() {
           {renderModalContent()}
         </Modal>
       </div>
+
+      {/* Invite acceptance modal for already-onboarded users */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5">
+            {inviteInvalid ? (
+              <>
+                <h2 className="text-xl font-semibold text-gray-900">Invitación inválida</h2>
+                <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
+                <button
+                  onClick={dismissInvite}
+                  className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-xl font-semibold text-gray-900">Te invitaron a una tienda</h2>
+                  <p className="text-sm text-gray-500">
+                    Fuiste invitado a unirte a{' '}
+                    <span className="font-medium text-gray-800">{invitePreview!.storeName}</span>{' '}
+                    como <span className="font-medium text-gray-800">{ROLE_LABEL[invitePreview!.role] ?? invitePreview!.role}</span>.
+                  </p>
+                </div>
+                {inviteError && (
+                  <p className="text-sm text-red-600">{inviteError}</p>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={dismissInvite}
+                    disabled={inviteAccepting}
+                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    Ignorar
+                  </button>
+                  <button
+                    onClick={handleAcceptInvite}
+                    disabled={inviteAccepting}
+                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitación'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
