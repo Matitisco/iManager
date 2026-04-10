@@ -39,6 +39,9 @@ function applyFiltersAndSort(
   let result = [...sales];
 
   // Filters
+  if (params.categoryId !== undefined && params.categoryId !== null) {
+    result = result.filter(s => s.categoryId === params.categoryId);
+  }
   const { filters = {} } = params;
   if (filters.paymentMethod) result = result.filter(s => s.paymentMethod === filters.paymentMethod);
   if (filters.status) result = result.filter(s => s.status === filters.status);
