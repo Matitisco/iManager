@@ -61,7 +61,10 @@ function AppContent() {
     if (backendStatus !== 'ready') return;
     previewInvitation(inviteToken)
       .then((data) => data ? setInvitePreview(data) : setInviteInvalid(true))
-      .catch(() => setInviteInvalid(true));
+      .catch((err) => {
+        console.error('[InviteModal] previewInvitation failed:', err);
+        setInviteInvalid(true);
+      });
   }, [inviteToken, user, backendStatus, appSession?.onboardingRequired]);
 
   const handleAcceptInvite = async () => {

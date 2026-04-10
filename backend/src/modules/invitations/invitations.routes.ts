@@ -16,32 +16,35 @@ const createSchema = z.object({
 });
 
 export async function invitationsRoutes(app: FastifyInstance) {
-  // GET /api/invitations/preview/:token — no auth required
-  app.get("/preview/:token", async (request, reply) => {
-    const { token } = request.params as { token: string };
-    const data = await previewInvitation(token);
-    if (!data) {
-      return reply.code(410).send({ error: "La invitación expiró o ya fue utilizada" });
-    }
-    return data;
-  });
+  // Public routes — isolated in a child scope so the auth hooks below don't affect them
+  app.register(async (pub) => {
+    // GET /api/invitations/preview/:token — no auth required
+    pub.get("/preview/:token", async (request, reply) => {
+      const { token } = request.params as { token: string };
+      const data = await previewInvitation(token);
+      if (!data) {
+        return reply.code(410).send({ error: "La invitación expiró o ya fue utilizada" });
+      }
+      return data;
+    });
 
-  // POST /api/invitations/accept — requires Firebase auth
-  app.post("/accept", { preHandler: [authenticate] }, async (request, reply) => {
-    if (!request.auth) {
-      return reply.code(401).send({ error: "Unauthenticated" });
-    }
-    const { token } = request.body as { token: string };
-    if (!token || typeof token !== "string") {
-      return reply.code(400).send({ error: "Token requerido" });
-    }
-    try {
-      const session = await acceptInvitation(token, request.auth);
-      return { session };
-    } catch (err: unknown) {
-      const e = err as { statusCode?: number; message: string };
-      return reply.code(e.statusCode ?? 500).send({ error: e.message });
-    }
+    // POST /api/invitations/accept — requires Firebase auth only (no store membership)
+    pub.post("/accept", { preHandler: [authenticate] }, async (request, reply) => {
+      if (!request.auth) {
+        return reply.code(401).send({ error: "Unauthenticated" });
+      }
+      const { token } = request.body as { token: string };
+      if (!token || typeof token !== "string") {
+        return reply.code(400).send({ error: "Token requerido" });
+      }
+      try {
+        const session = await acceptInvitation(token, request.auth);
+        return { session };
+      } catch (err: unknown) {
+        const e = err as { statusCode?: number; message: string };
+        return reply.code(e.statusCode ?? 500).send({ error: e.message });
+      }
+    });
   });
 
   // From here on: requires auth + store membership
