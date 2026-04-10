@@ -11,6 +11,7 @@ import {
   fetchTradeInFilteredIds,
   fetchTradeInsPage,
   invalidateTradeInsCache,
+  updateTradeInCategoryInCache,
 } from '../services/trade-ins-table-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
 
@@ -147,6 +148,12 @@ export const TradeIns: React.FC = () => {
     addTradeIn,
     updateTradeIn,
     deleteTradeIn,
+    tradeInCategories,
+    createTradeInCategory,
+    renameTradeInCategory,
+    deleteTradeInCategory,
+    bulkMoveTradeInCategory,
+    reorderTradeInCategories,
     customColumns,
     addCustomColumn,
     removeCustomColumn,
@@ -272,6 +279,16 @@ export const TradeIns: React.FC = () => {
       exportSheetName: 'Canjes',
       noun: 'canje',
       nounPlural: 'canjes',
+
+      categories: tradeInCategories,
+      onCreateCategory: createTradeInCategory,
+      onRenameCategory: renameTradeInCategory,
+      onDeleteCategory: deleteTradeInCategory,
+      onReorderCategories: reorderTradeInCategories,
+      onBulkMoveCategory: async (ids, categoryId) => {
+        await bulkMoveTradeInCategory(ids, categoryId);
+        updateTradeInCategoryInCache(ids, categoryId);
+      },
 
       columns: [
         {
@@ -439,7 +456,7 @@ export const TradeIns: React.FC = () => {
         { colId: 'deviceGiven', placeholder: 'Equipo entregado', required: true },
         { colId: 'differencePaid', placeholder: 'Diferencia abonada', required: true },
       ],
-      buildNewItem: (formData) => ({
+      buildNewItem: (formData, categoryId) => ({
         customFields: (() => {
           const entries = Object.entries(formData)
             .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
@@ -454,6 +471,7 @@ export const TradeIns: React.FC = () => {
         })(),
         date: String(formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
         clientId: String(formData.clientId ?? '').trim(),
+        categoryId: categoryId ?? null,
         deviceReceived: String(formData.deviceReceived ?? '').trim(),
         deviceReceivedImei: String(formData.deviceReceivedImei ?? '').trim(),
         takeValue: Number(formData.takeValue) || 0,

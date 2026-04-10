@@ -22,7 +22,13 @@ export interface ClientResponse {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  categoryId: string | null;
   customFields: Record<string, unknown>;
+}
+
+export interface ClientCategoryResponse {
+  id: string;
+  name: string;
 }
 
 type ClientRecord = {
@@ -34,6 +40,7 @@ type ClientRecord = {
   lastPurchaseAt: Date | null;
   totalSpent: Decimal;
   pendingBalance: Decimal;
+  categoryId: string | null;
   customFields: Prisma.JsonValue | null;
 };
 
@@ -79,6 +86,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
+    categoryId: client.categoryId ?? null,
     customFields: toCustomFields(client.customFields),
   };
 }
@@ -161,6 +169,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
       name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
       phone: input.phone !== undefined ? input.phone || null : existing.phone,
+      categoryId: (input as any).categoryId !== undefined ? (input as any).categoryId : existing.categoryId,
       lastPurchaseAt:
         input.lastPurchaseDate !== undefined
           ? parseLastPurchaseDate(input.lastPurchaseDate)
@@ -282,4 +291,58 @@ export function getClientsErrorStatus(error: unknown) {
   }
 
   return null;
+}
+
+// ── Client Categories ─────────────────────────────────────────────────────────
+
+export async function listClientCategories(storeId: string): Promise<ClientCategoryResponse[]> {
+  return prisma.clientCategory.findMany({
+    where: { storeId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+export async function createClientCategory(storeId: string, name: string): Promise<ClientCategoryResponse> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new ClientsError("Category name required", 400);
+  const existing = await prisma.clientCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing) throw new ClientsError("Category already exists", 409);
+  const count = await prisma.clientCategory.count({ where: { storeId } });
+  return prisma.clientCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
+}
+
+export async function renameClientCategory(storeId: string, id: string, name: string): Promise<ClientCategoryResponse | null> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new ClientsError("Category name required", 400);
+  const existing = await prisma.clientCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return null;
+  return prisma.clientCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
+}
+
+export async function deleteClientCategory(storeId: string, id: string): Promise<boolean> {
+  const existing = await prisma.clientCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return false;
+  await prisma.$transaction([
+    prisma.client.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } }),
+    prisma.clientCategory.delete({ where: { id } }),
+  ]);
+  return true;
+}
+
+export async function reorderClientCategories(storeId: string, categoryIds: string[]): Promise<void> {
+  await prisma.$transaction(
+    categoryIds.map((id, idx) =>
+      prisma.clientCategory.updateMany({ where: { id, storeId }, data: { sortOrder: idx } })
+    )
+  );
+}
+
+export async function bulkMoveClientCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
+  if (categoryId !== null) {
+    const cat = await prisma.clientCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new ClientsError("Category not found", 404);
+  }
+  const result = await prisma.client.updateMany({ where: { storeId, id: { in: ids } }, data: { categoryId } });
+  return result.count;
 }

@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
 import { auth, db, googleProvider } from '../firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
 import { collection, doc, onSnapshot, query, setDoc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient } from '../services/clients-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
-import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
+import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
@@ -46,6 +46,18 @@ interface AppState {
   deleteSaleCategory: (id: string) => Promise<void>;
   bulkMoveSaleCategory: (ids: string[], categoryId: string | null) => Promise<void>;
   reorderSaleCategories: (ids: string[]) => Promise<void>;
+  tradeInCategories: TradeInCategory[];
+  createTradeInCategory: (name: string) => Promise<TradeInCategory>;
+  renameTradeInCategory: (id: string, name: string) => Promise<void>;
+  deleteTradeInCategory: (id: string) => Promise<void>;
+  bulkMoveTradeInCategory: (ids: string[], categoryId: string | null) => Promise<void>;
+  reorderTradeInCategories: (ids: string[]) => Promise<void>;
+  clientCategories: ClientCategory[];
+  createClientCategory: (name: string) => Promise<ClientCategory>;
+  renameClientCategory: (id: string, name: string) => Promise<void>;
+  deleteClientCategory: (id: string) => Promise<void>;
+  bulkMoveClientCategory: (ids: string[], categoryId: string | null) => Promise<void>;
+  reorderClientCategories: (ids: string[]) => Promise<void>;
   user: User | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -188,7 +200,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
+  const [tradeInCategories, setTradeInCategories] = useState<TradeInCategory[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -223,7 +237,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setSales([]);
       setSalesCategories([]);
       setTradeIns([]);
+      setTradeInCategories([]);
       setClients([]);
+      setClientCategories([]);
       setCustomColumns([]);
       setAppSession(null);
       setBackendStatus('checking');
@@ -360,9 +376,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const loadBackendClients = async () => {
       try {
-        const backendClients = await fetchBackendClients(user);
+        const [backendClients, fetchedClientCategories] = await Promise.all([
+          fetchBackendClients(user),
+          fetchClientCategoriesApi(user).catch(() => []),
+        ]);
         if (cancelled) return;
         setClients(backendClients);
+        setClientCategories(fetchedClientCategories);
         setClientsSource('backend');
       } catch (error) {
         if (cancelled) return;
@@ -448,9 +468,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const loadBackendTradeIns = async () => {
       try {
-        const backendTradeIns = await fetchBackendTradeIns(user);
+        const [backendTradeIns, fetchedTradeInCategories] = await Promise.all([
+          fetchBackendTradeIns(user),
+          fetchTradeInCategoriesApi(user).catch(() => []),
+        ]);
         if (cancelled) return;
         setTradeIns(backendTradeIns);
+        setTradeInCategories(fetchedTradeInCategories);
         setTradeInsSource('backend');
       } catch (error) {
         if (cancelled) return;
@@ -978,6 +1002,86 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // ── TradeIn Categories ────────────────────────────────────────────────────
+
+  const createTradeInCategory = async (name: string): Promise<TradeInCategory> => {
+    if (!user) throw new Error('No authenticated user');
+    const cat = await createTradeInCategoryApi(user, name);
+    setTradeInCategories(prev => [...prev, cat]);
+    return cat;
+  };
+
+  const renameTradeInCategory = async (id: string, name: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const updated = await renameTradeInCategoryApi(user, id, name);
+    setTradeInCategories(prev => prev.map(c => c.id === id ? updated : c));
+  };
+
+  const deleteTradeInCategory = async (id: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await deleteTradeInCategoryApi(user, id);
+    setTradeInCategories(prev => prev.filter(c => c.id !== id));
+    setTradeIns(prev => prev.map(t => t.categoryId === id ? { ...t, categoryId: null } : t));
+  };
+
+  const bulkMoveTradeInCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await bulkMoveTradeInCategoryApi(user, ids, categoryId);
+    setTradeIns(prev => prev.map(t => ids.includes(t.id) ? { ...t, categoryId } : t));
+  };
+
+  const reorderTradeInCategories = async (ids: string[]): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const prev = tradeInCategories;
+    const map = new Map(prev.map(c => [c.id, c]));
+    setTradeInCategories(ids.map(id => map.get(id)!).filter(Boolean));
+    try {
+      await reorderTradeInCategoriesApi(user, ids);
+    } catch {
+      setTradeInCategories(prev);
+    }
+  };
+
+  // ── Client Categories ─────────────────────────────────────────────────────
+
+  const createClientCategory = async (name: string): Promise<ClientCategory> => {
+    if (!user) throw new Error('No authenticated user');
+    const cat = await createClientCategoryApi(user, name);
+    setClientCategories(prev => [...prev, cat]);
+    return cat;
+  };
+
+  const renameClientCategory = async (id: string, name: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const updated = await renameClientCategoryApi(user, id, name);
+    setClientCategories(prev => prev.map(c => c.id === id ? updated : c));
+  };
+
+  const deleteClientCategory = async (id: string): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await deleteClientCategoryApi(user, id);
+    setClientCategories(prev => prev.filter(c => c.id !== id));
+    setClients(prev => prev.map(c => c.categoryId === id ? { ...c, categoryId: null } : c));
+  };
+
+  const bulkMoveClientCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    await bulkMoveClientCategoryApi(user, ids, categoryId);
+    setClients(prev => prev.map(c => ids.includes(c.id) ? { ...c, categoryId } : c));
+  };
+
+  const reorderClientCategories = async (ids: string[]): Promise<void> => {
+    if (!user) throw new Error('No authenticated user');
+    const prev = clientCategories;
+    const map = new Map(prev.map(c => [c.id, c]));
+    setClientCategories(ids.map(id => map.get(id)!).filter(Boolean));
+    try {
+      await reorderClientCategoriesApi(user, ids);
+    } catch {
+      setClientCategories(prev);
+    }
+  };
+
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -1235,6 +1339,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       reloadInventory,
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
+      tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
+      clientCategories, createClientCategory, renameClientCategory, deleteClientCategory, bulkMoveClientCategory, reorderClientCategories,
       updateStore, updateUserProfile,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>

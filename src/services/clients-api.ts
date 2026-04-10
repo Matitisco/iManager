@@ -103,3 +103,57 @@ export async function deleteBackendClient(user: User, clientId: string): Promise
     throw new Error(body?.error || `No se pudo eliminar el cliente (${response.status})`);
   }
 }
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+export type ClientCategoryApi = { id: string; name: string };
+
+export async function fetchClientCategoriesApi(user: User): Promise<ClientCategoryApi[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories`, { headers: await getAuthHeaders(user) });
+  if (!response.ok) throw new Error('No se pudieron cargar las categorías de clientes');
+  const data = await response.json();
+  return data.categories ?? [];
+}
+
+export async function createClientCategoryApi(user: User, name: string): Promise<ClientCategoryApi> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories`, {
+    method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error('Error creando categoría de cliente');
+  return (await response.json()).category;
+}
+
+export async function renameClientCategoryApi(user: User, id: string, name: string): Promise<ClientCategoryApi> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/${id}`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error('Error renombrando categoría de cliente');
+  return (await response.json()).category;
+}
+
+export async function deleteClientCategoryApi(user: User, id: string): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/${id}`, {
+    method: 'DELETE', headers: await getAuthHeaders(user),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error eliminando categoría de cliente');
+}
+
+export async function reorderClientCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/reorder`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ categoryIds }),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error reordenando categorías de cliente');
+}
+
+export async function bulkMoveClientCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/bulk-move`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ itemIds, categoryId }),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error moviendo clientes a categoría');
+}

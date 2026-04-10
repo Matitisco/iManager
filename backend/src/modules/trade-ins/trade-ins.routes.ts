@@ -10,6 +10,12 @@ import {
   importTradeIns,
   listTradeIns,
   updateTradeIn,
+  listTradeInCategories,
+  createTradeInCategory,
+  renameTradeInCategory,
+  deleteTradeInCategory,
+  reorderTradeInCategories,
+  bulkMoveTradeInCategory,
 } from "./trade-ins.service.js";
 
 const tradeInStatusSchema = z.enum([
@@ -24,6 +30,7 @@ const tradeInStatusSchema = z.enum([
 const tradeInCreateSchema = z.object({
   date: z.string().min(1).max(120),
   clientId: z.string().min(1),
+  categoryId: z.string().nullable().optional(),
   deviceReceived: z.string().min(1).max(120),
   deviceReceivedImei: z.string().min(1).max(100),
   takeValue: z.number(),
@@ -164,4 +171,50 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     }
   );
+
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  app.get("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const categories = await listTradeInCategories(request.appUser.storeId);
+    return { categories };
+  });
+
+  app.post("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
+    const category = await createTradeInCategory(request.appUser.storeId, name);
+    return reply.code(201).send({ category });
+  });
+
+  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { categoryIds } = z.object({ categoryIds: z.array(z.string()) }).parse(request.body);
+    await reorderTradeInCategories(request.appUser.storeId, categoryIds);
+    return reply.code(204).send();
+  });
+
+  app.patch("/categories/bulk-move", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const body = z.object({ itemIds: z.array(z.string()), categoryId: z.string().nullable() }).parse(request.body);
+    await bulkMoveTradeInCategory(request.appUser.storeId, body.itemIds, body.categoryId);
+    return reply.code(204).send();
+  });
+
+  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
+    const category = await renameTradeInCategory(request.appUser.storeId, id, name);
+    if (!category) return reply.code(404).send({ error: "Category not found" });
+    return { category };
+  });
+
+  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const deleted = await deleteTradeInCategory(request.appUser.storeId, id);
+    if (!deleted) return reply.code(404).send({ error: "Category not found" });
+    return reply.code(204).send();
+  });
 }

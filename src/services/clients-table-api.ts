@@ -36,6 +36,10 @@ function applyFiltersAndSort(
 ): Client[] {
   let result = [...clients];
 
+  if (params.categoryId !== undefined && params.categoryId !== null) {
+    result = result.filter(c => c.categoryId === params.categoryId);
+  }
+
   const { filters = {} } = params;
   if (filters.status === 'active') result = result.filter(hasActivity);
   if (filters.status === 'inactive') result = result.filter(c => !hasActivity(c));
@@ -66,6 +70,12 @@ export async function fetchClientsPage(
   const filtered = applyFiltersAndSort(all, params);
   const items = filtered.slice(params.skip, params.skip + params.take);
   return { items, total: filtered.length };
+}
+
+export function updateClientCategoryInCache(ids: string[], categoryId: string | null) {
+  if (_cache) {
+    _cache.data = _cache.data.map(c => ids.includes(c.id) ? { ...c, categoryId } : c);
+  }
 }
 
 export async function updateClientViaApi(user: User, client: Client): Promise<void> {

@@ -11,6 +11,7 @@ import {
   updateClientViaApi,
   deleteClientViaApi,
   invalidateClientsCache,
+  updateClientCategoryInCache,
 } from '../services/clients-table-api';
 import { importBackendClients } from '../services/clients-import-api';
 
@@ -45,7 +46,12 @@ const StatCard = ({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export const Clients: React.FC = () => {
-  const { user, clients, sales, addClient, customColumns, addCustomColumn, removeCustomColumn } = useAppContext();
+  const {
+    user, clients, sales, addClient,
+    clientCategories, createClientCategory, renameClientCategory, deleteClientCategory,
+    bulkMoveClientCategory, reorderClientCategories,
+    customColumns, addCustomColumn, removeCustomColumn,
+  } = useAppContext();
   const clientCustomColumns = useMemo(
     () => customColumns.filter((column) => column.entity === 'clients'),
     [customColumns],
@@ -66,6 +72,16 @@ export const Clients: React.FC = () => {
     exportSheetName: 'Clientes',
     noun: 'cliente',
     nounPlural: 'clientes',
+
+    categories: clientCategories,
+    onCreateCategory: createClientCategory,
+    onRenameCategory: renameClientCategory,
+    onDeleteCategory: deleteClientCategory,
+    onReorderCategories: reorderClientCategories,
+    onBulkMoveCategory: async (ids, categoryId) => {
+      await bulkMoveClientCategory(ids, categoryId);
+      updateClientCategoryInCache(ids, categoryId);
+    },
 
     columns: [
       {
@@ -188,7 +204,7 @@ export const Clients: React.FC = () => {
       { colId: 'phone', placeholder: 'Teléfono' },
       { colId: 'email', placeholder: 'Email' },
     ],
-    buildNewItem: (formData) => ({
+    buildNewItem: (formData, categoryId) => ({
       customFields: (() => {
         const entries = Object.entries(formData)
           .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
@@ -208,6 +224,7 @@ export const Clients: React.FC = () => {
       lastPurchaseDate: 'N/A',
       totalSpent: 0,
       pendingBalance: 0,
+      categoryId: categoryId ?? null,
     }),
     onCreate: async (data) => {
       await addClient(data as Omit<Client, 'id'>);

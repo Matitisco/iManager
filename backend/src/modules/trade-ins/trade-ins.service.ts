@@ -5,6 +5,7 @@ import { prisma } from "../../plugins/prisma.js";
 export interface TradeInInput {
   date: string;
   clientId: string;
+  categoryId?: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;
   takeValue: number;
@@ -28,6 +29,7 @@ export interface TradeInResponse {
   id: string;
   date: string;
   clientId: string;
+  categoryId: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;
   takeValue: number;
@@ -37,6 +39,11 @@ export interface TradeInResponse {
   batteryHealth?: string | null;
   grade?: string | null;
   customFields: Record<string, unknown>;
+}
+
+export interface TradeInCategoryResponse {
+  id: string;
+  name: string;
 }
 
 export interface TradeInImportRow {
@@ -61,6 +68,7 @@ export interface TradeInImportResult {
 type TradeInRecord = {
   id: string;
   clientId: string | null;
+  categoryId: string | null;
   dateLabel: string;
   deviceReceived: string;
   deviceReceivedImei: string;
@@ -169,6 +177,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     id: tradeIn.id,
     date: tradeIn.dateLabel || formatDateLabel(tradeIn.tradeAt),
     clientId: tradeIn.clientId ?? "",
+    categoryId: tradeIn.categoryId ?? null,
     deviceReceived: tradeIn.deviceReceived,
     deviceReceivedImei: tradeIn.deviceReceivedImei,
     takeValue: tradeIn.takeValue.toNumber(),
@@ -223,6 +232,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
     data: {
       storeId,
       clientId: client.id,
+      categoryId: input.categoryId ?? null,
       dateLabel,
       deviceReceived: input.deviceReceived,
       deviceReceivedImei: input.deviceReceivedImei,
@@ -276,6 +286,7 @@ export async function updateTradeIn(
         input.clientId !== undefined
           ? input.clientId || null
           : existing.clientId,
+      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       dateLabel: nextDateLabel,
       deviceReceived: input.deviceReceived ?? existing.deviceReceived,
       deviceReceivedImei: input.deviceReceivedImei ?? existing.deviceReceivedImei,
@@ -462,4 +473,58 @@ export async function importTradeIns(
   }
 
   return { imported, updated, errors };
+}
+
+// ── TradeIn Categories ────────────────────────────────────────────────────────
+
+export async function listTradeInCategories(storeId: string): Promise<TradeInCategoryResponse[]> {
+  return prisma.tradeInCategory.findMany({
+    where: { storeId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+export async function createTradeInCategory(storeId: string, name: string): Promise<TradeInCategoryResponse> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new TradeInsError("Category name required", 400);
+  const existing = await prisma.tradeInCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing) throw new TradeInsError("Category already exists", 409);
+  const count = await prisma.tradeInCategory.count({ where: { storeId } });
+  return prisma.tradeInCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
+}
+
+export async function renameTradeInCategory(storeId: string, id: string, name: string): Promise<TradeInCategoryResponse | null> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new TradeInsError("Category name required", 400);
+  const existing = await prisma.tradeInCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return null;
+  return prisma.tradeInCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
+}
+
+export async function deleteTradeInCategory(storeId: string, id: string): Promise<boolean> {
+  const existing = await prisma.tradeInCategory.findFirst({ where: { id, storeId } });
+  if (!existing) return false;
+  await prisma.$transaction([
+    prisma.tradeIn.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } }),
+    prisma.tradeInCategory.delete({ where: { id } }),
+  ]);
+  return true;
+}
+
+export async function reorderTradeInCategories(storeId: string, categoryIds: string[]): Promise<void> {
+  await prisma.$transaction(
+    categoryIds.map((id, idx) =>
+      prisma.tradeInCategory.updateMany({ where: { id, storeId }, data: { sortOrder: idx } })
+    )
+  );
+}
+
+export async function bulkMoveTradeInCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
+  if (categoryId !== null) {
+    const cat = await prisma.tradeInCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new TradeInsError("Category not found", 404);
+  }
+  const result = await prisma.tradeIn.updateMany({ where: { storeId, id: { in: ids } }, data: { categoryId } });
+  return result.count;
 }

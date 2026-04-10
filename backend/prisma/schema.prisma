@@ -34,11 +34,13 @@ model Store {
   memberships         StoreMember[]
   invitations         StoreInvitation[]
   clients             Client[]
+  clientCategories    ClientCategory[]
   inventory           InventoryItem[]
   inventoryCategories InventoryCategory[]
   saleCategories      SaleCategory[]
   sales               Sale[]
   tradeIns            TradeIn[]
+  tradeInCategories   TradeInCategory[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -58,24 +60,39 @@ model StoreMember {
 }
 
 model Client {
-  id             String    @id @default(cuid())
+  id             String          @id @default(cuid())
   storeId        String
-  dni            String    @db.VarChar(50)
-  name           String    @db.VarChar(120)
-  email          String?   @db.VarChar(255)
-  phone          String?   @db.VarChar(50)
+  categoryId     String?
+  dni            String          @db.VarChar(50)
+  name           String          @db.VarChar(120)
+  email          String?         @db.VarChar(255)
+  phone          String?         @db.VarChar(50)
   lastPurchaseAt DateTime?
-  totalSpent     Decimal   @default(0) @db.Decimal(12, 2)
-  pendingBalance Decimal   @default(0) @db.Decimal(12, 2)
+  totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
+  pendingBalance Decimal         @default(0) @db.Decimal(12, 2)
   customFields   Json?
-  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category       ClientCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales          Sale[]
   tradeIns       TradeIn[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([storeId])
   @@unique([storeId, dni])
+}
+
+model ClientCategory {
+  id        String   @id @default(cuid())
+  storeId   String
+  name      String   @db.VarChar(80)
+  sortOrder Int      @default(0)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  clients   Client[]
+  createdAt DateTime @default(now())
+
+  @@index([storeId])
+  @@unique([storeId, name])
 }
 
 model InventoryCategory {
@@ -143,28 +160,43 @@ model Sale {
 }
 
 model TradeIn {
-  id                 String   @id @default(cuid())
+  id                 String           @id @default(cuid())
   storeId            String
   clientId           String?
-  dateLabel          String   @db.VarChar(120)
-  deviceReceived     String   @db.VarChar(120)
-  deviceReceivedImei String   @db.VarChar(100)
-  takeValue          Decimal  @db.Decimal(12, 2)
-  deviceGiven        String   @db.VarChar(120)
-  differencePaid     Decimal  @db.Decimal(12, 2)
-  status             String   @db.VarChar(30)
-  batteryHealth      String?  @db.VarChar(50)
-  grade              String?  @db.VarChar(20)
+  categoryId         String?
+  dateLabel          String           @db.VarChar(120)
+  deviceReceived     String           @db.VarChar(120)
+  deviceReceivedImei String           @db.VarChar(100)
+  takeValue          Decimal          @db.Decimal(12, 2)
+  deviceGiven        String           @db.VarChar(120)
+  differencePaid     Decimal          @db.Decimal(12, 2)
+  status             String           @db.VarChar(30)
+  batteryHealth      String?          @db.VarChar(50)
+  grade              String?          @db.VarChar(20)
   customFields       Json?
   tradeAt            DateTime
-  store              Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  client             Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  store              Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client             Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  category           TradeInCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@index([storeId])
   @@index([storeId, tradeAt])
   @@index([clientId])
+}
+
+model TradeInCategory {
+  id        String    @id @default(cuid())
+  storeId   String
+  name      String    @db.VarChar(80)
+  sortOrder Int       @default(0)
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tradeIns  TradeIn[]
+  createdAt DateTime  @default(now())
+
+  @@index([storeId])
+  @@unique([storeId, name])
 }
 
 model SaleCategory {

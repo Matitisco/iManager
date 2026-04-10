@@ -10,11 +10,18 @@ import {
   importClients,
   listClients,
   updateClient,
+  listClientCategories,
+  createClientCategory,
+  renameClientCategory,
+  deleteClientCategory,
+  reorderClientCategories,
+  bulkMoveClientCategory,
 } from "./clients.service.js";
 
 const clientCreateSchema = z.object({
   dni: z.string().min(1).max(50),
   name: z.string().min(1).max(120),
+  categoryId: z.string().nullable().optional(),
   email: z.string().trim().max(255).optional().nullable(),
   phone: z.string().trim().max(50).optional().nullable(),
   lastPurchaseDate: z.string().trim().optional().nullable(),
@@ -143,4 +150,50 @@ export async function clientsRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     }
   );
+
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  app.get("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const categories = await listClientCategories(request.appUser.storeId);
+    return { categories };
+  });
+
+  app.post("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
+    const category = await createClientCategory(request.appUser.storeId, name);
+    return reply.code(201).send({ category });
+  });
+
+  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { categoryIds } = z.object({ categoryIds: z.array(z.string()) }).parse(request.body);
+    await reorderClientCategories(request.appUser.storeId, categoryIds);
+    return reply.code(204).send();
+  });
+
+  app.patch("/categories/bulk-move", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const body = z.object({ itemIds: z.array(z.string()), categoryId: z.string().nullable() }).parse(request.body);
+    await bulkMoveClientCategory(request.appUser.storeId, body.itemIds, body.categoryId);
+    return reply.code(204).send();
+  });
+
+  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
+    const category = await renameClientCategory(request.appUser.storeId, id, name);
+    if (!category) return reply.code(404).send({ error: "Category not found" });
+    return { category };
+  });
+
+  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const deleted = await deleteClientCategory(request.appUser.storeId, id);
+    if (!deleted) return reply.code(404).send({ error: "Category not found" });
+    return reply.code(204).send();
+  });
 }

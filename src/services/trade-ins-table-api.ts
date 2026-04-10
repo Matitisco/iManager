@@ -24,6 +24,11 @@ function applyFiltersAndSort(
   params: Omit<TablePageParams, 'skip' | 'take'>,
 ): TradeIn[] {
   let result = [...tradeIns];
+
+  if (params.categoryId !== undefined && params.categoryId !== null) {
+    result = result.filter(t => t.categoryId === params.categoryId);
+  }
+
   const { filters = {} } = params;
 
   if (filters.date) {
@@ -77,6 +82,12 @@ export async function fetchTradeInsPage(
     items: filtered.slice(params.skip, params.skip + params.take),
     total: filtered.length,
   };
+}
+
+export function updateTradeInCategoryInCache(ids: string[], categoryId: string | null) {
+  if (cache) {
+    cache.data = cache.data.map(t => ids.includes(t.id) ? { ...t, categoryId } : t);
+  }
 }
 
 export async function fetchTradeInFilteredIds(

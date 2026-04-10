@@ -47,6 +47,7 @@ export interface TradeIn {
   id: string;
   date: string;
   clientId: string;
+  categoryId?: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;
   takeValue: number;
@@ -58,6 +59,11 @@ export interface TradeIn {
   customFields?: Record<string, any>;
 }
 
+export interface TradeInCategory {
+  id: string;
+  name: string;
+}
+
 export interface Client {
   id: string;
   dni: string;
@@ -67,5 +73,11 @@ export interface Client {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  categoryId?: string | null;
   customFields?: Record<string, any>;
+}
+
+export interface ClientCategory {
+  id: string;
+  name: string;
 }

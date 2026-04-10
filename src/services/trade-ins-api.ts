@@ -103,3 +103,57 @@ export async function deleteBackendTradeIn(user: User, tradeInId: string): Promi
     throw new Error(body?.error || `No se pudo eliminar el canje (${response.status})`);
   }
 }
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+export type TradeInCategoryApi = { id: string; name: string };
+
+export async function fetchTradeInCategoriesApi(user: User): Promise<TradeInCategoryApi[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories`, { headers: await getAuthHeaders(user) });
+  if (!response.ok) throw new Error('No se pudieron cargar las categorías de canjes');
+  const data = await response.json();
+  return data.categories ?? [];
+}
+
+export async function createTradeInCategoryApi(user: User, name: string): Promise<TradeInCategoryApi> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories`, {
+    method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error('Error creando categoría de canje');
+  return (await response.json()).category;
+}
+
+export async function renameTradeInCategoryApi(user: User, id: string, name: string): Promise<TradeInCategoryApi> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/${id}`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error('Error renombrando categoría de canje');
+  return (await response.json()).category;
+}
+
+export async function deleteTradeInCategoryApi(user: User, id: string): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/${id}`, {
+    method: 'DELETE', headers: await getAuthHeaders(user),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error eliminando categoría de canje');
+}
+
+export async function reorderTradeInCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/reorder`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ categoryIds }),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error reordenando categorías de canje');
+}
+
+export async function bulkMoveTradeInCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/bulk-move`, {
+    method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ itemIds, categoryId }),
+  });
+  if (!response.ok && response.status !== 204) throw new Error('Error moviendo canjes a categoría');
+}
