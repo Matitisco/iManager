@@ -65,9 +65,10 @@ export async function listInvitations(user: User): Promise<Invitation[]> {
 }
 
 export async function revokeInvitation(user: User, invitationId: string): Promise<void> {
+  const token = await user.getIdToken();
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/${invitationId}`, {
     method: 'DELETE',
-    headers: await authHeaders(user),
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
