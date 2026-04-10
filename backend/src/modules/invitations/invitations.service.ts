@@ -59,6 +59,7 @@ export async function revokeInvitation(storeId: string, invitationId: string, ac
   if (!invitation) {
     throw Object.assign(new Error("Invitación no encontrada"), { statusCode: 404 });
   }
+  if (invitation.status === "REVOKED") return; // already revoked — idempotent
   if (invitation.status !== "PENDING") {
     throw Object.assign(new Error("Solo se pueden revocar invitaciones pendientes"), { statusCode: 400 });
   }
