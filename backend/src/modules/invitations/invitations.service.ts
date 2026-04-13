@@ -10,6 +10,14 @@ export async function createInvitation(storeId: string, actorRole: string, email
     throw Object.assign(new Error("Solo el Propietario puede crear invitaciones"), { statusCode: 403 });
   }
 
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  if (!frontendUrl) {
+    throw Object.assign(
+      new Error("FRONTEND_URL no está configurado en el backend. No se puede generar el enlace de invitación."),
+      { statusCode: 500 }
+    );
+  }
+
   // Check if email already belongs to a member (only when email is provided)
   if (email) {
     const existing = await prisma.user.findFirst({
@@ -28,11 +36,10 @@ export async function createInvitation(storeId: string, actorRole: string, email
     data: { storeId, email, role, expiresAt },
   });
 
-  const frontendUrl = process.env.FRONTEND_URL ?? "https://imanager.app";
   return {
     id: invitation.id,
     token: invitation.token,
-    inviteUrl: `${frontendUrl}/invite/${invitation.token}`,
+    inviteUrl: `${frontendUrl.replace(/\/+$/, "")}/invite/${invitation.token}`,
     email: invitation.email,
     role: invitation.role,
     expiresAt: invitation.expiresAt,
@@ -100,31 +107,40 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
   // Find or create the User in PG
   const user = await findOrCreateUserFromFirebase(auth);
 
-  // Check if already a member (idempotent)
-  const existingMember = await prisma.storeMember.findUnique({
-    where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
-  });
-
-  if (!existingMember) {
-    // Check if user has any existing membership to determine isDefault
-    const hasMemberships = await prisma.storeMember.count({ where: { userId: user.id } });
-
-    await prisma.storeMember.create({
-      data: {
-        storeId: invitation.storeId,
-        userId: user.id,
-        role: invitation.role,
-        isDefault: hasMemberships === 0,
-      },
+  await prisma.$transaction(async (tx) => {
+    const existingMember = await tx.storeMember.findUnique({
+      where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
     });
-  }
 
-  // Mark invitation as accepted
-  await prisma.storeInvitation.update({
-    where: { id: invitation.id },
-    data: { status: "ACCEPTED" },
+    if (!existingMember) {
+      const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
+
+      await tx.storeMember.create({
+        data: {
+          storeId: invitation.storeId,
+          userId: user.id,
+          role: invitation.role,
+          isDefault: membershipCount === 0,
+        },
+      });
+    }
+
+    await tx.storeMember.updateMany({
+      where: { userId: user.id, NOT: { storeId: invitation.storeId }, isDefault: true },
+      data: { isDefault: false },
+    });
+
+    await tx.storeMember.updateMany({
+      where: { userId: user.id, storeId: invitation.storeId },
+      data: { isDefault: true },
+    });
+
+    await tx.storeInvitation.update({
+      where: { id: invitation.id },
+      data: { status: "ACCEPTED" },
+    });
   });
 
   // Return full session
-  return buildAppSessionForUser(auth);
+  return buildAppSessionForUser(auth, invitation.storeId);
 }

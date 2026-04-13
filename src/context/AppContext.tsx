@@ -560,7 +560,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(data.session);
-    sessionStorage.removeItem('pendingInviteToken');
   };
 
   const addSale = async (saleData: Omit<Sale, 'id'>) => {

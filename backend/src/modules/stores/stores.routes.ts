@@ -26,6 +26,9 @@ export async function storesRoutes(app: FastifyInstance) {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
       }
+      if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+        return reply.code(403).send({ error: "No tenés permisos para editar la tienda" });
+      }
 
       const body = storePatchSchema.parse(request.body);
       const store = await updateStore(request.appUser.storeId, body);
@@ -40,6 +43,9 @@ export async function storesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
+      }
+      if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+        return reply.code(403).send({ error: "No tenés permisos para ver el equipo" });
       }
       const { storeId } = request.params as { storeId: string };
       if (request.appUser.storeId !== storeId) {
@@ -57,6 +63,9 @@ export async function storesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
+      }
+      if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+        return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
       }
       const { storeId, memberId } = request.params as { storeId: string; memberId: string };
       if (request.appUser.storeId !== storeId) {
@@ -83,6 +92,9 @@ export async function storesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
+      }
+      if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+        return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
       }
       const { storeId, memberId } = request.params as { storeId: string; memberId: string };
       if (request.appUser.storeId !== storeId) {

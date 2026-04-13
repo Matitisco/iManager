@@ -5,10 +5,13 @@ Backend para iManager con Fastify, Prisma, PostgreSQL y Firebase Admin.
 ## Requisitos
 
 - `DATABASE_URL`
+- `FRONTEND_URL`
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
 - `FIRESTORE_DATABASE_ID`
+
+`FRONTEND_URL` debe apuntar al host real del frontend (por ejemplo `http://localhost:5173` en desarrollo o el dominio público en producción). El módulo de invitaciones usa esa variable para construir el enlace compartible y ahora falla de forma explícita si no está configurada.
 
 ## Scripts útiles
 

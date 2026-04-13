@@ -1,6 +1,6 @@
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
-import { getDefaultMembershipForUser } from "../stores/stores.service.js";
+import { getDefaultMembershipForUser, getMembershipForUserAndStore } from "../stores/stores.service.js";
 
 export interface AppSessionResponse {
   user: {
@@ -39,9 +39,15 @@ function serializeSessionUser(user: Awaited<ReturnType<typeof findOrCreateUserFr
   };
 }
 
-export async function buildAppSessionForUser(auth: FirebaseAuthContext): Promise<AppSessionResponse> {
+export async function buildAppSessionForUser(
+  auth: FirebaseAuthContext,
+  preferredStoreId?: string
+): Promise<AppSessionResponse> {
   const user = await findOrCreateUserFromFirebase(auth);
-  const membership = await getDefaultMembershipForUser(user.id);
+  const membership =
+    (preferredStoreId
+      ? await getMembershipForUserAndStore(user.id, preferredStoreId)
+      : null) ?? await getDefaultMembershipForUser(user.id);
 
   if (!membership) {
     return {

@@ -9,6 +9,13 @@ export async function getDefaultMembershipForUser(userId: string) {
   });
 }
 
+export async function getMembershipForUserAndStore(userId: string, storeId: string) {
+  return prisma.storeMember.findFirst({
+    where: { userId, storeId },
+    include: { store: true },
+  });
+}
+
 export interface StoreUpdateInput {
   name?: string;
   legalName?: string | null;
@@ -52,6 +59,10 @@ export async function updateMemberRole(
   actorRole: StoreRole,
   actorUserId: string
 ) {
+  if (actorRole !== "OWNER" && actorRole !== "ADMIN") {
+    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+  }
+
   const target = await prisma.storeMember.findFirst({ where: { id: memberId, storeId } });
   if (!target) {
     throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
@@ -83,6 +94,10 @@ export async function removeMember(
   actorRole: StoreRole,
   actorUserId: string
 ) {
+  if (actorRole !== "OWNER" && actorRole !== "ADMIN") {
+    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+  }
+
   const target = await prisma.storeMember.findFirst({
     where: { id: memberId, storeId },
     include: { user: true },

@@ -56,6 +56,9 @@ export async function invitationsRoutes(app: FastifyInstance) {
     if (!request.appUser) {
       return reply.code(403).send({ error: "Store membership required" });
     }
+    if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+      return reply.code(403).send({ error: "No tenés permisos para ver las invitaciones" });
+    }
     const invitations = await listInvitations(request.appUser.storeId);
     return { invitations };
   });
