@@ -12,6 +12,7 @@ interface HeaderProps {
   onNavigate?: (tab: string, subTab?: string) => void;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
+  onSearchSubmit?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   searchTerm = '',
   onSearchTermChange,
+  onSearchSubmit,
 }) => {
   const { logout, user, appSession } = useAppContext();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -72,6 +74,12 @@ export const Header: React.FC<HeaderProps> = ({
               placeholder="Buscar por IMEI, cliente o modelo..." 
               value={searchTerm}
               onChange={(event) => onSearchTermChange?.(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  onSearchSubmit?.();
+                }
+              }}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
             />
           </div>

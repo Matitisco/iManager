@@ -107,6 +107,20 @@ function AppContent() {
     }
   };
 
+  const handleSearchSubmit = () => {
+    const normalizedSearch = topNavSearch.trim();
+    if (!normalizedSearch) {
+      return;
+    }
+
+    const searchableTabs = new Set(['inventory', 'clients', 'sales', 'tradeins']);
+    if (!searchableTabs.has(activeTab)) {
+      setActiveTab('inventory');
+    }
+
+    setTopNavSearch(normalizedSearch);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
@@ -208,6 +222,7 @@ function AppContent() {
           onNewAction={showHeaderAction ? handleNewAction : undefined}
           searchTerm={topNavSearch}
           onSearchTermChange={setTopNavSearch}
+          onSearchSubmit={handleSearchSubmit}
         >
           {renderContent()}
         </Layout>

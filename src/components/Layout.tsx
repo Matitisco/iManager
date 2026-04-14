@@ -11,6 +11,7 @@ interface LayoutProps {
   onNewAction?: () => void;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
+  onSearchSubmit?: () => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -21,6 +22,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onNewAction,
   searchTerm,
   onSearchTermChange,
+  onSearchSubmit,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -43,6 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({
           onNavigate={setActiveTab}
           searchTerm={searchTerm}
           onSearchTermChange={onSearchTermChange}
+          onSearchSubmit={onSearchSubmit}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative flex flex-col">
           <AnimatePresence mode="wait">
