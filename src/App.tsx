@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -21,7 +21,7 @@ import { ProductForm } from './components/forms/ProductForm';
 import { ClientForm } from './components/forms/ClientForm';
 import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
-import { previewInvitation, type InvitationPreview } from './services/invitations-api';
+import { useInvitationPreview } from './hooks/useInvitationPreview';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 
@@ -36,7 +36,7 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', ADMIN: 'Socio', SELLER: 'Vendedor' };
+const ROLE_LABEL: Record<string, string> = { OWNER: 'DueÃ±o', ADMIN: 'Socio', SELLER: 'Vendedor' };
 
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
@@ -44,34 +44,25 @@ function AppContent() {
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
-  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
-  const [inviteInvalid, setInviteInvalid] = useState(false);
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteError, setInviteError] = useState('');
-
-  // Load invite preview for already-onboarded users
-  const showInviteModal = !!(
-    inviteToken && user && !loading &&
-    backendStatus === 'ready' && !appSession?.onboardingRequired &&
-    (invitePreview || inviteInvalid)
+  const inviteState = useInvitationPreview(
+    inviteToken && user && backendStatus === 'ready' && !appSession?.onboardingRequired ? inviteToken : null
   );
 
-  useEffect(() => {
-    if (!inviteToken || !user || appSession?.onboardingRequired) return;
-    if (backendStatus !== 'ready') return;
-    previewInvitation(inviteToken)
-      .then((data) => data ? setInvitePreview(data) : setInviteInvalid(true))
-      .catch((err) => {
-        console.error('[InviteModal] previewInvitation failed:', err);
-        setInviteInvalid(true);
-      });
-  }, [inviteToken, user, backendStatus, appSession?.onboardingRequired]);
+  const showInviteModal = !!(
+    inviteToken
+    && user
+    && !loading
+    && backendStatus === 'ready'
+    && !appSession?.onboardingRequired
+    && (inviteState.preview || inviteState.invalid || inviteState.error || inviteState.isLoading)
+  );
 
   const clearInvite = () => {
     sessionStorage.removeItem(INVITE_TOKEN_KEY);
     setInviteToken(null);
-    setInvitePreview(null);
-    setInviteInvalid(false);
+    setInviteError('');
   };
 
   const handleAcceptInvite = async () => {
@@ -82,7 +73,7 @@ function AppContent() {
       await acceptStoreInvitation(inviteToken);
       clearInvite();
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
+      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitaciÃ³n');
     } finally {
       setInviteAccepting(false);
     }
@@ -125,7 +116,7 @@ function AppContent() {
       case 'reports': return <Reports />;
       case 'settings': return <Settings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
       case 'notifications': return <Notifications />;
-      default: return <div className="flex items-center justify-center h-full text-gray-400">Página en construcción</div>;
+      default: return <div className="flex items-center justify-center h-full text-gray-400">PÃ¡gina en construcciÃ³n</div>;
     }
   };
 
@@ -191,7 +182,7 @@ function AppContent() {
                       : 'Backend en estado intermedio'}
                 </strong>
                 <span className="ml-2">
-                  {backendMessage || 'La sesión de aplicación todavía no está completamente resuelta.'}
+                  {backendMessage || 'La sesiÃ³n de aplicaciÃ³n todavÃ­a no estÃ¡ completamente resuelta.'}
                 </span>
               </div>
             </div>
@@ -201,7 +192,7 @@ function AppContent() {
               <div className="max-w-7xl mx-auto">
                 <strong className="font-semibold">Onboarding requerido</strong>
                 <span className="ml-2">
-                  Tu usuario ya está autenticado, pero todavía no tiene una tienda o membresía asignada en Postgres.
+                  Tu usuario ya estÃ¡ autenticado, pero todavÃ­a no tiene una tienda o membresÃ­a asignada en Postgres.
                 </span>
               </div>
             </div>
@@ -222,14 +213,24 @@ function AppContent() {
         </Modal>
       </div>
 
-      {/* Invite acceptance modal for already-onboarded users */}
       {showInviteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5">
-            {inviteInvalid ? (
+            {inviteState.isLoading ? (
               <>
-                <h2 className="text-xl font-semibold text-gray-900">Invitación inválida</h2>
-                <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {inviteState.isRetrying ? 'Reintentando verificación…' : 'Verificando invitación…'}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {inviteState.isRetrying
+                    ? 'La tienda tarda en responder, seguimos intentando antes de marcar el enlace.'
+                    : 'Estamos cargando los datos de la invitación para que puedas aceptarla.'}
+                </p>
+              </>
+            ) : inviteState.invalid ? (
+              <>
+                <h2 className="text-xl font-semibold text-gray-900">InvitaciÃ³n invÃ¡lida</h2>
+                <p className="text-sm text-gray-500">Este enlace de invitaciÃ³n expirÃ³ o ya fue utilizado.</p>
                 <button
                   onClick={clearInvite}
                   className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
@@ -237,14 +238,38 @@ function AppContent() {
                   Cerrar
                 </button>
               </>
+            ) : inviteState.error ? (
+              <>
+                <h2 className="text-xl font-semibold text-gray-900">No pudimos verificar la invitación todavía</h2>
+                <p className="text-sm text-gray-500">{inviteState.error}</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={clearInvite}
+                    disabled={inviteAccepting}
+                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    onClick={inviteState.reload}
+                    disabled={inviteAccepting}
+                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <div className="flex flex-col gap-1">
                   <h2 className="text-xl font-semibold text-gray-900">Te invitaron a una tienda</h2>
                   <p className="text-sm text-gray-500">
                     Fuiste invitado a unirte a{' '}
-                    <span className="font-medium text-gray-800">{invitePreview!.storeName}</span>{' '}
-                    como <span className="font-medium text-gray-800">{ROLE_LABEL[invitePreview!.role] ?? invitePreview!.role}</span>.
+                    <span className="font-medium text-gray-800">{inviteState.preview!.storeName}</span>{' '}
+                    como{' '}
+                    <span className="font-medium text-gray-800">
+                      {ROLE_LABEL[inviteState.preview!.role] ?? inviteState.preview!.role}
+                    </span>.
                   </p>
                 </div>
                 {inviteError && (
@@ -263,7 +288,7 @@ function AppContent() {
                     disabled={inviteAccepting}
                     className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
                   >
-                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitación'}
+                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitaciÃ³n'}
                   </button>
                 </div>
               </>

@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { previewInvitation, type InvitationPreview } from '../services/invitations-api';
+import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { trimToString } from '../lib/utils';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -11,18 +11,15 @@ const ROLE_LABELS: Record<string, string> = {
 
 interface OnboardingProps {
   inviteToken?: string | null;
+  onInviteAccepted?: () => void;
 }
 
-export function Onboarding({ inviteToken }: OnboardingProps) {
+export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
   const { appSession, completeOnboarding, acceptStoreInvitation, logout } = useAppContext();
   const [storeName, setStoreName] = useState(trimToString(appSession?.user.displayName));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  // Invite mode state
-  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
-  const [inviteInvalid, setInviteInvalid] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
+  const inviteState = useInvitationPreview(inviteToken);
 
   const email = appSession?.user.email ?? '';
   const avatarUrl = appSession?.user.avatarUrl ?? '';
@@ -38,30 +35,15 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
     return result || 'IM';
   }, [appSession?.user.displayName, email]);
 
-  // If we have a token, preview the invitation
-  useEffect(() => {
-    if (!inviteToken) return;
-    setInviteLoading(true);
-    previewInvitation(inviteToken)
-      .then((data) => {
-        if (data) {
-          setInvitePreview(data);
-        } else {
-          setInviteInvalid(true);
-        }
-      })
-      .catch(() => setInviteInvalid(true))
-      .finally(() => setInviteLoading(false));
-  }, [inviteToken]);
-
   const handleAcceptInvite = async () => {
     if (!inviteToken) return;
     setError('');
     setIsSubmitting(true);
     try {
       await acceptStoreInvitation(inviteToken);
+      onInviteAccepted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
+      setError(err instanceof Error ? err.message : 'No se pudo aceptar la invitaciÃ³n');
     } finally {
       setIsSubmitting(false);
     }
@@ -105,22 +87,32 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
         className="text-sm text-gray-500 hover:text-gray-900 underline"
         onClick={() => void logout()}
       >
-        Cerrar sesión
+        Cerrar sesiÃ³n
       </button>
     </div>
   );
 
-  // ── Invite mode ──────────────────────────────────────────────────────────
-
-  if (inviteToken && inviteLoading) {
+  if (inviteToken && inviteState.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-3 text-center px-6">
+          <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {inviteState.isRetrying ? 'Reintentando verificación…' : 'Verificando invitación…'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {inviteState.isRetrying
+                ? 'La tienda tarda en responder, seguimos intentando antes de mostrarte otras opciones.'
+                : 'Estamos validando el enlace antes de unirte a la tienda.'}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (inviteToken && invitePreview && !inviteInvalid) {
+  if (inviteToken && inviteState.preview && !inviteState.invalid) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-xl bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10">
@@ -129,8 +121,10 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Te invitaron a una tienda</h1>
               <p className="mt-2 text-gray-500">
-                Vas a unirte a <strong className="text-gray-900">{invitePreview.storeName}</strong> como{' '}
-                <strong className="text-gray-900">{ROLE_LABELS[invitePreview.role] ?? invitePreview.role}</strong>.
+                Vas a unirte a <strong className="text-gray-900">{inviteState.preview.storeName}</strong> como{' '}
+                <strong className="text-gray-900">
+                  {ROLE_LABELS[inviteState.preview.role] ?? inviteState.preview.role}
+                </strong>.
               </p>
             </div>
             {userCard}
@@ -149,7 +143,7 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
               onClick={() => void handleAcceptInvite()}
               className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isSubmitting ? 'Uniéndote...' : `Unirme a ${invitePreview.storeName}`}
+              {isSubmitting ? 'UniÃ©ndote...' : `Unirme a ${inviteState.preview.storeName}`}
             </button>
           </div>
 
@@ -159,20 +153,53 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
     );
   }
 
-  if (inviteToken && inviteInvalid) {
+  if (inviteToken && inviteState.error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-xl bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10">
           <div className="flex flex-col items-center text-center gap-4">
             {avatar}
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Invitación inválida</h1>
-              <p className="mt-2 text-gray-500">Esta invitación no es válida o ya expiró.</p>
+              <h1 className="text-3xl font-bold text-gray-900">No pudimos verificar la invitación todavía</h1>
+              <p className="mt-2 text-gray-500">{inviteState.error}</p>
+              <p className="mt-2 text-sm text-gray-500">
+                El enlace puede seguir siendo válido. Volvé a intentar y solo te mostraremos crear una tienda si el backend confirma que la invitación no existe.
+              </p>
+            </div>
+            {userCard}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={inviteState.reload}
+              disabled={isSubmitting}
+              className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Reintentar verificación
+            </button>
+          </div>
+
+          {logoutLink}
+        </div>
+      </div>
+    );
+  }
+
+  if (inviteToken && inviteState.invalid) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-xl bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10">
+          <div className="flex flex-col items-center text-center gap-4">
+            {avatar}
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">InvitaciÃ³n invÃ¡lida</h1>
+              <p className="mt-2 text-gray-500">Esta invitaciÃ³n no es vÃ¡lida o ya expirÃ³.</p>
             </div>
           </div>
 
           <p className="mt-6 text-sm text-center text-gray-500">
-            Podés crear tu propia tienda para comenzar.
+            PodÃ©s crear tu propia tienda para comenzar.
           </p>
 
           <form className="mt-4 space-y-4" onSubmit={(e) => void handleCreateStore(e)}>
@@ -211,17 +238,15 @@ export function Onboarding({ inviteToken }: OnboardingProps) {
     );
   }
 
-  // ── Normal onboarding (create store) ─────────────────────────────────────
-
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-xl bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10">
         <div className="flex flex-col items-center text-center gap-4">
           {avatar}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Creá tu tienda</h1>
+            <h1 className="text-3xl font-bold text-gray-900">CreÃ¡ tu tienda</h1>
             <p className="mt-2 text-gray-500">
-              Ya iniciaste sesión. Ahora necesitamos crear la tienda para activar el contexto de negocio.
+              Ya iniciaste sesiÃ³n. Ahora necesitamos crear la tienda para activar el contexto de negocio.
             </p>
           </div>
           {userCard}

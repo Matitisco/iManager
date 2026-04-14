@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { previewInvitation, type InvitationPreview } from '../services/invitations-api';
+import { useInvitationPreview } from '../hooks/useInvitationPreview';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -18,63 +18,15 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteInvalid, setInviteInvalid] = useState(false);
-  const [invitePreviewError, setInvitePreviewError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!inviteToken) {
-      setInvitePreview(null);
-      setInviteInvalid(false);
-      setInvitePreviewError(null);
-      setInviteLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setInviteLoading(true);
-    setInviteInvalid(false);
-    setInvitePreviewError(null);
-
-    previewInvitation(inviteToken)
-      .then((data) => {
-        if (cancelled) return;
-        if (data) {
-          setInvitePreview(data);
-          return;
-        }
-        setInvitePreview(null);
-        setInviteInvalid(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setInvitePreview(null);
-        setInviteInvalid(false);
-        setInvitePreviewError(
-          err instanceof Error
-            ? err.message
-            : 'No pudimos verificar la invitación en este momento.'
-        );
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setInviteLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [inviteToken]);
+  const inviteState = useInvitationPreview(inviteToken);
 
   const clearError = () => setError(null);
   const roleLabel =
-    invitePreview?.role === 'ADMIN'
+    inviteState.preview?.role === 'ADMIN'
       ? 'Socio'
-      : invitePreview?.role === 'SELLER'
+      : inviteState.preview?.role === 'SELLER'
         ? 'Agente'
-        : invitePreview?.role === 'OWNER'
+        : inviteState.preview?.role === 'OWNER'
           ? 'Propietario'
           : null;
 
@@ -161,58 +113,53 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
 
   return (
     <div className="min-h-screen flex bg-white font-sans overflow-hidden">
-      {/* Left Pane - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-zinc-950 text-white p-12 flex-col justify-between relative overflow-hidden">
-        {/* Animated Background Elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none bg-zinc-950">
-          {/* Animated Grid */}
-          <motion.div 
+          <motion.div
             animate={{ y: [0, 32] }}
-            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-            className="absolute inset-0 opacity-[0.06] w-full" 
-            style={{ 
+            transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+            className="absolute inset-0 opacity-[0.06] w-full"
+            style={{
               height: '200%',
               top: '-50%',
-              backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', 
+              backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
               backgroundSize: '32px 32px',
             }}
           />
-          
-          {/* Floating Glowing Orbs */}
-          <motion.div 
-            animate={{ 
+
+          <motion.div
+            animate={{
               x: [0, 100, 0, -100, 0],
               y: [0, 50, 100, 50, 0],
-              scale: [1, 1.2, 1, 0.8, 1]
+              scale: [1, 1.2, 1, 0.8, 1],
             }}
-            transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-white/10 blur-[100px]"
           />
-          <motion.div 
-            animate={{ 
+          <motion.div
+            animate={{
               x: [0, -100, 0, 100, 0],
               y: [0, -50, -100, -50, 0],
-              scale: [1, 1.5, 1, 1.2, 1]
+              scale: [1, 1.5, 1, 1.2, 1],
             }}
-            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] rounded-full bg-zinc-400/10 blur-[120px]"
           />
-          <motion.div 
-            animate={{ 
+          <motion.div
+            animate={{
               scale: [1, 1.2, 1],
-              opacity: [0.3, 0.8, 0.3]
+              opacity: [0.3, 0.8, 0.3],
             }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute top-[30%] left-[20%] w-[50%] h-[50%] rounded-full bg-zinc-300/10 blur-[80px]"
           />
 
-          {/* Dark Overlays for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
           <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 to-transparent"></div>
         </div>
-        
+
         <div className="relative z-10">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3 mb-16"
@@ -222,24 +169,24 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             </div>
             <span className="text-2xl font-bold tracking-tight">iManager</span>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
+            transition={{ delay: 0.2, duration: 0.8, ease: 'easeOut' }}
           >
             <h1 className="text-5xl lg:text-6xl font-medium leading-[1.1] tracking-tight mb-6">
-              El control total de tu negocio,<br />
+              El control total de tu negocio,
+              <br />
               <span className="text-zinc-500">en un solo lugar.</span>
             </h1>
             <p className="text-zinc-400 text-lg max-w-md leading-relaxed">
-              Gestiona inventario, ventas, clientes y canjes con la plataforma más intuitiva y profesional del mercado.
+              Gestiona inventario, ventas, clientes y canjes con la plataforma mÃ¡s intuitiva y profesional del mercado.
             </p>
           </motion.div>
         </div>
 
-        {/* Floating Card Animation */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.8 }}
@@ -251,23 +198,23 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             </div>
             <div>
               <p className="text-sm font-medium text-white">Sistema Inteligente</p>
-              <p className="text-xs text-zinc-400">Actualización en tiempo real</p>
+              <p className="text-xs text-zinc-400">ActualizaciÃ³n en tiempo real</p>
             </div>
           </div>
           <div className="space-y-2">
             <div className="h-2 bg-zinc-800 rounded-full w-full overflow-hidden">
-              <motion.div 
+              <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: "100%" }}
-                transition={{ duration: 2, delay: 1, ease: "easeInOut" }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 2, delay: 1, ease: 'easeInOut' }}
                 className="h-full bg-zinc-500 rounded-full"
               />
             </div>
             <div className="h-2 bg-zinc-800 rounded-full w-3/4 overflow-hidden">
-              <motion.div 
+              <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: "100%" }}
-                transition={{ duration: 2, delay: 1.2, ease: "easeInOut" }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 2, delay: 1.2, ease: 'easeInOut' }}
                 className="h-full bg-zinc-600 rounded-full"
               />
             </div>
@@ -283,12 +230,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         </div>
       </div>
 
-      {/* Right Pane - Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative">
-        <motion.div 
-          layout
-          className="w-full max-w-md"
-        >
+        <motion.div layout className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-3 mb-12">
             <div className="bg-black text-white p-2.5 rounded-xl">
               <Package size={24} />
@@ -298,42 +241,58 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
 
           <motion.div layout className="mb-8 text-center">
             <AnimatePresence mode="wait">
-              {inviteToken && (inviteLoading || invitePreview || inviteInvalid || invitePreviewError) && (
+              {inviteToken && (inviteState.isLoading || inviteState.preview || inviteState.invalid || inviteState.error) && (
                 <motion.div
-                  key={inviteInvalid ? 'invite-invalid' : invitePreviewError ? 'invite-error' : invitePreview ? 'invite-preview' : 'invite-loading'}
+                  key={
+                    inviteState.invalid
+                      ? 'invite-invalid'
+                      : inviteState.error
+                        ? 'invite-error'
+                        : inviteState.preview
+                          ? 'invite-preview'
+                          : inviteState.isRetrying
+                            ? 'invite-retrying'
+                            : 'invite-loading'
+                  }
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                   className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
-                    inviteInvalid
+                    inviteState.invalid
                       ? 'border-amber-200 bg-amber-50 text-amber-900'
-                      : invitePreviewError
+                      : inviteState.error
                         ? 'border-orange-200 bg-orange-50 text-orange-900'
                         : 'border-blue-200 bg-blue-50 text-blue-900'
                   }`}
                 >
-                  {inviteLoading ? (
+                  {inviteState.isLoading ? (
                     <>
-                      <p className="text-sm font-semibold">Verificando invitación…</p>
-                      <p className="mt-1 text-sm text-blue-800">Estamos cargando los datos de la tienda antes de que inicies sesión.</p>
+                      <p className="text-sm font-semibold">
+                        {inviteState.isRetrying ? 'Reintentando verificación de invitación…' : 'Verificando invitación…'}
+                      </p>
+                      <p className="mt-1 text-sm text-blue-800">
+                        {inviteState.isRetrying
+                          ? 'Railway está tardando en responder. Seguimos intentando cargar los datos de la tienda.'
+                          : 'Estamos cargando los datos de la tienda antes de que inicies sesión.'}
+                      </p>
                     </>
-                  ) : invitePreview ? (
+                  ) : inviteState.preview ? (
                     <>
                       <p className="text-sm font-semibold">Te invitaron a una tienda</p>
                       <p className="mt-1 text-sm">
-                        Vas a unirte a <strong>{invitePreview.storeName}</strong>
+                        Vas a unirte a <strong>{inviteState.preview.storeName}</strong>
                         {roleLabel ? <> como <strong>{roleLabel}</strong></> : null}.
                       </p>
                       <p className="mt-2 text-xs text-blue-800">
                         Iniciá sesión o creá tu cuenta para aceptar esta invitación después.
                       </p>
                     </>
-                  ) : invitePreviewError ? (
+                  ) : inviteState.error ? (
                     <>
                       <p className="text-sm font-semibold">No pudimos verificar la invitación todavía</p>
                       <p className="mt-1 text-sm text-orange-800">
-                        {invitePreviewError}
+                        {inviteState.error}
                       </p>
                       <p className="mt-2 text-xs text-orange-800">
                         El enlace puede seguir siendo válido. Probá iniciar sesión igual y te mostramos el estado después.
@@ -363,8 +322,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   {isRegisterMode ? 'Crear cuenta' : 'Bienvenido a iManager'}
                 </h2>
                 <p className="text-gray-500">
-                  {isRegisterMode 
-                    ? 'Registrate para comenzar a gestionar tu negocio.' 
+                  {isRegisterMode
+                    ? 'Registrate para comenzar a gestionar tu negocio.'
                     : 'Inicia sesión para gestionar tu negocio.'}
                 </p>
               </motion.div>
@@ -373,7 +332,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
 
           <AnimatePresence mode="wait">
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -384,13 +343,12 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             )}
           </AnimatePresence>
 
-          {/* Email/Password Form */}
           <motion.form layout onSubmit={handleEmailSubmit} className="space-y-4 mb-6">
             <div className="relative">
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="email"
-                placeholder="Correo electrónico"
+                placeholder="Correo electrÃ³nico"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -405,7 +363,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Contraseña"
+                placeholder="ContraseÃ±a"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -436,7 +394,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Confirmar contraseña"
+                    placeholder="Confirmar contraseÃ±a"
                     value={confirmPassword}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value);
@@ -461,14 +419,13 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {isRegisterMode ? 'Crear cuenta' : 'Iniciar sesión'}
+                  {isRegisterMode ? 'Crear cuenta' : 'Iniciar sesiÃ³n'}
                   <ArrowRight size={18} />
                 </>
               )}
             </motion.button>
           </motion.form>
 
-          {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
@@ -478,7 +435,6 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             </div>
           </div>
 
-          {/* Google Login */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -512,15 +468,14 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             Continuar con Google
           </motion.button>
 
-          {/* Toggle Login/Register */}
           <motion.p layout className="text-center text-sm text-gray-500 mt-8">
-            {isRegisterMode ? '¿Ya tenés cuenta?' : '¿No tenés cuenta?'}{' '}
+            {isRegisterMode ? 'Â¿Ya tenÃ©s cuenta?' : 'Â¿No tenÃ©s cuenta?'}{' '}
             <button
               onClick={toggleMode}
               type="button"
               className="text-black font-semibold hover:underline transition-all"
             >
-              {isRegisterMode ? 'Iniciar sesión' : 'Crear cuenta'}
+              {isRegisterMode ? 'Iniciar sesiÃ³n' : 'Crear cuenta'}
             </button>
           </motion.p>
         </motion.div>

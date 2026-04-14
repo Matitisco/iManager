@@ -23,6 +23,22 @@ export interface InvitationPreview {
   role: InvitationRole | 'OWNER';
 }
 
+export type InvitationPreviewResolution =
+  | { kind: 'valid'; preview: InvitationPreview; attempts: number }
+  | { kind: 'invalid'; attempts: number }
+  | { kind: 'error'; message: string; attempts: number };
+
+interface ResolveInvitationPreviewOptions {
+  fetcher?: typeof fetchWithTimeout;
+  retries?: number;
+  retryDelayMs?: number;
+  onRetry?: (attempt: number, error: unknown) => void;
+}
+
+const DEFAULT_PREVIEW_ERROR_MESSAGE = 'Error al verificar invitación';
+const DEFAULT_PREVIEW_RETRIES = 2;
+const DEFAULT_PREVIEW_RETRY_DELAY_MS = 1200;
+
 function getBaseUrl(): string {
   const url = getBackendBaseUrl();
   if (!url) throw new Error('Backend no configurado');
@@ -36,6 +52,23 @@ async function authHeaders(user: User) {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return DEFAULT_PREVIEW_ERROR_MESSAGE;
+}
+
+function shouldRetryPreview(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError');
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
 }
 
 export async function createInvitation(
@@ -81,6 +114,75 @@ export async function previewInvitation(token: string): Promise<InvitationPrevie
   if (res.status === 410 || res.status === 404) return null;
   if (!res.ok) throw new Error('Error al verificar invitación');
   return res.json();
+}
+
+export async function resolveInvitationPreview(
+  token: string,
+  options: ResolveInvitationPreviewOptions = {}
+): Promise<InvitationPreviewResolution> {
+  const {
+    fetcher = fetchWithTimeout,
+    retries = DEFAULT_PREVIEW_RETRIES,
+    retryDelayMs = DEFAULT_PREVIEW_RETRY_DELAY_MS,
+    onRetry,
+  } = options;
+
+  const url = `${getBaseUrl()}/api/invitations/preview/${token}`;
+  let attempts = 0;
+  let lastError: unknown = null;
+
+  while (attempts <= retries) {
+    attempts += 1;
+
+    try {
+      const res = await fetcher(url);
+
+      if (res.status === 410 || res.status === 404) {
+        return { kind: 'invalid', attempts };
+      }
+
+      if (res.ok) {
+        return {
+          kind: 'valid',
+          preview: (await res.json()) as InvitationPreview,
+          attempts,
+        };
+      }
+
+      if (res.status >= 500 && attempts <= retries) {
+        lastError = new Error(DEFAULT_PREVIEW_ERROR_MESSAGE);
+        onRetry?.(attempts, lastError);
+        await wait(retryDelayMs);
+        continue;
+      }
+
+      return {
+        kind: 'error',
+        message: DEFAULT_PREVIEW_ERROR_MESSAGE,
+        attempts,
+      };
+    } catch (error) {
+      lastError = error;
+
+      if (attempts <= retries && shouldRetryPreview(error)) {
+        onRetry?.(attempts, error);
+        await wait(retryDelayMs);
+        continue;
+      }
+
+      return {
+        kind: 'error',
+        message: getErrorMessage(error),
+        attempts,
+      };
+    }
+  }
+
+  return {
+    kind: 'error',
+    message: getErrorMessage(lastError),
+    attempts,
+  };
 }
 
 export async function acceptInvitation(user: User, token: string) {
