@@ -21,11 +21,13 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteInvalid, setInviteInvalid] = useState(false);
+  const [invitePreviewError, setInvitePreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!inviteToken) {
       setInvitePreview(null);
       setInviteInvalid(false);
+      setInvitePreviewError(null);
       setInviteLoading(false);
       return;
     }
@@ -33,6 +35,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
     let cancelled = false;
     setInviteLoading(true);
     setInviteInvalid(false);
+    setInvitePreviewError(null);
 
     previewInvitation(inviteToken)
       .then((data) => {
@@ -44,10 +47,15 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         setInvitePreview(null);
         setInviteInvalid(true);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setInvitePreview(null);
-        setInviteInvalid(true);
+        setInviteInvalid(false);
+        setInvitePreviewError(
+          err instanceof Error
+            ? err.message
+            : 'No pudimos verificar la invitación en este momento.'
+        );
       })
       .finally(() => {
         if (!cancelled) {
@@ -290,9 +298,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
 
           <motion.div layout className="mb-8 text-center">
             <AnimatePresence mode="wait">
-              {inviteToken && (inviteLoading || invitePreview || inviteInvalid) && (
+              {inviteToken && (inviteLoading || invitePreview || inviteInvalid || invitePreviewError) && (
                 <motion.div
-                  key={inviteInvalid ? 'invite-invalid' : invitePreview ? 'invite-preview' : 'invite-loading'}
+                  key={inviteInvalid ? 'invite-invalid' : invitePreviewError ? 'invite-error' : invitePreview ? 'invite-preview' : 'invite-loading'}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -300,7 +308,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
                     inviteInvalid
                       ? 'border-amber-200 bg-amber-50 text-amber-900'
-                      : 'border-blue-200 bg-blue-50 text-blue-900'
+                      : invitePreviewError
+                        ? 'border-orange-200 bg-orange-50 text-orange-900'
+                        : 'border-blue-200 bg-blue-50 text-blue-900'
                   }`}
                 >
                   {inviteLoading ? (
@@ -317,6 +327,16 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                       </p>
                       <p className="mt-2 text-xs text-blue-800">
                         Iniciá sesión o creá tu cuenta para aceptar esta invitación después.
+                      </p>
+                    </>
+                  ) : invitePreviewError ? (
+                    <>
+                      <p className="text-sm font-semibold">No pudimos verificar la invitación todavía</p>
+                      <p className="mt-1 text-sm text-orange-800">
+                        {invitePreviewError}
+                      </p>
+                      <p className="mt-2 text-xs text-orange-800">
+                        El enlace puede seguir siendo válido. Probá iniciar sesión igual y te mostramos el estado después.
                       </p>
                     </>
                   ) : (
