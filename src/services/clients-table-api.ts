@@ -36,6 +36,18 @@ function applyFiltersAndSort(
 ): Client[] {
   let result = [...clients];
 
+  const search = params.search?.trim().toLowerCase();
+  if (search) {
+    result = result.filter((client) =>
+      [
+        client.name,
+        client.dni,
+        client.email,
+        client.phone,
+      ].some((value) => String(value ?? '').toLowerCase().includes(search)),
+    );
+  }
+
   if (params.categoryId !== undefined && params.categoryId !== null) {
     result = result.filter(c => c.categoryId === params.categoryId);
   }

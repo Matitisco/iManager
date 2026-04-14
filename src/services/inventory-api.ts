@@ -37,6 +37,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 export interface InventoryPageParams {
   skip: number;
   take: number;
+  search?: string;
   categoryId?: string | null;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
@@ -56,6 +57,7 @@ export async function fetchInventoryPage(
   const qs = new URLSearchParams();
   qs.set('skip', String(params.skip));
   qs.set('take', String(params.take));
+  if (params.search) qs.set('search', params.search);
   if (params.categoryId !== undefined) qs.set('categoryId', params.categoryId === null ? 'null' : params.categoryId);
   if (params.sortKey) qs.set('sortKey', params.sortKey);
   if (params.sortDir) qs.set('sortDir', params.sortDir);
@@ -83,6 +85,7 @@ export async function fetchInventoryFilteredIds(
 ): Promise<string[]> {
   const baseUrl = getBaseUrlOrThrow();
   const qs = new URLSearchParams();
+  if (params.search) qs.set('search', params.search);
   if (params.categoryId !== undefined) qs.set('categoryId', params.categoryId === null ? 'null' : params.categoryId);
   if (params.condition) qs.set('condition', params.condition);
   if (params.status) qs.set('status', params.status);

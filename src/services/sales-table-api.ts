@@ -11,6 +11,7 @@
 import type { User } from 'firebase/auth';
 import type { Sale } from '../types';
 import type { TablePageParams } from '../components/table-engine';
+import type { Client, Product } from '../types';
 import {
   fetchBackendSales,
   updateBackendSale,
@@ -34,9 +35,33 @@ export function invalidateSalesCache() {
 
 function applyFiltersAndSort(
   sales: Sale[],
-  params: Omit<TablePageParams, 'skip' | 'take'>
+  params: Omit<TablePageParams, 'skip' | 'take'>,
+  lookups?: {
+    clients?: Client[];
+    inventory?: Product[];
+  },
 ): Sale[] {
   let result = [...sales];
+
+  const search = params.search?.trim().toLowerCase();
+  if (search) {
+    result = result.filter((sale) => {
+      const client = lookups?.clients?.find((entry) => entry.id === sale.clientId);
+      const product = lookups?.inventory?.find((entry) => entry.id === sale.productId);
+
+      return [
+        sale.saleNumber != null ? String(sale.saleNumber) : '',
+        sale.id,
+        sale.date,
+        sale.paymentMethod,
+        sale.status,
+        client?.name,
+        client?.dni,
+        product?.model,
+        product?.imei,
+      ].some((value) => String(value ?? '').toLowerCase().includes(search));
+    });
+  }
 
   // Filters
   if (params.categoryId !== undefined && params.categoryId !== null) {
@@ -66,10 +91,14 @@ function applyFiltersAndSort(
 
 export async function fetchSalesPage(
   user: User,
-  params: TablePageParams
+  params: TablePageParams,
+  lookups?: {
+    clients?: Client[];
+    inventory?: Product[];
+  },
 ): Promise<{ items: Sale[]; total: number }> {
   const all = await getAllSales(user);
-  const filtered = applyFiltersAndSort(all, params);
+  const filtered = applyFiltersAndSort(all, params, lookups);
   const items = filtered.slice(params.skip, params.skip + params.take);
   return { items, total: filtered.length };
 }

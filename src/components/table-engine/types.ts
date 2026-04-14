@@ -100,6 +100,7 @@ export interface TablePageParams {
   categoryId?: string | null;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
+  search?: string;
   filters: Record<string, string>;
 }
 

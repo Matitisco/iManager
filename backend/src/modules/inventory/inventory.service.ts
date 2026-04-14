@@ -109,6 +109,7 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
 export interface ListInventoryParams {
   skip: number;
   take: number;
+  search?: string;
   categoryId?: string | null;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
@@ -122,6 +123,19 @@ export interface ListInventoryParams {
 
 function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>): Prisma.Sql {
   const parts: Prisma.Sql[] = [Prisma.sql`"storeId" = ${storeId}`];
+
+  if (params.search) {
+    const search = `%${params.search.trim()}%`;
+    parts.push(
+      Prisma.sql`(
+        "imei" ILIKE ${search}
+        OR "model" ILIKE ${search}
+        OR "capacity" ILIKE ${search}
+        OR "color" ILIKE ${search}
+        OR "batteryHealth" ILIKE ${search}
+      )`
+    );
+  }
 
   if (params.categoryId !== undefined) {
     if (params.categoryId === null) {

@@ -46,6 +46,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   const pagedQuerySchema = z.object({
     skip: z.coerce.number().int().nonnegative().optional(),
     take: z.coerce.number().int().min(1).max(100).optional(),
+    search: z.string().trim().optional(),
     categoryId: z.string().optional().transform(v =>
       v === undefined ? undefined : v === 'null' ? null : v === 'all' ? undefined : v
     ),
@@ -71,6 +72,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
         const params: ListInventoryParams = {
           skip: query.skip ?? 0,
           take: query.take ?? 30,
+          search: query.search,
           categoryId: query.categoryId,
           sortKey: query.sortKey,
           sortDir: query.sortDir,
@@ -98,6 +100,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       const query = pagedQuerySchema.parse(request.query);
       const ids = await getInventoryFilteredIds(request.appUser.storeId, {
+        search: query.search,
         categoryId: query.categoryId,
         condition: query.condition,
         status: query.status,

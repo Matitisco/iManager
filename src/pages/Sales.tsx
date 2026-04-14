@@ -39,7 +39,11 @@ const StatCard = ({ title, value, trend, icon }: { title: string; value: string;
 );
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export const Sales: React.FC = () => {
+interface SalesProps {
+  searchTerm?: string;
+}
+
+export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
   const {
     user,
     clients,
@@ -308,7 +312,7 @@ export const Sales: React.FC = () => {
       },
     ],
 
-    fetchPage: (params) => fetchSalesPage(user!, params),
+    fetchPage: (params) => fetchSalesPage(user!, params, { clients, inventory }),
     addRowFields: [
       {
         colId: 'clientName',
@@ -451,7 +455,7 @@ export const Sales: React.FC = () => {
 
       {/* Table engine */}
       <div className="flex-1 rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-0">
-        <TableEngine config={config} user={user} />
+        <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </div>
     </div>
   );

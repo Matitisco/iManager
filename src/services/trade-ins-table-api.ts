@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 import type { TableFilterParams, TablePageParams } from '../components/table-engine';
-import type { TradeIn } from '../types';
+import type { Client, TradeIn } from '../types';
 import { fetchBackendTradeIns } from './trade-ins-api';
 
 let cache: { uid: string; data: TradeIn[] } | null = null;
@@ -22,8 +22,29 @@ export function invalidateTradeInsCache() {
 function applyFiltersAndSort(
   tradeIns: TradeIn[],
   params: Omit<TablePageParams, 'skip' | 'take'>,
+  clients?: Client[],
 ): TradeIn[] {
   let result = [...tradeIns];
+
+  const search = params.search?.trim().toLowerCase();
+  if (search) {
+    result = result.filter((tradeIn) => {
+      const client = clients?.find((entry) => entry.id === tradeIn.clientId);
+
+      return [
+        tradeIn.id,
+        tradeIn.date,
+        tradeIn.deviceReceived,
+        tradeIn.deviceReceivedImei,
+        tradeIn.deviceGiven,
+        tradeIn.status,
+        tradeIn.batteryHealth,
+        tradeIn.grade,
+        client?.name,
+        client?.dni,
+      ].some((value) => String(value ?? '').toLowerCase().includes(search));
+    });
+  }
 
   if (params.categoryId !== undefined && params.categoryId !== null) {
     result = result.filter(t => t.categoryId === params.categoryId);
@@ -74,9 +95,10 @@ function applyFiltersAndSort(
 export async function fetchTradeInsPage(
   user: User,
   params: TablePageParams,
+  clients?: Client[],
 ): Promise<{ items: TradeIn[]; total: number }> {
   const all = await getAllTradeIns(user);
-  const filtered = applyFiltersAndSort(all, params);
+  const filtered = applyFiltersAndSort(all, params, clients);
 
   return {
     items: filtered.slice(params.skip, params.skip + params.take),
@@ -93,11 +115,12 @@ export function updateTradeInCategoryInCache(ids: string[], categoryId: string |
 export async function fetchTradeInFilteredIds(
   user: User,
   params: TableFilterParams,
+  clients?: Client[],
 ): Promise<string[]> {
   const all = await getAllTradeIns(user);
   return applyFiltersAndSort(all, {
     ...params,
     sortKey: undefined,
     sortDir: undefined,
-  }).map((tradeIn) => tradeIn.id);
+  }, clients).map((tradeIn) => tradeIn.id);
 }

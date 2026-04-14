@@ -9,9 +9,19 @@ interface LayoutProps {
   setActiveTab: (tab: string, subTab?: string) => void;
   actionLabel?: string;
   onNewAction?: () => void;
+  searchTerm?: string;
+  onSearchTermChange?: (value: string) => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, actionLabel, onNewAction }) => {
+export const Layout: React.FC<LayoutProps> = ({
+  children,
+  activeTab,
+  setActiveTab,
+  actionLabel,
+  onNewAction,
+  searchTerm,
+  onSearchTermChange,
+}) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -31,6 +41,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           onNewAction={onNewAction} 
           onMenuClick={() => setIsMobileMenuOpen(true)}
           onNavigate={setActiveTab}
+          searchTerm={searchTerm}
+          onSearchTermChange={onSearchTermChange}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative flex flex-col">
           <AnimatePresence mode="wait">

@@ -95,6 +95,7 @@ function adaptParams(params: TablePageParams): Parameters<typeof fetchInventoryP
   return {
     skip: params.skip,
     take: params.take,
+    search: params.search || undefined,
     categoryId: params.categoryId ?? undefined,
     sortKey: params.sortKey,
     sortDir: params.sortDir,
@@ -109,6 +110,7 @@ function adaptParams(params: TablePageParams): Parameters<typeof fetchInventoryP
 
 function adaptFilterParams(params: TableFilterParams): Parameters<typeof fetchInventoryFilteredIds>[1] {
   return {
+    search: params.search || undefined,
     categoryId: params.categoryId ?? undefined,
     condition: params.filters?.condition || undefined,
     status: params.filters?.status || undefined,
@@ -120,7 +122,11 @@ function adaptFilterParams(params: TableFilterParams): Parameters<typeof fetchIn
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export const Inventory: React.FC = () => {
+interface InventoryProps {
+  searchTerm?: string;
+}
+
+export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
   const {
     user,
     inventoryCategories,
@@ -523,7 +529,7 @@ export const Inventory: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <TableEngine config={config} user={user} />
+      <TableEngine config={config} user={user} searchTerm={searchTerm} />
     </div>
   );
 };

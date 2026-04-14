@@ -10,9 +10,19 @@ interface HeaderProps {
   actionLabel?: string;
   onMenuClick?: () => void;
   onNavigate?: (tab: string, subTab?: string) => void;
+  searchTerm?: string;
+  onSearchTermChange?: (value: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel = "Nuevo Ingreso", onMenuClick, onNavigate }) => {
+export const Header: React.FC<HeaderProps> = ({
+  title,
+  onNewAction,
+  actionLabel = "Nuevo Ingreso",
+  onMenuClick,
+  onNavigate,
+  searchTerm = '',
+  onSearchTermChange,
+}) => {
   const { logout, user, appSession } = useAppContext();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -60,6 +70,8 @@ export const Header: React.FC<HeaderProps> = ({ title, onNewAction, actionLabel 
             <input 
               type="text" 
               placeholder="Buscar por IMEI, cliente o modelo..." 
+              value={searchTerm}
+              onChange={(event) => onSearchTermChange?.(event.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
             />
           </div>

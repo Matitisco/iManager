@@ -140,7 +140,11 @@ const EvaluationCard = ({ trade, client, onOpen }: EvaluationCardProps) => (
   </motion.button>
 );
 
-export const TradeIns: React.FC = () => {
+interface TradeInsProps {
+  searchTerm?: string;
+}
+
+export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
   const {
     user,
     tradeIns,
@@ -437,8 +441,8 @@ export const TradeIns: React.FC = () => {
         { key: 'deviceReceived', label: 'Equipo recibido' },
       ],
 
-      fetchPage: (params) => fetchTradeInsPage(user!, params),
-      fetchFilteredIds: (params) => fetchTradeInFilteredIds(user!, params),
+      fetchPage: (params) => fetchTradeInsPage(user!, params, clients),
+      fetchFilteredIds: (params) => fetchTradeInFilteredIds(user!, params, clients),
 
       addRowFields: [
         {
@@ -645,7 +649,7 @@ export const TradeIns: React.FC = () => {
         variants={item}
         className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white h-[32rem]"
       >
-        <TableEngine config={config} user={user} />
+        <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </motion.div>
 
       <EditPanel

@@ -45,7 +45,11 @@ const StatCard = ({
 );
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export const Clients: React.FC = () => {
+interface ClientsProps {
+  searchTerm?: string;
+}
+
+export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
   const {
     user, clients, sales, addClient,
     clientCategories, createClientCategory, renameClientCategory, deleteClientCategory,
@@ -321,7 +325,7 @@ export const Clients: React.FC = () => {
 
       {/* Table engine */}
       <div className="flex-1 rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-0">
-        <TableEngine config={config} user={user} />
+        <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </div>
     </div>
   );

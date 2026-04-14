@@ -43,6 +43,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [topNavSearch, setTopNavSearch] = useState('');
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteError, setInviteError] = useState('');
@@ -109,10 +110,10 @@ function AppContent() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
-      case 'inventory': return <Inventory />;
-      case 'sales': return <Sales />;
-      case 'tradeins': return <TradeIns />;
-      case 'clients': return <Clients />;
+      case 'inventory': return <Inventory searchTerm={topNavSearch} />;
+      case 'sales': return <Sales searchTerm={topNavSearch} />;
+      case 'tradeins': return <TradeIns searchTerm={topNavSearch} />;
+      case 'clients': return <Clients searchTerm={topNavSearch} />;
       case 'reports': return <Reports />;
       case 'settings': return <Settings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
       case 'notifications': return <Notifications />;
@@ -205,6 +206,8 @@ function AppContent() {
           setActiveTab={handleNavigate}
           actionLabel={showHeaderAction ? getActionLabel() : undefined}
           onNewAction={showHeaderAction ? handleNewAction : undefined}
+          searchTerm={topNavSearch}
+          onSearchTermChange={setTopNavSearch}
         >
           {renderContent()}
         </Layout>

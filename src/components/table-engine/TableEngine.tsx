@@ -26,9 +26,10 @@ import { getColumnValue } from './columnAccess';
 interface TableEngineProps<TRow extends WithId> {
   config: TableEngineConfig<TRow>;
   user?: any;
+  searchTerm?: string;
 }
 
-export function TableEngine<TRow extends WithId>({ config, user }: TableEngineProps<TRow>) {
+export function TableEngine<TRow extends WithId>({ config, user, searchTerm = '' }: TableEngineProps<TRow>) {
   const {
     title, storageKey, exportSheetName, columns, filters, sortOptions,
     categories = [], onCreateCategory, onRenameCategory, onDeleteCategory,
@@ -129,13 +130,14 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     categoryId: activeCategoryId === 'all' ? undefined : activeCategoryId,
     sortKey: sortKey ?? undefined,
     sortDir,
+    search: searchTerm.trim() || undefined,
     filters: Object.fromEntries(
       Object.entries(activeFilters).filter(([id, val]) => {
         const def = filters.find(f => f.id === id);
         return def && val !== def.defaultValue;
       })
     ),
-  }), [activeCategoryId, sortKey, sortDir, activeFilters, filters]);
+  }), [activeCategoryId, sortKey, sortDir, searchTerm, activeFilters, filters]);
 
   useEffect(() => { filterParamsRef.current = buildFilterParams(); }, [buildFilterParams]);
 
@@ -143,7 +145,7 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     const params = buildFilterParams();
     clearSelection();
     loadFirstPage(params);
-  }, [activeFilters, activeCategoryId, sortKey, sortDir, user]);
+  }, [activeFilters, activeCategoryId, sortKey, sortDir, searchTerm, user]);
 
   // ── Click outside popups ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1058,4 +1060,3 @@ export function TableEngine<TRow extends WithId>({ config, user }: TableEnginePr
     </div>
   );
 }
-
