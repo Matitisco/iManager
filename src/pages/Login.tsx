@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import { previewInvitation, type InvitationPreview } from '../services/invitations-api';
 
-export const Login: React.FC = () => {
+interface LoginProps {
+  inviteToken?: string | null;
+}
+
+export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const { login, loginWithEmail, registerWithEmail } = useAppContext();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -13,8 +18,57 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteInvalid, setInviteInvalid] = useState(false);
+
+  useEffect(() => {
+    if (!inviteToken) {
+      setInvitePreview(null);
+      setInviteInvalid(false);
+      setInviteLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setInviteLoading(true);
+    setInviteInvalid(false);
+
+    previewInvitation(inviteToken)
+      .then((data) => {
+        if (cancelled) return;
+        if (data) {
+          setInvitePreview(data);
+          return;
+        }
+        setInvitePreview(null);
+        setInviteInvalid(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInvitePreview(null);
+        setInviteInvalid(true);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInviteLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   const clearError = () => setError(null);
+  const roleLabel =
+    invitePreview?.role === 'ADMIN'
+      ? 'Socio'
+      : invitePreview?.role === 'SELLER'
+        ? 'Agente'
+        : invitePreview?.role === 'OWNER'
+          ? 'Propietario'
+          : null;
 
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
@@ -235,6 +289,48 @@ export const Login: React.FC = () => {
           </div>
 
           <motion.div layout className="mb-8 text-center">
+            <AnimatePresence mode="wait">
+              {inviteToken && (inviteLoading || invitePreview || inviteInvalid) && (
+                <motion.div
+                  key={inviteInvalid ? 'invite-invalid' : invitePreview ? 'invite-preview' : 'invite-loading'}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
+                    inviteInvalid
+                      ? 'border-amber-200 bg-amber-50 text-amber-900'
+                      : 'border-blue-200 bg-blue-50 text-blue-900'
+                  }`}
+                >
+                  {inviteLoading ? (
+                    <>
+                      <p className="text-sm font-semibold">Verificando invitación…</p>
+                      <p className="mt-1 text-sm text-blue-800">Estamos cargando los datos de la tienda antes de que inicies sesión.</p>
+                    </>
+                  ) : invitePreview ? (
+                    <>
+                      <p className="text-sm font-semibold">Te invitaron a una tienda</p>
+                      <p className="mt-1 text-sm">
+                        Vas a unirte a <strong>{invitePreview.storeName}</strong>
+                        {roleLabel ? <> como <strong>{roleLabel}</strong></> : null}.
+                      </p>
+                      <p className="mt-2 text-xs text-blue-800">
+                        Iniciá sesión o creá tu cuenta para aceptar esta invitación después.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold">Esta invitación ya no está disponible</p>
+                      <p className="mt-1 text-sm text-amber-800">
+                        El enlace expiró, ya fue usado o no es válido. Igual podés iniciar sesión normalmente.
+                      </p>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <AnimatePresence mode="wait">
               <motion.div
                 key={isRegisterMode ? 'register-title' : 'login-title'}

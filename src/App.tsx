@@ -43,7 +43,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [inviteToken] = useState<string | null>(() => extractInviteToken());
+  const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
   const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
   const [inviteInvalid, setInviteInvalid] = useState(false);
   const [inviteAccepting, setInviteAccepting] = useState(false);
@@ -67,23 +67,25 @@ function AppContent() {
       });
   }, [inviteToken, user, backendStatus, appSession?.onboardingRequired]);
 
+  const clearInvite = () => {
+    sessionStorage.removeItem(INVITE_TOKEN_KEY);
+    setInviteToken(null);
+    setInvitePreview(null);
+    setInviteInvalid(false);
+  };
+
   const handleAcceptInvite = async () => {
     if (!inviteToken) return;
     setInviteError('');
     setInviteAccepting(true);
     try {
       await acceptStoreInvitation(inviteToken);
+      clearInvite();
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
     } finally {
       setInviteAccepting(false);
     }
-  };
-
-  const dismissInvite = () => {
-    sessionStorage.removeItem('pendingInviteToken');
-    setInvitePreview(null);
-    setInviteInvalid(false);
   };
 
   if (loading) {
@@ -95,11 +97,11 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login />;
+    return <Login inviteToken={inviteToken} />;
   }
 
   if (backendStatus === 'ready' && appSession?.onboardingRequired) {
-    return <Onboarding inviteToken={inviteToken} />;
+    return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
   }
 
   const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
@@ -229,7 +231,7 @@ function AppContent() {
                 <h2 className="text-xl font-semibold text-gray-900">Invitación inválida</h2>
                 <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
                 <button
-                  onClick={dismissInvite}
+                  onClick={clearInvite}
                   className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
                 >
                   Cerrar
@@ -250,7 +252,7 @@ function AppContent() {
                 )}
                 <div className="flex gap-3">
                   <button
-                    onClick={dismissInvite}
+                    onClick={clearInvite}
                     disabled={inviteAccepting}
                     className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
                   >

@@ -107,23 +107,28 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
   // Find or create the User in PG
   const user = await findOrCreateUserFromFirebase(auth);
 
+  const existingMember = await prisma.storeMember.findUnique({
+    where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
+  });
+
+  if (existingMember) {
+    throw Object.assign(
+      new Error("Ya formás parte de esta tienda. El creador o un miembro existente no puede usar este enlace."),
+      { statusCode: 409 }
+    );
+  }
+
   await prisma.$transaction(async (tx) => {
-    const existingMember = await tx.storeMember.findUnique({
-      where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
+    const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
+
+    await tx.storeMember.create({
+      data: {
+        storeId: invitation.storeId,
+        userId: user.id,
+        role: invitation.role,
+        isDefault: membershipCount === 0,
+      },
     });
-
-    if (!existingMember) {
-      const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
-
-      await tx.storeMember.create({
-        data: {
-          storeId: invitation.storeId,
-          userId: user.id,
-          role: invitation.role,
-          isDefault: membershipCount === 0,
-        },
-      });
-    }
 
     await tx.storeMember.updateMany({
       where: { userId: user.id, NOT: { storeId: invitation.storeId }, isDefault: true },
