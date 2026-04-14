@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -99,6 +99,14 @@ function AppContent() {
   const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
   const showOnboardingBanner = backendStatus === 'ready' && !!appSession?.onboardingRequired;
   const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
+  const searchableTabs = new Set(['inventory', 'clients', 'sales', 'tradeins']);
+  const showTopNavSearch = searchableTabs.has(activeTab);
+
+  useEffect(() => {
+    if (!showTopNavSearch && topNavSearch) {
+      setTopNavSearch('');
+    }
+  }, [showTopNavSearch, topNavSearch]);
 
   const handleNavigate = (tab: string, subTab?: string) => {
     setActiveTab(tab);
@@ -113,7 +121,6 @@ function AppContent() {
       return;
     }
 
-    const searchableTabs = new Set(['inventory', 'clients', 'sales', 'tradeins']);
     if (!searchableTabs.has(activeTab)) {
       setActiveTab('inventory');
     }
@@ -220,6 +227,7 @@ function AppContent() {
           setActiveTab={handleNavigate}
           actionLabel={showHeaderAction ? getActionLabel() : undefined}
           onNewAction={showHeaderAction ? handleNewAction : undefined}
+          showSearch={showTopNavSearch}
           searchTerm={topNavSearch}
           onSearchTermChange={setTopNavSearch}
           onSearchSubmit={handleSearchSubmit}

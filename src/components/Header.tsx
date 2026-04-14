@@ -9,6 +9,7 @@ interface HeaderProps {
   onNewAction?: () => void;
   actionLabel?: string;
   onMenuClick?: () => void;
+  showSearch?: boolean;
   onNavigate?: (tab: string, subTab?: string) => void;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNewAction,
   actionLabel = "Nuevo Ingreso",
   onMenuClick,
+  showSearch = false,
   onNavigate,
   searchTerm = '',
   onSearchTermChange,
@@ -66,24 +68,26 @@ export const Header: React.FC<HeaderProps> = ({
         <button onClick={onMenuClick} className="md:hidden text-gray-600 hover:text-gray-900">
           <Menu size={24} />
         </button>
-        <div className="flex-1 max-w-2xl hidden sm:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="Buscar por IMEI, cliente o modelo..." 
-              value={searchTerm}
-              onChange={(event) => onSearchTermChange?.(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  onSearchSubmit?.();
-                }
-              }}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
-            />
+        {showSearch && (
+          <div className="flex-1 max-w-2xl hidden sm:block">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input 
+                type="text" 
+                placeholder="Buscar por IMEI, cliente o modelo..." 
+                value={searchTerm}
+                onChange={(event) => onSearchTermChange?.(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    onSearchSubmit?.();
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3 md:gap-6 ml-4">

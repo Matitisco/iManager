@@ -9,6 +9,7 @@ interface LayoutProps {
   setActiveTab: (tab: string, subTab?: string) => void;
   actionLabel?: string;
   onNewAction?: () => void;
+  showSearch?: boolean;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
   onSearchSubmit?: () => void;
@@ -20,6 +21,7 @@ export const Layout: React.FC<LayoutProps> = ({
   setActiveTab,
   actionLabel,
   onNewAction,
+  showSearch,
   searchTerm,
   onSearchTermChange,
   onSearchSubmit,
@@ -42,6 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({
           actionLabel={actionLabel} 
           onNewAction={onNewAction} 
           onMenuClick={() => setIsMobileMenuOpen(true)}
+          showSearch={showSearch}
           onNavigate={setActiveTab}
           searchTerm={searchTerm}
           onSearchTermChange={onSearchTermChange}
