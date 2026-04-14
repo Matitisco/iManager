@@ -89,10 +89,9 @@ export async function invitationsRoutes(app: FastifyInstance) {
     });
   });
 
-  app.addHook("preHandler", authenticate);
-  app.addHook("preHandler", resolveAppUser);
+  const protectedPreHandler = [authenticate, resolveAppUser];
 
-  app.get("/", async (request, reply) => {
+  app.get("/", { preHandler: protectedPreHandler }, async (request, reply) => {
     if (!request.appUser) {
       return reply.code(403).send({ error: "Store membership required" });
     }
@@ -114,7 +113,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
     return { invitations };
   });
 
-  app.post("/", async (request, reply) => {
+  app.post("/", { preHandler: protectedPreHandler }, async (request, reply) => {
     if (!request.appUser) {
       return reply.code(403).send({ error: "Store membership required" });
     }
@@ -162,7 +161,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
     }
   });
 
-  app.delete("/:id", async (request, reply) => {
+  app.delete("/:id", { preHandler: protectedPreHandler }, async (request, reply) => {
     if (!request.appUser) {
       return reply.code(403).send({ error: "Store membership required" });
     }
