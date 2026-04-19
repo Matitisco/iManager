@@ -14,6 +14,7 @@ interface HeaderProps {
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
   onSearchSubmit?: () => void;
+  activeTab?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   searchTerm = '',
   onSearchTermChange,
   onSearchSubmit,
+  activeTab,
 }) => {
   const { logout, user, appSession } = useAppContext();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -68,26 +70,49 @@ export const Header: React.FC<HeaderProps> = ({
         <button onClick={onMenuClick} className="md:hidden text-gray-600 hover:text-gray-900">
           <Menu size={24} />
         </button>
-        {showSearch && (
-          <div className="flex-1 max-w-2xl hidden sm:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input 
-                type="text" 
-                placeholder="Buscar por IMEI, cliente o modelo..." 
-                value={searchTerm}
-                onChange={(event) => onSearchTermChange?.(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    onSearchSubmit?.();
-                  }
-                }}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
-              />
-            </div>
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {showSearch && (
+            <motion.div
+              key={activeTab ?? 'search'}
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: 1, opacity: 1 }}
+              exit={{ scaleX: 0, opacity: 0 }}
+              transition={{
+                scaleX: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+                opacity: { duration: 0.25, ease: 'easeOut' },
+              }}
+              style={{ transformOrigin: 'left center' }}
+              className="flex-1 max-w-2xl hidden sm:block"
+            >
+              <div className="relative">
+                <motion.div
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2, duration: 0.2 }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                >
+                  <Search size={20} />
+                </motion.div>
+                <motion.input
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.25, duration: 0.2 }}
+                  type="text"
+                  placeholder="Buscar por IMEI, cliente o modelo..."
+                  value={searchTerm}
+                  onChange={(event) => onSearchTermChange?.(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      onSearchSubmit?.();
+                    }
+                  }}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="flex items-center gap-3 md:gap-6 ml-4">

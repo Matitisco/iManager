@@ -40,15 +40,16 @@ export const Layout: React.FC<LayoutProps> = ({
         onClose={() => setIsMobileMenuOpen(false)}
       />
       <div className="flex-1 flex flex-col overflow-hidden w-full">
-        <Header 
-          actionLabel={actionLabel} 
-          onNewAction={onNewAction} 
+        <Header
+          actionLabel={actionLabel}
+          onNewAction={onNewAction}
           onMenuClick={() => setIsMobileMenuOpen(true)}
           showSearch={showSearch}
           onNavigate={setActiveTab}
           searchTerm={searchTerm}
           onSearchTermChange={onSearchTermChange}
           onSearchSubmit={onSearchSubmit}
+          activeTab={activeTab}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative flex flex-col">
           <AnimatePresence mode="wait">
