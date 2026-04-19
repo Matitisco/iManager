@@ -18,7 +18,10 @@ const item: Variants = {
 };
 
 export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
-  const { inventory, sales, tradeIns, clients } = useAppContext();
+  const { inventory, sales, tradeIns, clients, appSession } = useAppContext();
+  const isStaff = appSession?.membership?.role === 'STAFF';
+  const welcomeName = appSession?.user.displayName?.trim() || 'equipo';
+  const storeName = appSession?.store?.name?.trim();
 
   const availableInventory = inventory.filter(product => product.status === 'DISPONIBLE');
   const inventoryValue = availableInventory.reduce((sum, product) => sum + product.price, 0);
@@ -50,6 +53,52 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
     ...trade,
     client: clients.find(client => client.id === trade.clientId),
   }));
+
+  if (isStaff) {
+    return (
+      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+        <motion.section
+          variants={item}
+          className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
+        >
+          <div className="border-b border-gray-100 bg-gray-50/70 px-6 py-4">
+            <span className="text-xs font-bold uppercase tracking-wide text-gray-500">
+              Dashboard
+            </span>
+          </div>
+          <div className="flex min-h-[360px] flex-col justify-between gap-8 px-6 py-8 md:px-10 md:py-10">
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-500">
+                {storeName ? `Sesión activa en ${storeName}` : 'Sesión activa'}
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">
+                Bienvenido, {welcomeName}
+              </h1>
+              <p className="max-w-2xl text-sm leading-relaxed text-gray-500 md:text-base">
+                Este espacio está simplificado para tu rol. Desde el menú lateral podés entrar directo
+                a las secciones donde trabajás todos los días.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => onNavigate?.('inventory')}
+                className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+              >
+                Ir a inventario
+              </button>
+              <button
+                onClick={() => onNavigate?.('sales')}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Ver ventas
+              </button>
+            </div>
+          </div>
+        </motion.section>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
