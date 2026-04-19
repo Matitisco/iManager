@@ -47,6 +47,14 @@ export const Header: React.FC<HeaderProps> = ({
   const profileAvatarUrl = appSession?.user.avatarUrl || user?.photoURL || '';
   const profileInitials = getInitials(profileName);
 
+  const searchPlaceholders: Record<string, string> = {
+    inventory: 'Buscar por IMEI, modelo o categoría...',
+    sales: 'Buscar por cliente, modelo o vendedor...',
+    tradeins: 'Buscar por IMEI, modelo o cliente...',
+    clients: 'Buscar por nombre, teléfono o email...',
+  };
+  const searchPlaceholder = searchPlaceholders[activeTab ?? ''] ?? 'Buscar...';
+
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.25, duration: 0.2 }}
                   type="text"
-                  placeholder="Buscar por IMEI, cliente o modelo..."
+                  placeholder={searchPlaceholder}
                   value={searchTerm}
                   onChange={(event) => onSearchTermChange?.(event.target.value)}
                   onKeyDown={(event) => {
