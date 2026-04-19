@@ -24,6 +24,8 @@ import { TradeInForm } from './components/forms/TradeInForm';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
+const SEARCHABLE_TABS = new Set(['inventory', 'clients', 'sales', 'tradeins']);
+const STAFF_BLOCKED_TABS = new Set(['reports', 'settings']);
 
 function extractInviteToken(): string | null {
   const match = window.location.pathname.match(/^\/invite\/([^/]+)/);
@@ -36,7 +38,7 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'DueÃ±o', MANAGER: 'Socio', STAFF: 'Vendedor' };
+const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', MANAGER: 'Socio', STAFF: 'Vendedor' };
 
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
@@ -50,6 +52,9 @@ function AppContent() {
   const inviteState = useInvitationPreview(
     inviteToken && user && backendStatus === 'ready' && !appSession?.onboardingRequired ? inviteToken : null
   );
+  const showTopNavSearch = SEARCHABLE_TABS.has(activeTab);
+  const role = appSession?.membership?.role;
+  const isStaff = role === 'STAFF';
 
   const showInviteModal = !!(
     inviteToken
@@ -74,11 +79,27 @@ function AppContent() {
       await acceptStoreInvitation(inviteToken);
       clearInvite();
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitaciÃ³n');
+      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
     } finally {
       setInviteAccepting(false);
     }
   };
+
+  useEffect(() => {
+    if (!showTopNavSearch && topNavSearch) {
+      setTopNavSearch('');
+    }
+  }, [showTopNavSearch, topNavSearch]);
+
+  useEffect(() => {
+    if (isStaff && STAFF_BLOCKED_TABS.has(activeTab) && activeTab !== 'settings') {
+      setActiveTab('dashboard');
+    }
+    // STAFF may land on settings via Profile/Security shortcut - allow only those subtabs.
+    if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
+      setActiveTab('dashboard');
+    }
+  }, [isStaff, activeTab, settingsTab]);
 
   if (loading) {
     return (
@@ -99,27 +120,6 @@ function AppContent() {
   const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
   const showOnboardingBanner = backendStatus === 'ready' && !!appSession?.onboardingRequired;
   const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
-  const searchableTabs = new Set(['inventory', 'clients', 'sales', 'tradeins']);
-  const showTopNavSearch = searchableTabs.has(activeTab);
-  const role = appSession?.membership?.role;
-  const isStaff = role === 'STAFF';
-  const staffBlockedTabs = new Set(['reports', 'settings']);
-
-  useEffect(() => {
-    if (!showTopNavSearch && topNavSearch) {
-      setTopNavSearch('');
-    }
-  }, [showTopNavSearch, topNavSearch]);
-
-  useEffect(() => {
-    if (isStaff && staffBlockedTabs.has(activeTab) && activeTab !== 'settings') {
-      setActiveTab('dashboard');
-    }
-    // STAFF may land on settings via Profile/Security shortcut — allow only those subtabs
-    if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
-      setActiveTab('dashboard');
-    }
-  }, [isStaff, activeTab, settingsTab]);
 
   const handleNavigate = (tab: string, subTab?: string) => {
     if (isStaff && tab === 'reports') return;
@@ -136,7 +136,7 @@ function AppContent() {
       return;
     }
 
-    if (!searchableTabs.has(activeTab)) {
+    if (!SEARCHABLE_TABS.has(activeTab)) {
       setActiveTab('inventory');
     }
 
@@ -153,7 +153,7 @@ function AppContent() {
       case 'reports': return <Reports />;
       case 'settings': return <Settings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
       case 'notifications': return <Notifications />;
-      default: return <div className="flex items-center justify-center h-full text-gray-400">PÃ¡gina en construcciÃ³n</div>;
+      default: return <div className="flex items-center justify-center h-full text-gray-400">Página en construcción</div>;
     }
   };
 
@@ -219,7 +219,7 @@ function AppContent() {
                       : 'Backend en estado intermedio'}
                 </strong>
                 <span className="ml-2">
-                  {backendMessage || 'La sesiÃ³n de aplicaciÃ³n todavÃ­a no estÃ¡ completamente resuelta.'}
+                  {backendMessage || 'La sesión de aplicación todavía no está completamente resuelta.'}
                 </span>
               </div>
             </div>
@@ -229,7 +229,7 @@ function AppContent() {
               <div className="max-w-7xl mx-auto">
                 <strong className="font-semibold">Onboarding requerido</strong>
                 <span className="ml-2">
-                  Tu usuario ya estÃ¡ autenticado, pero todavÃ­a no tiene una tienda o membresÃ­a asignada en Postgres.
+                  Tu usuario ya está autenticado, pero todavía no tiene una tienda o membresía asignada en Postgres.
                 </span>
               </div>
             </div>
@@ -270,8 +270,8 @@ function AppContent() {
               </>
             ) : inviteState.invalid ? (
               <>
-                <h2 className="text-xl font-semibold text-gray-900">InvitaciÃ³n invÃ¡lida</h2>
-                <p className="text-sm text-gray-500">Este enlace de invitaciÃ³n expirÃ³ o ya fue utilizado.</p>
+                <h2 className="text-xl font-semibold text-gray-900">Invitación inválida</h2>
+                <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
                 <button
                   onClick={clearInvite}
                   className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
@@ -329,7 +329,7 @@ function AppContent() {
                     disabled={inviteAccepting}
                     className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
                   >
-                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitaciÃ³n'}
+                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitación'}
                   </button>
                 </div>
               </>
