@@ -22,9 +22,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
 
   const clearError = () => setError(null);
   const roleLabel =
-    inviteState.preview?.role === 'ADMIN'
+    inviteState.preview?.role === 'MANAGER'
       ? 'Socio'
-      : inviteState.preview?.role === 'SELLER'
+      : inviteState.preview?.role === 'STAFF'
         ? 'Agente'
         : inviteState.preview?.role === 'OWNER'
           ? 'Propietario'

@@ -2,7 +2,7 @@ import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
-export type InvitationRole = 'ADMIN' | 'SELLER';
+export type InvitationRole = 'MANAGER' | 'STAFF';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
 
 export interface Invitation {

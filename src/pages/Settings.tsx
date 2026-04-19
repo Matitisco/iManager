@@ -307,14 +307,14 @@ function ProfileTab() {
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   OWNER: 'Propietario',
-  ADMIN: 'Socio',
-  SELLER: 'Agente',
+  MANAGER: 'Socio',
+  STAFF: 'Agente',
 };
 
 const ROLE_COLORS: Record<MemberRole, string> = {
   OWNER: 'bg-black text-white',
-  ADMIN: 'bg-blue-100 text-blue-800',
-  SELLER: 'bg-gray-100 text-gray-700',
+  MANAGER: 'bg-blue-100 text-blue-800',
+  STAFF: 'bg-gray-100 text-gray-700',
 };
 
 function MemberAvatar({ member }: { member: TeamMember }) {
@@ -339,7 +339,7 @@ function InviteModal({
   onCreated: (inv: CreatedInvitation) => void;
 }) {
   const { user } = useAppContext();
-  const [role, setRole] = useState<InvitationRole>('SELLER');
+  const [role, setRole] = useState<InvitationRole>('STAFF');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
@@ -412,8 +412,8 @@ function InviteModal({
                 onChange={(e) => setRole(e.target.value as InvitationRole)}
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-black outline-none"
               >
-                <option value="ADMIN">Socio</option>
-                <option value="SELLER">Agente</option>
+                <option value="MANAGER">Socio</option>
+                <option value="STAFF">Agente</option>
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
@@ -445,7 +445,7 @@ function InviteModal({
 function TeamTab() {
   const { appSession, user } = useAppContext();
   const storeId = appSession?.store?.id ?? '';
-  const myRole = appSession?.membership?.role ?? 'SELLER';
+  const myRole = appSession?.membership?.role ?? 'STAFF';
   const isOwner = myRole === 'OWNER';
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -519,12 +519,12 @@ function TeamTab() {
 
   const canChangeRole = (target: TeamMember) => {
     if (isOwner) return true;
-    return myRole === 'ADMIN' && target.role !== 'OWNER';
+    return myRole === 'MANAGER' && target.role !== 'OWNER';
   };
 
   const availableRoles = (target: TeamMember): MemberRole[] => {
-    if (isOwner) return ['OWNER', 'ADMIN', 'SELLER'];
-    return target.role === 'OWNER' ? [] : ['ADMIN', 'SELLER'];
+    if (isOwner) return ['OWNER', 'MANAGER', 'STAFF'];
+    return target.role === 'OWNER' ? [] : ['MANAGER', 'STAFF'];
   };
 
   return (
@@ -592,7 +592,7 @@ function TeamTab() {
                 )}
 
                 {/* Remove button */}
-                {(isOwner || (myRole === 'ADMIN' && member.role !== 'OWNER')) && member.userId !== appSession?.user.id && (
+                {(isOwner || (myRole === 'MANAGER' && member.role !== 'OWNER')) && member.userId !== appSession?.user.id && (
                   <button
                     type="button"
                     onClick={() => handleRemoveMember(member)}
@@ -916,23 +916,34 @@ export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab
   const setActiveTab = externalSetActiveTab ?? setInternalActiveTab;
 
   const myRole = appSession?.membership?.role;
-  const canSeeTeam = myRole === 'OWNER' || myRole === 'ADMIN';
+  const isStaff = myRole === 'STAFF';
+  const canSeeTeam = myRole === 'OWNER' || myRole === 'MANAGER';
 
-  const tabs = [
-    { id: 'store', label: 'Datos de la Tienda', icon: Store },
-    { id: 'profile', label: 'Mi Perfil', icon: User },
-    { id: 'security', label: 'Seguridad', icon: Shield },
-    { id: 'billing', label: 'Facturación', icon: CreditCard },
-    ...(canSeeTeam ? [{ id: 'team', label: 'Equipo', icon: Users }] : []),
-  ];
+  const tabs = isStaff
+    ? [
+        { id: 'profile', label: 'Mi Perfil', icon: User },
+        { id: 'security', label: 'Seguridad', icon: Shield },
+      ]
+    : [
+        { id: 'store', label: 'Datos de la Tienda', icon: Store },
+        { id: 'profile', label: 'Mi Perfil', icon: User },
+        { id: 'security', label: 'Seguridad', icon: Shield },
+        { id: 'billing', label: 'Facturación', icon: CreditCard },
+        ...(canSeeTeam ? [{ id: 'team', label: 'Equipo', icon: Users }] : []),
+      ];
 
-  const tabContent: Record<string, React.ReactNode> = {
-    store: <StoreTab />,
-    profile: <ProfileTab />,
-    security: <SecurityTab />,
-    billing: <BillingTab />,
-    ...(canSeeTeam ? { team: <TeamTab /> } : {}),
-  };
+  const tabContent: Record<string, React.ReactNode> = isStaff
+    ? {
+        profile: <ProfileTab />,
+        security: <SecurityTab />,
+      }
+    : {
+        store: <StoreTab />,
+        profile: <ProfileTab />,
+        security: <SecurityTab />,
+        billing: <BillingTab />,
+        ...(canSeeTeam ? { team: <TeamTab /> } : {}),
+      };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">

@@ -22,7 +22,7 @@ export interface AppSessionResponse {
     timezone: string;
   } | null;
   membership: {
-    role: "OWNER" | "ADMIN" | "SELLER";
+    role: "OWNER" | "MANAGER" | "STAFF";
     isDefault: boolean;
   } | null;
   onboardingRequired: boolean;

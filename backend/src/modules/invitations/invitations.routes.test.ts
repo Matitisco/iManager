@@ -48,7 +48,7 @@ describe("invitations.routes", () => {
 
     previewInvitationMock.mockResolvedValue({
       storeName: "Tienda Centro",
-      role: "ADMIN",
+      role: "MANAGER",
     });
 
     const response = await app.inject({
@@ -59,7 +59,7 @@ describe("invitations.routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       storeName: "Tienda Centro",
-      role: "ADMIN",
+      role: "MANAGER",
     });
     expect(authenticateMock).not.toHaveBeenCalled();
     expect(resolveAppUserMock).not.toHaveBeenCalled();

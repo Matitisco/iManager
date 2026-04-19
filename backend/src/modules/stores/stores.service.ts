@@ -59,7 +59,7 @@ export async function updateMemberRole(
   actorRole: StoreRole,
   actorUserId: string
 ) {
-  if (actorRole !== "OWNER" && actorRole !== "ADMIN") {
+  if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
     throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
   }
 
@@ -68,12 +68,12 @@ export async function updateMemberRole(
     throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
   }
 
-  // ADMIN cannot touch OWNERs
-  if (actorRole === "ADMIN" && target.role === "OWNER") {
+  // MANAGER cannot touch OWNERs
+  if (actorRole === "MANAGER" && target.role === "OWNER") {
     throw Object.assign(new Error("No podés modificar el rol de un Propietario"), { statusCode: 403 });
   }
-  // ADMIN cannot assign OWNER role
-  if (actorRole === "ADMIN" && newRole === "OWNER") {
+  // MANAGER cannot assign OWNER role
+  if (actorRole === "MANAGER" && newRole === "OWNER") {
     throw Object.assign(new Error("No podés asignar el rol Propietario"), { statusCode: 403 });
   }
 
@@ -94,7 +94,7 @@ export async function removeMember(
   actorRole: StoreRole,
   actorUserId: string
 ) {
-  if (actorRole !== "OWNER" && actorRole !== "ADMIN") {
+  if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
     throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
   }
 
@@ -106,8 +106,8 @@ export async function removeMember(
     throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
   }
 
-  // ADMIN cannot remove OWNERs
-  if (actorRole === "ADMIN" && target.role === "OWNER") {
+  // MANAGER cannot remove OWNERs
+  if (actorRole === "MANAGER" && target.role === "OWNER") {
     throw Object.assign(new Error("No podés remover a un Propietario"), { statusCode: 403 });
   }
 

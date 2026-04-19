@@ -12,7 +12,7 @@ import {
 
 const createSchema = z.object({
   email: z.string().email().optional(),
-  role: z.enum(["ADMIN", "SELLER"]),
+  role: z.enum(["MANAGER", "STAFF"]),
 });
 
 function tokenPrefix(token: string) {
@@ -95,7 +95,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
     if (!request.appUser) {
       return reply.code(403).send({ error: "Store membership required" });
     }
-    if (request.appUser.role !== "OWNER" && request.appUser.role !== "ADMIN") {
+    if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
       return reply.code(403).send({ error: "No tenes permisos para ver las invitaciones" });
     }
 

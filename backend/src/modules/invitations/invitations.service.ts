@@ -5,7 +5,7 @@ import { buildAppSessionForUser } from "../auth/session.service.js";
 
 const INVITATION_TTL_DAYS = 7;
 
-export async function createInvitation(storeId: string, actorRole: string, email: string | undefined, role: "ADMIN" | "SELLER") {
+export async function createInvitation(storeId: string, actorRole: string, email: string | undefined, role: "MANAGER" | "STAFF") {
   if (actorRole !== "OWNER") {
     throw Object.assign(new Error("Solo el Propietario puede crear invitaciones"), { statusCode: 403 });
   }

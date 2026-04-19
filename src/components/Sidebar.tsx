@@ -12,15 +12,19 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose = () => {} }) => {
-  const { logout } = useAppContext();
+  const { logout, appSession } = useAppContext();
+  const role = appSession?.membership?.role;
+  const isStaff = role === 'STAFF';
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Inventario', icon: Package },
     { id: 'sales', label: 'Ventas', icon: ShoppingCart },
     { id: 'tradeins', label: 'Canjes', icon: RefreshCcw },
     { id: 'clients', label: 'Clientes', icon: Users },
-    { id: 'reports', label: 'Reportes', icon: BarChart2 },
-    { id: 'settings', label: 'Configuración', icon: Settings },
+    ...(isStaff ? [] : [
+      { id: 'reports', label: 'Reportes', icon: BarChart2 },
+      { id: 'settings', label: 'Configuración', icon: Settings },
+    ]),
   ];
 
   const sidebarContent = (

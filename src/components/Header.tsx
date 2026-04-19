@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Plus, Menu, User, Settings, LogOut, ArrowRight } from 'lucide-react';
+import { Search, Bell, Plus, Menu, User, Settings, Shield, LogOut, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
 import { getInitials, trimToString } from '../lib/utils';
@@ -42,8 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
     trimToString(user?.email) ||
     'Usuario';
   const profileEmail = appSession?.user.email || user?.email || 'Sin correo';
-  const profileRole = appSession?.membership?.role || 'SELLER';
-  const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'ADMIN' ? 'Administrador' : 'Vendedor';
+  const profileRole = appSession?.membership?.role || 'STAFF';
+  const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'MANAGER' ? 'Administrador' : 'Vendedor';
   const profileAvatarUrl = appSession?.user.avatarUrl || user?.photoURL || '';
   const profileInitials = getInitials(profileName);
 
@@ -247,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="mt-2 inline-block px-2 py-1 bg-gray-200 text-gray-700 text-[10px] font-bold rounded uppercase tracking-wide">{profileRoleLabel}</div>
                 </div>
                 <div className="p-2">
-                  <button 
+                  <button
                     onClick={() => {
                       setIsProfileOpen(false);
                       onNavigate?.('settings', 'profile');
@@ -256,15 +256,26 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <User size={16} /> Mi Perfil
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       setIsProfileOpen(false);
-                      onNavigate?.('settings', 'store');
+                      onNavigate?.('settings', 'security');
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
                   >
-                    <Settings size={16} /> Configuración
+                    <Shield size={16} /> Seguridad
                   </button>
+                  {profileRole !== 'STAFF' && (
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        onNavigate?.('settings', 'store');
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
+                    >
+                      <Settings size={16} /> Configuración
+                    </button>
+                  )}
                 </div>
                 <div className="p-2 border-t border-gray-100">
                   <button 

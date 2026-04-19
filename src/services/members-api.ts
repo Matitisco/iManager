@@ -2,7 +2,7 @@ import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
-export type MemberRole = 'OWNER' | 'ADMIN' | 'SELLER';
+export type MemberRole = 'OWNER' | 'MANAGER' | 'STAFF';
 
 export interface TeamMember {
   id: string;

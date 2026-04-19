@@ -36,7 +36,7 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'DueÃ±o', ADMIN: 'Socio', SELLER: 'Vendedor' };
+const ROLE_LABEL: Record<string, string> = { OWNER: 'DueÃ±o', MANAGER: 'Socio', STAFF: 'Vendedor' };
 
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
@@ -101,6 +101,9 @@ function AppContent() {
   const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
   const searchableTabs = new Set(['inventory', 'clients', 'sales', 'tradeins']);
   const showTopNavSearch = searchableTabs.has(activeTab);
+  const role = appSession?.membership?.role;
+  const isStaff = role === 'STAFF';
+  const staffBlockedTabs = new Set(['reports', 'settings']);
 
   useEffect(() => {
     if (!showTopNavSearch && topNavSearch) {
@@ -108,7 +111,19 @@ function AppContent() {
     }
   }, [showTopNavSearch, topNavSearch]);
 
+  useEffect(() => {
+    if (isStaff && staffBlockedTabs.has(activeTab) && activeTab !== 'settings') {
+      setActiveTab('dashboard');
+    }
+    // STAFF may land on settings via Profile/Security shortcut — allow only those subtabs
+    if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
+      setActiveTab('dashboard');
+    }
+  }, [isStaff, activeTab, settingsTab]);
+
   const handleNavigate = (tab: string, subTab?: string) => {
+    if (isStaff && tab === 'reports') return;
+    if (isStaff && tab === 'settings' && subTab !== 'profile' && subTab !== 'security') return;
     setActiveTab(tab);
     if (tab === 'settings' && subTab) {
       setSettingsTab(subTab);

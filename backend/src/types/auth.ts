@@ -9,5 +9,5 @@ export type FirebaseAuthContext = {
 export type AppUserContext = {
   userId: string;
   storeId: string;
-  role: "OWNER" | "ADMIN" | "SELLER";
+  role: "OWNER" | "MANAGER" | "STAFF";
 };

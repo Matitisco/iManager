@@ -1,6 +1,6 @@
 export type BackendConnectionStatus = 'checking' | 'ready' | 'unconfigured' | 'offline' | 'error';
 
-export type AppMembershipRole = 'OWNER' | 'ADMIN' | 'SELLER';
+export type AppMembershipRole = 'OWNER' | 'MANAGER' | 'STAFF';
 
 export interface AppUserSummary {
   id: string;

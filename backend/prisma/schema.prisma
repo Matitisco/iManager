@@ -235,8 +235,8 @@ enum UserStatus {
 
 enum StoreRole {
   OWNER
-  ADMIN
-  SELLER
+  MANAGER @map("ADMIN")
+  STAFF   @map("SELLER")
 }
 
 enum InvitationStatus {

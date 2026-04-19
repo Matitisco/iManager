@@ -18,12 +18,12 @@ function createJsonResponse(body: InvitationPreview, status = 200) {
 describe('resolveInvitationPreview', () => {
   it('returns the preview on the first successful attempt', async () => {
     const fetcher = vi.fn().mockResolvedValue(
-      createJsonResponse({ storeName: 'Tienda Centro', role: 'ADMIN' })
+      createJsonResponse({ storeName: 'Tienda Centro', role: 'MANAGER' })
     );
 
     await expect(resolveInvitationPreview('token-1', { fetcher })).resolves.toEqual({
       kind: 'valid',
-      preview: { storeName: 'Tienda Centro', role: 'ADMIN' },
+      preview: { storeName: 'Tienda Centro', role: 'MANAGER' },
       attempts: 1,
     });
   });
@@ -33,13 +33,13 @@ describe('resolveInvitationPreview', () => {
     const fetcher = vi
       .fn()
       .mockRejectedValueOnce(abortError)
-      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Norte', role: 'SELLER' }));
+      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Norte', role: 'STAFF' }));
 
     await expect(
       resolveInvitationPreview('token-2', { fetcher, retryDelayMs: 0 })
     ).resolves.toEqual({
       kind: 'valid',
-      preview: { storeName: 'Tienda Norte', role: 'SELLER' },
+      preview: { storeName: 'Tienda Norte', role: 'STAFF' },
       attempts: 2,
     });
   });
@@ -48,13 +48,13 @@ describe('resolveInvitationPreview', () => {
     const fetcher = vi
       .fn()
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
-      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Oeste', role: 'ADMIN' }));
+      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Oeste', role: 'MANAGER' }));
 
     await expect(
       resolveInvitationPreview('token-2b', { fetcher, retryDelayMs: 0 })
     ).resolves.toEqual({
       kind: 'valid',
-      preview: { storeName: 'Tienda Oeste', role: 'ADMIN' },
+      preview: { storeName: 'Tienda Oeste', role: 'MANAGER' },
       attempts: 2,
     });
   });
@@ -63,13 +63,13 @@ describe('resolveInvitationPreview', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Sur', role: 'ADMIN' }));
+      .mockResolvedValueOnce(createJsonResponse({ storeName: 'Tienda Sur', role: 'MANAGER' }));
 
     await expect(
       resolveInvitationPreview('token-3', { fetcher, retryDelayMs: 0 })
     ).resolves.toEqual({
       kind: 'valid',
-      preview: { storeName: 'Tienda Sur', role: 'ADMIN' },
+      preview: { storeName: 'Tienda Sur', role: 'MANAGER' },
       attempts: 2,
     });
   });

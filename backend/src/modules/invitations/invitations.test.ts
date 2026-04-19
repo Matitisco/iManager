@@ -68,18 +68,18 @@ describe("invitations.service", () => {
       id: "inv-1",
       token: "token-12345678",
       email: null,
-      role: "SELLER",
+      role: "STAFF",
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
     });
 
-    const result = await createInvitation("store-1", "OWNER", undefined, "SELLER");
+    const result = await createInvitation("store-1", "OWNER", undefined, "STAFF");
 
     expect(result.inviteUrl).toBe("https://app.imanager.test/invite/token-12345678");
     expect(prismaMock.storeInvitation.create).toHaveBeenCalledWith({
       data: {
         storeId: "store-1",
         email: undefined,
-        role: "SELLER",
+        role: "STAFF",
         expiresAt: expect.any(Date),
       },
     });
@@ -88,7 +88,7 @@ describe("invitations.service", () => {
   it("fails clearly when FRONTEND_URL is missing", async () => {
     process.env.FRONTEND_URL = "";
 
-    await expect(createInvitation("store-1", "OWNER", undefined, "ADMIN")).rejects.toMatchObject({
+    await expect(createInvitation("store-1", "OWNER", undefined, "MANAGER")).rejects.toMatchObject({
       statusCode: 500,
       message: "FRONTEND_URL no está configurado en el backend. No se puede generar el enlace de invitación.",
     });
@@ -98,7 +98,7 @@ describe("invitations.service", () => {
     prismaMock.storeInvitation.findUnique.mockResolvedValue({
       id: "inv-1",
       token: "token-1",
-      role: "ADMIN",
+      role: "MANAGER",
       status: "PENDING",
       expiresAt: new Date(Date.now() + 60_000),
       store: { name: "Tienda Centro" },
@@ -106,7 +106,7 @@ describe("invitations.service", () => {
 
     await expect(previewInvitation("token-1")).resolves.toEqual({
       storeName: "Tienda Centro",
-      role: "ADMIN",
+      role: "MANAGER",
     });
   });
 
@@ -115,7 +115,7 @@ describe("invitations.service", () => {
       id: "inv-1",
       token: "token-1",
       storeId: "store-invited",
-      role: "ADMIN",
+      role: "MANAGER",
       status: "PENDING",
       expiresAt: new Date(Date.now() + 60_000),
     };
@@ -144,26 +144,26 @@ describe("invitations.service", () => {
       id: "member-2",
       storeId: "store-invited",
       userId: "user-1",
-      role: "ADMIN",
+      role: "MANAGER",
       isDefault: false,
     });
     buildAppSessionForUserMock.mockResolvedValue({
       user: { id: "user-1" },
       store: { id: "store-invited", name: "Tienda Norte" },
-      membership: { role: "ADMIN", isDefault: true },
+      membership: { role: "MANAGER", isDefault: true },
       onboardingRequired: false,
     });
 
-    const created = await createInvitation("store-owner", "OWNER", undefined, "ADMIN");
+    const created = await createInvitation("store-owner", "OWNER", undefined, "MANAGER");
     const preview = await previewInvitation(created.token);
     const session = await acceptInvitation(created.token, auth);
 
-    expect(preview).toEqual({ storeName: "Tienda Norte", role: "ADMIN" });
+    expect(preview).toEqual({ storeName: "Tienda Norte", role: "MANAGER" });
     expect(prismaMock.storeMember.create).toHaveBeenCalledWith({
       data: {
         storeId: "store-invited",
         userId: "user-1",
-        role: "ADMIN",
+        role: "MANAGER",
         isDefault: false,
       },
     });
@@ -188,7 +188,7 @@ describe("invitations.service", () => {
       id: "inv-1",
       token: "token-creator",
       storeId: "store-owner",
-      role: "SELLER",
+      role: "STAFF",
       status: "PENDING",
       expiresAt: new Date(Date.now() + 60_000),
     });
