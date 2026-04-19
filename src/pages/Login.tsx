@@ -33,30 +33,30 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
       case 'auth/user-not-found':
-        return 'No existe una cuenta con este correo electr?nico.';
+        return 'No existe una cuenta con este correo electrónico.';
       case 'auth/wrong-password':
       case 'auth/invalid-credential':
-        return 'Correo o contrase?a incorrectos.';
+        return 'Correo o contraseña incorrectos.';
       case 'auth/operation-not-allowed':
-        return 'Este m?todo de acceso no est? habilitado en Firebase.';
+        return 'Este método de acceso no está habilitado en Firebase.';
       case 'auth/network-request-failed':
-        return 'No pudimos conectarnos. Revis? tu conexi?n e intent? de nuevo.';
+        return 'No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.';
       case 'auth/popup-closed-by-user':
         return 'Cerraste la ventana de Google antes de completar el acceso.';
       case 'auth/cancelled-popup-request':
         return 'Ya hay un intento de acceso con Google en curso.';
       case 'auth/popup-blocked':
-        return 'El navegador bloque? la ventana de Google. Permit? popups e intent? de nuevo.';
+        return 'El navegador bloqueó la ventana de Google. Permití popups e intentá de nuevo.';
       case 'auth/email-already-in-use':
-        return 'Ya existe una cuenta con este correo electr?nico.';
+        return 'Ya existe una cuenta con este correo electrónico.';
       case 'auth/weak-password':
-        return 'La contrase?a debe tener al menos 6 caracteres.';
+        return 'La contraseña debe tener al menos 6 caracteres.';
       case 'auth/invalid-email':
-        return 'El correo electr?nico no es v?lido.';
+        return 'El correo electrónico no es válido.';
       case 'auth/too-many-requests':
-        return 'Demasiados intentos. Intent? de nuevo m?s tarde.';
+        return 'Demasiados intentos. Intentá de nuevo más tarde.';
       case 'auth/internal-error':
-        return 'Firebase devolvi? un error interno. Intent? de nuevo.';
+        return 'Firebase devolvió un error interno. Intentá de nuevo.';
       default:
         return 'No pudimos completar el acceso. Intenta de nuevo.';
     }
@@ -80,12 +80,12 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
     clearError();
 
     if (isRegisterMode && password !== confirmPassword) {
-      setError('Las contrase?as no coinciden.');
+      setError('Las contraseñas no coinciden.');
       return;
     }
 
     if (password.length < 6) {
-      setError('La contrase?a debe tener al menos 6 caracteres.');
+      setError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -181,7 +181,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               <span className="text-zinc-500">en un solo lugar.</span>
             </h1>
             <p className="text-zinc-400 text-lg max-w-md leading-relaxed">
-              Gestiona inventario, ventas, clientes y canjes con la plataforma mÃ¡s intuitiva y profesional del mercado.
+              Gestiona inventario, ventas, clientes y canjes con la plataforma más intuitiva y profesional del mercado.
             </p>
           </motion.div>
         </div>
@@ -198,7 +198,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             </div>
             <div>
               <p className="text-sm font-medium text-white">Sistema Inteligente</p>
-              <p className="text-xs text-zinc-400">ActualizaciÃ³n en tiempo real</p>
+              <p className="text-xs text-zinc-400">Actualización en tiempo real</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -348,7 +348,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="email"
-                placeholder="Correo electrÃ³nico"
+                placeholder="Correo electrónico"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -363,7 +363,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="ContraseÃ±a"
+                placeholder="Contraseña"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -394,7 +394,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Confirmar contraseÃ±a"
+                    placeholder="Confirmar contraseña"
                     value={confirmPassword}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value);
@@ -419,7 +419,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {isRegisterMode ? 'Crear cuenta' : 'Iniciar sesiÃ³n'}
+                  {isRegisterMode ? 'Crear cuenta' : 'Iniciar sesión'}
                   <ArrowRight size={18} />
                 </>
               )}
@@ -469,13 +469,13 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
           </motion.button>
 
           <motion.p layout className="text-center text-sm text-gray-500 mt-8">
-            {isRegisterMode ? 'Â¿Ya tenÃ©s cuenta?' : 'Â¿No tenÃ©s cuenta?'}{' '}
+            {isRegisterMode ? '¿Ya tenés cuenta?' : '¿No tenés cuenta?'}{' '}
             <button
               onClick={toggleMode}
               type="button"
               className="text-black font-semibold hover:underline transition-all"
             >
-              {isRegisterMode ? 'Iniciar sesiÃ³n' : 'Crear cuenta'}
+              {isRegisterMode ? 'Iniciar sesión' : 'Crear cuenta'}
             </button>
           </motion.p>
         </motion.div>
