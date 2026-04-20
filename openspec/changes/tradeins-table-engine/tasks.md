@@ -17,6 +17,6 @@
 
 ## 4. Validacion
 
-- [ ] 4.1 Correr `npm run lint` en frontend
-- [ ] 4.2 Correr `npm run lint` en backend
-- [ ] 4.3 Verificar que la pantalla siga mostrando KPIs y cards recientes, y que el historial soporte filtros, import, edicion y delete
+- [x] 4.1 Correr `npm run lint` en frontend
+- [x] 4.2 Correr `npm run lint` en backend
+- [x] 4.3 Verificar que la pantalla siga mostrando KPIs y cards recientes, y que el historial soporte filtros, import, edicion y delete
