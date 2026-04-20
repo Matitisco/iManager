@@ -363,11 +363,23 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         });
         return r;
       });
-      const { utils, writeFile } = await import('xlsx');
-      const ws = utils.json_to_sheet(rows);
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, exportSheetName);
-      writeFile(wb, `${storageKey}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(exportSheetName);
+      const columns = Object.keys(rows[0] ?? {}).map((key) => ({ header: key, key }));
+      worksheet.columns = columns;
+      rows.forEach((row) => worksheet.addRow(row));
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer as ArrayBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${storageKey}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
     } finally { setIsExporting(false); }
   };
 

@@ -83,6 +83,25 @@ const monthMap: Record<string, number> = {
 
 const toDecimal = (value: number) => new Decimal(value);
 
+async function assertCategoryBelongsToStore(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  storeId: string,
+  categoryId?: string | null
+) {
+  if (categoryId === undefined || categoryId === null) {
+    return;
+  }
+
+  const category = await tx.saleCategory.findFirst({
+    where: { id: categoryId, storeId },
+    select: { id: true },
+  });
+
+  if (!category) {
+    throw new SalesError("Category not found", 404);
+  }
+}
+
 const toCustomFields = (value: Prisma.JsonValue | null) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -183,6 +202,8 @@ export async function listSales(storeId: string) {
 
 export async function createSale(storeId: string, input: SaleInput) {
   return prisma.$transaction(async (tx) => {
+    await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
+
     const client = await tx.client.findFirst({
       where: { id: input.clientId, storeId },
     });
@@ -254,6 +275,8 @@ export async function updateSale(
   return prisma.$transaction(async (tx) => {
     const nextClientId = input.clientId ?? existing.clientId ?? undefined;
     const nextInventoryItemId = input.productId ?? existing.inventoryItemId ?? undefined;
+
+    await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
     if (input.clientId) {
       const client = await tx.client.findFirst({

@@ -8,7 +8,6 @@ export interface AppUserSummary {
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;
-  twoFactorEnabled: boolean;
 }
 
 export interface AppStoreSummary {

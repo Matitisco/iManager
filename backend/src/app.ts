@@ -13,15 +13,33 @@ import { storesRoutes } from "./modules/stores/stores.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { securityRoutes } from "./modules/security/security.routes.js";
 import { invitationsRoutes } from "./modules/invitations/invitations.routes.js";
+import { env } from "./config/env.js";
 
 export function buildApp() {
   const app = Fastify({
     logger: true,
   });
 
+  const allowedOrigins = env.CORS_ALLOWED_ORIGINS
+    ?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? [];
+
   app.register(cors, {
-    origin: true,
-    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Origin not allowed"), false);
+    },
+    credentials: false,
   });
 
   app.register(sensible);

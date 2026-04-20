@@ -69,6 +69,21 @@ const inventoryPrisma = prisma as any;
 
 const toDecimal = (value: number) => new Decimal(value);
 
+async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null) {
+  if (categoryId === undefined || categoryId === null) {
+    return;
+  }
+
+  const category = await inventoryPrisma.inventoryCategory.findFirst({
+    where: { id: categoryId, storeId },
+    select: { id: true },
+  });
+
+  if (!category) {
+    throw new InventoryError("Category not found", 404);
+  }
+}
+
 const toCustomFields = (value: Prisma.JsonValue | null) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -261,6 +276,7 @@ export async function listInventory(storeId: string) {
 }
 
 export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
   const existing = await inventoryPrisma.inventoryItem.findFirst({
     where: { storeId, imei: input.imei.trim() },
     select: { id: true },
@@ -319,6 +335,8 @@ export async function updateInventoryItem(
       throw new InventoryError("Inventory item already exists", 409);
     }
   }
+
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
 
   const updated = await inventoryPrisma.inventoryItem.update({
     where: { id },

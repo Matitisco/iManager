@@ -28,7 +28,6 @@ export async function usersRoutes(app: FastifyInstance) {
           email: updated.email,
           displayName: updated.displayName,
           avatarUrl: updated.avatarUrl,
-          twoFactorEnabled: updated.twoFactorEnabled,
         },
       };
     }

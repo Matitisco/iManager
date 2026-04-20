@@ -5,6 +5,7 @@ import { prisma } from "../../plugins/prisma.js";
 export interface ClientInput {
   dni: string;
   name: string;
+  categoryId?: string | null;
   email?: string | null;
   phone?: string | null;
   lastPurchaseDate?: string | null;
@@ -54,6 +55,21 @@ class ClientsError extends Error {
 }
 
 const toDecimal = (value?: number) => new Decimal(value ?? 0);
+
+async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null) {
+  if (categoryId === undefined || categoryId === null) {
+    return;
+  }
+
+  const category = await prisma.clientCategory.findFirst({
+    where: { id: categoryId, storeId },
+    select: { id: true },
+  });
+
+  if (!category) {
+    throw new ClientsError("Category not found", 404);
+  }
+}
 
 const toCustomFields = (value: Prisma.JsonValue | null) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -111,6 +127,7 @@ export async function listClients(storeId: string) {
 
 export async function createClient(storeId: string, input: ClientInput) {
   const dni = input.dni.trim();
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
   const existing = await prisma.client.findFirst({
     where: { storeId, dni },
     select: { id: true },
@@ -127,6 +144,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       name: input.name.trim(),
       email: input.email || null,
       phone: input.phone || null,
+      categoryId: input.categoryId ?? null,
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
       totalSpent: toDecimal(input.totalSpent),
       pendingBalance: toDecimal(input.pendingBalance),
@@ -162,6 +180,8 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     }
   }
 
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
+
   const updated = await prisma.client.update({
     where: { id },
     data: {
@@ -169,7 +189,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
       name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
       phone: input.phone !== undefined ? input.phone || null : existing.phone,
-      categoryId: (input as any).categoryId !== undefined ? (input as any).categoryId : existing.categoryId,
+      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       lastPurchaseAt:
         input.lastPurchaseDate !== undefined
           ? parseLastPurchaseDate(input.lastPurchaseDate)

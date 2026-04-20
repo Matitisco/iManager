@@ -221,13 +221,22 @@ export async function salesRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = salePatchSchema.parse(request.body);
-      const sale = await updateSale(request.appUser.storeId, params.id, body);
+      try {
+        const sale = await updateSale(request.appUser.storeId, params.id, body);
 
-      if (!sale) {
-        return reply.code(404).send({ error: "Sale not found" });
+        if (!sale) {
+          return reply.code(404).send({ error: "Sale not found" });
+        }
+
+        return { sale };
+      } catch (error) {
+        const mapped = getSalesErrorStatus(error);
+        if (mapped) {
+          return reply.code(mapped.statusCode).send({ error: mapped.message });
+        }
+
+        throw error;
       }
-
-      return { sale };
     }
   );
 

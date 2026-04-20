@@ -6,7 +6,7 @@ import { useIntegrationApp } from "./integration-helpers.js";
 const { getApp } = useIntegrationApp();
 
 describe("management and collaboration integrations", () => {
-  it("updates the current user profile, the store, member roles and security flags", async () => {
+  it("updates the current user profile, the store, member roles and rejects disabled 2fa endpoints", async () => {
     const app = getApp();
     const context = await seedStoreContext();
     const staffUser = await prisma.user.create({
@@ -97,13 +97,11 @@ describe("management and collaboration integrations", () => {
         name: staffUser.displayName ?? undefined,
       }),
     });
-    expect(securityResponse.statusCode).toBe(200);
-    expect(securityResponse.json()).toEqual({ ok: true });
-
-    const staffAfterSecurity = await prisma.user.findUniqueOrThrow({
-      where: { id: staffUser.id },
+    expect(securityResponse.statusCode).toBe(410);
+    expect(securityResponse.json()).toEqual({
+      error:
+        "La autenticaci\u00f3n de dos factores est\u00e1 deshabilitada hasta implementar un flujo seguro con enforcement real.",
     });
-    expect(staffAfterSecurity.twoFactorEnabled).toBe(false);
 
     const deleteMemberResponse = await app.inject({
       method: "DELETE",

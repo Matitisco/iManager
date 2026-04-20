@@ -40,6 +40,32 @@ function extractInviteToken(): string | null {
 
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', MANAGER: 'Socio', STAFF: 'Vendedor' };
 
+function BlockingScreen({
+  title,
+  message,
+  busy = false,
+}: {
+  title: string;
+  message: string;
+  busy?: boolean;
+}) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6">
+      <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+          {busy ? (
+            <div className="h-7 w-7 rounded-full border-4 border-gray-200 border-t-black animate-spin" />
+          ) : (
+            <div className="h-3 w-3 rounded-full bg-black" />
+          )}
+        </div>
+        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+        <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -95,7 +121,6 @@ function AppContent() {
     if (isStaff && STAFF_BLOCKED_TABS.has(activeTab) && activeTab !== 'settings') {
       setActiveTab('dashboard');
     }
-    // STAFF may land on settings via Profile/Security shortcut - allow only those subtabs.
     if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
       setActiveTab('dashboard');
     }
@@ -117,9 +142,36 @@ function AppContent() {
     return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
   }
 
-  const showBackendBanner = backendStatus !== 'ready' && backendStatus !== 'checking';
-  const showOnboardingBanner = backendStatus === 'ready' && !!appSession?.onboardingRequired;
-  const topPaddingClass = showBackendBanner || showOnboardingBanner ? 'pt-[96px]' : '';
+  if (backendStatus === 'checking') {
+    return (
+      <BlockingScreen
+        busy
+        title="Resolviendo sesión segura"
+        message="Estamos validando tu sesión, la tienda activa y los permisos antes de abrir el sistema."
+      />
+    );
+  }
+
+  if (backendStatus !== 'ready') {
+    return (
+      <BlockingScreen
+        title={backendStatus === 'offline' ? 'Backend no disponible' : 'Backend no configurado'}
+        message={
+          backendMessage ||
+          'iManager ahora requiere el backend operativo para cargar datos de negocio y validar la membresía de tienda.'
+        }
+      />
+    );
+  }
+
+  if (!appSession?.store || !appSession?.membership) {
+    return (
+      <BlockingScreen
+        title="Contexto de tienda incompleto"
+        message="Tu cuenta está autenticada, pero todavía no tiene una tienda y membresía resueltas de forma segura en el backend."
+      />
+    );
+  }
 
   const handleNavigate = (tab: string, subTab?: string) => {
     if (isStaff && tab === 'reports') return;
@@ -198,45 +250,7 @@ function AppContent() {
 
   return (
     <>
-      {(showBackendBanner || showOnboardingBanner) && (
-        <div className="fixed top-0 left-0 right-0 z-[100]">
-          {showBackendBanner && (
-            <div
-              className={`px-4 py-3 text-sm border-b ${
-                backendStatus === 'unconfigured'
-                  ? 'bg-amber-50 border-amber-200 text-amber-900'
-                  : backendStatus === 'offline'
-                    ? 'bg-red-50 border-red-200 text-red-900'
-                    : 'bg-blue-50 border-blue-200 text-blue-900'
-              }`}
-            >
-              <div className="max-w-7xl mx-auto">
-                <strong className="font-semibold">
-                  {backendStatus === 'unconfigured'
-                    ? 'Modo local activo'
-                    : backendStatus === 'offline'
-                      ? 'Backend no disponible'
-                      : 'Backend en estado intermedio'}
-                </strong>
-                <span className="ml-2">
-                  {backendMessage || 'La sesión de aplicación todavía no está completamente resuelta.'}
-                </span>
-              </div>
-            </div>
-          )}
-          {showOnboardingBanner && (
-            <div className="px-4 py-3 text-sm border-b bg-blue-50 border-blue-200 text-blue-900">
-              <div className="max-w-7xl mx-auto">
-                <strong className="font-semibold">Onboarding requerido</strong>
-                <span className="ml-2">
-                  Tu usuario ya está autenticado, pero todavía no tiene una tienda o membresía asignada en Postgres.
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      <div className={topPaddingClass}>
+      <div>
         <Layout
           activeTab={activeTab}
           setActiveTab={handleNavigate}
@@ -260,7 +274,7 @@ function AppContent() {
             {inviteState.isLoading ? (
               <>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {inviteState.isRetrying ? 'Reintentando verificación…' : 'Verificando invitación…'}
+                  {inviteState.isRetrying ? 'Reintentando verificación...' : 'Verificando invitación...'}
                 </h2>
                 <p className="text-sm text-gray-500">
                   {inviteState.isRetrying

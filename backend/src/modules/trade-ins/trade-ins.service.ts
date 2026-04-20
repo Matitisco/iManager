@@ -118,6 +118,21 @@ const monthMap: Record<string, number> = {
 
 const toDecimal = (value: number) => new Decimal(value);
 
+async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null) {
+  if (categoryId === undefined || categoryId === null) {
+    return;
+  }
+
+  const category = await prisma.tradeInCategory.findFirst({
+    where: { id: categoryId, storeId },
+    select: { id: true },
+  });
+
+  if (!category) {
+    throw new TradeInsError("Category not found", 404);
+  }
+}
+
 const toCustomFields = (value: Prisma.JsonValue | null) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -217,6 +232,7 @@ export async function listTradeIns(storeId: string) {
 }
 
 export async function createTradeIn(storeId: string, input: TradeInInput) {
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
   const client = await prisma.client.findFirst({
     where: { id: input.clientId, storeId },
   });
@@ -272,6 +288,8 @@ export async function updateTradeIn(
       throw new TradeInsError("Client not found", 404);
     }
   }
+
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
 
   const nextDate = input.date !== undefined ? parseDateLabel(input.date) : existing.tradeAt;
   const nextDateLabel =
