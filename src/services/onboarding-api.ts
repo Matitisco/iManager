@@ -1,11 +1,11 @@
-import type { User } from 'firebase/auth';
 import type { AppSessionResponse } from '../types/app-session';
+import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -25,7 +25,7 @@ function getBaseUrlOrThrow() {
   return trimTrailingSlash(baseUrl);
 }
 
-export async function completeBackendOnboarding(user: User, storeName: string): Promise<AppSessionResponse> {
+export async function completeBackendOnboarding(user: AuthUserLike, storeName: string): Promise<AppSessionResponse> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/onboarding`, {
     method: 'POST',

@@ -1,11 +1,11 @@
-import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
+import type { AuthUserLike } from '../types/auth-user';
 import type { ReportsOverview, ReportsOverviewParams } from '../types/reports';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -26,7 +26,7 @@ function getBaseUrlOrThrow() {
 }
 
 export async function fetchReportsOverview(
-  user: User,
+  user: AuthUserLike,
   params: ReportsOverviewParams
 ): Promise<ReportsOverview> {
   const baseUrl = getBaseUrlOrThrow();

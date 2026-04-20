@@ -461,7 +461,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
           <thead className="sticky top-0 z-20 bg-gray-50 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gray-100">
             <tr>
               <th className="px-4 py-4 text-left w-12 sticky left-0 bg-gray-50">
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                <input data-testid="table-select-all" type="checkbox" checked={allSelected} onChange={toggleSelectAll}
                   className="w-3.5 h-3.5 rounded border-gray-300 accent-gray-900" />
               </th>
               {colState.orderedVisibleCols.map(col => (
@@ -508,7 +508,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                     onPointerDown={e => itemDrag.startItemDrag(e, row.id)}
                     className={`group transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50/60'}`}>
                     <td className="px-4 py-4 sticky left-0 z-10" style={{ background: 'inherit' }}>
-                      <input type="checkbox" checked={isSelected} readOnly
+                      <input data-testid={`table-row-select-${row.id}`} type="checkbox" checked={isSelected} readOnly
                         className="w-3.5 h-3.5 rounded border-gray-300 accent-gray-900 pointer-events-none" />
                     </td>
                     {colState.orderedVisibleCols.map(colId => {

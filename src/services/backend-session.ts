@@ -1,5 +1,5 @@
-import type { User } from 'firebase/auth';
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
+import type { AuthUserLike } from '../types/auth-user';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
@@ -20,12 +20,13 @@ function normalizeBackendErrorMessage(status: number, body: any) {
 }
 
 export function getBackendBaseUrl() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const testBaseUrl = (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__;
+  const baseUrl = testBaseUrl?.trim() || import.meta.env.VITE_API_BASE_URL?.trim();
   if (!baseUrl) return null;
   return trimTrailingSlash(baseUrl);
 }
 
-export async function fetchBackendSession(user: User): Promise<{
+export async function fetchBackendSession(user: AuthUserLike): Promise<{
   status: BackendConnectionStatus;
   session: AppSession | null;
   message: string | null;

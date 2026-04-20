@@ -8,10 +8,10 @@
  * When backend adds pagination, replace the fetch here only.
  */
 
-import type { User } from 'firebase/auth';
 import type { Sale } from '../types';
 import type { TablePageParams } from '../components/table-engine';
 import type { Client, Product } from '../types';
+import type { AuthUserLike } from '../types/auth-user';
 import {
   fetchBackendSales,
   updateBackendSale,
@@ -21,7 +21,7 @@ import {
 // Cache to avoid refetching all sales on every page scroll
 let _cache: { uid: string; data: Sale[] } | null = null;
 
-async function getAllSales(user: User): Promise<Sale[]> {
+async function getAllSales(user: AuthUserLike): Promise<Sale[]> {
   if (_cache?.uid === user.uid) return _cache.data;
   const data = await fetchBackendSales(user);
   _cache = { uid: user.uid, data };
@@ -90,7 +90,7 @@ function applyFiltersAndSort(
 }
 
 export async function fetchSalesPage(
-  user: User,
+  user: AuthUserLike,
   params: TablePageParams,
   lookups?: {
     clients?: Client[];
@@ -103,7 +103,7 @@ export async function fetchSalesPage(
   return { items, total: filtered.length };
 }
 
-export async function updateSaleViaApi(user: User, sale: Sale): Promise<void> {
+export async function updateSaleViaApi(user: AuthUserLike, sale: Sale): Promise<void> {
   await updateBackendSale(user, sale);
   // Update cache in place
   if (_cache) {
@@ -111,7 +111,7 @@ export async function updateSaleViaApi(user: User, sale: Sale): Promise<void> {
   }
 }
 
-export async function deleteSaleViaApi(user: User, saleId: string): Promise<void> {
+export async function deleteSaleViaApi(user: AuthUserLike, saleId: string): Promise<void> {
   await deleteBackendSale(user, saleId);
   if (_cache) {
     _cache.data = _cache.data.filter(s => s.id !== saleId);

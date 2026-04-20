@@ -167,8 +167,9 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700">DNI / ID</label>
+            <label htmlFor="trade-in-client-dni" className="text-xs font-bold text-gray-700">DNI / ID</label>
             <input
+              id="trade-in-client-dni"
               required
               type="text"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -177,8 +178,9 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700">Nombre Completo</label>
+            <label htmlFor="trade-in-client-name" className="text-xs font-bold text-gray-700">Nombre Completo</label>
             <input
+              id="trade-in-client-name"
               required
               type="text"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -209,8 +211,9 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Equipo Recibido</label>
+          <label htmlFor="trade-in-device-received" className="text-xs font-bold text-gray-700">Equipo Recibido</label>
           <input
+            id="trade-in-device-received"
             required
             type="text"
             placeholder="Ej: iPhone 12 64GB"
@@ -220,8 +223,9 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">IMEI Recibido</label>
+          <label htmlFor="trade-in-imei-received" className="text-xs font-bold text-gray-700">IMEI Recibido</label>
           <input
+            id="trade-in-imei-received"
             required
             type="text"
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -232,8 +236,9 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">Valor de Toma ($)</label>
+        <label htmlFor="trade-in-take-value" className="text-xs font-bold text-gray-700">Valor de Toma ($)</label>
         <input
+          id="trade-in-take-value"
           required
           type="number"
           min="0"

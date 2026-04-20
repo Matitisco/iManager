@@ -1,5 +1,5 @@
-import type { User } from 'firebase/auth';
 import type { Product, InventoryCategory } from '../types';
+import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -10,7 +10,7 @@ type BackendInventoryResponse = {
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -50,7 +50,7 @@ export interface InventoryPageParams {
 }
 
 export async function fetchInventoryPage(
-  user: User,
+  user: AuthUserLike,
   params: InventoryPageParams
 ): Promise<{ items: Product[]; total: number }> {
   const baseUrl = getBaseUrlOrThrow();
@@ -80,7 +80,7 @@ export async function fetchInventoryPage(
 }
 
 export async function fetchInventoryFilteredIds(
-  user: User,
+  user: AuthUserLike,
   params: Omit<InventoryPageParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>
 ): Promise<string[]> {
   const baseUrl = getBaseUrlOrThrow();
@@ -105,7 +105,7 @@ export async function fetchInventoryFilteredIds(
   return data.ids ?? [];
 }
 
-export async function fetchBackendInventory(user: User): Promise<Product[]> {
+export async function fetchBackendInventory(user: AuthUserLike): Promise<Product[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory`, {
     headers: await getAuthHeaders(user),
@@ -121,7 +121,7 @@ export async function fetchBackendInventory(user: User): Promise<Product[]> {
 }
 
 export async function createBackendInventoryItem(
-  user: User,
+  user: AuthUserLike,
   item: Omit<Product, 'id'>
 ): Promise<Product> {
   const baseUrl = getBaseUrlOrThrow();
@@ -144,7 +144,7 @@ export async function createBackendInventoryItem(
   return data.inventoryItem;
 }
 
-export async function updateBackendInventoryItem(user: User, item: Product): Promise<Product> {
+export async function updateBackendInventoryItem(user: AuthUserLike, item: Product): Promise<Product> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/${item.id}`, {
     method: 'PATCH',
@@ -165,7 +165,7 @@ export async function updateBackendInventoryItem(user: User, item: Product): Pro
   return data.inventoryItem;
 }
 
-export async function deleteBackendInventoryItem(user: User, itemId: string): Promise<void> {
+export async function deleteBackendInventoryItem(user: AuthUserLike, itemId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const token = await user.getIdToken();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/${itemId}`, {
@@ -182,7 +182,7 @@ export async function deleteBackendInventoryItem(user: User, itemId: string): Pr
   }
 }
 
-export async function fetchCategories(user: User): Promise<InventoryCategory[]> {
+export async function fetchCategories(user: AuthUserLike): Promise<InventoryCategory[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories`, { headers: await getAuthHeaders(user) });
   if (!response.ok) throw new Error(`No se pudieron cargar las categorías (${response.status})`);
@@ -190,7 +190,7 @@ export async function fetchCategories(user: User): Promise<InventoryCategory[]> 
   return data.categories;
 }
 
-export async function createCategoryApi(user: User, name: string): Promise<InventoryCategory> {
+export async function createCategoryApi(user: AuthUserLike, name: string): Promise<InventoryCategory> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories`, {
     method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -200,7 +200,7 @@ export async function createCategoryApi(user: User, name: string): Promise<Inven
   return data.category;
 }
 
-export async function renameCategoryApi(user: User, id: string, name: string): Promise<InventoryCategory> {
+export async function renameCategoryApi(user: AuthUserLike, id: string, name: string): Promise<InventoryCategory> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/${id}`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -210,7 +210,7 @@ export async function renameCategoryApi(user: User, id: string, name: string): P
   return data.category;
 }
 
-export async function deleteCategoryApi(user: User, id: string): Promise<void> {
+export async function deleteCategoryApi(user: AuthUserLike, id: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const token = await user.getIdToken();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/${id}`, {
@@ -219,7 +219,7 @@ export async function deleteCategoryApi(user: User, id: string): Promise<void> {
   if (!response.ok && response.status !== 204) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al eliminar categoría`); }
 }
 
-export async function reorderCategoriesApi(user: User, ids: string[]): Promise<void> {
+export async function reorderCategoriesApi(user: AuthUserLike, ids: string[]): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/categories/reorder`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ ids }),
@@ -227,7 +227,7 @@ export async function reorderCategoriesApi(user: User, ids: string[]): Promise<v
   if (!response.ok && response.status !== 204) { const b = await response.json().catch(() => null); throw new Error(b?.error || `Error al reordenar categorías`); }
 }
 
-export async function bulkMoveCategoryApi(user: User, ids: string[], categoryId: string | null): Promise<number> {
+export async function bulkMoveCategoryApi(user: AuthUserLike, ids: string[], categoryId: string | null): Promise<number> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/inventory/bulk-move`, {
     method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ ids, categoryId }),

@@ -4,9 +4,9 @@
  * Client-side pagination + filtering + sorting (same pattern as sales-table-api).
  */
 
-import type { User } from 'firebase/auth';
 import type { Client } from '../types';
 import type { TablePageParams } from '../components/table-engine';
+import type { AuthUserLike } from '../types/auth-user';
 import {
   fetchBackendClients,
   updateBackendClient,
@@ -15,7 +15,7 @@ import {
 
 let _cache: { uid: string; data: Client[] } | null = null;
 
-async function getAllClients(user: User): Promise<Client[]> {
+async function getAllClients(user: AuthUserLike): Promise<Client[]> {
   if (_cache?.uid === user.uid) return _cache.data;
   const data = await fetchBackendClients(user);
   _cache = { uid: user.uid, data };
@@ -75,7 +75,7 @@ function applyFiltersAndSort(
 }
 
 export async function fetchClientsPage(
-  user: User,
+  user: AuthUserLike,
   params: TablePageParams
 ): Promise<{ items: Client[]; total: number }> {
   const all = await getAllClients(user);
@@ -90,14 +90,14 @@ export function updateClientCategoryInCache(ids: string[], categoryId: string | 
   }
 }
 
-export async function updateClientViaApi(user: User, client: Client): Promise<void> {
+export async function updateClientViaApi(user: AuthUserLike, client: Client): Promise<void> {
   await updateBackendClient(user, client);
   if (_cache?.uid === user.uid) {
     _cache.data = _cache.data.map(c => (c.id === client.id ? client : c));
   }
 }
 
-export async function deleteClientViaApi(user: User, id: string): Promise<void> {
+export async function deleteClientViaApi(user: AuthUserLike, id: string): Promise<void> {
   await deleteBackendClient(user, id);
   if (_cache?.uid === user.uid) {
     _cache.data = _cache.data.filter(c => c.id !== id);

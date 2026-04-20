@@ -347,6 +347,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             <div className="relative">
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
+                data-testid="login-email"
                 type="email"
                 placeholder="Correo electrónico"
                 value={email}
@@ -362,6 +363,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             <div className="relative">
               <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
+                data-testid="login-password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Contraseña"
                 value={password}
@@ -409,6 +411,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             </AnimatePresence>
 
             <motion.button
+              data-testid="login-submit"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               disabled={isLoading}
@@ -436,6 +439,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
           </div>
 
           <motion.button
+            data-testid="login-google"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleGoogleLogin}

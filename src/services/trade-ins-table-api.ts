@@ -1,11 +1,11 @@
-import type { User } from 'firebase/auth';
 import type { TableFilterParams, TablePageParams } from '../components/table-engine';
 import type { Client, TradeIn } from '../types';
+import type { AuthUserLike } from '../types/auth-user';
 import { fetchBackendTradeIns } from './trade-ins-api';
 
 let cache: { uid: string; data: TradeIn[] } | null = null;
 
-async function getAllTradeIns(user: User): Promise<TradeIn[]> {
+async function getAllTradeIns(user: AuthUserLike): Promise<TradeIn[]> {
   if (cache?.uid === user.uid) {
     return cache.data;
   }
@@ -93,7 +93,7 @@ function applyFiltersAndSort(
 }
 
 export async function fetchTradeInsPage(
-  user: User,
+  user: AuthUserLike,
   params: TablePageParams,
   clients?: Client[],
 ): Promise<{ items: TradeIn[]; total: number }> {
@@ -113,7 +113,7 @@ export function updateTradeInCategoryInCache(ids: string[], categoryId: string |
 }
 
 export async function fetchTradeInFilteredIds(
-  user: User,
+  user: AuthUserLike,
   params: TableFilterParams,
   clients?: Client[],
 ): Promise<string[]> {

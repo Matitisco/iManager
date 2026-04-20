@@ -1,5 +1,5 @@
-import type { User } from 'firebase/auth';
 import type { Sale } from '../types';
+import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -10,7 +10,7 @@ type BackendSalesResponse = {
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -34,7 +34,7 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchBackendSales(user: User): Promise<Sale[]> {
+export async function fetchBackendSales(user: AuthUserLike): Promise<Sale[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/sales`, {
     headers: await getAuthHeaders(user),
@@ -49,7 +49,7 @@ export async function fetchBackendSales(user: User): Promise<Sale[]> {
   return data.sales ?? [];
 }
 
-export async function createBackendSale(user: User, sale: Omit<Sale, 'id'>): Promise<Sale> {
+export async function createBackendSale(user: AuthUserLike, sale: Omit<Sale, 'id'>): Promise<Sale> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/sales`, {
     method: 'POST',
@@ -70,7 +70,7 @@ export async function createBackendSale(user: User, sale: Omit<Sale, 'id'>): Pro
   return data.sale;
 }
 
-export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
+export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise<Sale> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/sales/${sale.id}`, {
     method: 'PATCH',
@@ -100,7 +100,7 @@ export async function updateBackendSale(user: User, sale: Sale): Promise<Sale> {
   return data.sale;
 }
 
-export async function deleteBackendSale(user: User, saleId: string): Promise<void> {
+export async function deleteBackendSale(user: AuthUserLike, saleId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/sales/${saleId}`, {
     method: 'DELETE',
@@ -117,7 +117,7 @@ export async function deleteBackendSale(user: User, saleId: string): Promise<voi
 
 export type Category = { id: string; name: string };
 
-export async function fetchSalesCategoriesApi(user: User): Promise<Category[]> {
+export async function fetchSalesCategoriesApi(user: AuthUserLike): Promise<Category[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories`, {
     headers: await getAuthHeaders(user),
@@ -127,7 +127,7 @@ export async function fetchSalesCategoriesApi(user: User): Promise<Category[]> {
   return data.categories ?? [];
 }
 
-export async function createSaleCategoryApi(user: User, name: string): Promise<Category> {
+export async function createSaleCategoryApi(user: AuthUserLike, name: string): Promise<Category> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories`, {
     method: 'POST',
@@ -139,7 +139,7 @@ export async function createSaleCategoryApi(user: User, name: string): Promise<C
   return data.category;
 }
 
-export async function renameSaleCategoryApi(user: User, id: string, name: string): Promise<Category> {
+export async function renameSaleCategoryApi(user: AuthUserLike, id: string, name: string): Promise<Category> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories/${id}`, {
     method: 'PATCH',
@@ -151,7 +151,7 @@ export async function renameSaleCategoryApi(user: User, id: string, name: string
   return data.category;
 }
 
-export async function deleteSaleCategoryApi(user: User, id: string): Promise<void> {
+export async function deleteSaleCategoryApi(user: AuthUserLike, id: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories/${id}`, {
     method: 'DELETE',
@@ -160,7 +160,7 @@ export async function deleteSaleCategoryApi(user: User, id: string): Promise<voi
   if (!response.ok) throw new Error(`Error eliminando categoría`);
 }
 
-export async function reorderSalesCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+export async function reorderSalesCategoriesApi(user: AuthUserLike, categoryIds: string[]): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories/reorder`, {
     method: 'PATCH',
@@ -170,7 +170,7 @@ export async function reorderSalesCategoriesApi(user: User, categoryIds: string[
   if (!response.ok) throw new Error(`Error reordenando categorías`);
 }
 
-export async function bulkMoveSalesCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+export async function bulkMoveSalesCategoryApi(user: AuthUserLike, itemIds: string[], categoryId: string | null): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories/bulk-move`, {
     method: 'PATCH',

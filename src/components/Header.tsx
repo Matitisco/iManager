@@ -126,6 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3 md:gap-6 ml-4">
         {onNewAction && (
           <motion.button 
+            data-testid="header-new-action"
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.98 }}
             onClick={onNewAction}

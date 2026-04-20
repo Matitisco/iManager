@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Store, User, Shield, CreditCard, Save, Check, Key, Sparkles, Users, UserPlus, Trash2, Copy, ChevronDown, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'motion/react';
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import type { StoreUpdateInput } from '../services/settings-api';
 import { listMembers, updateMemberRole, removeMember, type TeamMember, type MemberRole } from '../services/members-api';
@@ -702,6 +702,9 @@ function PreviewBanner() {
 
 function SecurityTab() {
   const { user } = useAppContext();
+  const isFirebaseUser = (value: typeof user): value is FirebaseUser => {
+    return !!value && typeof (value as FirebaseUser).reload === 'function';
+  };
 
   const isEmailUser = user?.providerData.some(p => p.providerId === 'password') ?? false;
 
@@ -714,7 +717,7 @@ function SecurityTab() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !user.email) return;
+    if (!user || !user.email || !isFirebaseUser(user)) return;
     setError(null);
 
     if (newPassword.length < 6) {
@@ -728,9 +731,10 @@ function SecurityTab() {
 
     setLoading(true);
     try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
+      const firebaseUser = user;
+      const credential = EmailAuthProvider.credential(firebaseUser.email, currentPassword);
+      await reauthenticateWithCredential(firebaseUser, credential);
+      await updatePassword(firebaseUser, newPassword);
       setSaved(true);
       setCurrentPassword('');
       setNewPassword('');

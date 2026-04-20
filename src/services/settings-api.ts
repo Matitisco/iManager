@@ -1,9 +1,9 @@
-import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 import type { AppStoreSummary, AppUserSummary } from '../types/app-session';
+import type { AuthUserLike } from '../types/auth-user';
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
@@ -28,7 +28,7 @@ export interface StoreUpdateInput {
   timezone?: string;
 }
 
-export async function updateStoreApi(user: User, data: StoreUpdateInput): Promise<AppStoreSummary> {
+export async function updateStoreApi(user: AuthUserLike, data: StoreUpdateInput): Promise<AppStoreSummary> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/stores/current`, {
     method: 'PATCH',
@@ -45,7 +45,7 @@ export async function updateStoreApi(user: User, data: StoreUpdateInput): Promis
   return store;
 }
 
-export async function updateUserProfileApi(user: User, data: { displayName: string }): Promise<AppUserSummary> {
+export async function updateUserProfileApi(user: AuthUserLike, data: { displayName: string }): Promise<AppUserSummary> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/users/me`, {
     method: 'PATCH',

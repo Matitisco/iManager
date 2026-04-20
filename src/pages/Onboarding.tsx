@@ -209,6 +209,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
               </label>
               <input
                 id="storeName"
+                data-testid="onboarding-store-name"
                 type="text"
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
@@ -224,6 +225,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
               </div>
             )}
             <button
+              data-testid="onboarding-submit"
               type="submit"
               disabled={isSubmitting || !trimToString(storeName)}
               className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -265,6 +267,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
             </label>
             <input
               id="storeName"
+              data-testid="onboarding-store-name"
               type="text"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
@@ -276,6 +279,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
           </div>
 
           <button
+            data-testid="onboarding-submit"
             type="submit"
             disabled={isSubmitting || !trimToString(storeName)}
             className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"

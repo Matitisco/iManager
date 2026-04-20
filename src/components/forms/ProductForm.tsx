@@ -71,14 +71,14 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       )}
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">IMEI</label>
-        <input required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+        <label htmlFor="product-imei" className="text-xs font-bold text-gray-700">IMEI</label>
+        <input id="product-imei" required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
           value={formData.imei} onChange={e => setFormData({...formData, imei: e.target.value})} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Modelo</label>
-          <input required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          <label htmlFor="product-model" className="text-xs font-bold text-gray-700">Modelo</label>
+          <input id="product-model" required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.model} onChange={e => setFormData({...formData, model: e.target.value})} />
         </div>
         <div className="space-y-1">
@@ -95,8 +95,8 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Color</label>
-          <input required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          <label htmlFor="product-color" className="text-xs font-bold text-gray-700">Color</label>
+          <input id="product-color" required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} />
         </div>
         <div className="space-y-1">
@@ -129,13 +129,13 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Costo ($)</label>
-          <input required type="number" min="0" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          <label htmlFor="product-cost" className="text-xs font-bold text-gray-700">Costo ($)</label>
+          <input id="product-cost" required type="number" min="0" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.cost} onChange={e => setFormData({...formData, cost: Number(e.target.value)})} />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Precio Venta ($)</label>
-          <input required type="number" min="0" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+          <label htmlFor="product-price" className="text-xs font-bold text-gray-700">Precio Venta ($)</label>
+          <input id="product-price" required type="number" min="0" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} />
         </div>
       </div>
@@ -144,8 +144,9 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
           {inventoryCustomColumns.map(col => (
             <div key={col.id} className="space-y-1">
-              <label className="text-xs font-bold text-gray-700">{col.label}</label>
+              <label htmlFor={`product-custom-${col.id}`} className="text-xs font-bold text-gray-700">{col.label}</label>
               <input
+                id={`product-custom-${col.id}`}
                 type={col.type === 'number' ? 'number' : 'text'}
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
                 value={formData.customFields[col.id] || ''}

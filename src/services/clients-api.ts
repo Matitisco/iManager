@@ -1,4 +1,4 @@
-import type { User } from 'firebase/auth';
+import type { AuthUserLike } from '../types/auth-user';
 import type { Client } from '../types';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -10,7 +10,7 @@ type BackendClientResponse = {
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -34,7 +34,7 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchBackendClients(user: User): Promise<Client[]> {
+export async function fetchBackendClients(user: AuthUserLike): Promise<Client[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients`, {
     headers: await getAuthHeaders(user),
@@ -49,7 +49,7 @@ export async function fetchBackendClients(user: User): Promise<Client[]> {
   return data.clients ?? [];
 }
 
-export async function createBackendClient(user: User, client: Omit<Client, 'id'>): Promise<Client> {
+export async function createBackendClient(user: AuthUserLike, client: Omit<Client, 'id'>): Promise<Client> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients`, {
     method: 'POST',
@@ -70,7 +70,7 @@ export async function createBackendClient(user: User, client: Omit<Client, 'id'>
   return data.client;
 }
 
-export async function updateBackendClient(user: User, client: Client): Promise<Client> {
+export async function updateBackendClient(user: AuthUserLike, client: Client): Promise<Client> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/${client.id}`, {
     method: 'PATCH',
@@ -91,7 +91,7 @@ export async function updateBackendClient(user: User, client: Client): Promise<C
   return data.client;
 }
 
-export async function deleteBackendClient(user: User, clientId: string): Promise<void> {
+export async function deleteBackendClient(user: AuthUserLike, clientId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}`, {
     method: 'DELETE',
@@ -108,7 +108,7 @@ export async function deleteBackendClient(user: User, clientId: string): Promise
 
 export type ClientCategoryApi = { id: string; name: string };
 
-export async function fetchClientCategoriesApi(user: User): Promise<ClientCategoryApi[]> {
+export async function fetchClientCategoriesApi(user: AuthUserLike): Promise<ClientCategoryApi[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories`, { headers: await getAuthHeaders(user) });
   if (!response.ok) throw new Error('No se pudieron cargar las categorías de clientes');
@@ -116,7 +116,7 @@ export async function fetchClientCategoriesApi(user: User): Promise<ClientCatego
   return data.categories ?? [];
 }
 
-export async function createClientCategoryApi(user: User, name: string): Promise<ClientCategoryApi> {
+export async function createClientCategoryApi(user: AuthUserLike, name: string): Promise<ClientCategoryApi> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories`, {
     method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -125,7 +125,7 @@ export async function createClientCategoryApi(user: User, name: string): Promise
   return (await response.json()).category;
 }
 
-export async function renameClientCategoryApi(user: User, id: string, name: string): Promise<ClientCategoryApi> {
+export async function renameClientCategoryApi(user: AuthUserLike, id: string, name: string): Promise<ClientCategoryApi> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/${id}`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -134,7 +134,7 @@ export async function renameClientCategoryApi(user: User, id: string, name: stri
   return (await response.json()).category;
 }
 
-export async function deleteClientCategoryApi(user: User, id: string): Promise<void> {
+export async function deleteClientCategoryApi(user: AuthUserLike, id: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/${id}`, {
     method: 'DELETE', headers: await getAuthHeaders(user),
@@ -142,7 +142,7 @@ export async function deleteClientCategoryApi(user: User, id: string): Promise<v
   if (!response.ok && response.status !== 204) throw new Error('Error eliminando categoría de cliente');
 }
 
-export async function reorderClientCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+export async function reorderClientCategoriesApi(user: AuthUserLike, categoryIds: string[]): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/reorder`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ categoryIds }),
@@ -150,7 +150,7 @@ export async function reorderClientCategoriesApi(user: User, categoryIds: string
   if (!response.ok && response.status !== 204) throw new Error('Error reordenando categorías de cliente');
 }
 
-export async function bulkMoveClientCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+export async function bulkMoveClientCategoryApi(user: AuthUserLike, itemIds: string[], categoryId: string | null): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/categories/bulk-move`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ itemIds, categoryId }),

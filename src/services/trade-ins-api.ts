@@ -1,5 +1,5 @@
-import type { User } from 'firebase/auth';
 import type { TradeIn } from '../types';
+import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -10,7 +10,7 @@ type BackendTradeInsResponse = {
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-async function getAuthHeaders(user: User) {
+async function getAuthHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
 
   return {
@@ -34,7 +34,7 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchBackendTradeIns(user: User): Promise<TradeIn[]> {
+export async function fetchBackendTradeIns(user: AuthUserLike): Promise<TradeIn[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins`, {
     headers: await getAuthHeaders(user),
@@ -49,7 +49,7 @@ export async function fetchBackendTradeIns(user: User): Promise<TradeIn[]> {
   return data.tradeIns ?? [];
 }
 
-export async function createBackendTradeIn(user: User, tradeIn: Omit<TradeIn, 'id'>): Promise<TradeIn> {
+export async function createBackendTradeIn(user: AuthUserLike, tradeIn: Omit<TradeIn, 'id'>): Promise<TradeIn> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins`, {
     method: 'POST',
@@ -70,7 +70,7 @@ export async function createBackendTradeIn(user: User, tradeIn: Omit<TradeIn, 'i
   return data.tradeIn;
 }
 
-export async function updateBackendTradeIn(user: User, tradeIn: TradeIn): Promise<TradeIn> {
+export async function updateBackendTradeIn(user: AuthUserLike, tradeIn: TradeIn): Promise<TradeIn> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/${tradeIn.id}`, {
     method: 'PATCH',
@@ -91,7 +91,7 @@ export async function updateBackendTradeIn(user: User, tradeIn: TradeIn): Promis
   return data.tradeIn;
 }
 
-export async function deleteBackendTradeIn(user: User, tradeInId: string): Promise<void> {
+export async function deleteBackendTradeIn(user: AuthUserLike, tradeInId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/${tradeInId}`, {
     method: 'DELETE',
@@ -108,7 +108,7 @@ export async function deleteBackendTradeIn(user: User, tradeInId: string): Promi
 
 export type TradeInCategoryApi = { id: string; name: string };
 
-export async function fetchTradeInCategoriesApi(user: User): Promise<TradeInCategoryApi[]> {
+export async function fetchTradeInCategoriesApi(user: AuthUserLike): Promise<TradeInCategoryApi[]> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories`, { headers: await getAuthHeaders(user) });
   if (!response.ok) throw new Error('No se pudieron cargar las categorías de canjes');
@@ -116,7 +116,7 @@ export async function fetchTradeInCategoriesApi(user: User): Promise<TradeInCate
   return data.categories ?? [];
 }
 
-export async function createTradeInCategoryApi(user: User, name: string): Promise<TradeInCategoryApi> {
+export async function createTradeInCategoryApi(user: AuthUserLike, name: string): Promise<TradeInCategoryApi> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories`, {
     method: 'POST', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -125,7 +125,7 @@ export async function createTradeInCategoryApi(user: User, name: string): Promis
   return (await response.json()).category;
 }
 
-export async function renameTradeInCategoryApi(user: User, id: string, name: string): Promise<TradeInCategoryApi> {
+export async function renameTradeInCategoryApi(user: AuthUserLike, id: string, name: string): Promise<TradeInCategoryApi> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/${id}`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ name }),
@@ -134,7 +134,7 @@ export async function renameTradeInCategoryApi(user: User, id: string, name: str
   return (await response.json()).category;
 }
 
-export async function deleteTradeInCategoryApi(user: User, id: string): Promise<void> {
+export async function deleteTradeInCategoryApi(user: AuthUserLike, id: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/${id}`, {
     method: 'DELETE', headers: await getAuthHeaders(user),
@@ -142,7 +142,7 @@ export async function deleteTradeInCategoryApi(user: User, id: string): Promise<
   if (!response.ok && response.status !== 204) throw new Error('Error eliminando categoría de canje');
 }
 
-export async function reorderTradeInCategoriesApi(user: User, categoryIds: string[]): Promise<void> {
+export async function reorderTradeInCategoriesApi(user: AuthUserLike, categoryIds: string[]): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/reorder`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ categoryIds }),
@@ -150,7 +150,7 @@ export async function reorderTradeInCategoriesApi(user: User, categoryIds: strin
   if (!response.ok && response.status !== 204) throw new Error('Error reordenando categorías de canje');
 }
 
-export async function bulkMoveTradeInCategoryApi(user: User, itemIds: string[], categoryId: string | null): Promise<void> {
+export async function bulkMoveTradeInCategoryApi(user: AuthUserLike, itemIds: string[], categoryId: string | null): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/trade-ins/categories/bulk-move`, {
     method: 'PATCH', headers: await getAuthHeaders(user), body: JSON.stringify({ itemIds, categoryId }),

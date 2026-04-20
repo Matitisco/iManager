@@ -1,6 +1,6 @@
-import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
+import type { AuthUserLike } from '../types/auth-user';
 
 export type MemberRole = 'OWNER' | 'MANAGER' | 'STAFF';
 
@@ -24,7 +24,7 @@ function getBaseUrl(): string {
   return url.replace(/\/+$/, '');
 }
 
-async function authHeaders(user: User) {
+async function authHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
@@ -33,7 +33,7 @@ async function authHeaders(user: User) {
   };
 }
 
-export async function listMembers(user: User, storeId: string): Promise<TeamMember[]> {
+export async function listMembers(user: AuthUserLike, storeId: string): Promise<TeamMember[]> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members`, {
     headers: await authHeaders(user),
   });
@@ -43,7 +43,7 @@ export async function listMembers(user: User, storeId: string): Promise<TeamMemb
 }
 
 export async function updateMemberRole(
-  user: User,
+  user: AuthUserLike,
   storeId: string,
   memberId: string,
   role: MemberRole
@@ -61,7 +61,7 @@ export async function updateMemberRole(
   return data.member;
 }
 
-export async function removeMember(user: User, storeId: string, memberId: string): Promise<void> {
+export async function removeMember(user: AuthUserLike, storeId: string, memberId: string): Promise<void> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
     method: 'DELETE',
     headers: await authHeaders(user),

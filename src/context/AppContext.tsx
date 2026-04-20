@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
-import { auth, db, googleProvider } from '../firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User } from 'firebase/auth';
+import { db } from '../firebase';
 import { collection, doc, onSnapshot, query, setDoc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
@@ -12,6 +11,8 @@ import { completeBackendOnboarding } from '../services/onboarding-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
+import type { AuthUserLike } from '../types/auth-user';
+import { getAuthAdapter, isFirebaseBackedAuth } from '../services/auth-adapter';
 
 interface AppState {
   inventory: Product[];
@@ -58,7 +59,7 @@ interface AppState {
   deleteClientCategory: (id: string) => Promise<void>;
   bulkMoveClientCategory: (ids: string[], categoryId: string | null) => Promise<void>;
   reorderClientCategories: (ids: string[]) => Promise<void>;
-  user: User | null;
+  user: AuthUserLike | null;
   loading: boolean;
   appSession: AppSession | null;
   backendStatus: BackendConnectionStatus;
@@ -173,15 +174,16 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const currentUser = getAuthAdapter().getCurrentUser();
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
+      userId: currentUser?.uid,
+      email: currentUser?.email,
+      emailVerified: currentUser?.emailVerified,
+      isAnonymous: currentUser?.isAnonymous,
+      tenantId: currentUser?.tenantId,
+      providerInfo: currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -196,6 +198,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const authAdapter = getAuthAdapter();
+  const firebaseBackedAuth = isFirebaseBackedAuth();
   const [inventory, setInventory] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
@@ -205,7 +209,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUserLike | null>(null);
   const [loading, setLoading] = useState(true);
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
@@ -215,7 +219,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [salesSource, setSalesSource] = useState<'firestore' | 'backend'>('firestore');
   const [tradeInsSource, setTradeInsSource] = useState<'firestore' | 'backend'>('firestore');
 
-  const refreshBackendSession = async (currentUser: User) => {
+  const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
     setBackendStatus(status);
     setAppSession(session);
@@ -224,12 +228,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
       setUser(currentUser);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [authAdapter]);
 
   useEffect(() => {
     if (!user) {
@@ -288,6 +292,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const localCustomColumns = readLocalCustomColumns(user.uid);
     setCustomColumns(localCustomColumns);
 
+    if (!firebaseBackedAuth) {
+      return () => {
+        cancelled = true;
+        if (retryTimeout) {
+          window.clearTimeout(retryTimeout);
+        }
+      };
+    }
+
     const unsubTradeIns = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
       setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
@@ -309,7 +322,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       unsubTradeIns();
       unsubCustomColumns();
     };
-  }, [user]);
+  }, [firebaseBackedAuth, user]);
 
   const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
@@ -340,15 +353,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setInventorySource('backend');
       } catch (error) {
         if (cancelled) return;
-        console.warn('Backend inventory unavailable, falling back to Firestore.', error);
-        startFirestoreFallback();
+        if (firebaseBackedAuth) {
+          console.warn('Backend inventory unavailable, falling back to Firestore.', error);
+          startFirestoreFallback();
+          return;
+        }
+        setInventorySource('backend');
       }
     };
 
     if (backendInventoryEnabled) {
       void loadBackendInventory();
-    } else {
+    } else if (firebaseBackedAuth) {
       startFirestoreFallback();
+    } else {
+      setInventorySource('backend');
     }
 
     return () => {
@@ -357,7 +376,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unsubscribeFirestore();
       }
     };
-  }, [backendInventoryEnabled, user]);
+  }, [backendInventoryEnabled, firebaseBackedAuth, user]);
 
   useEffect(() => {
     if (!user) {
@@ -386,15 +405,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setClientsSource('backend');
       } catch (error) {
         if (cancelled) return;
-        console.warn('Backend clients unavailable, falling back to Firestore.', error);
-        startFirestoreFallback();
+        if (firebaseBackedAuth) {
+          console.warn('Backend clients unavailable, falling back to Firestore.', error);
+          startFirestoreFallback();
+          return;
+        }
+        setClientsSource('backend');
       }
     };
 
     if (backendClientsEnabled) {
       void loadBackendClients();
-    } else {
+    } else if (firebaseBackedAuth) {
       startFirestoreFallback();
+    } else {
+      setClientsSource('backend');
     }
 
     return () => {
@@ -403,7 +428,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unsubscribeFirestore();
       }
     };
-  }, [backendClientsEnabled, user]);
+  }, [backendClientsEnabled, firebaseBackedAuth, user]);
 
   useEffect(() => {
     if (!user) {
@@ -426,21 +451,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSalesSource('backend');
       } catch (error) {
         if (cancelled) return;
-        console.warn('Backend sales unavailable, falling back to Firestore.', error);
-        setSalesSource('firestore');
-        unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
-          setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-        }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
+        if (firebaseBackedAuth) {
+          console.warn('Backend sales unavailable, falling back to Firestore.', error);
+          setSalesSource('firestore');
+          unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
+            setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
+          return;
+        }
+        setSalesSource('backend');
       }
     };
 
     if (backendSalesEnabled) {
       void loadBackendSalesAndCategories();
-    } else {
+    } else if (firebaseBackedAuth) {
       setSalesSource('firestore');
       unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
         setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
+    } else {
+      setSalesSource('backend');
     }
 
     return () => {
@@ -449,7 +480,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unsubscribeFirestore();
       }
     };
-  }, [backendSalesEnabled, user]);
+  }, [backendSalesEnabled, firebaseBackedAuth, user]);
 
   useEffect(() => {
     if (!user) {
@@ -478,15 +509,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setTradeInsSource('backend');
       } catch (error) {
         if (cancelled) return;
-        console.warn('Backend trade-ins unavailable, falling back to Firestore.', error);
-        startFirestoreFallback();
+        if (firebaseBackedAuth) {
+          console.warn('Backend trade-ins unavailable, falling back to Firestore.', error);
+          startFirestoreFallback();
+          return;
+        }
+        setTradeInsSource('backend');
       }
     };
 
     if (backendTradeInsEnabled) {
       void loadBackendTradeIns();
-    } else {
+    } else if (firebaseBackedAuth) {
       startFirestoreFallback();
+    } else {
+      setTradeInsSource('backend');
     }
 
     return () => {
@@ -495,11 +532,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unsubscribeFirestore();
       }
     };
-  }, [backendTradeInsEnabled, user]);
+  }, [backendTradeInsEnabled, firebaseBackedAuth, user]);
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      await authAdapter.loginWithGoogle();
     } catch (error) {
       console.error("Error signing in", error);
       throw error;
@@ -508,7 +545,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const loginWithEmail = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await authAdapter.loginWithEmail(email, password);
     } catch (error) {
       console.error("Error signing in with email", error);
       throw error;
@@ -517,7 +554,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const registerWithEmail = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      await authAdapter.registerWithEmail(email, password);
     } catch (error) {
       console.error("Error registering with email", error);
       throw error;
@@ -525,7 +562,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const logout = async () => {
-    await signOut(auth);
+    await authAdapter.logout();
   };
 
   const updateStore = async (data: StoreUpdateInput) => {
@@ -1279,6 +1316,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const id = generateId('COL');
     const createdColumn: CustomColumn = { id, ...columnData };
+    if (!firebaseBackedAuth) {
+      const nextColumns = (
+        customColumns.some((column) => column.id === id)
+          ? customColumns
+          : [...customColumns, createdColumn]
+      );
+      writeLocalCustomColumns(user.uid, nextColumns);
+      setCustomColumns(nextColumns);
+      return id;
+    }
+
     try {
       await setDoc(doc(db, 'customColumns', id), { ...columnData, authorUid: user.uid });
       setCustomColumns(prev => (
@@ -1302,6 +1350,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const removeCustomColumn = async (id: string) => {
     if (!user) return;
+    if (!firebaseBackedAuth) {
+      setCustomColumns(prev => {
+        const next = prev.filter(column => column.id !== id);
+        writeLocalCustomColumns(user.uid, next);
+        return next;
+      });
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, 'customColumns', id));
       setCustomColumns(prev => {

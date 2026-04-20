@@ -55,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
           return (
             <motion.button
               key={item.id}
+              data-testid={`sidebar-tab-${item.id}`}
               onClick={() => setActiveTab(item.id)}
               whileHover={{ x: 4 }}
               whileTap={{ scale: 0.98 }}

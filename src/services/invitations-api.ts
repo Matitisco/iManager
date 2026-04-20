@@ -1,6 +1,6 @@
-import type { User } from 'firebase/auth';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
+import type { AuthUserLike } from '../types/auth-user';
 
 export type InvitationRole = 'MANAGER' | 'STAFF';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
@@ -45,7 +45,7 @@ function getBaseUrl(): string {
   return url.replace(/\/+$/, '');
 }
 
-async function authHeaders(user: User) {
+async function authHeaders(user: AuthUserLike) {
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
@@ -58,11 +58,31 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof error.message === 'string' &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+
   return DEFAULT_PREVIEW_ERROR_MESSAGE;
 }
 
 function shouldRetryPreview(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError');
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || error.name === 'TypeError';
+  }
+
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error.name === 'AbortError' || error.name === 'TypeError')
+  );
 }
 
 function wait(ms: number) {
@@ -72,7 +92,7 @@ function wait(ms: number) {
 }
 
 export async function createInvitation(
-  user: User,
+  user: AuthUserLike,
   email: string | undefined,
   role: InvitationRole
 ): Promise<CreatedInvitation> {
@@ -88,7 +108,7 @@ export async function createInvitation(
   return res.json();
 }
 
-export async function listInvitations(user: User): Promise<Invitation[]> {
+export async function listInvitations(user: AuthUserLike): Promise<Invitation[]> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations`, {
     headers: await authHeaders(user),
   });
@@ -97,7 +117,7 @@ export async function listInvitations(user: User): Promise<Invitation[]> {
   return data.invitations;
 }
 
-export async function revokeInvitation(user: User, invitationId: string): Promise<void> {
+export async function revokeInvitation(user: AuthUserLike, invitationId: string): Promise<void> {
   const token = await user.getIdToken();
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/${invitationId}`, {
     method: 'DELETE',
@@ -185,7 +205,7 @@ export async function resolveInvitationPreview(
   };
 }
 
-export async function acceptInvitation(user: User, token: string) {
+export async function acceptInvitation(user: AuthUserLike, token: string) {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/accept`, {
     method: 'POST',
     headers: await authHeaders(user),

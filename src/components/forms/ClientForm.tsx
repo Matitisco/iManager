@@ -57,8 +57,9 @@ export const ClientForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       )}
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">DNI / ID</label>
+        <label htmlFor="client-dni" className="text-xs font-bold text-gray-700">DNI / ID</label>
         <input
+          id="client-dni"
           required
           type="text"
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -68,8 +69,9 @@ export const ClientForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">Nombre Completo</label>
+        <label htmlFor="client-name" className="text-xs font-bold text-gray-700">Nombre Completo</label>
         <input
+          id="client-name"
           required
           type="text"
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -79,8 +81,9 @@ export const ClientForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">Email</label>
+        <label htmlFor="client-email" className="text-xs font-bold text-gray-700">Email</label>
         <input
+          id="client-email"
           type="email"
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
           value={formData.email}

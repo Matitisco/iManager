@@ -7,32 +7,64 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: imanager_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d imanager_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
+      ENABLE_TEST_AUTH_BYPASS: "true"
+      NODE_ENV: test
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install frontend deps
         run: npm ci
 
-      - name: Lint frontend
-        run: npm run lint
-
-      - name: Test frontend
-        run: npm test
-
       - name: Install backend deps
         run: npm ci
         working-directory: backend
+
+      - name: Prepare test database
+        run: npx prisma db push --skip-generate
+        working-directory: backend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint frontend
+        run: npm run lint
 
       - name: Lint backend
         run: npm run lint
         working-directory: backend
 
-      - name: Test backend
-        run: npm test
+      - name: Test frontend
+        run: npm run test:frontend
+
+      - name: Test backend unit
+        run: npm run test:unit
         working-directory: backend
+
+      - name: Test backend integration
+        run: npm run test:integration
+        working-directory: backend
+
+      - name: Test E2E
+        run: npm run test:e2e

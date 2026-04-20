@@ -53,6 +53,7 @@ export function BulkActionsBar<TRow extends WithId>({
             </div>
           )}
           <button onClick={onBulkDelete}
+            data-testid="table-bulk-delete"
             className="px-3 py-1.5 text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-xl transition-colors flex items-center gap-1.5">
             <Trash2 size={14} /> Eliminar
           </button>

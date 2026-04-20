@@ -126,8 +126,9 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       {clientMode === 'existing' ? (
         <div className="space-y-1">
-          <label className="text-xs font-bold text-gray-700">Cliente existente</label>
+          <label htmlFor="sale-client-existing" className="text-xs font-bold text-gray-700">Cliente existente</label>
           <select
+            id="sale-client-existing"
             required
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.clientId}
@@ -147,8 +148,9 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700">DNI / ID</label>
+            <label htmlFor="sale-client-dni" className="text-xs font-bold text-gray-700">DNI / ID</label>
             <input
+              id="sale-client-dni"
               required
               type="text"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -157,8 +159,9 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700">Nombre Completo</label>
+            <label htmlFor="sale-client-name" className="text-xs font-bold text-gray-700">Nombre Completo</label>
             <input
+              id="sale-client-name"
               required
               type="text"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -188,8 +191,9 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       )}
 
       <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-700">Producto a Vender</label>
+        <label htmlFor="sale-product" className="text-xs font-bold text-gray-700">Producto a Vender</label>
         <select
+          id="sale-product"
           required
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
           value={formData.productId}

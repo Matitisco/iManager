@@ -1,4 +1,4 @@
-import type { User } from 'firebase/auth';
+import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -11,7 +11,7 @@ export interface SaleImportResult {
 const trimSlash = (v: string) => v.replace(/\/+$/, '');
 
 export async function importBackendSales(
-  user: User,
+  user: AuthUserLike,
   rows: Record<string, string>[]
 ): Promise<SaleImportResult> {
   const baseUrl = getBackendBaseUrl();
