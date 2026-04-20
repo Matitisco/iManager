@@ -26,20 +26,14 @@ export function buildApp() {
     .filter(Boolean) ?? [];
 
   app.register(cors, {
-    origin: (origin, callback) => {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error("Origin not allowed"), false);
-    },
-    credentials: false,
+    origin: allowedOrigins.length > 0
+      ? (origin, callback) => {
+          if (!origin) { callback(null, true); return; }
+          if (allowedOrigins.includes(origin)) { callback(null, true); return; }
+          callback(new Error("Origin not allowed"), false);
+        }
+      : true,
+    credentials: true,
   });
 
   app.register(sensible);
