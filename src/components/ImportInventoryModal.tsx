@@ -1,9 +1,9 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { useAppContext } from '../context/AppContext';
 import { importBackendInventoryItems, type ImportRow, type ImportResult } from '../services/inventory-import-api';
+import { parseWorkbook } from '../utils/parse-workbook';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,31 +30,6 @@ const INVENTORY_FIELDS: FieldDef[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Parse workbook — returns sheet names and a getter to read any sheet */
-function parseWorkbook(file: File): Promise<{ sheetNames: string[]; getSheet: (name: string) => string[][] }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target!.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        resolve({
-          sheetNames: wb.SheetNames,
-          getSheet: (name: string) => {
-            const ws = wb.Sheets[name];
-            const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
-            return raw.map(row => row.map(cell => String(cell ?? '').trim()));
-          },
-        });
-      } catch {
-        reject(new Error('No se pudo leer el archivo'));
-      }
-    };
-    reader.onerror = () => reject(new Error('Error al leer el archivo'));
-    reader.readAsArrayBuffer(file);
-  });
-}
 
 /** Find the most likely header row index: first row with ≥2 non-empty, non-numeric cells */
 function autoDetectHeaderRow(rawRows: string[][]): number {
@@ -242,8 +217,8 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   const handleFile = async (file: File) => {
     setFileError(null);
     const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['csv', 'xlsx', 'xls'].includes(ext ?? '')) {
-      setFileError('Formato no soportado. Usá .csv, .xlsx o .xls');
+    if (!['csv', 'xlsx'].includes(ext ?? '')) {
+      setFileError('Formato no soportado. Usá .csv o .xlsx');
       return;
     }
     try {
@@ -336,7 +311,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   // ── Subtitle per step ───────────────────────────────────────────────────────
 
   const subtitle = {
-    'upload': 'Subí un archivo CSV, XLSX o XLS',
+    'upload': 'Subí un archivo CSV o XLSX',
     'sheet-select': `${sheetNames.length} hojas encontradas — elegí cuál importar`,
     'header-select': 'Indicá cuál fila tiene los nombres de columna',
     'mapping': `${fileRows.length} filas detectadas — mapeá las columnas`,
@@ -381,13 +356,13 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                 <Upload size={32} className="text-gray-400" />
                 <div className="text-center">
                   <p className="font-medium text-gray-700">Arrastrá un archivo o hacé click para elegir</p>
-                  <p className="text-sm text-gray-400 mt-1">.csv, .xlsx, .xls — máx. 2000 filas</p>
+                  <p className="text-sm text-gray-400 mt-1">.csv, .xlsx — máx. 2000 filas</p>
                 </div>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xlsx,.xls"
+                accept=".csv,.xlsx"
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
               />

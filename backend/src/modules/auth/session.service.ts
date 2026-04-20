@@ -9,7 +9,6 @@ export interface AppSessionResponse {
     email: string | null;
     displayName: string | null;
     avatarUrl: string | null;
-    twoFactorEnabled: boolean;
   };
   store: {
     id: string;
@@ -35,7 +34,6 @@ function serializeSessionUser(user: Awaited<ReturnType<typeof findOrCreateUserFr
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    twoFactorEnabled: user.twoFactorEnabled,
   };
 }
 

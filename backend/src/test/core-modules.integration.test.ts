@@ -99,6 +99,40 @@ describe("core module integrations", () => {
     expect(categoriesResponse.json().categories).toHaveLength(1);
   });
 
+  it("rejects assigning a client category from another store", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const foreignContext = await seedStoreContext({
+      firebaseUid: "foreign-owner-clients",
+      email: "foreign-clients@imanager.test",
+      displayName: "Foreign Clients Owner",
+    });
+    const foreignCategory = await prisma.clientCategory.create({
+      data: { storeId: foreignContext.store!.id, name: "Otra tienda", sortOrder: 0 },
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: context.user.firebaseUid,
+        email: context.user.email ?? undefined,
+        name: context.user.displayName ?? undefined,
+      }),
+    };
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/clients",
+      headers,
+      payload: {
+        dni: "99900111",
+        name: "Cliente inseguro",
+        categoryId: foreignCategory.id,
+      },
+    });
+    expect(createResponse.statusCode).toBe(404);
+    expect(createResponse.json()).toEqual({ error: "Category not found" });
+  });
+
   it("covers inventory CRUD, paging, filtered ids and category movement", async () => {
     const app = getApp();
     const context = await seedStoreContext();
@@ -205,6 +239,48 @@ describe("core module integrations", () => {
       }),
     });
     expect(deleteResponse.statusCode).toBe(204);
+  });
+
+  it("rejects assigning an inventory category from another store", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const foreignContext = await seedStoreContext({
+      firebaseUid: "foreign-owner-inventory",
+      email: "foreign-inventory@imanager.test",
+      displayName: "Foreign Inventory Owner",
+    });
+    const foreignCategory = await prisma.inventoryCategory.create({
+      data: { storeId: foreignContext.store!.id, name: "Otra tienda", sortOrder: 0 },
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: context.user.firebaseUid,
+        email: context.user.email ?? undefined,
+        name: context.user.displayName ?? undefined,
+      }),
+    };
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/inventory",
+      headers,
+      payload: {
+        imei: "IMEI-FOREIGN-CATEGORY",
+        model: "Galaxy S25",
+        capacity: "512GB",
+        color: "Blue",
+        condition: "NUEVO",
+        grade: "A+",
+        batteryHealth: "100%",
+        cost: 1000,
+        price: 1500,
+        status: "DISPONIBLE",
+        categoryId: foreignCategory.id,
+      },
+    });
+    expect(createResponse.statusCode).toBe(404);
+    expect(createResponse.json()).toEqual({ error: "Category not found" });
   });
 
   it("creates, updates and deletes sales while mutating stock, client stats and reports", async () => {
@@ -317,6 +393,45 @@ describe("core module integrations", () => {
     expect(restoredClient.totalSpent.toNumber()).toBe(0);
   });
 
+  it("rejects assigning a sales category from another store", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const foreignContext = await seedStoreContext({
+      firebaseUid: "foreign-owner-sales",
+      email: "foreign-sales@imanager.test",
+      displayName: "Foreign Sales Owner",
+    });
+    const foreignCategory = await prisma.saleCategory.create({
+      data: { storeId: foreignContext.store!.id, name: "Otra tienda", sortOrder: 0 },
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: context.user.firebaseUid,
+        email: context.user.email ?? undefined,
+        name: context.user.displayName ?? undefined,
+      }),
+    };
+
+    const saleResponse = await app.inject({
+      method: "POST",
+      url: "/api/sales",
+      headers,
+      payload: {
+        date: "19 abr 2026",
+        clientId: fixture.client.id,
+        productId: fixture.inventoryItem.id,
+        amount: 1200,
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+        categoryId: foreignCategory.id,
+      },
+    });
+    expect(saleResponse.statusCode).toBe(404);
+    expect(saleResponse.json()).toEqual({ error: "Category not found" });
+  });
+
   it("handles trade-in CRUD and category endpoints against persisted records", async () => {
     const app = getApp();
     const context = await seedStoreContext();
@@ -404,5 +519,46 @@ describe("core module integrations", () => {
       }),
     });
     expect(deleteResponse.statusCode).toBe(204);
+  });
+
+  it("rejects assigning a trade-in category from another store", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const foreignContext = await seedStoreContext({
+      firebaseUid: "foreign-owner-tradeins",
+      email: "foreign-tradeins@imanager.test",
+      displayName: "Foreign TradeIn Owner",
+    });
+    const foreignCategory = await prisma.tradeInCategory.create({
+      data: { storeId: foreignContext.store!.id, name: "Otra tienda", sortOrder: 0 },
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: context.user.firebaseUid,
+        email: context.user.email ?? undefined,
+        name: context.user.displayName ?? undefined,
+      }),
+    };
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/trade-ins",
+      headers,
+      payload: {
+        date: "19 abr 2026",
+        clientId: fixture.client.id,
+        deviceReceived: "Moto Edge",
+        deviceReceivedImei: "TRADE-FOREIGN",
+        takeValue: 400,
+        deviceGiven: "iPhone 14",
+        differencePaid: 600,
+        status: "PENDIENTE",
+        categoryId: foreignCategory.id,
+      },
+    });
+    expect(createResponse.statusCode).toBe(404);
+    expect(createResponse.json()).toEqual({ error: "Category not found" });
   });
 });

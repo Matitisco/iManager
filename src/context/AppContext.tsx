@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
-import { db } from '../firebase';
-import { collection, doc, onSnapshot, query, setDoc, deleteDoc, updateDoc, where } from 'firebase/firestore';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
@@ -12,7 +10,7 @@ import { acceptInvitation as acceptInvitationApi } from '../services/invitations
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
-import { getAuthAdapter, isFirebaseBackedAuth } from '../services/auth-adapter';
+import { getAuthAdapter } from '../services/auth-adapter';
 
 interface AppState {
   inventory: Product[];
@@ -122,84 +120,10 @@ function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
   }
 }
 
-function getCustomColumnFingerprint(column: CustomColumn) {
-  return [
-    column.entity,
-    column.type,
-    column.label.trim().toLowerCase(),
-    (column.options ?? []).map((option) => option.trim().toLowerCase()).join('|'),
-  ].join('::');
-}
-
-function mergeCustomColumns(remote: CustomColumn[], local: CustomColumn[]) {
-  const merged = new Map<string, CustomColumn>();
-  const seenFingerprints = new Set<string>();
-
-  const addColumn = (column: CustomColumn) => {
-    const fingerprint = getCustomColumnFingerprint(column);
-    if (seenFingerprints.has(fingerprint)) {
-      return;
-    }
-
-    merged.set(column.id, column);
-    seenFingerprints.add(fingerprint);
-  };
-
-  remote.forEach(addColumn);
-  local.forEach((column) => {
-    if (!merged.has(column.id)) {
-      addColumn(column);
-    }
-  });
-
-  return Array.from(merged.values());
-}
-
 const AppContext = createContext<AppState | undefined>(undefined);
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: any;
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const currentUser = getAuthAdapter().getCurrentUser();
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: currentUser?.uid,
-      email: currentUser?.email,
-      emailVerified: currentUser?.emailVerified,
-      isAnonymous: currentUser?.isAnonymous,
-      tenantId: currentUser?.tenantId,
-      providerInfo: currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
-  const firebaseBackedAuth = isFirebaseBackedAuth();
   const [inventory, setInventory] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
@@ -214,10 +138,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
-  const [inventorySource, setInventorySource] = useState<'firestore' | 'backend'>('firestore');
-  const [clientsSource, setClientsSource] = useState<'firestore' | 'backend'>('firestore');
-  const [salesSource, setSalesSource] = useState<'firestore' | 'backend'>('firestore');
-  const [tradeInsSource, setTradeInsSource] = useState<'firestore' | 'backend'>('firestore');
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -248,10 +168,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setAppSession(null);
       setBackendStatus('checking');
       setBackendMessage(null);
-      setInventorySource('firestore');
-      setClientsSource('firestore');
-      setSalesSource('firestore');
-      setTradeInsSource('firestore');
       return;
     }
 
@@ -292,37 +208,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const localCustomColumns = readLocalCustomColumns(user.uid);
     setCustomColumns(localCustomColumns);
 
-    if (!firebaseBackedAuth) {
-      return () => {
-        cancelled = true;
-        if (retryTimeout) {
-          window.clearTimeout(retryTimeout);
-        }
-      };
-    }
-
-    const unsubTradeIns = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
-      setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
-
-    const customColumnsQuery = query(collection(db, 'customColumns'), where('authorUid', '==', user.uid));
-
-    const unsubCustomColumns = onSnapshot(customColumnsQuery, (snapshot) => {
-      const remoteColumns = snapshot.docs.map(snapshotDoc => normalizeCustomColumn(snapshotDoc.id, snapshotDoc.data()));
-      const mergedColumns = mergeCustomColumns(remoteColumns, readLocalCustomColumns(user.uid));
-      writeLocalCustomColumns(user.uid, mergedColumns);
-      setCustomColumns(mergedColumns);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'customColumns'));
-
     return () => {
       cancelled = true;
       if (retryTimeout) {
         window.clearTimeout(retryTimeout);
       }
-      unsubTradeIns();
-      unsubCustomColumns();
     };
-  }, [firebaseBackedAuth, user]);
+  }, [user]);
 
   const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
@@ -335,14 +227,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     let cancelled = false;
-    let unsubscribeFirestore: (() => void) | null = null;
-
-    const startFirestoreFallback = () => {
-      setInventorySource('firestore');
-      unsubscribeFirestore = onSnapshot(collection(db, 'inventory'), (snapshot) => {
-        setInventory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'inventory'));
-    };
 
     const loadBackendInventory = async () => {
       try {
@@ -350,33 +234,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (cancelled) return;
         setInventory(backendInventory);
         setInventoryCategories(cats);
-        setInventorySource('backend');
       } catch (error) {
         if (cancelled) return;
-        if (firebaseBackedAuth) {
-          console.warn('Backend inventory unavailable, falling back to Firestore.', error);
-          startFirestoreFallback();
-          return;
-        }
-        setInventorySource('backend');
+        console.error('Backend inventory load failed.', error);
       }
     };
 
     if (backendInventoryEnabled) {
       void loadBackendInventory();
-    } else if (firebaseBackedAuth) {
-      startFirestoreFallback();
-    } else {
-      setInventorySource('backend');
     }
 
     return () => {
       cancelled = true;
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-      }
     };
-  }, [backendInventoryEnabled, firebaseBackedAuth, user]);
+  }, [backendInventoryEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -384,14 +255,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     let cancelled = false;
-    let unsubscribeFirestore: (() => void) | null = null;
-
-    const startFirestoreFallback = () => {
-      setClientsSource('firestore');
-      unsubscribeFirestore = onSnapshot(collection(db, 'clients'), (snapshot) => {
-        setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
-    };
 
     const loadBackendClients = async () => {
       try {
@@ -402,33 +265,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (cancelled) return;
         setClients(backendClients);
         setClientCategories(fetchedClientCategories);
-        setClientsSource('backend');
       } catch (error) {
         if (cancelled) return;
-        if (firebaseBackedAuth) {
-          console.warn('Backend clients unavailable, falling back to Firestore.', error);
-          startFirestoreFallback();
-          return;
-        }
-        setClientsSource('backend');
+        console.error('Backend clients load failed.', error);
       }
     };
 
     if (backendClientsEnabled) {
       void loadBackendClients();
-    } else if (firebaseBackedAuth) {
-      startFirestoreFallback();
-    } else {
-      setClientsSource('backend');
     }
 
     return () => {
       cancelled = true;
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-      }
     };
-  }, [backendClientsEnabled, firebaseBackedAuth, user]);
+  }, [backendClientsEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -436,51 +286,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     let cancelled = false;
-    let unsubscribeFirestore: (() => void) | null = null;
 
-    // Note: Firestore doesn't have sales Categories, so we only fetch them from backend.
     const loadBackendSalesAndCategories = async () => {
       try {
         const [backendSales, fetchedSalesCategories] = await Promise.all([
           fetchBackendSales(user),
-          fetchSalesCategoriesApi(user).catch(() => []) // Gracefull fallback
+          fetchSalesCategoriesApi(user).catch(() => [])
         ]);
         if (cancelled) return;
         setSales(backendSales);
         setSalesCategories(fetchedSalesCategories);
-        setSalesSource('backend');
       } catch (error) {
         if (cancelled) return;
-        if (firebaseBackedAuth) {
-          console.warn('Backend sales unavailable, falling back to Firestore.', error);
-          setSalesSource('firestore');
-          unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
-            setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-          }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
-          return;
-        }
-        setSalesSource('backend');
+        console.error('Backend sales load failed.', error);
       }
     };
 
     if (backendSalesEnabled) {
       void loadBackendSalesAndCategories();
-    } else if (firebaseBackedAuth) {
-      setSalesSource('firestore');
-      unsubscribeFirestore = onSnapshot(collection(db, 'sales'), (snapshot) => {
-        setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'sales'));
-    } else {
-      setSalesSource('backend');
     }
 
     return () => {
       cancelled = true;
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-      }
     };
-  }, [backendSalesEnabled, firebaseBackedAuth, user]);
+  }, [backendSalesEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -488,14 +317,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     let cancelled = false;
-    let unsubscribeFirestore: (() => void) | null = null;
-
-    const startFirestoreFallback = () => {
-      setTradeInsSource('firestore');
-      unsubscribeFirestore = onSnapshot(collection(db, 'tradeIns'), (snapshot) => {
-        setTradeIns(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TradeIn)));
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'tradeIns'));
-    };
 
     const loadBackendTradeIns = async () => {
       try {
@@ -506,33 +327,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (cancelled) return;
         setTradeIns(backendTradeIns);
         setTradeInCategories(fetchedTradeInCategories);
-        setTradeInsSource('backend');
       } catch (error) {
         if (cancelled) return;
-        if (firebaseBackedAuth) {
-          console.warn('Backend trade-ins unavailable, falling back to Firestore.', error);
-          startFirestoreFallback();
-          return;
-        }
-        setTradeInsSource('backend');
+        console.error('Backend trade-ins load failed.', error);
       }
     };
 
     if (backendTradeInsEnabled) {
       void loadBackendTradeIns();
-    } else if (firebaseBackedAuth) {
-      startFirestoreFallback();
-    } else {
-      setTradeInsSource('backend');
     }
 
     return () => {
       cancelled = true;
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-      }
     };
-  }, [backendTradeInsEnabled, firebaseBackedAuth, user]);
+  }, [backendTradeInsEnabled, user]);
 
   const login = async () => {
     try {
@@ -601,344 +409,124 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addSale = async (saleData: Omit<Sale, 'id'>) => {
     if (!user) return;
-    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
-    try {
-      if (canUseBackendSales) {
-        const createdSale = await createBackendSale(user, saleData);
-        setSales(prev => [createdSale, ...prev]);
-        setInventory(prev => prev.map(product => (
-          product.id === createdSale.productId ? { ...product, status: 'VENDIDO' } : product
-        )));
-        setClients(prev => prev.map(client => {
-          if (client.id !== createdSale.clientId) {
-            return client;
-          }
-
-          return {
-            ...client,
-            totalSpent: (client.totalSpent || 0) + createdSale.amount,
-            lastPurchaseDate: createdSale.date,
-          };
-        }));
-        return;
-      }
-
-      const id = generateId('V');
-      const path = `sales/${id}`;
-      const createdSale = { id, ...saleData };
-      await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
-      setSales(prev => [createdSale, ...prev]);
-
-      if (saleData.productId) {
-        await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
-        setInventory(prev => prev.map(product => (
-          product.id === saleData.productId ? { ...product, status: 'VENDIDO' } : product
-        )));
-      }
-
-      if (saleData.clientId) {
-        const client = clients.find(c => c.id === saleData.clientId);
-        if (client) {
-          await updateDoc(doc(db, 'clients', saleData.clientId), {
-            totalSpent: (client.totalSpent || 0) + saleData.amount,
-            lastPurchaseDate: saleData.date
-          });
-          setClients(prev => prev.map(currentClient => (
-            currentClient.id === saleData.clientId
-              ? {
-                  ...currentClient,
-                  totalSpent: (currentClient.totalSpent || 0) + saleData.amount,
-                  lastPurchaseDate: saleData.date,
-                }
-              : currentClient
-          )));
-        }
-      }
-    } catch (error) {
-      if (canUseBackendSales) {
-        console.warn('Backend sale create failed, falling back to Firestore.', error);
-        setSalesSource('firestore');
-        const id = generateId('V');
-        const path = `sales/${id}`;
-        try {
-          const createdSale = { id, ...saleData };
-          await setDoc(doc(db, 'sales', id), { ...saleData, authorUid: user.uid });
-          setSales(prev => [createdSale, ...prev]);
-
-          if (saleData.productId) {
-            await updateDoc(doc(db, 'inventory', saleData.productId), { status: 'VENDIDO' });
-            setInventory(prev => prev.map(product => (
-              product.id === saleData.productId ? { ...product, status: 'VENDIDO' } : product
-            )));
-          }
-
-          if (saleData.clientId) {
-            const client = clients.find(c => c.id === saleData.clientId);
-            if (client) {
-              await updateDoc(doc(db, 'clients', saleData.clientId), {
-                totalSpent: (client.totalSpent || 0) + saleData.amount,
-                lastPurchaseDate: saleData.date
-              });
-              setClients(prev => prev.map(currentClient => (
-                currentClient.id === saleData.clientId
-                  ? {
-                      ...currentClient,
-                      totalSpent: (currentClient.totalSpent || 0) + saleData.amount,
-                      lastPurchaseDate: saleData.date,
-                    }
-                  : currentClient
-              )));
-            }
-          }
-
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.CREATE, path);
-          return;
-        }
-      }
-
-      const id = generateId('V');
-      const path = `sales/${id}`;
-      handleFirestoreError(error, OperationType.CREATE, path);
+    if (!backendSalesEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para guardar ventas. Reintenta en unos segundos.'
+      );
     }
+
+    const createdSale = await createBackendSale(user, saleData);
+    setSales(prev => [createdSale, ...prev]);
+    setInventory(prev => prev.map(product => (
+      product.id === createdSale.productId ? { ...product, status: 'VENDIDO' } : product
+    )));
+    setClients(prev => prev.map(client => {
+      if (client.id !== createdSale.clientId) {
+        return client;
+      }
+
+      return {
+        ...client,
+        totalSpent: (client.totalSpent || 0) + createdSale.amount,
+        lastPurchaseDate: createdSale.date,
+      };
+    }));
   };
 
   const updateSale = async (updatedSale: Sale) => {
     if (!user) return;
-    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
-    try {
-      if (canUseBackendSales) {
-        const backendSale = await updateBackendSale(user, updatedSale);
-        setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
-        return;
-      }
-
-      const path = `sales/${updatedSale.id}`;
-      const { id, ...data } = updatedSale;
-      await updateDoc(doc(db, 'sales', id), data as any);
-    } catch (error) {
-      if (canUseBackendSales) {
-        console.warn('Backend sale update failed, falling back to Firestore.', error);
-        setSalesSource('firestore');
-        const path = `sales/${updatedSale.id}`;
-        try {
-          const { id, ...data } = updatedSale;
-          await updateDoc(doc(db, 'sales', id), data as any);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
-          return;
-        }
-      }
-
-      const path = `sales/${updatedSale.id}`;
-      handleFirestoreError(error, OperationType.UPDATE, path);
+    if (!backendSalesEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para actualizar ventas. Reintenta en unos segundos.'
+      );
     }
+
+    const backendSale = await updateBackendSale(user, updatedSale);
+    setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
   };
 
   const deleteSale = async (id: string) => {
     if (!user) return;
-    const canUseBackendSales = salesSource === 'backend' && backendSalesEnabled;
-    try {
-      const existingSale = sales.find((sale) => sale.id === id);
-
-      if (canUseBackendSales) {
-        await deleteBackendSale(user, id);
-
-        if (existingSale?.productId) {
-          setInventory(prev => prev.map(product => (
-            product.id === existingSale.productId ? { ...product, status: 'DISPONIBLE' } : product
-          )));
-        }
-
-        if (existingSale?.clientId) {
-          const remainingClientSales = sales.filter(
-            (sale) => sale.clientId === existingSale.clientId && sale.id !== id
-          );
-          setClients(prev => prev.map(client => {
-            if (client.id !== existingSale.clientId) {
-              return client;
-            }
-
-            const nextTotalSpent = remainingClientSales.reduce((sum, sale) => sum + sale.amount, 0);
-
-            return {
-              ...client,
-              totalSpent: nextTotalSpent,
-              lastPurchaseDate: remainingClientSales[0]?.date || 'N/A',
-            };
-          }));
-        }
-
-        setSales(prev => prev.filter(sale => sale.id !== id));
-        return;
-      }
-
-      const path = `sales/${id}`;
-      if (existingSale?.productId) {
-        await updateDoc(doc(db, 'inventory', existingSale.productId), { status: 'DISPONIBLE' });
-      }
-
-      if (existingSale?.clientId) {
-        const client = clients.find(c => c.id === existingSale.clientId);
-        const remainingClientSales = sales.filter(
-          (sale) => sale.clientId === existingSale.clientId && sale.id !== id
-        );
-
-        if (client) {
-          await updateDoc(doc(db, 'clients', existingSale.clientId), {
-            totalSpent: Math.max(0, (client.totalSpent || 0) - existingSale.amount),
-            lastPurchaseDate: remainingClientSales[0]?.date || 'N/A'
-          });
-        }
-      }
-
-      await deleteDoc(doc(db, 'sales', id));
-    } catch (error) {
-      if (canUseBackendSales) {
-        console.warn('Backend sale delete failed, falling back to Firestore.', error);
-        setSalesSource('firestore');
-        const path = `sales/${id}`;
-        try {
-          const existingSale = sales.find((sale) => sale.id === id);
-
-          if (existingSale?.productId) {
-            await updateDoc(doc(db, 'inventory', existingSale.productId), { status: 'DISPONIBLE' });
-          }
-
-          if (existingSale?.clientId) {
-            const client = clients.find(c => c.id === existingSale.clientId);
-            const remainingClientSales = sales.filter(
-              (sale) => sale.clientId === existingSale.clientId && sale.id !== id
-            );
-
-            if (client) {
-              await updateDoc(doc(db, 'clients', existingSale.clientId), {
-                totalSpent: Math.max(0, (client.totalSpent || 0) - existingSale.amount),
-                lastPurchaseDate: remainingClientSales[0]?.date || 'N/A'
-              });
-            }
-          }
-
-          await deleteDoc(doc(db, 'sales', id));
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.DELETE, path);
-          return;
-        }
-      }
-
-      const path = `sales/${id}`;
-      handleFirestoreError(error, OperationType.DELETE, path);
+    if (!backendSalesEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para eliminar ventas. Reintenta en unos segundos.'
+      );
     }
+
+    const existingSale = sales.find((sale) => sale.id === id);
+    await deleteBackendSale(user, id);
+
+    if (existingSale?.productId) {
+      setInventory(prev => prev.map(product => (
+        product.id === existingSale.productId ? { ...product, status: 'DISPONIBLE' } : product
+      )));
+    }
+
+    if (existingSale?.clientId) {
+      const remainingClientSales = sales.filter(
+        (sale) => sale.clientId === existingSale.clientId && sale.id !== id
+      );
+      setClients(prev => prev.map(client => {
+        if (client.id !== existingSale.clientId) {
+          return client;
+        }
+
+        const nextTotalSpent = remainingClientSales.reduce((sum, sale) => sum + sale.amount, 0);
+
+        return {
+          ...client,
+          totalSpent: nextTotalSpent,
+          lastPurchaseDate: remainingClientSales[0]?.date || 'N/A',
+        };
+      }));
+    }
+
+    setSales(prev => prev.filter(sale => sale.id !== id));
   };
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-    try {
-      if (backendConfigured) {
-        if (!backendInventoryEnabled) {
-          throw new Error(
-            backendMessage ||
-              'El backend todavÃ­a no estÃ¡ listo para guardar inventario. ReintentÃ¡ en unos segundos.'
-          );
-        }
-
-        const createdProduct = await createBackendInventoryItem(user, productData);
-        setInventorySource('backend');
-        setInventory(prev => [createdProduct, ...prev]);
-        return;
-      }
-
-      const id = generateId('P');
-      const path = `inventory/${id}`;
-      const createdProduct = { id, ...productData };
-      await setDoc(doc(db, 'inventory', id), { ...productData, authorUid: user.uid });
-      setInventory(prev => [createdProduct, ...prev]);
-    } catch (error) {
-      if (backendConfigured) {
-        throw error;
-      }
-
-      const id = generateId('P');
-      const path = `inventory/${id}`;
-      handleFirestoreError(error, OperationType.CREATE, path);
+    if (!backendInventoryEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para guardar inventario. Reintenta en unos segundos.'
+      );
     }
+    const createdProduct = await createBackendInventoryItem(user, productData);
+    setInventory(prev => [createdProduct, ...prev]);
   };
 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-
-    // Optimistic update — show new value immediately before the API responds
     let previousItem: Product | undefined;
     setInventory(prev => {
       previousItem = prev.find(p => p.id === updatedProduct.id);
       return prev.map(product => product.id === updatedProduct.id ? updatedProduct : product);
     });
-
     try {
-      if (backendConfigured) {
-        if (!backendInventoryEnabled) {
-          throw new Error(
-            backendMessage ||
-              'El backend todavÃ­a no estÃ¡ listo para actualizar inventario. ReintentÃ¡ en unos segundos.'
-          );
-        }
-
-        const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
-        setInventorySource('backend');
-        setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
-        return;
+      if (!backendInventoryEnabled) {
+        throw new Error(
+          backendMessage || 'El backend todavia no esta listo para actualizar inventario. Reintenta en unos segundos.'
+        );
       }
-
-      const path = `inventory/${updatedProduct.id}`;
-      const { id, ...data } = updatedProduct;
-      await updateDoc(doc(db, 'inventory', id), data as any);
+      const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
+      setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
     } catch (error) {
-      // Revert optimistic update on failure
       if (previousItem) {
         setInventory(prev => prev.map(product => product.id === updatedProduct.id ? previousItem! : product));
       }
-      if (backendConfigured) {
-        throw error;
-      }
-
-      const path = `inventory/${updatedProduct.id}`;
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      throw error;
     }
   };
 
   const deleteProduct = async (id: string) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-    try {
-      if (backendConfigured) {
-        if (!backendInventoryEnabled) {
-          throw new Error(
-            backendMessage ||
-              'El backend todavÃ­a no estÃ¡ listo para eliminar inventario. ReintentÃ¡ en unos segundos.'
-          );
-        }
-
-        await deleteBackendInventoryItem(user, id);
-        setInventorySource('backend');
-        setInventory(prev => prev.filter(product => product.id !== id));
-        return;
-      }
-
-      const path = `inventory/${id}`;
-      await deleteDoc(doc(db, 'inventory', id));
-    } catch (error) {
-      if (backendConfigured) {
-        throw error;
-      }
-
-      const path = `inventory/${id}`;
-      handleFirestoreError(error, OperationType.DELETE, path);
+    if (!backendInventoryEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para eliminar inventario. Reintenta en unos segundos.'
+      );
     }
+    await deleteBackendInventoryItem(user, id);
+    setInventory(prev => prev.filter(product => product.id !== id));
   };
 
   const reloadInventory = async () => {
@@ -1122,185 +710,69 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) {
       throw new Error('No authenticated user');
     }
-    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
-    try {
-      if (canUseBackendClients) {
-        const createdClient = await createBackendClient(user, clientData);
-        setClients(prev => [createdClient, ...prev]);
-        return createdClient;
-      }
-
-      const id = generateId('C');
-      const createdClient = { id, ...clientData };
-      const path = `clients/${id}`;
-      await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
-      setClients(prev => [createdClient, ...prev]);
-      return createdClient;
-    } catch (error) {
-      if (canUseBackendClients) {
-        console.warn('Backend client create failed, falling back to Firestore.', error);
-        setClientsSource('firestore');
-        const id = generateId('C');
-        const createdClient = { id, ...clientData };
-        const path = `clients/${id}`;
-        try {
-          await setDoc(doc(db, 'clients', id), { ...clientData, authorUid: user.uid });
-          setClients(prev => [createdClient, ...prev]);
-          return createdClient;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.CREATE, path);
-          throw fallbackError;
-        }
-      }
-
-      const id = generateId('C');
-      const path = `clients/${id}`;
-      handleFirestoreError(error, OperationType.CREATE, path);
-      throw error;
+    if (!backendClientsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para guardar clientes. Reintenta en unos segundos.'
+      );
     }
+    const createdClient = await createBackendClient(user, clientData);
+    setClients(prev => [createdClient, ...prev]);
+    return createdClient;
   };
 
   const updateClient = async (updatedClient: Client) => {
     if (!user) return;
-    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
-    try {
-      if (canUseBackendClients) {
-        const backendClient = await updateBackendClient(user, updatedClient);
-        setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
-        return;
-      }
-
-      const path = `clients/${updatedClient.id}`;
-      const { id, ...data } = updatedClient;
-      await updateDoc(doc(db, 'clients', id), data as any);
-    } catch (error) {
-      if (canUseBackendClients) {
-        console.warn('Backend client update failed, falling back to Firestore.', error);
-        setClientsSource('firestore');
-        const path = `clients/${updatedClient.id}`;
-        try {
-          const { id, ...data } = updatedClient;
-          await updateDoc(doc(db, 'clients', id), data as any);
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.UPDATE, path);
-          return;
-        }
-      }
-
-      const path = `clients/${updatedClient.id}`;
-      handleFirestoreError(error, OperationType.UPDATE, path);
+    if (!backendClientsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para actualizar clientes. Reintenta en unos segundos.'
+      );
     }
+    const backendClient = await updateBackendClient(user, updatedClient);
+    setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
   };
 
   const deleteClient = async (id: string) => {
     if (!user) return;
-    const canUseBackendClients = clientsSource === 'backend' && backendClientsEnabled;
-    try {
-      if (canUseBackendClients) {
-        await deleteBackendClient(user, id);
-        setClients(prev => prev.filter(client => client.id !== id));
-        return;
-      }
-
-      const path = `clients/${id}`;
-      await deleteDoc(doc(db, 'clients', id));
-    } catch (error) {
-      if (canUseBackendClients) {
-        console.warn('Backend client delete failed, falling back to Firestore.', error);
-        setClientsSource('firestore');
-        const path = `clients/${id}`;
-        try {
-          await deleteDoc(doc(db, 'clients', id));
-          return;
-        } catch (fallbackError) {
-          handleFirestoreError(fallbackError, OperationType.DELETE, path);
-          return;
-        }
-      }
-
-      const path = `clients/${id}`;
-      handleFirestoreError(error, OperationType.DELETE, path);
+    if (!backendClientsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para eliminar clientes. Reintenta en unos segundos.'
+      );
     }
+    await deleteBackendClient(user, id);
+    setClients(prev => prev.filter(client => client.id !== id));
   };
 
   const addTradeIn = async (tradeInData: Omit<TradeIn, 'id'>) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-    try {
-      if (backendConfigured) {
-        if (!backendTradeInsEnabled) {
-          throw new Error(
-            backendMessage || 'El backend todavía no está listo para guardar canjes. Reintentá en unos segundos.'
-          );
-        }
-        const createdTradeIn = await createBackendTradeIn(user, tradeInData);
-        setTradeInsSource('backend');
-        setTradeIns(prev => [createdTradeIn, ...prev]);
-        return;
-      }
-
-      const id = generateId('CAN');
-      const createdTradeIn = { id, ...tradeInData };
-      await setDoc(doc(db, 'tradeIns', id), { ...tradeInData, authorUid: user.uid });
-      setTradeIns(prev => [createdTradeIn, ...prev]);
-    } catch (error) {
-      if (backendConfigured) {
-        throw error;
-      }
-      handleFirestoreError(error, OperationType.CREATE, 'tradeIns');
+    if (!backendTradeInsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para guardar canjes. Reintenta en unos segundos.'
+      );
     }
+    const createdTradeIn = await createBackendTradeIn(user, tradeInData);
+    setTradeIns(prev => [createdTradeIn, ...prev]);
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-    try {
-      if (backendConfigured) {
-        if (!backendTradeInsEnabled) {
-          throw new Error(
-            backendMessage || 'El backend todavía no está listo para actualizar canjes. Reintentá en unos segundos.'
-          );
-        }
-        const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
-        setTradeInsSource('backend');
-        setTradeIns(prev => prev.map(t => t.id === backendTradeIn.id ? backendTradeIn : t));
-        return;
-      }
-
-      const { id, ...data } = updatedTradeIn;
-      await updateDoc(doc(db, 'tradeIns', id), data as any);
-    } catch (error) {
-      if (backendConfigured) {
-        throw error;
-      }
-      handleFirestoreError(error, OperationType.UPDATE, `tradeIns/${updatedTradeIn.id}`);
+    if (!backendTradeInsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para actualizar canjes. Reintenta en unos segundos.'
+      );
     }
+    const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
+    setTradeIns(prev => prev.map(t => t.id === backendTradeIn.id ? backendTradeIn : t));
   };
 
   const deleteTradeIn = async (id: string) => {
     if (!user) return;
-    const backendConfigured = backendStatus !== 'unconfigured';
-    try {
-      if (backendConfigured) {
-        if (!backendTradeInsEnabled) {
-          throw new Error(
-            backendMessage || 'El backend todavía no está listo para eliminar canjes. Reintentá en unos segundos.'
-          );
-        }
-        await deleteBackendTradeIn(user, id);
-        setTradeInsSource('backend');
-        setTradeIns(prev => prev.filter(t => t.id !== id));
-        return;
-      }
-
-      await deleteDoc(doc(db, 'tradeIns', id));
-    } catch (error) {
-      if (backendConfigured) {
-        throw error;
-      }
-      handleFirestoreError(error, OperationType.DELETE, `tradeIns/${id}`);
+    if (!backendTradeInsEnabled) {
+      throw new Error(
+        backendMessage || 'El backend todavia no esta listo para eliminar canjes. Reintenta en unos segundos.'
+      );
     }
+    await deleteBackendTradeIn(user, id);
+    setTradeIns(prev => prev.filter(t => t.id !== id));
   };
 
   const addCustomColumn = async (columnData: Omit<CustomColumn, 'id'>): Promise<string | undefined> => {
@@ -1313,69 +785,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (existingColumn) {
       return existingColumn.id;
     }
-
     const id = generateId('COL');
     const createdColumn: CustomColumn = { id, ...columnData };
-    if (!firebaseBackedAuth) {
-      const nextColumns = (
-        customColumns.some((column) => column.id === id)
-          ? customColumns
-          : [...customColumns, createdColumn]
-      );
-      writeLocalCustomColumns(user.uid, nextColumns);
-      setCustomColumns(nextColumns);
-      return id;
-    }
-
-    try {
-      await setDoc(doc(db, 'customColumns', id), { ...columnData, authorUid: user.uid });
-      setCustomColumns(prev => (
-        prev.some(column => column.id === id)
-          ? prev
-          : [...prev, createdColumn]
-      ));
-      return id;
-    } catch (error) {
-      console.warn('Falling back to local custom column storage.', error);
-      const nextColumns = (
-        customColumns.some((column) => column.id === id)
-          ? customColumns
-          : [...customColumns, createdColumn]
-      );
-      writeLocalCustomColumns(user.uid, nextColumns);
-      setCustomColumns(nextColumns);
-      return id;
-    }
+    const nextColumns = (
+      customColumns.some((column) => column.id === id)
+        ? customColumns
+        : [...customColumns, createdColumn]
+    );
+    writeLocalCustomColumns(user.uid, nextColumns);
+    setCustomColumns(nextColumns);
+    return id;
   };
 
   const removeCustomColumn = async (id: string) => {
     if (!user) return;
-    if (!firebaseBackedAuth) {
-      setCustomColumns(prev => {
-        const next = prev.filter(column => column.id !== id);
-        writeLocalCustomColumns(user.uid, next);
-        return next;
-      });
-      return;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'customColumns', id));
-      setCustomColumns(prev => {
-        const next = prev.filter(column => column.id !== id);
-        writeLocalCustomColumns(user.uid, next);
-        return next;
-      });
-      // Optionally, remove the field from all products
-      // This would require a batch update
-    } catch (error) {
-      console.warn('Falling back to local custom column removal.', error);
-      setCustomColumns(prev => {
-        const next = prev.filter(column => column.id !== id);
-        writeLocalCustomColumns(user.uid, next);
-        return next;
-      });
-    }
+    setCustomColumns(prev => {
+      const next = prev.filter(column => column.id !== id);
+      writeLocalCustomColumns(user.uid, next);
+      return next;
+    });
   };
 
   if (loading) {

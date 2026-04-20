@@ -4,6 +4,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   ENABLE_TEST_AUTH_BYPASS: z.string().optional().transform((value) => value === "true"),
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
