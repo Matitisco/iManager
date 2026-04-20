@@ -5,13 +5,13 @@ import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import {
   getReportsErrorStatus,
   getReportsOverview,
-  parseReportsDate,
+  normalizeReportsOverviewInput,
   type ReportsRangeKey,
 } from "./reports.service.js";
 
 const reportsQuerySchema = z.object({
   rangeKey: z
-    .enum(["this_month", "last_90_days", "this_year", "all_time"])
+    .enum(["this_month", "last_90_days", "this_year", "all_time", "custom"])
     .default("this_month"),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -29,11 +29,14 @@ export async function reportsRoutes(app: FastifyInstance) {
       const query = reportsQuerySchema.parse(request.query);
 
       try {
-        const overview = await getReportsOverview(request.appUser.storeId, {
-          rangeKey: query.rangeKey as ReportsRangeKey,
-          startDate: parseReportsDate(query.startDate),
-          endDate: parseReportsDate(query.endDate),
-        });
+        const overview = await getReportsOverview(
+          request.appUser.storeId,
+          normalizeReportsOverviewInput({
+            rangeKey: query.rangeKey as ReportsRangeKey,
+            startDate: query.startDate,
+            endDate: query.endDate,
+          })
+        );
 
         return { overview };
       } catch (error) {

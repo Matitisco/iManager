@@ -1,6 +1,11 @@
 import { prisma } from "../../plugins/prisma.js";
 
-export type ReportsRangeKey = "this_month" | "last_90_days" | "this_year" | "all_time";
+export type ReportsRangeKey =
+  | "this_month"
+  | "last_90_days"
+  | "this_year"
+  | "all_time"
+  | "custom";
 
 export interface ReportsOverviewInput {
   rangeKey: ReportsRangeKey;
@@ -23,8 +28,8 @@ export interface ReportsSeriesPoint {
   unitsSold: number;
 }
 
-export interface ReportsTopModel {
-  model: string;
+export interface ReportsTopProduct {
+  product: string;
   unitsSold: number;
   revenue: number;
   share: number;
@@ -42,6 +47,10 @@ export interface ReportsInventorySnapshot {
   availableItems: number;
   soldItems: number;
   inReviewItems: number;
+  valuation: {
+    costValue: number;
+    retailValue: number;
+  };
 }
 
 export interface ReportsClientSnapshot {
@@ -64,7 +73,7 @@ export interface ReportsOverviewResponse {
   };
   summary: ReportsSummary;
   salesSeries: ReportsSeriesPoint[];
-  topModels: ReportsTopModel[];
+  topProducts: ReportsTopProduct[];
   paymentMethods: ReportsPaymentMethodBreakdown[];
   inventory: ReportsInventorySnapshot;
   clients: ReportsClientSnapshot;
@@ -147,13 +156,32 @@ function formatMonthLabel(value: Date, includeYear: boolean) {
   }).format(value);
 }
 
+function buildProductLabel(input?: {
+  model?: string | null;
+  capacity?: string | null;
+  color?: string | null;
+} | null) {
+  const label = [input?.model, input?.capacity, input?.color]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+
+  return label || "Producto sin referencia";
+}
+
 type CompletedSale = {
   amount: number;
   paymentMethod: string;
   soldAt: Date;
   clientId: string | null;
-  model: string;
+  product: string;
   cost: number;
+};
+
+type ReportsQueryInput = {
+  rangeKey: ReportsRangeKey;
+  startDate?: string;
+  endDate?: string;
 };
 
 function buildSalesSeries(
@@ -263,6 +291,7 @@ export async function getReportsOverview(
     availableItems,
     soldItems,
     inReviewItems,
+    inventoryValuation,
   ] = await Promise.all([
     prisma.sale.findMany({
       where: salesWhere,
@@ -275,6 +304,8 @@ export async function getReportsOverview(
         inventoryItem: {
           select: {
             model: true,
+            capacity: true,
+            color: true,
             cost: true,
           },
         },
@@ -307,6 +338,13 @@ export async function getReportsOverview(
     prisma.inventoryItem.count({
       where: { storeId, status: "EN_REVISION" },
     }),
+    prisma.inventoryItem.aggregate({
+      where: { storeId, status: "DISPONIBLE" },
+      _sum: {
+        cost: true,
+        price: true,
+      },
+    }),
   ]);
 
   const completedSales: CompletedSale[] = sales
@@ -316,7 +354,7 @@ export async function getReportsOverview(
       paymentMethod: sale.paymentMethod,
       soldAt: sale.soldAt,
       clientId: sale.clientId,
-      model: sale.inventoryItem?.model?.trim() || "Producto sin referencia",
+      product: buildProductLabel(sale.inventoryItem),
       cost: toNumber(sale.inventoryItem?.cost),
     }));
 
@@ -335,23 +373,23 @@ export async function getReportsOverview(
       .filter((clientId): clientId is string => Boolean(clientId))
   ).size;
 
-  const topModelsMap = new Map<string, { unitsSold: number; revenue: number }>();
+  const topProductsMap = new Map<string, { unitsSold: number; revenue: number }>();
   for (const sale of completedSales) {
-    const current = topModelsMap.get(sale.model) ?? { unitsSold: 0, revenue: 0 };
+    const current = topProductsMap.get(sale.product) ?? { unitsSold: 0, revenue: 0 };
     current.unitsSold += 1;
     current.revenue += sale.amount;
-    topModelsMap.set(sale.model, current);
+    topProductsMap.set(sale.product, current);
   }
 
-  const topModels = Array.from(topModelsMap.entries())
-    .map(([model, current]) => ({
-      model,
+  const topProducts = Array.from(topProductsMap.entries())
+    .map(([product, current]) => ({
+      product,
       unitsSold: current.unitsSold,
       revenue: current.revenue,
       share: unitsSold > 0 ? (current.unitsSold / unitsSold) * 100 : 0,
     }))
     .sort((left, right) => right.unitsSold - left.unitsSold || right.revenue - left.revenue)
-    .slice(0, 4);
+    .slice(0, 6);
 
   const paymentMethodMap = new Map<string, { revenue: number; count: number }>();
   for (const sale of completedSales) {
@@ -389,13 +427,17 @@ export async function getReportsOverview(
       approvedTradeIns,
     },
     salesSeries: buildSalesSeries(completedSales, input.startDate, input.endDate),
-    topModels,
+    topProducts,
     paymentMethods,
     inventory: {
       totalItems,
       availableItems,
       soldItems,
       inReviewItems,
+      valuation: {
+        costValue: toNumber(inventoryValuation._sum.cost),
+        retailValue: toNumber(inventoryValuation._sum.price),
+      },
     },
     clients: {
       totalClients,
@@ -421,6 +463,25 @@ export function parseReportsDate(value: string | undefined) {
   }
 
   return parsed;
+}
+
+export function normalizeReportsOverviewInput(input: ReportsQueryInput): ReportsOverviewInput {
+  const startDate = parseReportsDate(input.startDate);
+  const endDate = parseReportsDate(input.endDate);
+
+  if (input.rangeKey === "custom" && (!startDate || !endDate)) {
+    throw new ReportsError("Custom report range requires startDate and endDate", 400);
+  }
+
+  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+    throw new ReportsError("Report startDate must be before endDate", 400);
+  }
+
+  return {
+    rangeKey: input.rangeKey,
+    startDate,
+    endDate,
+  };
 }
 
 export function getReportsErrorStatus(error: unknown) {

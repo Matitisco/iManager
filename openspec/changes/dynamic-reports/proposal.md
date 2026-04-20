@@ -1,32 +1,29 @@
 ## Why
 
-La pantalla de Reportes sigue mostrando métricas y gráficos falsos, lo que rompe la confianza durante testing y no permite usar el módulo para operación real. Necesitamos que el usuario vea información agregada desde PostgreSQL con el mismo contexto de tienda que usa el resto de los módulos productivos.
+La primera iteracion de `dynamic-reports` resolvio el problema de los datos mockeados, pero la pantalla sigue siendo un overview fijo. Para operacion real necesitamos que cada tienda pueda trabajar con un layout mas flexible, un rango manual de fechas y widgets enfocados en preguntas concretas del negocio.
 
 ## What Changes
 
-- Reemplazar la página `Reports` mockeada por una vista conectada al backend.
-- Agregar un endpoint autenticado que devuelva métricas agregadas del store para un rango de fechas.
-- Mostrar KPIs, evolución de ventas, modelos más vendidos, origen de ingresos y snapshots operativos usando datos reales.
-- Mantener estados honestos de loading, vacío y error; sin fallback silencioso a datos demo.
-- Permitir exportar el resumen visible desde el frontend.
+- Extender `GET /api/reports/overview` para soportar `rangeKey=custom` con validacion de fechas.
+- Enriquecer el payload con `inventory.valuation` y `topProducts`.
+- Reemplazar la pantalla fija por una pagina de widgets configurables, con presets, rango custom y persistencia local por navegador.
+- Exportar solo los widgets visibles del layout actual.
+- Mantener la pantalla autocontenida, sin mover reportes a `AppContext`.
 
 ## Non-goals
 
-- No convertir Dashboard en tiempo real ni tocar su pantalla demo.
-- No agregar persistencia nueva ni cambios de schema Prisma.
-- No modificar `AppContext.tsx` para sostener reportes globales si el consumo puede quedar encapsulado en la página.
+- No agregar persistencia server-side del layout en esta iteracion.
+- No cambiar schema Prisma ni agregar tablas nuevas.
+- No convertir Dashboard en una capa reutilizable de analytics.
 
 ## Capabilities
 
-### New Capabilities
-- `dynamic-reports`: reportes agregados por tienda con filtros de rango y visualización basada en datos reales del backend.
-
 ### Modified Capabilities
-- `backend-api`: el backend expone un nuevo módulo autenticado para reportes agregados del store.
+- `dynamic-reports`: la pantalla de reportes pasa de overview fijo a layout configurable por widgets con filtros custom.
+- `backend-api`: el endpoint de reportes admite rangos custom y devuelve informacion adicional de inventario y top productos.
 
 ## Impact
 
-- Frontend: `src/pages/Reports.tsx`, nuevo service HTTP y tipos del módulo.
-- Backend: nuevo módulo Fastify bajo `/api/reports` y registro en `backend/src/app.ts`.
-- APIs: nuevo endpoint `GET /api/reports/overview`.
-- Dependencias: sin librerías nuevas; se reutilizan Prisma, Recharts y `fetch-with-timeout`.
+- Frontend: `src/pages/Reports.tsx`, `src/types/reports.ts`, `src/utils/reports.ts`.
+- Backend: `backend/src/modules/reports/reports.routes.ts`, `backend/src/modules/reports/reports.service.ts`.
+- Tests: nuevos tests para validacion de rango, agregacion de top productos y persistencia/export local.

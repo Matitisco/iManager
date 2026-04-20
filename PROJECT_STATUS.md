@@ -1,7 +1,7 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-04-08**
+**Ultima actualizacion: 2026-04-19**
 
 ---
 
@@ -12,7 +12,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Trade-ins ya usa TableEngine para el historial, alineado con Inventory, Clients y Sales
 - Tests unitarios de frontend + CI con GitHub Actions agregados hoy
 - Dashboard sigue siendo demo (Fase 3 pendiente)
-- Reports ahora consume SQL real con rangos dinámicos y export local de resumen
+- Reports ahora consume SQL real con widgets configurables, rango custom y export local de lo visible
 
 ---
 
@@ -34,7 +34,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 | Modulo        | Estado |
 |---------------|--------|
 | Dashboard     | No consulta SQL real; KPIs hardcodeados |
-| Reports       | SQL real; overview agregado por rango, charts dinámicos y export local |
+| Reports       | SQL real; widgets configurables, rango custom, charts dinamicos y export local |
 | Notifications | Preview local, no persiste |
 | Settings      | UI presente; sin persistencia real por ahora |
 

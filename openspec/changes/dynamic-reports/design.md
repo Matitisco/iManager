@@ -1,61 +1,61 @@
 ## Context
 
-`Reports` es hoy una pantalla puramente visual con valores hardcodeados. Aunque `AppContext` ya carga varias colecciones reales, usar ese estado para reporting tiene dos problemas: mezcla datos de distintos módulos con estrategias de carga diferentes y obliga a duplicar lógica agregada en el cliente. Inventory, por ejemplo, ya tiene caminos paginados y listados completos según el consumo.
+`Reports` ya consume SQL real, pero hoy expone una sola composicion fija. El nuevo pedido no requiere otra fuente de datos sino mas flexibilidad sobre el mismo endpoint: filtros de fecha custom, valor real del inventario y bloques reordenables que el usuario pueda esconder o mostrar.
 
-El cambio cruza backend y frontend, pero no requiere cambios de schema. La solución debe respetar la regla del repo de no mostrar datos demo cuando el backend no está listo.
+La restriccion principal del repo sigue igual: sin fallback silencioso si el backend no esta listo y sin llevar reportes a `AppContext`.
 
 ## Goals / Non-Goals
 
-**Goals:**
-- Centralizar el cálculo de métricas en un endpoint backend por store autenticado.
-- Permitir que la pantalla consuma un resumen consistente para un rango seleccionado.
-- Mostrar estados claros de carga, vacío y error sin fallback a mocks.
-- Mantener el cambio acotado, sin meter reportes dentro de `AppContext`.
+**Goals**
+- Soportar un rango `custom` validado en backend.
+- Entregar un payload suficientemente rico para widgets independientes.
+- Permitir personalizar visibilidad y orden del layout sin agregar persistencia server-side.
+- Mantener export local alineado con lo que el usuario ve en pantalla.
 
-**Non-Goals:**
-- No crear un sistema genérico de analytics reutilizable por Dashboard.
-- No agregar caching, jobs ni materialized views.
-- No implementar export server-side; alcanza con export local del resumen visible.
+**Non-Goals**
+- No crear un constructor libre de consultas.
+- No guardar preferencias en PostgreSQL.
+- No introducir librerias nuevas de date picker o drag-and-drop.
 
 ## Decisions
 
-### 1. Endpoint agregado dedicado
-Se agrega `GET /api/reports/overview` en un módulo nuevo de Fastify. El endpoint recibe `rangeKey`, `startDate` y `endDate`, valida el contexto del store y devuelve un payload listo para render.
+### 1. `rangeKey=custom` con validacion fuerte en backend
+La ruta `GET /api/reports/overview` acepta `custom` y usa un helper comun para parsear fechas, exigir `startDate` + `endDate` y rechazar rangos invertidos con `400`.
 
-Se elige esta opción sobre calcular todo en `Reports.tsx` porque:
-- evita depender de qué datasets están o no cargados en memoria;
-- mantiene la lógica de negocio y agregación cerca de Prisma;
-- deja la pantalla lista para crecer sin tocar `AppContext.tsx`.
+Esto evita que cada cliente reimplemente reglas de validacion distintas y deja un contrato claro para tests.
 
-### 2. Agregación en servicio con Prisma + reducción en memoria
-El servicio consulta ventas, canjes, clientes e inventario filtrados por store y rango, y arma los agregados en TypeScript. Para esta primera iteración es suficientemente simple, evita SQL ad hoc más difícil de mantener y no requiere cambiar el schema.
+### 2. Payload de overview ampliado, no endpoint nuevo
+Se mantiene un solo endpoint de overview y se agregan:
+- `inventory.valuation.costValue`
+- `inventory.valuation.retailValue`
+- `topProducts`
 
-Alternativa descartada:
-- usar queries SQL agregadas por cada widget. Se descartó por complejidad innecesaria para el volumen actual y porque vuelve más rígido el shape de respuesta.
+Se evita abrir otro endpoint porque el volumen de datos actual sigue siendo compatible con una respuesta unica por rango visible.
 
-### 3. Rango controlado desde el frontend
-La UI calcula los límites temporales del preset elegido y los envía al backend. Así la interpretación del rango sigue la zona horaria efectiva del navegador del usuario y no depende del timezone del contenedor en Railway.
+### 3. Personalizacion local por usuario + store
+El layout se guarda en `localStorage`, scoping la clave por `user.uid` y `store.id`.
 
-### 4. UI honesta y autocontenida
-La página gestiona su propio fetch con un service dedicado. Si el backend no está `ready`, muestra una advertencia y no renderiza métricas ficticias. El botón de exportación genera un CSV local con el resumen visible.
+Se elige almacenamiento local porque:
+- no requiere schema nuevo;
+- respeta el alcance de la iteracion;
+- cubre el caso principal de uso sin complejidad extra de backend.
+
+### 4. Modal simple para orden y visibilidad
+La personalizacion usa el `Modal` existente y controles explicitos de mostrar/ocultar y subir/bajar. No se agrega drag-and-drop en esta v1 para mantener el cambio liviano y predecible.
+
+### 5. Export basado en widgets visibles
+El CSV se genera desde helpers puros del frontend y solo incluye secciones correspondientes a widgets visibles. El rango aplicado siempre se agrega al final del archivo para trazabilidad.
 
 ## Risks / Trade-offs
 
-- [Rango horario] Los registros históricos pueden venir de fechas parseadas en distintos contextos horarios. → Mitigación: el filtro se envía con límites explícitos y la UI usa copy de “rango visible” en lugar de prometer precisión contable fina.
-- [Costo de agregación] El endpoint reduce datos en memoria. → Mitigación: se limita al store autenticado y reutiliza modelos ya indexados por `storeId` y fecha.
-- [Relaciones faltantes] Algunas ventas pueden quedar sin `inventoryItem` si el producto fue borrado. → Mitigación: el margen usa costo `0` cuando no hay referencia y la UI lo etiqueta como estimado.
+- [Timezone del rango custom] Los inputs `type="date"` trabajan en horario local del navegador. Mitigacion: convertir a limites explicitos de inicio y fin del dia antes de pedir el overview.
+- [Layout vacio] El usuario puede ocultar todos los widgets. Mitigacion: mostrar un estado vacio con CTA a `Personalizar`.
+- [Cambio de contrato] `topModels` se reemplaza por `topProducts`. Mitigacion: actualizar tipos compartidos y pantalla en la misma iteracion.
 
 ## Migration Plan
 
-1. Registrar el nuevo módulo backend en `app.ts`.
-2. Exponer `GET /api/reports/overview` con validación de rango.
-3. Crear el service frontend y el tipo compartido del payload.
-4. Reemplazar la página mockeada por la vista dinámica.
-5. Correr `npm run lint` en frontend y backend.
-
-Rollback:
-- quitar el registro del módulo y volver a la página anterior si apareciera una regresión visual o de datos.
-
-## Open Questions
-
-- Ninguna para esta iteración. Si después se pide export contable o dashboard real-time, conviene separar una capa de analytics compartida.
+1. Actualizar artefactos OpenSpec del change.
+2. Extender backend y tests de reportes.
+3. Refactorizar tipos/helpers compartidos del frontend.
+4. Reescribir `Reports.tsx` sobre widgets configurables.
+5. Ejecutar tests y lint en frontend y backend.

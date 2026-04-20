@@ -1,4 +1,17 @@
-export type ReportsRangeKey = 'this_month' | 'last_90_days' | 'this_year' | 'all_time';
+export type ReportsRangeKey = 'this_month' | 'last_90_days' | 'this_year' | 'all_time' | 'custom';
+
+export type ReportsWidgetId =
+  | 'sales-summary'
+  | 'sales-by-period'
+  | 'inventory-value'
+  | 'top-products'
+  | 'payment-methods'
+  | 'operational-snapshot';
+
+export interface ReportsWidgetPreferences {
+  visibleWidgetIds: ReportsWidgetId[];
+  widgetOrder: ReportsWidgetId[];
+}
 
 export interface ReportsOverview {
   filters: {
@@ -19,8 +32,8 @@ export interface ReportsOverview {
     revenue: number;
     unitsSold: number;
   }>;
-  topModels: Array<{
-    model: string;
+  topProducts: Array<{
+    product: string;
     unitsSold: number;
     revenue: number;
     share: number;
@@ -36,6 +49,10 @@ export interface ReportsOverview {
     availableItems: number;
     soldItems: number;
     inReviewItems: number;
+    valuation: {
+      costValue: number;
+      retailValue: number;
+    };
   };
   clients: {
     totalClients: number;
