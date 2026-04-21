@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
@@ -10,7 +11,7 @@ export async function createInvitation(storeId: string, actorRole: string, email
     throw Object.assign(new Error("Solo el Propietario puede crear invitaciones"), { statusCode: 403 });
   }
 
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  const frontendUrl = env.FRONTEND_URL?.trim();
   if (!frontendUrl) {
     throw Object.assign(
       new Error("FRONTEND_URL no está configurado en el backend. No se puede generar el enlace de invitación."),

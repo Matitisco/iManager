@@ -36,6 +36,18 @@ vi.mock('motion/react', () => ({
   motion: motionProxy,
 }));
 
+(globalThis as typeof globalThis & {
+  __IMANAGER_TEST_FIREBASE_ENV__?: Record<string, string>;
+}).__IMANAGER_TEST_FIREBASE_ENV__ = {
+  VITE_FIREBASE_API_KEY: 'test-api-key',
+  VITE_FIREBASE_AUTH_DOMAIN: 'imanager-test.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'imanager-test',
+  VITE_FIREBASE_APP_ID: '1:1234567890:web:test',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '1234567890',
+  VITE_FIREBASE_STORAGE_BUCKET: 'imanager-test.appspot.com',
+  VITE_FIREBASE_MEASUREMENT_ID: '',
+};
+
 beforeAll(() => {
   class MockIntersectionObserver {
     observe = vi.fn();

@@ -1,7 +1,7 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-04-19**
+**Ultima actualizacion: 2026-04-20**
 
 ---
 
@@ -13,6 +13,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Tests unitarios de frontend + CI con GitHub Actions agregados hoy
 - Dashboard sigue siendo demo (Fase 3 pendiente)
 - Reports ahora consume SQL real con widgets configurables, rango custom y export local de lo visible
+- Frontend y backend ya tienen contrato explicito para separar desarrollo y produccion sin tocar la app estable en `main`
 
 ---
 
@@ -56,6 +57,9 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Timeout de fetch: 15 s en helpers HTTP
 - `batteryHealth`: migrado a `string` para soportar rangos como `"83-85%"`
 - Import XLSX: normalizacion de decimales (`0.84` -> `"84%"`)
+- Frontend Firebase web config movido a variables `VITE_*`
+- Backend carga `backend/.env` en desarrollo y exige `FRONTEND_URL`
+- Estrategia operativa definida: `main` para produccion, `dev` para desarrollo
 
 ---
 
@@ -99,6 +103,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - No dual-write como estrategia permanente
 - En modulos migrados: sin fallback silencioso - falla con error visible
 - El onboarding bloquea el core hasta tener Store + StoreMember
+- Mientras Firebase siga compartido, las cuentas de desarrollo y produccion no deben mezclarse
 
 ---
 

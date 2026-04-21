@@ -5,6 +5,7 @@ const {
   prismaMock,
   findOrCreateUserFromFirebaseMock,
   buildAppSessionForUserMock,
+  envMock,
 } = vi.hoisted(() => ({
   prismaMock: {
     user: {
@@ -27,6 +28,9 @@ const {
   },
   findOrCreateUserFromFirebaseMock: vi.fn(),
   buildAppSessionForUserMock: vi.fn(),
+  envMock: {
+    FRONTEND_URL: "https://app.imanager.test",
+  },
 }));
 
 vi.mock("../../plugins/prisma.js", () => ({
@@ -39,6 +43,10 @@ vi.mock("../users/users.service.js", () => ({
 
 vi.mock("../auth/session.service.js", () => ({
   buildAppSessionForUser: buildAppSessionForUserMock,
+}));
+
+vi.mock("../../config/env.js", () => ({
+  env: envMock,
 }));
 
 import {
@@ -59,7 +67,7 @@ describe("invitations.service", () => {
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
     prismaMock.storeMember.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.storeInvitation.update.mockResolvedValue({});
-    process.env.FRONTEND_URL = "https://app.imanager.test";
+    envMock.FRONTEND_URL = "https://app.imanager.test";
   });
 
   it("creates an invitation link using FRONTEND_URL", async () => {
@@ -86,7 +94,7 @@ describe("invitations.service", () => {
   });
 
   it("fails clearly when FRONTEND_URL is missing", async () => {
-    process.env.FRONTEND_URL = "";
+    envMock.FRONTEND_URL = "";
 
     await expect(createInvitation("store-1", "OWNER", undefined, "MANAGER")).rejects.toMatchObject({
       statusCode: 500,
