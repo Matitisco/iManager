@@ -9,6 +9,7 @@ type TestRow = {
   name: string;
   quantity: number;
   categoryId: string | null;
+  status?: string;
 };
 
 function buildConfig(overrides: Partial<TableEngineConfig<TestRow>> = {}): TableEngineConfig<TestRow> {
@@ -312,5 +313,60 @@ describe('TableEngine', () => {
 
     expect(beta.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(addRow.compareDocumentPosition(gamma) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renames a dropdown tag from the pencil editor without changing the stored value', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    type BadgeRow = TestRow & { status: 'DISPONIBLE' | 'VENDIDO' };
+    const rows: BadgeRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null, status: 'DISPONIBLE' },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          columns: [
+            {
+              id: 'status',
+              label: 'Disponibilidad',
+              field: 'status',
+              defaultWidth: 160,
+              type: 'badge',
+              editable: true,
+              enumOptions: ['DISPONIBLE', 'VENDIDO'],
+              badgeMeta: {
+                DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
+                VENDIDO: { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', label: 'VENDIDO' },
+              },
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onUpdate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.click(await screen.findByText('DISPONIBLE'));
+    await user.click(screen.getByRole('button', { name: 'Editar etiqueta DISPONIBLE' }));
+
+    const input = screen.getByTestId('tag-edit-input');
+    await user.clear(input);
+    await user.type(input, 'En local');
+    await user.click(screen.getByRole('button', { name: 'Color Azul' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(screen.getAllByText('En local').length).toBeGreaterThan(0);
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'VENDIDO' }));
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        id: '1',
+        status: 'VENDIDO',
+      }));
+    });
   });
 });
