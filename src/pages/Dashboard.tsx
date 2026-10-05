@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowRight, Boxes, ClipboardList, MessageCircleMore, ShoppingCart } from 'lucide-react';
+import { ArrowRight, Boxes, ClipboardList, MessageCircleMore, RefreshCw, ShoppingCart, Wallet } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
+import { buildFocusTasks, type FocusTask } from './dashboard-focus';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -16,10 +17,19 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
 };
 
+const focusIcons: Record<FocusTask['id'], React.ReactNode> = {
+  sales: <ShoppingCart size={16} />,
+  'trade-ins': <RefreshCw size={16} />,
+  inventory: <Boxes size={16} />,
+  clients: <Wallet size={16} />,
+};
+
 export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
-  const { appSession } = useAppContext();
+  const { appSession, backendStatus, sales, tradeIns, inventory, clients } = useAppContext();
   const welcomeName = appSession?.user.displayName?.trim() || 'equipo';
   const storeName = appSession?.store?.name?.trim();
+  const focusTasks = buildFocusTasks({ sales, tradeIns, inventory, clients });
+  const focusLoading = backendStatus === 'checking';
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -77,22 +87,30 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Tu foco hoy</h2>
-              <p className="text-sm text-gray-500">Atajos para las tareas más comunes</p>
+              <p className="text-sm text-gray-500">Tareas que todavía necesitan una acción</p>
             </div>
           </div>
           <div className="space-y-3">
-            <QuickActionCard
-              icon={<Boxes size={16} />}
-              title="Revisar inventario"
-              description="Buscá equipos, verificá estado y actualizá movimientos del stock."
-              onClick={() => onNavigate?.('inventory')}
-            />
-            <QuickActionCard
-              icon={<ShoppingCart size={16} />}
-              title="Registrar ventas"
-              description="Cargá una venta nueva o repasá las operaciones recientes."
-              onClick={() => onNavigate?.('sales')}
-            />
+            {focusLoading ? (
+              <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                Cargando tareas pendientes…
+              </div>
+            ) : focusTasks.length === 0 ? (
+              <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                No hay tareas pendientes. El día está al día.
+              </div>
+            ) : (
+              focusTasks.map((task) => (
+                <QuickActionCard
+                  key={task.id}
+                  icon={focusIcons[task.id]}
+                  title={task.title}
+                  description={task.description}
+                  count={task.count}
+                  onClick={() => onNavigate?.(task.tab)}
+                />
+              ))
+            )}
           </div>
         </motion.section>
       </div>
@@ -182,24 +200,31 @@ const QuickActionCard = ({
   icon,
   title,
   description,
+  count,
   onClick,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
+  count?: number;
   onClick: () => void;
 }) => (
   <button
     onClick={onClick}
     className="flex w-full items-start gap-3 rounded-xl border border-gray-200 p-4 text-left transition-colors hover:bg-gray-50"
   >
-    <div className="rounded-lg bg-gray-100 p-2 text-gray-900">
+    <div className="rounded-lg bg-amber-50 p-2 text-amber-800">
       {icon}
     </div>
-    <div className="space-y-1">
+    <div className="min-w-0 flex-1 space-y-1">
       <div className="text-sm font-bold text-gray-900">{title}</div>
       <p className="text-sm leading-relaxed text-gray-500">{description}</p>
     </div>
+    {count != null && (
+      <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700">
+        {count}
+      </span>
+    )}
   </button>
 );
 
