@@ -76,9 +76,11 @@ describe('TableEngine table column layout', () => {
     expect(srcTableTh).toContain('isResizing');
   });
 
-  it('column header shows plain big text, rename mode shows rounded input', () => {
-    expect(srcTableTh).toContain('text-gray-400');
-    expect(srcTableTh).toContain('rounded-lg px-2 py-0.5 bg-white');
+  it('column header rename input matches the header type and stays inset', () => {
+    expect(srcTableTh).toContain('truncate text-xs font-bold tracking-wider uppercase text-gray-400');
+    expect(srcTableTh).toContain('text-xs font-bold tracking-wider uppercase text-gray-900');
+    expect(srcTableTh).toContain('ring-1 ring-inset ring-gray-300 focus:ring-gray-900');
+    expect(srcTableTh).toContain('setRenameValue(colName)');
   });
 
   it('inline edit inputs use rounded rectangle style', () => {
