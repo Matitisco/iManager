@@ -233,4 +233,84 @@ describe('TableEngine', () => {
 
     expect(await screen.findByText('Gamma')).toBeInTheDocument();
   });
+
+  it('inserts the draft row in the current view instead of at the end of the table', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+      { id: '3', name: 'Gamma', quantity: 3, categoryId: null },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    expect(await screen.findByText('Gamma')).toBeInTheDocument();
+
+    const container = screen.getByRole('table').parentElement as HTMLDivElement;
+    Object.defineProperty(container, 'scrollTop', { configurable: true, value: 240 });
+    const header = container.querySelector('thead') as HTMLElement;
+    header.getBoundingClientRect = () => ({
+      top: 0, bottom: 40, left: 0, right: 0, width: 0, height: 40, x: 0, y: 0, toJSON() { return {}; },
+    });
+    container.querySelectorAll<HTMLTableRowElement>('tbody tr[data-row-id]').forEach((row, index) => {
+      const top = index === 0 ? -80 : index === 1 ? 48 : 120;
+      row.getBoundingClientRect = () => ({
+        top,
+        bottom: top + 40,
+        left: 0,
+        right: 0,
+        width: 0,
+        height: 40,
+        x: 0,
+        y: top,
+        toJSON() { return {}; },
+      });
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Nuevo' }));
+
+    const addRow = screen.getByTestId('table-add-row');
+    const alpha = screen.getByText('Alpha').closest('tr');
+    const beta = screen.getByText('Beta').closest('tr');
+    if (!alpha || !beta) throw new Error('Table rows were not rendered');
+
+    expect(alpha.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(addRow.compareDocumentPosition(beta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('inserts the draft row after the row opened from the context menu', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+      { id: '3', name: 'Gamma', quantity: 3, categoryId: null },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    fireEvent.contextMenu(await screen.findByText('Beta'));
+    await user.click(screen.getByRole('button', { name: 'Agregar ítem' }));
+
+    const addRow = screen.getByTestId('table-add-row');
+    const beta = screen.getByText('Beta').closest('tr');
+    const gamma = screen.getByText('Gamma').closest('tr');
+    if (!beta || !gamma) throw new Error('Table rows were not rendered');
+
+    expect(beta.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(addRow.compareDocumentPosition(gamma) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

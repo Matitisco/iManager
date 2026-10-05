@@ -84,6 +84,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: TRow; isBulk: boolean } | null>(null);
   const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colId: string } | null>(null);
   const [addingRow, setAddingRow] = useState<Record<string, any> | null>(null);
+  const [addRowInsertAt, setAddRowInsertAt] = useState(0);
   const [pendingItemMove, setPendingItemMove] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
   const [newColumnDraft, setNewColumnDraft] = useState<{ label: string; type: 'text' | 'number' } | null>(null);
@@ -100,6 +101,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const addFirstInputRef = useRef<HTMLInputElement | null>(null);
   const addRowFieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | null>>({});
   const addRowRef = useRef<HTMLTableRowElement | null>(null);
+  const pendingScrollRestoreRef = useRef<number | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
   const filtersRef = useRef<HTMLDivElement>(null);
@@ -173,7 +175,18 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   }, []);
 
   const addingRowActive = !!addingRow;
-  useEffect(() => { if (addingRowActive) addFirstInputRef.current?.focus(); }, [addingRowActive]);
+  useEffect(() => {
+    if (!addingRowActive) return;
+    addFirstInputRef.current?.focus({ preventScroll: true });
+    addRowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [addingRowActive]);
+
+  useEffect(() => {
+    if (pendingScrollRestoreRef.current == null) return;
+    const scrollTop = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+    if (tableContainerRef.current) tableContainerRef.current.scrollTop = scrollTop;
+  }, [items]);
 
   // ── Row interactions ───────────────────────────────────────────────────────
   const handleRowClick = (e: React.MouseEvent, row: TRow, index: number) => {
@@ -273,8 +286,31 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   };
 
   // ── Add row ────────────────────────────────────────────────────────────────
-  const startAddRow = () => {
-    if (addingRowDataRef.current) { addFirstInputRef.current?.focus(); return; }
+  const focusAddRowInput = () => {
+    addFirstInputRef.current?.focus({ preventScroll: true });
+    addRowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  };
+
+  const resolveAddRowInsertIndex = (afterRowId?: string) => {
+    if (afterRowId) {
+      const index = items.findIndex((row) => row.id === afterRowId);
+      return index >= 0 ? index + 1 : items.length;
+    }
+
+    const container = tableContainerRef.current;
+    if (!container || container.scrollTop <= 1) return 0;
+
+    const headerBottom = container.querySelector('thead')?.getBoundingClientRect().bottom
+      ?? container.getBoundingClientRect().top;
+    const rowNodes = container.querySelectorAll<HTMLTableRowElement>('tbody tr[data-row-id]');
+    for (let index = 0; index < rowNodes.length; index += 1) {
+      if (rowNodes[index].getBoundingClientRect().bottom > headerBottom + 8) return index;
+    }
+    return rowNodes.length;
+  };
+
+  const startAddRow = (afterRowId?: string) => {
+    if (addingRowDataRef.current) { focusAddRowInput(); return; }
     const initial: Record<string, any> = Object.fromEntries(
       addRowFields.map(f => [
         f.colId,
@@ -288,6 +324,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       if (!colDef?.editable) return;
       initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge') ? (colDef.enumOptions?.[0] ?? '') : '';
     });
+    const insertAt = resolveAddRowInsertIndex(afterRowId);
+    setAddRowInsertAt(insertAt);
     addingRowInitialDataRef.current = initial;
     addingRowDataRef.current = initial; setAddingRow(initial);
   };
@@ -295,6 +333,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     addingRowInitialDataRef.current = null;
     addingRowDataRef.current = null;
     setAddingRow(null);
+    setAddRowInsertAt(0);
   };
   const commitAddRow = async (showErrorIfEmpty = true) => {
     const current = addingRowDataRef.current;
@@ -305,10 +344,11 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     });
     if (missingRequiredField) {
       if (showErrorIfEmpty) {
-        addRowFieldRefs.current[missingRequiredField.colId]?.focus();
+        addRowFieldRefs.current[missingRequiredField.colId]?.focus({ preventScroll: true });
       } else {
         addingRowDataRef.current = null;
         setAddingRow(null);
+        setAddRowInsertAt(0);
       }
       return;
     }
@@ -327,14 +367,22 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         await onCreate(newItemData);
       }
       
+      const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
       addingRowInitialDataRef.current = null;
-      addingRowDataRef.current = null; setAddingRow(null);
-      const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...filterParamsRef.current });
-      setItems(result.items); setTotal(result.total);
+      addingRowDataRef.current = null;
+      setAddingRow(null);
+      setAddRowInsertAt(0);
+      const result = await fetchPage({
+        skip: 0,
+        take: Math.max(PAGE_SIZE, items.length),
+        ...filterParamsRef.current,
+      });
+      pendingScrollRestoreRef.current = scrollTop;
+      setItems(result.items);
+      setTotal(result.total);
     } catch (e: any) {
       alert(e.message || 'Error al agregar el ítem. Verificá los campos e intentá nuevamente.');
-      // Re-focus the first input if possible
-      addFirstInputRef.current?.focus();
+      focusAddRowInput();
     }
   };
 
@@ -443,7 +491,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
             <Upload size={14} /> Importar
           </button>
         )}
-        <button onClick={startAddRow}
+        <button onClick={() => startAddRow()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-all shadow-sm">
           <Plus size={14} /> Nuevo
         </button>
@@ -511,14 +559,99 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                 </tr>
               ))
             ) : (
-              items.map((row, index) => {
-                const isSelected = selectedIds.has(row.id);
+              (() => {
+                const addRowNode = addingRow && !!onCreate ? (() => {
+                  const firstTextColId = colState.orderedVisibleCols.find(colId => {
+                    const fc = addRowFields.find(f => f.colId === colId);
+                    const cd = resolvedColumns.find(c => c.id === colId);
+                    if (!fc && !cd?.editable) return false;
+                    const isSelect = fc?.type === 'select' || !!fc?.selectOptions?.length
+                      || (!fc && cd && (cd.type === 'enum' || cd.type === 'badge') && !!cd.enumOptions?.length);
+                    return !isSelect;
+                  }) ?? null;
+                  return (
+                    <tr ref={addRowRef} data-testid="table-add-row" className="bg-blue-50/30 border-l-2 border-blue-500">
+                      <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
+                      {colState.orderedVisibleCols.map((colId) => {
+                        const fieldCfg = addRowFields.find(f => f.colId === colId);
+                        const colDef = resolvedColumns.find(c => c.id === colId);
+                        if (!fieldCfg && !colDef?.editable) return <td key={colId} className="px-3 py-3" />;
+
+                        let effectiveType: 'text' | 'number' | 'select' = 'text';
+                        let selectOptions: { value: string; label: string }[] = [];
+                        let placeholder = '';
+
+                        if (colDef) {
+                          if (colDef.type === 'number') effectiveType = 'number';
+                          else if ((colDef.type === 'enum' || colDef.type === 'badge') && colDef.enumOptions?.length) {
+                            effectiveType = 'select';
+                            selectOptions = colDef.enumOptions.map(o => ({
+                              value: o,
+                              label: colDef.badgeMeta?.[o]?.label ?? o,
+                            }));
+                          }
+                        }
+
+                        if (fieldCfg) {
+                          placeholder = fieldCfg.placeholder ?? '';
+                          if (fieldCfg.selectOptions?.length) {
+                            effectiveType = 'select';
+                            selectOptions = fieldCfg.selectOptions;
+                          } else if (fieldCfg.type != null && fieldCfg.type !== 'select') {
+                            effectiveType = fieldCfg.type;
+                          }
+                        }
+
+                        return (
+                          <td key={colId} className="px-3 py-3">
+                            {effectiveType === 'select' ? (
+                              <select
+                                ref={(node) => { addRowFieldRefs.current[colId] = node; }}
+                                value={addingRow[colId] ?? selectOptions[0]?.value ?? ''}
+                                onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
+                                onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
+                                className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400">
+                                {selectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                            ) : (
+                              <input
+                                ref={(node) => {
+                                  addRowFieldRefs.current[colId] = node;
+                                  if (colId === firstTextColId) {
+                                    addFirstInputRef.current = node;
+                                  }
+                                }}
+                                type={effectiveType === 'number' ? 'number' : 'text'}
+                                placeholder={placeholder}
+                                value={addingRow[colId] ?? ''}
+                                onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
+                                onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
+                                className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400" />
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="hidden">
+                        <button onClick={() => commitAddRow()} className="px-2 py-1 text-xs font-bold bg-gray-900 text-white rounded-lg">OK</button>
+                        <button onClick={cancelAddRow} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600 rounded-lg">✕</button>
+                      </td>
+                    </tr>
+                  );
+                })() : null;
+
                 return (
-                  <tr key={row.id}
-                    onClick={e => handleRowClick(e, row, index)}
-                    onContextMenu={e => handleContextMenu(e, row)}
-                    onPointerDown={e => itemDrag.startItemDrag(e, row.id)}
-                    className={`group transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50/60'}`}>
+                  <>
+                    {items.map((row, index) => {
+                      const isSelected = selectedIds.has(row.id);
+                      return (
+                        <React.Fragment key={row.id}>
+                          {addRowInsertAt === index ? addRowNode : null}
+                          <tr
+                            data-row-id={row.id}
+                            onClick={e => handleRowClick(e, row, index)}
+                            onContextMenu={e => handleContextMenu(e, row)}
+                            onPointerDown={e => itemDrag.startItemDrag(e, row.id)}
+                            className={`group transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50/60'}`}>
                     <td className="px-4 py-4 sticky left-0 z-10" style={{ background: 'inherit' }}>
                       <input data-testid={`table-row-select-${row.id}`} type="checkbox" checked={isSelected} readOnly
                         className="w-3.5 h-3.5 rounded border-gray-300 accent-gray-900 pointer-events-none" />
@@ -552,94 +685,15 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                         onDelete={() => setItemToDelete(row.id)}
                       />
                     </td>
-                  </tr>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                    {addRowInsertAt >= items.length ? addRowNode : null}
+                  </>
                 );
-              })
+              })()
             )}
-
-            {/* Add row inline */}
-            {addingRow && !!onCreate && (() => {
-              // First text/number input column gets the focus ref
-              const firstTextColId = colState.orderedVisibleCols.find(colId => {
-                const fc = addRowFields.find(f => f.colId === colId);
-                const cd = resolvedColumns.find(c => c.id === colId);
-                if (!fc && !cd?.editable) return false;
-                const isSelect = fc?.type === 'select' || !!fc?.selectOptions?.length
-                  || (!fc && cd && (cd.type === 'enum' || cd.type === 'badge') && !!cd.enumOptions?.length);
-                return !isSelect;
-              }) ?? null;
-              return (
-                <tr ref={addRowRef} className="bg-blue-50/30 border-l-2 border-blue-500">
-                  <td className="px-4 py-3"><div className="w-3.5 h-3.5 rounded border-2 border-blue-300" /></td>
-                  {colState.orderedVisibleCols.map((colId) => {
-                    const fieldCfg = addRowFields.find(f => f.colId === colId);
-                    const colDef = resolvedColumns.find(c => c.id === colId);
-                    // Skip columns that are not editable and not explicitly in addRowFields
-                    if (!fieldCfg && !colDef?.editable) return <td key={colId} className="px-3 py-3" />;
-
-                    let effectiveType: 'text' | 'number' | 'select' = 'text';
-                    let selectOptions: { value: string; label: string }[] = [];
-                    let placeholder = '';
-
-                    // ColDef as base
-                    if (colDef) {
-                      if (colDef.type === 'number') effectiveType = 'number';
-                      else if ((colDef.type === 'enum' || colDef.type === 'badge') && colDef.enumOptions?.length) {
-                        effectiveType = 'select';
-                        selectOptions = colDef.enumOptions.map(o => ({
-                          value: o,
-                          label: colDef.badgeMeta?.[o]?.label ?? o,
-                        }));
-                      }
-                    }
-
-                    // addRowFields overrides: placeholder, custom select subset, explicit type
-                    if (fieldCfg) {
-                      placeholder = fieldCfg.placeholder ?? '';
-                      if (fieldCfg.selectOptions?.length) {
-                        effectiveType = 'select';
-                        selectOptions = fieldCfg.selectOptions;
-                      } else if (fieldCfg.type != null && fieldCfg.type !== 'select') {
-                        effectiveType = fieldCfg.type;
-                      }
-                    }
-
-                    return (
-                      <td key={colId} className="px-3 py-3">
-                        {effectiveType === 'select' ? (
-                          <select
-                            ref={(node) => { addRowFieldRefs.current[colId] = node; }}
-                            value={addingRow[colId] ?? selectOptions[0]?.value ?? ''}
-                            onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
-                            onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
-                            className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400">
-                            {selectOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                        ) : (
-                          <input
-                            ref={(node) => {
-                              addRowFieldRefs.current[colId] = node;
-                              if (colId === firstTextColId) {
-                                addFirstInputRef.current = node;
-                              }
-                            }}
-                            type={effectiveType === 'number' ? 'number' : 'text'}
-                            placeholder={placeholder}
-                            value={addingRow[colId] ?? ''}
-                            onChange={e => { const v = { ...addingRow, [colId]: e.target.value }; addingRowDataRef.current = v; setAddingRow(v); }}
-                            onKeyDown={e => { if (e.key === 'Enter') commitAddRow(); if (e.key === 'Escape') cancelAddRow(); }}
-                            className="w-full text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-400" />
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="hidden">
-                    <button onClick={() => commitAddRow()} className="px-2 py-1 text-xs font-bold bg-gray-900 text-white rounded-lg">OK</button>
-                    <button onClick={cancelAddRow} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-gray-600 rounded-lg">✕</button>
-                  </td>
-                </tr>
-              );
-            })()}
           </tbody>
         </table>
 
@@ -701,7 +755,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
           <ContextMenu
             x={contextMenu.x} y={contextMenu.y} item={contextMenu.item} isBulk={contextMenu.isBulk}
             selectedCount={selectedIds.size} categories={categories} onClose={() => setContextMenu(null)}
-            onAddRow={!!onCreate ? startAddRow : undefined}
+            onAddRow={!!onCreate ? () => startAddRow(contextMenu.item.id) : undefined}
             onEdit={item => { setSelectedItem(item); setContextMenu(null); }}
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
             onBulkDelete={() => { setContextMenu(null); }}
