@@ -3,6 +3,7 @@ import { LayoutDashboard, Package, ShoppingCart, RefreshCcw, Users, BarChart2, S
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
+import { StoreSwitcher } from './StoreSwitcher';
 
 interface SidebarProps {
   activeTab: string;
@@ -79,6 +80,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         })}
       </nav>
       
+      <div className="border-t border-gray-200 pt-3">
+        <StoreSwitcher />
+      </div>
       <div className="p-4 border-t border-gray-200">
         <button
           onClick={logout}

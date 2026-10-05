@@ -1,9 +1,10 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDown } from 'lucide-react';
-import type { WithId, ColDef } from '../types';
+import type { WithId, ColDef, BadgeMeta } from '../types';
 import { getColumnValue } from '../columnAccess';
 import { TagsCell } from './TagsCell';
+import { TagChipDisplay, TagOptionMenu } from './TagOptionMenu';
+import type { ResolvedTag, TagPatch } from '../tagOptions';
 
 interface TableTdProps<TRow extends WithId> {
   colId: string;
@@ -26,6 +27,8 @@ interface TableTdProps<TRow extends WithId> {
   handleCellKeyDown: (e: React.KeyboardEvent, row: TRow) => void;
   cellDisplay: (row: TRow, field: string, fallback: any) => any;
   displayVal: (v: any) => string | null;
+  resolveTag: (columnId: string, option: string, base?: BadgeMeta) => ResolvedTag;
+  onSaveTag: (columnId: string, option: string, patch: TagPatch) => void;
 }
 
 export function TableTd<TRow extends WithId>({
@@ -34,6 +37,7 @@ export function TableTd<TRow extends WithId>({
   focusedCell, setFocusedCell,
   startInlineEdit, commitInlineEdit, commitTags, cancelInlineEdit, inlineEditCellRef,
   handleCellBlur, handleCellKeyDown, cellDisplay, displayVal,
+  resolveTag, onSaveTag,
 }: TableTdProps<TRow>) {
   const field = colDef.field as string;
   const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === colId;
@@ -66,18 +70,18 @@ export function TableTd<TRow extends WithId>({
     const statusVal = String(displayValue ?? '');
     const hasVal = displayVal(statusVal) !== null;
     const metaKeys = Object.keys(colDef.badgeMeta);
-    const meta = hasVal ? (colDef.badgeMeta[statusVal] ?? colDef.badgeMeta[metaKeys[0]]) : colDef.badgeMeta[metaKeys[0]];
+    const base = hasVal
+      ? (colDef.badgeMeta[statusVal] ?? colDef.badgeMeta[metaKeys[0]])
+      : colDef.badgeMeta[metaKeys[0]];
+    const tag = resolveTag(colId, statusVal, base);
+    const options = colDef.enumOptions ?? [];
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing}`}>
         <div className="relative">
           <div className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
             onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(row.id, field, statusVal); }}>
             {!hasVal ? <span className="text-gray-300">---</span> : (
-              <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${meta.bg} ${meta.text}`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
-                {meta.label}
-                <ChevronDown size={9} className="opacity-50 flex-shrink-0" />
-              </span>
+              <TagChipDisplay tag={tag} withChevron />
             )}
           </div>
           <AnimatePresence>
@@ -85,23 +89,19 @@ export function TableTd<TRow extends WithId>({
               <>
                 <div className="fixed inset-0 z-20" onClick={() => cancelInlineEdit()} />
                 <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
-                  <div className="p-1">
-                    {(colDef.enumOptions ?? []).map(opt => {
-                      const m = colDef.badgeMeta![opt] ?? colDef.badgeMeta![metaKeys[0]];
-                      const selected = opt === statusVal;
-                      return (
-                        <button key={opt}
-                          onClick={e => { e.stopPropagation(); inlineEditValueRef.current = opt; setInlineEditValue(opt); commitInlineEdit(row); }}
-                          className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg transition-colors ${selected ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${m.bg} ${m.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.dot}`} />{m.label}
-                          </span>
-                          {selected && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.dot}`} />}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  className="absolute left-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
+                  <TagOptionMenu
+                    options={options}
+                    selected={statusVal}
+                    variant="badge"
+                    resolve={(option) => resolveTag(colId, option, colDef.badgeMeta?.[option] ?? colDef.badgeMeta?.[metaKeys[0]])}
+                    onSelect={(option) => {
+                      inlineEditValueRef.current = option;
+                      setInlineEditValue(option);
+                      commitInlineEdit(row);
+                    }}
+                    onSave={(option, patch) => onSaveTag(colId, option, patch)}
+                  />
                 </motion.div>
               </>
             )}
@@ -127,25 +127,32 @@ export function TableTd<TRow extends WithId>({
   // ── Enum dropdown ──────────────────────────────────────────────────────────
   if (colDef.type === 'enum' && colDef.enumOptions) {
     const val = String(displayValue ?? '');
+    const tag = resolveTag(colId, val, undefined);
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing} ${colDef.tdClassName ?? ''}`}>
         <div className="relative">
           <div className="inline-flex items-center rounded-2xl hover:bg-gray-200/70 transition-colors px-2 py-1.5 -mx-2 -my-1.5 cursor-pointer"
             onClick={e => { e.stopPropagation(); setFocusedCell(null); startInlineEdit(row.id, field, val); }}>
-            {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-bold text-gray-900">{val}</span>}
+            {displayVal(val) === null ? <span className="text-gray-300">---</span> : <span className="text-sm font-bold text-gray-900">{tag.label}</span>}
           </div>
           <AnimatePresence>
             {isEditing && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => cancelInlineEdit()} />
                 <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1.5 w-40 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
-                  <div className="p-1">
-                    {colDef.enumOptions.map(opt => (
-                      <button key={opt} onClick={e => { e.stopPropagation(); inlineEditValueRef.current = opt; setInlineEditValue(opt); commitInlineEdit(row); }}
-                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${opt === val ? 'bg-gray-50 font-semibold' : 'hover:bg-gray-50'}`}>{opt}</button>
-                    ))}
-                  </div>
+                  className="absolute left-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
+                  <TagOptionMenu
+                    options={colDef.enumOptions}
+                    selected={val}
+                    variant="text"
+                    resolve={(option) => resolveTag(colId, option, undefined)}
+                    onSelect={(option) => {
+                      inlineEditValueRef.current = option;
+                      setInlineEditValue(option);
+                      commitInlineEdit(row);
+                    }}
+                    onSave={(option, patch) => onSaveTag(colId, option, patch)}
+                  />
                 </motion.div>
               </>
             )}

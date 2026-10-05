@@ -159,6 +159,21 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     placeholder="Agregar etiqueta"
                   />
                 </div>
+              ) : col.type === 'enum' ? (
+                <select
+                  id={`product-custom-${col.id}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                  value={String(formData.customFields[col.id] || '')}
+                  onChange={e => setFormData({
+                    ...formData,
+                    customFields: { ...formData.customFields, [col.id]: e.target.value },
+                  })}
+                >
+                  <option value="">Elegir</option>
+                  {(col.options ?? []).map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
               ) : (
               <input
                 id={`product-custom-${col.id}`}

@@ -5,6 +5,7 @@ export type ReportsWidgetId =
   | 'sales-by-period'
   | 'inventory-value'
   | 'top-products'
+  | 'business-mix'
   | 'payment-methods'
   | 'operational-snapshot';
 
@@ -25,7 +26,20 @@ export interface ReportsOverview {
     unitsSold: number;
     averageTicket: number;
     pendingSales: number;
+    pendingAmount: number;
+    marginRate: number;
     approvedTradeIns: number;
+  };
+  comparison: {
+    available: boolean;
+    revenue: number;
+    grossProfit: number;
+    unitsSold: number;
+    averageTicket: number;
+    revenueChange: number | null;
+    grossProfitChange: number | null;
+    unitsChange: number | null;
+    averageTicketChange: number | null;
   };
   salesSeries: Array<{
     label: string;
@@ -37,6 +51,17 @@ export interface ReportsOverview {
     unitsSold: number;
     revenue: number;
     share: number;
+  }>;
+  categories: Array<{
+    category: string;
+    unitsSold: number;
+    revenue: number;
+    share: number;
+  }>;
+  topClients: Array<{
+    client: string;
+    purchases: number;
+    revenue: number;
   }>;
   paymentMethods: Array<{
     label: string;
@@ -53,6 +78,11 @@ export interface ReportsOverview {
       costValue: number;
       retailValue: number;
     };
+    aging: Array<{
+      label: string;
+      count: number;
+      costValue: number;
+    }>;
   };
   clients: {
     totalClients: number;
@@ -62,6 +92,7 @@ export interface ReportsOverview {
   tradeIns: {
     totalInRange: number;
     approvedInRange: number;
+    openInRange: number;
     cashGenerated: number;
   };
 }

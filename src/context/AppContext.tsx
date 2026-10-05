@@ -6,11 +6,13 @@ import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInv
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
+import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
+import { normalizeDropdownOptions } from '../utils/dropdown-options';
 
 interface AppState {
   inventory: Product[];
@@ -65,6 +67,8 @@ interface AppState {
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
   completeOnboarding: (storeName: string) => Promise<void>;
+  createOwnedStore: (storeName: string) => Promise<void>;
+  activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
@@ -86,7 +90,9 @@ function normalizeCustomColumn(id: string, raw: Record<string, unknown>): Custom
     id,
     label: String(raw.label ?? ''),
     type,
-    options: Array.isArray(raw.options) ? raw.options.map(String) : undefined,
+    options: type === 'enum'
+      ? normalizeDropdownOptions(Array.isArray(raw.options) ? raw.options : [])
+      : undefined,
     entity,
   };
 }
@@ -216,6 +222,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [user]);
 
+  const activeStoreId = appSession?.store?.id ?? null;
   const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const backendSalesEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
@@ -241,13 +248,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     if (backendInventoryEnabled) {
+      setInventory([]);
+      setInventoryCategories([]);
       void loadBackendInventory();
     }
 
     return () => {
       cancelled = true;
     };
-  }, [backendInventoryEnabled, user]);
+  }, [activeStoreId, backendInventoryEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -272,13 +281,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     if (backendClientsEnabled) {
+      setClients([]);
+      setClientCategories([]);
       void loadBackendClients();
     }
 
     return () => {
       cancelled = true;
     };
-  }, [backendClientsEnabled, user]);
+  }, [activeStoreId, backendClientsEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -303,13 +314,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     if (backendSalesEnabled) {
+      setSales([]);
+      setSalesCategories([]);
       void loadBackendSalesAndCategories();
     }
 
     return () => {
       cancelled = true;
     };
-  }, [backendSalesEnabled, user]);
+  }, [activeStoreId, backendSalesEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -334,13 +347,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     if (backendTradeInsEnabled) {
+      setTradeIns([]);
+      setTradeInCategories([]);
       void loadBackendTradeIns();
     }
 
     return () => {
       cancelled = true;
     };
-  }, [backendTradeInsEnabled, user]);
+  }, [activeStoreId, backendTradeInsEnabled, user]);
 
   const login = async () => {
     try {
@@ -376,7 +391,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateStore = async (data: StoreUpdateInput) => {
     if (!user) throw new Error('No authenticated user');
     const updatedStore = await updateStoreApi(user, data);
-    setAppSession(prev => prev ? { ...prev, store: updatedStore } : prev);
+    setAppSession(prev => prev ? {
+      ...prev,
+      store: updatedStore,
+      stores: prev.stores?.map((store) => store.id === updatedStore.id ? { ...store, name: updatedStore.name } : store),
+    } : prev);
   };
 
   const updateUserProfile = async (data: { displayName: string }) => {
@@ -391,6 +410,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await completeBackendOnboarding(user, storeName);
+    setBackendStatus('ready');
+    setBackendMessage(null);
+    setAppSession(session);
+  };
+
+  const createOwnedStore = async (storeName: string) => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const session = await createOwnedStoreApi(user, storeName);
+    setBackendStatus('ready');
+    setBackendMessage(null);
+    setAppSession(session);
+  };
+
+  const activateStore = async (storeId: string) => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const session = await activateStoreApi(user, storeId);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -785,8 +826,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (existingColumn) {
       return existingColumn.id;
     }
+    const options = columnData.type === 'enum' ? normalizeDropdownOptions(columnData.options ?? []) : undefined;
+    if (columnData.type === 'enum' && options.length < 2) {
+      throw new Error('Agregá al menos dos opciones distintas.');
+    }
     const id = generateId('COL');
-    const createdColumn: CustomColumn = { id, ...columnData };
+    const createdColumn: CustomColumn = {
+      id,
+      ...columnData,
+      label: columnData.label.trim(),
+      options,
+    };
     const nextColumns = (
       customColumns.some((column) => column.id === id)
         ? customColumns
@@ -826,7 +876,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
       clientCategories, createClientCategory, renameClientCategory, deleteClientCategory, bulkMoveClientCategory, reorderClientCategories,
       updateStore, updateUserProfile,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, createOwnedStore, activateStore, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>

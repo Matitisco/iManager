@@ -371,8 +371,8 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
     onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
     customColumnActions: {
-      onCreate: async ({ label, type }) => {
-        const id = await addCustomColumn({ label, type, entity: 'sales' });
+      onCreate: async ({ label, type, options }) => {
+        const id = await addCustomColumn({ label, type, options, entity: 'sales' });
         if (!id) {
           throw new Error('No se pudo crear la columna.');
         }

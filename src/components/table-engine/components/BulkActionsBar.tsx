@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Copy } from 'lucide-react';
 import type { WithId, TableCategory } from '../types';
 
 interface BulkActionsBarProps<TRow extends WithId> {
@@ -8,6 +8,7 @@ interface BulkActionsBarProps<TRow extends WithId> {
   total: number;
   categories: TableCategory[];
   onClearSelection: () => void;
+  onCopy?: () => void;
   onBulkDelete: () => void;
   onBulkMove?: (categoryId: string) => void;
   noun?: string;
@@ -15,7 +16,7 @@ interface BulkActionsBarProps<TRow extends WithId> {
 }
 
 export function BulkActionsBar<TRow extends WithId>({
-  selectedIds, total, categories, onClearSelection, onBulkDelete, onBulkMove, noun = 'ítem', nounPlural = 'ítems',
+  selectedIds, total, categories, onClearSelection, onCopy, onBulkDelete, onBulkMove, noun = 'ítem', nounPlural = 'ítems',
 }: BulkActionsBarProps<TRow>) {
   const count = selectedIds.size;
 
@@ -37,6 +38,15 @@ export function BulkActionsBar<TRow extends WithId>({
             {count} {count === 1 ? noun : nounPlural} seleccionado{count === 1 ? '' : 's'}
           </div>
           <div className="h-5 w-px bg-gray-700 mx-1" />
+          {onCopy && (
+            <button
+              data-testid="table-bulk-copy"
+              onClick={onCopy}
+              className="px-3 py-1.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-gray-700 rounded-xl transition-colors flex items-center gap-1.5"
+            >
+              <Copy size={14} /> Copiar
+            </button>
+          )}
           {categories.length > 0 && onBulkMove && (
             <div className="relative group">
               <button className="px-3 py-1.5 text-sm font-semibold text-gray-200 hover:text-white hover:bg-gray-700 rounded-xl transition-colors">
