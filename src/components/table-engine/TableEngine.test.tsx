@@ -3,12 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { TableEngine } from './TableEngine';
 import type { TableEngineConfig } from './types';
+import { clearRowClipboardMemory } from './rowClipboard';
 
 type TestRow = {
   id: string;
   name: string;
   quantity: number;
   categoryId: string | null;
+  imei?: string;
+  status?: string;
 };
 
 function buildConfig(overrides: Partial<TableEngineConfig<TestRow>> = {}): TableEngineConfig<TestRow> {
@@ -312,6 +315,196 @@ describe('TableEngine', () => {
 
     expect(beta.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(addRow.compareDocumentPosition(gamma) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('copies selected rows and pastes them as new records', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: 'phones', imei: '111' },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: 'phones', imei: '222' },
+    ];
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          columns: [
+            {
+              id: 'name',
+              label: 'Nombre',
+              field: 'name',
+              defaultWidth: 180,
+              type: 'text',
+              editable: true,
+            },
+            {
+              id: 'quantity',
+              label: 'Cantidad',
+              field: 'quantity',
+              defaultWidth: 120,
+              type: 'number',
+              editable: true,
+            },
+            {
+              id: 'imei',
+              label: 'IMEI',
+              field: 'imei',
+              defaultWidth: 140,
+              type: 'text',
+              editable: true,
+              onDuplicateValue: (value) => `${value}-copy`,
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onCreate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr') as HTMLElement;
+    const betaRow = screen.getByText('Beta').closest('tr') as HTMLElement;
+    await user.click(alphaRow);
+    fireEvent.click(betaRow, { shiftKey: true });
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
+
+    expect(await screen.findByText('Se copiaron 2 ítems')).toBeInTheDocument();
+
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledTimes(2);
+    });
+    expect(onCreate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      name: 'Alpha',
+      quantity: 1,
+      imei: '111-copy',
+      categoryId: 'phones',
+    }));
+    expect(onCreate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      name: 'Beta',
+      quantity: 2,
+      imei: '222-copy',
+      categoryId: 'phones',
+    }));
+  });
+
+  it('pastes an external table as new rows without rewriting unique values', async () => {
+    clearRowClipboardMemory();
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: [], total: 0 })),
+          onCreate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    fireEvent.paste(document.body, {
+      clipboardData: {
+        getData: () => 'Nombre\tCantidad\nGamma\t4',
+      },
+    });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'Gamma',
+        quantity: 4,
+      }));
+    });
+  });
+
+  it('renames a dropdown tag from the pencil editor without changing the stored value', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    type BadgeRow = TestRow & { status: 'DISPONIBLE' | 'VENDIDO' };
+    const rows: BadgeRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null, status: 'DISPONIBLE' },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          columns: [
+            {
+              id: 'status',
+              label: 'Disponibilidad',
+              field: 'status',
+              defaultWidth: 160,
+              type: 'badge',
+              editable: true,
+              enumOptions: ['DISPONIBLE', 'VENDIDO'],
+              badgeMeta: {
+                DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
+                VENDIDO: { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', label: 'VENDIDO' },
+              },
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onUpdate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.click(await screen.findByText('DISPONIBLE'));
+    await user.click(screen.getByRole('button', { name: 'Editar etiqueta DISPONIBLE' }));
+
+    const input = screen.getByTestId('tag-edit-input');
+    await user.clear(input);
+    await user.type(input, 'En local');
+    await user.click(screen.getByRole('button', { name: 'Color Azul' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(screen.getAllByText('En local').length).toBeGreaterThan(0);
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'VENDIDO' }));
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        id: '1',
+        status: 'VENDIDO',
+      }));
+    });
+  });
+
+  it('renames a column from a double click and cancels with escape', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.dblClick(await screen.findByText('Nombre'));
+    const input = screen.getByRole('textbox', { name: 'Nombre de la columna' });
+    expect(input).toHaveValue('Nombre');
+    expect(input).toHaveClass('text-xs', 'font-bold', 'tracking-wider', 'uppercase', 'ring-inset');
+
+    await user.type(input, ' temporal');
+    await user.keyboard('{Escape}');
+    expect(screen.getByText('Nombre')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre de la columna' })).not.toBeInTheDocument();
+
+    await user.dblClick(screen.getByText('Nombre'));
+    const nextInput = screen.getByRole('textbox', { name: 'Nombre de la columna' });
+    await user.clear(nextInput);
+    await user.type(nextInput, 'Equipo{Enter}');
+
+    expect(await screen.findByText('Equipo')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre de la columna' })).not.toBeInTheDocument();
   });
 
   it('creates a dropdown custom column with fixed options', async () => {

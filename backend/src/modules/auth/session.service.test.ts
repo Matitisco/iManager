@@ -4,10 +4,12 @@ const {
   findOrCreateUserFromFirebaseMock,
   getDefaultMembershipForUserMock,
   getMembershipForUserAndStoreMock,
+  listStoresForUserMock,
 } = vi.hoisted(() => ({
   findOrCreateUserFromFirebaseMock: vi.fn(),
   getDefaultMembershipForUserMock: vi.fn(),
   getMembershipForUserAndStoreMock: vi.fn(),
+  listStoresForUserMock: vi.fn(),
 }));
 
 vi.mock("../users/users.service.js", () => ({
@@ -17,6 +19,7 @@ vi.mock("../users/users.service.js", () => ({
 vi.mock("../stores/stores.service.js", () => ({
   getDefaultMembershipForUser: getDefaultMembershipForUserMock,
   getMembershipForUserAndStore: getMembershipForUserAndStoreMock,
+  listStoresForUser: listStoresForUserMock,
 }));
 
 import { buildAppSessionForUser } from "./session.service.js";
@@ -24,6 +27,7 @@ import { buildAppSessionForUser } from "./session.service.js";
 describe("session.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listStoresForUserMock.mockResolvedValue([]);
     findOrCreateUserFromFirebaseMock.mockResolvedValue({
       id: "user-1",
       firebaseUid: "firebase-user",
@@ -68,5 +72,6 @@ describe("session.service", () => {
     expect(session.onboardingRequired).toBe(false);
     expect(session.store?.id).toBe("store-2");
     expect(session.membership?.role).toBe("MANAGER");
+    expect(session.stores).toEqual([]);
   });
 });

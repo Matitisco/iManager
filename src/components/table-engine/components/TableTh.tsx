@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 interface TableThProps {
   col: string;
@@ -24,45 +24,78 @@ export function TableTh({
   renamingCol, renameValue, setRenameValue, setRenamingCol, commitColRename,
   thRef, onPointerDown, onResizeStart, onContextMenu,
 }: TableThProps) {
+  const skipCommitRef = useRef(false);
+  const isRenaming = renamingCol === col;
+
+  const beginRename = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    skipCommitRef.current = false;
+    setRenameValue(colName);
+    setRenamingCol(col);
+  };
+
+  const cancelRename = () => {
+    skipCommitRef.current = true;
+    setRenamingCol(null);
+  };
+
+  const commitRename = () => {
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      return;
+    }
+    commitColRename(col);
+  };
+
   return (
     <th
       ref={thRef}
-      className={`relative group px-3 py-4 text-left select-none cursor-grab overflow-hidden ${isDragging ? 'opacity-30' : ''}`}
+      className={`relative group px-3 py-4 text-left select-none overflow-hidden ${isDragging ? 'opacity-30' : ''} ${isRenaming ? 'cursor-text' : 'cursor-grab'}`}
       style={{ width: colWidth }}
-      onPointerDown={onPointerDown}
+      onPointerDown={isRenaming ? undefined : onPointerDown}
       onContextMenu={onContextMenu}
     >
       {dropBefore && !isDragging && (
         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-gray-900 rounded-full z-10" />
       )}
-      {renamingCol === col ? (
-        <input
-          autoFocus
-          value={renameValue}
-          maxLength={30}
-          className="text-xs font-bold tracking-wider uppercase text-gray-700 outline-none border border-gray-300 rounded-lg px-2 py-0.5 bg-white min-w-0 w-full focus:border-gray-400"
-          onChange={e => setRenameValue(e.target.value)}
-          onBlur={() => commitColRename(col)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') { e.preventDefault(); commitColRename(col); }
-            if (e.key === 'Escape') { e.preventDefault(); setRenamingCol(null); }
-          }}
-          onClick={e => e.stopPropagation()}
-          onPointerDown={e => e.stopPropagation()}
-        />
-      ) : (
-        <span
-          className="flex items-center gap-1.5 min-w-0 pr-5"
-          onDoubleClick={e => { e.stopPropagation(); setRenamingCol(col); }}
-        >
-          <span className="truncate text-xs font-bold tracking-wider uppercase text-gray-400">
+      <span className="flex items-center gap-1.5 min-w-0 pr-5">
+        {isRenaming ? (
+          <input
+            autoFocus
+            value={renameValue}
+            maxLength={30}
+            aria-label="Nombre de la columna"
+            spellCheck={false}
+            className="min-w-0 flex-1 h-4 -ml-1 px-1 py-0 bg-white text-xs font-bold tracking-wider uppercase text-gray-900 leading-4 rounded-md outline-none ring-1 ring-inset ring-gray-300 focus:ring-gray-900 caret-gray-900"
+            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                commitColRename(col);
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelRename();
+              }
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          />
+        ) : (
+          <span
+            className="truncate text-xs font-bold tracking-wider uppercase text-gray-400"
+            onDoubleClick={beginRename}
+          >
             {colName}
           </span>
-          {isCustom && (
-            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400/70" />
-          )}
-        </span>
-      )}
+        )}
+        {isCustom && (
+          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-violet-400/70" />
+        )}
+      </span>
       {/* Resize handle */}
       <div
         className={`absolute right-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-col-resize z-10 transition-opacity duration-150 ${isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}

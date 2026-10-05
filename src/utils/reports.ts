@@ -10,6 +10,7 @@ export const REPORTS_WIDGET_IDS: ReportsWidgetId[] = [
   'sales-by-period',
   'inventory-value',
   'top-products',
+  'business-mix',
   'payment-methods',
   'operational-snapshot',
 ];
@@ -19,6 +20,7 @@ export const DEFAULT_VISIBLE_REPORTS_WIDGET_IDS: ReportsWidgetId[] = [
   'sales-by-period',
   'inventory-value',
   'top-products',
+  'business-mix',
   'payment-methods',
 ];
 
@@ -49,15 +51,20 @@ export function normalizeReportsWidgetPreferences(
         REPORTS_WIDGET_IDS.includes(value as ReportsWidgetId)
       )
     : defaultPreferences.visibleWidgetIds;
-  const rawOrder = Array.isArray(raw?.widgetOrder)
+  const storedOrder = Array.isArray(raw?.widgetOrder)
     ? raw.widgetOrder.filter((value): value is ReportsWidgetId =>
         REPORTS_WIDGET_IDS.includes(value as ReportsWidgetId)
       )
-    : defaultPreferences.widgetOrder;
-  const widgetOrder = uniqueWidgetIds([...rawOrder, ...REPORTS_WIDGET_IDS]);
-  const visibleWidgetIds = uniqueWidgetIds(
-    rawVisibleIds.filter((value) => widgetOrder.includes(value))
-  );
+    : null;
+  const rawOrder = storedOrder ?? defaultPreferences.widgetOrder;
+  const introducedIds = storedOrder
+    ? DEFAULT_VISIBLE_REPORTS_WIDGET_IDS.filter((widgetId) => !storedOrder.includes(widgetId))
+    : [];
+  const widgetOrder = uniqueWidgetIds([...introducedIds, ...rawOrder, ...REPORTS_WIDGET_IDS]);
+  const visibleWidgetIds = uniqueWidgetIds([
+    ...introducedIds,
+    ...rawVisibleIds.filter((value) => widgetOrder.includes(value)),
+  ]);
 
   return {
     visibleWidgetIds,
@@ -203,7 +210,13 @@ export function buildReportsCsv(report: ReportsOverview, visibleWidgetIds: Repor
     sections.push(csvRow(['Resumen', 'Equipos vendidos', report.summary.unitsSold]));
     sections.push(csvRow(['Resumen', 'Ticket promedio', report.summary.averageTicket.toFixed(2)]));
     sections.push(csvRow(['Resumen', 'Ventas pendientes', report.summary.pendingSales]));
+    sections.push(csvRow(['Resumen', 'Monto pendiente', report.summary.pendingAmount.toFixed(2)]));
+    sections.push(csvRow(['Resumen', 'Margen %', report.summary.marginRate.toFixed(2)]));
     sections.push(csvRow(['Resumen', 'Canjes aprobados', report.summary.approvedTradeIns]));
+    if (report.comparison.available) {
+      sections.push(csvRow(['Comparacion', 'Ingresos anteriores', report.comparison.revenue.toFixed(2)]));
+      sections.push(csvRow(['Comparacion', 'Variacion ingresos %', report.comparison.revenueChange ?? '']));
+    }
     sections.push('');
   }
 
@@ -221,6 +234,11 @@ export function buildReportsCsv(report: ReportsOverview, visibleWidgetIds: Repor
     sections.push(csvRow(['Inventario', 'Valor potencial de venta', report.inventory.valuation.retailValue.toFixed(2)]));
     sections.push(csvRow(['Inventario', 'Disponibles', report.inventory.availableItems]));
     sections.push(csvRow(['Inventario', 'Total items', report.inventory.totalItems]));
+    report.inventory.aging.forEach((bucket) => {
+      sections.push(
+        csvRow(['Inventario', `Antiguedad ${bucket.label}`, bucket.count, bucket.costValue.toFixed(2)])
+      );
+    });
     sections.push('');
   }
 
@@ -236,6 +254,26 @@ export function buildReportsCsv(report: ReportsOverview, visibleWidgetIds: Repor
           product.share.toFixed(2),
         ])
       );
+    });
+    sections.push('');
+  }
+
+  if (visibleWidgetIds.includes('business-mix')) {
+    sections.push(csvRow(['Categorias', 'Categoria', 'Unidades', 'Ingresos', 'Share']));
+    report.categories.forEach((category) => {
+      sections.push(
+        csvRow([
+          'Categorias',
+          category.category,
+          category.unitsSold,
+          category.revenue.toFixed(2),
+          category.share.toFixed(2),
+        ])
+      );
+    });
+    sections.push(csvRow(['Clientes', 'Cliente', 'Compras', 'Ingresos']));
+    report.topClients.forEach((client) => {
+      sections.push(csvRow(['Clientes', client.client, client.purchases, client.revenue.toFixed(2)]));
     });
     sections.push('');
   }
@@ -263,6 +301,7 @@ export function buildReportsCsv(report: ReportsOverview, visibleWidgetIds: Repor
     sections.push(csvRow(['Operacion', 'Saldo pendiente', report.clients.pendingBalance.toFixed(2)]));
     sections.push(csvRow(['Operacion', 'Canjes en rango', report.tradeIns.totalInRange]));
     sections.push(csvRow(['Operacion', 'Canjes aprobados', report.tradeIns.approvedInRange]));
+    sections.push(csvRow(['Operacion', 'Canjes en curso', report.tradeIns.openInRange]));
     sections.push(csvRow(['Operacion', 'Caja por canjes', report.tradeIns.cashGenerated.toFixed(2)]));
     sections.push(csvRow(['Operacion', 'Stock vendido', report.inventory.soldItems]));
     sections.push(csvRow(['Operacion', 'Stock en revision', report.inventory.inReviewItems]));
