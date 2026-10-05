@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
+import { TagField } from '../TagField';
+import { parseCellTags } from '../../utils/cell-tags';
 
 export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { addProduct, customColumns } = useAppContext();
@@ -18,7 +20,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     batteryHealth: '100',
     cost: 0,
     price: 0,
-    customFields: {} as Record<string, string | number>
+    customFields: {} as Record<string, string | number | string[]>
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -145,7 +147,19 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {inventoryCustomColumns.map(col => (
             <div key={col.id} className="space-y-1">
               <label htmlFor={`product-custom-${col.id}`} className="text-xs font-bold text-gray-700">{col.label}</label>
-              {col.type === 'enum' ? (
+              {col.type === 'tags' ? (
+                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                  <TagField
+                    id={`product-custom-${col.id}`}
+                    tags={parseCellTags(formData.customFields[col.id])}
+                    onChange={(tags) => setFormData({
+                      ...formData,
+                      customFields: { ...formData.customFields, [col.id]: tags },
+                    })}
+                    placeholder="Agregar etiqueta"
+                  />
+                </div>
+              ) : col.type === 'enum' ? (
                 <select
                   id={`product-custom-${col.id}`}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
@@ -165,7 +179,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 id={`product-custom-${col.id}`}
                 type={col.type === 'number' ? 'number' : 'text'}
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
-                value={formData.customFields[col.id] || ''}
+                value={String(formData.customFields[col.id] ?? '')}
                 onChange={e => setFormData({
                   ...formData,
                   customFields: {

@@ -106,4 +106,34 @@ describe('ProductForm', () => {
       mockAppContext.customColumns = originalColumns;
     }
   });
+
+  it('saves several tags from a multi-tag custom column', async () => {
+    const user = userEvent.setup();
+    const originalColumns = mockAppContext.customColumns;
+    mockAppContext.customColumns = [
+      { id: 'labels', label: 'Etiquetas', type: 'tags', entity: 'inventory', options: undefined },
+    ];
+    mockAppContext.addProduct.mockResolvedValue(undefined);
+
+    try {
+      render(<ProductForm onClose={vi.fn()} />);
+
+      await user.type(screen.getByLabelText('IMEI'), '111222333');
+      await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
+      await user.clear(screen.getByLabelText('Color'));
+      await user.type(screen.getByLabelText('Color'), 'Negro');
+      await user.type(screen.getByLabelText('Etiquetas'), 'VIP');
+      await user.keyboard('{Enter}');
+      await user.type(screen.getByLabelText('Etiquetas'), 'Urgente');
+      await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+
+      await waitFor(() => {
+        expect(mockAppContext.addProduct).toHaveBeenCalledWith(expect.objectContaining({
+          customFields: { labels: ['VIP', 'Urgente'] },
+        }));
+      });
+    } finally {
+      mockAppContext.customColumns = originalColumns;
+    }
+  });
 });

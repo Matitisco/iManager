@@ -24,6 +24,7 @@ import { EditPanel } from './components/EditPanel';
 import { FilterPanel, SortPanel, ColumnsPanel } from './components/Panels';
 import { ImportModal as GenericImportModal } from './components/ImportModal';
 import { getColumnValue } from './columnAccess';
+import { parseCellTags } from '../../utils/cell-tags';
 import {
   buildTsv,
   parseClipboardRows,
@@ -114,7 +115,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
   const [newColumnDraft, setNewColumnDraft] = useState<{
     label: string;
-    type: 'text' | 'number' | 'enum';
+    type: 'text' | 'number' | 'enum' | 'tags';
     options: string[];
   } | null>(null);
   const [columnToDelete, setColumnToDelete] = useState<{ id: string; label: string } | null>(null);
@@ -290,7 +291,11 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     setIsColumnMutationLoading(true);
     setColumnMutationError(null);
     try {
-      await customColumnActions.onCreate({ label, type: newColumnDraft.type, options });
+      await customColumnActions.onCreate({
+        label,
+        type: newColumnDraft.type,
+        ...(options ? { options } : {}),
+      });
       setNewColumnDraft(null);
     } catch (error) {
       setColumnMutationError(error instanceof Error ? error.message : 'No se pudo crear la columna.');
@@ -581,7 +586,10 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         colState.orderedVisibleCols.forEach(colId => {
           const colDef = resolvedColumns.find(c => c.id === colId);
           if (!colDef) return;
-          r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = getColumnValue(row, colDef) ?? '';
+          const value = getColumnValue(row, colDef);
+          r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = colDef.type === 'tags'
+            ? parseCellTags(value).join(', ')
+            : (value ?? '');
         });
         return r;
       });
@@ -768,6 +776,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
 
                         if (colDef) {
                           if (colDef.type === 'number') effectiveType = 'number';
+                          else if (colDef.type === 'tags' && !placeholder) placeholder = 'Etiquetas, separadas por coma';
                           else if ((colDef.type === 'enum' || colDef.type === 'badge') && colDef.enumOptions?.length) {
                             effectiveType = 'select';
                             selectOptions = colDef.enumOptions.map(o => ({
@@ -855,6 +864,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           setFocusedCell={editHook.setFocusedCell}
                           startInlineEdit={editHook.startInlineEdit}
                           commitInlineEdit={editHook.commitInlineEdit}
+                          commitTags={editHook.commitTags}
                           cancelInlineEdit={editHook.cancelInlineEdit}
                           inlineEditCellRef={editHook.inlineEditCellRef}
                           handleCellBlur={editHook.handleCellBlur}
@@ -1051,6 +1061,16 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                   >
                     Nueva columna desplegable
                   </button>
+                  <button
+                    onClick={() => {
+                      setColumnMutationError(null);
+                      setNewColumnDraft({ label: '', type: 'tags', options: [] });
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                  >
+                    Nueva columna multietiqueta
+                  </button>
                 </>
               )}
               {canDeleteColumn(headerContextMenu.colId) && (
@@ -1134,9 +1154,11 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
               <p className="text-sm text-gray-500 mb-4">
                 {newColumnDraft.type === 'number'
                   ? 'Creá una columna numérica para esta tabla.'
-                  : newColumnDraft.type === 'enum'
-                    ? 'Creá un desplegable con opciones fijas. En cada celda se elige una de esas opciones.'
-                    : 'Creá una columna de texto para esta tabla.'}
+                  : newColumnDraft.type === 'tags'
+                    ? 'Creá una columna multietiqueta. En cada celda podés poner varias etiquetas.'
+                    : newColumnDraft.type === 'enum'
+                      ? 'Creá un desplegable con opciones fijas. En cada celda se elige una de esas opciones.'
+                      : 'Creá una columna de texto para esta tabla.'}
               </p>
               <div className="space-y-3">
                 <div className="space-y-1">

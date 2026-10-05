@@ -12,6 +12,7 @@ type TestRow = {
   categoryId: string | null;
   imei?: string;
   status?: string;
+  customFields?: Record<string, unknown>;
 };
 
 function buildConfig(overrides: Partial<TableEngineConfig<TestRow>> = {}): TableEngineConfig<TestRow> {
@@ -566,5 +567,77 @@ describe('TableEngine', () => {
 
     expect(await screen.findByText('Agregá al menos dos opciones distintas.')).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates a multi-tag custom column', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn(async () => undefined);
+    const rows: TestRow[] = [{ id: '1', name: 'Alpha', quantity: 1, categoryId: null }];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          customColumnActions: { onCreate },
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const header = await screen.findByText('Nombre');
+    fireEvent.contextMenu(header.closest('th') ?? header);
+    await user.click(screen.getByRole('button', { name: 'Nueva columna multietiqueta' }));
+    expect(screen.getByText('Creá una columna multietiqueta. En cada celda podés poner varias etiquetas.')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Ej: Proveedor'), { target: { value: 'Etiquetas' } });
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith({ label: 'Etiquetas', type: 'tags' });
+    });
+  });
+
+  it('keeps several tags in the same cell', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn(async () => undefined);
+    const rows: TestRow[] = [{
+      id: '1',
+      name: 'Alpha',
+      quantity: 1,
+      categoryId: null,
+      customFields: { labels: ['VIP'] },
+    }];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onUpdate,
+          dynamicColumns: {
+            columns: [{ id: 'labels', label: 'Etiquetas', type: 'tags' }],
+            getValue: (row, columnId) => row.customFields?.[columnId] ?? [],
+            setValue: (row, columnId, value) => ({
+              ...row,
+              customFields: { ...(row.customFields ?? {}), [columnId]: value },
+            }),
+          },
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Etiquetas: VIP' }));
+    await user.type(screen.getByLabelText('Nueva etiqueta'), 'Mayorista');
+    await user.keyboard('{Enter}');
+    await user.type(screen.getByLabelText('Nueva etiqueta'), 'Urgente');
+    const overlay = document.querySelector('.fixed.inset-0');
+    if (!overlay) throw new Error('Tag editor overlay was not rendered');
+    await user.click(overlay);
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        customFields: { labels: ['VIP', 'Mayorista', 'Urgente'] },
+      }));
+    });
+    expect(screen.getByRole('button', { name: 'Etiquetas: VIP, Mayorista, Urgente' })).toBeInTheDocument();
   });
 });

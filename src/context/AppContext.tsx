@@ -81,7 +81,7 @@ const generateId = (prefix: string) => `${prefix}-${Math.floor(Math.random() * 1
 const CUSTOM_COLUMN_ENTITIES: CustomColumnEntity[] = ['inventory', 'clients', 'sales', 'trade-ins'];
 
 function normalizeCustomColumn(id: string, raw: Record<string, unknown>): CustomColumn {
-  const type = raw.type === 'number' || raw.type === 'enum' ? raw.type : 'text';
+  const type = raw.type === 'number' || raw.type === 'enum' || raw.type === 'tags' ? raw.type : 'text';
   const entity = CUSTOM_COLUMN_ENTITIES.includes(raw.entity as CustomColumnEntity)
     ? (raw.entity as CustomColumnEntity)
     : 'inventory';

@@ -14,6 +14,7 @@ import {
   updateTradeInCategoryInCache,
 } from '../services/trade-ins-table-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
+import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -461,18 +462,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
         { colId: 'differencePaid', placeholder: 'Diferencia abonada', required: true },
       ],
       buildNewItem: (formData, categoryId) => ({
-        customFields: (() => {
-          const entries = Object.entries(formData)
-            .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
-            .map(([key, value]) => [
-              key.replace('dynamic:', ''),
-              tradeInCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
-                ? Number(value)
-                : value,
-            ]);
-
-          return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-        })(),
+        customFields: customFieldsFromRowForm(formData, tradeInCustomColumns),
         date: String(formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
         clientId: String(formData.clientId ?? '').trim(),
         categoryId: categoryId ?? null,
@@ -512,15 +502,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
         columns: tradeInCustomColumns,
         defaultWidth: 160,
         getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
-        setValue: (row, columnId, value) => ({
-          ...row,
-          customFields: {
-            ...(row.customFields ?? {}),
-            [columnId]: tradeInCustomColumns.find((column) => column.id === columnId)?.type === 'number'
-              ? (value === '' || value == null ? '' : Number(value))
-              : value,
-          },
-        }),
+        setValue: (row, columnId, value) => withCustomField(row, tradeInCustomColumns, columnId, value),
       },
 
       editPanelTitle: 'Editar Canje',

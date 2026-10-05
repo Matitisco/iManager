@@ -14,6 +14,7 @@ import {
 } from '../services/inventory-api';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
+import { customFieldsFromRowForm, parseCellTags, withCustomField } from '../utils/cell-tags';
 import { motion } from 'motion/react';
 
 // ── Badge metadata ────────────────────────────────────────────────────────────
@@ -371,15 +372,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
       columns: inventoryCustomColumns,
       defaultWidth: 160,
       getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
-      setValue: (row, columnId, value) => ({
-        ...row,
-        customFields: {
-          ...(row.customFields ?? {}),
-          [columnId]: inventoryCustomColumns.find((column) => column.id === columnId)?.type === 'number'
-            ? (value === '' || value == null ? '' : Number(value))
-            : value,
-        },
-      }),
+      setValue: (row, columnId, value) => withCustomField(row, inventoryCustomColumns, columnId, value),
     },
 
     // ── Add row inline ────────────────────────────────────────────────────────
@@ -389,10 +382,6 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
       { colId: 'price', placeholder: 'Precio' },
     ],
     buildNewItem: (formData, categoryId) => {
-      const customFieldEntries = Object.entries(formData)
-        .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
-        .map(([key, value]) => [key.replace('dynamic:', ''), value]);
-
       return {
         model: formData.model ?? '',
         imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
@@ -405,7 +394,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
         grade: formData.grade ?? 'N/A',
         status: formData.status ?? 'DISPONIBLE',
         categoryId: categoryId ?? null,
-        customFields: customFieldEntries.length > 0 ? Object.fromEntries(customFieldEntries) : undefined,
+        customFields: customFieldsFromRowForm(formData, inventoryCustomColumns),
       };
     },
 
@@ -493,7 +482,14 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
         const importRows: ImportRow[] = rows.map(row => {
           const customFields: Record<string, unknown> = {};
           for (const [k, v] of Object.entries(row)) {
-            if (!STANDARD_KEYS.has(k) && v) customFields[k] = v;
+            if (!STANDARD_KEYS.has(k) && v) {
+              if (inventoryCustomColumns.find((column) => column.id === k)?.type === 'tags') {
+                const tags = parseCellTags(v);
+                if (tags.length > 0) customFields[k] = tags;
+              } else {
+                customFields[k] = v;
+              }
+            }
           }
           return {
             imei:         row.imei ?? '',

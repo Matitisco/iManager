@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { WithId, ColDef, BadgeMeta } from '../types';
 import { getColumnValue } from '../columnAccess';
+import { TagsCell } from './TagsCell';
 import { TagChipDisplay, TagOptionMenu } from './TagOptionMenu';
 import type { ResolvedTag, TagPatch } from '../tagOptions';
 
@@ -19,6 +20,7 @@ interface TableTdProps<TRow extends WithId> {
   setFocusedCell: (v: { rowIndex: number; colKey: string } | null) => void;
   startInlineEdit: (id: string, field: string, value: string) => void;
   commitInlineEdit: (row: TRow) => void;
+  commitTags: (row: TRow, field: string, tags: string[]) => void;
   cancelInlineEdit: () => void;
   inlineEditCellRef: React.MutableRefObject<{ id: string; field: string } | null>;
   handleCellBlur: (row: TRow) => void;
@@ -33,7 +35,7 @@ export function TableTd<TRow extends WithId>({
   colId, colDef, row, rowIndex,
   inlineEditCell, inlineEditValue, setInlineEditValue, inlineEditValueRef,
   focusedCell, setFocusedCell,
-  startInlineEdit, commitInlineEdit, cancelInlineEdit, inlineEditCellRef,
+  startInlineEdit, commitInlineEdit, commitTags, cancelInlineEdit, inlineEditCellRef,
   handleCellBlur, handleCellKeyDown, cellDisplay, displayVal,
   resolveTag, onSaveTag,
 }: TableTdProps<TRow>) {
@@ -106,6 +108,19 @@ export function TableTd<TRow extends WithId>({
           </AnimatePresence>
         </div>
       </td>
+    );
+  }
+
+  if (colDef.type === 'tags') {
+    return (
+      <TagsCell
+        colId={colId}
+        row={row}
+        field={field}
+        value={displayValue}
+        focusRing={focusRing}
+        onCommit={commitTags}
+      />
     );
   }
 

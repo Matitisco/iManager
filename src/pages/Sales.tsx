@@ -8,6 +8,7 @@ import type { Sale, Client, Product } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache, updateCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
+import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
 
 // ── Payment method badge metadata ─────────────────────────────────────────────
 const PAYMENT_BADGE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
@@ -354,18 +355,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
     ],
     buildNewItem: (formData, categoryId) => ({
-      customFields: (() => {
-        const entries = Object.entries(formData)
-          .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
-          .map(([key, value]) => [
-            key.replace('dynamic:', ''),
-            salesCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
-              ? Number(value)
-              : value,
-          ]);
-
-        return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-      })(),
+      customFields: customFieldsFromRowForm(formData, salesCustomColumns),
       clientId: String(formData.clientId ?? '').trim(),
       productId: String(formData.productId ?? '').trim(),
       amount: Number(formData.amount) || 0,
@@ -397,15 +387,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       columns: salesCustomColumns,
       defaultWidth: 160,
       getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
-      setValue: (row, columnId, value) => ({
-        ...row,
-        customFields: {
-          ...(row.customFields ?? {}),
-          [columnId]: salesCustomColumns.find((column) => column.id === columnId)?.type === 'number'
-            ? (value === '' || value == null ? '' : Number(value))
-            : value,
-        },
-      }),
+      setValue: (row, columnId, value) => withCustomField(row, salesCustomColumns, columnId, value),
     },
 
     importConfig: {

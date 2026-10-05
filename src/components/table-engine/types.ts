@@ -5,7 +5,7 @@ export type WithId = { id: string };
 
 // ─── Column definition ────────────────────────────────────────────────────────
 
-export type ColType = 'text' | 'number' | 'enum' | 'badge' | 'custom';
+export type ColType = 'text' | 'number' | 'enum' | 'badge' | 'tags' | 'custom';
 
 export interface BadgeMeta {
   bg: string;
@@ -159,7 +159,7 @@ export interface TableImportConfig {
 
 export interface CreateColumnInput {
   label: string;
-  type: 'text' | 'number' | 'enum';
+  type: 'text' | 'number' | 'enum' | 'tags';
   options?: string[];
 }
 
@@ -172,7 +172,7 @@ export interface CustomColumnActions {
 export interface DynamicColumnDefinition {
   id: string;
   label: string;
-  type: 'text' | 'number' | 'enum';
+  type: 'text' | 'number' | 'enum' | 'tags';
   options?: string[];
 }
 

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { WithId, ColDef } from '../types';
 import { applyColumnValue, getColumnValue } from '../columnAccess';
+import { parseCellTags, sameCellTags } from '../../../utils/cell-tags';
 
 export function useInlineEdit<TRow extends WithId>(
   items: TRow[],
@@ -32,6 +33,21 @@ export function useInlineEdit<TRow extends WithId>(
   const cancelInlineEdit = () => {
     inlineEditCellRef.current = null;
     setInlineEditCell(null);
+  };
+
+  const commitTags = async (row: TRow, field: string, value: unknown) => {
+    const colDef = columns.find(c => c.field === field);
+    const next = parseCellTags(value);
+    const current = parseCellTags(colDef ? getColumnValue(row, colDef) : (row as any)[field]);
+    if (sameCellTags(current, next)) return;
+    committedDisplayRef.current = { id: row.id, field, value: next };
+    const updatedItem = colDef ? applyColumnValue(row, colDef, next) : { ...row, [field]: next };
+    try {
+      await onUpdate(updatedItem);
+      setItems(prev => prev.map(p => p.id === row.id ? updatedItem : p));
+    } finally {
+      committedDisplayRef.current = null;
+    }
   };
 
   const commitInlineEdit = async (row: TRow) => {
@@ -117,7 +133,7 @@ export function useInlineEdit<TRow extends WithId>(
     inlineEditCellRef, inlineEditValueRef,
     focusedCell, setFocusedCell,
     EDITABLE_COLS, COL_TO_FIELD, FIELD_TO_COL,
-    startInlineEdit, cancelInlineEdit, commitInlineEdit,
+    startInlineEdit, cancelInlineEdit, commitInlineEdit, commitTags,
     cellDisplay, displayVal, handleCellBlur, handleCellKeyDown,
   };
 }

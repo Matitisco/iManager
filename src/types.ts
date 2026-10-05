@@ -25,7 +25,7 @@ export type CustomColumnEntity = 'inventory' | 'clients' | 'sales' | 'trade-ins'
 export interface CustomColumn {
   id: string;
   label: string;
-  type: 'text' | 'number' | 'enum';
+  type: 'text' | 'number' | 'enum' | 'tags';
   options?: string[];
   entity: CustomColumnEntity;
 }
