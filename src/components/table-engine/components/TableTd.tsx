@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import type { WithId, ColDef } from '../types';
 import { getColumnValue } from '../columnAccess';
+import { TagsCell } from './TagsCell';
 
 interface TableTdProps<TRow extends WithId> {
   colId: string;
@@ -18,6 +19,7 @@ interface TableTdProps<TRow extends WithId> {
   setFocusedCell: (v: { rowIndex: number; colKey: string } | null) => void;
   startInlineEdit: (id: string, field: string, value: string) => void;
   commitInlineEdit: (row: TRow) => void;
+  commitTags: (row: TRow, field: string, tags: string[]) => void;
   cancelInlineEdit: () => void;
   inlineEditCellRef: React.MutableRefObject<{ id: string; field: string } | null>;
   handleCellBlur: (row: TRow) => void;
@@ -30,7 +32,7 @@ export function TableTd<TRow extends WithId>({
   colId, colDef, row, rowIndex,
   inlineEditCell, inlineEditValue, setInlineEditValue, inlineEditValueRef,
   focusedCell, setFocusedCell,
-  startInlineEdit, commitInlineEdit, cancelInlineEdit, inlineEditCellRef,
+  startInlineEdit, commitInlineEdit, commitTags, cancelInlineEdit, inlineEditCellRef,
   handleCellBlur, handleCellKeyDown, cellDisplay, displayVal,
 }: TableTdProps<TRow>) {
   const field = colDef.field as string;
@@ -106,6 +108,19 @@ export function TableTd<TRow extends WithId>({
           </AnimatePresence>
         </div>
       </td>
+    );
+  }
+
+  if (colDef.type === 'tags') {
+    return (
+      <TagsCell
+        colId={colId}
+        row={row}
+        field={field}
+        value={displayValue}
+        focusRing={focusRing}
+        onCommit={commitTags}
+      />
     );
   }
 

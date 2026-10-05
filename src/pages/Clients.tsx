@@ -14,6 +14,7 @@ import {
   updateClientCategoryInCache,
 } from '../services/clients-table-api';
 import { importBackendClients } from '../services/clients-import-api';
+import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({
@@ -209,18 +210,7 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
       { colId: 'email', placeholder: 'Email' },
     ],
     buildNewItem: (formData, categoryId) => ({
-      customFields: (() => {
-        const entries = Object.entries(formData)
-          .filter(([key, value]) => key.startsWith('dynamic:') && value !== '' && value != null)
-          .map(([key, value]) => [
-            key.replace('dynamic:', ''),
-            clientCustomColumns.find((column) => column.id === key.replace('dynamic:', ''))?.type === 'number'
-              ? Number(value)
-              : value,
-          ]);
-
-        return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-      })(),
+      customFields: customFieldsFromRowForm(formData, clientCustomColumns),
       name: formData.name ?? '',
       dni: formData.dni ?? '',
       email: formData.email ?? '',
@@ -280,15 +270,7 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
       columns: clientCustomColumns,
       defaultWidth: 160,
       getValue: (row, columnId) => row.customFields?.[columnId] ?? '',
-      setValue: (row, columnId, value) => ({
-        ...row,
-        customFields: {
-          ...(row.customFields ?? {}),
-          [columnId]: clientCustomColumns.find((column) => column.id === columnId)?.type === 'number'
-            ? (value === '' || value == null ? '' : Number(value))
-            : value,
-        },
-      }),
+      setValue: (row, columnId, value) => withCustomField(row, clientCustomColumns, columnId, value),
     },
   }), [user, addClient, clientCustomColumns, addCustomColumn, removeCustomColumn]);
 
