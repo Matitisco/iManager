@@ -1,8 +1,18 @@
 import { z } from "zod";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
-import { updateStore, listMembers, updateMemberRole, removeMember } from "./stores.service.js";
+import { findOrCreateUserFromFirebase } from "../users/users.service.js";
+import { buildAppSessionForUser } from "../auth/session.service.js";
+import {
+  activateStoreForUser,
+  createStoreForUser,
+  listStoresForUser,
+  updateStore,
+  listMembers,
+  updateMemberRole,
+  removeMember,
+} from "./stores.service.js";
 
 const storePatchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -18,7 +28,82 @@ const memberRoleSchema = z.object({
   role: z.enum(["OWNER", "MANAGER", "STAFF"]),
 });
 
+const createStoreSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
+const activateStoreSchema = z.object({
+  storeId: z.string().trim().min(1),
+});
+
+function sendServiceError(reply: FastifyReply, error: unknown) {
+  const mapped = error as { statusCode?: number; message?: string };
+  if (mapped.statusCode) {
+    return reply.code(mapped.statusCode).send({ error: mapped.message });
+  }
+
+  throw error;
+}
+
 export async function storesRoutes(app: FastifyInstance) {
+  app.get(
+    "/",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (!request.auth) {
+        return reply.code(401).send({ error: "Unauthenticated" });
+      }
+
+      const user = await findOrCreateUserFromFirebase(request.auth);
+      const stores = await listStoresForUser(user.id);
+      return { stores };
+    }
+  );
+
+  app.post(
+    "/",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (!request.auth) {
+        return reply.code(401).send({ error: "Unauthenticated" });
+      }
+
+      const body = createStoreSchema.parse(request.body);
+      const user = await findOrCreateUserFromFirebase(request.auth);
+
+      try {
+        await createStoreForUser(user.id, body.name);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+
+      const session = await buildAppSessionForUser(request.auth);
+      return { session };
+    }
+  );
+
+  app.post(
+    "/active",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (!request.auth) {
+        return reply.code(401).send({ error: "Unauthenticated" });
+      }
+
+      const body = activateStoreSchema.parse(request.body);
+      const user = await findOrCreateUserFromFirebase(request.auth);
+
+      try {
+        await activateStoreForUser(user.id, body.storeId);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+
+      const session = await buildAppSessionForUser(request.auth);
+      return { session };
+    }
+  );
+
   app.patch(
     "/current",
     { preHandler: [authenticate, resolveAppUser] },

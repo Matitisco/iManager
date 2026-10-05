@@ -16,6 +16,88 @@ export async function getMembershipForUserAndStore(userId: string, storeId: stri
   });
 }
 
+export interface UserStoreSummary {
+  id: string;
+  name: string;
+  role: StoreRole;
+  isDefault: boolean;
+}
+
+export async function listStoresForUser(userId: string): Promise<UserStoreSummary[]> {
+  const memberships = await prisma.storeMember.findMany({
+    where: { userId },
+    include: {
+      store: {
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+  });
+
+  return memberships.map((membership) => ({
+    id: membership.store.id,
+    name: membership.store.name,
+    role: membership.role,
+    isDefault: membership.isDefault,
+  }));
+}
+
+export async function createStoreForUser(userId: string, storeName: string) {
+  const name = storeName.trim();
+  if (!name) {
+    throw Object.assign(new Error("El nombre de la tienda es obligatorio"), { statusCode: 400 });
+  }
+
+  const existingCount = await prisma.storeMember.count({ where: { userId } });
+
+  return prisma.$transaction(async (tx) => {
+    if (existingCount > 0) {
+      await tx.storeMember.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      });
+    }
+
+    const store = await tx.store.create({
+      data: { name },
+    });
+
+    const membership = await tx.storeMember.create({
+      data: {
+        storeId: store.id,
+        userId,
+        role: "OWNER",
+        isDefault: true,
+      },
+    });
+
+    return { store, membership };
+  });
+}
+
+export async function activateStoreForUser(userId: string, storeId: string) {
+  const membership = await prisma.storeMember.findFirst({
+    where: { userId, storeId },
+  });
+
+  if (!membership) {
+    throw Object.assign(new Error("No pertenecés a esa tienda"), { statusCode: 404 });
+  }
+
+  await prisma.$transaction([
+    prisma.storeMember.updateMany({
+      where: { userId },
+      data: { isDefault: false },
+    }),
+    prisma.storeMember.update({
+      where: { id: membership.id },
+      data: { isDefault: true },
+    }),
+  ]);
+
+  return membership;
+}
+
 export interface StoreUpdateInput {
   name?: string;
   legalName?: string | null;
