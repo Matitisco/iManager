@@ -3,6 +3,7 @@ import { Users, UserCheck, Wallet, Ticket } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
+import { duplicateUniqueValue } from '../components/table-engine/rowClipboard';
 import type { TableEngineConfig } from '../components/table-engine';
 import type { Client } from '../types';
 import { formatCurrency } from '../lib/utils';
@@ -105,6 +106,7 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
         type: 'text',
         editable: true,
         tdClassName: 'text-gray-500',
+        onDuplicateValue: (value, index) => duplicateUniqueValue(value, index, 50),
       },
       {
         id: 'email',

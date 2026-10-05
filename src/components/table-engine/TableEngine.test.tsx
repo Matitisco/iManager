@@ -3,12 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { TableEngine } from './TableEngine';
 import type { TableEngineConfig } from './types';
+import { clearRowClipboardMemory } from './rowClipboard';
 
 type TestRow = {
   id: string;
   name: string;
   quantity: number;
   categoryId: string | null;
+  imei?: string;
 };
 
 function buildConfig(overrides: Partial<TableEngineConfig<TestRow>> = {}): TableEngineConfig<TestRow> {
@@ -312,5 +314,106 @@ describe('TableEngine', () => {
 
     expect(beta.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(addRow.compareDocumentPosition(gamma) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('copies selected rows and pastes them as new records', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: 'phones', imei: '111' },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: 'phones', imei: '222' },
+    ];
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          columns: [
+            {
+              id: 'name',
+              label: 'Nombre',
+              field: 'name',
+              defaultWidth: 180,
+              type: 'text',
+              editable: true,
+            },
+            {
+              id: 'quantity',
+              label: 'Cantidad',
+              field: 'quantity',
+              defaultWidth: 120,
+              type: 'number',
+              editable: true,
+            },
+            {
+              id: 'imei',
+              label: 'IMEI',
+              field: 'imei',
+              defaultWidth: 140,
+              type: 'text',
+              editable: true,
+              onDuplicateValue: (value) => `${value}-copy`,
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onCreate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr') as HTMLElement;
+    const betaRow = screen.getByText('Beta').closest('tr') as HTMLElement;
+    await user.click(alphaRow);
+    fireEvent.click(betaRow, { shiftKey: true });
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
+
+    expect(await screen.findByText('Se copiaron 2 ítems')).toBeInTheDocument();
+
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledTimes(2);
+    });
+    expect(onCreate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      name: 'Alpha',
+      quantity: 1,
+      imei: '111-copy',
+      categoryId: 'phones',
+    }));
+    expect(onCreate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      name: 'Beta',
+      quantity: 2,
+      imei: '222-copy',
+      categoryId: 'phones',
+    }));
+  });
+
+  it('pastes an external table as new rows without rewriting unique values', async () => {
+    clearRowClipboardMemory();
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: [], total: 0 })),
+          onCreate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    fireEvent.paste(document.body, {
+      clipboardData: {
+        getData: () => 'Nombre\tCantidad\nGamma\t4',
+      },
+    });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'Gamma',
+        quantity: 4,
+      }));
+    });
   });
 });
