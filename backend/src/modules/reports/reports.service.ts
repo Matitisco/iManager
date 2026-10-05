@@ -19,6 +19,8 @@ export interface ReportsSummary {
   unitsSold: number;
   averageTicket: number;
   pendingSales: number;
+  pendingAmount: number;
+  marginRate: number;
   approvedTradeIns: number;
 }
 
@@ -42,6 +44,12 @@ export interface ReportsPaymentMethodBreakdown {
   share: number;
 }
 
+export interface ReportsAgingBucket {
+  label: string;
+  count: number;
+  costValue: number;
+}
+
 export interface ReportsInventorySnapshot {
   totalItems: number;
   availableItems: number;
@@ -51,6 +59,32 @@ export interface ReportsInventorySnapshot {
     costValue: number;
     retailValue: number;
   };
+  aging: ReportsAgingBucket[];
+}
+
+export interface ReportsComparison {
+  available: boolean;
+  revenue: number;
+  grossProfit: number;
+  unitsSold: number;
+  averageTicket: number;
+  revenueChange: number | null;
+  grossProfitChange: number | null;
+  unitsChange: number | null;
+  averageTicketChange: number | null;
+}
+
+export interface ReportsCategoryBreakdown {
+  category: string;
+  unitsSold: number;
+  revenue: number;
+  share: number;
+}
+
+export interface ReportsTopClient {
+  client: string;
+  purchases: number;
+  revenue: number;
 }
 
 export interface ReportsClientSnapshot {
@@ -62,6 +96,7 @@ export interface ReportsClientSnapshot {
 export interface ReportsTradeInSnapshot {
   totalInRange: number;
   approvedInRange: number;
+  openInRange: number;
   cashGenerated: number;
 }
 
@@ -72,8 +107,11 @@ export interface ReportsOverviewResponse {
     endDate: string | null;
   };
   summary: ReportsSummary;
+  comparison: ReportsComparison;
   salesSeries: ReportsSeriesPoint[];
   topProducts: ReportsTopProduct[];
+  categories: ReportsCategoryBreakdown[];
+  topClients: ReportsTopClient[];
   paymentMethods: ReportsPaymentMethodBreakdown[];
   inventory: ReportsInventorySnapshot;
   clients: ReportsClientSnapshot;
@@ -90,6 +128,15 @@ class ReportsError extends Error {
 }
 
 const APPROVED_TRADE_IN_STATUSES = new Set(["APROBADO", "LISTO"]);
+const OPEN_TRADE_IN_STATUSES = new Set(["PENDIENTE", "EN REVISIÓN", "PERITAJE TÉC."]);
+const AGING_BUCKETS = ["0-14 días", "15-30 días", "31-60 días", "Más de 60 días"] as const;
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  TRANSFERENCIA: "Transferencia",
+  EFECTIVO: "Efectivo",
+  TARJETA: "Tarjeta",
+  "CANJE / PAGO": "Canje / pago",
+  "T. Crédito": "T. Crédito",
+};
 
 function toNumber(value: unknown) {
   if (typeof value === "number") {
@@ -175,8 +222,84 @@ type CompletedSale = {
   soldAt: Date;
   clientId: string | null;
   product: string;
+  category: string;
+  clientName: string;
   cost: number;
 };
+
+export function formatPaymentMethodLabel(value: string) {
+  const trimmed = value.trim();
+  return PAYMENT_METHOD_LABELS[trimmed] ?? (trimmed || "Sin método");
+}
+
+export function changePercent(current: number, previous: number) {
+  if (previous === 0) {
+    return current === 0 ? 0 : null;
+  }
+
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+export function resolvePreviousWindow(input: ReportsOverviewInput) {
+  if (input.rangeKey === "all_time" || !input.startDate || !input.endDate) {
+    return null;
+  }
+
+  const duration = input.endDate.getTime() - input.startDate.getTime();
+  if (duration < 0) {
+    return null;
+  }
+
+  const endDate = new Date(input.startDate.getTime() - 1);
+  const startDate = new Date(endDate.getTime() - duration);
+  return { startDate, endDate };
+}
+
+export function buildInventoryAging(
+  items: Array<{ createdAt: Date; cost: number }>,
+  now = new Date()
+) {
+  const buckets = new Map(
+    AGING_BUCKETS.map((label) => [label, { label, count: 0, costValue: 0 }])
+  );
+
+  for (const item of items) {
+    const elapsed = now.getTime() - item.createdAt.getTime();
+    const days = Math.max(0, Math.floor(elapsed / (1000 * 60 * 60 * 24)));
+    const label =
+      days <= 14
+        ? "0-14 días"
+        : days <= 30
+          ? "15-30 días"
+          : days <= 60
+            ? "31-60 días"
+            : "Más de 60 días";
+    const bucket = buckets.get(label);
+    if (!bucket) {
+      continue;
+    }
+
+    bucket.count += 1;
+    bucket.costValue += item.cost;
+  }
+
+  return AGING_BUCKETS.map((label) => {
+    const bucket = buckets.get(label);
+    return bucket ?? { label, count: 0, costValue: 0 };
+  });
+}
+
+function summarizeCompleted(sales: Array<{ amount: number; cost: number }>) {
+  const revenue = sales.reduce((accumulator, sale) => accumulator + sale.amount, 0);
+  const grossProfit = sales.reduce(
+    (accumulator, sale) => accumulator + (sale.amount - sale.cost),
+    0
+  );
+  const unitsSold = sales.length;
+  const averageTicket = unitsSold > 0 ? revenue / unitsSold : 0;
+
+  return { revenue, grossProfit, unitsSold, averageTicket };
+}
 
 type ReportsQueryInput = {
   rangeKey: ReportsRangeKey;
@@ -281,9 +404,11 @@ export async function getReportsOverview(
     storeId,
     ...buildDateRangeWhere("tradeAt", input.startDate, input.endDate),
   };
+  const previousWindow = resolvePreviousWindow(input);
 
   const [
     sales,
+    previousSales,
     tradeIns,
     totalClients,
     pendingBalanceAggregate,
@@ -292,6 +417,7 @@ export async function getReportsOverview(
     soldItems,
     inReviewItems,
     inventoryValuation,
+    availableStock,
   ] = await Promise.all([
     prisma.sale.findMany({
       where: salesWhere,
@@ -301,6 +427,12 @@ export async function getReportsOverview(
         status: true,
         soldAt: true,
         clientId: true,
+        category: {
+          select: { name: true },
+        },
+        client: {
+          select: { name: true },
+        },
         inventoryItem: {
           select: {
             model: true,
@@ -312,6 +444,24 @@ export async function getReportsOverview(
       },
       orderBy: { soldAt: "asc" },
     }),
+    previousWindow
+      ? prisma.sale.findMany({
+          where: {
+            storeId,
+            status: "COMPLETADA",
+            soldAt: {
+              gte: previousWindow.startDate,
+              lte: previousWindow.endDate,
+            },
+          },
+          select: {
+            amount: true,
+            inventoryItem: {
+              select: { cost: true },
+            },
+          },
+        })
+      : Promise.resolve([]),
     prisma.tradeIn.findMany({
       where: tradeInsWhere,
       select: {
@@ -345,6 +495,13 @@ export async function getReportsOverview(
         price: true,
       },
     }),
+    prisma.inventoryItem.findMany({
+      where: { storeId, status: "DISPONIBLE" },
+      select: {
+        createdAt: true,
+        cost: true,
+      },
+    }),
   ]);
 
   const completedSales: CompletedSale[] = sales
@@ -355,17 +512,26 @@ export async function getReportsOverview(
       soldAt: sale.soldAt,
       clientId: sale.clientId,
       product: buildProductLabel(sale.inventoryItem),
+      category: sale.category?.name?.trim() || "Sin categoría",
+      clientName: sale.client?.name?.trim() || "Sin cliente",
       cost: toNumber(sale.inventoryItem?.cost),
     }));
 
-  const pendingSales = sales.filter((sale) => sale.status === "PENDIENTE").length;
-  const revenue = completedSales.reduce((accumulator, sale) => accumulator + sale.amount, 0);
-  const grossProfit = completedSales.reduce(
-    (accumulator, sale) => accumulator + (sale.amount - sale.cost),
+  const pendingSaleRows = sales.filter((sale) => sale.status === "PENDIENTE");
+  const pendingSales = pendingSaleRows.length;
+  const pendingAmount = pendingSaleRows.reduce(
+    (accumulator, sale) => accumulator + toNumber(sale.amount),
     0
   );
-  const unitsSold = completedSales.length;
-  const averageTicket = unitsSold > 0 ? revenue / unitsSold : 0;
+  const currentMetrics = summarizeCompleted(completedSales);
+  const previousMetrics = summarizeCompleted(
+    previousSales.map((sale) => ({
+      amount: toNumber(sale.amount),
+      cost: toNumber(sale.inventoryItem?.cost),
+    }))
+  );
+  const { revenue, grossProfit, unitsSold, averageTicket } = currentMetrics;
+  const marginRate = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
   const approvedTradeIns = tradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
     completedSales
@@ -401,16 +567,51 @@ export async function getReportsOverview(
 
   const paymentMethods = Array.from(paymentMethodMap.entries())
     .map(([label, current]) => ({
-      label,
+      label: formatPaymentMethodLabel(label),
       revenue: current.revenue,
       count: current.count,
       share: revenue > 0 ? (current.revenue / revenue) * 100 : 0,
     }))
     .sort((left, right) => right.revenue - left.revenue);
 
+  const categoryMap = new Map<string, { unitsSold: number; revenue: number }>();
+  for (const sale of completedSales) {
+    const current = categoryMap.get(sale.category) ?? { unitsSold: 0, revenue: 0 };
+    current.unitsSold += 1;
+    current.revenue += sale.amount;
+    categoryMap.set(sale.category, current);
+  }
+
+  const categories = Array.from(categoryMap.entries())
+    .map(([category, current]) => ({
+      category,
+      unitsSold: current.unitsSold,
+      revenue: current.revenue,
+      share: revenue > 0 ? (current.revenue / revenue) * 100 : 0,
+    }))
+    .sort((left, right) => right.revenue - left.revenue || right.unitsSold - left.unitsSold);
+
+  const clientMap = new Map<string, { purchases: number; revenue: number }>();
+  for (const sale of completedSales) {
+    const current = clientMap.get(sale.clientName) ?? { purchases: 0, revenue: 0 };
+    current.purchases += 1;
+    current.revenue += sale.amount;
+    clientMap.set(sale.clientName, current);
+  }
+
+  const topClients = Array.from(clientMap.entries())
+    .map(([client, current]) => ({
+      client,
+      purchases: current.purchases,
+      revenue: current.revenue,
+    }))
+    .sort((left, right) => right.revenue - left.revenue || right.purchases - left.purchases)
+    .slice(0, 5);
+
   const tradeInCash = tradeIns
     .filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status))
     .reduce((accumulator, tradeIn) => accumulator + toNumber(tradeIn.differencePaid), 0);
+  const openTradeIns = tradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status)).length;
 
   return {
     filters: {
@@ -424,10 +625,29 @@ export async function getReportsOverview(
       unitsSold,
       averageTicket,
       pendingSales,
+      pendingAmount,
+      marginRate,
       approvedTradeIns,
+    },
+    comparison: {
+      available: previousWindow !== null,
+      revenue: previousMetrics.revenue,
+      grossProfit: previousMetrics.grossProfit,
+      unitsSold: previousMetrics.unitsSold,
+      averageTicket: previousMetrics.averageTicket,
+      revenueChange: previousWindow ? changePercent(revenue, previousMetrics.revenue) : null,
+      grossProfitChange: previousWindow
+        ? changePercent(grossProfit, previousMetrics.grossProfit)
+        : null,
+      unitsChange: previousWindow ? changePercent(unitsSold, previousMetrics.unitsSold) : null,
+      averageTicketChange: previousWindow
+        ? changePercent(averageTicket, previousMetrics.averageTicket)
+        : null,
     },
     salesSeries: buildSalesSeries(completedSales, input.startDate, input.endDate),
     topProducts,
+    categories,
+    topClients,
     paymentMethods,
     inventory: {
       totalItems,
@@ -438,6 +658,12 @@ export async function getReportsOverview(
         costValue: toNumber(inventoryValuation._sum.cost),
         retailValue: toNumber(inventoryValuation._sum.price),
       },
+      aging: buildInventoryAging(
+        availableStock.map((item) => ({
+          createdAt: item.createdAt,
+          cost: toNumber(item.cost),
+        }))
+      ),
     },
     clients: {
       totalClients,
@@ -447,6 +673,7 @@ export async function getReportsOverview(
     tradeIns: {
       totalInRange: tradeIns.length,
       approvedInRange: approvedTradeIns,
+      openInRange: openTradeIns,
       cashGenerated: tradeInCash,
     },
   };

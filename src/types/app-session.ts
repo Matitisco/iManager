@@ -26,10 +26,18 @@ export interface AppMembershipSummary {
   isDefault: boolean;
 }
 
+export interface AppUserStore {
+  id: string;
+  name: string;
+  role: AppMembershipRole;
+  isDefault: boolean;
+}
+
 export interface AppSession {
   user: AppUserSummary;
   store: AppStoreSummary | null;
   membership: AppMembershipSummary | null;
+  stores?: AppUserStore[];
   onboardingRequired: boolean;
 }
 

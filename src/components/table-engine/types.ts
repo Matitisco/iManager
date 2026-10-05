@@ -45,6 +45,8 @@ export interface ColDef<TRow extends WithId> {
   getValue?: (row: TRow) => any;
   /** Optional row updater for nested or computed values */
   setValue?: (row: TRow, value: unknown) => TRow;
+  /** Rewrites a value when a copied row is pasted as a new record. */
+  onDuplicateValue?: (value: unknown, index: number) => unknown;
 }
 
 export interface CellHelpers<TRow extends WithId> {
