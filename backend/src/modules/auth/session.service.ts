@@ -1,6 +1,11 @@
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
-import { getDefaultMembershipForUser, getMembershipForUserAndStore } from "../stores/stores.service.js";
+import {
+  getDefaultMembershipForUser,
+  getMembershipForUserAndStore,
+  listStoresForUser,
+  type UserStoreSummary,
+} from "../stores/stores.service.js";
 
 export interface AppSessionResponse {
   user: {
@@ -24,6 +29,7 @@ export interface AppSessionResponse {
     role: "OWNER" | "MANAGER" | "STAFF";
     isDefault: boolean;
   } | null;
+  stores: UserStoreSummary[];
   onboardingRequired: boolean;
 }
 
@@ -42,6 +48,7 @@ export async function buildAppSessionForUser(
   preferredStoreId?: string
 ): Promise<AppSessionResponse> {
   const user = await findOrCreateUserFromFirebase(auth);
+  const stores = await listStoresForUser(user.id);
   const membership =
     (preferredStoreId
       ? await getMembershipForUserAndStore(user.id, preferredStoreId)
@@ -52,6 +59,7 @@ export async function buildAppSessionForUser(
       user: serializeSessionUser(user),
       store: null,
       membership: null,
+      stores,
       onboardingRequired: true,
     };
   }
@@ -72,6 +80,7 @@ export async function buildAppSessionForUser(
       role: membership.role,
       isDefault: membership.isDefault,
     },
+    stores,
     onboardingRequired: false,
   };
 }
