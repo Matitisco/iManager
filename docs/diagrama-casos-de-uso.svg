@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1120" viewBox="0 0 760 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Diagrama de casos de uso de iManager</title>
+  <desc id="desc">Actores Usuario, Miembro, Vendedor y Administrador (Dueño y Socio), con los casos de uso de acceso, operación diaria y administración.</desc>
+  <rect width="760" height="1120" fill="#ffffff"/>
+  <defs>
+    <marker id="gen" viewBox="0 0 12 10" refX="11" refY="5" markerWidth="12" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.8 0.8 L11 5 L0.8 9.2 Z" fill="#ffffff" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect x="348" y="24" width="384" height="1028" rx="16" fill="#fafafa" stroke="#111111" stroke-width="1.6"/>
+  <rect x="376" y="12" width="102" height="24" fill="#fafafa"/>
+  <text x="427" y="29" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#111111">iManager</text>
+
+  <!-- Acceso. El actor Usuario queda a la altura del centro del grupo. -->
+  <text x="372" y="62" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="#6b7280">ACCESO</text>
+  <line x1="430" y1="68" x2="708" y2="68" stroke="#e5e7eb"/>
+  <path d="M80 200 H312 V100 H400 M312 150 H400 M312 200 H400 M312 250 H400 M312 300 H400 M312 100 V300" fill="none" stroke="#111111" stroke-width="1.35"/>
+  <g fill="#ffffff" stroke="#111111" stroke-width="1.5">
+    <ellipse cx="545" cy="100" rx="145" ry="22"/>
+    <ellipse cx="545" cy="150" rx="145" ry="22"/>
+    <ellipse cx="545" cy="200" rx="145" ry="22"/>
+    <ellipse cx="545" cy="250" rx="145" ry="22"/>
+    <ellipse cx="545" cy="300" rx="145" ry="22"/>
+  </g>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#111111" text-anchor="middle">
+    <text x="545" y="105">Registrarse</text>
+    <text x="545" y="155">Iniciar sesión</text>
+    <text x="545" y="205">Crear tienda</text>
+    <text x="545" y="255">Aceptar invitación</text>
+    <text x="545" y="305">Cerrar sesión</text>
+  </g>
+
+  <!-- Operación diaria. La asocia Miembro; Vendedor la hereda. -->
+  <text x="372" y="392" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="#6b7280">OPERACIóN DIARIA</text>
+  <line x1="508" y1="398" x2="708" y2="398" stroke="#e5e7eb"/>
+  <path d="M80 530 H312 V430 H400 M312 480 H400 M312 530 H400 M312 580 H400 M312 630 H400 M312 430 V630" fill="none" stroke="#111111" stroke-width="1.35"/>
+  <g fill="#ffffff" stroke="#111111" stroke-width="1.5">
+    <ellipse cx="545" cy="430" rx="145" ry="22"/>
+    <ellipse cx="545" cy="480" rx="145" ry="22"/>
+    <ellipse cx="545" cy="530" rx="145" ry="22"/>
+    <ellipse cx="545" cy="580" rx="145" ry="22"/>
+    <ellipse cx="545" cy="630" rx="145" ry="22"/>
+  </g>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#111111" text-anchor="middle">
+    <text x="545" y="435">Ver dashboard</text>
+    <text x="545" y="485">Gestionar inventario</text>
+    <text x="545" y="535">Registrar venta</text>
+    <text x="545" y="585">Registrar canje</text>
+    <text x="545" y="635">Gestionar clientes</text>
+  </g>
+
+  <!-- Administración. La asocia Administrador; Dueño y Socio la heredan. -->
+  <text x="372" y="792" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="#6b7280">ADMINISTRACIóN</text>
+  <line x1="498" y1="798" x2="708" y2="798" stroke="#e5e7eb"/>
+  <path d="M80 905 H312 V830 H400 M312 880 H400 M312 930 H400 M312 980 H400 M312 830 V980" fill="none" stroke="#111111" stroke-width="1.35"/>
+  <g fill="#ffffff" stroke="#111111" stroke-width="1.5">
+    <ellipse cx="545" cy="830" rx="145" ry="22"/>
+    <ellipse cx="545" cy="880" rx="145" ry="22"/>
+    <ellipse cx="545" cy="930" rx="145" ry="22"/>
+    <ellipse cx="545" cy="980" rx="145" ry="22"/>
+  </g>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#111111" text-anchor="middle">
+    <text x="545" y="835">Consultar reportes</text>
+    <text x="545" y="885">Configurar la tienda</text>
+    <text x="545" y="935">Gestionar el equipo</text>
+    <text x="545" y="985">Consultar facturación</text>
+  </g>
+
+  <!-- Herencia. El triángulo apunta al actor padre. -->
+  <path d="M64 709 L64 572" fill="none" stroke="#111111" stroke-width="1.35" marker-end="url(#gen)"/>
+  <path d="M50 905 L28 905 L28 530 L48 530" fill="none" stroke="#111111" stroke-width="1.35" marker-end="url(#gen)"/>
+
+  <g fill="none" stroke="#111111" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(64 178)">
+      <circle cx="0" cy="0" r="11" fill="#ffffff"/>
+      <path d="M0 11 V36 M-14 22 H14 M-11 58 L0 36 L11 58"/>
+    </g>
+    <g transform="translate(64 508)">
+      <circle cx="0" cy="0" r="11" fill="#ffffff"/>
+      <path d="M0 11 V36 M-14 22 H14 M-11 58 L0 36 L11 58"/>
+    </g>
+    <g transform="translate(64 720)">
+      <circle cx="0" cy="0" r="11" fill="#ffffff"/>
+      <path d="M0 11 V36 M-14 22 H14 M-11 58 L0 36 L11 58"/>
+    </g>
+    <g transform="translate(64 883)">
+      <circle cx="0" cy="0" r="11" fill="#ffffff"/>
+      <path d="M0 11 V36 M-14 22 H14 M-11 58 L0 36 L11 58"/>
+    </g>
+  </g>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" fill="#111111">
+    <text x="96" y="183" font-size="14" font-weight="600" font-style="italic">Usuario</text>
+    <text x="96" y="513" font-size="14" font-weight="600" font-style="italic">Miembro</text>
+    <text x="96" y="725" font-size="14" font-weight="600">Vendedor</text>
+    <text x="96" y="881" font-size="14" font-weight="600" font-style="italic">Administrador</text>
+    <text x="64" y="962" text-anchor="middle" font-size="12" fill="#4b5563">Dueño y Socio</text>
+  </g>
+
+  <text x="24" y="1084" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">El triángulo es herencia: ese actor también realiza los casos de uso de arriba.</text>
+  <text x="24" y="1102" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#4b5563">En itálica, actores abstractos. Dueño y Socio son el administrador.</text>
+</svg>

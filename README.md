@@ -17,6 +17,14 @@ iManager es una app de gestión para tiendas de celulares. Maneja:
 
 ---
 
+## Casos de uso
+
+![Diagrama de casos de uso de iManager](docs/diagrama-casos-de-uso.svg)
+
+El usuario se registra, inicia sesión, crea su tienda o acepta una invitación. El vendedor opera el día a día: dashboard, inventario, ventas, canjes y clientes. Dueño y Socio hacen esa misma operación y, además, consultan reportes, configuran la tienda, gestionan el equipo y ven facturación.
+
+---
+
 ## Stack
 
 | Capa | Tecnología |
