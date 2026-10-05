@@ -5,6 +5,7 @@ import { Filter, Download, Columns, Plus, Upload, ArrowUpDown } from 'lucide-rea
 import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
 import { useTableData } from './hooks/useTableData';
 import { useColumnState } from './hooks/useColumnState';
+import { useTagOptions } from './hooks/useTagOptions';
 import { useSelection } from './hooks/useSelection';
 import { useInlineEdit } from './hooks/useInlineEdit';
 import { useColResize } from './hooks/useColResize';
@@ -22,6 +23,29 @@ import { EditPanel } from './components/EditPanel';
 import { FilterPanel, SortPanel, ColumnsPanel } from './components/Panels';
 import { ImportModal as GenericImportModal } from './components/ImportModal';
 import { getColumnValue } from './columnAccess';
+import {
+  buildTsv,
+  parseClipboardRows,
+  readMemoryCopy,
+  rememberRowCopy,
+  toCreatePayloads,
+  writeClipboard,
+  type PasteColumn,
+} from './rowClipboard';
+
+function categoryOf(row: object): string | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(row, 'categoryId')) return undefined;
+  const value = (row as { categoryId?: unknown }).categoryId;
+  return typeof value === 'string' ? value : null;
+}
+
+function isTextEntry(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  if (target instanceof HTMLInputElement) return target.type !== 'checkbox' && target.type !== 'radio';
+  return false;
+}
 
 interface TableEngineProps<TRow extends WithId> {
   config: TableEngineConfig<TRow>;
@@ -94,8 +118,15 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const [isColumnMutationLoading, setIsColumnMutationLoading] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [clipboardNotice, setClipboardNotice] = useState<string | null>(null);
 
   const renameDoneRef = useRef(false);
+  const pastingRef = useRef(false);
+  const copyRowsRef = useRef<(explicit?: TRow) => boolean>(() => false);
+  const pasteTextRef = useRef<(text: string) => Promise<void>>(async () => {});
+  const inlineEditActiveRef = useRef(false);
+  const onCreateRef = useRef(onCreate);
+  const storageKeyRef = useRef(scopedStorageKey);
   const addingRowDataRef = useRef<Record<string, any> | null>(null);
   const addingRowInitialDataRef = useRef<Record<string, any> | null>(null);
   const addFirstInputRef = useRef<HTMLInputElement | null>(null);
@@ -112,6 +143,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, isExporting, setIsExporting, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
+  const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
@@ -216,7 +248,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     const isBulk = selectedIds.has(row.id) && selectedIds.size > 1;
     const MENU_W = 208;
     const x = e.clientX + MENU_W > window.innerWidth ? e.clientX - MENU_W : e.clientX;
-    const y = Math.min(e.clientY, window.innerHeight - 200);
+    const y = Math.min(e.clientY, window.innerHeight - 320);
     setHeaderContextMenu(null);
     setContextMenu({ x, y, item: row, isBulk });
   };
@@ -386,6 +418,135 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     }
   };
 
+  const editableColumns = () => resolvedColumns.filter((column) => column.editable !== false);
+
+  const pasteColumns = (): PasteColumn[] => editableColumns().map((column) => ({
+    field: column.field,
+    type: column.type,
+    names: [
+      colState.colNames[column.id],
+      colState.DEFAULT_COL_NAMES[column.id],
+      column.label,
+      column.field,
+      column.id,
+    ].filter((name): name is string => Boolean(name)),
+    onDuplicateValue: column.onDuplicateValue,
+  }));
+
+  const copyRows = (explicit?: TRow) => {
+    const source = explicit
+      ? (selectedIds.has(explicit.id) && selectedIds.size > 1
+        ? items.filter((item) => selectedIds.has(item.id))
+        : [explicit])
+      : items.filter((item) => selectedIds.has(item.id));
+    if (source.length === 0) return false;
+
+    const visible = colState.orderedVisibleCols
+      .map((id) => resolvedColumns.find((column) => column.id === id))
+      .filter((column): column is ColDef<TRow> => Boolean(column));
+    const copied = source.map((row) => ({
+      values: Object.fromEntries(editableColumns().map((column) => [column.field, getColumnValue(row, column) ?? ''])),
+      categoryId: categoryOf(row),
+    }));
+    const tsv = buildTsv(
+      visible.map((column) => colState.colNames[column.id] || colState.DEFAULT_COL_NAMES[column.id] || column.label),
+      source.map((row) => visible.map((column) => getColumnValue(row, column) ?? '')),
+    );
+    rememberRowCopy({ storageKey: scopedStorageKey, tsv, rows: copied });
+    void writeClipboard(tsv);
+    setClipboardNotice(source.length === 1 ? `Se copió 1 ${noun}` : `Se copiaron ${source.length} ${nounPlural}`);
+    return true;
+  };
+
+  const pasteText = async (text: string) => {
+    if (!onCreate || pastingRef.current) return;
+    const trimmed = text.trim();
+    const memory = readMemoryCopy(scopedStorageKey);
+    const memoryMatch = memory && (trimmed === '' || trimmed === memory.tsv.trim()) ? memory : null;
+    const drafts = memoryMatch ? memoryMatch.rows : parseClipboardRows(trimmed, pasteColumns());
+    if (drafts.length === 0) {
+      setClipboardNotice('No hay filas para pegar.');
+      return;
+    }
+
+    const payloads = toCreatePayloads({
+      columns: pasteColumns(),
+      drafts,
+      duplicate: Boolean(memoryMatch),
+      fallbackCategoryId: activeCategoryId !== 'all' ? activeCategoryId : null,
+      buildNewItem,
+    });
+    pastingRef.current = true;
+    let created = 0;
+    try {
+      for (const payload of payloads) {
+        await onCreate(payload);
+        created += 1;
+      }
+      setClipboardNotice(created === 1 ? `Se pegó 1 ${noun}` : `Se pegaron ${created} ${nounPlural}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudieron pegar las filas.';
+      alert(created > 0 ? `Se pegaron ${created} ${nounPlural}. ${message}` : message);
+    } finally {
+      pastingRef.current = false;
+      if (created > 0) {
+        const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
+        const result = await fetchPage({
+          skip: 0,
+          take: Math.max(PAGE_SIZE, items.length + created),
+          ...filterParamsRef.current,
+        });
+        pendingScrollRestoreRef.current = scrollTop;
+        setItems(result.items);
+        setTotal(result.total);
+      }
+    }
+  };
+
+  const pasteFromMenu = async () => {
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = '';
+    }
+    await pasteText(text);
+  };
+
+  copyRowsRef.current = copyRows;
+  pasteTextRef.current = pasteText;
+  inlineEditActiveRef.current = Boolean(editHook.inlineEditCell);
+  onCreateRef.current = onCreate;
+  storageKeyRef.current = scopedStorageKey;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'c' || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (isTextEntry(event.target) || inlineEditActiveRef.current) return;
+      if (window.getSelection()?.toString()) return;
+      if (copyRowsRef.current()) event.preventDefault();
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      if (isTextEntry(event.target) || inlineEditActiveRef.current || !onCreateRef.current) return;
+      const text = event.clipboardData?.getData('text/plain') ?? '';
+      if (!text.trim() && !readMemoryCopy(storageKeyRef.current)) return;
+      event.preventDefault();
+      void pasteTextRef.current(text);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!clipboardNotice) return;
+    const timeout = window.setTimeout(() => setClipboardNotice(null), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [clipboardNotice]);
+
   // ── Bulk move confirm ──────────────────────────────────────────────────────
   const confirmBulkMove = async () => {
     if (!pendingItemMove || !onBulkMoveCategory) return;
@@ -448,7 +609,18 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
           </button>
           {showFilters && (
             <div className="absolute right-0 top-full mt-2 z-30">
-              <FilterPanel filters={filters} activeFilters={activeFilters}
+              <FilterPanel filters={filters.map((filter) => {
+                const column = resolvedColumns.find((col) => col.id === filter.id || col.field === filter.param);
+                if (!column || (column.type !== 'badge' && column.type !== 'enum')) return filter;
+                return {
+                  ...filter,
+                  options: filter.options.map((option) => (
+                    option.value
+                      ? { ...option, label: tagOptions.labelFor(column.id, option.value, option.label) }
+                      : option
+                  )),
+                };
+              })} activeFilters={activeFilters}
                 onChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
                 onReset={() => setActiveFilters(filterDefaults)} />
             </div>
@@ -587,7 +759,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                             effectiveType = 'select';
                             selectOptions = colDef.enumOptions.map(o => ({
                               value: o,
-                              label: colDef.badgeMeta?.[o]?.label ?? o,
+                              label: tagOptions.resolve(colId, o, colDef.badgeMeta?.[o]).label,
                             }));
                           }
                         }
@@ -676,6 +848,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           handleCellKeyDown={editHook.handleCellKeyDown}
                           cellDisplay={editHook.cellDisplay}
                           displayVal={editHook.displayVal}
+                          resolveTag={tagOptions.resolve}
+                          onSaveTag={tagOptions.save}
                         />
                       );
                     })}
@@ -710,7 +884,9 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       {!isInitialLoading && total > 0 && (
         <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
           <span>{total} {total === 1 ? noun : nounPlural} en total</span>
-          {selectedIds.size > 0 && <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>}
+          {clipboardNotice
+            ? <span className="font-semibold text-gray-700">{clipboardNotice}</span>
+            : selectedIds.size > 0 && <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>}
         </div>
       )}
 
@@ -736,7 +912,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       {/* ── Bulk actions bar ── */}
       <BulkActionsBar
         selectedIds={selectedIds} total={total} categories={categories}
-        onClearSelection={clearSelection} noun={noun} nounPlural={nounPlural}
+        onClearSelection={clearSelection} onCopy={() => { copyRows(); }} noun={noun} nounPlural={nounPlural}
         onBulkDelete={() => {
           const ids = Array.from(selectedIds);
           (onBulkDelete ? onBulkDelete(ids) : Promise.all(ids.map(id => onDelete(id))))
@@ -756,6 +932,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
             x={contextMenu.x} y={contextMenu.y} item={contextMenu.item} isBulk={contextMenu.isBulk}
             selectedCount={selectedIds.size} categories={categories} onClose={() => setContextMenu(null)}
             onAddRow={!!onCreate ? () => startAddRow(contextMenu.item.id) : undefined}
+            onCopy={() => copyRows(contextMenu.item)}
+            onPaste={onCreate ? () => { void pasteFromMenu(); } : undefined}
             onEdit={item => { setSelectedItem(item); setContextMenu(null); }}
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
             onBulkDelete={() => { setContextMenu(null); }}
