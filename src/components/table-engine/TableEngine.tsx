@@ -5,6 +5,7 @@ import { Filter, Download, Columns, Plus, Upload, ArrowUpDown } from 'lucide-rea
 import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
 import { useTableData } from './hooks/useTableData';
 import { useColumnState } from './hooks/useColumnState';
+import { useTagOptions } from './hooks/useTagOptions';
 import { useSelection } from './hooks/useSelection';
 import { useInlineEdit } from './hooks/useInlineEdit';
 import { useColResize } from './hooks/useColResize';
@@ -142,6 +143,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, isExporting, setIsExporting, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
+  const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
   const selectedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
@@ -607,7 +609,18 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
           </button>
           {showFilters && (
             <div className="absolute right-0 top-full mt-2 z-30">
-              <FilterPanel filters={filters} activeFilters={activeFilters}
+              <FilterPanel filters={filters.map((filter) => {
+                const column = resolvedColumns.find((col) => col.id === filter.id || col.field === filter.param);
+                if (!column || (column.type !== 'badge' && column.type !== 'enum')) return filter;
+                return {
+                  ...filter,
+                  options: filter.options.map((option) => (
+                    option.value
+                      ? { ...option, label: tagOptions.labelFor(column.id, option.value, option.label) }
+                      : option
+                  )),
+                };
+              })} activeFilters={activeFilters}
                 onChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
                 onReset={() => setActiveFilters(filterDefaults)} />
             </div>
@@ -746,7 +759,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                             effectiveType = 'select';
                             selectOptions = colDef.enumOptions.map(o => ({
                               value: o,
-                              label: colDef.badgeMeta?.[o]?.label ?? o,
+                              label: tagOptions.resolve(colId, o, colDef.badgeMeta?.[o]).label,
                             }));
                           }
                         }
@@ -835,6 +848,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           handleCellKeyDown={editHook.handleCellKeyDown}
                           cellDisplay={editHook.cellDisplay}
                           displayVal={editHook.displayVal}
+                          resolveTag={tagOptions.resolve}
+                          onSaveTag={tagOptions.save}
                         />
                       );
                     })}
