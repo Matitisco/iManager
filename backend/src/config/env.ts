@@ -1,8 +1,16 @@
 import { z } from "zod";
 
+const nodeEnvSchema = z.preprocess((value) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return "production";
+  }
+
+  return value.trim();
+}, z.enum(["development", "test", "production"]));
+
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: nodeEnvSchema,
   DATABASE_URL: z.string().min(1),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   ENABLE_TEST_AUTH_BYPASS: z.string().optional().transform((value) => value === "true"),
@@ -34,4 +42,8 @@ const envSchema = z.object({
   }
 });
 
-export const env = envSchema.parse(process.env);
+export function parseEnv(source: Record<string, string | undefined>) {
+  return envSchema.parse(source);
+}
+
+export const env = parseEnv(process.env);
