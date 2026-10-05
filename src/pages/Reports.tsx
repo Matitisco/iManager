@@ -52,9 +52,9 @@ const item: Variants = {
 
 const rangeOptionLabels: Record<Exclude<ReportsRangeKey, 'custom'>, string> = {
   this_month: 'Este mes',
-  last_90_days: '90 dias',
-  this_year: 'Este ano',
-  all_time: 'Historico',
+  last_90_days: '90 días',
+  this_year: 'Este año',
+  all_time: 'Histórico',
 };
 
 const widgetCatalog: Array<{
@@ -83,6 +83,11 @@ const widgetCatalog: Array<{
     description: 'Ranking real por unidades vendidas e ingresos.',
   },
   {
+    id: 'business-mix',
+    title: 'Mix del período',
+    description: 'Ventas por categoría y clientes que más compraron.',
+  },
+  {
     id: 'payment-methods',
     title: 'Metodos de pago',
     description: 'Distribucion de ingresos por metodo.',
@@ -109,6 +114,20 @@ function formatCompactCurrency(value: number) {
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function formatChange(value: number | null) {
+  if (value === null) {
+    return 'Sin base anterior';
+  }
+
+  const formatted = new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    signDisplay: 'exceptZero',
+  }).format(value);
+
+  return `${formatted}%`;
 }
 
 function formatDateLabel(value: string | null) {
@@ -321,6 +340,8 @@ export const Reports: React.FC = () => {
         return <InventoryValueWidget report={report} />;
       case 'top-products':
         return <TopProductsWidget report={report} />;
+      case 'business-mix':
+        return <BusinessMixWidget report={report} />;
       case 'payment-methods':
         return <PaymentMethodsWidget report={report} />;
       case 'operational-snapshot':
@@ -352,9 +373,9 @@ export const Reports: React.FC = () => {
         <motion.div variants={item} className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">Reportes configurables</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900">Reportes</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Estadisticas reales de {appSession?.store?.name || 'tu tienda'} con widgets ordenables y filtros de fecha.
+                Métricas de {appSession?.store?.name || 'tu tienda'} con ventas, stock, clientes y canjes del período.
               </p>
               {report && (
                 <p className="mt-2 text-xs text-gray-400">
@@ -599,24 +620,62 @@ const SalesSummaryWidget: React.FC<{ report: ReportsOverview }> = ({ report }) =
       <StatCard
         title="Margen estimado"
         value={formatCurrency(report.summary.grossProfit)}
-        description="Monto vendido menos costo del equipo asociado"
+        description={`${report.summary.marginRate.toFixed(1)}% sobre lo vendido`}
         icon={<TrendingUp size={18} className="text-black" />}
       />
       <StatCard
         title="Ticket promedio"
         value={formatCurrency(report.summary.averageTicket)}
-        description={`${report.summary.pendingSales} ventas pendientes en el rango`}
+        description={`${report.summary.pendingSales} pendientes por ${formatCurrency(report.summary.pendingAmount)}`}
         icon={<Wallet size={18} className="text-gray-700" />}
       />
       <StatCard
         title="Canjes aprobados"
         value={String(report.summary.approvedTradeIns)}
-        description={formatCurrency(report.tradeIns.cashGenerated)}
+        description={`${report.tradeIns.openInRange} en curso · ${formatCurrency(report.tradeIns.cashGenerated)} cobrados`}
         icon={<RefreshCw size={18} className="text-amber-600" />}
       />
     </div>
+    <ComparisonStrip report={report} />
   </section>
 );
+
+const ComparisonStrip: React.FC<{ report: ReportsOverview }> = ({ report }) => {
+  if (!report.comparison.available) {
+    return (
+      <p className="text-sm text-gray-500">
+        El histórico completo no se compara con un período anterior.
+      </p>
+    );
+  }
+
+  const deltas = [
+    { label: 'Ingresos', change: report.comparison.revenueChange, previous: formatCurrency(report.comparison.revenue) },
+    { label: 'Margen', change: report.comparison.grossProfitChange, previous: formatCurrency(report.comparison.grossProfit) },
+    { label: 'Unidades', change: report.comparison.unitsChange, previous: String(report.comparison.unitsSold) },
+    { label: 'Ticket', change: report.comparison.averageTicketChange, previous: formatCurrency(report.comparison.averageTicket) },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {deltas.map((delta) => (
+        <div key={delta.label} className="rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{delta.label}</p>
+          <p className={`mt-1 text-sm font-bold ${changeTone(delta.change)}`}>{formatChange(delta.change)}</p>
+          <p className="mt-1 text-xs text-gray-500">Antes {delta.previous}</p>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+function changeTone(value: number | null) {
+  if (value === null || value === 0) {
+    return 'text-gray-700';
+  }
+
+  return value > 0 ? 'text-emerald-700' : 'text-red-700';
+}
 
 const SalesByPeriodWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
   <section className="rounded-2xl border border-gray-200 bg-white p-6">
@@ -736,7 +795,73 @@ const InventoryValueWidget: React.FC<{ report: ReportsOverview }> = ({ report })
     <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
       <MetricRow label="Stock total" value={String(report.inventory.totalItems)} />
       <MetricRow label="Vendidos" value={String(report.inventory.soldItems)} />
-      <MetricRow label="En revision" value={String(report.inventory.inReviewItems)} />
+      <MetricRow label="En revisión" value={String(report.inventory.inReviewItems)} />
+    </div>
+
+    <div className="mt-6">
+      <h3 className="text-sm font-bold text-gray-900">Antigüedad del stock disponible</h3>
+      <p className="mt-1 text-sm text-gray-500">Cuánto hace que cada equipo disponible está en la tienda.</p>
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {report.inventory.aging.map((bucket) => (
+          <div key={bucket.label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{bucket.label}</p>
+            <p className="mt-1 text-lg font-black text-gray-900">{bucket.count}</p>
+            <p className="text-xs text-gray-500">{formatCurrency(bucket.costValue)} de costo</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+const BusinessMixWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
+  <section className="rounded-2xl border border-gray-200 bg-white p-6">
+    <div className="mb-6">
+      <h2 className="text-lg font-bold text-gray-900">Mix del período</h2>
+      <p className="text-sm text-gray-500">De dónde salieron las ventas completadas del rango.</p>
+    </div>
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div>
+        <h3 className="text-sm font-bold text-gray-900">Por categoría</h3>
+        {report.categories.length === 0 ? (
+          <EmptyPanel message="No hay ventas completadas para agrupar por categoría." compact />
+        ) : (
+          <div className="mt-3 space-y-3">
+            {report.categories.map((category) => (
+              <div key={category.category} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{category.category}</p>
+                    <p className="text-xs text-gray-500">{category.unitsSold} equipos</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-gray-900">{formatCurrency(category.revenue)}</p>
+                    <p className="text-xs text-gray-500">{category.share.toFixed(1)}%</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <h3 className="text-sm font-bold text-gray-900">Clientes que más compraron</h3>
+        {report.topClients.length === 0 ? (
+          <EmptyPanel message="Todavía no hay clientes asociados a ventas de este rango." compact />
+        ) : (
+          <div className="mt-3 space-y-3">
+            {report.topClients.map((client) => (
+              <div key={client.client} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{client.client}</p>
+                  <p className="text-xs text-gray-500">{client.purchases} compras</p>
+                </div>
+                <p className="text-sm font-bold text-gray-900">{formatCurrency(client.revenue)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   </section>
 );
@@ -820,6 +945,7 @@ const OperationalSnapshotWidget: React.FC<{ report: ReportsOverview }> = ({ repo
       <MetricRow label="Clientes totales" value={String(report.clients.totalClients)} />
       <MetricRow label="Saldo pendiente" value={formatCurrency(report.clients.pendingBalance)} />
       <MetricRow label="Canjes en rango" value={String(report.tradeIns.totalInRange)} />
+      <MetricRow label="Canjes en curso" value={String(report.tradeIns.openInRange)} />
       <MetricRow label="Canjes aprobados" value={String(report.tradeIns.approvedInRange)} />
       <MetricRow label="Caja por canjes" value={formatCurrency(report.tradeIns.cashGenerated)} />
       <MetricRow label="Stock total" value={String(report.inventory.totalItems)} />
