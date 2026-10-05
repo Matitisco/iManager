@@ -472,4 +472,38 @@ describe('TableEngine', () => {
       }));
     });
   });
+
+  it('renames a column from a double click and cancels with escape', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.dblClick(await screen.findByText('Nombre'));
+    const input = screen.getByRole('textbox', { name: 'Nombre de la columna' });
+    expect(input).toHaveValue('Nombre');
+    expect(input).toHaveClass('text-xs', 'font-bold', 'tracking-wider', 'uppercase', 'ring-inset');
+
+    await user.type(input, ' temporal');
+    await user.keyboard('{Escape}');
+    expect(screen.getByText('Nombre')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre de la columna' })).not.toBeInTheDocument();
+
+    await user.dblClick(screen.getByText('Nombre'));
+    const nextInput = screen.getByRole('textbox', { name: 'Nombre de la columna' });
+    await user.clear(nextInput);
+    await user.type(nextInput, 'Equipo{Enter}');
+
+    expect(await screen.findByText('Equipo')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre de la columna' })).not.toBeInTheDocument();
+  });
 });
