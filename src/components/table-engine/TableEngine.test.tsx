@@ -313,4 +313,65 @@ describe('TableEngine', () => {
     expect(beta.compareDocumentPosition(addRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(addRow.compareDocumentPosition(gamma) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('creates a dropdown custom column with fixed options', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn(async () => undefined);
+    const rows: TestRow[] = [{ id: '1', name: 'Alpha', quantity: 1, categoryId: null }];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          customColumnActions: { onCreate },
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const header = await screen.findByText('Nombre');
+    fireEvent.contextMenu(header.closest('th') ?? header);
+    await user.click(screen.getByRole('button', { name: 'Nueva columna desplegable' }));
+
+    expect(screen.getByText('Creá un desplegable con opciones fijas. En cada celda se elige una de esas opciones.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Nombre'), 'Estado');
+    await user.type(screen.getByLabelText('Opción 1'), ' Nuevo ');
+    await user.type(screen.getByLabelText('Opción 2'), 'Usado');
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith({
+        label: 'Estado',
+        type: 'enum',
+        options: ['Nuevo', 'Usado'],
+      });
+    });
+  });
+
+  it('rejects a dropdown column with fewer than two distinct options', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn(async () => undefined);
+    const rows: TestRow[] = [{ id: '1', name: 'Alpha', quantity: 1, categoryId: null }];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          customColumnActions: { onCreate },
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const header = await screen.findByText('Nombre');
+    fireEvent.contextMenu(header.closest('th') ?? header);
+    await user.click(screen.getByRole('button', { name: 'Nueva columna desplegable' }));
+    await user.type(screen.getByLabelText('Nombre'), 'Estado');
+    await user.type(screen.getByLabelText('Opción 1'), 'Nuevo');
+    await user.type(screen.getByLabelText('Opción 2'), ' nuevo ');
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+
+    expect(await screen.findByText('Agregá al menos dos opciones distintas.')).toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
 });

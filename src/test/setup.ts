@@ -3,10 +3,15 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+const motionComponents = new Map<PropertyKey, React.ForwardRefExoticComponent<Record<string, unknown>>>();
+
 const motionProxy = new Proxy(
   {},
   {
     get: (_target, tag) => {
+      const cached = motionComponents.get(tag);
+      if (cached) return cached;
+
       const motionOnlyProps = new Set([
         'animate',
         'exit',
@@ -26,6 +31,7 @@ const motionProxy = new Proxy(
         }
       );
       Component.displayName = `MockMotion(${String(tag)})`;
+      motionComponents.set(tag, Component);
       return Component;
     },
   }

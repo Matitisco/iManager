@@ -264,8 +264,8 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
       onImport: async (rows) => importBackendClients(user!, rows),
     },
     customColumnActions: {
-      onCreate: async ({ label, type }) => {
-        const id = await addCustomColumn({ label, type, entity: 'clients' });
+      onCreate: async ({ label, type, options }) => {
+        const id = await addCustomColumn({ label, type, options, entity: 'clients' });
         if (!id) {
           throw new Error('No se pudo crear la columna.');
         }

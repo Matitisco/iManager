@@ -353,8 +353,8 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     },
 
     customColumnActions: {
-      onCreate: async ({ label, type }) => {
-        const id = await addCustomColumn({ label, type, entity: 'inventory' });
+      onCreate: async ({ label, type, options }) => {
+        const id = await addCustomColumn({ label, type, options, entity: 'inventory' });
         if (!id) {
           throw new Error('No se pudo crear la columna.');
         }
