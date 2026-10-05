@@ -7,6 +7,7 @@ import type { StoreUpdateInput } from '../services/settings-api';
 import { listMembers, updateMemberRole, removeMember, type TeamMember, type MemberRole } from '../services/members-api';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type CreatedInvitation, type InvitationRole } from '../services/invitations-api';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { canSeeBillingSection } from './settings-access';
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -922,32 +923,29 @@ export const Settings: React.FC<SettingsProps> = ({ activeTab: externalActiveTab
   const myRole = appSession?.membership?.role;
   const isStaff = myRole === 'STAFF';
   const canSeeTeam = myRole === 'OWNER' || myRole === 'MANAGER';
+  const canSeeBilling = canSeeBillingSection(myRole);
 
-  const tabs = isStaff
-    ? [
-        { id: 'profile', label: 'Mi Perfil', icon: User },
-        { id: 'security', label: 'Seguridad', icon: Shield },
-      ]
-    : [
-        { id: 'store', label: 'Datos de la Tienda', icon: Store },
-        { id: 'profile', label: 'Mi Perfil', icon: User },
-        { id: 'security', label: 'Seguridad', icon: Shield },
-        { id: 'billing', label: 'Facturación', icon: CreditCard },
-        ...(canSeeTeam ? [{ id: 'team', label: 'Equipo', icon: Users }] : []),
-      ];
+  useEffect(() => {
+    if (activeTab === 'billing' && !canSeeBilling) {
+      setActiveTab(isStaff ? 'profile' : 'store');
+    }
+  }, [activeTab, canSeeBilling, isStaff, setActiveTab]);
 
-  const tabContent: Record<string, React.ReactNode> = isStaff
-    ? {
-        profile: <ProfileTab />,
-        security: <SecurityTab />,
-      }
-    : {
-        store: <StoreTab />,
-        profile: <ProfileTab />,
-        security: <SecurityTab />,
-        billing: <BillingTab />,
-        ...(canSeeTeam ? { team: <TeamTab /> } : {}),
-      };
+  const tabs = [
+    ...(!isStaff ? [{ id: 'store', label: 'Datos de la Tienda', icon: Store }] : []),
+    { id: 'profile', label: 'Mi Perfil', icon: User },
+    { id: 'security', label: 'Seguridad', icon: Shield },
+    ...(canSeeBilling ? [{ id: 'billing', label: 'Facturación', icon: CreditCard }] : []),
+    ...(canSeeTeam ? [{ id: 'team', label: 'Equipo', icon: Users }] : []),
+  ];
+
+  const tabContent: Record<string, React.ReactNode> = {
+    ...(!isStaff ? { store: <StoreTab /> } : {}),
+    profile: <ProfileTab />,
+    security: <SecurityTab />,
+    ...(canSeeBilling ? { billing: <BillingTab /> } : {}),
+    ...(canSeeTeam ? { team: <TeamTab /> } : {}),
+  };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col flex-1">

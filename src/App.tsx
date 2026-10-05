@@ -22,6 +22,7 @@ import { ClientForm } from './components/forms/ClientForm';
 import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
+import { canSeeBillingSection } from './pages/settings-access';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 const SEARCHABLE_TABS = new Set(['inventory', 'clients', 'sales', 'tradeins']);
@@ -124,7 +125,10 @@ function AppContent() {
     if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
       setActiveTab('dashboard');
     }
-  }, [isStaff, activeTab, settingsTab]);
+    if (activeTab === 'settings' && settingsTab === 'billing' && !canSeeBillingSection(role)) {
+      setSettingsTab('profile');
+    }
+  }, [isStaff, activeTab, settingsTab, role]);
 
   if (loading) {
     return (
@@ -176,6 +180,7 @@ function AppContent() {
   const handleNavigate = (tab: string, subTab?: string) => {
     if (isStaff && tab === 'reports') return;
     if (isStaff && tab === 'settings' && subTab !== 'profile' && subTab !== 'security') return;
+    if (tab === 'settings' && subTab === 'billing' && !canSeeBillingSection(role)) return;
     setActiveTab(tab);
     if (tab === 'settings' && subTab) {
       setSettingsTab(subTab);
