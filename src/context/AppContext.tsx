@@ -12,6 +12,7 @@ import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
+import { normalizeDropdownOptions } from '../utils/dropdown-options';
 
 interface AppState {
   inventory: Product[];
@@ -89,7 +90,9 @@ function normalizeCustomColumn(id: string, raw: Record<string, unknown>): Custom
     id,
     label: String(raw.label ?? ''),
     type,
-    options: Array.isArray(raw.options) ? raw.options.map(String) : undefined,
+    options: type === 'enum'
+      ? normalizeDropdownOptions(Array.isArray(raw.options) ? raw.options : [])
+      : undefined,
     entity,
   };
 }
@@ -823,8 +826,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (existingColumn) {
       return existingColumn.id;
     }
+    const options = columnData.type === 'enum' ? normalizeDropdownOptions(columnData.options ?? []) : undefined;
+    if (columnData.type === 'enum' && options.length < 2) {
+      throw new Error('Agregá al menos dos opciones distintas.');
+    }
     const id = generateId('COL');
-    const createdColumn: CustomColumn = { id, ...columnData };
+    const createdColumn: CustomColumn = {
+      id,
+      ...columnData,
+      label: columnData.label.trim(),
+      options,
+    };
     const nextColumns = (
       customColumns.some((column) => column.id === id)
         ? customColumns

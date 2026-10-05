@@ -496,8 +496,8 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
         invalidateTradeInsCache();
       },
       customColumnActions: {
-        onCreate: async ({ label, type }) => {
-          const id = await addCustomColumn({ label, type, entity: 'trade-ins' });
+        onCreate: async ({ label, type, options }) => {
+          const id = await addCustomColumn({ label, type, options, entity: 'trade-ins' });
           if (!id) {
             throw new Error('No se pudo crear la columna.');
           }

@@ -145,6 +145,22 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {inventoryCustomColumns.map(col => (
             <div key={col.id} className="space-y-1">
               <label htmlFor={`product-custom-${col.id}`} className="text-xs font-bold text-gray-700">{col.label}</label>
+              {col.type === 'enum' ? (
+                <select
+                  id={`product-custom-${col.id}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                  value={String(formData.customFields[col.id] || '')}
+                  onChange={e => setFormData({
+                    ...formData,
+                    customFields: { ...formData.customFields, [col.id]: e.target.value },
+                  })}
+                >
+                  <option value="">Elegir</option>
+                  {(col.options ?? []).map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              ) : (
               <input
                 id={`product-custom-${col.id}`}
                 type={col.type === 'number' ? 'number' : 'text'}
@@ -158,6 +174,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   }
                 })}
               />
+              )}
             </div>
           ))}
         </div>

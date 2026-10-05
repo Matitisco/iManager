@@ -6,7 +6,7 @@ import { ProductForm } from './ProductForm';
 const mockAppContext = vi.hoisted(() => ({
   addProduct: vi.fn(),
   customColumns: [
-    { id: 'provider', label: 'Proveedor', type: 'text', entity: 'inventory' },
+    { id: 'provider', label: 'Proveedor', type: 'text', entity: 'inventory', options: undefined as string[] | undefined },
   ],
 }));
 
@@ -70,5 +70,40 @@ describe('ProductForm', () => {
       );
       expect(onClose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('limits dropdown custom columns to their fixed options', async () => {
+    const user = userEvent.setup();
+    const originalColumns = mockAppContext.customColumns;
+    mockAppContext.customColumns = [
+      ...originalColumns,
+      { id: 'estado', label: 'Estado comercial', type: 'enum', options: ['Nuevo', 'Usado'], entity: 'inventory' },
+    ];
+    mockAppContext.addProduct.mockResolvedValue(undefined);
+
+    try {
+      render(<ProductForm onClose={vi.fn()} />);
+
+      const select = screen.getByLabelText('Estado comercial');
+      expect(select).toBeInstanceOf(HTMLSelectElement);
+      expect(screen.getAllByRole('option', { name: 'Nuevo' }).length).toBeGreaterThan(0);
+      await user.selectOptions(select, 'Usado');
+
+      await user.type(screen.getByLabelText('IMEI'), '111222333');
+      await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
+      await user.clear(screen.getByLabelText('Color'));
+      await user.type(screen.getByLabelText('Color'), 'Negro');
+      await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+
+      await waitFor(() => {
+        expect(mockAppContext.addProduct).toHaveBeenCalledWith(
+          expect.objectContaining({
+            customFields: { estado: 'Usado' },
+          })
+        );
+      });
+    } finally {
+      mockAppContext.customColumns = originalColumns;
+    }
   });
 });

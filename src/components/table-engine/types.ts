@@ -159,7 +159,8 @@ export interface TableImportConfig {
 
 export interface CreateColumnInput {
   label: string;
-  type: 'text' | 'number';
+  type: 'text' | 'number' | 'enum';
+  options?: string[];
 }
 
 export interface CustomColumnActions {

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Filter, Download, Columns, Plus, Upload, ArrowUpDown } from 'lucide-react';
 
 import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
+import { normalizeDropdownOptions } from '../../utils/dropdown-options';
 import { useTableData } from './hooks/useTableData';
 import { useColumnState } from './hooks/useColumnState';
 import { useTagOptions } from './hooks/useTagOptions';
@@ -111,7 +112,11 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const [addRowInsertAt, setAddRowInsertAt] = useState(0);
   const [pendingItemMove, setPendingItemMove] = useState<{ categoryId: string; categoryName: string; count: number } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [newColumnDraft, setNewColumnDraft] = useState<{ label: string; type: 'text' | 'number' } | null>(null);
+  const [newColumnDraft, setNewColumnDraft] = useState<{
+    label: string;
+    type: 'text' | 'number' | 'enum';
+    options: string[];
+  } | null>(null);
   const [columnToDelete, setColumnToDelete] = useState<{ id: string; label: string } | null>(null);
   const [columnsToDeleteRight, setColumnsToDeleteRight] = useState<string[] | null>(null);
   const [columnMutationError, setColumnMutationError] = useState<string | null>(null);
@@ -274,10 +279,18 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       return;
     }
 
+    const options = newColumnDraft.type === 'enum'
+      ? normalizeDropdownOptions(newColumnDraft.options)
+      : undefined;
+    if (newColumnDraft.type === 'enum' && (!options || options.length < 2)) {
+      setColumnMutationError('Agregá al menos dos opciones distintas.');
+      return;
+    }
+
     setIsColumnMutationLoading(true);
     setColumnMutationError(null);
     try {
-      await customColumnActions.onCreate({ label, type: newColumnDraft.type });
+      await customColumnActions.onCreate({ label, type: newColumnDraft.type, options });
       setNewColumnDraft(null);
     } catch (error) {
       setColumnMutationError(error instanceof Error ? error.message : 'No se pudo crear la columna.');
@@ -1011,7 +1024,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                   <button
                     onClick={() => {
                       setColumnMutationError(null);
-                      setNewColumnDraft({ label: '', type: 'text' });
+                      setNewColumnDraft({ label: '', type: 'text', options: [] });
                       setHeaderContextMenu(null);
                     }}
                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
@@ -1021,12 +1034,22 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                   <button
                     onClick={() => {
                       setColumnMutationError(null);
-                      setNewColumnDraft({ label: '', type: 'number' });
+                      setNewColumnDraft({ label: '', type: 'number', options: [] });
                       setHeaderContextMenu(null);
                     }}
                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
                   >
                     Nueva columna numérica
+                  </button>
+                  <button
+                    onClick={() => {
+                      setColumnMutationError(null);
+                      setNewColumnDraft({ label: '', type: 'enum', options: ['', ''] });
+                      setHeaderContextMenu(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700"
+                  >
+                    Nueva columna desplegable
                   </button>
                 </>
               )}
@@ -1109,23 +1132,77 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
             >
               <h3 className="text-base font-bold text-gray-900 mb-2">Nueva columna</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Creá una columna {newColumnDraft.type === 'number' ? 'numérica' : 'de texto'} para esta tabla.
+                {newColumnDraft.type === 'number'
+                  ? 'Creá una columna numérica para esta tabla.'
+                  : newColumnDraft.type === 'enum'
+                    ? 'Creá un desplegable con opciones fijas. En cada celda se elige una de esas opciones.'
+                    : 'Creá una columna de texto para esta tabla.'}
               </p>
               <div className="space-y-3">
-                <input
-                  autoFocus
-                  maxLength={30}
-                  value={newColumnDraft.label}
-                  onChange={(e) => setNewColumnDraft((prev) => prev ? { ...prev, label: e.target.value } : prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void submitCreateColumn();
-                    }
-                  }}
-                  placeholder="Ej: Proveedor"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-gray-400"
-                />
+                <div className="space-y-1">
+                  <label htmlFor="new-column-name" className="text-xs font-bold text-gray-700">Nombre</label>
+                  <input
+                    id="new-column-name"
+                    autoFocus
+                    maxLength={30}
+                    value={newColumnDraft.label}
+                    onChange={(e) => setNewColumnDraft((prev) => prev ? { ...prev, label: e.target.value } : prev)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newColumnDraft.type !== 'enum') {
+                        e.preventDefault();
+                        void submitCreateColumn();
+                      }
+                    }}
+                    placeholder="Ej: Proveedor"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-gray-400"
+                  />
+                </div>
+                {newColumnDraft.type === 'enum' && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-gray-700">Opciones</p>
+                    <div className="max-h-52 space-y-2 overflow-y-auto">
+                      {newColumnDraft.options.map((option, index) => (
+                        <div key={index} className="flex gap-2">
+                          <input
+                            aria-label={`Opción ${index + 1}`}
+                            value={option}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setNewColumnDraft((prev) => {
+                                if (!prev) return prev;
+                                const options = [...prev.options];
+                                options[index] = value;
+                                return { ...prev, options };
+                              });
+                            }}
+                            placeholder={`Opción ${index + 1}`}
+                            className="min-w-0 flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-gray-400"
+                          />
+                          {newColumnDraft.options.length > 2 && (
+                            <button
+                              type="button"
+                              aria-label={`Quitar opción ${index + 1}`}
+                              onClick={() => setNewColumnDraft((prev) => prev ? {
+                                ...prev,
+                                options: prev.options.filter((_, optionIndex) => optionIndex !== index),
+                              } : prev)}
+                              className="rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewColumnDraft((prev) => prev ? { ...prev, options: [...prev.options, ''] } : prev)}
+                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      Agregar opción
+                    </button>
+                  </div>
+                )}
                 {columnMutationError && (
                   <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {columnMutationError}
