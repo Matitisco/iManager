@@ -1,0 +1,183 @@
+import { useState } from 'react';
+import { ChevronDown, Pencil } from 'lucide-react';
+import { TAG_COLORS, type ResolvedTag, type TagPatch } from '../tagOptions';
+
+interface TagOptionMenuProps {
+  options: string[];
+  selected: string;
+  variant: 'badge' | 'text';
+  resolve: (option: string) => ResolvedTag;
+  onSelect: (option: string) => void;
+  onSave: (option: string, patch: TagPatch) => void;
+}
+
+function TagChip({ tag, uppercase = true }: { tag: ResolvedTag; uppercase?: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold tracking-wide ${uppercase ? 'uppercase' : ''} ${tag.bg} ${tag.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tag.dot}`} />
+      {tag.label}
+    </span>
+  );
+}
+
+export function TagOptionMenu({
+  options,
+  selected,
+  variant,
+  resolve,
+  onSelect,
+  onSave,
+}: TagOptionMenuProps) {
+  const [editingOption, setEditingOption] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [colorId, setColorId] = useState<string | undefined>();
+
+  const openEditor = (option: string) => {
+    const tag = resolve(option);
+    setEditingOption(option);
+    setDraft(tag.label);
+    setColorId(tag.colorId);
+  };
+
+  const saveEdit = () => {
+    if (!editingOption) return;
+    const label = draft.trim();
+    if (!label) return;
+    onSave(editingOption, { label, colorId: variant === 'badge' ? colorId : undefined });
+    setEditingOption(null);
+  };
+
+  if (editingOption) {
+    const preview = resolve(editingOption);
+    const selectedColor = colorId ? TAG_COLORS.find((color) => color.id === colorId) : undefined;
+    const previewTag: ResolvedTag = {
+      ...preview,
+      label: draft.trim() || preview.label,
+      bg: selectedColor?.bg ?? preview.bg,
+      text: selectedColor?.text ?? preview.text,
+      dot: selectedColor?.dot ?? preview.dot,
+      colorId: selectedColor?.id ?? preview.colorId,
+    };
+
+    return (
+      <div
+        className="p-3 space-y-3"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Editar etiqueta</p>
+        <TagChip tag={previewTag} uppercase={variant === 'badge'} />
+        <input
+          autoFocus
+          data-testid="tag-edit-input"
+          maxLength={40}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              saveEdit();
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setEditingOption(null);
+            }
+          }}
+          onClick={(event) => event.stopPropagation()}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
+        />
+        {variant === 'badge' && (
+          <div className="flex flex-wrap gap-1.5">
+            {TAG_COLORS.map((color) => {
+              const active = colorId === color.id;
+              return (
+                <button
+                  key={color.id}
+                  type="button"
+                  aria-label={`Color ${color.name}`}
+                  aria-pressed={active}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setColorId(color.id);
+                  }}
+                  className={`w-5 h-5 rounded-full ${color.dot} ${active ? 'ring-2 ring-offset-2 ring-gray-900' : 'hover:scale-110'} transition-transform`}
+                />
+              );
+            })}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setEditingOption(null);
+            }}
+            className="flex-1 py-2 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              saveEdit();
+            }}
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-gray-900 text-white hover:bg-gray-800"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-1" onPointerDown={(event) => event.stopPropagation()}>
+      {options.map((option) => {
+        const tag = resolve(option);
+        const isSelected = option === selected;
+        return (
+          <div key={option} className={`flex items-center gap-1 rounded-lg ${isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect(option);
+              }}
+              className="flex-1 min-w-0 text-left px-2 py-1.5"
+            >
+              {variant === 'badge' ? (
+                <TagChip tag={tag} />
+              ) : (
+                <span className={`text-sm ${isSelected ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{tag.label}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label={`Editar etiqueta ${tag.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                openEditor(option);
+              }}
+              className="mr-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-white"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function TagChipDisplay({ tag, withChevron = false }: { tag: ResolvedTag; withChevron?: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide ${tag.bg} ${tag.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tag.dot}`} />
+      {tag.label}
+      {withChevron ? <ChevronDown size={9} className="opacity-50 flex-shrink-0" /> : null}
+    </span>
+  );
+}
