@@ -80,7 +80,6 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
   const config = useMemo((): TableEngineConfig<Sale> => ({
     title: 'Ventas',
     storageKey: 'sales',
-    exportSheetName: 'Ventas',
     noun: 'venta',
     nounPlural: 'ventas',
 

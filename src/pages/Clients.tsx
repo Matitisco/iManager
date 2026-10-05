@@ -75,7 +75,6 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
   const config = useMemo((): TableEngineConfig<Client> => ({
     title: 'Clientes',
     storageKey: 'clients',
-    exportSheetName: 'Clientes',
     noun: 'cliente',
     nounPlural: 'clientes',
 

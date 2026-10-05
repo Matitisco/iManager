@@ -190,8 +190,6 @@ export interface TableEngineConfig<TRow extends WithId> {
   title: string;
   /** Prefix for localStorage keys (column widths, order, visibility) */
   storageKey: string;
-  /** Sheet name for XLSX export */
-  exportSheetName: string;
 
   // Columns
   columns: ColDef<TRow>[];

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Filter, Download, Columns, Plus, Upload, ArrowUpDown } from 'lucide-react';
+import { Filter, Columns, Plus, Upload, ArrowUpDown } from 'lucide-react';
 
 import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
 import { normalizeDropdownOptions } from '../../utils/dropdown-options';
@@ -24,7 +24,6 @@ import { EditPanel } from './components/EditPanel';
 import { FilterPanel, SortPanel, ColumnsPanel } from './components/Panels';
 import { ImportModal as GenericImportModal } from './components/ImportModal';
 import { getColumnValue } from './columnAccess';
-import { parseCellTags } from '../../utils/cell-tags';
 import {
   buildTsv,
   parseClipboardRows,
@@ -57,7 +56,7 @@ interface TableEngineProps<TRow extends WithId> {
 
 export function TableEngine<TRow extends WithId>({ config, user, searchTerm = '' }: TableEngineProps<TRow>) {
   const {
-    title, storageKey, exportSheetName, columns, filters, sortOptions,
+    title, storageKey, columns, filters, sortOptions,
     categories = [], onCreateCategory, onRenameCategory, onDeleteCategory,
     onReorderCategories, onBulkMoveCategory,
     fetchPage, fetchFilteredIds, onCreate, onUpdate, onDelete, onBulkDelete,
@@ -147,7 +146,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const filterParamsRef = useRef<Omit<TablePageParams, 'skip' | 'take'>>({ filters: {} });
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
-  const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, isExporting, setIsExporting, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
+  const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
   const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
@@ -575,44 +574,6 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     clearSelection(); setPendingItemMove(null);
   };
 
-  // ── Export ─────────────────────────────────────────────────────────────────
-  const handleExport = async () => {
-    if (total === 0) return;
-    setIsExporting(true);
-    try {
-      const result = await fetchPage({ skip: 0, take: total, ...buildFilterParams() });
-      const rows = result.items.map(row => {
-        const r: Record<string, any> = {};
-        colState.orderedVisibleCols.forEach(colId => {
-          const colDef = resolvedColumns.find(c => c.id === colId);
-          if (!colDef) return;
-          const value = getColumnValue(row, colDef);
-          r[colState.colNames[colId] || colState.DEFAULT_COL_NAMES[colId] || colId] = colDef.type === 'tags'
-            ? parseCellTags(value).join(', ')
-            : (value ?? '');
-        });
-        return r;
-      });
-      const ExcelJS = await import('exceljs');
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet(exportSheetName);
-      const columns = Object.keys(rows[0] ?? {}).map((key) => ({ header: key, key }));
-      worksheet.columns = columns;
-      rows.forEach((row) => worksheet.addRow(row));
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer as ArrayBuffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${storageKey}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } finally { setIsExporting(false); }
-  };
-
   const hasActiveFilters = filters.some(f => activeFilters[f.id] !== f.defaultValue);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -674,10 +635,6 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
             </div>
           )}
         </div>
-        <button onClick={handleExport} disabled={isExporting || total === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 disabled:opacity-40 transition-all">
-          <Download size={14} /> {isExporting ? 'Exportando...' : 'Exportar'}
-        </button>
         {showImport && (
           <button onClick={() => setShowImportModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-all">

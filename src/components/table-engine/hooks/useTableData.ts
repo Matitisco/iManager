@@ -16,7 +16,6 @@ export function useTableData<TRow extends WithId>({
   const [total, setTotal] = useState(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
 
   const isLoadingRef = useRef(false);
   const itemsLengthRef = useRef(0);
@@ -63,7 +62,7 @@ export function useTableData<TRow extends WithId>({
 
   return {
     items, setItems, total, setTotal,
-    isInitialLoading, isLoadingMore, isExporting, setIsExporting,
+    isInitialLoading, isLoadingMore,
     sentinelRef, filterParamsRef, userRef,
     loadFirstPage,
   };

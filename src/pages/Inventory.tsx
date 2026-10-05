@@ -153,7 +153,6 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
   const config = useMemo((): TableEngineConfig<Product> => ({
     title: 'Inventario',
     storageKey: 'inventory',
-    exportSheetName: 'Inventario',
     noun: 'equipo',
     nounPlural: 'equipos',
 

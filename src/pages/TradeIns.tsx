@@ -281,7 +281,6 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
     (): TableEngineConfig<TradeIn> => ({
       title: 'Historial de Canjes',
       storageKey: 'trade-ins',
-      exportSheetName: 'Canjes',
       noun: 'canje',
       nounPlural: 'canjes',
 

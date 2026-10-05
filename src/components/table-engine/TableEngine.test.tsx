@@ -19,7 +19,6 @@ function buildConfig(overrides: Partial<TableEngineConfig<TestRow>> = {}): Table
   return {
     title: 'Inventario test',
     storageKey: 'table-engine-test',
-    exportSheetName: 'Inventario',
     filters: [],
     sortOptions: [],
     columns: [
