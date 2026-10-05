@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { X, Trash2, Edit2, Plus } from 'lucide-react';
+import { Trash2, Edit2, Plus, Copy, ClipboardPaste } from 'lucide-react';
 import type { WithId, TableCategory } from '../types';
 
 interface ContextMenuProps<TRow extends WithId> {
@@ -12,6 +12,8 @@ interface ContextMenuProps<TRow extends WithId> {
   categories: TableCategory[];
   onClose: () => void;
   onAddRow?: () => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
   onEdit: (item: TRow) => void;
   onDelete: (item: TRow) => void;
   onBulkDelete: () => void;
@@ -22,7 +24,7 @@ interface ContextMenuProps<TRow extends WithId> {
 
 export function ContextMenu<TRow extends WithId>({
   x, y, item, isBulk, selectedCount, categories,
-  onClose, onAddRow, onEdit, onDelete, onBulkDelete, onMoveToCategory,
+  onClose, onAddRow, onCopy, onPaste, onEdit, onDelete, onBulkDelete, onMoveToCategory,
   noun = 'ítem', nounPlural = 'ítems',
 }: ContextMenuProps<TRow>) {
   const [moveOpen, setMoveOpen] = React.useState(false);
@@ -54,6 +56,25 @@ export function ContextMenu<TRow extends WithId>({
             <div className="border-t border-gray-100" />
           </>
         )}
+        {onCopy && (
+          <button
+            data-testid="table-copy-rows"
+            onClick={() => { onCopy(); onClose(); }}
+            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2"
+          >
+            <Copy size={14} /> {isBulk ? `Copiar ${selectedCount}` : `Copiar ${noun}`}
+          </button>
+        )}
+        {onPaste && (
+          <button
+            data-testid="table-paste-rows"
+            onClick={() => { onPaste(); onClose(); }}
+            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-2"
+          >
+            <ClipboardPaste size={14} /> Pegar
+          </button>
+        )}
+        {(onCopy || onPaste) && <div className="border-t border-gray-100" />}
         {isBulk && (
           <div className="px-4 py-2 text-xs text-gray-400 font-semibold uppercase tracking-wider">
             {selectedCount} seleccionados

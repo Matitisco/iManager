@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
+import { duplicateUniqueValue } from '../components/table-engine/rowClipboard';
 import type { TableEngineConfig, TablePageParams, TableFilterParams, CellHelpers } from '../components/table-engine';
 import type { Product } from '../types';
 import {
@@ -165,6 +166,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
         type: 'text',
         editable: true,
         tdClassName: 'font-mono text-xs',
+        onDuplicateValue: (value, index) => duplicateUniqueValue(value, index, 100),
       },
       {
         id: 'model',
