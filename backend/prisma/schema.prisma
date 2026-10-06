@@ -41,6 +41,7 @@ model Store {
   sales               Sale[]
   tradeIns            TradeIn[]
   tradeInCategories   TradeInCategory[]
+  catalogOptions      StoreCatalogOption[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -161,6 +162,7 @@ model Sale {
 
 model TradeIn {
   id                 String           @id @default(cuid())
+  tradeNumber        Int              @default(autoincrement())
   storeId            String
   clientId           String?
   categoryId         String?
@@ -210,6 +212,31 @@ model SaleCategory {
 
   @@index([storeId])
   @@unique([storeId, name])
+}
+
+enum CatalogKind {
+  INVENTORY_STATUS
+  INVENTORY_CAPACITY
+  INVENTORY_CONDITION
+  SALE_STATUS
+  TRADE_IN_STATUS
+}
+
+model StoreCatalogOption {
+  id        String      @id @default(cuid())
+  storeId   String
+  kind      CatalogKind
+  value     String      @db.VarChar(30)
+  label     String      @db.VarChar(20)
+  color     String?     @db.VarChar(9)
+  isSystem  Boolean     @default(false)
+  sortOrder Int         @default(0)
+  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([storeId, kind, value])
+  @@index([storeId, kind])
 }
 
 model StoreInvitation {

@@ -21,6 +21,7 @@ export interface TradeInPatchInput extends Partial<TradeInInput> {}
 
 export interface TradeInResponse {
   id: string;
+  tradeNumber: number;
   date: string;
   clientId: string;
   categoryId: string | null;
@@ -61,6 +62,7 @@ export interface TradeInImportResult {
 
 type TradeInRecord = {
   id: string;
+  tradeNumber?: number;
   clientId: string | null;
   categoryId: string | null;
   dateLabel: string;
@@ -184,6 +186,7 @@ function formatDateLabel(value: Date) {
 function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
   return {
     id: tradeIn.id,
+    tradeNumber: tradeIn.tradeNumber ?? 0,
     date: tradeIn.dateLabel || formatDateLabel(tradeIn.tradeAt),
     clientId: tradeIn.clientId ?? "",
     categoryId: tradeIn.categoryId ?? null,

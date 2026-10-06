@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { DeskTab, Overlay } from './types';
+import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
+import type { CatalogKind } from '../services/catalogs-api';
 
 type DeskUi = {
   tab: DeskTab;
@@ -23,8 +25,10 @@ export function useDesk() {
   return value;
 }
 
-export function Pill({ status }: { status: string }) {
-  return <span className="spill cst" style={{ ['--pc' as string]: statusColor(status) }}>{statusLabel(status)}</span>;
+export function Pill({ status, kind }: { status: string; kind?: CatalogKind }) {
+  const catalogs = useCatalogs();
+  const row = kind ? catalogs?.options.find((option) => option.kind === kind && option.value === status) : undefined;
+  return <span className="spill cst" style={{ ['--pc' as string]: row?.color || statusColor(status) }}>{row?.label ?? statusLabel(status)}</span>;
 }
 
 export function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
@@ -242,7 +246,7 @@ export function Field({ label, error, children }: { label: string; error?: strin
   );
 }
 
-export function Segs({ options, value, onChange }: { options: { id: string; label: string; color?: string }[]; value: string; onChange: (id: string) => void }) {
+export function Segs({ options, value, onChange, onEdit }: { options: { id: string; label: string; color?: string }[]; value: string; onChange: (id: string) => void; onEdit?: () => void }) {
   const withColor = options.some((option) => option.color);
   return (
     <div className={`sgs${withColor ? ' stg' : ''}`}>
@@ -252,6 +256,7 @@ export function Segs({ options, value, onChange }: { options: { id: string; labe
           {option.label}
         </button>
       ))}
+      {onEdit ? <button type="button" className="sg-edit" aria-label="Editar opciones" onClick={onEdit}><DeskIcon name="edit" size={15} /></button> : null}
     </div>
   );
 }

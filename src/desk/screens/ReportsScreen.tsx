@@ -128,7 +128,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} recientes</span></div>
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatShortDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{clientName(clients, sale.clientId)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} /></div></div>
+              <div className="gl"><div className="gdate">{formatShortDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{clientName(clients, sale.clientId)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -140,7 +140,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Equipos</h3><span>{stockRows.length} en stock</span></div>
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
-              <div className="gl"><div className="gdate">IMEI …{item.imei.slice(-4)}</div><div className="gstore">{item.model} · {item.capacity}</div><div className="gmeta">{item.condition} <Pill status={item.status} /></div></div>
+              <div className="gl"><div className="gdate">IMEI …{item.imei.slice(-4)}</div><div className="gstore">{item.model} · {item.capacity}</div><div className="gmeta">{item.condition} <Pill status={item.status} kind="INVENTORY_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(item.price)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -152,7 +152,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Canjes</h3><span>{tradeRows.length} en total</span></div>
           {tradeRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
-              <div className="gl"><div className="gdate">{formatShortDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{clientName(clients, item.clientId)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} /></div></div>
+              <div className="gl"><div className="gdate">{formatShortDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{clientName(clients, item.clientId)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
               <div className="gr"><div className="gamt">+{formatMoneyCompact(item.differencePaid)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -203,7 +203,7 @@ function buildReport(
   tab: (typeof TABS)[number],
   period: PeriodKey,
   bounds: ReturnType<typeof periodBounds>,
-  data: { sales: { date: string; amount: number; status: string; paymentMethod: string }[]; inventory: { status: string }[]; tradeIns: { date: string; status: string }[] },
+  data: { sales: { date: string; amount: number; status: string; paymentMethod: string }[]; inventory: { status: string; createdAt?: string }[]; tradeIns: { date: string; status: string }[] },
 ) {
   const buckets = makeBuckets(period, bounds.end);
   if (tab === 'Ventas') {
@@ -230,6 +230,26 @@ function buildReport(
   }
   if (tab === 'Stock') {
     const available = data.inventory.filter((item) => item.status === 'DISPONIBLE').length;
+    const dated = data.inventory.filter((item) => item.createdAt);
+    if (dated.length) {
+      const current = dated.filter((item) => item.createdAt && inPeriod(item.createdAt, bounds.start, bounds.end));
+      for (const item of current) addToBucket(buckets, item.createdAt || '', 1);
+      return {
+        eye: 'Equipos ingresados',
+        total: current.length,
+        money: false,
+        delta: `${data.inventory.length} en stock · ${available} disponibles`,
+        bucketLabel: BUCKET_LABEL[period],
+        buckets,
+        donutTitle: 'Por estado',
+        parts: fixedParts(data.inventory, (item) => statusLabel(item.status), () => 1, [
+          { label: 'Disponible', color: '#DDF43B' },
+          { label: 'En revisión', color: '#5B8DEF' },
+          { label: 'Vendido', color: '#397964' },
+          { label: 'Reservado', color: '#DF668B' },
+        ]),
+      };
+    }
     return {
       eye: 'Equipos en stock',
       total: data.inventory.length,

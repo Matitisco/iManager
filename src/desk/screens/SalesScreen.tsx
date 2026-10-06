@@ -95,7 +95,7 @@ export function SalesScreen() {
                     <td>{productLabel(product)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{formatMoney(sale.amount)}</b></td>
-                    <td><Pill status={sale.status} /></td>
+                    <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
                   </PressTarget>
                 );
               })}

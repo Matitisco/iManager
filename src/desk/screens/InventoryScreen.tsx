@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { catalogChoices, useCatalogs } from '../catalog';
 import { batteryPercent, conditionLabel, formatImei, formatMoney } from '../format';
 import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -12,6 +13,7 @@ const FILTERS = [
 
 export function InventoryScreen() {
   const { inventory } = useAppContext();
+  const catalogs = useCatalogs();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
@@ -36,6 +38,11 @@ export function InventoryScreen() {
   }, [inventory, query, filter, sort]);
 
   const available = inventory.filter((item) => item.status === 'DISPONIBLE').length;
+  const filters = useMemo(() => {
+    const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', FILTERS.filter((item) => item.id !== 'Todos'));
+    const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
+    return [{ id: 'Todos', label: 'Todos' }, ...known, ...extra.map((id) => ({ id, label: id }))];
+  }, [catalogs?.options, inventory]);
 
   return (
     <div className="dscreen">
@@ -51,7 +58,7 @@ export function InventoryScreen() {
         </div>
       </div>
       <div className="dbar">
-        <ChipRow options={FILTERS} value={filter} onChange={setFilter} />
+        <ChipRow options={filters} value={filter} onChange={setFilter} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
       </div>
       <div className="dcard flush">
@@ -78,7 +85,7 @@ export function InventoryScreen() {
                   <td>{conditionLabel(item.condition, item.grade)}</td>
                   <td><Battery value={batteryPercent(item.batteryHealth)} /></td>
                   <td className="r"><b>{formatMoney(item.price)}</b></td>
-                  <td><Pill status={item.status} /></td>
+                  <td><Pill status={item.status} kind="INVENTORY_STATUS" /></td>
                 </PressTarget>
               ))}
             </tbody>

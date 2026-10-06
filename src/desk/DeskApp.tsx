@@ -9,6 +9,7 @@ import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
 import { DeskOverlays } from './DeskOverlays';
+import { CatalogProvider } from './catalog';
 import { DeskIcon, DeskProvider } from './ui';
 import type { DeskTab, Overlay } from './types';
 import './desk.css';
@@ -88,6 +89,7 @@ export function DeskApp() {
   ];
 
   return (
+    <CatalogProvider>
     <DeskProvider value={ui}>
       <div className="desk-app">
         <aside className="side">
@@ -136,5 +138,6 @@ export function DeskApp() {
         <DeskOverlays overlay={overlay} />
       </div>
     </DeskProvider>
+    </CatalogProvider>
   );
 }

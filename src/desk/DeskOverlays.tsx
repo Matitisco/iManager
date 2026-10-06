@@ -25,6 +25,8 @@ import {
   statusLabel,
   tradeCode,
 } from './format';
+import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
+import type { CatalogKind } from '../services/catalogs-api';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
@@ -175,10 +177,13 @@ function batteryText(value: string) {
 function EquipmentDetail({ id }: { id: string }) {
   const { inventory, updateProduct } = useAppContext();
   const { close, open, toast } = useDesk();
+  const catalogs = useCatalogs();
   const item = inventory.find((row) => row.id === id);
   const [status, setStatus] = useState(item?.status || 'DISPONIBLE');
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const statuses = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS);
   if (!item) return null;
   const saveStatus = async () => {
     setBusy(true);
@@ -200,7 +205,8 @@ function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
       <Field label="Estado"><span /></Field>
-      <Segs options={EQ_STATUS} value={status} onChange={setStatus} />
+      <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
         {item.status === 'DISPONIBLE'
           ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id })}>Vender</button>
@@ -214,6 +220,8 @@ function EquipmentDetail({ id }: { id: string }) {
 function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { inventory, addProduct, updateProduct } = useAppContext();
   const { close } = useDesk();
+  const catalogs = useCatalogs();
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = inventory.find((item) => item.id === id);
   const caps = [...new Set([...BASE_CAPS, ...inventory.map((item) => item.capacity).filter(Boolean)])];
   const conditions = [
@@ -237,17 +245,18 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
-      <Segs options={caps.map((item) => ({ id: item, label: item }))} value={capacity} onChange={setCapacity} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item })))} value={capacity} onChange={setCapacity} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
       <div className="frow">
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
-      <Segs options={conditions} value={condition} onChange={setCondition} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
       <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
-      <Segs options={EQ_STATUS} value={status} onChange={setStatus} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
@@ -287,10 +296,12 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
 function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientId?: string; productId?: string } }) {
   const { sales, clients, inventory, addSale, updateSale, addClient } = useAppContext();
   const { close } = useDesk();
+  const catalogs = useCatalogs();
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = sales.find((sale) => sale.id === id);
   const available = inventory.filter((item) => item.status === 'DISPONIBLE' || item.id === current?.productId || item.id === preset?.productId);
   const [productId, setProductId] = useState(current?.productId || preset?.productId || available[0]?.id || '');
-  const [clientId, setClientId] = useState(current?.clientId || preset?.clientId || clients[0]?.id || '');
+  const [clientId, setClientId] = useState(current?.clientId || preset?.clientId || '');
   const [payment, setPayment] = useState(current?.paymentMethod || 'TRANSFERENCIA');
   const [status, setStatus] = useState(current?.status || 'COMPLETADA');
   const [amount, setAmount] = useState(formatInputMoney(current?.amount || available.find((item) => item.id === (preset?.productId || available[0]?.id))?.price || 0));
@@ -325,11 +336,12 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       )}
       <Field label="Cliente">
         <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-          <option value="">Nuevo cliente</option>
+          <option value="">Consumidor final</option>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          <option value="__new__">+ Nuevo cliente</option>
         </select>
       </Field>
-      {!clientId && (
+      {clientId === '__new__' && (
         <div className="frow">
           <Field label="Nombre" error={bad.name}><input value={newName} onChange={(event) => { setNewName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
           <Field label="DNI" error={bad.dni}><input value={newDni} onChange={(event) => { setNewDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
@@ -339,18 +351,19 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
       <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
       <Field label="Estado"><span /></Field>
-      <Segs options={SALE_STATUS} value={status} onChange={setStatus} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'SALE_STATUS', SALE_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('SALE_STATUS') : undefined} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       {available.length === 0 ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div> : <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
-        if (!clientId && !newName.trim()) next.name = 'Completá este dato';
-        if (!clientId && !newDni.trim()) next.dni = 'Completá este dato';
+        if (clientId === '__new__' && !newName.trim()) next.name = 'Completá este dato';
+        if (clientId === '__new__' && !newDni.trim()) next.dni = 'Completá este dato';
         if (!parseMoney(amount)) next.amount = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
         if (!selected) throw new Error('Seleccioná un equipo disponible.');
-        let nextClient = clientId;
-        if (!nextClient) {
+        let nextClient = clientId === '__new__' ? '' : clientId;
+        if (clientId === '__new__') {
           const created = await addClient({ dni: newDni.trim(), name: newName.trim(), email: '', phone: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 });
           nextClient = created.id;
         }
@@ -388,7 +401,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       <div className="kv"><span>Cliente</span><b>{clientName(clients, sale.clientId)}</b></div>
       <div className="kv"><span>Equipo</span><b>{productLabel(product)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Estado</span><b><Pill status={sale.status} /></b></div>
+      <div className="kv"><span>Estado</span><b><Pill status={sale.status} kind="SALE_STATUS" /></b></div>
       {sale.status === 'PENDIENTE' ? (
         <Actions busy={busy} secondary="Cancelar venta" primary="Marcar cobrada" onSecondary={() => run(async () => {
           await updateSale({ ...sale, status: 'CANCELADA' });
@@ -415,6 +428,8 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
 function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { tradeIns, clients, inventory, addTradeIn, updateTradeIn } = useAppContext();
   const { close } = useDesk();
+  const catalogs = useCatalogs();
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = tradeIns.find((item) => item.id === id);
   const available = inventory.filter((item) => item.status === 'DISPONIBLE');
   const [clientId, setClientId] = useState(current?.clientId || clients[0]?.id || '');
@@ -458,7 +473,8 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         <Field label="Diferencia"><input value={diff} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDiff(formatInputMoney(parseMoney(event.target.value)))} /></Field>
       </div>
       <Field label="Estado"><span /></Field>
-      <Segs options={CJ_STATUS} value={status} onChange={setStatus} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!clientId) next.client = 'Completá este dato';
@@ -509,7 +525,7 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
       <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
-      <div className="kv"><span>Estado</span><b><Pill status={trade.status} /></b></div>
+      <div className="kv"><span>Estado</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
       {next ? (
         <div className="sacts">
           {trade.status === 'APROBADO'
@@ -523,18 +539,36 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
 }
 
 function ClientDetail({ id }: { id: string }) {
-  const { clients } = useAppContext();
-  const { close, open } = useDesk();
+  const { clients, updateClient } = useAppContext();
+  const { close, open, toast } = useDesk();
   const client = clients.find((item) => item.id === id);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!client) return null;
+  const pay = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateClient({ ...client, pendingBalance: 0 });
+      toast('Pago registrado');
+      close();
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Sheet title={client.name} subtitle={client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? `Última compra ${formatShortDate(client.lastPurchaseDate)}` : 'Sin compras todavía'} onClose={close}>
+      {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '—'}</b></div>
       <div className="kv"><span>DNI</span><b>{client.dni || '—'}</b></div>
       <div className="sacts">
-        <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+        {client.pendingBalance > 0
+          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+          : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientId: client.id })}>Nueva venta</button>
       </div>
     </Sheet>

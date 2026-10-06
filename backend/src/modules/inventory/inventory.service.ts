@@ -32,6 +32,7 @@ export interface InventoryItemResponse {
   categoryId: string | null;
   customFields: Record<string, unknown>;
   soldAt: string | null;
+  createdAt: string;
 }
 
 export interface InventoryCategoryResponse {
@@ -54,6 +55,7 @@ type InventoryRecord = {
   status: string;
   customFields: Prisma.JsonValue | null;
   sales?: { soldAt: Date }[];
+  createdAt?: Date;
 };
 
 class InventoryError extends Error {
@@ -108,6 +110,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
+    createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
   };
 }
 
@@ -198,6 +201,7 @@ type RawInventoryRow = {
   id: string; imei: string; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
+  createdAt: Date | string | null;
 };
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
@@ -216,6 +220,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     categoryId: row.categoryId ?? null,
     customFields: toCustomFields(row.customFields),
     soldAt: null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
   };
 }
 
@@ -229,7 +234,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields"
+             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -488,16 +493,25 @@ const STATUS_MAP: Record<string, string> = {
   "en revision": "EN_REVISION",
   en_revision: "EN_REVISION",
   review: "EN_REVISION",
+  reservado: "RESERVADO",
+  reserved: "RESERVADO",
 };
+
+function foldKey(value: string) {
+  return value.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function lookupEnum(value: string | undefined, map: Record<string, string>) {
+  if (!value?.trim()) return undefined;
+  return map[foldKey(value)];
+}
 
 function normalizeEnum<T extends string>(
   value: string | undefined,
   map: Record<string, string>,
   fallback: T
 ): T {
-  if (!value) return fallback;
-  const normalized = map[value.toLowerCase().trim()];
-  return (normalized as T) ?? fallback;
+  return (lookupEnum(value, map) as T) ?? fallback;
 }
 
 function normalizeBattery(raw: unknown): string {
@@ -528,17 +542,32 @@ export async function importInventoryItems(
       continue;
     }
 
+    const condition = raw.condition?.trim()
+      ? lookupEnum(raw.condition, CONDITION_MAP)
+      : "USADO";
+    if (!condition) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` });
+      continue;
+    }
+    const status = raw.status?.trim()
+      ? lookupEnum(raw.status, STATUS_MAP)
+      : "DISPONIBLE";
+    if (!status) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: `Estado «${raw.status}» no existe` });
+      continue;
+    }
+
     const input = {
       imei: raw.imei?.trim() || `IMP-${Date.now()}-${rowNum}`,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color: raw.color?.trim() || "",
-      condition: normalizeEnum(raw.condition, CONDITION_MAP, "USADO" as const),
+      condition,
       grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
       batteryHealth: normalizeBattery(raw.batteryHealth),
       cost: Number(raw.cost) || 0,
       price: Number(raw.price),
-      status: normalizeEnum(raw.status, STATUS_MAP, "DISPONIBLE" as const),
+      status,
     };
 
     try {

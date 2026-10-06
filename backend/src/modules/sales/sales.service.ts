@@ -4,7 +4,7 @@ import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
   date: string;
-  clientId: string;
+  clientId?: string | null;
   productId: string;
   amount: number;
   paymentMethod: string;
@@ -14,7 +14,7 @@ export interface SaleInput {
 }
 
 export interface SalePatchInput {
-  clientId?: string;
+  clientId?: string | null;
   productId?: string;
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
@@ -204,11 +204,13 @@ export async function createSale(storeId: string, input: SaleInput) {
   return prisma.$transaction(async (tx) => {
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
-    const client = await tx.client.findFirst({
-      where: { id: input.clientId, storeId },
-    });
+    const client = input.clientId
+      ? await tx.client.findFirst({
+          where: { id: input.clientId, storeId },
+        })
+      : null;
 
-    if (!client) {
+    if (input.clientId && !client) {
       throw new SalesError("Client not found", 404);
     }
 
@@ -230,7 +232,7 @@ export async function createSale(storeId: string, input: SaleInput) {
     const sale = await tx.sale.create({
       data: {
         storeId,
-        clientId: client.id,
+        clientId: client?.id ?? null,
         inventoryItemId: inventoryItem.id,
         dateLabel,
         amount: toDecimal(input.amount),
@@ -247,13 +249,15 @@ export async function createSale(storeId: string, input: SaleInput) {
       data: { status: "VENDIDO" },
     });
 
-    await tx.client.update({
-      where: { id: client.id },
-      data: {
-        totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
-        lastPurchaseAt: soldAt,
-      },
-    });
+    if (client) {
+      await tx.client.update({
+        where: { id: client.id },
+        data: {
+          totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
+          lastPurchaseAt: soldAt,
+        },
+      });
+    }
 
     return serializeSale(sale as SaleRecord);
   });
@@ -273,7 +277,7 @@ export async function updateSale(
   }
 
   return prisma.$transaction(async (tx) => {
-    const nextClientId = input.clientId ?? existing.clientId ?? undefined;
+    const nextClientId = input.clientId === undefined ? existing.clientId : (input.clientId || null);
     const nextInventoryItemId = input.productId ?? existing.inventoryItemId ?? undefined;
 
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
@@ -338,6 +342,18 @@ export async function updateSale(
         where: { id: nextInventoryItemId, storeId },
         data: { status: "VENDIDO" },
       });
+    }
+
+    const nextStatus = input.status ?? existing.status;
+    if (existing.status === "PENDIENTE" && nextStatus === "COMPLETADA" && nextClientId) {
+      const payer = await tx.client.findFirst({ where: { id: nextClientId, storeId } });
+      if (payer) {
+        const nextBalance = new Decimal(payer.pendingBalance.toString()).minus(newAmount);
+        await tx.client.update({
+          where: { id: payer.id },
+          data: { pendingBalance: nextBalance.lessThan(0) ? new Decimal(0) : nextBalance },
+        });
+      }
     }
 
     if (

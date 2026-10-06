@@ -114,12 +114,15 @@ Ordenado para que cada fase deje la app usable y mejore lo más visible primero.
 
 Quedó afuera de esta pasada, a propósito: los catálogos con lápiz y el resto de la fase 4; la serie temporal de stock (hace falta `createdAt` en el equipo); el rediseño completo del modal de importación compartido con la app principal (el toast sí dice cuántos registros entraron). La fila Facturación avisa «acceso anticipado» y no copia el toast de Plan Pro del prototipo.
 
-### Fase 4 — funcionalidades que necesitan backend
+### Fase 4 — funcionalidades que necesitan backend (aplicada en hifi-desk)
 
-- **Catálogos editables** (ver el modelo unificado más arriba): SE-01 a SE-10, SC-01, SC-02, SD-01, SD-02, EE-01, EE-07, RE-01, IN-05, SJ-01, SJ-02, MV-05, MC-06, ET-01 y CL-01.
-- **«Consumidor final» en ventas** (**MV-06**): `clientId` opcional en `saleCreateSchema`. Prisma ya lo permite como nulo.
-- **Registrar pago de cliente** (**MK-01**) y descuento del saldo al cobrar una venta (**MV-11**).
-- **Normalización de estado y condición en el import** (**IM-06**).
+- **Catálogos editables** con lápiz (modelo `StoreCatalogOption`): estados, capacidades y condiciones de equipo, estados de venta y de canje. `GET /api/catalogs` siembra los valores por defecto. `PUT` lo pueden usar `OWNER` y `MANAGER`; `STAFF` recibe 403 y no ve el lápiz.
+- **«Consumidor final»** queda como opción por defecto al registrar una venta (`clientId` nulo). «+ Nuevo cliente» sigue disponible.
+- **Registrar pago** pone el saldo del cliente en 0 y avisa «Pago registrado». Al pasar una venta de pendiente a completada, ese monto se descuenta del saldo.
+- **Importación:** un estado o una condición que no se reconoce deja de guardarse en silencio como Disponible o Usado.
+- **Canjes** usan `tradeNumber` para el código `C-0001`. El stock de reportes se agrupa por fecha de ingreso del equipo.
+
+Quedó afuera: etiquetas de cliente (ET-01, CL-01; sigue la decisión 5), el historial de pagos y el rediseño visual del modal de importación.
 
 ## Decisiones pendientes
 
@@ -130,7 +133,7 @@ Estos puntos necesitan una decisión de producto antes de implementarse. El deta
    - En `#/salida` el título «Sesión cerrada» queda blanco sobre fondo claro y la sidebar sigue visible.
    - El toast de Facturación («Plan Pro activo hasta el 05/11») contradice «Usuario Beta».
 2. **«Reservado» en los chips de Inventario.** El estático lo excluye por *nombre*, así que al renombrarlo aparece el chip (captura 09). Hay que decidir si se excluye por clave `RESERVADO`.
-3. **Permisos sobre catálogos.** Falta definir si un `STAFF` puede crear o borrar estados, o solo `OWNER` / `MANAGER`.
+3. **Permisos sobre catálogos.** En hifi-desk solo `OWNER` y `MANAGER` crean o borran opciones. `STAFF` no ve el lápiz.
 4. **Campos que React tiene y el estático no:** «Grado» editable y «Modelo» como texto libre (**EE-05**, **EE-06**), y el alta de cliente inline en Registrar venta (**MV-06**). Pueden ser intencionales por los datos reales.
 5. **Etiquetas de cliente:** reutilizar `ClientCategory` o crear un catálogo nuevo.
 6. **Fuente de Reportes:** seguir calculando en el cliente o usar `fetchReportsOverview`, que ya agrupa en el backend.

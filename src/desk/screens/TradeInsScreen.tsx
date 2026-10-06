@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { catalogChoices, useCatalogs } from '../catalog';
 import { clientName, formatMoney, formatShortDate, isInProgressTrade, tradeCode } from '../format';
 import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -9,10 +10,12 @@ const COLUMNS = [
   { id: 'EN REVISIÓN', label: 'En revisión' },
   { id: 'APROBADO', label: 'Aprobado' },
   { id: 'LISTO', label: 'Completado' },
+  { id: 'RECHAZADO', label: 'Rechazado' },
 ];
 
 export function TradeInsScreen() {
   const { tradeIns, clients } = useAppContext();
+  const catalogs = useCatalogs();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
@@ -27,11 +30,12 @@ export function TradeInsScreen() {
     });
   }, [tradeIns, clients, query]);
 
-  const columns = filter === 'Todos'
-    ? COLUMNS
-    : filter === 'RECHAZADO'
-      ? [{ id: 'RECHAZADO', label: 'Rechazado' }]
-      : COLUMNS.filter((column) => column.id === filter);
+  const allColumns = useMemo(() => {
+    const known = catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', COLUMNS);
+    const extra = [...new Set(tradeIns.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
+    return [...known, ...extra.map((id) => ({ id, label: id }))];
+  }, [catalogs?.options, tradeIns]);
+  const columns = filter === 'Todos' ? allColumns : allColumns.filter((column) => column.id === filter);
 
   return (
     <div className="dscreen">
@@ -48,7 +52,7 @@ export function TradeInsScreen() {
       </div>
       <div className="dbar">
         <ChipRow
-          options={[{ id: 'Todos', label: 'Todos' }, ...COLUMNS.map((column) => ({ id: column.id, label: column.label })), { id: 'RECHAZADO', label: 'Rechazado' }]}
+          options={[{ id: 'Todos', label: 'Todos' }, ...allColumns.map((column) => ({ id: column.id, label: column.label }))]}
           value={filter}
           onChange={setFilter}
         />
@@ -67,7 +71,7 @@ export function TradeInsScreen() {
                   onActivate={() => open({ type: 'cj', id: item.id })}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${clientName(clients, item.clientId)}`, ...point })}
                 >
-                  <div className="meta"><span>#{tradeCode(tradeIns, item.id)} · {formatShortDate(item.date)}</span><Pill status={item.status} /></div>
+                  <div className="meta"><span>#{tradeCode(tradeIns, item.id)} · {formatShortDate(item.date)}</span><Pill status={item.status} kind="TRADE_IN_STATUS" /></div>
                   <div className="ttl">Recibido: {item.deviceReceived}</div>
                   <div className="who">{clientName(clients, item.clientId)}<br />Entrega: {item.deviceGiven}</div>
                   <div className="amt"><b>{formatMoney(item.takeValue)}</b><small>dif. {formatMoney(item.differencePaid)}</small></div>

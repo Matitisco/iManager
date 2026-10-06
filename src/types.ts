@@ -12,6 +12,7 @@ export interface Product {
   status: string;
   categoryId?: string | null;
   soldAt?: string | null;
+  createdAt?: string;
   customFields?: Record<string, any>;
 }
 
@@ -45,6 +46,7 @@ export interface Sale {
 
 export interface TradeIn {
   id: string;
+  tradeNumber?: number;
   date: string;
   clientId: string;
   categoryId?: string | null;

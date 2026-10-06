@@ -150,6 +150,7 @@ export function paymentLabel(method: string): string {
 }
 
 export function clientName(clients: Client[], id: string): string {
+  if (!id) return 'Consumidor final';
   return clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
 }
 
@@ -164,6 +165,8 @@ export function saleCode(sale: Sale): string {
 }
 
 export function tradeCode(tradeIns: TradeIn[], id: string): string {
+  const current = tradeIns.find((item) => item.id === id);
+  if (current?.tradeNumber) return `C-${String(current.tradeNumber).padStart(4, '0')}`;
   const ordered = [...tradeIns].sort((a, b) => {
     const left = parseAppDate(a.date)?.getTime() ?? 0;
     const right = parseAppDate(b.date)?.getTime() ?? 0;
