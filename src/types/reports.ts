@@ -95,6 +95,8 @@ export interface ReportsOverview {
     approvedInRange: number;
     openInRange: number;
     cashGenerated: number;
+    openCash?: number;
+    otherCash?: number;
   };
 }
 

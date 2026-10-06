@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useAppContext } from '../context/AppContext';
+import { buildReportsMock } from './reports-mock';
 import { fetchReportsOverview } from '../services/reports-api';
 import type { ReportsOverview, ReportsRangeKey } from '../types/reports';
 import {
@@ -370,14 +371,34 @@ export const Reports: React.FC = () => {
   const [metric, setMetric] = useState<MetricId>('amount');
   const [sliceMode, setSliceMode] = useState<SliceMode>('primary');
   const [report, setReport] = useState<ReportsOverview | null>(null);
+  const [useExample, setUseExample] = useState(false);
   const compactAxis = useNarrowScreen();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const controlsReady = backendReady || useExample;
   const status = statusByModule[moduleId];
+  const exampleReport = useMemo(
+    () =>
+      useExample
+        ? buildReportsMock({
+            period,
+            startDate: appliedRange.startDate,
+            endDate: appliedRange.endDate,
+          })
+        : null,
+    [appliedRange.endDate, appliedRange.startDate, period, useExample]
+  );
+  const visibleReport = exampleReport ?? report;
 
   useEffect(() => {
+    if (useExample) {
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
     if (!user || !backendReady) {
       setReport(null);
       return;
@@ -416,24 +437,24 @@ export const Reports: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [appliedRange.endDate, appliedRange.rangeKey, appliedRange.startDate, backendReady, user]);
+  }, [appliedRange.endDate, appliedRange.rangeKey, appliedRange.startDate, backendReady, useExample, user]);
 
   const view = useMemo(() => {
-    if (!report) {
+    if (!visibleReport) {
       return null;
     }
 
     return buildModuleView({
-      report,
+      report: visibleReport,
       moduleId,
       status,
       metric,
       sliceMode,
       period,
-      endsToday: rangeEndsToday(report.filters.endDate),
+      endsToday: rangeEndsToday(visibleReport.filters.endDate),
       compactAxis,
     });
-  }, [compactAxis, metric, moduleId, period, report, sliceMode, status]);
+  }, [compactAxis, metric, moduleId, period, sliceMode, status, visibleReport]);
 
   const selectPreset = (preset: Exclude<PeriodId, 'custom'>) => {
     setPeriod(preset);
@@ -469,7 +490,7 @@ export const Reports: React.FC = () => {
             <FilterChip
               key={entry.id}
               pressed={moduleId === entry.id}
-              disabled={!backendReady}
+              disabled={!controlsReady}
               onClick={() => {
                 setModuleId(entry.id);
                 setSliceMode('primary');
@@ -487,7 +508,7 @@ export const Reports: React.FC = () => {
               <FilterChip
                 key={entry.id}
                 pressed={period === entry.id && !datesOpen}
-                disabled={!backendReady}
+                disabled={!controlsReady}
                 onClick={() => selectPreset(entry.id)}
               >
                 {entry.label}
@@ -496,7 +517,7 @@ export const Reports: React.FC = () => {
             <FilterChip
               pressed={period === 'custom' || datesOpen}
               emphasis={period === 'custom' ? 'solid' : 'quiet'}
-              disabled={!backendReady}
+              disabled={!controlsReady}
               onClick={() => setDatesOpen((open) => !open)}
             >
               <Calendar size={14} />
@@ -504,17 +525,22 @@ export const Reports: React.FC = () => {
             </FilterChip>
           </div>
 
-          <motion.button
+          <div className="flex flex-wrap gap-2">
+            <FilterChip pressed={useExample} onClick={() => setUseExample((current) => !current)}>
+              Ejemplo
+            </FilterChip>
+            <motion.button
             type="button"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => report && downloadCsv(report)}
-            disabled={!report || isLoading}
+            onClick={() => visibleReport && downloadCsv(visibleReport)}
+            disabled={!visibleReport || (isLoading && !useExample)}
             className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 lg:self-auto"
           >
             <Download size={16} />
             Exportar
-          </motion.button>
+            </motion.button>
+          </div>
         </div>
 
         {datesOpen && (
@@ -559,9 +585,9 @@ export const Reports: React.FC = () => {
           </div>
         )}
 
-        {period === 'custom' && report && (
+        {period === 'custom' && visibleReport && !useExample && (
           <p className="text-xs text-gray-400">
-            {formatDateLabel(report.filters.startDate)} – {formatDateLabel(report.filters.endDate)}
+            {formatDateLabel(visibleReport.filters.startDate)} – {formatDateLabel(visibleReport.filters.endDate)}
           </p>
         )}
 
@@ -570,7 +596,7 @@ export const Reports: React.FC = () => {
             <FilterChip
               key={entry.id}
               pressed={status === entry.id}
-              disabled={!backendReady}
+              disabled={!controlsReady}
               onClick={() => setStatusByModule((current) => ({ ...current, [moduleId]: entry.id }))}
             >
               {entry.label}
@@ -579,7 +605,13 @@ export const Reports: React.FC = () => {
         </div>
       </motion.div>
 
-      {!backendReady && (
+      {useExample && (
+        <motion.div variants={item} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Estás viendo datos de ejemplo para revisar los gráficos de Ventas, Stock y Canjes.
+        </motion.div>
+      )}
+
+      {!controlsReady && (
         <motion.div
           variants={item}
           className={`rounded-2xl border p-4 ${
@@ -595,7 +627,7 @@ export const Reports: React.FC = () => {
         </motion.div>
       )}
 
-      {error && (
+      {error && !useExample && (
         <motion.div variants={item} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 shrink-0" size={18} />
@@ -607,10 +639,10 @@ export const Reports: React.FC = () => {
         </motion.div>
       )}
 
-      {backendReady && !error && !view && <ReportsSkeleton />}
+      {controlsReady && !useExample && !error && !view && <ReportsSkeleton />}
 
       {view && (
-        <motion.div variants={item} className={`space-y-4 ${isLoading ? 'opacity-60' : ''}`}>
+        <motion.div variants={item} className={`space-y-4 ${isLoading && !useExample ? 'opacity-60' : ''}`}>
           <BarPanel view={view} metric={metric} compactAxis={compactAxis} onMetric={setMetric} />
           <DonutPanel view={view} sliceMode={sliceMode} onSliceMode={setSliceMode} />
         </motion.div>
@@ -787,8 +819,8 @@ function buildTradeInView({ report, status, metric, period }: ModuleViewInput): 
   );
   const allPoints = [
     point('Aprobados', report.tradeIns.cashGenerated, report.tradeIns.approvedInRange),
-    point('En curso', 0, report.tradeIns.openInRange, true),
-    point('Otros', 0, other),
+    point('En curso', report.tradeIns.openCash ?? 0, report.tradeIns.openInRange, true),
+    point('Otros', report.tradeIns.otherCash ?? 0, other),
   ];
   const rawPoints =
     status === 'approved'
@@ -803,10 +835,12 @@ function buildTradeInView({ report, status, metric, period }: ModuleViewInput): 
       : status === 'pending'
         ? report.tradeIns.openInRange
         : report.tradeIns.totalInRange;
+  const tradeInCash =
+    report.tradeIns.cashGenerated + (report.tradeIns.openCash ?? 0) + (report.tradeIns.otherCash ?? 0);
   const headline =
     status === 'pending' || metric === 'units'
       ? formatNumber(headlineUnits)
-      : formatCurrency(report.tradeIns.cashGenerated);
+      : formatCurrency(status === 'approved' ? report.tradeIns.cashGenerated : tradeInCash);
 
   const slices = buildSlices(
     [

@@ -115,4 +115,33 @@ describe('Reports', () => {
       );
     });
   });
+
+  it('fills Ventas, Stock and Canjes when example data is on', async () => {
+    fetchReportsOverview.mockResolvedValue(overview);
+    const user = userEvent.setup();
+
+    render(<Reports />);
+
+    await user.click(await screen.findByRole('button', { name: 'Ejemplo' }));
+
+    expect(screen.getByText(/datos de ejemplo/i)).toBeInTheDocument();
+    expect(screen.getByText('Transferencia')).toBeInTheDocument();
+    expect(screen.queryByText('iPhone 13 128GB')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Modelo' }));
+    expect(screen.getByText('iPhone 13 128GB')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Stock' }));
+    expect(screen.getByText('Stock · disponible ahora')).toBeInTheDocument();
+    expect(screen.getByText('Disponible')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Antigüedad' }));
+    expect(screen.getAllByText('0-14 días').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Más de 60 días').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Canjes' }));
+    expect(screen.getByText(/Canjes ·/)).toBeInTheDocument();
+    expect(screen.getAllByText('Aprobados').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('En curso').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Otros').length).toBeGreaterThan(0);
+  });
 });
