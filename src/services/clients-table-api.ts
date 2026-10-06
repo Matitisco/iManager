@@ -14,16 +14,32 @@ import {
 } from './clients-api';
 
 let _cache: { uid: string; data: Client[] } | null = null;
+let cacheVersion = 0;
 
 async function getAllClients(user: AuthUserLike): Promise<Client[]> {
   if (_cache?.uid === user.uid) return _cache.data;
+  const version = cacheVersion;
   const data = await fetchBackendClients(user);
+  if (version !== cacheVersion) {
+    if (_cache?.uid === user.uid) return _cache.data;
+    return getAllClients(user);
+  }
   _cache = { uid: user.uid, data };
   return data;
 }
 
 export function invalidateClientsCache() {
   _cache = null;
+  cacheVersion += 1;
+}
+
+export function clearClientCategoryInCache(categoryId: string) {
+  if (_cache) {
+    _cache.data = _cache.data.map((client) => (
+      client.categoryId === categoryId ? { ...client, categoryId: null } : client
+    ));
+  }
+  cacheVersion += 1;
 }
 
 function hasActivity(c: Client) {
@@ -88,6 +104,7 @@ export function updateClientCategoryInCache(ids: string[], categoryId: string | 
   if (_cache) {
     _cache.data = _cache.data.map(c => ids.includes(c.id) ? { ...c, categoryId } : c);
   }
+  cacheVersion += 1;
 }
 
 export async function updateClientViaApi(user: AuthUserLike, client: Client): Promise<void> {
@@ -95,6 +112,7 @@ export async function updateClientViaApi(user: AuthUserLike, client: Client): Pr
   if (_cache?.uid === user.uid) {
     _cache.data = _cache.data.map(c => (c.id === client.id ? client : c));
   }
+  cacheVersion += 1;
 }
 
 export async function deleteClientViaApi(user: AuthUserLike, id: string): Promise<void> {
@@ -102,4 +120,5 @@ export async function deleteClientViaApi(user: AuthUserLike, id: string): Promis
   if (_cache?.uid === user.uid) {
     _cache.data = _cache.data.filter(c => c.id !== id);
   }
+  cacheVersion += 1;
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { TrendingUp, BarChart } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
@@ -6,7 +6,7 @@ import { TableEngine } from '../components/table-engine';
 import type { TableEngineConfig } from '../components/table-engine';
 import type { Sale, Client, Product } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache, updateCategoryInCache } from '../services/sales-table-api';
+import { fetchSalesPage, updateSaleViaApi, invalidateSalesCache, updateCategoryInCache, clearCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
 import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
 
@@ -66,6 +66,10 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     () => customColumns.filter((column) => column.entity === 'sales'),
     [customColumns],
   );
+  const deleteSaleRef = useRef(deleteSale);
+  const deleteSaleCategoryRef = useRef(deleteSaleCategory);
+  deleteSaleRef.current = deleteSale;
+  deleteSaleCategoryRef.current = deleteSaleCategory;
 
   // Stats (computed from the cached full list in AppContext)
   const totalRevenue = sales.reduce((sum, s) => sum + s.amount, 0);
@@ -276,7 +280,10 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     categories: salesCategories,
     onCreateCategory: createSaleCategory,
     onRenameCategory: renameSaleCategory,
-    onDeleteCategory: deleteSaleCategory,
+    onDeleteCategory: async (id) => {
+      await deleteSaleCategoryRef.current(id);
+      clearCategoryInCache(id);
+    },
     onReorderCategories: async (ids) => {
       await reorderSaleCategories(ids);
     },
@@ -285,7 +292,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       updateCategoryInCache(ids, categoryId);
     },
     onBulkDelete: async (ids) => {
-      await Promise.all(ids.map(id => deleteSale(id)));
+      await Promise.all(ids.map((id) => deleteSaleRef.current(id)));
       invalidateSalesCache();
     },
 
@@ -368,7 +375,10 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       invalidateSalesCache();
     },
     onUpdate: async (sale) => { await updateSaleViaApi(user!, sale); },
-    onDelete: async (id) => { await deleteSaleViaApi(user!, id); invalidateSalesCache(); },
+    onDelete: async (id) => {
+      await deleteSaleRef.current(id);
+      invalidateSalesCache();
+    },
     customColumnActions: {
       onCreate: async ({ label, type, options }) => {
         const id = await addCustomColumn({ label, type, options, entity: 'sales' });

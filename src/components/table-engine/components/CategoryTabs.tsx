@@ -85,7 +85,11 @@ export function CategoryTabs({
               </button>
             )}
             {catId !== 'all' && editingCategoryId !== catId && onDeleteCategory && (
-              <button onClick={e => { e.stopPropagation(); onDeleteCategory(catId, label); }}
+              <button
+                type="button"
+                aria-label={`Eliminar categoría ${label}`}
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); onDeleteCategory(catId, label); }}
                 className="absolute -top-1 -right-1 w-4 h-4 bg-gray-200 hover:bg-red-200 text-gray-500 hover:text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
                 <X size={10} />
               </button>

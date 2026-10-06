@@ -7,11 +7,18 @@ const prismaMock = vi.hoisted(() => ({
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
+    delete: vi.fn(),
   },
   clientCategory: {
     findFirst: vi.fn(),
     count: vi.fn(),
     create: vi.fn(),
+  },
+  sale: {
+    updateMany: vi.fn(),
+  },
+  tradeIn: {
+    updateMany: vi.fn(),
   },
   $transaction: vi.fn(),
 }));
@@ -24,6 +31,7 @@ import {
   bulkMoveClientCategory,
   createClient,
   createClientCategory,
+  deleteClient,
   getClientsErrorStatus,
   importClients,
 } from "./clients.service.js";
@@ -85,6 +93,27 @@ describe("clients.service", () => {
 
     expect(result.errors).toEqual([{ row: 2, message: "Nombre requerido" }]);
     expect(result.imported).toBe(1);
+  });
+
+  it("detaches sales and trade-ins before deleting a client", async () => {
+    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1" });
+    prismaMock.sale.updateMany.mockResolvedValue({ count: 2 });
+    prismaMock.tradeIn.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.client.delete.mockResolvedValue({ id: "client-1" });
+    prismaMock.$transaction.mockImplementation(async (operations: Promise<unknown>[]) => Promise.all(operations));
+
+    await expect(deleteClient("store-1", "client-1")).resolves.toBe(true);
+
+    expect(prismaMock.sale.updateMany).toHaveBeenCalledWith({
+      where: { storeId: "store-1", clientId: "client-1" },
+      data: { clientId: null },
+    });
+    expect(prismaMock.tradeIn.updateMany).toHaveBeenCalledWith({
+      where: { storeId: "store-1", clientId: "client-1" },
+      data: { clientId: null },
+    });
+    expect(prismaMock.client.delete).toHaveBeenCalledWith({ where: { id: "client-1" } });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it("maps domain errors into HTTP-friendly payloads", () => {

@@ -10,6 +10,7 @@ import {
   fetchTradeInFilteredIds,
   fetchTradeInsPage,
   invalidateTradeInsCache,
+  clearTradeInCategoryInCache,
   updateTradeInCategoryInCache,
 } from '../services/trade-ins-table-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
@@ -228,6 +229,14 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
     [deleteTradeIn],
   );
 
+  const persistTradeInCategoryDelete = useCallback(
+    async (categoryId: string) => {
+      await deleteTradeInCategory(categoryId);
+      clearTradeInCategoryInCache(categoryId);
+    },
+    [deleteTradeInCategory],
+  );
+
   const config = useMemo(
     (): TableEngineConfig<TradeIn> => ({
       title: 'Historial de Canjes',
@@ -238,7 +247,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
       categories: tradeInCategories,
       onCreateCategory: createTradeInCategory,
       onRenameCategory: renameTradeInCategory,
-      onDeleteCategory: deleteTradeInCategory,
+      onDeleteCategory: persistTradeInCategoryDelete,
       onReorderCategories: reorderTradeInCategories,
       onBulkMoveCategory: async (ids, categoryId) => {
         await bulkMoveTradeInCategory(ids, categoryId);
@@ -508,6 +517,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
       deviceFilterOptions,
       editPanelFields,
       getClient,
+      persistTradeInCategoryDelete,
       persistTradeInDelete,
       persistTradeInUpdate,
       user,

@@ -218,9 +218,21 @@ export async function deleteClient(storeId: string, id: string) {
     return false;
   }
 
-  await prisma.client.delete({
-    where: { id },
-  });
+  // Sales and trade-ins keep their history. Drop the client reference first so
+  // delete succeeds whether the live FK is SET NULL or RESTRICT. No schema change.
+  await prisma.$transaction([
+    prisma.sale.updateMany({
+      where: { storeId, clientId: id },
+      data: { clientId: null },
+    }),
+    prisma.tradeIn.updateMany({
+      where: { storeId, clientId: id },
+      data: { clientId: null },
+    }),
+    prisma.client.delete({
+      where: { id },
+    }),
+  ]);
 
   return true;
 }
