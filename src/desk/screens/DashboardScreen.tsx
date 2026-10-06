@@ -135,7 +135,7 @@ export function DashboardScreen() {
         <div className="hero">
           <div className="hero-top">
             <span className="badge">+ Tu turno</span>
-            <div className="ring" style={{ background: `conic-gradient(var(--lime) ${pct}%, #ECECEC 0)` }}>
+            <div className="turn-ring" style={{ background: `conic-gradient(var(--lime) ${pct}%, #ECECEC 0%)` }}>
               <div className="ring-inner">{done}/{TASKS.length}</div>
             </div>
           </div>
