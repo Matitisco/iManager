@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { TableEngine } from './TableEngine';
@@ -321,6 +321,66 @@ describe('TableEngine', () => {
       expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
       expect(screen.queryByText('Beta')).not.toBeInTheDocument();
     });
+    expect(screen.queryByText(/seleccionado/)).not.toBeInTheDocument();
+  });
+
+  it('hides the selection bar after deleting the selected row from the context menu', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+      { id: '3', name: 'Gamma', quantity: 3, categoryId: null },
+    ];
+    let releaseRefetch: (() => void) | null = null;
+    let fetches = 0;
+    const fetchPage = vi.fn(({ skip = 0, take = 2 }: { skip?: number; take?: number }) => {
+      fetches += 1;
+      const payload = () => ({ items: rows.slice(skip, skip + take), total: rows.length });
+      if (fetches === 1) return Promise.resolve(payload());
+      return new Promise<{ items: TestRow[]; total: number }>((resolve) => {
+        releaseRefetch = () => resolve(payload());
+      });
+    });
+    const onDelete = vi.fn(async (id: string) => {
+      const index = rows.findIndex((row) => row.id === id);
+      if (index >= 0) rows.splice(index, 1);
+    });
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage,
+          onDelete,
+          pagination: { pageSize: 2 },
+          noun: 'equipo',
+          nounPlural: 'equipos',
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr')!;
+    await user.click(alphaRow);
+    expect(screen.getByText('1 equipo seleccionado')).toBeInTheDocument();
+
+    fireEvent.contextMenu(alphaRow);
+    await user.click(screen.getByRole('button', { name: 'Eliminar equipo' }));
+    const dialog = screen.getByRole('heading', { name: 'Eliminar equipo' }).parentElement;
+    if (!dialog) throw new Error('Delete confirmation was not rendered');
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(onDelete).toHaveBeenCalledWith('1');
+    });
+    expect(screen.queryByText(/seleccionado/)).not.toBeInTheDocument();
+
+    releaseRefetch?.();
+    await waitFor(() => {
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/seleccionado/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('table-row-select-2')).not.toBeChecked();
   });
 
   it('keeps rows and shows the backend error when a delete fails', async () => {
