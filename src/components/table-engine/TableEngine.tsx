@@ -150,7 +150,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const filterParamsRef = useRef<Omit<TablePageParams, 'skip' | 'take'>>({ filters: {} });
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
-  const { items, setItems, total, setTotal, page, pageCount, goToPage, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE, paged });
+  const { items, setItems, total, setTotal, page, pageCount, goToPage, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage, cancelPendingLoads } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE, paged });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
   const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
@@ -597,6 +597,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       void loadFirstPage(buildFilterParams());
       return;
     }
+    cancelPendingLoads();
     setSelectedIds(prev => {
       const next = new Set(prev);
       ids.forEach(id => next.delete(id));
@@ -1315,10 +1316,21 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                 <button
                   onClick={async () => {
                     if (!onDeleteCategory) return;
-                    await onDeleteCategory(categoryToDelete.id);
+                    const deletedId = categoryToDelete.id;
+                    try {
+                      await onDeleteCategory(deletedId);
+                    } catch (error) {
+                      alert(error instanceof Error ? error.message : 'No se pudo eliminar la categoría.');
+                      return;
+                    }
                     setCategoryToDelete(null);
-                    const result = await fetchPage({ skip: 0, take: PAGE_SIZE, ...buildFilterParams() });
-                    setItems(result.items); setTotal(result.total);
+                    cancelPendingLoads();
+                    setItems(prev => prev.map((row) => (
+                      categoryOf(row) === deletedId ? { ...row, categoryId: null } as TRow : row
+                    )));
+                    if (activeCategoryId === deletedId) {
+                      setActiveCategoryId('all');
+                    }
                   }}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
                   Eliminar

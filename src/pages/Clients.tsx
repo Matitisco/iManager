@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Users, UserCheck, Wallet, Ticket } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
@@ -10,9 +10,9 @@ import { formatCurrency } from '../lib/utils';
 import {
   fetchClientsPage,
   updateClientViaApi,
-  deleteClientViaApi,
   invalidateClientsCache,
   updateClientCategoryInCache,
+  clearClientCategoryInCache,
 } from '../services/clients-table-api';
 import { importBackendClients } from '../services/clients-import-api';
 import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
@@ -53,7 +53,7 @@ interface ClientsProps {
 
 export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
   const {
-    user, clients, sales, addClient,
+    user, clients, sales, addClient, deleteClient,
     clientCategories, createClientCategory, renameClientCategory, deleteClientCategory,
     bulkMoveClientCategory, reorderClientCategories,
     customColumns, addCustomColumn, removeCustomColumn,
@@ -62,6 +62,10 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
     () => customColumns.filter((column) => column.entity === 'clients'),
     [customColumns],
   );
+  const deleteClientRef = useRef(deleteClient);
+  const deleteClientCategoryRef = useRef(deleteClientCategory);
+  deleteClientRef.current = deleteClient;
+  deleteClientCategoryRef.current = deleteClientCategory;
 
   // Stats computed from the cached full list in AppContext
   const totalClients = clients.length;
@@ -81,7 +85,10 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
     categories: clientCategories,
     onCreateCategory: createClientCategory,
     onRenameCategory: renameClientCategory,
-    onDeleteCategory: deleteClientCategory,
+    onDeleteCategory: async (id) => {
+      await deleteClientCategoryRef.current(id);
+      clearClientCategoryInCache(id);
+    },
     onReorderCategories: reorderClientCategories,
     onBulkMoveCategory: async (ids, categoryId) => {
       await bulkMoveClientCategory(ids, categoryId);
@@ -232,10 +239,12 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
       await updateClientViaApi(user!, client);
     },
     onDelete: async (id) => {
-      await deleteClientViaApi(user!, id);
+      await deleteClientRef.current(id);
+      invalidateClientsCache();
     },
     onBulkDelete: async (ids) => {
-      await Promise.all(ids.map(id => deleteClientViaApi(user!, id)));
+      await Promise.all(ids.map((id) => deleteClientRef.current(id)));
+      invalidateClientsCache();
     },
 
     importConfig: {

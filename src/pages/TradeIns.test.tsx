@@ -24,6 +24,7 @@ const mockState = vi.hoisted(() => ({
   fetchTradeInsPage: vi.fn(),
   fetchTradeInFilteredIds: vi.fn(),
   invalidateTradeInsCache: vi.fn(),
+  clearTradeInCategoryInCache: vi.fn(),
   updateTradeInCategoryInCache: vi.fn(),
   importBackendTradeIns: vi.fn(),
   latestTableProps: null as null | { config: any; user: unknown; searchTerm?: string },
@@ -48,6 +49,7 @@ vi.mock('../services/trade-ins-table-api', () => ({
   fetchTradeInsPage: (...args: unknown[]) => mockState.fetchTradeInsPage(...args),
   fetchTradeInFilteredIds: (...args: unknown[]) => mockState.fetchTradeInFilteredIds(...args),
   invalidateTradeInsCache: (...args: unknown[]) => mockState.invalidateTradeInsCache(...args),
+  clearTradeInCategoryInCache: (...args: unknown[]) => mockState.clearTradeInCategoryInCache(...args),
   updateTradeInCategoryInCache: (...args: unknown[]) => mockState.updateTradeInCategoryInCache(...args),
 }));
 
@@ -178,6 +180,7 @@ function resetMocks() {
   mockState.fetchTradeInFilteredIds.mockReset();
   mockState.fetchTradeInFilteredIds.mockResolvedValue(['trade-1', 'trade-2']);
   mockState.invalidateTradeInsCache.mockReset();
+  mockState.clearTradeInCategoryInCache.mockReset();
   mockState.updateTradeInCategoryInCache.mockReset();
   mockState.importBackendTradeIns.mockReset();
   mockState.importBackendTradeIns.mockResolvedValue({ imported: 1, updated: 0, errors: [] });
@@ -359,5 +362,9 @@ describe('TradeIns', () => {
     await config.onDelete('trade-1');
     expect(mockState.appContext.deleteTradeIn).toHaveBeenCalledWith('trade-1');
     expect(mockState.invalidateTradeInsCache).toHaveBeenCalledTimes(2);
+
+    await config.onDeleteCategory('cat-a');
+    expect(mockState.appContext.deleteTradeInCategory).toHaveBeenCalledWith('cat-a');
+    expect(mockState.clearTradeInCategoryInCache).toHaveBeenCalledWith('cat-a');
   });
 });

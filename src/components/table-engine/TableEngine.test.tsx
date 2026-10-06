@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TableEngine } from './TableEngine';
 import type { TableEngineConfig } from './types';
@@ -406,6 +407,92 @@ describe('TableEngine', () => {
       expect(alertSpy).toHaveBeenCalledWith('No se pudo eliminar la venta (400)');
     });
     expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    alertSpy.mockRestore();
+  });
+
+  it('keeps items visible under Todas after deleting the active category', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: 'cat-vip' },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+    ];
+    const fetchPage = vi.fn(async ({ categoryId }: { categoryId?: string | null }) => {
+      const items = categoryId ? rows.filter((row) => row.categoryId === categoryId) : rows;
+      return { items, total: items.length };
+    });
+
+    function Harness() {
+      const [categories, setCategories] = useState([{ id: 'cat-vip', name: 'VIP' }]);
+      return (
+        <TableEngine
+          config={buildConfig({
+            categories,
+            fetchPage,
+            onDeleteCategory: async (id) => {
+              for (const row of rows) {
+                if (row.categoryId === id) row.categoryId = null;
+              }
+              setCategories((prev) => prev.filter((category) => category.id !== id));
+            },
+          })}
+          user={{ uid: 'user-1' }}
+        />
+      );
+    }
+
+    render(<Harness />);
+    expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^VIP$/ }));
+    await waitFor(() => {
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar categoría VIP' }));
+    const dialog = screen.getByRole('heading', { name: 'Eliminar categoría' }).parentElement;
+    if (!dialog) throw new Error('Category delete confirmation was not rendered');
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /^VIP$/ })).not.toBeInTheDocument();
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+    });
+  });
+
+  it('keeps the category when deleting it fails', async () => {
+    const user = userEvent.setup();
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: 'cat-vip' },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          categories: [{ id: 'cat-vip', name: 'VIP' }],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onDeleteCategory: vi.fn(async () => {
+            throw new Error('Error eliminando categoría');
+          }),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await screen.findByText('Alpha');
+    await user.click(screen.getByRole('button', { name: 'Eliminar categoría VIP' }));
+    const dialog = screen.getByRole('heading', { name: 'Eliminar categoría' }).parentElement;
+    if (!dialog) throw new Error('Category delete confirmation was not rendered');
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Error eliminando categoría');
+    });
+    expect(screen.getByRole('button', { name: /^VIP$/ })).toBeInTheDocument();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
     alertSpy.mockRestore();
   });
 

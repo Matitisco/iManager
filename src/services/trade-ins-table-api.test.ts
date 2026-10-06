@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, TradeIn } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import {
+  clearTradeInCategoryInCache,
   fetchTradeInFilteredIds,
   fetchTradeInsPage,
   invalidateTradeInsCache,
@@ -237,5 +238,40 @@ describe('trade-ins-table-api', () => {
     );
 
     expect(movedItems.items.map((item) => item.id)).toEqual(['trade-3', 'trade-1']);
+  });
+
+  it('drops a deleted category from the cached list without another request', async () => {
+    await fetchTradeInsPage(userA, { skip: 0, take: 10, filters: {} }, clients);
+    clearTradeInCategoryInCache('cat-a');
+
+    const stillInCategory = await fetchTradeInsPage(
+      userA,
+      { skip: 0, take: 10, categoryId: 'cat-a', filters: {} },
+      clients,
+    );
+    const all = await fetchTradeInsPage(userA, { skip: 0, take: 10, filters: {} }, clients);
+
+    expect(fetchBackendTradeIns).toHaveBeenCalledTimes(1);
+    expect(stillInCategory.items).toEqual([]);
+    expect(all.items.find((item) => item.id === 'trade-1')?.categoryId).toBeNull();
+  });
+
+  it('ignores a stale list that arrives after the cache was invalidated', async () => {
+    const kept = tradeIns.filter((tradeIn) => tradeIn.id !== 'trade-1');
+    let resolveStale: (rows: TradeIn[]) => void = () => {};
+    vi.mocked(fetchBackendTradeIns).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+
+    const pending = fetchTradeInsPage(userA, { skip: 0, take: 10, filters: {} }, clients);
+    invalidateTradeInsCache();
+    vi.mocked(fetchBackendTradeIns).mockResolvedValue(kept);
+    resolveStale(tradeIns);
+
+    const page = await pending;
+    expect(page.items.map((tradeIn) => tradeIn.id)).toEqual(['trade-3', 'trade-2']);
+    expect(fetchBackendTradeIns).toHaveBeenCalledTimes(2);
   });
 });

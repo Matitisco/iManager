@@ -4,19 +4,35 @@ import type { AuthUserLike } from '../types/auth-user';
 import { fetchBackendTradeIns } from './trade-ins-api';
 
 let cache: { uid: string; data: TradeIn[] } | null = null;
+let cacheVersion = 0;
 
 async function getAllTradeIns(user: AuthUserLike): Promise<TradeIn[]> {
   if (cache?.uid === user.uid) {
     return cache.data;
   }
 
+  const version = cacheVersion;
   const data = await fetchBackendTradeIns(user);
+  if (version !== cacheVersion) {
+    if (cache?.uid === user.uid) return cache.data;
+    return getAllTradeIns(user);
+  }
   cache = { uid: user.uid, data };
   return data;
 }
 
 export function invalidateTradeInsCache() {
   cache = null;
+  cacheVersion += 1;
+}
+
+export function clearTradeInCategoryInCache(categoryId: string) {
+  if (cache) {
+    cache.data = cache.data.map((tradeIn) => (
+      tradeIn.categoryId === categoryId ? { ...tradeIn, categoryId: null } : tradeIn
+    ));
+  }
+  cacheVersion += 1;
 }
 
 function applyFiltersAndSort(
@@ -110,6 +126,7 @@ export function updateTradeInCategoryInCache(ids: string[], categoryId: string |
   if (cache) {
     cache.data = cache.data.map(t => ids.includes(t.id) ? { ...t, categoryId } : t);
   }
+  cacheVersion += 1;
 }
 
 export async function fetchTradeInFilteredIds(

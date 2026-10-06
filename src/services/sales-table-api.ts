@@ -18,12 +18,20 @@ import {
   deleteBackendSale,
 } from './sales-api';
 
-// Cache to avoid refetching all sales on every page scroll
+// Cache to avoid refetching all sales on every page scroll.
+// cacheVersion discards a list response that was already in flight when a
+// delete or category change happened, so the deleted row cannot come back.
 let _cache: { uid: string; data: Sale[] } | null = null;
+let cacheVersion = 0;
 
 async function getAllSales(user: AuthUserLike): Promise<Sale[]> {
   if (_cache?.uid === user.uid) return _cache.data;
+  const version = cacheVersion;
   const data = await fetchBackendSales(user);
+  if (version !== cacheVersion) {
+    if (_cache?.uid === user.uid) return _cache.data;
+    return getAllSales(user);
+  }
   _cache = { uid: user.uid, data };
   return data;
 }
@@ -31,6 +39,16 @@ async function getAllSales(user: AuthUserLike): Promise<Sale[]> {
 /** Call this after create/update/delete to bust the cache */
 export function invalidateSalesCache() {
   _cache = null;
+  cacheVersion += 1;
+}
+
+export function clearCategoryInCache(categoryId: string) {
+  if (_cache) {
+    _cache.data = _cache.data.map((sale) => (
+      sale.categoryId === categoryId ? { ...sale, categoryId: null } : sale
+    ));
+  }
+  cacheVersion += 1;
 }
 
 function applyFiltersAndSort(
@@ -105,10 +123,10 @@ export async function fetchSalesPage(
 
 export async function updateSaleViaApi(user: AuthUserLike, sale: Sale): Promise<void> {
   await updateBackendSale(user, sale);
-  // Update cache in place
   if (_cache) {
     _cache.data = _cache.data.map(s => (s.id === sale.id ? sale : s));
   }
+  cacheVersion += 1;
 }
 
 export async function deleteSaleViaApi(user: AuthUserLike, saleId: string): Promise<void> {
@@ -116,10 +134,12 @@ export async function deleteSaleViaApi(user: AuthUserLike, saleId: string): Prom
   if (_cache) {
     _cache.data = _cache.data.filter(s => s.id !== saleId);
   }
+  cacheVersion += 1;
 }
 
 export function updateCategoryInCache(ids: string[], categoryId: string | null) {
   if (_cache) {
     _cache.data = _cache.data.map(s => ids.includes(s.id) ? { ...s, categoryId } : s);
   }
+  cacheVersion += 1;
 }

@@ -25,6 +25,8 @@ export function useTableData<TRow extends WithId>({
   const totalRef = useRef(0);
   const userRef = useRef(user);
   const pageRef = useRef(0);
+  const epochRef = useRef(0);
+  const fetchPageRef = useRef(fetchPage);
   const filterParamsRef = useRef<Omit<TablePageParams, 'skip' | 'take'>>({ filters: {} });
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -33,18 +35,28 @@ export function useTableData<TRow extends WithId>({
   useEffect(() => { totalRef.current = total; }, [total]);
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { fetchPageRef.current = fetchPage; }, [fetchPage]);
+
+  const cancelPendingLoads = useCallback(() => {
+    epochRef.current += 1;
+    setIsInitialLoading(false);
+    setIsLoadingMore(false);
+  }, []);
 
   const loadPage = useCallback(async (nextPage: number, params: Omit<TablePageParams, 'skip' | 'take'>) => {
     if (!userRef.current) return;
+    const epoch = ++epochRef.current;
     filterParamsRef.current = params;
     const requestedPage = paged ? Math.max(0, nextPage) : 0;
     setItems([]);
     setIsInitialLoading(true);
     try {
-      const result = await fetchPage({ skip: requestedPage * pageSize, take: pageSize, ...params });
+      const result = await fetchPageRef.current({ skip: requestedPage * pageSize, take: pageSize, ...params });
+      if (epoch !== epochRef.current) return;
       const lastPage = paged ? Math.max(0, Math.ceil(result.total / pageSize) - 1) : 0;
       if (paged && requestedPage > lastPage) {
-        const retry = await fetchPage({ skip: lastPage * pageSize, take: pageSize, ...params });
+        const retry = await fetchPageRef.current({ skip: lastPage * pageSize, take: pageSize, ...params });
+        if (epoch !== epochRef.current) return;
         setItems(retry.items);
         setTotal(retry.total);
         pageRef.current = lastPage;
@@ -56,8 +68,10 @@ export function useTableData<TRow extends WithId>({
       pageRef.current = requestedPage;
       setPage(requestedPage);
     } catch {}
-    finally { setIsInitialLoading(false); }
-  }, [fetchPage, pageSize, paged]);
+    finally {
+      if (epoch === epochRef.current) setIsInitialLoading(false);
+    }
+  }, [pageSize, paged]);
 
   const loadFirstPage = useCallback(async (params: Omit<TablePageParams, 'skip' | 'take'>) => {
     await loadPage(0, params);
@@ -76,15 +90,26 @@ export function useTableData<TRow extends WithId>({
       if (!entries[0].isIntersecting || isLoadingRef.current || itemsLengthRef.current >= totalRef.current) return;
       const currentUser = userRef.current;
       if (!currentUser) return;
+      const epoch = epochRef.current;
       setIsLoadingMore(true);
-      fetchPage({ skip: itemsLengthRef.current, take: pageSize, ...filterParamsRef.current })
-        .then(result => { setItems(prev => [...prev, ...result.items]); setTotal(result.total); })
+      fetchPageRef.current({ skip: itemsLengthRef.current, take: pageSize, ...filterParamsRef.current })
+        .then(result => {
+          if (epoch !== epochRef.current) return;
+          setItems(prev => {
+            const seen = new Set(prev.map((item) => item.id));
+            const next = result.items.filter((item) => !seen.has(item.id));
+            return next.length > 0 ? [...prev, ...next] : prev;
+          });
+          setTotal(result.total);
+        })
         .catch(() => {})
-        .finally(() => setIsLoadingMore(false));
+        .finally(() => {
+          if (epoch === epochRef.current) setIsLoadingMore(false);
+        });
     }, { threshold: 0 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [fetchPage, pageSize, paged]);
+  }, [pageSize, paged]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -93,6 +118,6 @@ export function useTableData<TRow extends WithId>({
     page, pageCount, goToPage,
     isInitialLoading, isLoadingMore,
     sentinelRef, filterParamsRef, userRef,
-    loadFirstPage,
+    loadFirstPage, cancelPendingLoads,
   };
 }
