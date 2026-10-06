@@ -90,6 +90,14 @@ function applyFiltersAndSort(
   return result;
 }
 
+export async function fetchClientFilteredIds(
+  user: AuthUserLike,
+  params: Omit<TablePageParams, 'skip' | 'take'>,
+): Promise<string[]> {
+  const all = await getAllClients(user);
+  return applyFiltersAndSort(all, params).map((client) => client.id);
+}
+
 export async function fetchClientsPage(
   user: AuthUserLike,
   params: TablePageParams

@@ -29,11 +29,11 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#F7F8FA] font-sans overflow-hidden">
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
+        setActiveTab={(tab, subTab) => {
+          setActiveTab(tab, subTab);
           setIsMobileMenuOpen(false);
         }} 
         isOpen={isMobileMenuOpen}
@@ -51,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({
           onSearchSubmit={onSearchSubmit}
           activeTab={activeTab}
         />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative flex flex-col">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 relative flex flex-col">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}

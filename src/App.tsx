@@ -11,9 +11,6 @@ import { Inventory } from './pages/Inventory';
 import { Sales } from './pages/Sales';
 import { TradeIns } from './pages/TradeIns';
 import { Clients } from './pages/Clients';
-import { Reports } from './pages/Reports';
-import { Settings } from './pages/Settings';
-import { Notifications } from './pages/Notifications';
 import { Login } from './pages/Login';
 import { Onboarding } from './pages/Onboarding';
 import { Modal } from './components/Modal';
@@ -25,6 +22,8 @@ import { useInvitationPreview } from './hooks/useInvitationPreview';
 import { canSeeBillingSection } from './pages/settings-access';
 import { useIsPhone } from './mobile/use-phone-layout';
 import { MobileApp } from './mobile/MobileApp';
+import { EmbeddedMobile } from './desktop/EmbeddedMobile';
+import type { MobileScreen } from './mobile/logic';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 const SEARCHABLE_TABS = new Set(['inventory', 'clients', 'sales', 'tradeins']);
@@ -203,6 +202,21 @@ function AppContent() {
     setTopNavSearch(normalizedSearch);
   };
 
+  const openMobileScreen = (screen: MobileScreen) => {
+    const tab: Record<MobileScreen, string> = {
+      dash: 'dashboard',
+      inv: 'inventory',
+      ven: 'sales',
+      canjes: 'tradeins',
+      clientes: 'clients',
+      rep: 'reports',
+      config: 'settings',
+      notif: 'notifications',
+      mas: 'dashboard',
+    };
+    handleNavigate(tab[screen]);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
@@ -210,21 +224,20 @@ function AppContent() {
       case 'sales': return <Sales searchTerm={topNavSearch} />;
       case 'tradeins': return <TradeIns searchTerm={topNavSearch} />;
       case 'clients': return <Clients searchTerm={topNavSearch} />;
-      case 'reports': return <Reports />;
-      case 'settings': return <Settings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
-      case 'notifications': return <Notifications />;
+      case 'reports': return <EmbeddedMobile screen="rep" onNavigate={openMobileScreen} />;
+      case 'settings': return <EmbeddedMobile screen="config" onNavigate={openMobileScreen} />;
+      case 'notifications': return <EmbeddedMobile screen="notif" onNavigate={openMobileScreen} />;
       default: return <div className="flex items-center justify-center h-full text-gray-400">Página en construcción</div>;
     }
   };
 
   const getActionLabel = () => {
     switch (activeTab) {
-      case 'clients': return 'Nuevo Cliente';
-      case 'tradeins': return 'Nuevo Canje';
-      case 'sales': return 'Nueva Venta';
-      case 'reports': return 'Exportar';
-      case 'settings': return 'Guardar';
-      default: return 'Nuevo Ingreso';
+      case 'clients': return 'Nuevo cliente';
+      case 'tradeins': return 'Nuevo canje';
+      case 'sales': return 'Registrar venta';
+      case 'inventory': return 'Registrar equipo';
+      default: return 'Registrar equipo';
     }
   };
 
@@ -254,7 +267,7 @@ function AppContent() {
     }
   };
 
-  const showHeaderAction = activeTab !== 'reports' && activeTab !== 'settings';
+  const showHeaderAction = activeTab === 'inventory' || activeTab === 'sales' || activeTab === 'tradeins' || activeTab === 'clients';
 
   return (
     <>

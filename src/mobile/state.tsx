@@ -101,6 +101,7 @@ export interface MobileUi {
   setRepBar: (index: number | null) => void;
   repCat: string | null;
   setRepCat: (cat: string | null) => void;
+  canBack: boolean;
   readIds: string[];
   markRead: (id: string) => void;
   markAllRead: (ids: string[]) => void;
@@ -116,10 +117,18 @@ export function useMobileUi() {
   return value;
 }
 
-export function MobileProvider({ children }: { children: ReactNode }) {
+export function MobileProvider({
+  children,
+  initialScreen = 'dash',
+  onNavigate,
+}: {
+  children: ReactNode;
+  initialScreen?: MobileScreen;
+  onNavigate?: (screen: MobileScreen) => void;
+}) {
   const { appSession, refreshStoreData } = useAppContext();
   const role = appSession?.membership?.role;
-  const [screen, setScreen] = useState<MobileScreen>('dash');
+  const [screen, setScreen] = useState<MobileScreen>(initialScreen);
   const [history, setHistory] = useState<MobileScreen[]>([]);
   const [toastMessage, setToastMessage] = useState('');
   const [overlay, setOverlay] = useState<Overlay | null>(null);
@@ -147,6 +156,11 @@ export function MobileProvider({ children }: { children: ReactNode }) {
 
   const go = (next: MobileScreen) => {
     if (!canOpenScreen(role, next)) return;
+    if (onNavigate && next !== initialScreen) {
+      onNavigate(next);
+      setOverlay(null);
+      return;
+    }
     const mainTabs: MobileScreen[] = ['dash', 'inv', 'ven', 'rep', 'mas'];
     if (mainTabs.includes(next)) {
       setHistory([]);
@@ -226,6 +240,7 @@ export function MobileProvider({ children }: { children: ReactNode }) {
     setRepBar,
     repCat,
     setRepCat: (cat) => setRepCat((current) => current === cat ? null : cat),
+    canBack: history.length > 0,
     readIds,
     markRead: (id) => {
       setReadIds((prev) => {
@@ -251,8 +266,9 @@ export function MobileProvider({ children }: { children: ReactNode }) {
       });
     },
   }), [
-    screen, toastMessage, overlay, revision, searchOn, queries, invChip, invSort, salePeriod,
+    screen, history.length, toastMessage, overlay, revision, searchOn, queries, invChip, invSort, salePeriod,
     tradeChip, clientChip, notifChip, repTab, repPeriod, repBar, repCat, readIds, checks, role, refreshStoreData,
+    onNavigate, initialScreen,
   ]);
 
   return <MobileUiContext.Provider value={value}>{children}</MobileUiContext.Provider>;

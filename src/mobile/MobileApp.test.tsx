@@ -15,7 +15,7 @@ describe('MobileApp', () => {
     expect(screen.getByRole('heading', { name: /qué hay para/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Inventario' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reportes' })).toBeInTheDocument();
-    expect(screen.getByText('Mi Tienda Ejemplo')).toBeInTheDocument();
+    expect(screen.getAllByText('Mi Tienda Ejemplo').length).toBeGreaterThan(0);
     expect(screen.getByText(/Canjes en curso/)).toBeInTheDocument();
   });
 });

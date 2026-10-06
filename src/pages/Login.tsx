@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { BrandMark } from '../components/BrandMark';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 
@@ -164,9 +165,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3 mb-16"
           >
-            <div className="bg-white text-black p-2.5 rounded-xl shadow-lg shadow-white/10">
-              <Package size={24} />
-            </div>
+            <BrandMark />
             <span className="text-2xl font-bold tracking-tight">iManager</span>
           </motion.div>
 
@@ -229,9 +228,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative">
         <motion.div layout className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-3 mb-12">
-            <div className="bg-black text-white p-2.5 rounded-xl">
-              <Package size={24} />
-            </div>
+            <BrandMark />
             <span className="text-2xl font-bold tracking-tight">iManager</span>
           </div>
 

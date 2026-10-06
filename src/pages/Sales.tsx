@@ -6,7 +6,7 @@ import { TableEngine } from '../components/table-engine';
 import type { TableEngineConfig } from '../components/table-engine';
 import type { Sale, Client, Product } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { fetchSalesPage, updateSaleViaApi, invalidateSalesCache, updateCategoryInCache, clearCategoryInCache } from '../services/sales-table-api';
+import { fetchSalesPage, fetchSalesFilteredIds, updateSaleViaApi, invalidateSalesCache, updateCategoryInCache, clearCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
 import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
 
@@ -86,6 +86,8 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     storageKey: 'sales',
     noun: 'venta',
     nounPlural: 'ventas',
+    showFilteredTotal: true,
+    pagination: { pageSize: 16 },
 
     columns: [
       {
@@ -320,6 +322,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     ],
 
     fetchPage: (params) => fetchSalesPage(user!, params, { clients, inventory }),
+    fetchFilteredIds: (params) => fetchSalesFilteredIds(user!, params, { clients, inventory }),
     addRowFields: [
       {
         colId: 'clientName',
@@ -445,7 +448,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       </div>
 
       {/* Table engine */}
-      <div className="flex-1 rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-0">
+      <div className="flex-1 rounded-[24px] overflow-hidden border border-[#E6E8EC] bg-white min-h-[32rem]">
         <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </div>
     </div>

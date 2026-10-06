@@ -107,6 +107,18 @@ function applyFiltersAndSort(
   return result;
 }
 
+export async function fetchSalesFilteredIds(
+  user: AuthUserLike,
+  params: Omit<TablePageParams, 'skip' | 'take'>,
+  lookups?: {
+    clients?: Client[];
+    inventory?: Product[];
+  },
+): Promise<string[]> {
+  const all = await getAllSales(user);
+  return applyFiltersAndSort(all, params, lookups).map((sale) => sale.id);
+}
+
 export async function fetchSalesPage(
   user: AuthUserLike,
   params: TablePageParams,

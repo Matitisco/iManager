@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="h-16 md:h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 relative z-50 shrink-0">
+    <header className="h-16 md:h-[72px] bg-[#F7F8FA] flex items-center justify-between px-4 md:px-2 relative z-50 shrink-0">
       <div className="flex items-center gap-4 flex-1">
         <button onClick={onMenuClick} className="md:hidden text-gray-600 hover:text-gray-900">
           <Menu size={24} />
@@ -115,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onSearchSubmit?.();
                     }
                   }}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-black outline-none transition-shadow"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E6E8EC] rounded-full text-sm focus:ring-2 focus:ring-black/10 outline-none transition-shadow"
                 />
               </div>
             </motion.div>
@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.98 }}
             onClick={onNewAction}
-            className="bg-black text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
+            className="bg-[#16181D] text-white px-3 md:px-4 py-2 md:py-2.5 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-black transition-colors whitespace-nowrap"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">{actionLabel}</span>

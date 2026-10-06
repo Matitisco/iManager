@@ -9,6 +9,7 @@ import type { Client } from '../types';
 import { formatCurrency } from '../lib/utils';
 import {
   fetchClientsPage,
+  fetchClientFilteredIds,
   updateClientViaApi,
   invalidateClientsCache,
   updateClientCategoryInCache,
@@ -81,6 +82,8 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
     storageKey: 'clients',
     noun: 'cliente',
     nounPlural: 'clientes',
+    showFilteredTotal: true,
+    pagination: { pageSize: 16 },
 
     categories: clientCategories,
     onCreateCategory: createClientCategory,
@@ -234,6 +237,7 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
     },
 
     fetchPage: (params) => fetchClientsPage(user!, params),
+    fetchFilteredIds: (params) => fetchClientFilteredIds(user!, params),
 
     onUpdate: async (client) => {
       await updateClientViaApi(user!, client);
@@ -316,7 +320,7 @@ export const Clients: React.FC<ClientsProps> = ({ searchTerm = '' }) => {
       </div>
 
       {/* Table engine */}
-      <div className="flex-1 rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-0">
+      <div className="flex-1 rounded-[24px] overflow-hidden border border-[#E6E8EC] bg-white min-h-[32rem]">
         <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </div>
     </div>

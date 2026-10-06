@@ -36,6 +36,7 @@ import {
 } from './logic';
 import { useMobileUi } from './state';
 import { usePagedList } from './use-paged-list';
+import { BrandLockup } from '../components/BrandMark';
 import { Chips, LoadMore, PeriodPill, ScreenHeader, SearchField, Pressable } from './ui';
 
 function statusPill(status: string) {
@@ -84,6 +85,9 @@ export function DashboardScreen() {
   return (
     <div className="screen s-hoy">
       <div className="header">
+        <div style={{ marginBottom: 14 }}>
+          <BrandLockup subtitle={storeName} />
+        </div>
         <div className="hrow">
           <div>
             <div className="greet">Hola, {name}</div>
@@ -353,7 +357,7 @@ export function TradeInsScreen() {
 
   return (
     <div className="screen s-tickets">
-      <ScreenHeader title="Canjes" subtitle={`${page.total} canjes · ${open} en curso`} onBack={ui.back}>
+      <ScreenHeader title="Canjes" subtitle={`${page.total} canjes · ${open} en curso`} onBack={ui.canBack ? ui.back : undefined}>
         <div className="wicons">
           <button type="button" className={`wico${ui.searchOn.cj ? ' on' : ''}`} aria-label="Buscar" onClick={() => ui.toggleSearch('cj')}><IconSearch /></button>
           <button type="button" className="wico" aria-label="Importar" onClick={() => ui.openOverlay({ type: 'import', entity: 'cj' })}><IconUp /></button>
@@ -438,7 +442,7 @@ export function ClientsScreen() {
 
   return (
     <div className="screen s-familia">
-      <ScreenHeader title="Clientes" subtitle={`${page.total} clientes · ${withBalance} con saldo`} onBack={ui.back}>
+      <ScreenHeader title="Clientes" subtitle={`${page.total} clientes · ${withBalance} con saldo`} onBack={ui.canBack ? ui.back : undefined}>
         <div className="wicons">
           <button type="button" className={`wico${ui.searchOn.cl ? ' on' : ''}`} aria-label="Buscar" onClick={() => ui.toggleSearch('cl')}><IconSearch /></button>
           <button type="button" className="wico" aria-label="Importar" onClick={() => ui.openOverlay({ type: 'import', entity: 'cl' })}><IconUp /></button>
@@ -527,7 +531,7 @@ export function NotificationsScreen() {
 
   return (
     <div className="screen s-familia">
-      <ScreenHeader title="Notificaciones" subtitle={unread.length ? `${unread.length} sin leer` : 'Todo al día'} onBack={ui.back}>
+      <ScreenHeader title="Notificaciones" subtitle={unread.length ? `${unread.length} sin leer` : 'Todo al día'} onBack={ui.canBack ? ui.back : undefined}>
         {unread.length ? (
           <button type="button" className="wlink" onClick={() => ui.markAllRead(unread.map((item) => item.id))}>Leer todas</button>
         ) : null}
@@ -594,7 +598,7 @@ export function SettingsScreen() {
 
   return (
     <div className="screen s-familia">
-      <ScreenHeader title="Configuración" subtitle="Tienda, equipo y tu cuenta" onBack={ui.back} />
+      <ScreenHeader title="Configuración" subtitle="Tienda, equipo y tu cuenta" onBack={ui.canBack ? ui.back : undefined} />
       <div className="content scroll-y">
         {error ? <div className="sheet-error">{error}</div> : null}
         {canManage ? (

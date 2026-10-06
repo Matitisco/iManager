@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { AlertCircle, Banknote, Calculator, CheckCircle2 } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
@@ -99,6 +99,38 @@ interface TradeInsProps {
   searchTerm?: string;
 }
 
+const KANBAN_COLUMNS: TradeIn['status'][] = ['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN', 'APROBADO', 'LISTO'];
+
+function TradeInBoard({ trades, clients }: { trades: TradeIn[]; clients: Client[] }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {KANBAN_COLUMNS.map((status) => {
+        const column = trades.filter((trade) => trade.status === status);
+        return (
+          <section key={status} className="w-64 shrink-0 rounded-[20px] bg-[#F7F8FA] p-3">
+            <div className="mb-3 flex items-center justify-between text-sm font-extrabold">
+              <span>{TRADE_IN_STATUS_BADGE[status].label}</span>
+              <span className="text-[#737984]">{column.length}</span>
+            </div>
+            <div className="space-y-2">
+              {column.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-[#E6E8EC] bg-white px-3 py-6 text-center text-xs font-semibold text-[#737984]">Sin canjes</p>
+              ) : column.map((trade) => (
+                <article key={trade.id} className="rounded-2xl border border-[#E6E8EC] bg-white p-3 text-sm">
+                  <div className="font-bold">{clients.find((client) => client.id === trade.clientId)?.name || 'Cliente'}</div>
+                  <div className="mt-1 text-[#737984]">Recibido: {trade.deviceReceived}</div>
+                  <div className="text-[#737984]">Entrega: {trade.deviceGiven}</div>
+                  <div className="mt-2 text-right font-extrabold">{formatCurrency(trade.differencePaid)}</div>
+                </article>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
   const {
     user,
@@ -117,6 +149,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
     addCustomColumn,
     removeCustomColumn,
   } = useAppContext();
+  const [boardView, setBoardView] = useState<'table' | 'kanban'>('table');
   const tradeInCustomColumns = useMemo(
     () => customColumns.filter((column) => column.entity === 'trade-ins'),
     [customColumns],
@@ -243,6 +276,8 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
       storageKey: 'trade-ins',
       noun: 'canje',
       nounPlural: 'canjes',
+      showFilteredTotal: true,
+      pagination: { pageSize: 16 },
 
       categories: tradeInCategories,
       onCreateCategory: createTradeInCategory,
@@ -564,12 +599,35 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
         </motion.div>
       </div>
 
-      <motion.div
-        variants={item}
-        className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white h-[32rem]"
-      >
-        <TableEngine config={config} user={user} searchTerm={searchTerm} />
-      </motion.div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={boardView === 'table'}
+          onClick={() => setBoardView('table')}
+          className={`h-9 rounded-full px-4 text-sm font-bold border ${boardView === 'table' ? 'bg-[#16181D] text-white border-[#16181D]' : 'bg-white text-[#16181D] border-[#E6E8EC]'}`}
+        >
+          Tabla
+        </button>
+        <button
+          type="button"
+          aria-pressed={boardView === 'kanban'}
+          onClick={() => setBoardView('kanban')}
+          className={`h-9 rounded-full px-4 text-sm font-bold border ${boardView === 'kanban' ? 'bg-[#16181D] text-white border-[#16181D]' : 'bg-white text-[#16181D] border-[#E6E8EC]'}`}
+        >
+          Kanban
+        </button>
+      </div>
+
+      {boardView === 'kanban' ? (
+        <TradeInBoard trades={tradeIns} clients={clients} />
+      ) : (
+        <motion.div
+          variants={item}
+          className="rounded-[24px] overflow-hidden border border-[#E6E8EC] bg-white min-h-[32rem] h-[36rem]"
+        >
+          <TableEngine config={config} user={user} searchTerm={searchTerm} />
+        </motion.div>
+      )}
     </motion.div>
   );
 };

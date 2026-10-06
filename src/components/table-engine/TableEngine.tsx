@@ -703,22 +703,22 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-gray-50 text-gray-900 overflow-hidden">
+    <div className="flex flex-col h-full bg-transparent text-[#16181D] overflow-hidden">
       {/* ── Header ── */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2 flex-wrap">
-        <div className="flex items-baseline gap-2 mr-2 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+      <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-extrabold tracking-tight text-[#16181D] leading-none">{title}</h1>
           {showResultTotal && (
-            <span className="text-sm font-medium text-gray-500 whitespace-nowrap" data-testid="filtered-result-total">
+            <span className="mt-1 block text-[13px] font-medium text-[#737984] whitespace-nowrap" data-testid="filtered-result-total">
               {total} {total === 1 ? noun : nounPlural}
             </span>
           )}
         </div>
-        <div className="flex-1" />
+        <div className="flex items-center gap-2 flex-wrap justify-end">
         {/* Toolbar */}
         <div className="relative" ref={filtersRef}>
           <button onClick={() => { setShowFilters(!showFilters); setShowSort(false); setShowColumns(false); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border transition-all ${hasActiveFilters ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-full border transition-all ${hasActiveFilters ? 'bg-[#16181D] text-white border-[#16181D]' : 'bg-white text-[#16181D] border-[#E6E8EC] hover:bg-[#F7F8FA]'}`}>
             <Filter size={14} /> Filtros {hasActiveFilters && <span className="ml-1 bg-white/20 rounded-md px-1.5 text-xs">{filters.filter(f => activeFilters[f.id] !== f.defaultValue).length}</span>}
           </button>
           {showFilters && (
@@ -738,7 +738,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         </div>
         <div className="relative" ref={sortRef}>
           <button onClick={() => { setShowSort(!showSort); setShowFilters(false); setShowColumns(false); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border transition-all ${sortKey ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-full border transition-all ${sortKey ? 'bg-[#16181D] text-white border-[#16181D]' : 'bg-white text-[#16181D] border-[#E6E8EC] hover:bg-[#F7F8FA]'}`}>
             <ArrowUpDown size={14} /> Ordenar
           </button>
           {showSort && (
@@ -751,7 +751,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         </div>
         <div className="relative" ref={columnsRef}>
           <button onClick={() => { setShowColumns(!showColumns); setShowFilters(false); setShowSort(false); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-all">
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-full border bg-white text-[#16181D] border-[#E6E8EC] hover:bg-[#F7F8FA] transition-all">
             <Columns size={14} /> Columnas
           </button>
           {showColumns && (
@@ -765,15 +765,33 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         </div>
         {showImport && (
           <button onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-xl border bg-white text-gray-600 border-gray-200 hover:border-gray-300 transition-all">
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-full border bg-white text-[#16181D] border-[#E6E8EC] hover:bg-[#F7F8FA] transition-all">
             <Upload size={14} /> Importar
           </button>
         )}
         <button onClick={() => startAddRow()}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-all shadow-sm">
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-full bg-[#16181D] text-white hover:bg-black transition-all">
           <Plus size={14} /> Nuevo
         </button>
+        </div>
       </div>
+      {filters[0] && filters[0].options.length > 1 && (
+        <div className="flex flex-wrap gap-2 px-4 pb-3" role="group" aria-label={filters[0].label}>
+          {filters[0].options.map((option) => {
+            const selected = activeFilters[filters[0].id] === option.value;
+            return (
+              <button
+                key={`${filters[0].id}-${option.value || 'all'}`}
+                type="button"
+                onClick={() => setActiveFilters((prev) => ({ ...prev, [filters[0].id]: option.value }))}
+                className={`h-9 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${selected ? 'bg-[#16181D] text-white border-[#16181D]' : 'bg-white text-[#16181D] border-[#E6E8EC] hover:bg-[#F7F8FA]'}`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Category tabs ── */}
       {(categories.length > 0 || !!onCreateCategory) && (
@@ -934,7 +952,28 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                             data-row-id={row.id}
                             onClick={e => handleRowClick(e, row, index)}
                             onContextMenu={e => handleContextMenu(e, row)}
-                            onPointerDown={e => itemDrag.startItemDrag(e, row.id)}
+                            onPointerDown={e => {
+                              itemDrag.startItemDrag(e, row.id);
+                              if (e.button !== 0) return;
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const host = e.currentTarget;
+                              const timer = window.setTimeout(() => {
+                                handleContextMenu({
+                                  preventDefault() {},
+                                  clientX: startX,
+                                  clientY: startY,
+                                } as React.MouseEvent, row);
+                              }, 480);
+                              const clear = () => window.clearTimeout(timer);
+                              const move = (ev: PointerEvent) => {
+                                if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) clear();
+                              };
+                              host.addEventListener('pointerup', clear, { once: true });
+                              host.addEventListener('pointercancel', clear, { once: true });
+                              host.addEventListener('pointermove', move);
+                              host.addEventListener('pointerup', () => host.removeEventListener('pointermove', move), { once: true });
+                            }}
                             className={`group transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50/60'}`}>
                     <td className="px-4 py-4 sticky left-0 z-10" style={{ background: 'inherit' }}>
                       <input data-testid={`table-row-select-${row.id}`} type="checkbox" checked={isSelected} readOnly

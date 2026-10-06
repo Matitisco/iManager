@@ -1,247 +1,214 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowRight, Boxes, ClipboardList, MessageCircleMore, RefreshCw, ShoppingCart, Wallet } from 'lucide-react';
-import { motion, type Variants } from 'motion/react';
-import { buildFocusTasks, type FocusTask } from './dashboard-focus';
+import { RefreshCw, ShoppingCart, Smartphone, Wallet } from 'lucide-react';
+import {
+  clientName,
+  formatMoney,
+  formatMoneyCompact,
+  isOpenTradeIn,
+  productLabel,
+  salesInPeriod,
+  statusLabel,
+} from '../mobile/logic';
 
-const container: Variants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 }
+interface Checks {
+  inv: boolean;
+  ven: boolean;
+  cj: boolean;
+}
+
+const CHECKS_KEY = 'im-mobile-checks';
+
+function readChecks(): Checks {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(CHECKS_KEY) ?? '') as Partial<Checks>;
+    return { inv: !!parsed.inv, ven: !!parsed.ven, cj: !!parsed.cj };
+  } catch {
+    return { inv: false, ven: false, cj: false };
   }
-};
+}
 
-const item: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
-};
-
-const focusIcons: Record<FocusTask['id'], React.ReactNode> = {
-  sales: <ShoppingCart size={16} />,
-  'trade-ins': <RefreshCw size={16} />,
-  inventory: <Boxes size={16} />,
-  clients: <Wallet size={16} />,
-};
+const FLOW: { key: keyof Checks; title: string }[] = [
+  { key: 'inv', title: 'Revisá ingresos o cambios en inventario' },
+  { key: 'ven', title: 'Registrá ventas y canjes a medida que ocurren' },
+  { key: 'cj', title: 'Si algo no cierra, avisá o dejá feedback' },
+];
 
 export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
-  const { appSession, backendStatus, sales, tradeIns, inventory, clients } = useAppContext();
+  const { appSession, sales, tradeIns, inventory, clients } = useAppContext();
+  const [checks, setChecks] = useState<Checks>(readChecks);
   const welcomeName = appSession?.user.displayName?.trim() || 'equipo';
-  const storeName = appSession?.store?.name?.trim();
-  const focusTasks = buildFocusTasks({ sales, tradeIns, inventory, clients });
-  const focusLoading = backendStatus === 'checking';
+  const done = FLOW.filter((step) => checks[step.key]).length;
+  const monthSales = salesInPeriod(sales, 'Mes');
+  const monthTotal = monthSales.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0);
+  const available = inventory.filter((item) => item.status === 'DISPONIBLE').length;
+  const openTrades = tradeIns.filter((trade) => isOpenTradeIn(trade.status));
+  const pendingBalance = clients.reduce((sum, client) => sum + (Number(client.pendingBalance) || 0), 0);
+  const debtors = clients.filter((client) => client.pendingBalance > 0).length;
+  const recentSales = [...sales].slice(0, 5);
+  const recentTrades = openTrades.slice(0, 4);
+
+  const toggle = (key: keyof Checks) => {
+    setChecks((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      sessionStorage.setItem(CHECKS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <motion.section
-          variants={item}
-          className="overflow-hidden rounded-2xl border border-gray-200 bg-white lg:col-span-2"
-        >
-          <div className="border-b border-gray-100 bg-gray-50/70 px-6 py-4">
-            <span className="text-xs font-bold uppercase tracking-wide text-gray-500">
-              Dashboard
+    <div className="space-y-5 text-[#16181D]">
+      <div>
+        <p className="text-sm font-medium text-[#737984]">Hola, {welcomeName}</p>
+        <h1 className="mt-1 text-4xl font-extrabold tracking-tight">
+          ¿Qué hay para <span className="bg-[linear-gradient(transparent_62%,#DDF43B_62%,#DDF43B_88%,transparent_88%)]">hoy</span>?
+        </h1>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+        <section className="rounded-[24px] border border-[#E6E8EC] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.04),0_4px_14px_rgba(0,0,0,.05)]">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="rounded-full bg-[#F5FBD7] px-2.5 py-1 text-xs font-extrabold">+ Tu turno</span>
+            <span className="text-sm font-extrabold text-[#737984]">{done}/3</span>
+          </div>
+          <h2 className="text-xl font-extrabold">Flujo sugerido</h2>
+          <p className="mt-1 text-sm font-medium text-[#737984]">Una guía rápida para arrancar el turno. El progreso queda en este dispositivo.</p>
+          <div className="mt-4 space-y-2">
+            {FLOW.map((step) => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={() => toggle(step.key)}
+                className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left hover:bg-[#F7F8FA]"
+              >
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${checks[step.key] ? 'border-[#25A66A] bg-[#25A66A] text-white' : 'border-[#D5D8DE]'}`}>
+                  {checks[step.key] ? '✓' : ''}
+                </span>
+                <span className={`text-sm font-semibold ${checks[step.key] ? 'text-[#737984] line-through' : ''}`}>{step.title}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center gap-3 text-xs font-bold text-[#737984]">
+            <span>{done}/3</span>
+            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#ECEDEF]">
+              <span className="block h-full rounded-full bg-[#DDF43B]" style={{ width: `${(done / 3) * 100}%` }} />
             </span>
+            <span>{done === 3 ? 'listo' : `faltan ${3 - done}`}</span>
           </div>
-          <div className="flex flex-col gap-8 px-6 py-8 md:px-10 md:py-10">
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-gray-500">
-                {storeName ? `Sesión activa en ${storeName}` : 'Sesión activa'}
-              </p>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">
-                Bienvenido, {welcomeName}
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-gray-500 md:text-base">
-                Este dashboard está pensado para entrar rápido en acción. Tenés accesos directos,
-                recordatorios del flujo y un canal simple para dejar feedback cuando haga falta.
-              </p>
-            </div>
+        </section>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => onNavigate?.('inventory')}
-                className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                Ir a inventario
-              </button>
-              <button
-                onClick={() => onNavigate?.('sales')}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Ver ventas
-              </button>
-              <button
-                onClick={() => onNavigate?.('tradeins')}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Abrir canjes
-              </button>
-            </div>
-          </div>
-        </motion.section>
-
-        <div className="relative min-w-0">
-          <motion.section variants={item} className="flex max-h-[32rem] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 lg:absolute lg:inset-0 lg:max-h-none">
-            <div className="mb-5 flex shrink-0 items-center gap-3">
-              <div className="rounded-xl bg-gray-100 p-3 text-gray-900">
-                <ClipboardList size={18} />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Tu foco hoy</h2>
-                <p className="text-sm text-gray-500">Tareas que todavía necesitan una acción</p>
-              </div>
-            </div>
-            <div className="max-h-[24rem] space-y-3 overflow-y-auto overscroll-y-contain lg:max-h-none lg:min-h-0 lg:flex-1">
-              {focusLoading ? (
-                <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                  Cargando tareas pendientes…
-                </div>
-              ) : focusTasks.length === 0 ? (
-                <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                  No hay tareas pendientes. El día está al día.
-                </div>
-              ) : (
-                focusTasks.map((task) => (
-                  <QuickActionCard
-                    key={task.id}
-                    icon={focusIcons[task.id]}
-                    title={task.title}
-                    description={task.description}
-                    count={task.count}
-                    onClick={() => onNavigate?.(task.tab)}
-                  />
-                ))
-              )}
-            </div>
-          </motion.section>
+        <div className="grid grid-cols-2 gap-3">
+          <StatButton
+            icon={<ShoppingCart size={16} />}
+            label="Ventas del mes"
+            value={formatMoneyCompact(monthTotal)}
+            detail={`${monthSales.length} ventas`}
+            onClick={() => onNavigate?.('sales')}
+          />
+          <StatButton
+            icon={<Smartphone size={16} />}
+            label="En stock"
+            value={`${inventory.length} equipos`}
+            detail={`${available} disponibles`}
+            onClick={() => onNavigate?.('inventory')}
+          />
+          <StatButton
+            icon={<RefreshCw size={16} />}
+            label="Canjes en curso"
+            value={String(openTrades.length)}
+            detail={`${tradeIns.length} en total`}
+            onClick={() => onNavigate?.('tradeins')}
+          />
+          <StatButton
+            icon={<Wallet size={16} />}
+            label="Saldos a cobrar"
+            value={formatMoneyCompact(pendingBalance)}
+            detail={`${debtors} clientes`}
+            onClick={() => onNavigate?.('clients')}
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <motion.section variants={item} className="rounded-2xl border border-gray-200 bg-white p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-gray-100 p-3 text-gray-900">
-              <Boxes size={18} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Flujo sugerido</h2>
-              <p className="text-sm text-gray-500">Una guía rápida para arrancar el turno</p>
-            </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="rounded-[24px] border border-[#E6E8EC] bg-white p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-extrabold">Ventas recientes</h2>
+            <button type="button" className="text-sm font-bold underline" onClick={() => onNavigate?.('sales')}>Ver todas</button>
           </div>
-          <div className="space-y-3 text-sm text-gray-600">
-            <div className="rounded-xl bg-gray-50 px-4 py-3">
-              1. Revisá ingresos o cambios en inventario.
+          {recentSales.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-[#E6E8EC] px-4 py-8 text-center text-sm font-semibold text-[#737984]">No hay ventas recientes.</p>
+          ) : (
+            <div className="divide-y divide-[#E6E8EC]">
+              {recentSales.map((sale, index) => {
+                const product = inventory.find((item) => item.id === sale.productId);
+                return (
+                  <div key={sale.id || index} className="grid grid-cols-[1fr_auto] gap-3 py-3 text-sm">
+                    <div>
+                      <div className="font-bold">{clientName(clients, sale.clientId)}</div>
+                      <div className="text-[#737984]">{productLabel(product)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-extrabold">{formatMoney(Number(sale.amount) || 0)}</div>
+                      <div className="text-xs font-bold text-[#25A66A]">{statusLabel(sale.status)}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="rounded-xl bg-gray-50 px-4 py-3">
-              2. Registrá ventas y canjes a medida que ocurren.
-            </div>
-            <div className="rounded-xl bg-gray-50 px-4 py-3">
-              3. Si algo no cierra, avisá al responsable o dejá feedback.
-            </div>
-          </div>
-        </motion.section>
+          )}
+        </section>
 
-        <motion.section variants={item} className="rounded-2xl border border-gray-200 bg-white p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700">
-              <ShoppingCart size={18} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Acciones rápidas</h2>
-              <p className="text-sm text-gray-500">Entrá directo a los módulos operativos</p>
-            </div>
+        <section className="rounded-[24px] border border-[#E6E8EC] bg-white p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-extrabold">Canjes en curso</h2>
+            <button type="button" className="text-sm font-bold underline" onClick={() => onNavigate?.('tradeins')}>Ver todos</button>
           </div>
-          <div className="space-y-3">
-            <QuickLink
-              label="Nueva revisión de ventas"
-              onClick={() => onNavigate?.('sales')}
-            />
-            <QuickLink
-              label="Seguimiento de canjes"
-              onClick={() => onNavigate?.('tradeins')}
-            />
-            <QuickLink
-              label="Stock y movimientos"
-              onClick={() => onNavigate?.('inventory')}
-            />
-          </div>
-        </motion.section>
-
-        <motion.section variants={item} className="rounded-2xl bg-black p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-xl bg-white/10 p-3 text-white">
-              <MessageCircleMore size={18} />
+          {recentTrades.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-[#E6E8EC] px-4 py-8 text-center text-sm font-semibold text-[#737984]">No hay canjes en curso.</p>
+          ) : (
+            <div className="space-y-3">
+              {recentTrades.map((trade, index) => (
+                <div key={trade.id || index} className="rounded-2xl border border-[#E6E8EC] p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2 text-xs font-bold text-[#737984]">
+                    <span>{trade.date || 'Sin fecha'}</span>
+                    <span className="rounded-full bg-[#F7F8FA] px-2 py-0.5">{statusLabel(trade.status)}</span>
+                  </div>
+                  <div className="text-sm font-bold">{clientName(clients, trade.clientId)}</div>
+                  <div className="text-sm text-[#737984]">Recibido: {trade.deviceReceived || 'Equipo'}</div>
+                  <div className="mt-1 text-right text-sm font-extrabold">{formatMoney(Number(trade.differencePaid) || 0)}</div>
+                </div>
+              ))}
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">¿Qué le agregarías?</h2>
-              <p className="text-sm text-gray-400">Mandanos feedback directo por WhatsApp</p>
-            </div>
-          </div>
-          <p className="mb-5 text-sm leading-relaxed text-gray-400">
-            Si encontrás algo raro, te falta una herramienta o tenés una idea para mejorar el flujo,
-            escribinos directo y lo revisamos.
-          </p>
-          <a
-            href="https://wa.me/5491141722188"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-gray-100"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-            Mandar mensaje
-          </a>
-        </motion.section>
+          )}
+        </section>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-const QuickActionCard = ({
+function StatButton({
   icon,
-  title,
-  description,
-  count,
+  label,
+  value,
+  detail,
   onClick,
 }: {
   icon: React.ReactNode;
-  title: string;
-  description: string;
-  count?: number;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className="flex w-full items-start gap-3 rounded-xl border border-gray-200 p-4 text-left transition-colors hover:bg-gray-50"
-  >
-    <div className="rounded-lg bg-amber-50 p-2 text-amber-800">
-      {icon}
-    </div>
-    <div className="min-w-0 flex-1 space-y-1">
-      <div className="text-sm font-bold text-gray-900">{title}</div>
-      <p className="text-sm leading-relaxed text-gray-500">{description}</p>
-    </div>
-    {count != null && (
-      <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700">
-        {count}
-      </span>
-    )}
-  </button>
-);
-
-const QuickLink = ({
-  label,
-  onClick,
-}: {
   label: string;
+  value: string;
+  detail: string;
   onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className="flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-  >
-    {label}
-    <ArrowRight size={16} />
-  </button>
-);
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[22px] border border-[#E6E8EC] bg-white p-4 text-left shadow-[0_1px_2px_rgba(0,0,0,.04)] hover:bg-[#F7F8FA]"
+    >
+      <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-xl bg-[#F7F8FA] text-[#16181D]">{icon}</span>
+      <span className="block text-[11px] font-extrabold uppercase tracking-wide text-[#737984]">{label}</span>
+      <span className="mt-1 block text-2xl font-extrabold tracking-tight">{value}</span>
+      <span className="mt-1 block text-xs font-semibold text-[#737984]">{detail}</span>
+    </button>
+  );
+}

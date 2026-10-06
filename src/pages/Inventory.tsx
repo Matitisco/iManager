@@ -527,7 +527,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
   ]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-[#E6E8EC] bg-white">
       <TableEngine config={config} user={user} searchTerm={searchTerm} />
     </div>
   );
