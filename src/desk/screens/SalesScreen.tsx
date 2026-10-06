@@ -11,6 +11,7 @@ import {
   saleCode,
   type PeriodKey,
 } from '../format';
+import { TablePager, usePagedRows } from '../pager';
 import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
@@ -43,6 +44,7 @@ export function SalesScreen() {
     const product = inventory.find((item) => item.id === sale.productId);
     return `${saleBuyer(sale, clients)} ${productLabel(product)} ${saleCode(sale)}`.toLowerCase().includes(q);
   });
+  const page = usePagedRows(rows, `${query}|${period}`);
 
   const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
 
@@ -80,7 +82,7 @@ export function SalesScreen() {
           <table className="dtable">
             <thead><tr><th>Venta</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Pago</th><th className="r">Total</th><th>Estado</th></tr></thead>
             <tbody>
-              {rows.map((sale) => {
+              {page.visible.map((sale) => {
                 const product = inventory.find((item) => item.id === sale.productId);
                 return (
                   <PressTarget
@@ -102,6 +104,7 @@ export function SalesScreen() {
             </tbody>
           </table>
         )}
+        <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>
   );

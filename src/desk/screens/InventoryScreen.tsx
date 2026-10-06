@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { batteryPercent, conditionLabel, equipmentTitle, formatMoney, isInStock } from '../format';
+import { TablePager, usePagedRows } from '../pager';
 import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const FILTERS = [
@@ -36,6 +37,7 @@ export function InventoryScreen() {
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => b.price - a.price);
     return list;
   }, [inventory, query, filter, sort]);
+  const page = usePagedRows(rows, `${query}|${filter}|${sort}`);
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const filters = useMemo(() => {
@@ -68,7 +70,7 @@ export function InventoryScreen() {
               <tr><th>Equipo</th><th>Condición</th><th>Batería</th><th className="r">Precio</th><th>Estado</th></tr>
             </thead>
             <tbody>
-              {rows.map((item) => (
+              {page.visible.map((item) => (
                 <PressTarget
                   key={item.id}
                   as="tr"
@@ -90,6 +92,7 @@ export function InventoryScreen() {
             </tbody>
           </table>
         )}
+        <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       <div className="dhint">Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.</div>
     </div>

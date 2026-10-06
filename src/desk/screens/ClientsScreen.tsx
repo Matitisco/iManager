@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { avatarTone, formatMoney, formatMoneyCompact, formatShortDate, initials } from '../format';
+import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
@@ -18,6 +19,7 @@ export function ClientsScreen() {
       return matches && (!q || haystack.includes(q));
     });
   }, [clients, query, filter]);
+  const page = usePagedRows(rows, `${query}|${filter}`);
 
   return (
     <div className="dscreen">
@@ -44,7 +46,7 @@ export function ClientsScreen() {
           <table className="dtable">
             <thead><tr><th>Cliente</th><th>DNI</th><th>Teléfono</th><th>Última compra</th><th className="r">Gastado</th><th>Saldo</th></tr></thead>
             <tbody>
-              {rows.map((client) => (
+              {page.visible.map((client) => (
                 <PressTarget
                   key={client.id}
                   as="tr"
@@ -67,6 +69,7 @@ export function ClientsScreen() {
             </tbody>
           </table>
         )}
+        <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>
   );

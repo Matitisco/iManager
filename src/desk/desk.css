@@ -152,6 +152,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dcard:not(.flush) .dtable.compact { margin: 0 -20px -18px; width: calc(100% + 40px); }
 .dcard .dtable th:first-child, .dcard .dtable td:first-child { padding-left: 20px; }
 .dtable small { display: block; font-size: 12px; color: var(--secondary); font-weight: 500; }
+.dpager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 20px; border-top: 1px solid var(--border); }
+.dpager > span { font-size: 13px; font-weight: 700; color: var(--secondary); }
+.dpages { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.dpages button { min-width: 32px; height: 32px; padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 800; color: var(--primary); }
+.dpages button:hover:not(:disabled) { background: #F3F4F6; }
+.dpages button.on { background: var(--primary); color: #fff; }
+.dpages button:disabled { color: #C4C8CE; cursor: default; }
+.dpages .gap { width: 20px; text-align: center; color: var(--section); font-weight: 800; }
 .mono { font-variant-numeric: tabular-nums; color: var(--secondary); letter-spacing: .01em; }
 .dcell { display: flex; align-items: center; gap: 12px; }
 .dcell b .spill { margin-left: 8px; vertical-align: 1px; }
