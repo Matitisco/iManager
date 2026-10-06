@@ -11,6 +11,7 @@ export interface ClientInput {
   lastPurchaseDate?: string | null;
   totalSpent?: number;
   pendingBalance?: number;
+  tag?: string | null;
   customFields?: Record<string, unknown> | null;
 }
 
@@ -24,6 +25,7 @@ export interface ClientResponse {
   totalSpent: number;
   pendingBalance: number;
   categoryId: string | null;
+  tag: string | null;
   customFields: Record<string, unknown>;
 }
 
@@ -42,6 +44,7 @@ type ClientRecord = {
   totalSpent: Decimal;
   pendingBalance: Decimal;
   categoryId: string | null;
+  tag?: string | null;
   customFields: Prisma.JsonValue | null;
 };
 
@@ -103,6 +106,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
     categoryId: client.categoryId ?? null,
+    tag: client.tag ?? null,
     customFields: toCustomFields(client.customFields),
   };
 }
@@ -148,6 +152,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
       totalSpent: toDecimal(input.totalSpent),
       pendingBalance: toDecimal(input.pendingBalance),
+      tag: input.tag || null,
       customFields: normalizeCustomFields(input.customFields),
     },
   });
@@ -198,6 +203,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
         input.totalSpent !== undefined ? toDecimal(input.totalSpent) : existing.totalSpent,
       pendingBalance:
         input.pendingBalance !== undefined ? toDecimal(input.pendingBalance) : existing.pendingBalance,
+      tag: input.tag !== undefined ? input.tag || null : existing.tag,
       customFields:
         input.customFields !== undefined
           ? normalizeCustomFields(input.customFields)
@@ -206,6 +212,60 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   });
 
   return serializeClient(updated);
+}
+
+export async function listClientPayments(storeId: string, clientId: string) {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, storeId },
+    select: { id: true },
+  });
+  if (!client) return null;
+
+  const rows = await prisma.clientPayment.findMany({
+    where: { storeId, clientId },
+    orderBy: { paidAt: "desc" },
+    take: 8,
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    amount: row.amount.toNumber(),
+    method: row.method,
+    paidAt: row.paidAt.toISOString(),
+  }));
+}
+
+export async function registerClientPayment(
+  storeId: string,
+  clientId: string,
+  input: { amount: number; method: string }
+) {
+  return prisma.$transaction(async (tx) => {
+    const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
+    if (!client) return null;
+
+    const balance = new Decimal(client.pendingBalance.toString());
+    const amount = new Decimal(input.amount);
+    if (amount.lessThanOrEqualTo(0)) throw new ClientsError("El monto tiene que ser mayor a cero");
+    if (amount.greaterThan(balance)) throw new ClientsError("El monto supera el saldo");
+
+    await tx.clientPayment.create({
+      data: {
+        storeId,
+        clientId,
+        amount,
+        method: input.method.trim(),
+        paidAt: new Date(),
+      },
+    });
+
+    const updated = await tx.client.update({
+      where: { id: clientId },
+      data: { pendingBalance: balance.minus(amount) },
+    });
+
+    return serializeClient(updated);
+  });
 }
 
 export async function deleteClient(storeId: string, id: string) {

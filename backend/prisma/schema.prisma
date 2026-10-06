@@ -42,6 +42,7 @@ model Store {
   tradeIns            TradeIn[]
   tradeInCategories   TradeInCategory[]
   catalogOptions      StoreCatalogOption[]
+  clientPayments      ClientPayment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -71,11 +72,13 @@ model Client {
   lastPurchaseAt DateTime?
   totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
   pendingBalance Decimal         @default(0) @db.Decimal(12, 2)
+  tag            String?         @db.VarChar(30)
   customFields   Json?
   store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category       ClientCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales          Sale[]
   tradeIns       TradeIn[]
+  payments       ClientPayment[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -220,6 +223,23 @@ enum CatalogKind {
   INVENTORY_CONDITION
   SALE_STATUS
   TRADE_IN_STATUS
+  CLIENT_TAG
+}
+
+model ClientPayment {
+  id        String   @id @default(cuid())
+  storeId   String
+  clientId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  method    String   @db.VarChar(50)
+  paidAt    DateTime @default(now())
+  note      String?  @db.VarChar(200)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([storeId])
+  @@index([clientId])
 }
 
 model StoreCatalogOption {

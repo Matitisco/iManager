@@ -6,6 +6,7 @@ import { ImportModal } from '../components/table-engine/components/ImportModal';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
 import { importBackendSales } from '../services/sales-import-api';
 import { importBackendClients } from '../services/clients-import-api';
+import { fetchClientPayments, type ClientPaymentRecord } from '../services/clients-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../services/invitations-api';
 import type { Client, Product, Sale, TradeIn } from '../types';
@@ -50,6 +51,11 @@ const BASE_CAPS = ['64GB', '128GB', '256GB', '512GB'];
 const BASE_CONDITIONS = [
   { id: 'NUEVO', label: 'Nuevo' },
   { id: 'USADO', label: 'Usado' },
+];
+const BASE_TAGS = [
+  { id: 'Frecuente', label: 'Frecuente', color: '#8B5CF6' },
+  { id: 'Mayorista', label: 'Mayorista', color: '#3B82F6' },
+  { id: 'Nuevo', label: 'Nuevo', color: '#E8A33D' },
 ];
 const MODELS = ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15', 'iPhone 16'];
 const EQ_STATUS = [
@@ -539,32 +545,74 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
 }
 
 function ClientDetail({ id }: { id: string }) {
-  const { clients, updateClient } = useAppContext();
+  const { clients, user, registerClientPayment } = useAppContext();
   const { close, open, toast } = useDesk();
   const client = clients.find((item) => item.id === id);
+  const [method, setMethod] = useState('TRANSFERENCIA');
+  const [amount, setAmount] = useState('');
+  const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!client) return;
+    setAmount(formatInputMoney(client.pendingBalance));
+  }, [client?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchClientPayments(user, id)
+      .then((rows) => { if (!cancelled) setPayments(rows); })
+      .catch(() => { if (!cancelled) setPayments([]); });
+    return () => { cancelled = true; };
+  }, [user, id, client?.pendingBalance]);
+
   if (!client) return null;
   const pay = async () => {
+    const value = parseMoney(amount);
+    if (!value) {
+      setError('Completá el monto');
+      return;
+    }
+    if (value > client.pendingBalance) {
+      setError('El monto supera el saldo');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await updateClient({ ...client, pendingBalance: 0 });
+      const updated = await registerClientPayment(client.id, { amount: value, method });
       toast('Pago registrado');
-      close();
+      setAmount(formatInputMoney(updated.pendingBalance));
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
     } finally {
       setBusy(false);
     }
   };
+  const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   return (
-    <Sheet title={client.name} subtitle={client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? `Última compra ${formatShortDate(client.lastPurchaseDate)}` : 'Sin compras todavía'} onClose={close}>
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)} · DNI ${client.dni}` : `Sin compras todavía · DNI ${client.dni}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '—'}</b></div>
-      <div className="kv"><span>DNI</span><b>{client.dni || '—'}</b></div>
+      {client.pendingBalance > 0 ? (
+        <>
+          <Field label="Monto"><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); setError(null); }} /></Field>
+          <Field label="Forma de pago"><span /></Field>
+          <Segs options={PAYMENTS} value={method} onChange={setMethod} />
+        </>
+      ) : null}
+      {payments.length > 0 ? (
+        <>
+          <Field label="Pagos"><span /></Field>
+          {payments.map((payment) => (
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentLabel(payment.method)}</span><b>{formatMoney(payment.amount)}</b></div>
+          ))}
+        </>
+      ) : null}
       <div className="sacts">
         {client.pendingBalance > 0
           ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
@@ -578,12 +626,16 @@ function ClientDetail({ id }: { id: string }) {
 function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { clients, addClient, updateClient } = useAppContext();
   const { close } = useDesk();
+  const catalogs = useCatalogs();
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = clients.find((item) => item.id === id);
+  const tags = catalogChoices(catalogs?.options ?? [], 'CLIENT_TAG', BASE_TAGS);
   const [name, setName] = useState(current?.name ?? '');
   const [dni, setDni] = useState(current?.dni ?? '');
   const [phone, setPhone] = useState(current?.phone ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
   const [balance, setBalance] = useState(formatInputMoney(current?.pendingBalance ?? 0));
+  const [tag, setTag] = useState(current?.tag ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
@@ -600,6 +652,9 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
       )}
       <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
       {current ? <Field label="Saldo pendiente"><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => setBalance(formatInputMoney(parseMoney(event.target.value)))} /></Field> : null}
+      <Field label="Etiqueta"><span /></Field>
+      <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
@@ -615,6 +670,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
           lastPurchaseDate: current?.lastPurchaseDate || 'N/A',
           totalSpent: current?.totalSpent ?? 0,
           pendingBalance: parseMoney(balance),
+          tag: tag || null,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
         };

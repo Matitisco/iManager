@@ -122,7 +122,7 @@ Quedó afuera de esta pasada, a propósito: los catálogos con lápiz y el resto
 - **Importación:** un estado o una condición que no se reconoce deja de guardarse en silencio como Disponible o Usado.
 - **Canjes** usan `tradeNumber` para el código `C-0001`. El stock de reportes se agrupa por fecha de ingreso del equipo.
 
-Quedó afuera: etiquetas de cliente (ET-01, CL-01; sigue la decisión 5), el historial de pagos y el rediseño visual del modal de importación.
+Las etiquetas de cliente viven en el mismo catálogo (`CLIENT_TAG`: Frecuente, Mayorista, Nuevo), aparte de las categorías de la pantalla vieja. En el detalle, el pago pide monto y forma de pago, guarda el movimiento y descuenta el saldo. Quedó afuera el rediseño visual del modal de importación.
 
 ## Decisiones pendientes
 
@@ -135,7 +135,7 @@ Estos puntos necesitan una decisión de producto antes de implementarse. El deta
 2. **«Reservado» en los chips de Inventario.** El estático lo excluye por *nombre*, así que al renombrarlo aparece el chip (captura 09). Hay que decidir si se excluye por clave `RESERVADO`.
 3. **Permisos sobre catálogos.** En hifi-desk solo `OWNER` y `MANAGER` crean o borran opciones. `STAFF` no ve el lápiz.
 4. **Campos que React tiene y el estático no:** «Grado» editable y «Modelo» como texto libre (**EE-05**, **EE-06**), y el alta de cliente inline en Registrar venta (**MV-06**). Pueden ser intencionales por los datos reales.
-5. **Etiquetas de cliente:** reutilizar `ClientCategory` o crear un catálogo nuevo.
+5. **Etiquetas de cliente.** En hifi-desk son un catálogo propio (`CLIENT_TAG`), no las categorías de la pantalla anterior.
 6. **Fuente de Reportes:** seguir calculando en el cliente o usar `fetchReportsOverview`, que ya agrupa en el backend.
 7. **Checklist del Dashboard:** hoy se persiste en `localStorage` sin fecha, así que «Tu turno» nunca se reinicia. La propuesta es incluir la fecha en la clave.
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { avatarTone, formatMoney, formatMoneyCompact, formatShortDate, initials } from '../format';
-import { ChipRow, DeskCta, ImportButton, PressTarget, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
   const { clients } = useAppContext();
@@ -54,7 +54,7 @@ export function ClientsScreen() {
                   <td>
                     <div className="dcell">
                       <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}</b><small>{client.email || '—'}</small></div>
+                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '—'}</small></div>
                     </div>
                   </td>
                   <td>{client.dni || '—'}</td>

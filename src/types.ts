@@ -76,6 +76,7 @@ export interface Client {
   totalSpent: number;
   pendingBalance: number;
   categoryId?: string | null;
+  tag?: string | null;
   customFields?: Record<string, any>;
 }
 

@@ -246,12 +246,12 @@ export function Field({ label, error, children }: { label: string; error?: strin
   );
 }
 
-export function Segs({ options, value, onChange, onEdit }: { options: { id: string; label: string; color?: string }[]; value: string; onChange: (id: string) => void; onEdit?: () => void }) {
+export function Segs({ options, value, onChange, onEdit, allowClear }: { options: { id: string; label: string; color?: string }[]; value: string; onChange: (id: string) => void; onEdit?: () => void; allowClear?: boolean }) {
   const withColor = options.some((option) => option.color);
   return (
     <div className={`sgs${withColor ? ' stg' : ''}`}>
       {options.map((option) => (
-        <button key={option.id} type="button" className={`sg${option.id === value ? ' on' : ''}`} onClick={() => onChange(option.id)}>
+        <button key={option.id} type="button" className={`sg${option.id === value ? ' on' : ''}`} onClick={() => onChange(allowClear && option.id === value ? '' : option.id)}>
           {option.color ? <i style={{ background: option.color }} /> : null}
           {option.label}
         </button>

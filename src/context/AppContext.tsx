@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
@@ -29,6 +29,7 @@ interface AppState {
   deleteProduct: (id: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
+  registerClientPayment: (clientId: string, input: { amount: number; method: string }) => Promise<Client>;
   deleteClient: (id: string) => Promise<void>;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<void>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<void>;
@@ -793,6 +794,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
   };
 
+  const registerClientPayment = async (clientId: string, input: { amount: number; method: string }) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!backendClientsEnabled) {
+      throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
+    }
+    const updated = await registerBackendClientPayment(user, clientId, input);
+    setClients(prev => prev.map(client => client.id === updated.id ? updated : client));
+    return updated;
+  };
+
   const deleteClient = async (id: string) => {
     if (!user) return;
     if (!backendClientsEnabled) {
@@ -888,7 +899,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       inventory, sales, tradeIns, clients, customColumns,
       addSale, updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
-      addClient, updateClient, deleteClient,
+      addClient, updateClient, registerClientPayment, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,

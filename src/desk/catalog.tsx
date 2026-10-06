@@ -10,6 +10,7 @@ const FALLBACK_META: CatalogPayload['meta'] = {
   INVENTORY_CONDITION: { title: 'Condiciones', add: 'Agregar condición', noun: ['equipo', 'equipos'] },
   SALE_STATUS: { title: 'Estados de venta', add: 'Agregar estado', noun: ['venta', 'ventas'] },
   TRADE_IN_STATUS: { title: 'Estados de canje', add: 'Agregar estado', noun: ['canje', 'canjes'] },
+  CLIENT_TAG: { title: 'Etiquetas de cliente', add: 'Agregar etiqueta', noun: ['cliente', 'clientes'] },
 };
 
 type Draft = { key: string; value?: string; label: string; color: string | null; isSystem: boolean; count: number; deleted?: boolean; reassignTo?: string };
@@ -121,7 +122,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
           <h3>{meta.title}</h3>
           <button type="button" className="stx-x" aria-label="Cerrar" onClick={onClose}>×</button>
         </div>
-        <p>Tocá el color para cambiarlo. Si renombrás, se actualizan los registros que lo usan.</p>
+        <p>{kind === 'CLIENT_TAG' ? 'Tocá el color para cambiarlo. Si renombrás, se actualizan los clientes que la usan.' : 'Tocá el color para cambiarlo. Si renombrás, se actualizan los registros que lo usan.'}</p>
         {error ? <div className="stx-err">{error}</div> : null}
         {rows.map((row) => (
           <div className={`stx-row${row.deleted ? ' del' : ''}`} key={row.key}>

@@ -7,6 +7,7 @@ export const CATALOG_KINDS = [
   "INVENTORY_CONDITION",
   "SALE_STATUS",
   "TRADE_IN_STATUS",
+  "CLIENT_TAG",
 ] as const satisfies readonly CatalogKind[];
 
 type Kind = (typeof CATALOG_KINDS)[number];
@@ -72,6 +73,11 @@ const DEFAULTS: Record<Kind, { value: string; label: string; color: string | nul
     { value: "LISTO", label: "Completado", color: "#0F9D8A", isSystem: true },
     { value: "RECHAZADO", label: "Rechazado", color: "#DC4C4C", isSystem: true },
   ],
+  CLIENT_TAG: [
+    { value: "Frecuente", label: "Frecuente", color: "#8B5CF6", isSystem: false },
+    { value: "Mayorista", label: "Mayorista", color: "#3B82F6", isSystem: false },
+    { value: "Nuevo", label: "Nuevo", color: "#E8A33D", isSystem: false },
+  ],
 };
 
 const META: Record<Kind, { title: string; add: string; noun: [string, string] }> = {
@@ -80,6 +86,7 @@ const META: Record<Kind, { title: string; add: string; noun: [string, string] }>
   INVENTORY_CONDITION: { title: "Condiciones", add: "Agregar condición", noun: ["equipo", "equipos"] },
   SALE_STATUS: { title: "Estados de venta", add: "Agregar estado", noun: ["venta", "ventas"] },
   TRADE_IN_STATUS: { title: "Estados de canje", add: "Agregar estado", noun: ["canje", "canjes"] },
+  CLIENT_TAG: { title: "Etiquetas de cliente", add: "Agregar etiqueta", noun: ["cliente", "clientes"] },
 };
 
 function slug(label: string) {
@@ -112,10 +119,11 @@ async function seedMissing(storeId: string) {
 }
 
 async function usageCounts(storeId: string) {
-  const [items, sales, trades] = await Promise.all([
+  const [items, sales, trades, clients] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { storeId }, select: { status: true, capacity: true, condition: true } }),
     prisma.sale.findMany({ where: { storeId }, select: { status: true } }),
     prisma.tradeIn.findMany({ where: { storeId }, select: { status: true } }),
+    prisma.client.findMany({ where: { storeId }, select: { tag: true } }),
   ]);
   const bump = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
   const inventoryStatus = new Map<string, number>();
@@ -123,6 +131,7 @@ async function usageCounts(storeId: string) {
   const condition = new Map<string, number>();
   const saleStatus = new Map<string, number>();
   const tradeStatus = new Map<string, number>();
+  const clientTag = new Map<string, number>();
   for (const item of items) {
     bump(inventoryStatus, item.status);
     bump(capacity, item.capacity);
@@ -130,7 +139,8 @@ async function usageCounts(storeId: string) {
   }
   for (const sale of sales) bump(saleStatus, sale.status);
   for (const trade of trades) bump(tradeStatus, trade.status);
-  return { inventoryStatus, capacity, condition, saleStatus, tradeStatus };
+  for (const client of clients) if (client.tag) bump(clientTag, client.tag);
+  return { inventoryStatus, capacity, condition, saleStatus, tradeStatus, clientTag };
 }
 
 function countFor(kind: Kind, value: string, counts: Awaited<ReturnType<typeof usageCounts>>) {
@@ -138,6 +148,7 @@ function countFor(kind: Kind, value: string, counts: Awaited<ReturnType<typeof u
   if (kind === "INVENTORY_CAPACITY") return counts.capacity.get(value) ?? 0;
   if (kind === "INVENTORY_CONDITION") return counts.condition.get(value) ?? 0;
   if (kind === "SALE_STATUS") return counts.saleStatus.get(value) ?? 0;
+  if (kind === "CLIENT_TAG") return counts.clientTag.get(value) ?? 0;
   return counts.tradeStatus.get(value) ?? 0;
 }
 
@@ -174,6 +185,8 @@ async function reassign(tx: Prisma.TransactionClient, storeId: string, kind: Kin
     await tx.inventoryItem.updateMany({ where: { storeId, condition: from }, data: { condition: to } });
   } else if (kind === "SALE_STATUS") {
     await tx.sale.updateMany({ where: { storeId, status: from }, data: { status: to } });
+  } else if (kind === "CLIENT_TAG") {
+    await tx.client.updateMany({ where: { storeId, tag: from }, data: { tag: to } });
   } else {
     await tx.tradeIn.updateMany({ where: { storeId, status: from }, data: { status: to } });
   }
@@ -181,6 +194,7 @@ async function reassign(tx: Prisma.TransactionClient, storeId: string, kind: Kin
 
 export async function saveCatalog(storeId: string, kind: Kind, options: CatalogOptionInput[], deletions: CatalogDeletion[]) {
   const textKind = kind === "INVENTORY_CAPACITY" || kind === "INVENTORY_CONDITION";
+  const labelIsValue = textKind || kind === "CLIENT_TAG";
   return prisma.$transaction(async (tx) => {
     const existing = await tx.storeCatalogOption.findMany({ where: { storeId, kind } });
     const removed = new Set<string>();
@@ -205,7 +219,7 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
       const color = textKind ? null : (option.color ?? null);
       const current = option.value ? existing.find((item) => item.value === option.value && !removed.has(item.value)) : undefined;
       if (current) {
-        if (textKind && current.value !== label) {
+        if (labelIsValue && current.value !== label) {
           await reassign(tx, storeId, kind, current.value, label);
           await tx.storeCatalogOption.update({
             where: { id: current.id },
@@ -219,7 +233,7 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
         }
         continue;
       }
-      const value = textKind ? label : (option.value?.trim() || slug(label));
+      const value = labelIsValue ? label : (option.value?.trim() || slug(label));
       await tx.storeCatalogOption.create({
         data: { storeId, kind, value, label, color, isSystem: false, sortOrder: index },
       });
