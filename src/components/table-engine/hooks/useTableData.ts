@@ -77,6 +77,33 @@ export function useTableData<TRow extends WithId>({
     await loadPage(0, params);
   }, [loadPage]);
 
+  // Swap in a fresh page without clearing the rows already on screen.
+  const reloadVisible = useCallback(async (
+    params: Omit<TablePageParams, 'skip' | 'take'>,
+    options?: { page?: number; take?: number },
+  ) => {
+    if (!userRef.current) return false;
+    const epoch = ++epochRef.current;
+    filterParamsRef.current = params;
+    const requestedPage = paged ? Math.max(0, options?.page ?? 0) : 0;
+    const take = options?.take ?? pageSize;
+    try {
+      const result = await fetchPageRef.current({
+        skip: paged ? requestedPage * pageSize : 0,
+        take,
+        ...params,
+      });
+      if (epoch !== epochRef.current) return false;
+      setItems(result.items);
+      setTotal(result.total);
+      pageRef.current = requestedPage;
+      setPage(requestedPage);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [pageSize, paged]);
+
   const goToPage = useCallback(async (nextPage: number) => {
     await loadPage(nextPage, filterParamsRef.current);
   }, [loadPage]);
@@ -118,6 +145,6 @@ export function useTableData<TRow extends WithId>({
     page, pageCount, goToPage,
     isInitialLoading, isLoadingMore,
     sentinelRef, filterParamsRef, userRef,
-    loadFirstPage, cancelPendingLoads,
+    loadFirstPage, reloadVisible, cancelPendingLoads,
   };
 }

@@ -150,7 +150,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const filterParamsRef = useRef<Omit<TablePageParams, 'skip' | 'take'>>({ filters: {} });
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
-  const { items, setItems, total, setTotal, page, pageCount, goToPage, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage, cancelPendingLoads } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE, paged });
+  const { items, setItems, total, setTotal, page, pageCount, goToPage, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage, reloadVisible, cancelPendingLoads } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE, paged });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
   const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
@@ -480,21 +480,20 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   };
 
   const loadSelectedRows = async (wanted: Set<string>, known: Map<string, TRow>) => {
+    const chunkCount = Math.min(100, Math.max(1, Math.ceil(total / COPY_FETCH_TAKE)));
+    const pages = await Promise.all(
+      Array.from({ length: chunkCount }, (_, index) =>
+        fetchPage({ skip: index * COPY_FETCH_TAKE, take: COPY_FETCH_TAKE, ...filterParamsRef.current }),
+      ),
+    );
     const ordered: TRow[] = [];
     const seen = new Set<string>();
-    let skip = 0;
-    let guard = 0;
-    while (seen.size < wanted.size && guard < 100) {
-      guard += 1;
-      const page = await fetchPage({ skip, take: COPY_FETCH_TAKE, ...filterParamsRef.current });
-      if (page.items.length === 0) break;
+    for (const page of pages) {
       for (const row of page.items) {
         if (!wanted.has(row.id) || seen.has(row.id)) continue;
         seen.add(row.id);
         ordered.push(row);
       }
-      skip += page.items.length;
-      if (skip >= page.total) break;
     }
     for (const [id, row] of known) {
       if (wanted.has(id) && !seen.has(id)) ordered.push(row);
@@ -549,34 +548,58 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       fallbackCategoryId: activeCategoryId !== 'all' ? activeCategoryId : null,
       buildNewItem,
     });
+    const stamp = Date.now();
+    const tempIds = payloads.map((_, index) => `paste-${stamp}-${index}`);
+    const tempIdSet = new Set(tempIds);
+    const optimisticRows = payloads.map((payload, index) => ({
+      ...(payload as object),
+      id: tempIds[index],
+    })) as TRow[];
+    const loadedCount = items.length;
+
     pastingRef.current = true;
+    setItems((prev) => {
+      const next = [...optimisticRows, ...prev];
+      return paged ? next.slice(0, PAGE_SIZE) : next;
+    });
+    setTotal((prev) => prev + optimisticRows.length);
+    setClipboardNotice(
+      optimisticRows.length === 1 ? `Se pegó 1 ${noun}` : `Se pegaron ${optimisticRows.length} ${nounPlural}`,
+    );
+
     let created = 0;
     try {
-      for (const payload of payloads) {
-        await onCreate(payload);
-        created += 1;
+      const results = await Promise.allSettled(
+        payloads.map((payload) => Promise.resolve().then(() => onCreate(payload))),
+      );
+      created = results.filter((result) => result.status === 'fulfilled').length;
+      const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+      if (rejected) {
+        const message = rejected.reason instanceof Error ? rejected.reason.message : 'No se pudieron pegar las filas.';
+        alert(created > 0 ? `Se pegaron ${created} ${nounPlural}. ${message}` : message);
+        if (created === 0) setClipboardNotice(null);
+        else setClipboardNotice(created === 1 ? `Se pegó 1 ${noun}` : `Se pegaron ${created} ${nounPlural}`);
       }
-      setClipboardNotice(created === 1 ? `Se pegó 1 ${noun}` : `Se pegaron ${created} ${nounPlural}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudieron pegar las filas.';
-      alert(created > 0 ? `Se pegaron ${created} ${nounPlural}. ${message}` : message);
-    } finally {
-      pastingRef.current = false;
-      if (created > 0) {
+
+      const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
+      const refreshed = await reloadVisible(filterParamsRef.current, {
+        page: 0,
+        take: paged ? PAGE_SIZE : Math.max(PAGE_SIZE, loadedCount + created),
+      });
+      if (refreshed) {
+        pendingScrollRestoreRef.current = scrollTop;
+        return;
+      }
+      if (created === 0) {
         if (paged) {
           await loadFirstPage(filterParamsRef.current);
         } else {
-          const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
-          const result = await fetchPage({
-            skip: 0,
-            take: Math.max(PAGE_SIZE, items.length + created),
-            ...filterParamsRef.current,
-          });
-          pendingScrollRestoreRef.current = scrollTop;
-          setItems(result.items);
-          setTotal(result.total);
+          setItems((prev) => prev.filter((row) => !tempIdSet.has(row.id)));
+          setTotal((prev) => Math.max(0, prev - optimisticRows.length));
         }
       }
+    } finally {
+      pastingRef.current = false;
     }
   };
 

@@ -858,6 +858,159 @@ describe('TableEngine', () => {
     expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
   });
 
+  it('shows pasted rows before the create requests finish', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+    ];
+    let releaseCreate: () => void = () => {};
+    const createGate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    const fetchPage = vi.fn(async () => ({ items: rows, total: rows.length }));
+    const onCreate = vi.fn(() => createGate);
+
+    render(
+      <TableEngine
+        config={buildConfig({ fetchPage, onCreate })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr') as HTMLElement;
+    fireEvent.contextMenu(alphaRow);
+    await user.click(screen.getByRole('button', { name: 'Copiar ítem' }));
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    expect(await screen.findByText('Se pegó 1 ítem')).toBeInTheDocument();
+    expect(screen.getAllByText('Alpha')).toHaveLength(2);
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+
+    releaseCreate();
+    await waitFor(() => {
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('keeps the current page size visible while a paste is still saving', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+    ];
+    let releaseCreate: () => void = () => {};
+    const createGate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    let releaseReload: () => void = () => {};
+    const fetchPage = vi.fn(async ({ skip = 0, take = 2 }: { skip?: number; take?: number }) => {
+      if (fetchPage.mock.calls.length > 1) {
+        await new Promise<void>((resolve) => {
+          releaseReload = resolve;
+        });
+      }
+      return { items: rows.slice(skip, skip + take), total: rows.length };
+    });
+    const onCreate = vi.fn(() => createGate);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage,
+          onCreate,
+          pagination: { pageSize: 2 },
+          noun: 'equipo',
+          nounPlural: 'equipos',
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr') as HTMLElement;
+    const betaRow = screen.getByText('Beta').closest('tr') as HTMLElement;
+    await user.click(alphaRow);
+    fireEvent.click(betaRow, { shiftKey: true });
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
+    expect(await screen.findByText('Se copiaron 2 equipos')).toBeInTheDocument();
+
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    expect(await screen.findByText('Se pegaron 2 equipos')).toBeInTheDocument();
+    expect(screen.getByText('4 equipos en total')).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^table-row-select-/)).toHaveLength(2);
+    expect(screen.queryByTestId('table-row-select-1')).not.toBeInTheDocument();
+    expect(document.querySelector('.animate-pulse')).toBeNull();
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+
+    releaseCreate();
+    await waitFor(() => {
+      expect(fetchPage.mock.calls.length).toBeGreaterThan(1);
+    });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(document.querySelector('.animate-pulse')).toBeNull();
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 0, take: 2 }));
+
+    releaseReload();
+    await waitFor(() => {
+      expect(screen.getByTestId('table-row-select-1')).toBeInTheDocument();
+    });
+    expect(screen.getByText('2 equipos en total')).toBeInTheDocument();
+    expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+  });
+
+  it('fetches every page of a multi-page copy at the same time', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = Array.from({ length: 150 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Equipo ${index + 1}`,
+      quantity: 1,
+      categoryId: null,
+    }));
+    const release: Array<() => void> = [];
+    const fetchPage = vi.fn(async ({ skip = 0, take = 2 }: { skip?: number; take?: number }) => {
+      if (take === 100) {
+        await new Promise<void>((resolve) => {
+          release.push(resolve);
+        });
+      }
+      return { items: rows.slice(skip, skip + take), total: rows.length };
+    });
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage,
+          fetchFilteredIds: vi.fn(async () => rows.map((row) => row.id)),
+          pagination: { pageSize: 2 },
+          noun: 'equipo',
+          nounPlural: 'equipos',
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    expect(await screen.findByText('Equipo 1')).toBeInTheDocument();
+    await user.click(screen.getByTestId('table-select-all'));
+    expect(await screen.findByText('150 equipos seleccionados')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
+
+    await waitFor(() => {
+      expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ skip: 0, take: 100 }));
+      expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ skip: 100, take: 100 }));
+    });
+    expect(screen.queryByText('Se copiaron 150 equipos')).not.toBeInTheDocument();
+    expect(release).toHaveLength(2);
+
+    release.forEach((resolve) => resolve());
+    expect(await screen.findByText('Se copiaron 150 equipos')).toBeInTheDocument();
+  });
+
   it('pastes an external table as new rows without rewriting unique values', async () => {
     clearRowClipboardMemory();
     const onCreate = vi.fn(async () => undefined);
