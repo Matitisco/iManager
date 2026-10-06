@@ -91,7 +91,7 @@ model StoreCatalogOption {
 
 Ordenado para que cada fase deje la app usable y mejore lo más visible primero.
 
-### Fase 1 — base visual (solo `desk.css` y `ui.tsx`, sin backend)
+### Fase 1 — base visual (aplicada en `hifi-desk`)
 
 **GL-02**, **GL-03**, **GL-04**, **GL-05**, **GL-06**, **GL-07**, **GL-08**, **GL-10**, **GL-11**, **GL-12**, **GL-14**, **GL-15**, **GL-16**, **MG-02**, **MG-03**, **MG-04**, **MG-06** a **MG-12**, **MV-03**, **SH-01** a **SH-06** y **HD-01** a **HD-05**.
 

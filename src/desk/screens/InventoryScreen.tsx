@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Smartphone } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { batteryPercent, conditionLabel, formatImei, formatMoney } from '../format';
-import { Battery, ChipRow, MenuButton, Pill, SearchBox, useDesk } from '../ui';
+import { Battery, ChipRow, DeskCta, MenuButton, Pill, SearchBox, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -42,12 +42,12 @@ export function InventoryScreen() {
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo, color o IMEI" />
           <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'inv' })}>↑ Importar</button>
-          <button className="dbtn p" type="button" onClick={() => open({ type: 'new-eq' })}>+ Registrar equipo</button>
+          <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
         </div>
       </div>
       <div className="dbar">
         <ChipRow options={FILTERS} value={filter} onChange={setFilter} />
-        <MenuButton label={`${sort} ▾`} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
+        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
       </div>
       <div className="dcard flush">
         {rows.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : (

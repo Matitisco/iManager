@@ -7,12 +7,12 @@ import {
   formatMoney,
   formatMoneyCompact,
   initials,
-  isOpenTrade,
+  isInProgressTrade,
   parseAppDate,
   productLabel,
   saleCode,
 } from '../format';
-import { Pill, useDesk } from '../ui';
+import { DeskCta, Pill, useDesk } from '../ui';
 
 const TASKS = [
   { id: 'inv', label: 'Revisá ingresos o cambios en inventario' },
@@ -64,11 +64,11 @@ export function DashboardScreen() {
   });
   const monthTotal = monthSales.reduce((sum, sale) => sum + sale.amount, 0);
   const available = inventory.filter((item) => item.status === 'DISPONIBLE').length;
-  const openTrades = tradeIns.filter((item) => isOpenTrade(item.status));
+  const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status));
   const balance = clients.filter((client) => client.pendingBalance > 0);
   const balanceTotal = balance.reduce((sum, client) => sum + client.pendingBalance, 0);
   const recent = useMemo(() => sales.slice(0, 5), [sales]);
-  const name = appSession?.user.displayName?.trim() || 'equipo';
+  const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const stockPct = inventory.length ? Math.round((available / inventory.length) * 100) : 0;
 
   return (
@@ -80,12 +80,12 @@ export function DashboardScreen() {
         </div>
         <div className="dright">
           <div className="avatars">
-            {(members.length ? members.map((member) => member.user.displayName || name) : [name]).slice(0, 4).map((label, index) => (
-              <div key={`${label}-${index}`} className={`av ${['b', 'p', 'g', 'a'][index]}`}>{initials(label)}</div>
+            {(members.length ? members.map((member) => member.user.displayName?.trim() || member.user.email || 'Usuario') : [name]).map((label, index) => (
+              <div key={`${label}-${index}`} className={`av ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
             ))}
             <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
           </div>
-          <button className="dbtn p" type="button" onClick={() => open({ type: 'new-sale' })}>+ Registrar venta</button>
+          <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
         </div>
       </div>
 

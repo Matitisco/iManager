@@ -4,7 +4,7 @@ import { useAppContext } from '../../context/AppContext';
 import { listInvitations, revokeInvitation, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import { initials, isOpenTrade } from '../format';
-import { ChipRow, useDesk } from '../ui';
+import { ChipRow, PageHead, useDesk } from '../ui';
 
 type Note = { id: string; title: string; body: string; when: string; tab: 'sales' | 'tradeins' | 'inventory' | 'clients' };
 
@@ -39,13 +39,11 @@ export function NotificationsScreen() {
 
   return (
     <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <h1>Notificaciones</h1>
-          <div className="dsub">{notes.filter((note) => !read.includes(note.id)).length || 'Nada'} sin leer</div>
-        </div>
-        <button className="wlink" type="button" onClick={markAll}>Leer todas</button>
-      </div>
+      <PageHead
+        title="Notificaciones"
+        subtitle={`${notes.filter((note) => !read.includes(note.id)).length || 'Nada'} sin leer`}
+        action={<button className="wlink" type="button" onClick={markAll}>Leer todas</button>}
+      />
       <div className="dbar">
         <ChipRow options={[{ id: 'Todas', label: 'Todas' }, { id: 'unread', label: 'Sin leer' }]} value={filter} onChange={setFilter} />
       </div>
@@ -116,7 +114,7 @@ export function SettingsScreen() {
 
   return (
     <div className="dscreen">
-      <div className="dtop"><div><h1>Configuración</h1><div className="dsub">Tienda, equipo y tu cuenta</div></div></div>
+      <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" />
       <div className="settings-grid">
         {!isStaff && (
           <>

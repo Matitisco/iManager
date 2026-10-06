@@ -10,7 +10,7 @@ import {
   saleCode,
   type PeriodKey,
 } from '../format';
-import { MenuButton, Pill, SearchBox, useDesk } from '../ui';
+import { DeskCta, MenuButton, Pill, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -52,9 +52,9 @@ export function SalesScreen() {
         </div>
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" />
-          <MenuButton label={`${period} ▾`} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
+          <MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
           <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'sale' })}>↑ Importar</button>
-          <button className="dbtn p" type="button" onClick={() => open({ type: 'new-sale' })}>+ Registrar venta</button>
+          <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
         </div>
       </div>
       <div className="dstats">

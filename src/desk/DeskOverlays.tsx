@@ -22,7 +22,7 @@ import {
   saleCode,
   tradeCode,
 } from './format';
-import { Actions, Field, Pill, Segs, Sheet, useDesk } from './ui';
+import { Actions, DeskIcon, Field, Pill, Segs, Sheet, useDesk } from './ui';
 import type { Overlay } from './types';
 
 const PAYMENTS = [
@@ -69,11 +69,11 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const { open, close } = useDesk();
   const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
   return (
-    <div className="ov" style={{ background: 'transparent' }} onMouseDown={close}>
-      <div className="ctx" style={{ top: Math.min(overlay.y, window.innerHeight - 150), left: Math.min(overlay.x, window.innerWidth - 230) }} onMouseDown={(event) => event.stopPropagation()}>
+    <div className="ov ctxov" onMouseDown={close}>
+      <div className="ctx" style={{ top: Math.min(overlay.y, window.innerHeight - 150), left: Math.min(overlay.x, window.innerWidth - 236) }} onMouseDown={(event) => event.stopPropagation()}>
         <div className="ctxh">{overlay.label}</div>
-        <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}>Editar</button>
-        <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}>Eliminar</button>
+        <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button>
+        <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />Eliminar</button>
       </div>
     </div>
   );
@@ -108,15 +108,21 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   }
 
   if (overlay.type === 'del') {
+    const copy = {
+      eq: ['este equipo', 'Equipo eliminado'],
+      sale: ['esta venta', 'Venta eliminada'],
+      cj: ['este canje', 'Canje eliminado'],
+      cl: ['este cliente', 'Cliente eliminado'],
+    }[overlay.kind];
     return (
-      <Sheet title="¿Eliminar?" subtitle={`${overlay.label} se borra y no se puede deshacer.`} onClose={desk.close}>
+      <Sheet title={`¿Eliminar ${copy[0]}?`} subtitle={`${overlay.label} se va a borrar y no se puede deshacer.`} onClose={desk.close}>
         {error && <div className="err">{error}</div>}
         <Actions danger busy={busy} primary="Eliminar" onSecondary={desk.close} onPrimary={() => run(async () => {
           if (overlay.kind === 'eq') await ctx.deleteProduct(overlay.id);
           if (overlay.kind === 'sale') await ctx.deleteSale(overlay.id);
           if (overlay.kind === 'cj') await ctx.deleteTradeIn(overlay.id);
           if (overlay.kind === 'cl') await ctx.deleteClient(overlay.id);
-        }, 'Eliminado')} />
+        }, copy[1])} />
       </Sheet>
     );
   }

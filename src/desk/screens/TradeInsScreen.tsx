@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { clientName, formatMoney, tradeCode } from '../format';
-import { ChipRow, Pill, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, Pill, SearchBox, useDesk } from '../ui';
 
 const COLUMNS = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -43,7 +43,7 @@ export function TradeInsScreen() {
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente o equipo" />
           <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'cj' })}>↑ Importar</button>
-          <button className="dbtn p" type="button" onClick={() => open({ type: 'new-cj' })}>+ Nuevo canje</button>
+          <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
         </div>
       </div>
       <div className="dbar">

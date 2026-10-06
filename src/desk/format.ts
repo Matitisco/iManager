@@ -154,10 +154,16 @@ export function initials(name: string): string {
 }
 
 export function avatarTone(seed: string): string {
-  const tones = ['b', 'p', 'g', 'a'];
+  const tones = ['b', 'p', 'g'];
   let hash = 0;
   for (const char of seed) hash = (hash + char.charCodeAt(0)) % tones.length;
   return tones[hash] ?? 'b';
+}
+
+export const IN_PROGRESS_TRADE_STATUSES = new Set(['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN']);
+
+export function isInProgressTrade(status: string): boolean {
+  return IN_PROGRESS_TRADE_STATUSES.has(status);
 }
 
 export const OPEN_TRADE_STATUSES = new Set(['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN', 'APROBADO']);

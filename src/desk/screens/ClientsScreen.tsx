@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { avatarTone, formatMoney, formatMoneyCompact, initials } from '../format';
-import { ChipRow, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
   const { clients } = useAppContext();
@@ -29,7 +29,7 @@ export function ClientsScreen() {
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
           <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'cl' })}>↑ Importar</button>
-          <button className="dbtn p" type="button" onClick={() => open({ type: 'new-cl' })}>+ Nuevo cliente</button>
+          <DeskCta onClick={() => open({ type: 'new-cl' })}>Nuevo cliente</DeskCta>
         </div>
       </div>
       <div className="dbar">
