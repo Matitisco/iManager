@@ -64,7 +64,7 @@ export async function updateMemberRole(
 export async function removeMember(user: AuthUserLike, storeId: string, memberId: string): Promise<void> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
     method: 'DELETE',
-    headers: await authHeaders(user),
+    headers: { Authorization: `Bearer ${await user.getIdToken()}`, Accept: 'application/json' },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -567,14 +567,47 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     return () => window.clearTimeout(timeout);
   }, [clipboardNotice]);
 
-  // ── Bulk move confirm ──────────────────────────────────────────────────────
+  // ── Move / delete rows ─────────────────────────────────────────────────────
+  const moveRows = async (ids: string[], categoryId: string | null) => {
+    if (!onBulkMoveCategory || ids.length === 0) return;
+    try {
+      await onBulkMoveCategory(ids, categoryId);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : `No se pudieron mover los ${nounPlural}.`);
+      return;
+    }
+    if (activeCategoryId !== 'all' && activeCategoryId !== categoryId) {
+      setItems(prev => prev.filter(p => !ids.includes(p.id)));
+      setTotal(prev => prev - ids.length);
+    } else {
+      setItems(prev => prev.map(p => ids.includes(p.id) ? { ...p, categoryId } : p));
+    }
+    clearSelection();
+  };
+
+  const deleteRows = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      await (ids.length > 1 && onBulkDelete ? onBulkDelete(ids) : Promise.all(ids.map(id => onDelete(id))));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : `No se pudieron eliminar los ${nounPlural}.`);
+      void loadFirstPage(buildFilterParams());
+      return;
+    }
+    setItems(prev => prev.filter(p => !ids.includes(p.id)));
+    setTotal(prev => prev - ids.length);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+  };
+
   const confirmBulkMove = async () => {
-    if (!pendingItemMove || !onBulkMoveCategory) return;
-    const ids = Array.from(selectedIds);
-    await onBulkMoveCategory(ids, pendingItemMove.categoryId || null);
-    if (activeCategoryId !== 'all') { setItems(prev => prev.filter(p => !ids.includes(p.id))); setTotal(prev => prev - ids.length); }
-    else { setItems(prev => prev.map(p => ids.includes(p.id) ? { ...p, categoryId: pendingItemMove.categoryId } : p)); }
-    clearSelection(); setPendingItemMove(null);
+    if (!pendingItemMove) return;
+    const categoryId = pendingItemMove.categoryId || null;
+    setPendingItemMove(null);
+    await moveRows(Array.from(selectedIds), categoryId);
   };
 
   const hasActiveFilters = filters.some(f => activeFilters[f.id] !== f.defaultValue);
@@ -901,15 +934,9 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       <BulkActionsBar
         selectedIds={selectedIds} total={total} categories={categories}
         onClearSelection={clearSelection} onCopy={() => { copyRows(); }} noun={noun} nounPlural={nounPlural}
-        onBulkDelete={() => {
-          const ids = Array.from(selectedIds);
-          (onBulkDelete ? onBulkDelete(ids) : Promise.all(ids.map(id => onDelete(id))))
-            .then(() => { setItems(prev => prev.filter(p => !ids.includes(p.id))); setTotal(prev => prev - ids.length); clearSelection(); });
-        }}
+        onBulkDelete={() => { void deleteRows(Array.from(selectedIds)); }}
         onBulkMove={categories.length > 0 && onBulkMoveCategory ? (catId) => {
-          const ids = Array.from(selectedIds);
-          onBulkMoveCategory(ids, catId || null)
-            .then(() => { if (activeCategoryId !== 'all') { setItems(prev => prev.filter(p => !ids.includes(p.id))); setTotal(prev => prev - ids.length); } clearSelection(); });
+          void moveRows(Array.from(selectedIds), catId || null);
         } : undefined}
       />
 
@@ -924,10 +951,10 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
             onPaste={onCreate ? () => { void pasteFromMenu(); } : undefined}
             onEdit={item => { setSelectedItem(item); setContextMenu(null); }}
             onDelete={item => { setItemToDelete(item.id); setContextMenu(null); }}
-            onBulkDelete={() => { setContextMenu(null); }}
+            onBulkDelete={() => { void deleteRows(Array.from(selectedIds)); }}
             onMoveToCategory={onBulkMoveCategory ? (catId) => {
               const ids = contextMenu.isBulk ? Array.from(selectedIds) : [contextMenu.item.id];
-              onBulkMoveCategory(ids, catId).then(() => { clearSelection(); });
+              void moveRows(ids, catId);
             } : undefined}
             noun={noun} nounPlural={nounPlural}
           />
@@ -1095,7 +1122,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
         onClose={() => setSelectedItem(null)}
         onChange={updated => setSelectedItem(updated)}
         onSave={async (item) => { await onUpdate(item); setItems(prev => prev.map(p => p.id === item.id ? item : p)); }}
-        onDelete={onDelete ? (id) => { setSelectedItem(null); onDelete(id).then(() => { setItems(prev => prev.filter(p => p.id !== id)); setTotal(prev => prev - 1); }); } : undefined}
+        onDelete={onDelete ? (id) => { setSelectedItem(null); void deleteRows([id]); } : undefined}
       />
 
       {/* ── Pending item move confirm ── */}
@@ -1353,9 +1380,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                   onClick={async () => {
                     const id = itemToDelete;
                     setItemToDelete(null);
-                    await onDelete(id);
-                    setItems(prev => prev.filter(p => p.id !== id));
-                    setTotal(prev => prev - 1);
+                    await deleteRows([id]);
                   }}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
                   Eliminar

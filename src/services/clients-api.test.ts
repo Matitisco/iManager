@@ -115,6 +115,19 @@ describe('clients-api', () => {
     await expect(bulkMoveClientCategoryApi(mockUser, ['client-1'], null)).rejects.toThrow(/Error moviendo clientes/i);
   });
 
+  it('deletes without a JSON content type so Fastify accepts the empty body', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteBackendClient(mockUser, 'client-1');
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients/client-1', {
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+      },
+    });
+  });
+
   it('covers client category fetch, create and rename flows', async () => {
     vi.mocked(fetchWithTimeout)
       .mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Mayoristas' }] }))

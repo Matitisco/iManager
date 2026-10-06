@@ -105,6 +105,13 @@ describe('trade-ins-api', () => {
     });
 
     await expect(deleteBackendTradeIn(mockUser, updatedTradeIn.id)).resolves.toBeUndefined();
+    expect(fetchWithTimeout).toHaveBeenNthCalledWith(2, `https://api.imanager.test/api/trade-ins/${updatedTradeIn.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+      },
+    });
   });
 
   it('covers trade-in category fetch/create and category mutation endpoints', async () => {

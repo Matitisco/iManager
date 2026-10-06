@@ -155,6 +155,106 @@ describe('TableEngine', () => {
     });
   });
 
+  it('deletes every selected row from the context menu', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+    ];
+    const onBulkDelete = vi.fn(async () => {});
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onBulkDelete,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr')!;
+    const betaRow = screen.getByText('Beta').closest('tr')!;
+    await user.click(alphaRow);
+    await user.click(betaRow);
+    fireEvent.contextMenu(betaRow);
+    await user.click(screen.getByText('Eliminar 2'));
+
+    await waitFor(() => {
+      expect(onBulkDelete).toHaveBeenCalledWith(['1', '2']);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps rows and shows the backend error when a delete fails', async () => {
+    const user = userEvent.setup();
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const rows: TestRow[] = [{ id: '1', name: 'Alpha', quantity: 1, categoryId: null }];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onDelete: vi.fn(async () => { throw new Error('No se pudo eliminar la venta (400)'); }),
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    fireEvent.contextMenu((await screen.findByText('Alpha')).closest('tr')!);
+    await user.click(screen.getByText('Eliminar ítem'));
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('No se pudo eliminar la venta (400)');
+    });
+    expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    alertSpy.mockRestore();
+  });
+
+  it('removes moved rows from the current category view after a context menu move', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: 'cat-a' },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: 'cat-a' },
+    ];
+    const onBulkMoveCategory = vi.fn(async () => {});
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async ({ categoryId }) => {
+            const items = categoryId ? rows.filter((row) => row.categoryId === categoryId) : rows;
+            return { items, total: items.length };
+          }),
+          categories: [
+            { id: 'cat-a', name: 'Mostrador' },
+            { id: 'cat-b', name: 'Web' },
+          ],
+          onBulkMoveCategory,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await screen.findByText('Alpha');
+    await user.click(screen.getByRole('button', { name: 'Mostrador' }));
+    fireEvent.contextMenu((await screen.findByText('Alpha')).closest('tr')!);
+    await user.click(screen.getByText('Mover a categoría →'));
+    await user.click(screen.getAllByRole('button', { name: 'Web' }).at(-1)!);
+
+    await waitFor(() => {
+      expect(onBulkMoveCategory).toHaveBeenCalledWith(['1'], 'cat-b');
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+  });
+
   it('commits inline edits through the update handler', async () => {
     const user = userEvent.setup();
     const rows: TestRow[] = [

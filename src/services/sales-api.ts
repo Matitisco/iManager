@@ -20,6 +20,16 @@ async function getAuthHeaders(user: AuthUserLike) {
   };
 }
 
+// Fastify rejects an empty body sent with Content-Type: application/json.
+async function getDeleteHeaders(user: AuthUserLike) {
+  const token = await user.getIdToken();
+
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/json',
+  };
+}
+
 function getBaseUrlOrThrow() {
   const baseUrl = getBackendBaseUrl();
 
@@ -104,7 +114,7 @@ export async function deleteBackendSale(user: AuthUserLike, saleId: string): Pro
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/sales/${saleId}`, {
     method: 'DELETE',
-    headers: await getAuthHeaders(user),
+    headers: await getDeleteHeaders(user),
   });
 
   if (!response.ok && response.status !== 204) {
@@ -155,7 +165,7 @@ export async function deleteSaleCategoryApi(user: AuthUserLike, id: string): Pro
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetch(`${baseUrl}/api/sales/categories/${id}`, {
     method: 'DELETE',
-    headers: await getAuthHeaders(user),
+    headers: await getDeleteHeaders(user),
   });
   if (!response.ok) throw new Error(`Error eliminando categoría`);
 }

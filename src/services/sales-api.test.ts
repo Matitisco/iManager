@@ -123,6 +123,13 @@ describe('sales-api', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(deleteBackendSale(mockUser, 'sale-1')).resolves.toBeUndefined();
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/sales/sale-1', {
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+      },
+    });
     await expect(fetchSalesCategoriesApi(mockUser)).resolves.toEqual([{ id: 'cat-1', name: 'Web' }]);
     await expect(createSaleCategoryApi(mockUser, 'Mostrador')).resolves.toEqual({ id: 'cat-2', name: 'Mostrador' });
     await expect(renameSaleCategoryApi(mockUser, 'cat-2', 'Mostrador Norte')).resolves.toEqual({
