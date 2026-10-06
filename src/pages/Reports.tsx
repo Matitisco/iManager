@@ -35,7 +35,7 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 280, damping: 24 } },
 };
 
-const SLICE_COLORS = ['#161616', '#4B4B4B', '#8A8A8A', '#BDBDBD', '#D9D9D9', '#EEEEEE'];
+const SLICE_COLORS = ['#111111', '#0F766E', '#E11D48', '#D97706', '#2563EB', '#7C3AED'];
 const BAR_MUTED = '#D4D4D4';
 const BAR_CURRENT = '#111111';
 
