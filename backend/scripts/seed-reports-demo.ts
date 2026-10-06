@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Client } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const SEED = "reports-charts";
@@ -230,7 +230,7 @@ async function main() {
     create: { storeId, name: "Celulares", sortOrder: 0 },
   });
 
-  const clients = [];
+  const clients: Client[] = [];
   for (const client of CLIENTS) {
     clients.push(
       await prisma.client.create({
