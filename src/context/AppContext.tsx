@@ -36,6 +36,9 @@ interface AppState {
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
   removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
+  reloadSales: () => Promise<void>;
+  reloadClients: () => Promise<void>;
+  reloadTradeIns: () => Promise<void>;
   inventoryCategories: InventoryCategory[];
   createCategory: (name: string) => Promise<InventoryCategory>;
   renameCategory: (id: string, name: string) => Promise<void>;
@@ -576,6 +579,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInventory(items);
   };
 
+  const reloadSales = async () => {
+    if (!user) return;
+    const items = await fetchBackendSales(user);
+    setSales(items);
+  };
+
+  const reloadClients = async () => {
+    if (!user) return;
+    const items = await fetchBackendClients(user);
+    setClients(items);
+  };
+
+  const reloadTradeIns = async () => {
+    if (!user) return;
+    const items = await fetchBackendTradeIns(user);
+    setTradeIns(items);
+  };
+
   const reloadCategories = async () => {
     if (!user) return;
     try {
@@ -870,7 +891,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addClient, updateClient, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
-      reloadInventory,
+      reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
       tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
