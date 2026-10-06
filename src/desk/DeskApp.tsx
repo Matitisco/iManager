@@ -14,11 +14,21 @@ import type { DeskTab, Overlay } from './types';
 import './desk.css';
 
 const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Agente' };
+const ROUTE: Record<DeskTab, string> = {
+  dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
+  clients: 'clientes', reports: 'rep', notifications: 'notif', settings: 'config',
+};
+
+function tabFromHash(hash: string): DeskTab {
+  const name = hash.replace(/^#\/?/, '').split('/')[0];
+  return (Object.keys(ROUTE) as DeskTab[]).find((key) => ROUTE[key] === name) ?? 'dashboard';
+}
 
 export function DeskApp() {
   const { appSession, tradeIns } = useAppContext();
   const isStaff = appSession?.membership?.role === 'STAFF';
-  const [tab, setTab] = useState<DeskTab>('dashboard');
+  const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
+  const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
@@ -32,9 +42,31 @@ export function DeskApp() {
     return () => window.clearTimeout(timer);
   }, [toastOn, message]);
 
+  useEffect(() => {
+    const apply = () => {
+      let next = tabFromHash(window.location.hash);
+      if (isStaff && next === 'reports') {
+        next = 'dashboard';
+        history.replaceState(null, '', '#/dash');
+      }
+      setTab(next);
+      setOverlay(null);
+    };
+    if (!window.location.hash) history.replaceState(null, '', '#/dash');
+    const onHash = () => { apply(); setEntered(true); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [isStaff]);
+
   const go = (next: DeskTab) => {
     if (isStaff && next === 'reports') return;
-    setTab(next);
+    const hash = `#/${ROUTE[next]}`;
+    if (window.location.hash === hash) {
+      setTab(next);
+      setOverlay(null);
+      return;
+    }
+    window.location.hash = hash;
   };
 
   const ui = {
@@ -89,14 +121,16 @@ export function DeskApp() {
           </button>
         </aside>
         <main className="stage">
-          {tab === 'dashboard' && <DashboardScreen />}
-          {tab === 'inventory' && <InventoryScreen />}
-          {tab === 'sales' && <SalesScreen />}
-          {tab === 'tradeins' && <TradeInsScreen />}
-          {tab === 'clients' && <ClientsScreen />}
-          {tab === 'reports' && <ReportsScreen />}
-          {tab === 'notifications' && <NotificationsScreen />}
-          {tab === 'settings' && <SettingsScreen />}
+          <div key={tab} className={entered ? 'enter-f' : undefined}>
+            {tab === 'dashboard' && <DashboardScreen />}
+            {tab === 'inventory' && <InventoryScreen />}
+            {tab === 'sales' && <SalesScreen />}
+            {tab === 'tradeins' && <TradeInsScreen />}
+            {tab === 'clients' && <ClientsScreen />}
+            {tab === 'reports' && <ReportsScreen />}
+            {tab === 'notifications' && <NotificationsScreen />}
+            {tab === 'settings' && <SettingsScreen />}
+          </div>
         </main>
         <div className={`toast${toastOn ? ' show' : ''}`}><i />{message}</div>
         <DeskOverlays overlay={overlay} />

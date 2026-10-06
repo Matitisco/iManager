@@ -11,8 +11,9 @@ import {
   parseAppDate,
   productLabel,
   saleCode,
+  tradeCode,
 } from '../format';
-import { DeskCta, Pill, useDesk } from '../ui';
+import { DeskCta, Pill, PressTarget, useDesk } from '../ui';
 
 const TASKS = [
   { id: 'inv', label: 'Revisá ingresos o cambios en inventario' },
@@ -150,13 +151,13 @@ export function DashboardScreen() {
                 {recent.map((sale) => {
                   const product = inventory.find((item) => item.id === sale.productId);
                   return (
-                    <tr key={sale.id} onClick={() => open({ type: 'sale', id: sale.id })}>
+                    <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${clientName(clients, sale.clientId)}`, ...point })}>
                       <td><b>#{saleCode(sale)}</b><small>{sale.date}</small></td>
                       <td>{clientName(clients, sale.clientId)}</td>
                       <td>{productLabel(product)}</td>
                       <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                       <td><Pill status={sale.status} /></td>
-                    </tr>
+                    </PressTarget>
                   );
                 })}
               </tbody>
@@ -166,12 +167,12 @@ export function DashboardScreen() {
         <div className="dcard">
           <div className="dch"><h3>Canjes en curso</h3><button className="wlink" type="button" onClick={() => go('tradeins')}>Ver todos</button></div>
           {openTrades.length === 0 ? <div className="wempty">No hay canjes en curso.</div> : openTrades.slice(0, 3).map((trade) => (
-            <button key={trade.id} className="ticket" type="button" onClick={() => open({ type: 'cj', id: trade.id })}>
+            <PressTarget key={trade.id} as="button" className="ticket" onActivate={() => open({ type: 'cj', id: trade.id })} onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: trade.id, label: `${tradeCode(tradeIns, trade.id)} · ${clientName(clients, trade.clientId)}`, ...point })}>
               <div className="meta"><span>#{trade.id.slice(-4).toUpperCase()} · {trade.date}</span><Pill status={trade.status} /></div>
               <div className="ttl">Recibido: {trade.deviceReceived}</div>
               <div className="who">{clientName(clients, trade.clientId)}<br />Entrega: {trade.deviceGiven}</div>
               <div className="amt"><b>{formatMoney(trade.takeValue)}</b><small>dif. {formatMoney(trade.differencePaid)}</small></div>
-            </button>
+            </PressTarget>
           ))}
         </div>
       </div>

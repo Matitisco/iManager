@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { avatarTone, formatMoney, formatMoneyCompact, initials } from '../format';
-import { ChipRow, DeskCta, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
   const { clients } = useAppContext();
@@ -45,13 +45,11 @@ export function ClientsScreen() {
             <thead><tr><th>Cliente</th><th>DNI</th><th>Teléfono</th><th>Última compra</th><th className="r">Gastado</th><th>Saldo</th></tr></thead>
             <tbody>
               {rows.map((client) => (
-                <tr
+                <PressTarget
                   key={client.id}
-                  onClick={() => open({ type: 'cl', id: client.id })}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, x: event.clientX, y: event.clientY });
-                  }}
+                  as="tr"
+                  onActivate={() => open({ type: 'cl', id: client.id })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
                 >
                   <td>
                     <div className="dcell">
@@ -64,7 +62,7 @@ export function ClientsScreen() {
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? client.lastPurchaseDate : '—'}</td>
                   <td className="r">{formatMoney(client.totalSpent)}</td>
                   <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {formatMoneyCompact(client.pendingBalance)}</span> : <span className="spill mid">Sin saldo</span>}</td>
-                </tr>
+                </PressTarget>
               ))}
             </tbody>
           </table>

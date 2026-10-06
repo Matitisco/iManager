@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Smartphone } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { batteryPercent, conditionLabel, formatImei, formatMoney } from '../format';
-import { Battery, ChipRow, DeskCta, MenuButton, Pill, SearchBox, useDesk } from '../ui';
+import { Battery, ChipRow, DeskCta, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -57,20 +57,11 @@ export function InventoryScreen() {
             </thead>
             <tbody>
               {rows.map((item) => (
-                <tr
+                <PressTarget
                   key={item.id}
-                  onClick={() => open({ type: 'eq', id: item.id })}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    open({
-                      type: 'ctx',
-                      kind: 'eq',
-                      id: item.id,
-                      label: `${item.model} · ${item.capacity}`,
-                      x: event.clientX,
-                      y: event.clientY,
-                    });
-                  }}
+                  as="tr"
+                  onActivate={() => open({ type: 'eq', id: item.id })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: `${item.model} · ${item.capacity}`, ...point })}
                 >
                   <td>
                     <div className="dcell">
@@ -83,7 +74,7 @@ export function InventoryScreen() {
                   <td><Battery value={batteryPercent(item.batteryHealth)} /></td>
                   <td className="r"><b>{formatMoney(item.price)}</b></td>
                   <td><Pill status={item.status} /></td>
-                </tr>
+                </PressTarget>
               ))}
             </tbody>
           </table>

@@ -8,6 +8,7 @@ import { AppProvider, useAppContext } from './context/AppContext';
 import { Login } from './pages/Login';
 import { Onboarding } from './pages/Onboarding';
 import { DeskApp } from './desk/DeskApp';
+import { SessionClosed, sessionClosedStore } from './desk/screens/SessionClosed';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
@@ -54,6 +55,7 @@ function BlockingScreen({
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
+  const [closedVersion, setClosedVersion] = useState(0);
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const inviteState = useInvitationPreview(
@@ -98,6 +100,10 @@ function AppContent() {
   }
 
   if (!user) {
+    const storeName = sessionClosedStore();
+    if (storeName) {
+      return <SessionClosed key={closedVersion} storeName={storeName} onRelogin={() => setClosedVersion((version) => version + 1)} />;
+    }
     return <Login inviteToken={inviteToken} />;
   }
 

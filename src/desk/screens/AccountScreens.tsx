@@ -95,7 +95,7 @@ function buildNotes(
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Agente' };
 
 export function SettingsScreen() {
-  const { appSession, user, logout } = useAppContext();
+  const { appSession, user } = useAppContext();
   const { open, isStaff } = useDesk();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
@@ -162,7 +162,7 @@ export function SettingsScreen() {
             <span className="spill mid">{role}</span>
           </div>
         </div>
-        <div className="logout"><button type="button" onClick={() => logout()}>Cerrar sesión</button></div>
+        <div className="logout"><button type="button" onClick={() => open({ type: 'logout' })}>Cerrar sesión</button></div>
       </div>
     </div>
   );

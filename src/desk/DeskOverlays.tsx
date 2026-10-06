@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
@@ -22,8 +22,18 @@ import {
   saleCode,
   tradeCode,
 } from './format';
-import { Actions, DeskIcon, Field, Pill, Segs, Sheet, useDesk } from './ui';
+import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
 import type { Overlay } from './types';
+import { markSessionClosed } from './screens/SessionClosed';
+
+function clearBad(setBad: Dispatch<SetStateAction<Record<string, string>>>, key: string) {
+  setBad((current) => {
+    if (!current[key]) return current;
+    const next = { ...current };
+    delete next[key];
+    return next;
+  });
+}
 
 const PAYMENTS = [
   { id: 'TRANSFERENCIA', label: 'Transferencia' },
@@ -70,7 +80,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
-      <div className="ctx" style={{ top: Math.min(overlay.y, window.innerHeight - 150), left: Math.min(overlay.x, window.innerWidth - 236) }} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="ctx" style={{ top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
         <div className="ctxh">{overlay.label}</div>
         <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button>
         <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />Eliminar</button>
@@ -100,10 +110,15 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   };
 
   if (overlay.type === 'logout') {
+    const google = ctx.user?.providerData?.some((provider) => provider.providerId === 'google.com');
     return (
-      <Sheet title="¿Cerrar sesión?" subtitle="Vas a tener que volver a entrar." onClose={desk.close}>
-        <Actions primary="Cerrar sesión" danger onPrimary={() => ctx.logout()} onSecondary={desk.close} />
-      </Sheet>
+      <Dialog
+        title="¿Cerrar sesión?"
+        text={google ? 'Vas a tener que volver a entrar con tu cuenta de Google.' : 'Vas a tener que volver a entrar con tu email y contraseña.'}
+        ok="Cerrar sesión"
+        onClose={desk.close}
+        onOk={() => { markSessionClosed(ctx.appSession?.store?.name || 'tu tienda'); ctx.logout(); }}
+      />
     );
   }
 
@@ -115,15 +130,21 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
       cl: ['este cliente', 'Cliente eliminado'],
     }[overlay.kind];
     return (
-      <Sheet title={`¿Eliminar ${copy[0]}?`} subtitle={`${overlay.label} se va a borrar y no se puede deshacer.`} onClose={desk.close}>
-        {error && <div className="err">{error}</div>}
-        <Actions danger busy={busy} primary="Eliminar" onSecondary={desk.close} onPrimary={() => run(async () => {
+      <Dialog
+        title={`¿Eliminar ${copy[0]}?`}
+        text={`${overlay.label} se va a borrar y no se puede deshacer.`}
+        ok="Eliminar"
+        danger
+        busy={busy}
+        error={error}
+        onClose={desk.close}
+        onOk={() => run(async () => {
           if (overlay.kind === 'eq') await ctx.deleteProduct(overlay.id);
           if (overlay.kind === 'sale') await ctx.deleteSale(overlay.id);
           if (overlay.kind === 'cj') await ctx.deleteTradeIn(overlay.id);
           if (overlay.kind === 'cl') await ctx.deleteClient(overlay.id);
-        }, copy[1])} />
-      </Sheet>
+        }, copy[1])}
+      />
     );
   }
 
@@ -179,18 +200,19 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [grade, setGrade] = useState(current?.grade && current.grade !== 'N/A' ? current.grade : 'A');
   const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
   const [status, setStatus] = useState(current?.status || 'DISPONIBLE');
+  const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle="Los datos se guardan en el inventario de la tienda." onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Modelo"><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Ej. iPhone 13" /></Field>
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Modelo" error={bad.model}><input value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <Field label="Capacidad"><span /></Field>
       <Segs options={CAPS.map((item) => ({ id: item, label: item }))} value={capacity} onChange={setCapacity} />
       <div className="frow">
-        <Field label="Color"><input value={color} onChange={(event) => setColor(event.target.value)} placeholder="Ej. Azul" /></Field>
+        <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
-      <Field label="IMEI"><input value={imei} inputMode="numeric" onChange={(event) => setImei(event.target.value.replace(/\D/g, '').slice(0, 20))} placeholder="15 dígitos" /></Field>
+      <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={CONDITIONS} value={condition} onChange={setCondition} />
       {condition !== 'NUEVO' && (
@@ -199,11 +221,19 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           <Segs options={GRADES.map((item) => ({ id: item, label: item }))} value={grade} onChange={setGrade} />
         </>
       )}
-      <Field label="Precio de venta"><input value={price} inputMode="numeric" onChange={(event) => setPrice(formatInputMoney(parseMoney(event.target.value)))} placeholder="$ 0" /></Field>
+      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={EQ_STATUS} value={status} onChange={setStatus} />
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => run(async () => {
-        if (!model.trim() || !color.trim() || !imei.trim()) throw new Error('Completá modelo, color e IMEI.');
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!model.trim()) next.model = 'Completá este dato';
+        if (!color.trim()) next.color = 'Completá este dato';
+        if (!imei.trim()) next.imei = 'Completá este dato';
+        else if (imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (!parseMoney(price)) next.price = 'Completá este dato';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
         const payload: Omit<Product, 'id'> = {
           imei: imei.trim(),
           model: model.trim(),
@@ -220,7 +250,8 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         };
         if (current) await updateProduct({ ...current, ...payload });
         else await addProduct(payload);
-      }, current ? 'Equipo actualizado' : 'Equipo cargado')} />
+      }, current ? 'Equipo actualizado' : 'Equipo cargado');
+      }} />
     </Sheet>
   );
 }
@@ -237,11 +268,12 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
   const [amount, setAmount] = useState(formatInputMoney(current?.amount || available.find((item) => item.id === (preset?.productId || available[0]?.id))?.price || 0));
   const [newName, setNewName] = useState('');
   const [newDni, setNewDni] = useState('');
+  const [bad, setBad] = useState<Record<string, string>>({});
   const selected = available.find((item) => item.id === productId);
 
   return (
     <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle="Elegí el equipo y cómo pagó el cliente." onClose={close}>
-      {error && <div className="err">{error}</div>}
+      {error && <div className="ferr">{error}</div>}
       {available.length === 0 ? <div className="wempty">No hay equipos disponibles.</div> : available.map((item) => (
         <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); if (!current) setAmount(formatInputMoney(item.price)); }}>
           <div>{item.model} · {item.capacity}<small>{item.color} · IMEI …{item.imei.slice(-4)}</small></div>
@@ -256,20 +288,26 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       </Field>
       {!clientId && (
         <div className="frow">
-          <Field label="Nombre"><input value={newName} onChange={(event) => setNewName(event.target.value)} /></Field>
-          <Field label="DNI"><input value={newDni} onChange={(event) => setNewDni(event.target.value)} /></Field>
+          <Field label="Nombre" error={bad.name}><input value={newName} onChange={(event) => { setNewName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
+          <Field label="DNI" error={bad.dni}><input value={newDni} onChange={(event) => { setNewDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
         </div>
       )}
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
-      <Field label="Total"><input value={amount} inputMode="numeric" onChange={(event) => setAmount(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+      <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={SALE_STATUS} value={status} onChange={setStatus} />
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => run(async () => {
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!clientId && !newName.trim()) next.name = 'Completá este dato';
+        if (!clientId && !newDni.trim()) next.dni = 'Completá este dato';
+        if (!parseMoney(amount)) next.amount = 'Completá este dato';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
         if (!selected) throw new Error('Seleccioná un equipo disponible.');
         let nextClient = clientId;
         if (!nextClient) {
-          if (!newName.trim() || !newDni.trim()) throw new Error('Completá nombre y DNI del cliente.');
           const created = await addClient({ dni: newDni.trim(), name: newName.trim(), email: '', phone: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 });
           nextClient = created.id;
         }
@@ -285,7 +323,8 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
         };
         if (current) await updateSale({ ...current, ...payload });
         else await addSale(payload);
-      }, current ? 'Venta actualizada' : 'Venta registrada')} />
+      }, current ? 'Venta actualizada' : 'Venta registrada');
+      }} />
     </Sheet>
   );
 }
@@ -298,7 +337,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const product = inventory.find((item) => item.id === sale.productId);
   return (
     <Sheet title={saleCode(sale)} subtitle={sale.date} onClose={close}>
-      {error && <div className="err">{error}</div>}
+      {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{clientName(clients, sale.clientId)}</b></div>
       <div className="kv"><span>Equipo</span><b>{productLabel(product)}</b></div>
@@ -328,19 +367,21 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [take, setTake] = useState(formatInputMoney(current?.takeValue ?? 0));
   const [diff, setDiff] = useState(formatInputMoney(current?.differencePaid ?? 0));
   const [status, setStatus] = useState(current?.status || 'PENDIENTE');
+  const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
     <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle="El cliente entrega su equipo y se lleva uno del stock." onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Cliente">
-        <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Cliente" error={bad.client}>
+        <select value={clientId} onChange={(event) => { setClientId(event.target.value); clearBad(setBad, 'client'); }}>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
       </Field>
-      <Field label="Equipo que recibís"><input value={received} onChange={(event) => setReceived(event.target.value)} placeholder="Ej. iPhone 11 64GB" /></Field>
-      <Field label="IMEI recibido"><input value={imei} onChange={(event) => setImei(event.target.value)} /></Field>
-      <Field label="Equipo que entregás">
+      <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
+      <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      <Field label="Equipo que entregás" error={bad.given}>
         <select value={given} onChange={(event) => {
+          clearBad(setBad, 'given');
           setGiven(event.target.value);
           const match = available.find((item) => `${item.model} ${item.capacity}` === event.target.value);
           if (match) setDiff(formatInputMoney(Math.max(0, match.price - parseMoney(take))));
@@ -358,8 +399,16 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
       </div>
       <Field label="Estado"><span /></Field>
       <Segs options={CJ_STATUS} value={status} onChange={setStatus} />
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => run(async () => {
-        if (!clientId || !received.trim() || !imei.trim() || !given.trim()) throw new Error('Completá cliente, equipo recibido, IMEI y equipo entregado.');
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!clientId) next.client = 'Completá este dato';
+        if (!received.trim()) next.received = 'Completá este dato';
+        if (!imei.trim()) next.imei = 'Completá este dato';
+        else if (imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (!given.trim()) next.given = 'Completá este dato';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
         const payload: Omit<TradeIn, 'id'> = {
           date: current?.date || new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
           clientId,
@@ -376,7 +425,8 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         };
         if (current) await updateTradeIn({ ...current, ...payload });
         else await addTradeIn(payload);
-      }, current ? 'Canje actualizado' : 'Canje creado')} />
+      }, current ? 'Canje actualizado' : 'Canje creado');
+      }} />
     </Sheet>
   );
 }
@@ -391,7 +441,7 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   return (
     <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${clientName(clients, trade.clientId)}`} subtitle={`${trade.date} · ${trade.status}`} onClose={close}>
-      {error && <div className="err">{error}</div>}
+      {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{formatMoney(trade.differencePaid)}</div></div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
@@ -433,19 +483,25 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [phone, setPhone] = useState(current?.phone ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
   const [balance, setBalance] = useState(formatInputMoney(current?.pendingBalance ?? 0));
+  const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
     <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Nombre y apellido"><input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Nombre y apellido" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <div className="frow">
-        <Field label="DNI"><input value={dni} onChange={(event) => setDni(event.target.value)} /></Field>
+        <Field label="DNI" error={bad.dni}><input value={dni} onChange={(event) => { setDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
         <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
       </div>
       <Field label="Email"><input value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
       <Field label="Saldo pendiente"><input value={balance} inputMode="numeric" onChange={(event) => setBalance(formatInputMoney(parseMoney(event.target.value)))} /></Field>
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => run(async () => {
-        if (!name.trim() || !dni.trim()) throw new Error('Completá nombre y DNI.');
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!name.trim()) next.name = 'Completá este dato';
+        if (!dni.trim()) next.dni = 'Completá este dato';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
         const payload: Omit<Client, 'id'> = {
           name: name.trim(),
           dni: dni.trim(),
@@ -459,7 +515,8 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
         };
         if (current) await updateClient({ ...current, ...payload });
         else await addClient(payload);
-      }, current ? 'Cliente actualizado' : 'Cliente guardado')} />
+      }, current ? 'Cliente actualizado' : 'Cliente guardado');
+      }} />
     </Sheet>
   );
 }
@@ -473,20 +530,24 @@ function StoreForm({ run, busy, error }: FormProps) {
   const [address, setAddress] = useState(store?.address ?? '');
   const [phone, setPhone] = useState(store?.phone ?? '');
   const [currency, setCurrency] = useState(store?.currency || 'ARS');
+  const [bad, setBad] = useState<Record<string, string>>({});
   return (
     <Sheet title="Datos de la tienda" onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Nombre"><input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
       <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
       <Field label="Moneda">
         <select value={currency} onChange={(event) => setCurrency(event.target.value)}><option>ARS</option><option>USD</option></select>
       </Field>
-      <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => run(async () => {
-        if (!name.trim()) throw new Error('El nombre de la tienda es obligatorio.');
+      <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
+        if (!name.trim()) { setBad({ name: 'Completá este dato' }); return; }
+        setBad({});
+        void run(async () => {
         await updateStore({ name: name.trim(), taxId: taxId.trim() || null, address: address.trim() || null, phone: phone.trim() || null, currency });
-      }, 'Tienda actualizada')} />
+      }, 'Tienda actualizada');
+      }} />
     </Sheet>
   );
 }
@@ -495,14 +556,18 @@ function ProfileForm({ run, busy, error }: FormProps) {
   const { appSession, updateUserProfile } = useAppContext();
   const { close } = useDesk();
   const [name, setName] = useState(appSession?.user.displayName ?? '');
+  const [bad, setBad] = useState<Record<string, string>>({});
   return (
     <Sheet title="Perfil" subtitle={appSession?.user.email ?? ''} onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Nombre"><input value={name} onChange={(event) => setName(event.target.value)} /></Field>
-      <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => run(async () => {
-        if (!name.trim()) throw new Error('Completá tu nombre.');
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
+      <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
+        if (!name.trim()) { setBad({ name: 'Completá este dato' }); return; }
+        setBad({});
+        void run(async () => {
         await updateUserProfile({ displayName: name.trim() });
-      }, 'Perfil actualizado')} />
+      }, 'Perfil actualizado');
+      }} />
     </Sheet>
   );
 }
@@ -513,25 +578,34 @@ function PasswordForm({ run, busy, error }: FormProps) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [repeat, setRepeat] = useState('');
+  const [bad, setBad] = useState<Record<string, string>>({});
   const emailUser = user?.providerData?.some((provider) => provider.providerId === 'password') ?? false;
   if (!emailUser) {
     return <Sheet title="Seguridad" subtitle="Esta cuenta entra con Google. La contraseña se administra ahí." onClose={close}><button className="btn2 p" type="button" onClick={close}>Entendido</button></Sheet>;
   }
   return (
     <Sheet title="Cambiar contraseña" subtitle="Usá al menos 8 caracteres." onClose={close}>
-      {error && <div className="err">{error}</div>}
-      <Field label="Contraseña actual"><input type="password" value={current} onChange={(event) => setCurrent(event.target.value)} /></Field>
-      <Field label="Nueva contraseña"><input type="password" value={next} onChange={(event) => setNext(event.target.value)} /></Field>
-      <Field label="Repetir nueva"><input type="password" value={repeat} onChange={(event) => setRepeat(event.target.value)} /></Field>
-      <Actions busy={busy} primary="Actualizar" onSecondary={close} onPrimary={() => run(async () => {
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Contraseña actual" error={bad.current}><input type="password" value={current} onChange={(event) => { setCurrent(event.target.value); clearBad(setBad, 'current'); }} /></Field>
+      <Field label="Nueva contraseña" error={bad.next}><input type="password" value={next} onChange={(event) => { setNext(event.target.value); clearBad(setBad, 'next'); }} /></Field>
+      <Field label="Repetir nueva" error={bad.repeat}><input type="password" value={repeat} onChange={(event) => { setRepeat(event.target.value); clearBad(setBad, 'repeat'); }} /></Field>
+      <Actions busy={busy} primary="Actualizar" onSecondary={close} onPrimary={() => {
+        const fields: Record<string, string> = {};
+        if (!current) fields.current = 'Completá este dato';
+        if (!next) fields.next = 'Completá este dato';
+        else if (next.length < 8) fields.next = 'Mínimo 8 caracteres';
+        if (!repeat) fields.repeat = 'Completá este dato';
+        else if (next && next !== repeat) fields.repeat = 'No coinciden';
+        setBad(fields);
+        if (Object.keys(fields).length) return;
+        void run(async () => {
         if (!user?.email || !('reload' in user)) throw new Error('No se pudo validar la sesión.');
         const firebaseUser = user as FirebaseUser;
-        if (next.length < 8) throw new Error('Mínimo 8 caracteres.');
-        if (next !== repeat) throw new Error('Las contraseñas no coinciden.');
         const credential = EmailAuthProvider.credential(user.email, current);
         await reauthenticateWithCredential(firebaseUser, credential);
         await updatePassword(firebaseUser, next);
-      }, 'Contraseña actualizada')} />
+      }, 'Contraseña actualizada');
+      }} />
     </Sheet>
   );
 }
@@ -545,7 +619,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
   const [busy, setBusy] = useState(false);
   return (
     <Sheet title={url ? 'Link listo' : 'Invitar al equipo'} subtitle={url ? 'El link es de un solo uso.' : 'Generá un link para sumar a alguien a la tienda.'} onClose={close}>
-      {error && <div className="err">{error}</div>}
+      {error && <div className="ferr">{error}</div>}
       {url ? (
         <div className="linkrow"><span>{url}</span><button className="dbtn s" type="button" onClick={() => navigator.clipboard.writeText(url).then(() => toast('Link copiado'))}>Copiar</button></div>
       ) : (

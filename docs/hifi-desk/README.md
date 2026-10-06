@@ -95,7 +95,7 @@ Ordenado para que cada fase deje la app usable y mejore lo más visible primero.
 
 **GL-02**, **GL-03**, **GL-04**, **GL-05**, **GL-06**, **GL-07**, **GL-08**, **GL-10**, **GL-11**, **GL-12**, **GL-14**, **GL-15**, **GL-16**, **MG-02**, **MG-03**, **MG-04**, **MG-06** a **MG-12**, **MV-03**, **SH-01** a **SH-06** y **HD-01** a **HD-05**.
 
-### Fase 2 — comportamiento del shell y de los modales (frontend)
+### Fase 2 — comportamiento del shell y de los modales (aplicada en `hifi-desk`)
 
 **GL-01**, **GL-09**, **GL-13**, **GL-17** (rutas por hash, transición, mantener apretado y cierre de overlay al navegar), **MG-01** / **EL-01** (diálogo compacto), **MG-05** / **MV-04** / **EE-03** (validación por campo, IMEI de 15 dígitos), **CF-10** y **SA-01** (confirmación de logout y pantalla «Sesión cerrada»).
 

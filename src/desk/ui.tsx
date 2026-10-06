@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { DeskTab, Overlay } from './types';
 import { statusColor, statusLabel } from './format';
 
@@ -90,12 +90,116 @@ export function DeskCta({ children, onClick }: { children: React.ReactNode; onCl
   );
 }
 
-export function Sheet({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void }) {
+function useEscape(onClose: () => void) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+}
+
+export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
+  const top = rect.bottom + 160 < window.innerHeight ? rect.bottom + 4 : Math.max(12, rect.top - 150);
+  const left = Math.min(window.innerWidth - 236, Math.max(12, clientX - 20));
+  return { x: left, y: top };
+}
+
+function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void) {
+  const timer = useRef<number | null>(null);
+  const origin = useRef({ x: 0, y: 0 });
+  const firedAt = useRef(0);
+  const target = useRef<HTMLElement | null>(null);
+  const stop = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    target.current?.classList.remove('holding');
+  };
+  useEffect(() => {
+    const onScroll = () => stop();
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, []);
+  return {
+    onPointerDown(event: React.PointerEvent<HTMLElement>) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      origin.current = { x: event.clientX, y: event.clientY };
+      target.current = event.currentTarget;
+      event.currentTarget.classList.add('holding');
+      const node = event.currentTarget;
+      const x = event.clientX;
+      const y = event.clientY;
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        node.classList.remove('holding');
+        firedAt.current = Date.now();
+        onMenu(menuPosition(x, y, node.getBoundingClientRect()));
+      }, 480);
+    },
+    onPointerMove(event: React.PointerEvent<HTMLElement>) {
+      if (!timer.current) return;
+      const dx = event.clientX - origin.current.x;
+      const dy = event.clientY - origin.current.y;
+      if (dx * dx + dy * dy > 64) stop();
+    },
+    onPointerUp() { stop(); },
+    onPointerCancel() { stop(); },
+    onContextMenu(event: React.MouseEvent<HTMLElement>) {
+      event.preventDefault();
+      stop();
+      firedAt.current = Date.now();
+      onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
+    },
+    onClick(event: React.MouseEvent) {
+      if (Date.now() - firedAt.current < 700) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      onActivate();
+    },
+  };
+}
+
+export function PressTarget({ as, className, onActivate, onMenu, children }: {
+  as: 'tr' | 'button';
+  className?: string;
+  onActivate: () => void;
+  onMenu: (point: { x: number; y: number }) => void;
+  children: React.ReactNode;
+}) {
+  const bind = usePress(onMenu, onActivate);
+  if (as === 'button') return <button className={className} type="button" {...bind}>{children}</button>;
+  return <tr className={className} {...bind}>{children}</tr>;
+}
+
+export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: {
+  title: string;
+  text: string;
+  ok: string;
+  onOk: () => void;
+  onClose: () => void;
+  danger?: boolean;
+  busy?: boolean;
+  error?: string | null;
+}) {
+  useEscape(onClose);
+  return (
+    <div className="ov center" onMouseDown={onClose}>
+      <div className="dialog" role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+        <h3>{title}</h3>
+        <p>{text}</p>
+        {error ? <div className="ferr">{error}</div> : null}
+        <div className="row">
+          <button type="button" className="cancel" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button type="button" className={`ok${danger ? ' danger' : ''}`} onClick={onOk} disabled={busy}>{ok}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Sheet({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void }) {
+  useEscape(onClose);
 
   return (
     <div className="ov" onMouseDown={onClose}>
@@ -108,8 +212,14 @@ export function Sheet({ title, subtitle, children, onClose }: { title: string; s
   );
 }
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="fl"><span>{label}</span>{children}</label>;
+export function Field({ label, error, children }: { label: string; error?: string; children?: React.ReactNode }) {
+  return (
+    <label className={`fl${error ? ' bad' : ''}`}>
+      <span>{label}</span>
+      {children}
+      {error ? <div className="err">{error}</div> : null}
+    </label>
+  );
 }
 
 export function Segs({ options, value, onChange }: { options: { id: string; label: string; color?: string }[]; value: string; onChange: (id: string) => void }) {

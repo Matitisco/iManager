@@ -10,7 +10,7 @@ import {
   saleCode,
   type PeriodKey,
 } from '../format';
-import { DeskCta, MenuButton, Pill, SearchBox, useDesk } from '../ui';
+import { DeskCta, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -80,13 +80,11 @@ export function SalesScreen() {
               {rows.map((sale) => {
                 const product = inventory.find((item) => item.id === sale.productId);
                 return (
-                  <tr
+                  <PressTarget
                     key={sale.id}
-                    onClick={() => open({ type: 'sale', id: sale.id })}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${clientName(clients, sale.clientId)}`, x: event.clientX, y: event.clientY });
-                    }}
+                    as="tr"
+                    onActivate={() => open({ type: 'sale', id: sale.id })}
+                    onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${clientName(clients, sale.clientId)}`, ...point })}
                   >
                     <td><b>#{saleCode(sale)}</b></td>
                     <td>{sale.date}</td>
@@ -95,7 +93,7 @@ export function SalesScreen() {
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                     <td><Pill status={sale.status} /></td>
-                  </tr>
+                  </PressTarget>
                 );
               })}
             </tbody>

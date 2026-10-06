@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { clientName, formatMoney, tradeCode } from '../format';
-import { ChipRow, DeskCta, Pill, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const COLUMNS = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -60,21 +60,18 @@ export function TradeInsScreen() {
             <div className="dcol" key={column.id}>
               <div className="dcolh"><span>{column.label}</span><b>{items.length}</b></div>
               {items.length === 0 ? <div className="dempty">Sin canjes</div> : items.map((item) => (
-                <button
+                <PressTarget
                   key={item.id}
+                  as="button"
                   className="ticket"
-                  type="button"
-                  onClick={() => open({ type: 'cj', id: item.id })}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${clientName(clients, item.clientId)}`, x: event.clientX, y: event.clientY });
-                  }}
+                  onActivate={() => open({ type: 'cj', id: item.id })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${clientName(clients, item.clientId)}`, ...point })}
                 >
                   <div className="meta"><span>#{tradeCode(tradeIns, item.id)} · {item.date}</span><Pill status={item.status} /></div>
                   <div className="ttl">Recibido: {item.deviceReceived}</div>
                   <div className="who">{clientName(clients, item.clientId)}<br />Entrega: {item.deviceGiven}</div>
                   <div className="amt"><b>{formatMoney(item.takeValue)}</b><small>dif. {formatMoney(item.differencePaid)}</small></div>
-                </button>
+                </PressTarget>
               ))}
             </div>
           );
