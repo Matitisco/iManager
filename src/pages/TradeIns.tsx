@@ -1,10 +1,9 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { AlertCircle, Banknote, Calculator, CheckCircle2 } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
 import type { BadgeMeta, TableEngineConfig } from '../components/table-engine';
-import { EditPanel } from '../components/table-engine/components/EditPanel';
 import { formatCurrency, trimToString } from '../lib/utils';
 import type { Client, TradeIn } from '../types';
 import {
@@ -95,52 +94,6 @@ const StatCard = ({ title, value, trend, icon }: StatCardProps) => (
   </motion.div>
 );
 
-type EvaluationCardProps = {
-  trade: TradeIn;
-  client?: Client;
-  onOpen: () => void;
-};
-
-const EvaluationCard = ({ trade, client, onOpen }: EvaluationCardProps) => (
-  <motion.button
-    whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
-    onClick={onOpen}
-    className="bg-white p-4 rounded-2xl border border-gray-200 flex gap-4 transition-shadow text-left"
-  >
-    <div className="w-20 h-24 rounded-xl bg-gray-900/5 shrink-0 border border-gray-100 shadow-inner flex items-center justify-center text-gray-500 text-xs font-bold px-2 text-center">
-      {trade.deviceReceived}
-    </div>
-    <div className="flex-1 flex flex-col justify-between">
-      <div>
-        <div className="flex justify-between items-start mb-1 gap-3">
-          <h3 className="font-bold text-gray-900">{trade.deviceReceived}</h3>
-          <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide ${TRADE_IN_STATUS_BADGE[trade.status].bg} ${TRADE_IN_STATUS_BADGE[trade.status].text}`}>
-            {TRADE_IN_STATUS_BADGE[trade.status].label}
-          </span>
-        </div>
-        <div className="text-xs text-gray-500 space-y-0.5">
-          <div className="flex justify-between gap-3">
-            <span>Cliente:</span>
-            <span className="font-medium text-gray-900 text-right">{client?.name || 'Sin cliente'}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Batería:</span>
-            <span className="font-medium text-gray-900">{trimToString(trade.batteryHealth) || 'N/D'}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Grado:</span>
-            <span className="font-medium text-gray-900">{trimToString(trade.grade) || 'N/D'}</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs text-gray-400">Valor estimado</span>
-        <span className="font-black text-gray-900">{formatCurrency(trade.takeValue)}</span>
-      </div>
-    </div>
-  </motion.button>
-);
-
 interface TradeInsProps {
   searchTerm?: string;
 }
@@ -163,7 +116,6 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
     addCustomColumn,
     removeCustomColumn,
   } = useAppContext();
-  const [selectedTradeIn, setSelectedTradeIn] = useState<TradeIn | null>(null);
   const tradeInCustomColumns = useMemo(
     () => customColumns.filter((column) => column.entity === 'trade-ins'),
     [customColumns],
@@ -184,7 +136,6 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
       : 0;
   const approvedTradeIns = tradeIns.filter((trade) => trade.status === 'APROBADO').length;
   const approvalRate = tradeIns.length > 0 ? (approvedTradeIns / tradeIns.length) * 100 : 0;
-  const highlightedTradeIns = useMemo(() => tradeIns.slice(0, 3), [tradeIns]);
 
   const clientSelectOptions = useMemo(
     () =>
@@ -603,48 +554,12 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
         </motion.div>
       </div>
 
-      <motion.div variants={item}>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <h2 className="text-lg font-bold text-gray-900">Canjes recientes</h2>
-          <span className="text-sm text-gray-500">Vista rápida de los últimos registros cargados.</span>
-        </div>
-        {highlightedTradeIns.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-8 text-center text-gray-500">
-            Todavía no hay canjes registrados para mostrar.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {highlightedTradeIns.map((trade) => (
-              <EvaluationCard
-                key={trade.id}
-                trade={trade}
-                client={getClient(trade.clientId)}
-                onOpen={() => setSelectedTradeIn(trade)}
-              />
-            ))}
-          </div>
-        )}
-      </motion.div>
-
       <motion.div
         variants={item}
         className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white h-[32rem]"
       >
         <TableEngine config={config} user={user} searchTerm={searchTerm} />
       </motion.div>
-
-      <EditPanel
-        item={selectedTradeIn}
-        fields={[...editPanelFields]}
-        title="Editar Canje"
-        onClose={() => setSelectedTradeIn(null)}
-        onChange={(updatedTradeIn) => setSelectedTradeIn(updatedTradeIn)}
-        onSave={persistTradeInUpdate}
-        onDelete={(tradeInId) => {
-          setSelectedTradeIn(null);
-          void persistTradeInDelete(tradeInId);
-        }}
-      />
     </motion.div>
   );
 };

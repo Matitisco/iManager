@@ -1,7 +1,5 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatCurrency } from '../lib/utils';
 import type { Client, CustomColumn, TradeIn, TradeInCategory } from '../types';
 import { TradeIns } from './TradeIns';
 
@@ -44,19 +42,6 @@ vi.mock('../components/table-engine', () => ({
       </div>
     );
   },
-}));
-
-vi.mock('../components/table-engine/components/EditPanel', () => ({
-  EditPanel: ({ item, title, onSave, onDelete, onClose }: any) =>
-    item ? (
-      <div data-testid="tradeins-edit-panel">
-        <h2>{title}</h2>
-        <span>{item.deviceReceived}</span>
-        <button onClick={() => void onSave(item)}>Guardar cambios</button>
-        <button onClick={() => onDelete?.(item.id)}>Eliminar</button>
-        <button onClick={onClose}>Cerrar</button>
-      </div>
-    ) : null,
 }));
 
 vi.mock('../services/trade-ins-table-api', () => ({
@@ -204,34 +189,20 @@ describe('TradeIns', () => {
     resetMocks();
   });
 
-  it('renders KPIs, recent cards and a fallback client label', () => {
+  it('renders KPIs and the trade-ins table', () => {
     render(<TradeIns searchTerm="galaxy" />);
 
-    expect(screen.getByText('Canjes recientes')).toBeInTheDocument();
+    expect(screen.queryByText('Canjes recientes')).not.toBeInTheDocument();
     expect(screen.getByText('4 totales')).toBeInTheDocument();
     expect(screen.getByText('1 aprobados')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument();
     expect(screen.getByText(/\$\s*2\.400/)).toBeInTheDocument();
     expect(screen.getByText(/\$\s*400/)).toBeInTheDocument();
-
-    expect(screen.getByRole('button', { name: /iPhone 13/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Galaxy S24/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Motorola Edge/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Nokia G50/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Sin cliente')).toBeInTheDocument();
-
+    expect(screen.getByText('Historial de Canjes')).toBeInTheDocument();
     expect(screen.getByTestId('tradeins-table-engine')).toBeInTheDocument();
     expect(mockState.latestTableProps?.searchTerm).toBe('galaxy');
     expect(mockState.latestTableProps?.user).toBe(mockState.appContext.user);
-  });
-
-  it('shows the recent-trade empty state when there are no trade-ins', () => {
-    mockState.appContext.tradeIns = [];
-
-    render(<TradeIns />);
-
-    expect(screen.getByText(/no hay canjes registrados para mostrar/i)).toBeInTheDocument();
   });
 
   it('wires TableEngine callbacks for filters, categories, custom columns, create, import and bulk actions', async () => {
@@ -377,29 +348,16 @@ describe('TradeIns', () => {
     ]);
   });
 
-  it('opens the edit panel from a recent card and persists save/delete through the app context', async () => {
-    const user = userEvent.setup();
+  it('persists trade-in updates and deletes through the table config', async () => {
     render(<TradeIns />);
 
-    await user.click(screen.getByRole('button', { name: /iPhone 13/i }));
-
-    const panel = await screen.findByTestId('tradeins-edit-panel');
-    expect(within(panel).getByText('Editar Canje')).toBeInTheDocument();
-    expect(within(panel).getByText('iPhone 13')).toBeInTheDocument();
-
-    await user.click(within(panel).getByRole('button', { name: 'Guardar cambios' }));
-
-    await waitFor(() => {
-      expect(mockState.appContext.updateTradeIn).toHaveBeenCalledWith(tradeIns[0]);
-    });
+    const config = mockState.latestTableProps?.config;
+    await config.onUpdate(tradeIns[0]);
+    expect(mockState.appContext.updateTradeIn).toHaveBeenCalledWith(tradeIns[0]);
     expect(mockState.invalidateTradeInsCache).toHaveBeenCalledTimes(1);
 
-    await user.click(within(panel).getByRole('button', { name: 'Eliminar' }));
-
-    await waitFor(() => {
-      expect(mockState.appContext.deleteTradeIn).toHaveBeenCalledWith('trade-1');
-    });
+    await config.onDelete('trade-1');
+    expect(mockState.appContext.deleteTradeIn).toHaveBeenCalledWith('trade-1');
     expect(mockState.invalidateTradeInsCache).toHaveBeenCalledTimes(2);
-    expect(screen.queryByTestId('tradeins-edit-panel')).not.toBeInTheDocument();
   });
 });
