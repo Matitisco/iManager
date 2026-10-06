@@ -39,6 +39,14 @@ describe('Login', () => {
     mockInvitationState.isRetrying = false;
   });
 
+  it('does not show help or privacy links', () => {
+    render(<Login />);
+
+    expect(screen.queryByRole('link', { name: 'Ayuda' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Privacidad' })).not.toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`${new Date().getFullYear()} iManager`))).toBeInTheDocument();
+  });
+
   it('submits email login through the app context', async () => {
     render(<Login />);
 
