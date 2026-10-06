@@ -241,4 +241,9 @@ export interface TableEngineConfig<TRow extends WithId> {
   // Noun for UI labels e.g. "equipo", "cliente", "producto"
   noun?: string;
   nounPlural?: string;
+
+  /** When set, the table loads one page at a time instead of infinite scroll. */
+  pagination?: {
+    pageSize: number;
+  };
 }

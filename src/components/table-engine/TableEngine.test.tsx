@@ -110,6 +110,51 @@ describe('TableEngine', () => {
     expect(screen.queryByText('iPhone 14')).not.toBeInTheDocument();
   });
 
+  it('shows one page at a time and moves with the page controls', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = Array.from({ length: 5 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Equipo ${index + 1}`,
+      quantity: index + 1,
+      categoryId: null,
+    }));
+    const fetchPage = vi.fn(async ({ skip = 0, take = 2 }: { skip?: number; take?: number }) => ({
+      items: rows.slice(skip, skip + take),
+      total: rows.length,
+    }));
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage,
+          pagination: { pageSize: 2 },
+          noun: 'equipo',
+          nounPlural: 'equipos',
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    expect(await screen.findByText('Equipo 1')).toBeInTheDocument();
+    expect(screen.getByText('Equipo 2')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 3')).not.toBeInTheDocument();
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 0, take: 2 }));
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+
+    expect(await screen.findByText('Equipo 3')).toBeInTheDocument();
+    expect(screen.getByText('Equipo 4')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 1')).not.toBeInTheDocument();
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 2, take: 2 }));
+    expect(screen.getByText('3–4')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Página anterior' }));
+
+    expect(await screen.findByText('Equipo 1')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 3')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+  });
+
   it('supports range selection and bulk delete', async () => {
     const user = userEvent.setup();
     const rows: TestRow[] = [
