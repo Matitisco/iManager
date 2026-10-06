@@ -1039,8 +1039,12 @@ function DonutPanel({
         <div className="flex min-h-64 items-center justify-center text-sm text-gray-400">{view.sliceEmpty}</div>
       ) : (
         <div className="mt-6 flex flex-col items-center gap-8 lg:flex-row lg:items-center lg:gap-12">
-          <div className="relative h-[260px] w-[260px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <div className="relative h-[260px] w-[260px] shrink-0 overflow-visible">
+            <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
+              <p className="text-2xl font-black tracking-tight text-gray-900">{view.sliceTotal}</p>
+              <p className="text-xs text-gray-500">Total</p>
+            </div>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} className="relative z-10 overflow-visible">
               <PieChart>
                 <Pie
                   data={view.slices}
@@ -1060,7 +1064,8 @@ function DonutPanel({
                   ))}
                 </Pie>
                 <Tooltip
-                  wrapperStyle={{ outline: 'none', background: 'transparent', border: 'none', boxShadow: 'none' }}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                  wrapperStyle={{ zIndex: 30, outline: 'none', background: 'transparent', border: 'none', boxShadow: 'none' }}
                   content={(props) => (
                     <SliceTooltip
                       active={props.active}
@@ -1070,10 +1075,6 @@ function DonutPanel({
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-2xl font-black tracking-tight text-gray-900">{view.sliceTotal}</p>
-              <p className="text-xs text-gray-500">Total</p>
-            </div>
           </div>
 
           <ul className="flex w-full max-w-xl flex-1 flex-col gap-4">
