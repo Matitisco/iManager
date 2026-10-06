@@ -540,6 +540,59 @@ describe('TableEngine', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it('removes a tag from the dropdown without changing the stored row', async () => {
+    localStorage.removeItem('table-engine-delete-tag:user-1:tagOptions');
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    type BadgeRow = TestRow & { status: string };
+    const rows: BadgeRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null, status: 'DISPONIBLE' },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          storageKey: 'table-engine-delete-tag',
+          columns: [
+            {
+              id: 'status',
+              label: 'Disponibilidad',
+              field: 'status',
+              defaultWidth: 160,
+              type: 'badge',
+              editable: true,
+              enumOptions: ['DISPONIBLE', 'VENDIDO'],
+              badgeMeta: {
+                DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
+                VENDIDO: { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', label: 'VENDIDO' },
+              },
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onUpdate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.click(await screen.findByText('DISPONIBLE'));
+    await user.click(screen.getByRole('button', { name: 'Eliminar etiqueta VENDIDO' }));
+
+    expect(screen.queryByRole('button', { name: 'Eliminar etiqueta VENDIDO' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eliminar etiqueta DISPONIBLE' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nueva etiqueta' })).toBeInTheDocument();
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Nueva etiqueta' }));
+    await user.type(screen.getByTestId('tag-edit-input'), 'Reservado');
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+
+    await user.click(await screen.findByText('Reservado'));
+    await user.click(screen.getByRole('button', { name: 'Eliminar etiqueta Reservado' }));
+    expect(screen.queryByRole('button', { name: 'Eliminar etiqueta Reservado' })).not.toBeInTheDocument();
+    expect(screen.getByText('DISPONIBLE')).toBeInTheDocument();
+  });
+
   it('renames a column from a double click and cancels with escape', async () => {
     const user = userEvent.setup();
     const rows: TestRow[] = [

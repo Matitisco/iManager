@@ -4,7 +4,7 @@ import type { WithId, ColDef, BadgeMeta } from '../types';
 import { getColumnValue } from '../columnAccess';
 import { TagsCell } from './TagsCell';
 import { TagChipDisplay, TagOptionMenu } from './TagOptionMenu';
-import { mergeDropdownOptions, type ResolvedTag, type TagPatch } from '../tagOptions';
+import { mergeDropdownOptions, omitRemovedTags, type ResolvedTag, type TagPatch } from '../tagOptions';
 
 interface TableTdProps<TRow extends WithId> {
   colId: string;
@@ -31,6 +31,8 @@ interface TableTdProps<TRow extends WithId> {
   onSaveTag: (columnId: string, option: string, patch: TagPatch) => void;
   extraOptions: string[];
   onCreateTag: (columnId: string, label: string, colorId: string | undefined, existing: string[]) => string | null;
+  onDeleteTag: (columnId: string, option: string) => void;
+  removedTagOptions: string[];
 }
 
 export function TableTd<TRow extends WithId>({
@@ -39,7 +41,7 @@ export function TableTd<TRow extends WithId>({
   focusedCell, setFocusedCell,
   startInlineEdit, commitInlineEdit, commitTags, cancelInlineEdit, inlineEditCellRef,
   handleCellBlur, handleCellKeyDown, cellDisplay, displayVal,
-  resolveTag, onSaveTag, extraOptions, onCreateTag,
+  resolveTag, onSaveTag, extraOptions, onCreateTag, onDeleteTag, removedTagOptions,
 }: TableTdProps<TRow>) {
   const field = colDef.field as string;
   const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === colId;
@@ -77,7 +79,10 @@ export function TableTd<TRow extends WithId>({
       : colDef.badgeMeta[metaKeys[0]];
     const tag = resolveTag(colId, statusVal, base);
     const baseOptions = colDef.enumOptions ?? [];
-    const options = mergeDropdownOptions(baseOptions, extraOptions, hasVal ? statusVal : undefined);
+    const options = omitRemovedTags(
+      mergeDropdownOptions(baseOptions, extraOptions, hasVal ? statusVal : undefined),
+      removedTagOptions,
+    );
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing}`}>
         <div className="relative">
@@ -105,6 +110,7 @@ export function TableTd<TRow extends WithId>({
                     }}
                     onSave={(option, patch) => onSaveTag(colId, option, patch)}
                     onCreate={(label, colorId) => onCreateTag(colId, label, colorId, baseOptions)}
+                    onDelete={(option) => onDeleteTag(colId, option)}
                   />
                 </motion.div>
               </>
@@ -132,7 +138,10 @@ export function TableTd<TRow extends WithId>({
   if (colDef.type === 'enum' && colDef.enumOptions) {
     const val = String(displayValue ?? '');
     const hasVal = displayVal(val) !== null;
-    const options = mergeDropdownOptions(colDef.enumOptions, extraOptions, hasVal ? val : undefined);
+    const options = omitRemovedTags(
+      mergeDropdownOptions(colDef.enumOptions, extraOptions, hasVal ? val : undefined),
+      removedTagOptions,
+    );
     const tag = resolveTag(colId, val, undefined);
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing} ${colDef.tdClassName ?? ''}`}>
@@ -159,6 +168,7 @@ export function TableTd<TRow extends WithId>({
                     }}
                     onSave={(option, patch) => onSaveTag(colId, option, patch)}
                     onCreate={(label, colorId) => onCreateTag(colId, label, colorId, colDef.enumOptions ?? [])}
+                    onDelete={(option) => onDeleteTag(colId, option)}
                   />
                 </motion.div>
               </>

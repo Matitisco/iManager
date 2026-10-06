@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Pencil, Plus } from 'lucide-react';
+import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { CREATED_TAG_LIMIT, TAG_COLORS, type ResolvedTag, type TagPatch } from '../tagOptions';
 
 interface TagOptionMenuProps {
@@ -10,6 +10,7 @@ interface TagOptionMenuProps {
   onSelect: (option: string) => void;
   onSave: (option: string, patch: TagPatch) => void;
   onCreate: (label: string, colorId?: string) => string | null;
+  onDelete: (option: string) => void;
 }
 
 function TagChip({ tag, uppercase = true }: { tag: ResolvedTag; uppercase?: boolean }) {
@@ -29,6 +30,7 @@ export function TagOptionMenu({
   onSelect,
   onSave,
   onCreate,
+  onDelete,
 }: TagOptionMenuProps) {
   const [editingOption, setEditingOption] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -203,17 +205,30 @@ export function TagOptionMenu({
                 <span className={`text-sm ${isSelected ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{tag.label}</span>
               )}
             </button>
-            <button
-              type="button"
-              aria-label={`Editar etiqueta ${tag.label}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                openEditor(option);
-              }}
-              className="mr-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-white"
-            >
-              <Pencil size={13} />
-            </button>
+            <div className="mr-1 flex shrink-0 items-center">
+              <button
+                type="button"
+                aria-label={`Editar etiqueta ${tag.label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openEditor(option);
+                }}
+                className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-white"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                type="button"
+                aria-label={`Eliminar etiqueta ${tag.label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDelete(option);
+                }}
+                className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         );
       })}

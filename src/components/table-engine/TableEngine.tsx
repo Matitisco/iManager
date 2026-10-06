@@ -7,6 +7,7 @@ import { normalizeDropdownOptions } from '../../utils/dropdown-options';
 import { useTableData } from './hooks/useTableData';
 import { useColumnState } from './hooks/useColumnState';
 import { useTagOptions } from './hooks/useTagOptions';
+import { omitRemovedTags } from './tagOptions';
 import { useSelection } from './hooks/useSelection';
 import { useInlineEdit } from './hooks/useInlineEdit';
 import { useColResize } from './hooks/useColResize';
@@ -371,7 +372,9 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       if (colId in initial) return;
       const colDef = resolvedColumns.find(c => c.id === colId);
       if (!colDef?.editable) return;
-      initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge') ? (colDef.enumOptions?.[0] ?? '') : '';
+      initial[colId] = (colDef.type === 'enum' || colDef.type === 'badge')
+        ? (omitRemovedTags(colDef.enumOptions ?? [], tagOptions.removedFor(colId))[0] ?? '')
+        : '';
     });
     const insertAt = resolveAddRowInsertIndex(afterRowId);
     setAddRowInsertAt(insertAt);
@@ -833,6 +836,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           onSaveTag={tagOptions.save}
                           extraOptions={tagOptions.createdFor(colId)}
                           onCreateTag={tagOptions.create}
+                          onDeleteTag={tagOptions.remove}
+                          removedTagOptions={tagOptions.removedFor(colId)}
                         />
                       );
                     })}

@@ -50,6 +50,27 @@ describe('tag options', () => {
       created: {
         status: ['Reservado', 'Apartado'],
       },
+      removed: {},
+    });
+  });
+
+  it('keeps removed tags and ignores invalid ones', () => {
+    localStorage.setItem(tagOptionsStorageKey('inventory:user-1'), JSON.stringify({
+      v: 2,
+      overrides: {},
+      created: {},
+      removed: {
+        paymentMethod: [' EFECTIVO ', 'efectivo', '', 'TARJETA'],
+        broken: 'nope',
+      },
+    }));
+
+    expect(readTagOptions('inventory:user-1')).toEqual({
+      overrides: {},
+      created: {},
+      removed: {
+        paymentMethod: ['EFECTIVO', 'TARJETA'],
+      },
     });
   });
 

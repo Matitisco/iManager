@@ -48,6 +48,7 @@ export const CREATED_TAG_LIMIT = 20;
 export interface TagOptionsState {
   overrides: TagOverrideMap;
   created: Record<string, string[]>;
+  removed: Record<string, string[]>;
 }
 
 export function tagOptionsStorageKey(storageKey: string) {
@@ -95,24 +96,62 @@ function sanitizeCreated(value: unknown): Record<string, string[]> {
   }, {});
 }
 
+const REMOVED_TAG_LIMIT = 100;
+
+export function sameTagKey(left: string, right: string) {
+  return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+}
+
+function normalizeRemovedTagValues(values: readonly unknown[]) {
+  const options: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const label = String(value ?? '').trim().slice(0, REMOVED_TAG_LIMIT);
+    const key = label.toLocaleLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    options.push(label);
+  }
+
+  return options;
+}
+
+function sanitizeRemoved(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string[]>>((columns, [columnId, options]) => {
+    if (!Array.isArray(options)) return columns;
+    const next = normalizeRemovedTagValues(options);
+    if (next.length > 0) columns[columnId] = next;
+    return columns;
+  }, {});
+}
+
+export function omitRemovedTags(options: readonly string[], removed: readonly string[]) {
+  if (removed.length === 0) return [...options];
+  return options.filter((option) => !removed.some((hidden) => sameTagKey(hidden, option)));
+}
+
 export function readTagOptions(storageKey: string): TagOptionsState {
   try {
     const raw = localStorage.getItem(tagOptionsStorageKey(storageKey));
-    if (!raw) return { overrides: {}, created: {} };
+    if (!raw) return { overrides: {}, created: {}, removed: {} };
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { overrides: {}, created: {} };
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { overrides: {}, created: {}, removed: {} };
 
     const record = parsed as Record<string, unknown>;
     if (record.v === 2) {
       return {
         overrides: sanitizeOverrides(record.overrides),
         created: sanitizeCreated(record.created),
+        removed: sanitizeRemoved(record.removed),
       };
     }
 
-    return { overrides: sanitizeOverrides(parsed), created: {} };
+    return { overrides: sanitizeOverrides(parsed), created: {}, removed: {} };
   } catch {
-    return { overrides: {}, created: {} };
+    return { overrides: {}, created: {}, removed: {} };
   }
 }
 
@@ -125,6 +164,7 @@ export function writeTagOptions(storageKey: string, state: TagOptionsState) {
     v: 2,
     overrides: state.overrides,
     created: state.created,
+    removed: state.removed,
   }));
 }
 
