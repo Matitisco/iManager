@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
@@ -7,7 +7,7 @@ import { importBackendInventoryItems, type ImportRow } from '../services/invento
 import { importBackendSales } from '../services/sales-import-api';
 import { importBackendClients } from '../services/clients-import-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
-import { createInvitation, type InvitationRole } from '../services/invitations-api';
+import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../services/invitations-api';
 import type { Client, Product, Sale, TradeIn } from '../types';
 import {
   batteryPercent,
@@ -16,13 +16,16 @@ import {
   formatImei,
   formatInputMoney,
   formatMoney,
+  formatMoneyCompact,
+  formatShortDate,
   parseMoney,
   paymentLabel,
   productLabel,
   saleCode,
+  statusLabel,
   tradeCode,
 } from './format';
-import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
+import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
 
@@ -41,12 +44,12 @@ const PAYMENTS = [
   { id: 'TARJETA', label: 'Tarjeta' },
   { id: 'CRIPTO', label: 'Cripto' },
 ];
-const CAPS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
-const CONDITIONS = [
+const BASE_CAPS = ['64GB', '128GB', '256GB', '512GB'];
+const BASE_CONDITIONS = [
   { id: 'NUEVO', label: 'Nuevo' },
   { id: 'USADO', label: 'Usado' },
-  { id: 'PRE-OWNED', label: 'Pre-owned' },
 ];
+const MODELS = ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15', 'iPhone 16'];
 const EQ_STATUS = [
   { id: 'DISPONIBLE', label: 'Disponible', color: '#25A66A' },
   { id: 'EN_REVISION', label: 'En revisión', color: '#E8A33D' },
@@ -66,8 +69,6 @@ const CJ_STATUS = [
   { id: 'LISTO', label: 'Completado', color: '#0F9D8A' },
   { id: 'RECHAZADO', label: 'Rechazado', color: '#DC4C4C' },
 ];
-const GRADES = ['A+', 'A', 'B', 'C'];
-
 export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
   if (!overlay) return null;
   if (overlay.type === 'ctx') return <ContextMenu overlay={overlay} />;
@@ -95,12 +96,12 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (action: () => Promise<void>, ok: string) => {
+  const run = async (action: () => Promise<void>, ok: string, options?: { keepOpen?: boolean }) => {
     setBusy(true);
     setError(null);
     try {
       await action();
-      desk.close();
+      if (!options?.keepOpen) desk.close();
       desk.toast(ok);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo guardar.'));
@@ -152,7 +153,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
-    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={'clientId' in overlay ? overlay : undefined} run={run} busy={busy} error={error} />;
+    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientId: overlay.clientId, productId: overlay.productId } : undefined} run={run} busy={busy} error={error} />;
   }
   if (overlay.type === 'cj') return <TradeDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
@@ -162,26 +163,49 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'profile') return <ProfileForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'password') return <PasswordForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'invite') return <InviteForm initialUrl={overlay.url} />;
+  if (overlay.type === 'invites') return <InvitesList />;
   return null;
 }
 
+function batteryText(value: string) {
+  if (/\d+\s*-\s*\d+/.test(value)) return value.includes('%') ? value : `${value}%`;
+  return `${batteryPercent(value)}%`;
+}
+
 function EquipmentDetail({ id }: { id: string }) {
-  const { inventory } = useAppContext();
-  const { close, open } = useDesk();
+  const { inventory, updateProduct } = useAppContext();
+  const { close, open, toast } = useDesk();
   const item = inventory.find((row) => row.id === id);
+  const [status, setStatus] = useState(item?.status || 'DISPONIBLE');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!item) return null;
+  const saveStatus = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (status !== item.status) await updateProduct({ ...item, status });
+      toast('Estado actualizado');
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, 'No se pudo guardar.'));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Sheet title={`${item.model} · ${item.capacity}`} subtitle={`IMEI ${formatImei(item.imei)}`} onClose={close}>
+      {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{formatMoney(item.price)}</div></div>
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
-      <div className="kv"><span>Batería</span><b>{batteryPercent(item.batteryHealth)}%</b></div>
-      <div className="kv"><span>Estado</span><b><Pill status={item.status} /></b></div>
+      <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
+      <Field label="Estado"><span /></Field>
+      <Segs options={EQ_STATUS} value={status} onChange={setStatus} />
       <div className="sacts">
         {item.status === 'DISPONIBLE'
           ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id })}>Vender</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-eq', id: item.id })}>Editar</button>
+        <button className="btn2 p" type="button" disabled={busy} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
       </div>
     </Sheet>
   );
@@ -191,36 +215,36 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { inventory, addProduct, updateProduct } = useAppContext();
   const { close } = useDesk();
   const current = inventory.find((item) => item.id === id);
-  const [model, setModel] = useState(current?.model ?? '');
+  const caps = [...new Set([...BASE_CAPS, ...inventory.map((item) => item.capacity).filter(Boolean)])];
+  const conditions = [
+    ...BASE_CONDITIONS,
+    ...[...new Set(inventory.map((item) => item.condition).filter((value) => value && !BASE_CONDITIONS.some((item) => item.id === value)))].map((value) => ({ id: value, label: value === 'PRE-OWNED' ? 'Pre-owned' : value })),
+  ];
+  const models = [...new Set([...MODELS, ...inventory.map((item) => item.model).filter(Boolean)])];
+  const [model, setModel] = useState(current?.model ?? 'iPhone 13');
   const [capacity, setCapacity] = useState(current?.capacity || '128GB');
   const [color, setColor] = useState(current?.color ?? '');
-  const [battery, setBattery] = useState(current ? String(batteryPercent(current.batteryHealth)) : '100');
+  const [battery, setBattery] = useState(current ? String(batteryPercent(current.batteryHealth)) : '');
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition || 'USADO');
-  const [grade, setGrade] = useState(current?.grade && current.grade !== 'N/A' ? current.grade : 'A');
   const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
   const [status, setStatus] = useState(current?.status || 'DISPONIBLE');
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle="Los datos se guardan en el inventario de la tienda." onClose={close}>
+    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? `${current.model} · ${current.capacity}` : 'Los datos se guardan en el inventario de la tienda.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <Field label="Modelo" error={bad.model}><input value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
+      <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
+      <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
-      <Segs options={CAPS.map((item) => ({ id: item, label: item }))} value={capacity} onChange={setCapacity} />
+      <Segs options={caps.map((item) => ({ id: item, label: item }))} value={capacity} onChange={setCapacity} />
       <div className="frow">
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
-        <Field label="Batería %"><input value={battery} inputMode="numeric" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
+        <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
-      <Segs options={CONDITIONS} value={condition} onChange={setCondition} />
-      {condition !== 'NUEVO' && (
-        <>
-          <Field label="Grado"><span /></Field>
-          <Segs options={GRADES.map((item) => ({ id: item, label: item }))} value={grade} onChange={setGrade} />
-        </>
-      )}
+      <Segs options={conditions} value={condition} onChange={setCondition} />
       <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={EQ_STATUS} value={status} onChange={setStatus} />
@@ -240,8 +264,8 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           capacity,
           color: color.trim(),
           condition,
-          grade: condition === 'NUEVO' ? 'N/A' : grade,
-          batteryHealth: `${battery || '0'}%`,
+          grade: condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
+          batteryHealth: battery ? `${battery}%` : (current?.batteryHealth || '0%'),
           cost: current?.cost ?? 0,
           price: parseMoney(price),
           status,
@@ -249,7 +273,11 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           customFields: current?.customFields,
         };
         if (current) await updateProduct({ ...current, ...payload });
-        else await addProduct(payload);
+        else {
+          await addProduct(payload);
+          signalDesk('desk-eq-saved');
+        }
+        signalDesk('desk-check', 'inv');
       }, current ? 'Equipo actualizado' : 'Equipo cargado');
       }} />
     </Sheet>
@@ -272,14 +300,29 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
   const selected = available.find((item) => item.id === productId);
 
   return (
-    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle="Elegí el equipo y cómo pagó el cliente." onClose={close}>
+    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Elegí el equipo y cómo pagó el cliente.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      {available.length === 0 ? <div className="wempty">No hay equipos disponibles.</div> : available.map((item) => (
-        <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); if (!current) setAmount(formatInputMoney(item.price)); }}>
-          <div>{item.model} · {item.capacity}<small>{item.color} · IMEI …{item.imei.slice(-4)}</small></div>
-          <span className="r">{formatMoney(item.price)}</span>
-        </button>
-      ))}
+      {available.length === 0 ? <div className="wempty">No hay equipos disponibles.</div> : current ? (
+        <Field label="Equipo">
+          <select value={productId} onChange={(event) => {
+            setProductId(event.target.value);
+            const next = available.find((item) => item.id === event.target.value);
+            if (next) setAmount(formatInputMoney(next.price));
+          }}>
+            {available.map((item) => <option key={item.id} value={item.id}>{item.model} · {item.capacity}</option>)}
+          </select>
+        </Field>
+      ) : (
+        <>
+          <Field label="Equipo"><span /></Field>
+          {available.map((item) => (
+            <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); setAmount(formatInputMoney(item.price)); }}>
+              <div>{item.model} · {item.capacity}<small>{item.color} · IMEI …{item.imei.slice(-4)}</small></div>
+              <span className="r">{formatMoneyCompact(item.price)}</span>
+            </button>
+          ))}
+        </>
+      )}
       <Field label="Cliente">
         <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
           <option value="">Nuevo cliente</option>
@@ -294,10 +337,10 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       )}
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
-      <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
+      <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={SALE_STATUS} value={status} onChange={setStatus} />
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
+      {available.length === 0 ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div> : <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!clientId && !newName.trim()) next.name = 'Completá este dato';
         if (!clientId && !newDni.trim()) next.dni = 'Completá este dato';
@@ -322,21 +365,24 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
           customFields: current?.customFields,
         };
         if (current) await updateSale({ ...current, ...payload });
-        else await addSale(payload);
+        else {
+          await addSale(payload);
+          signalDesk('desk-check', 'ven');
+        }
       }, current ? 'Venta actualizada' : 'Venta registrada');
-      }} />
+      }} />}
     </Sheet>
   );
 }
 
 function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const { sales, clients, inventory, updateSale, updateProduct } = useAppContext();
-  const { close, open } = useDesk();
+  const { close, toast } = useDesk();
   const sale = sales.find((item) => item.id === id);
   if (!sale) return null;
   const product = inventory.find((item) => item.id === sale.productId);
   return (
-    <Sheet title={saleCode(sale)} subtitle={sale.date} onClose={close}>
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{clientName(clients, sale.clientId)}</b></div>
@@ -347,9 +393,20 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
         <Actions busy={busy} secondary="Cancelar venta" primary="Marcar cobrada" onSecondary={() => run(async () => {
           await updateSale({ ...sale, status: 'CANCELADA' });
           if (product && product.status === 'VENDIDO') await updateProduct({ ...product, status: 'DISPONIBLE' });
-        }, 'Venta cancelada')} onPrimary={() => run(async () => { await updateSale({ ...sale, status: 'COMPLETADA' }); }, 'Venta cobrada')} />
+        }, `${saleCode(sale)} cancelada`)} onPrimary={() => run(async () => { await updateSale({ ...sale, status: 'COMPLETADA' }); }, `${saleCode(sale)} cobrada`)} />
       ) : (
-        <div className="sacts"><button className="btn2 s" type="button" onClick={close}>Cerrar</button><button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id: sale.id })}>Editar</button></div>
+        <div className="sacts">
+          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          <button className="btn2 p" type="button" onClick={() => {
+            const text = `${saleCode(sale)} · ${clientName(clients, sale.clientId)} · ${productLabel(product)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
+            const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
+            if (!navigator.share) { void copy(); return; }
+            navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {
+              if (err instanceof DOMException && err.name === 'AbortError') return;
+              void copy();
+            });
+          }}>Compartir comprobante</button>
+        </div>
       )}
     </Sheet>
   );
@@ -370,15 +427,17 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle="El cliente entrega su equipo y se lleva uno del stock." onClose={close}>
+    <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle={current ? `${tradeCode(tradeIns, current.id)} · ${formatShortDate(current.date)}` : 'El cliente entrega su equipo y se lleva uno del stock.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <Field label="Cliente" error={bad.client}>
         <select value={clientId} onChange={(event) => { setClientId(event.target.value); clearBad(setBad, 'client'); }}>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
         </select>
       </Field>
-      <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
-      <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      <div className="frow">
+        <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
+        <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      </div>
       <Field label="Equipo que entregás" error={bad.given}>
         <select value={given} onChange={(event) => {
           clearBad(setBad, 'given');
@@ -386,16 +445,17 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
           const match = available.find((item) => `${item.model} ${item.capacity}` === event.target.value);
           if (match) setDiff(formatInputMoney(Math.max(0, match.price - parseMoney(take))));
         }}>
-          {!available.some((item) => `${item.model} ${item.capacity}` === given) && given ? <option value={given}>{given}</option> : null}
+          {!available.some((item) => `${item.model} ${item.capacity}` === given) && given && given !== 'A definir' ? <option value={given}>{given}</option> : null}
           {available.map((item) => {
             const label = `${item.model} ${item.capacity}`;
             return <option key={item.id} value={label}>{label}</option>;
           })}
+          <option value="A definir">A definir</option>
         </select>
       </Field>
       <div className="frow">
-        <Field label="Valor tomado"><input value={take} inputMode="numeric" onChange={(event) => setTake(formatInputMoney(parseMoney(event.target.value)))} /></Field>
-        <Field label="Diferencia"><input value={diff} inputMode="numeric" onChange={(event) => setDiff(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+        <Field label="Valor tomado"><input value={take} inputMode="numeric" placeholder="$ 0" onChange={(event) => setTake(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+        <Field label="Diferencia"><input value={diff} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDiff(formatInputMoney(parseMoney(event.target.value)))} /></Field>
       </div>
       <Field label="Estado"><span /></Field>
       <Segs options={CJ_STATUS} value={status} onChange={setStatus} />
@@ -433,24 +493,31 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
 
 function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const { tradeIns, clients, updateTradeIn } = useAppContext();
-  const { close, open } = useDesk();
+  const { close } = useDesk();
   const trade = tradeIns.find((item) => item.id === id);
   if (!trade) return null;
   const flow = ['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN', 'APROBADO', 'LISTO'];
+  const nextLabel: Record<string, string> = { PENDIENTE: 'Enviar a peritaje', 'PERITAJE TÉC.': 'Pasar a revisión', 'EN REVISIÓN': 'Aprobar canje', APROBADO: 'Completar canje' };
   const index = flow.indexOf(trade.status);
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
+  const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${clientName(clients, trade.clientId)}`} subtitle={`${trade.date} · ${trade.status}`} onClose={close}>
+    <Sheet title={`${code} · ${clientName(clients, trade.clientId)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{formatMoney(trade.differencePaid)}</div></div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
       <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
-      <div className="sacts">
-        {next ? <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, 'Canje rechazado')}>Rechazar</button> : <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id: trade.id })}>Editar</button>}
-        {next ? <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, 'Canje actualizado')}>Avanzar</button> : <button className="btn2 p" type="button" onClick={close}>Cerrar</button>}
-      </div>
+      <div className="kv"><span>Estado</span><b><Pill status={trade.status} /></b></div>
+      {next ? (
+        <div className="sacts">
+          {trade.status === 'APROBADO'
+            ? <button className="btn2 s" type="button" onClick={close}>Después</button>
+            : <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>Rechazar</button>}
+          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
+        </div>
+      ) : <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>}
     </Sheet>
   );
 }
@@ -461,7 +528,7 @@ function ClientDetail({ id }: { id: string }) {
   const client = clients.find((item) => item.id === id);
   if (!client) return null;
   return (
-    <Sheet title={client.name} subtitle={client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? `Última compra ${client.lastPurchaseDate}` : 'Sin compras todavía'} onClose={close}>
+    <Sheet title={client.name} subtitle={client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? `Última compra ${formatShortDate(client.lastPurchaseDate)}` : 'Sin compras todavía'} onClose={close}>
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '—'}</b></div>
@@ -486,15 +553,19 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} onClose={close}>
+    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <Field label="Nombre y apellido" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
-      <div className="frow">
-        <Field label="DNI" error={bad.dni}><input value={dni} onChange={(event) => { setDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
-        <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
-      </div>
-      <Field label="Email"><input value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
-      <Field label="Saldo pendiente"><input value={balance} inputMode="numeric" onChange={(event) => setBalance(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+      <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
+      {current ? (
+        <Field label="Teléfono"><input value={phone} placeholder="Ej. 11 5555 5555" onChange={(event) => setPhone(event.target.value)} /></Field>
+      ) : (
+        <div className="frow">
+          <Field label="DNI" error={bad.dni}><input value={dni} placeholder="Sin puntos" onChange={(event) => { setDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
+          <Field label="Teléfono"><input value={phone} placeholder="Ej. 11 5555 5555" onChange={(event) => setPhone(event.target.value)} /></Field>
+        </div>
+      )}
+      <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
+      {current ? <Field label="Saldo pendiente"><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => setBalance(formatInputMoney(parseMoney(event.target.value)))} /></Field> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
@@ -558,9 +629,10 @@ function ProfileForm({ run, busy, error }: FormProps) {
   const [name, setName] = useState(appSession?.user.displayName ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
   return (
-    <Sheet title="Perfil" subtitle={appSession?.user.email ?? ''} onClose={close}>
+    <Sheet title="Perfil" onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
+      <Field label="Email"><input type="email" value={appSession?.user.email ?? ''} disabled /></Field>
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
         if (!name.trim()) { setBad({ name: 'Completá este dato' }); return; }
         setBad({});
@@ -581,7 +653,7 @@ function PasswordForm({ run, busy, error }: FormProps) {
   const [bad, setBad] = useState<Record<string, string>>({});
   const emailUser = user?.providerData?.some((provider) => provider.providerId === 'password') ?? false;
   if (!emailUser) {
-    return <Sheet title="Seguridad" subtitle="Esta cuenta entra con Google. La contraseña se administra ahí." onClose={close}><button className="btn2 p" type="button" onClick={close}>Entendido</button></Sheet>;
+    return <Sheet title="Seguridad" subtitle="Esta cuenta entra con Google. La contraseña se administra ahí." onClose={close}><div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div></Sheet>;
   }
   return (
     <Sheet title="Cambiar contraseña" subtitle="Usá al menos 8 caracteres." onClose={close}>
@@ -611,34 +683,93 @@ function PasswordForm({ run, busy, error }: FormProps) {
 }
 
 function InviteForm({ initialUrl }: { initialUrl?: string }) {
-  const { user } = useAppContext();
+  const { user, appSession } = useAppContext();
   const { close, toast } = useDesk();
   const [role, setRole] = useState<InvitationRole>('STAFF');
   const [url, setUrl] = useState(initialUrl ?? '');
+  const [expires, setExpires] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const store = appSession?.store?.name || 'la tienda';
+  const roleLabel = role === 'MANAGER' ? 'Socio' : 'Agente';
+  const copy = () => navigator.clipboard.writeText(url).then(() => toast('Link copiado'));
+  const share = () => {
+    if (!navigator.share) { void copy(); return; }
+    navigator.share({ title: 'Invitación a iManager', url }).catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      void copy();
+    });
+  };
   return (
-    <Sheet title={url ? 'Link listo' : 'Invitar al equipo'} subtitle={url ? 'El link es de un solo uso.' : 'Generá un link para sumar a alguien a la tienda.'} onClose={close}>
+    <Sheet
+      title={url ? 'Link listo' : 'Invitar al equipo'}
+      subtitle={url ? `Pasáselo a quien quieras sumar como ${roleLabel}. Sirve para una sola persona${expires ? ` y vence el ${expires}` : ''}.` : `Generá un link de un solo uso para sumar a alguien a ${store}.`}
+      onClose={close}
+    >
       {error && <div className="ferr">{error}</div>}
       {url ? (
-        <div className="linkrow"><span>{url}</span><button className="dbtn s" type="button" onClick={() => navigator.clipboard.writeText(url).then(() => toast('Link copiado'))}>Copiar</button></div>
+        <>
+          <div className="linkrow"><span>{url}</span><button className="copy" type="button" onClick={() => { void copy(); }}>Copiar</button></div>
+          <p className="sheet-note">Cuando alguien entra con el link, deja de funcionar. Lo podés cancelar desde Configuración.</p>
+        </>
       ) : (
         <>
           <Field label="Rol"><span /></Field>
           <Segs options={[{ id: 'STAFF', label: 'Agente' }, { id: 'MANAGER', label: 'Socio' }]} value={role} onChange={(value) => setRole(value as InvitationRole)} />
+          <p className="sheet-note">El Agente carga equipos y ventas. El Socio además ve reportes y aprueba canjes.</p>
         </>
       )}
-      {url ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Listo</button></div> : (
+      {url ? (
+        <div className="sacts">
+          <button className="btn2 s" type="button" onClick={close}>Listo</button>
+          <button className="btn2 p" type="button" onClick={share}>Compartir link</button>
+        </div>
+      ) : (
         <Actions busy={busy} primary="Generar link" onSecondary={close} onPrimary={() => {
           if (!user) return;
           setBusy(true);
           setError(null);
           createInvitation(user, undefined, role)
-            .then((created) => { setUrl(created.inviteUrl); toast('Link generado'); })
+            .then((created) => {
+              setUrl(created.inviteUrl);
+              setExpires(new Date(created.expiresAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', ''));
+              window.dispatchEvent(new Event('desk-invites'));
+            })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
             .finally(() => setBusy(false));
         }} />
       )}
+    </Sheet>
+  );
+}
+
+function InvitesList() {
+  const { user } = useAppContext();
+  const { close, toast } = useDesk();
+  const [rows, setRows] = useState<Invitation[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => {
+    if (!user) return;
+    listInvitations(user).then(setRows).catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudieron cargar las invitaciones.')));
+  };
+  useEffect(() => { load(); }, [user]);
+  const roleName = (value: string) => (value === 'MANAGER' ? 'Socio' : value === 'OWNER' ? 'Propietario' : 'Agente');
+  const when = (value: string) => new Date(value).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '');
+  return (
+    <Sheet title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>
+      {error && <div className="ferr">{error}</div>}
+      {rows.length === 0 ? <div className="wempty">No quedan invitaciones.</div> : rows.map((invite) => (
+        <div className="kv" key={invite.id}>
+          <span>{roleName(invite.role)} · un solo uso · vence {when(invite.expiresAt)}</span>
+          <button className="mbtn" type="button" onClick={() => {
+            if (!user) return;
+            revokeInvitation(user, invite.id)
+              .then(() => { toast('Invitación cancelada'); load(); window.dispatchEvent(new Event('desk-invites')); })
+              .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo cancelar.')));
+          }}>Cancelar</button>
+        </div>
+      ))}
+      <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Listo</button></div>
     </Sheet>
   );
 }
@@ -651,13 +782,25 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     if (kind === 'sale') await reloadSales();
     if (kind === 'cl') await reloadClients();
     if (kind === 'cj') await reloadTradeIns();
-    toast('Importación lista');
-  }), [kind, reloadInventory, reloadSales, reloadClients, reloadTradeIns, toast]);
+  }), [kind, reloadInventory, reloadSales, reloadClients, reloadTradeIns]);
   if (!user) return null;
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} onClose={close} onImport={(rows) => config.onImport(user, rows)} />;
+  const noun: Record<typeof kind, [string, string]> = {
+    inv: ['equipo importado', 'equipos importados'],
+    sale: ['venta importada', 'ventas importadas'],
+    cl: ['cliente importado', 'clientes importados'],
+    cj: ['canje importado', 'canjes importados'],
+  };
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} onClose={close} onImport={async (rows) => {
+    const result = await config.onImport(user, rows);
+    const count = (result.imported ?? 0) + (result.updated ?? 0);
+    toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
+    if (kind === 'inv') signalDesk('desk-check', 'inv');
+    if (kind === 'sale') signalDesk('desk-check', 'ven');
+    return result;
+  }} />;
 }
 
-type FormProps = { run: (action: () => Promise<void>, ok: string) => Promise<void>; busy: boolean; error: string | null };
+type FormProps = { run: (action: () => Promise<void>, ok: string, options?: { keepOpen?: boolean }) => Promise<void>; busy: boolean; error: string | null };
 
 function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<void>) {
   if (kind === 'inv') {

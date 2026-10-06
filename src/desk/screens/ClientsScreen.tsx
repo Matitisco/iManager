@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { avatarTone, formatMoney, formatMoneyCompact, initials } from '../format';
-import { ChipRow, DeskCta, PressTarget, SearchBox, useDesk } from '../ui';
+import { avatarTone, formatMoney, formatMoneyCompact, formatShortDate, initials } from '../format';
+import { ChipRow, DeskCta, ImportButton, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
   const { clients } = useAppContext();
@@ -28,7 +28,7 @@ export function ClientsScreen() {
         </div>
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
-          <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'cl' })}>↑ Importar</button>
+          <ImportButton onClick={() => open({ type: 'import', kind: 'cl' })} />
           <DeskCta onClick={() => open({ type: 'new-cl' })}>Nuevo cliente</DeskCta>
         </div>
       </div>
@@ -54,12 +54,12 @@ export function ClientsScreen() {
                   <td>
                     <div className="dcell">
                       <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}</b><small>{client.email || 'Sin email'}</small></div>
+                      <div><b>{client.name}</b><small>{client.email || '—'}</small></div>
                     </div>
                   </td>
                   <td>{client.dni || '—'}</td>
                   <td>{client.phone || '—'}</td>
-                  <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? client.lastPurchaseDate : '—'}</td>
+                  <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
                   <td className="r">{formatMoney(client.totalSpent)}</td>
                   <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {formatMoneyCompact(client.pendingBalance)}</span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>

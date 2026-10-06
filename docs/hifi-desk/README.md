@@ -99,7 +99,7 @@ Ordenado para que cada fase deje la app usable y mejore lo más visible primero.
 
 **GL-01**, **GL-09**, **GL-13**, **GL-17** (rutas por hash, transición, mantener apretado y cierre de overlay al navegar), **MG-01** / **EL-01** (diálogo compacto), **MG-05** / **MV-04** / **EE-03** (validación por campo, IMEI de 15 dígitos), **CF-10** y **SA-01** (confirmación de logout y pantalla «Sesión cerrada»).
 
-### Fase 3 — fidelidad pantalla por pantalla (frontend)
+### Fase 3 — fidelidad pantalla por pantalla (frontend, aplicada en hifi-desk)
 
 - **Dashboard:** DA-01 a DA-15.
 - **Inventario:** IN-01 a IN-10, CX-01 a CX-03, DE-01, DE-03, DE-04, EE-04 a EE-10, EL-02, RE-02, RE-03 e IM-01 a IM-05.
@@ -110,7 +110,9 @@ Ordenado para que cada fase deje la app usable y mejore lo más visible primero.
 - **Notificaciones y Configuración:** NO-01 a NO-08 y CF-01 a CF-14.
 - **Menús contextuales:** MX-01 a MX-04.
 
-**MV-12** es un bug: el botón «Vender» del detalle de equipo no preselecciona el equipo. Se arregla con una línea en `DeskOverlays.tsx:128` y conviene hacerlo primero.
+**MV-12** quedó corregido: «Vender» preselecciona el equipo.
+
+Quedó afuera de esta pasada, a propósito: los catálogos con lápiz y el resto de la fase 4; la serie temporal de stock (hace falta `createdAt` en el equipo); el rediseño completo del modal de importación compartido con la app principal (el toast sí dice cuántos registros entraron). La fila Facturación avisa «acceso anticipado» y no copia el toast de Plan Pro del prototipo.
 
 ### Fase 4 — funcionalidades que necesitan backend
 

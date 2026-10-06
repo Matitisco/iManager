@@ -28,6 +28,32 @@ export function formatMoney(value: number): string {
   return `$ ${new Intl.NumberFormat('es-AR').format(amount)}`;
 }
 
+export function formatShortDate(value: string | null | undefined): string {
+  const date = parseAppDate(value);
+  if (!date) return '—';
+  return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+export function formatDayMonth(value: string | null | undefined): string {
+  const date = parseAppDate(value);
+  if (!date) return '';
+  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', '');
+}
+
+export function relTime(value: string | null | undefined): string {
+  const date = parseAppDate(value);
+  if (!date) return '';
+  const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+  if (minutes < 2) return 'recién';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return hours === 1 ? 'hace 1 h' : `hace ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days} d`;
+  return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '');
+}
+
 export function formatMoneyCompact(value: number): string {
   const amount = Number.isFinite(value) ? value : 0;
   if (Math.abs(amount) >= 1_000_000) {

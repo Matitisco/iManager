@@ -28,4 +28,5 @@ export type Overlay =
   | { type: 'profile' }
   | { type: 'password' }
   | { type: 'invite'; url?: string; role?: string }
+  | { type: 'invites' }
   | { type: 'logout' };

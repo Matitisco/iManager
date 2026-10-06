@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Smartphone } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { batteryPercent, conditionLabel, formatImei, formatMoney } from '../format';
-import { Battery, ChipRow, DeskCta, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -17,6 +16,12 @@ export function InventoryScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
+
+  useEffect(() => {
+    const reset = () => setFilter('Todos');
+    window.addEventListener('desk-eq-saved', reset);
+    return () => window.removeEventListener('desk-eq-saved', reset);
+  }, []);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -41,7 +46,7 @@ export function InventoryScreen() {
         </div>
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo, color o IMEI" />
-          <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'inv' })}>↑ Importar</button>
+          <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
           <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
         </div>
       </div>
@@ -65,7 +70,7 @@ export function InventoryScreen() {
                 >
                   <td>
                     <div className="dcell">
-                      <div className="dthumb"><Smartphone size={16} /></div>
+                      <div className="dthumb"><DeskIcon name="logo" size={22} /></div>
                       <div><b>{item.model} · {item.capacity}</b><small>{item.color}</small></div>
                     </div>
                   </td>
@@ -80,7 +85,7 @@ export function InventoryScreen() {
           </table>
         )}
       </div>
-      <div className="dhint">Tip: clic derecho en una fila para editar o eliminar.</div>
+      <div className="dhint">Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.</div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { clientName, formatMoney, tradeCode } from '../format';
-import { ChipRow, DeskCta, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { clientName, formatMoney, formatShortDate, isInProgressTrade, tradeCode } from '../format';
+import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const COLUMNS = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -16,7 +16,7 @@ export function TradeInsScreen() {
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
-  const openCount = tradeIns.filter((item) => item.status !== 'LISTO' && item.status !== 'RECHAZADO').length;
+  const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -42,7 +42,7 @@ export function TradeInsScreen() {
         </div>
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente o equipo" />
-          <button className="dbtn s" type="button" onClick={() => open({ type: 'import', kind: 'cj' })}>↑ Importar</button>
+          <ImportButton onClick={() => open({ type: 'import', kind: 'cj' })} />
           <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
         </div>
       </div>
@@ -53,7 +53,7 @@ export function TradeInsScreen() {
           onChange={setFilter}
         />
       </div>
-      <div className="dkanban" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(210px, 1fr))` }}>
+      <div className="dkanban" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(190px, 1fr))` }}>
         {columns.map((column) => {
           const items = filtered.filter((item) => item.status === column.id);
           return (
@@ -67,7 +67,7 @@ export function TradeInsScreen() {
                   onActivate={() => open({ type: 'cj', id: item.id })}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${clientName(clients, item.clientId)}`, ...point })}
                 >
-                  <div className="meta"><span>#{tradeCode(tradeIns, item.id)} · {item.date}</span><Pill status={item.status} /></div>
+                  <div className="meta"><span>#{tradeCode(tradeIns, item.id)} · {formatShortDate(item.date)}</span><Pill status={item.status} /></div>
                   <div className="ttl">Recibido: {item.deviceReceived}</div>
                   <div className="who">{clientName(clients, item.clientId)}<br />Entrega: {item.deviceGiven}</div>
                   <div className="amt"><b>{formatMoney(item.takeValue)}</b><small>dif. {formatMoney(item.differencePaid)}</small></div>
