@@ -7,12 +7,12 @@ export interface InventoryItemInput {
   model: string;
   capacity: string;
   color: string;
-  condition: "NUEVO" | "USADO" | "PRE-OWNED";
-  grade: "A+" | "A" | "B" | "C" | "N/A";
+  condition: string;
+  grade: string;
   batteryHealth: string;
   cost: number;
   price: number;
-  status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
+  status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
 }
@@ -23,12 +23,12 @@ export interface InventoryItemResponse {
   model: string;
   capacity: string;
   color: string;
-  condition: "NUEVO" | "USADO" | "PRE-OWNED";
-  grade: "A+" | "A" | "B" | "C" | "N/A";
+  condition: string;
+  grade: string;
   batteryHealth: string;
   cost: number;
   price: number;
-  status: "DISPONIBLE" | "VENDIDO" | "EN_REVISION";
+  status: string;
   categoryId: string | null;
   customFields: Record<string, unknown>;
   soldAt: string | null;

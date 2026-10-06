@@ -18,14 +18,7 @@ import {
   bulkMoveTradeInCategory,
 } from "./trade-ins.service.js";
 
-const tradeInStatusSchema = z.enum([
-  "PENDIENTE",
-  "APROBADO",
-  "RECHAZADO",
-  "EN REVISIÓN",
-  "PERITAJE TÉC.",
-  "LISTO",
-]);
+const tradeInStatusSchema = z.string().trim().min(1).max(30);
 
 const tradeInCreateSchema = z.object({
   date: z.string().min(1).max(120),

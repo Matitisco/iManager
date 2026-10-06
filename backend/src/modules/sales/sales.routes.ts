@@ -17,13 +17,7 @@ import {
   bulkMoveCategory,
 } from "./sales.service.js";
 
-const paymentMethodSchema = z.enum([
-  "TRANSFERENCIA",
-  "EFECTIVO",
-  "TARJETA",
-  "CANJE / PAGO",
-  "T. Crédito",
-]);
+const paymentMethodSchema = z.string().trim().min(1).max(50);
 
 const saleCreateSchema = z.object({
   date: z.string().min(1).max(120),
@@ -31,7 +25,7 @@ const saleCreateSchema = z.object({
   productId: z.string().min(1),
   amount: z.number().nonnegative(),
   paymentMethod: paymentMethodSchema,
-  status: z.enum(["COMPLETADA", "PENDIENTE"]),
+  status: z.string().trim().min(1).max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
@@ -41,7 +35,7 @@ const salePatchSchema = z
     clientId: z.string().min(1).optional(),
     productId: z.string().min(1).optional(),
     paymentMethod: paymentMethodSchema.optional(),
-    status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
+    status: z.string().trim().min(1).max(20).optional(),
     date: z.string().min(1).max(120).optional(),
     amount: z.number().nonnegative().optional(),
     categoryId: z.string().nullable().optional(),

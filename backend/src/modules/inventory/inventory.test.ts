@@ -8,12 +8,12 @@ const inventoryItemSchema = z.object({
   model: z.string().trim().min(1).max(100),
   capacity: z.string().trim().min(1).max(50),
   color: z.string().trim().min(1).max(50),
-  condition: z.enum(['NUEVO', 'USADO', 'PRE-OWNED']),
-  grade: z.enum(['A+', 'A', 'B', 'C', 'N/A']),
+  condition: z.string().trim().min(1).max(20),
+  grade: z.string().trim().min(1).max(20),
   batteryHealth: z.string().trim().max(50),
   cost: z.number().nonnegative(),
   price: z.number().nonnegative(),
-  status: z.enum(['DISPONIBLE', 'VENDIDO', 'EN_REVISION']),
+  status: z.string().trim().min(1).max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
@@ -92,9 +92,15 @@ describe('inventoryPatchSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects unknown condition value', () => {
+  it('accepts a custom condition within the column limit', () => {
     const result = inventoryPatchSchema.safeParse({ condition: 'ROTO' });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.condition).toBe('ROTO');
+  });
+
+  it('rejects an empty or oversized condition', () => {
+    expect(inventoryPatchSchema.safeParse({ condition: '   ' }).success).toBe(false);
+    expect(inventoryPatchSchema.safeParse({ condition: 'X'.repeat(21) }).success).toBe(false);
   });
 });
 

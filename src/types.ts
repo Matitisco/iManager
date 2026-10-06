@@ -4,12 +4,12 @@ export interface Product {
   model: string;
   capacity: string;
   color: string;
-  condition: 'NUEVO' | 'USADO' | 'PRE-OWNED';
-  grade: 'A+' | 'A' | 'B' | 'C' | 'N/A';
+  condition: string;
+  grade: string;
   batteryHealth: string;
   cost: number;
   price: number;
-  status: 'DISPONIBLE' | 'VENDIDO' | 'EN_REVISION';
+  status: string;
   categoryId?: string | null;
   soldAt?: string | null;
   customFields?: Record<string, any>;
@@ -37,8 +37,8 @@ export interface Sale {
   clientId: string;
   productId: string;
   amount: number;
-  paymentMethod: 'TRANSFERENCIA' | 'EFECTIVO' | 'TARJETA' | 'CANJE / PAGO' | 'T. Crédito';
-  status: 'COMPLETADA' | 'PENDIENTE';
+  paymentMethod: string;
+  status: string;
   categoryId?: string | null;
   customFields?: Record<string, any>;
 }
@@ -53,7 +53,7 @@ export interface TradeIn {
   takeValue: number;
   deviceGiven: string;
   differencePaid: number;
-  status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | 'EN REVISIÓN' | 'PERITAJE TÉC.' | 'LISTO';
+  status: string;
   batteryHealth?: string;
   grade?: string;
   customFields?: Record<string, any>;

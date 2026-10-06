@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readTagOverrides, resolveTag, tagOptionsStorageKey } from './tagOptions';
+import { mergeDropdownOptions, readTagOptions, readTagOverrides, resolveTag, tagOptionsStorageKey } from './tagOptions';
 
 describe('tag options', () => {
   it('keeps the stored option and applies a renamed label and color', () => {
@@ -29,5 +29,35 @@ describe('tag options', () => {
         DISPONIBLE: { label: 'En local' },
       },
     });
+  });
+
+  it('keeps created tags in the versioned store and ignores invalid ones', () => {
+    localStorage.setItem(tagOptionsStorageKey('inventory:user-1'), JSON.stringify({
+      v: 2,
+      overrides: {
+        status: { RESERVADO: { label: 'Reservado', colorId: 'amber' } },
+      },
+      created: {
+        status: [' Reservado ', 'reservado', '', 'Apartado'],
+        broken: 'nope',
+      },
+    }));
+
+    expect(readTagOptions('inventory:user-1')).toEqual({
+      overrides: {
+        status: { RESERVADO: { label: 'Reservado', colorId: 'amber' } },
+      },
+      created: {
+        status: ['Reservado', 'Apartado'],
+      },
+    });
+  });
+
+  it('appends created options without duplicating the current value', () => {
+    expect(mergeDropdownOptions(['DISPONIBLE', 'VENDIDO'], ['Reservado', 'vendido'], 'Reservado')).toEqual([
+      'DISPONIBLE',
+      'VENDIDO',
+      'Reservado',
+    ]);
   });
 });

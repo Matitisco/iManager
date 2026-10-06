@@ -7,8 +7,8 @@ export interface SaleInput {
   clientId: string;
   productId: string;
   amount: number;
-  paymentMethod: "TRANSFERENCIA" | "EFECTIVO" | "TARJETA" | "CANJE / PAGO" | "T. Crédito";
-  status: "COMPLETADA" | "PENDIENTE";
+  paymentMethod: string;
+  status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
 }

@@ -43,6 +43,12 @@ export const TAG_COLORS: TagColor[] = [
 ];
 
 const TAG_LABEL_LIMIT = 40;
+export const CREATED_TAG_LIMIT = 20;
+
+export interface TagOptionsState {
+  overrides: TagOverrideMap;
+  created: Record<string, string[]>;
+}
 
 export function tagOptionsStorageKey(storageKey: string) {
   return `${storageKey}:tagOptions`;
@@ -53,36 +59,73 @@ export function matchTagColor(tag?: Pick<BadgeMeta, 'bg' | 'text' | 'dot'> | nul
   return TAG_COLORS.find((color) => color.bg === tag.bg && color.text === tag.text && color.dot === tag.dot);
 }
 
-export function readTagOverrides(storageKey: string): TagOverrideMap {
+function sanitizeOverrides(value: unknown): TagOverrideMap {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<TagOverrideMap>((columns, [columnId, columnValue]) => {
+    if (!columnValue || typeof columnValue !== 'object' || Array.isArray(columnValue)) return columns;
+
+    const options = Object.entries(columnValue as Record<string, unknown>).reduce<Record<string, TagOverride>>((acc, [option, override]) => {
+      if (!override || typeof override !== 'object' || Array.isArray(override)) return acc;
+      const record = override as Record<string, unknown>;
+      const next: TagOverride = {};
+      if (typeof record.label === 'string' && record.label.trim()) {
+        next.label = record.label.trim().slice(0, TAG_LABEL_LIMIT);
+      }
+      if (typeof record.colorId === 'string' && TAG_COLORS.some((color) => color.id === record.colorId)) {
+        next.colorId = record.colorId;
+      }
+      if (next.label || next.colorId) acc[option] = next;
+      return acc;
+    }, {});
+
+    if (Object.keys(options).length > 0) columns[columnId] = options;
+    return columns;
+  }, {});
+}
+
+function sanitizeCreated(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string[]>>((columns, [columnId, options]) => {
+    if (!Array.isArray(options)) return columns;
+    const next = normalizeCreatedTagValues(options);
+    if (next.length > 0) columns[columnId] = next;
+    return columns;
+  }, {});
+}
+
+export function readTagOptions(storageKey: string): TagOptionsState {
   try {
     const raw = localStorage.getItem(tagOptionsStorageKey(storageKey));
-    if (!raw) return {};
+    if (!raw) return { overrides: {}, created: {} };
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { overrides: {}, created: {} };
 
-    return Object.entries(parsed as Record<string, unknown>).reduce<TagOverrideMap>((columns, [columnId, value]) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return columns;
+    const record = parsed as Record<string, unknown>;
+    if (record.v === 2) {
+      return {
+        overrides: sanitizeOverrides(record.overrides),
+        created: sanitizeCreated(record.created),
+      };
+    }
 
-      const options = Object.entries(value as Record<string, unknown>).reduce<Record<string, TagOverride>>((acc, [option, override]) => {
-        if (!override || typeof override !== 'object' || Array.isArray(override)) return acc;
-        const record = override as Record<string, unknown>;
-        const next: TagOverride = {};
-        if (typeof record.label === 'string' && record.label.trim()) {
-          next.label = record.label.trim().slice(0, TAG_LABEL_LIMIT);
-        }
-        if (typeof record.colorId === 'string' && TAG_COLORS.some((color) => color.id === record.colorId)) {
-          next.colorId = record.colorId;
-        }
-        if (next.label || next.colorId) acc[option] = next;
-        return acc;
-      }, {});
-
-      if (Object.keys(options).length > 0) columns[columnId] = options;
-      return columns;
-    }, {});
+    return { overrides: sanitizeOverrides(parsed), created: {} };
   } catch {
-    return {};
+    return { overrides: {}, created: {} };
   }
+}
+
+export function readTagOverrides(storageKey: string): TagOverrideMap {
+  return readTagOptions(storageKey).overrides;
+}
+
+export function writeTagOptions(storageKey: string, state: TagOptionsState) {
+  localStorage.setItem(tagOptionsStorageKey(storageKey), JSON.stringify({
+    v: 2,
+    overrides: state.overrides,
+    created: state.created,
+  }));
 }
 
 export function resolveTag(
@@ -106,4 +149,40 @@ export function resolveTag(
 
 export function normalizeTagLabel(value: string) {
   return value.trim().slice(0, TAG_LABEL_LIMIT);
+}
+
+export function normalizeCreatedTagValue(value: string) {
+  return value.trim().slice(0, CREATED_TAG_LIMIT);
+}
+
+export function normalizeCreatedTagValues(values: readonly unknown[]) {
+  const options: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const label = normalizeCreatedTagValue(String(value ?? ''));
+    const key = label.toLocaleLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    options.push(label);
+  }
+
+  return options;
+}
+
+export function mergeDropdownOptions(base: readonly string[], extra: readonly string[], current?: string) {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string) => {
+    const label = value.trim();
+    const key = label.toLocaleLowerCase();
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    merged.push(label);
+  };
+
+  for (const option of base) push(option);
+  for (const option of extra) push(option);
+  if (current) push(current);
+  return merged;
 }

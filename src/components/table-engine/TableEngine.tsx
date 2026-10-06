@@ -596,11 +596,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                 if (!column || (column.type !== 'badge' && column.type !== 'enum')) return filter;
                 return {
                   ...filter,
-                  options: filter.options.map((option) => (
-                    option.value
-                      ? { ...option, label: tagOptions.labelFor(column.id, option.value, option.label) }
-                      : option
-                  )),
+                  options: tagOptions.choices(column.id, filter.options),
                 };
               })} activeFilters={activeFilters}
                 onChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -736,10 +732,13 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           else if (colDef.type === 'tags' && !placeholder) placeholder = 'Etiquetas, separadas por coma';
                           else if ((colDef.type === 'enum' || colDef.type === 'badge') && colDef.enumOptions?.length) {
                             effectiveType = 'select';
-                            selectOptions = colDef.enumOptions.map(o => ({
-                              value: o,
-                              label: tagOptions.resolve(colId, o, colDef.badgeMeta?.[o]).label,
-                            }));
+                            selectOptions = tagOptions.choices(
+                              colId,
+                              colDef.enumOptions.map(o => ({
+                                value: o,
+                                label: tagOptions.resolve(colId, o, colDef.badgeMeta?.[o]).label,
+                              })),
+                            );
                           }
                         }
 
@@ -747,7 +746,9 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           placeholder = fieldCfg.placeholder ?? '';
                           if (fieldCfg.selectOptions?.length) {
                             effectiveType = 'select';
-                            selectOptions = fieldCfg.selectOptions;
+                            selectOptions = colDef && (colDef.type === 'enum' || colDef.type === 'badge')
+                              ? tagOptions.choices(colId, fieldCfg.selectOptions)
+                              : fieldCfg.selectOptions;
                           } else if (fieldCfg.type != null && fieldCfg.type !== 'select') {
                             effectiveType = fieldCfg.type;
                           }
@@ -830,6 +831,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                           displayVal={editHook.displayVal}
                           resolveTag={tagOptions.resolve}
                           onSaveTag={tagOptions.save}
+                          extraOptions={tagOptions.createdFor(colId)}
+                          onCreateTag={tagOptions.create}
                         />
                       );
                     })}
@@ -1072,7 +1075,18 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
 
       {/* ── Edit panel ── */}
       <EditPanel
-        item={selectedItem} fields={editPanelFields} title={editPanelTitle ?? `Editar ${noun}`}
+        item={selectedItem}
+        fields={editPanelFields.map((field) => {
+          if (field.type !== 'select') return field;
+          const column = resolvedColumns.find((col) => col.field === field.field || col.id === field.field);
+          if (!column || (column.type !== 'badge' && column.type !== 'enum')) return field;
+          const current = selectedItem ? String((selectedItem as Record<string, unknown>)[field.field] ?? '') : '';
+          return {
+            ...field,
+            options: tagOptions.choices(column.id, field.options ?? [], current || undefined),
+          };
+        })}
+        title={editPanelTitle ?? `Editar ${noun}`}
         onClose={() => setSelectedItem(null)}
         onChange={updated => setSelectedItem(updated)}
         onSave={async (item) => { await onUpdate(item); setItems(prev => prev.map(p => p.id === item.id ? item : p)); }}

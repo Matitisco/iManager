@@ -11,13 +11,7 @@ export interface TradeInInput {
   takeValue: number;
   deviceGiven: string;
   differencePaid: number;
-  status:
-    | "PENDIENTE"
-    | "APROBADO"
-    | "RECHAZADO"
-    | "EN REVISIÓN"
-    | "PERITAJE TÉC."
-    | "LISTO";
+  status: string;
   batteryHealth?: string | null;
   grade?: string | null;
   customFields?: Record<string, unknown> | null;

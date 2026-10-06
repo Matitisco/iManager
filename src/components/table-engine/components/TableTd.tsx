@@ -4,7 +4,7 @@ import type { WithId, ColDef, BadgeMeta } from '../types';
 import { getColumnValue } from '../columnAccess';
 import { TagsCell } from './TagsCell';
 import { TagChipDisplay, TagOptionMenu } from './TagOptionMenu';
-import type { ResolvedTag, TagPatch } from '../tagOptions';
+import { mergeDropdownOptions, type ResolvedTag, type TagPatch } from '../tagOptions';
 
 interface TableTdProps<TRow extends WithId> {
   colId: string;
@@ -29,6 +29,8 @@ interface TableTdProps<TRow extends WithId> {
   displayVal: (v: any) => string | null;
   resolveTag: (columnId: string, option: string, base?: BadgeMeta) => ResolvedTag;
   onSaveTag: (columnId: string, option: string, patch: TagPatch) => void;
+  extraOptions: string[];
+  onCreateTag: (columnId: string, label: string, colorId: string | undefined, existing: string[]) => string | null;
 }
 
 export function TableTd<TRow extends WithId>({
@@ -37,7 +39,7 @@ export function TableTd<TRow extends WithId>({
   focusedCell, setFocusedCell,
   startInlineEdit, commitInlineEdit, commitTags, cancelInlineEdit, inlineEditCellRef,
   handleCellBlur, handleCellKeyDown, cellDisplay, displayVal,
-  resolveTag, onSaveTag,
+  resolveTag, onSaveTag, extraOptions, onCreateTag,
 }: TableTdProps<TRow>) {
   const field = colDef.field as string;
   const isFocused = focusedCell?.rowIndex === rowIndex && focusedCell?.colKey === colId;
@@ -74,7 +76,8 @@ export function TableTd<TRow extends WithId>({
       ? (colDef.badgeMeta[statusVal] ?? colDef.badgeMeta[metaKeys[0]])
       : colDef.badgeMeta[metaKeys[0]];
     const tag = resolveTag(colId, statusVal, base);
-    const options = colDef.enumOptions ?? [];
+    const baseOptions = colDef.enumOptions ?? [];
+    const options = mergeDropdownOptions(baseOptions, extraOptions, hasVal ? statusVal : undefined);
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing}`}>
         <div className="relative">
@@ -101,6 +104,7 @@ export function TableTd<TRow extends WithId>({
                       commitInlineEdit(row);
                     }}
                     onSave={(option, patch) => onSaveTag(colId, option, patch)}
+                    onCreate={(label, colorId) => onCreateTag(colId, label, colorId, baseOptions)}
                   />
                 </motion.div>
               </>
@@ -127,6 +131,8 @@ export function TableTd<TRow extends WithId>({
   // ── Enum dropdown ──────────────────────────────────────────────────────────
   if (colDef.type === 'enum' && colDef.enumOptions) {
     const val = String(displayValue ?? '');
+    const hasVal = displayVal(val) !== null;
+    const options = mergeDropdownOptions(colDef.enumOptions, extraOptions, hasVal ? val : undefined);
     const tag = resolveTag(colId, val, undefined);
     return (
       <td key={colId} data-col={colId} className={`px-3 py-4${focusRing} ${colDef.tdClassName ?? ''}`}>
@@ -142,7 +148,7 @@ export function TableTd<TRow extends WithId>({
                 <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} transition={{ duration: 0.12 }}
                   className="absolute left-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-30">
                   <TagOptionMenu
-                    options={colDef.enumOptions}
+                    options={options}
                     selected={val}
                     variant="text"
                     resolve={(option) => resolveTag(colId, option, undefined)}
@@ -152,6 +158,7 @@ export function TableTd<TRow extends WithId>({
                       commitInlineEdit(row);
                     }}
                     onSave={(option, patch) => onSaveTag(colId, option, patch)}
+                    onCreate={(label, colorId) => onCreateTag(colId, label, colorId, colDef.enumOptions ?? [])}
                   />
                 </motion.div>
               </>

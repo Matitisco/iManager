@@ -12,6 +12,7 @@ type TestRow = {
   categoryId: string | null;
   imei?: string;
   status?: string;
+  channel?: string;
   customFields?: Record<string, unknown>;
 };
 
@@ -471,6 +472,72 @@ describe('TableEngine', () => {
         status: 'VENDIDO',
       }));
     });
+  });
+
+  it('creates a new tag from the bottom of badge and enum dropdowns', async () => {
+    localStorage.removeItem('table-engine-new-tag:user-1:tagOptions');
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    type DropdownRow = TestRow & { status: string; channel: string };
+    const rows: DropdownRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null, status: 'DISPONIBLE', channel: 'Local' },
+    ];
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          storageKey: 'table-engine-new-tag',
+          columns: [
+            {
+              id: 'status',
+              label: 'Disponibilidad',
+              field: 'status',
+              defaultWidth: 160,
+              type: 'badge',
+              editable: true,
+              enumOptions: ['DISPONIBLE', 'VENDIDO'],
+              badgeMeta: {
+                DISPONIBLE: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'DISPONIBLE' },
+                VENDIDO: { bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', label: 'VENDIDO' },
+              },
+            },
+            {
+              id: 'channel',
+              label: 'Canal',
+              field: 'channel',
+              defaultWidth: 140,
+              type: 'enum',
+              editable: true,
+              enumOptions: ['Local', 'Online'],
+            },
+          ],
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onUpdate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    await user.click(await screen.findByText('DISPONIBLE'));
+    await user.click(screen.getByRole('button', { name: 'Nueva etiqueta' }));
+    await user.type(screen.getByTestId('tag-edit-input'), 'Reservado');
+    await user.click(screen.getByRole('button', { name: 'Color Ámbar' }));
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        id: '1',
+        status: 'Reservado',
+      }));
+    });
+
+    await user.click(screen.getByText('Local'));
+    expect(screen.getByRole('button', { name: 'Nueva etiqueta' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Nueva etiqueta' }));
+    await user.type(screen.getByTestId('tag-edit-input'), 'Local');
+    await user.click(screen.getByRole('button', { name: 'Crear' }));
+    expect(screen.getByText('Esa etiqueta ya existe.')).toBeInTheDocument();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
   it('renames a column from a double click and cancels with escape', async () => {
