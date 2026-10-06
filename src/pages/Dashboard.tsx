@@ -43,7 +43,7 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
               Dashboard
             </span>
           </div>
-          <div className="flex min-h-[300px] flex-col justify-between gap-8 px-6 py-8 md:px-10 md:py-10">
+          <div className="flex flex-col gap-8 px-6 py-8 md:px-10 md:py-10">
             <div className="space-y-4">
               <p className="text-sm font-medium text-gray-500">
                 {storeName ? `Sesión activa en ${storeName}` : 'Sesión activa'}
@@ -80,39 +80,41 @@ export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ on
           </div>
         </motion.section>
 
-        <motion.section variants={item} className="rounded-2xl border border-gray-200 bg-white p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-xl bg-gray-100 p-3 text-gray-900">
-              <ClipboardList size={18} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Tu foco hoy</h2>
-              <p className="text-sm text-gray-500">Tareas que todavía necesitan una acción</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {focusLoading ? (
-              <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                Cargando tareas pendientes…
+        <div className="relative min-w-0">
+          <motion.section variants={item} className="flex max-h-[32rem] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 lg:absolute lg:inset-0 lg:max-h-none">
+            <div className="mb-5 flex shrink-0 items-center gap-3">
+              <div className="rounded-xl bg-gray-100 p-3 text-gray-900">
+                <ClipboardList size={18} />
               </div>
-            ) : focusTasks.length === 0 ? (
-              <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                No hay tareas pendientes. El día está al día.
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Tu foco hoy</h2>
+                <p className="text-sm text-gray-500">Tareas que todavía necesitan una acción</p>
               </div>
-            ) : (
-              focusTasks.map((task) => (
-                <QuickActionCard
-                  key={task.id}
-                  icon={focusIcons[task.id]}
-                  title={task.title}
-                  description={task.description}
-                  count={task.count}
-                  onClick={() => onNavigate?.(task.tab)}
-                />
-              ))
-            )}
-          </div>
-        </motion.section>
+            </div>
+            <div className="max-h-[24rem] space-y-3 overflow-y-auto overscroll-y-contain lg:max-h-none lg:min-h-0 lg:flex-1">
+              {focusLoading ? (
+                <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                  Cargando tareas pendientes…
+                </div>
+              ) : focusTasks.length === 0 ? (
+                <div className="rounded-xl bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                  No hay tareas pendientes. El día está al día.
+                </div>
+              ) : (
+                focusTasks.map((task) => (
+                  <QuickActionCard
+                    key={task.id}
+                    icon={focusIcons[task.id]}
+                    title={task.title}
+                    description={task.description}
+                    count={task.count}
+                    onClick={() => onNavigate?.(task.tab)}
+                  />
+                ))
+              )}
+            </div>
+          </motion.section>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
