@@ -79,10 +79,13 @@ describe("sales.service", () => {
     });
   });
 
-  it("reports missing client names during import", async () => {
-    const result = await importSales("store-1", [{ clientName: " ", productImei: "IMEI", amount: "1000" }]);
+  it("stores the client name without requiring a client row", async () => {
+    prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
 
-    expect(result.errors).toEqual([{ row: 2, message: "Nombre de cliente requerido" }]);
+    const result = await importSales("store-1", [{ clientName: "Alguien", productImei: "IMEI", amount: "1000" }]);
+
+    expect(result.errors).toEqual([{ row: 2, message: 'Producto no encontrado (IMEI): "IMEI"' }]);
+    expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns null for non-domain errors", () => {

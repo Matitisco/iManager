@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { catalogChoices, useCatalogs } from '../catalog';
-import { batteryPercent, conditionLabel, formatImei, formatMoney } from '../format';
+import { batteryPercent, conditionLabel, equipmentTitle, formatMoney, isInStock } from '../format';
 import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const FILTERS = [
@@ -28,8 +28,8 @@ export function InventoryScreen() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = inventory.filter((item) => {
-      const matchesFilter = filter === 'Todos' || item.status === filter;
-      const haystack = `${item.model} ${item.capacity} ${item.color} ${item.imei}`.toLowerCase();
+      const matchesFilter = filter === 'Todos' || (filter === 'DISPONIBLE' ? isInStock(item.status) : item.status === filter);
+      const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
       return matchesFilter && (!q || haystack.includes(q));
     });
     if (sort === 'Precio ↑') list = [...list].sort((a, b) => a.price - b.price);
@@ -37,7 +37,7 @@ export function InventoryScreen() {
     return list;
   }, [inventory, query, filter, sort]);
 
-  const available = inventory.filter((item) => item.status === 'DISPONIBLE').length;
+  const available = inventory.filter((item) => isInStock(item.status)).length;
   const filters = useMemo(() => {
     const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', FILTERS.filter((item) => item.id !== 'Todos'));
     const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
@@ -52,7 +52,7 @@ export function InventoryScreen() {
           <div className="dsub">{inventory.length} equipos · {available} disponibles</div>
         </div>
         <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo, color o IMEI" />
+          <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
           <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
           <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
         </div>
@@ -65,7 +65,7 @@ export function InventoryScreen() {
         {rows.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : (
           <table className="dtable">
             <thead>
-              <tr><th>Equipo</th><th>IMEI</th><th>Condición</th><th>Batería</th><th className="r">Precio</th><th>Estado</th></tr>
+              <tr><th>Equipo</th><th>Condición</th><th>Batería</th><th className="r">Precio</th><th>Estado</th></tr>
             </thead>
             <tbody>
               {rows.map((item) => (
@@ -73,19 +73,18 @@ export function InventoryScreen() {
                   key={item.id}
                   as="tr"
                   onActivate={() => open({ type: 'eq', id: item.id })}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: `${item.model} · ${item.capacity}`, ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
                 >
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><DeskIcon name="logo" size={22} /></div>
-                      <div><b>{item.model} · {item.capacity}</b><small>{item.color}</small></div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small></div>
                     </div>
                   </td>
-                  <td className="mono">{formatImei(item.imei)}</td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
-                  <td><Battery value={batteryPercent(item.batteryHealth)} /></td>
+                  <td>{item.batteryHealth ? <Battery value={batteryPercent(item.batteryHealth)} /> : '—'}</td>
                   <td className="r"><b>{formatMoney(item.price)}</b></td>
-                  <td><Pill status={item.status} kind="INVENTORY_STATUS" /></td>
+                  <td>{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}</td>
                 </PressTarget>
               ))}
             </tbody>

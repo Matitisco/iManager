@@ -3,11 +3,13 @@ import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import {
   clientName,
+  saleBuyer,
   formatMoney,
   formatMoneyCompact,
   formatShortDate,
   initials,
   isInProgressTrade,
+  isInStock,
   parseAppDate,
   productLabel,
   saleCode,
@@ -98,7 +100,7 @@ export function DashboardScreen() {
     return sum + sale.amount;
   }, 0);
   const monthDelta = prevTotal > 0 ? Math.round(((monthTotal - prevTotal) / prevTotal) * 100) : null;
-  const available = inventory.filter((item) => item.status === 'DISPONIBLE').length;
+  const available = inventory.filter((item) => isInStock(item.status)).length;
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status));
   const balance = clients.filter((client) => client.pendingBalance > 0);
   const balanceTotal = balance.reduce((sum, client) => sum + client.pendingBalance, 0);
@@ -195,9 +197,9 @@ export function DashboardScreen() {
                 {recent.map((sale) => {
                   const product = inventory.find((item) => item.id === sale.productId);
                   return (
-                    <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${clientName(clients, sale.clientId)}`, ...point })}>
+                    <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
                       <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
-                      <td>{clientName(clients, sale.clientId)}</td>
+                      <td>{saleBuyer(sale, clients)}</td>
                       <td>{productLabel(product)}</td>
                       <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                       <td><Pill status={sale.status} kind="SALE_STATUS" /></td>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import {
-  clientName,
+  saleBuyer,
   formatMoney,
   formatShortDate,
   inPeriod,
@@ -41,7 +41,7 @@ export function SalesScreen() {
     const q = query.trim().toLowerCase();
     if (!q) return true;
     const product = inventory.find((item) => item.id === sale.productId);
-    return `${clientName(clients, sale.clientId)} ${productLabel(product)} ${saleCode(sale)}`.toLowerCase().includes(q);
+    return `${saleBuyer(sale, clients)} ${productLabel(product)} ${saleCode(sale)}`.toLowerCase().includes(q);
   });
 
   const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
@@ -87,11 +87,11 @@ export function SalesScreen() {
                     key={sale.id}
                     as="tr"
                     onActivate={() => open({ type: 'sale', id: sale.id })}
-                    onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${clientName(clients, sale.clientId)}`, ...point })}
+                    onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                   >
                     <td><b>#{saleCode(sale)}</b></td>
                     <td>{formatShortDate(sale.date)}</td>
-                    <td>{clientName(clients, sale.clientId)}</td>
+                    <td>{saleBuyer(sale, clients)}</td>
                     <td>{productLabel(product)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{formatMoney(sale.amount)}</b></td>

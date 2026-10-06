@@ -2,10 +2,14 @@ import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import {
   clientName,
+  saleBuyer,
+  conditionLabel,
   formatMoney,
   formatMoneyCompact,
   formatShortDate,
+  equipmentTitle,
   inPeriod,
+  isInStock,
   isInProgressTrade,
   parseAppDate,
   paymentLabel,
@@ -54,7 +58,7 @@ export function ReportsScreen() {
     const rows: string[][] = [['detalle', 'importe', 'estado']];
     if (tab === 'Ventas') {
       sales.filter((sale) => inPeriod(sale.date, bounds.start, bounds.end)).forEach((sale) => {
-        rows.push([`${saleCode(sale)} ${clientName(clients, sale.clientId)}`, String(sale.amount), statusLabel(sale.status)]);
+        rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(sale.amount), statusLabel(sale.status)]);
       });
     } else if (tab === 'Stock') {
       inventory.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(item.price), statusLabel(item.status)]));
@@ -128,7 +132,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} recientes</span></div>
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatShortDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{clientName(clients, sale.clientId)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatShortDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -140,7 +144,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Equipos</h3><span>{stockRows.length} en stock</span></div>
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
-              <div className="gl"><div className="gdate">IMEI …{item.imei.slice(-4)}</div><div className="gstore">{item.model} · {item.capacity}</div><div className="gmeta">{item.condition} <Pill status={item.status} kind="INVENTORY_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition, item.grade) : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(item.price)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -229,7 +233,7 @@ function buildReport(
     };
   }
   if (tab === 'Stock') {
-    const available = data.inventory.filter((item) => item.status === 'DISPONIBLE').length;
+    const available = data.inventory.filter((item) => isInStock(item.status)).length;
     const dated = data.inventory.filter((item) => item.createdAt);
     if (dated.length) {
       const current = dated.filter((item) => item.createdAt && inPeriod(item.createdAt, bounds.start, bounds.end));

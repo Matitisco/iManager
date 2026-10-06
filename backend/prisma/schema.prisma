@@ -116,7 +116,7 @@ model InventoryItem {
   id            String             @id @default(cuid())
   storeId       String
   categoryId    String?
-  imei          String             @db.VarChar(100)
+  imei          String?            @db.VarChar(100)
   model         String             @db.VarChar(100)
   capacity      String             @db.VarChar(50)
   color         String             @db.VarChar(50)
@@ -142,6 +142,7 @@ model Sale {
   saleNumber      Int            @default(autoincrement())
   storeId         String
   clientId        String?
+  clientName      String         @default("") @db.VarChar(120)
   categoryId      String?
   inventoryItemId String?
   dateLabel       String         @db.VarChar(120)

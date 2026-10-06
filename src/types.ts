@@ -36,6 +36,7 @@ export interface Sale {
   saleNumber?: number;
   date: string;
   clientId: string;
+  clientName?: string;
   productId: string;
   amount: number;
   paymentMethod: string;

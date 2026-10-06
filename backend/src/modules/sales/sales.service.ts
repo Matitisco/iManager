@@ -5,6 +5,7 @@ import { prisma } from "../../plugins/prisma.js";
 export interface SaleInput {
   date: string;
   clientId?: string | null;
+  clientName?: string | null;
   productId: string;
   amount: number;
   paymentMethod: string;
@@ -15,6 +16,7 @@ export interface SaleInput {
 
 export interface SalePatchInput {
   clientId?: string | null;
+  clientName?: string | null;
   productId?: string;
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
@@ -29,6 +31,7 @@ export interface SaleResponse {
   saleNumber: number;
   date: string;
   clientId: string;
+  clientName: string;
   productId: string;
   amount: number;
   paymentMethod: SaleInput["paymentMethod"];
@@ -41,6 +44,7 @@ type SaleRecord = {
   id: string;
   saleNumber: number;
   clientId: string | null;
+  clientName: string;
   inventoryItemId: string | null;
   dateLabel: string;
   amount: Decimal;
@@ -182,6 +186,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     saleNumber: sale.saleNumber,
     date: sale.dateLabel || formatDateLabel(sale.soldAt),
     clientId: sale.clientId ?? "",
+    clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
     amount: sale.amount.toNumber(),
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
@@ -222,7 +227,7 @@ export async function createSale(storeId: string, input: SaleInput) {
       throw new SalesError("Inventory item not found", 404);
     }
 
-    if (inventoryItem.status !== "DISPONIBLE") {
+    if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
       throw new SalesError("Inventory item is not available", 409);
     }
 
@@ -233,6 +238,7 @@ export async function createSale(storeId: string, input: SaleInput) {
       data: {
         storeId,
         clientId: client?.id ?? null,
+        clientName: input.clientName?.trim() || client?.name || "",
         inventoryItemId: inventoryItem.id,
         dateLabel,
         amount: toDecimal(input.amount),
@@ -301,7 +307,7 @@ export async function updateSale(
         throw new SalesError("Inventory item not found", 404);
       }
 
-      if (inventoryItem.status !== "DISPONIBLE") {
+      if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
         throw new SalesError("Inventory item is not available", 409);
       }
     }
@@ -321,6 +327,7 @@ export async function updateSale(
         soldAt: newSoldAt,
         amount: newAmount,
         clientId: nextClientId,
+        clientName: input.clientName !== undefined ? (input.clientName?.trim() ?? "") : existing.clientName,
         inventoryItemId: nextInventoryItemId,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
         customFields:
@@ -467,20 +474,7 @@ export async function importSales(
     const rowNum = i + 2;
 
     try {
-      // Resolve client by name
-      const clientName = r.clientName?.trim();
-      if (!clientName) {
-        errors.push({ row: rowNum, message: "Nombre de cliente requerido" });
-        continue;
-      }
-      const client = await prisma.client.findFirst({
-        where: { storeId, name: { equals: clientName, mode: "insensitive" } },
-        select: { id: true },
-      });
-      if (!client) {
-        errors.push({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` });
-        continue;
-      }
+      const clientName = r.clientName?.trim() ?? "";
 
       // Resolve inventory item by IMEI
       const imei = r.productImei?.trim();
@@ -515,7 +509,8 @@ export async function importSales(
         await tx.sale.create({
           data: {
             storeId,
-            clientId: client.id,
+            clientId: null,
+            clientName,
             inventoryItemId: item.id,
             dateLabel,
             amount: toDecimal(amount),
@@ -529,8 +524,6 @@ export async function importSales(
           where: { id: item.id },
           data: { status: "VENDIDO" },
         });
-
-        await recomputeClientStats(tx, storeId, client.id);
       });
 
       imported++;

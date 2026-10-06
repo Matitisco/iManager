@@ -12,7 +12,7 @@ export type Overlay =
   | { type: 'new-eq' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
-  | { type: 'new-sale'; clientId?: string; productId?: string }
+  | { type: 'new-sale'; clientName?: string; productId?: string }
   | { type: 'sale'; id: string }
   | { type: 'edit-sale'; id: string }
   | { type: 'new-cj' }

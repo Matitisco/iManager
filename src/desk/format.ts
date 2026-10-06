@@ -134,7 +134,16 @@ export function statusColor(status: string): string {
   return STATUS_COLOR[status] ?? STATUS_COLOR[statusLabel(status)] ?? '#737984';
 }
 
+export function isInStock(status: string) {
+  return !status || status === 'DISPONIBLE';
+}
+
+export function equipmentTitle(model: string, capacity?: string) {
+  return [model, capacity].filter(Boolean).join(' · ');
+}
+
 export function conditionLabel(condition: string, grade?: string): string {
+  if (!condition) return '—';
   const label = ({ NUEVO: 'Nuevo', USADO: 'Usado', 'PRE-OWNED': 'Pre-owned' } as Record<string, string>)[condition] ?? condition;
   if (!grade || grade === 'N/A' || grade === '—' || condition === 'NUEVO') return label;
   return `${label} · Grado ${grade}`;
@@ -152,6 +161,13 @@ export function paymentLabel(method: string): string {
 export function clientName(clients: Client[], id: string): string {
   if (!id) return 'Consumidor final';
   return clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
+}
+
+export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {
+  const typed = sale.clientName?.trim();
+  if (typed) return typed;
+  if (sale.clientId) return clientName(clients, sale.clientId);
+  return 'Consumidor final';
 }
 
 export function productLabel(product: Product | undefined): string {

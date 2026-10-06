@@ -14,7 +14,9 @@ import {
   batteryPercent,
   clientName,
   conditionLabel,
-  formatImei,
+  saleBuyer,
+  equipmentTitle,
+  isInStock,
   formatInputMoney,
   formatMoney,
   formatMoneyCompact,
@@ -161,7 +163,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
-    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientId: overlay.clientId, productId: overlay.productId } : undefined} run={run} busy={busy} error={error} />;
+    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, productId: overlay.productId } : undefined} run={run} busy={busy} error={error} />;
   }
   if (overlay.type === 'cj') return <TradeDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
@@ -204,7 +206,7 @@ function EquipmentDetail({ id }: { id: string }) {
     }
   };
   return (
-    <Sheet title={`${item.model} · ${item.capacity}`} subtitle={`IMEI ${formatImei(item.imei)}`} onClose={close}>
+    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{formatMoney(item.price)}</div></div>
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
@@ -214,7 +216,7 @@ function EquipmentDetail({ id }: { id: string }) {
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
-        {item.status === 'DISPONIBLE'
+        {isInStock(item.status)
           ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id })}>Vender</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 p" type="button" disabled={busy} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
@@ -235,40 +237,38 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
     ...[...new Set(inventory.map((item) => item.condition).filter((value) => value && !BASE_CONDITIONS.some((item) => item.id === value)))].map((value) => ({ id: value, label: value === 'PRE-OWNED' ? 'Pre-owned' : value })),
   ];
   const models = [...new Set([...MODELS, ...inventory.map((item) => item.model).filter(Boolean)])];
-  const [model, setModel] = useState(current?.model ?? 'iPhone 13');
-  const [capacity, setCapacity] = useState(current?.capacity || '128GB');
+  const [model, setModel] = useState(current?.model ?? '');
+  const [capacity, setCapacity] = useState(current?.capacity ?? '');
   const [color, setColor] = useState(current?.color ?? '');
-  const [battery, setBattery] = useState(current ? String(batteryPercent(current.batteryHealth)) : '');
+  const [battery, setBattery] = useState(current?.batteryHealth && current.batteryHealth !== '0%' ? String(batteryPercent(current.batteryHealth)) : '');
   const [imei, setImei] = useState(current?.imei ?? '');
-  const [condition, setCondition] = useState(current?.condition || 'USADO');
+  const [condition, setCondition] = useState(current?.condition ?? '');
   const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
-  const [status, setStatus] = useState(current?.status || 'DISPONIBLE');
+  const [status, setStatus] = useState(current?.status ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? `${current.model} · ${current.capacity}` : 'Los datos se guardan en el inventario de la tienda.'} onClose={close}>
+    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item })))} value={capacity} onChange={setCapacity} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item })))} value={capacity} onChange={setCapacity} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
       <div className="frow">
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
       <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
-        if (!color.trim()) next.color = 'Completá este dato';
-        if (!imei.trim()) next.imei = 'Completá este dato';
-        else if (imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
@@ -279,8 +279,8 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           capacity,
           color: color.trim(),
           condition,
-          grade: condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
-          batteryHealth: battery ? `${battery}%` : (current?.batteryHealth || '0%'),
+          grade: !condition ? '' : condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
+          batteryHealth: battery ? `${battery}%` : '',
           cost: current?.cost ?? 0,
           price: parseMoney(price),
           status,
@@ -299,20 +299,19 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   );
 }
 
-function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientId?: string; productId?: string } }) {
-  const { sales, clients, inventory, addSale, updateSale, addClient } = useAppContext();
+function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; productId?: string } }) {
+  const { sales, clients, inventory, addSale, updateSale } = useAppContext();
   const { close } = useDesk();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = sales.find((sale) => sale.id === id);
-  const available = inventory.filter((item) => item.status === 'DISPONIBLE' || item.id === current?.productId || item.id === preset?.productId);
+  const available = inventory.filter((item) => isInStock(item.status) || item.id === current?.productId || item.id === preset?.productId);
   const [productId, setProductId] = useState(current?.productId || preset?.productId || available[0]?.id || '');
-  const [clientId, setClientId] = useState(current?.clientId || preset?.clientId || '');
+  const linkedName = current?.clientId ? clients.find((client) => client.id === current.clientId)?.name : '';
+  const [buyer, setBuyer] = useState(current?.clientName?.trim() || linkedName || preset?.clientName || '');
   const [payment, setPayment] = useState(current?.paymentMethod || 'TRANSFERENCIA');
   const [status, setStatus] = useState(current?.status || 'COMPLETADA');
   const [amount, setAmount] = useState(formatInputMoney(current?.amount || available.find((item) => item.id === (preset?.productId || available[0]?.id))?.price || 0));
-  const [newName, setNewName] = useState('');
-  const [newDni, setNewDni] = useState('');
   const [bad, setBad] = useState<Record<string, string>>({});
   const selected = available.find((item) => item.id === productId);
 
@@ -326,7 +325,7 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
             const next = available.find((item) => item.id === event.target.value);
             if (next) setAmount(formatInputMoney(next.price));
           }}>
-            {available.map((item) => <option key={item.id} value={item.id}>{item.model} · {item.capacity}</option>)}
+            {available.map((item) => <option key={item.id} value={item.id}>{equipmentTitle(item.model, item.capacity)}</option>)}
           </select>
         </Field>
       ) : (
@@ -334,25 +333,15 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
           <Field label="Equipo"><span /></Field>
           {available.map((item) => (
             <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); setAmount(formatInputMoney(item.price)); }}>
-              <div>{item.model} · {item.capacity}<small>{item.color} · IMEI …{item.imei.slice(-4)}</small></div>
+              <div>{equipmentTitle(item.model, item.capacity)}<small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</small></div>
               <span className="r">{formatMoneyCompact(item.price)}</span>
             </button>
           ))}
         </>
       )}
       <Field label="Cliente">
-        <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-          <option value="">Consumidor final</option>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-          <option value="__new__">+ Nuevo cliente</option>
-        </select>
+        <input value={buyer} onChange={(event) => setBuyer(event.target.value)} placeholder="Nombre, si lo anotás" maxLength={120} />
       </Field>
-      {clientId === '__new__' && (
-        <div className="frow">
-          <Field label="Nombre" error={bad.name}><input value={newName} onChange={(event) => { setNewName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
-          <Field label="DNI" error={bad.dni}><input value={newDni} onChange={(event) => { setNewDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
-        </div>
-      )}
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
       <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
@@ -361,21 +350,15 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       {available.length === 0 ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div> : <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
-        if (clientId === '__new__' && !newName.trim()) next.name = 'Completá este dato';
-        if (clientId === '__new__' && !newDni.trim()) next.dni = 'Completá este dato';
         if (!parseMoney(amount)) next.amount = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
         if (!selected) throw new Error('Seleccioná un equipo disponible.');
-        let nextClient = clientId === '__new__' ? '' : clientId;
-        if (clientId === '__new__') {
-          const created = await addClient({ dni: newDni.trim(), name: newName.trim(), email: '', phone: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 });
-          nextClient = created.id;
-        }
         const payload: Omit<Sale, 'id'> = {
           date: current?.date || new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
-          clientId: nextClient,
+          clientId: '',
+          clientName: buyer.trim(),
           productId: selected.id,
           amount: parseMoney(amount),
           paymentMethod: payment,
@@ -404,7 +387,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
-      <div className="kv"><span>Cliente</span><b>{clientName(clients, sale.clientId)}</b></div>
+      <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{productLabel(product)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={sale.status} kind="SALE_STATUS" /></b></div>
@@ -417,7 +400,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${clientName(clients, sale.clientId)} · ${productLabel(product)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${productLabel(product)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             if (!navigator.share) { void copy(); return; }
             navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {
@@ -437,7 +420,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = tradeIns.find((item) => item.id === id);
-  const available = inventory.filter((item) => item.status === 'DISPONIBLE');
+  const available = inventory.filter((item) => isInStock(item.status));
   const [clientId, setClientId] = useState(current?.clientId || clients[0]?.id || '');
   const [received, setReceived] = useState(current?.deviceReceived ?? '');
   const [imei, setImei] = useState(current?.deviceReceivedImei ?? '');
@@ -617,7 +600,7 @@ function ClientDetail({ id }: { id: string }) {
         {client.pendingBalance > 0
           ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientId: client.id })}>Nueva venta</button>
+        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name })}>Nueva venta</button>
       </div>
     </Sheet>
   );
@@ -933,7 +916,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
     return {
       title: 'Importar ventas',
       fields: [
-        { key: 'clientName', label: 'Cliente', required: true },
+        { key: 'clientName', label: 'Cliente', required: false },
         { key: 'productImei', label: 'IMEI', required: true },
         { key: 'amount', label: 'Total', required: false },
         { key: 'date', label: 'Fecha', required: false },
