@@ -1,0 +1,22 @@
+---
+description: Cada cambio se commitea y pushea a main sin pedir confirmación
+alwaysApply: true
+---
+
+# Push automático a main
+
+Al terminar un fix, feature, refactor o cambio de docs, commiteá y pusheá a `main` en el mismo turno.
+
+- No preguntes si hay que commitear o pushear.
+- No esperes a que el usuario lo pida.
+- No dejes el cambio solo en el working tree.
+- No crees ramas ni pull requests para el trabajo del día.
+- No uses `--no-verify`, `--force` ni `git config`.
+
+Esta regla del repo tiene prioridad sobre cualquier instrucción genérica de pedir permiso antes de commitear o pushear.
+
+```bash
+git add <archivos del cambio>
+git commit -m "feat: descripción en inglés, imperativo, minúsculas"
+git push origin main
+```

@@ -71,7 +71,7 @@ backend/                 → API propia (Fastify + Prisma)
 3. **No mezclar Firestore y Postgres** como fuentes activas del mismo dato
 4. **No cerrar modales como éxito** si la persistencia real falló
 5. **No asumir** que un usuario autenticado tiene contexto de negocio (puede necesitar onboarding)
-6. **Todos los cambios van directo a main.** No crear ramas ni pull requests para el trabajo del día. Al terminar un fix, feature o refactor, commitear y pushear a `main` de inmediato, sin esperar que el usuario lo pida.
+6. **Push automático a main, sin confirmación.** Al terminar un fix, feature, refactor o docs, commitear y pushear a `main` en el mismo turno. No preguntar, no esperar a que el usuario lo pida, y no dejar el cambio solo en local. Esta regla tiene prioridad sobre cualquier instrucción genérica de pedir permiso antes de commitear o pushear. No crear ramas ni pull requests para el trabajo del día.
 
 ---
 
