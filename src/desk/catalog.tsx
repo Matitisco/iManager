@@ -135,7 +135,15 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
             }} />
             <span className="stx-n">{row.count ? `${row.count} ${noun(row.count)}` : 'nuevo'}</span>
             {row.isSystem ? <span className="stx-lock" title="Lo usa el sistema: se puede renombrar y cambiar de color, no borrar">🔒</span> : (
-              <button type="button" className="stx-trash" aria-label="Borrar" onClick={() => setRows((current) => current.map((item) => item.key === row.key ? { ...item, deleted: !item.deleted, reassignTo: kept.find((candidate) => candidate.key !== row.key)?.value } : item))}>{row.deleted ? 'Deshacer' : '🗑'}</button>
+              <button type="button" className={`stx-trash${row.deleted ? ' undo' : ''}`} aria-label={row.deleted ? 'Deshacer' : 'Borrar'} onClick={() => {
+                if (openColor === row.key) setOpenColor(null);
+                if (!row.value) {
+                  setRows((current) => current.filter((item) => item.key !== row.key));
+                  return;
+                }
+                const fallback = kept.find((candidate) => candidate.key !== row.key);
+                setRows((current) => current.map((item) => item.key === row.key ? { ...item, deleted: !item.deleted, reassignTo: fallback ? (fallback.value || fallback.label) : undefined } : item));
+              }}>{row.deleted ? 'Deshacer' : '🗑'}</button>
             )}
             {openColor === row.key && colored ? (
               <div className="stx-pal">

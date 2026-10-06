@@ -304,6 +304,8 @@
 .stx-lock { color: #C3C7CE; font-size: 14px; }
 .stx-trash { width: 32px; height: 32px; border-radius: 10px; color: var(--secondary); }
 .stx-trash:hover { background: #FDECEC; color: var(--err); }
+.stx-trash.undo { width: auto; padding: 0 10px; font-size: 12px; font-weight: 700; color: var(--primary); background: var(--row); }
+.stx-trash.undo:hover { background: #E9EBEE; color: var(--primary); }
 .stx-pal { display: flex; gap: 6px; width: 100%; padding: 4px 0 4px 34px; }
 .stx-pal button { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #E6E8EC; }
 .stx-re { width: 100%; background: #FFF6E5; border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
