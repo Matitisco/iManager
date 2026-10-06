@@ -184,6 +184,9 @@ describe("getReportsOverview", () => {
     expect(overview.summary.marginRate).toBeCloseTo((350 / 900) * 100);
     expect(overview.paymentMethods.map((method) => method.label)).toEqual(["Tarjeta", "Efectivo"]);
     expect(overview.tradeIns.openInRange).toBe(1);
+    expect(overview.tradeIns.cashGenerated).toBe(120);
+    expect(overview.tradeIns.openCash).toBe(30);
+    expect(overview.tradeIns.otherCash).toBe(0);
     expect(overview.comparison.available).toBe(true);
   });
 

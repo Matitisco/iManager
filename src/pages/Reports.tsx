@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, Download } from 'lucide-react';
+import { AlertCircle, Calendar } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
 import {
   Bar,
@@ -14,18 +14,15 @@ import {
   YAxis,
 } from 'recharts';
 import { useAppContext } from '../context/AppContext';
-import { buildReportsMock } from './reports-mock';
 import { fetchReportsOverview } from '../services/reports-api';
 import type { ReportsOverview, ReportsRangeKey } from '../types/reports';
 import {
-  buildReportsCsv,
   createDefaultCustomRange,
   foldDailySeriesByWeek,
   formatDateInputValue,
   getCustomRangeError,
   getRangeWindow,
   parseDateInputBoundary,
-  REPORTS_WIDGET_IDS,
 } from '../utils/reports';
 
 const container: Variants = {
@@ -240,17 +237,6 @@ function rangeEndsToday(endDate: string | null) {
   );
 }
 
-function downloadCsv(report: ReportsOverview) {
-  const csv = buildReportsCsv(report, [...REPORTS_WIDGET_IDS]);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `reportes-${report.filters.rangeKey}-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  window.URL.revokeObjectURL(url);
-}
-
 function buildSlices(
   entries: Array<{ label: string; value: number }>,
   format: (value: number) => string
@@ -371,34 +357,14 @@ export const Reports: React.FC = () => {
   const [metric, setMetric] = useState<MetricId>('amount');
   const [sliceMode, setSliceMode] = useState<SliceMode>('primary');
   const [report, setReport] = useState<ReportsOverview | null>(null);
-  const [useExample, setUseExample] = useState(false);
   const compactAxis = useNarrowScreen();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const controlsReady = backendReady || useExample;
   const status = statusByModule[moduleId];
-  const exampleReport = useMemo(
-    () =>
-      useExample
-        ? buildReportsMock({
-            period,
-            startDate: appliedRange.startDate,
-            endDate: appliedRange.endDate,
-          })
-        : null,
-    [appliedRange.endDate, appliedRange.startDate, period, useExample]
-  );
-  const visibleReport = exampleReport ?? report;
 
   useEffect(() => {
-    if (useExample) {
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
     if (!user || !backendReady) {
       setReport(null);
       return;
@@ -437,24 +403,24 @@ export const Reports: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [appliedRange.endDate, appliedRange.rangeKey, appliedRange.startDate, backendReady, useExample, user]);
+  }, [appliedRange.endDate, appliedRange.rangeKey, appliedRange.startDate, backendReady, user]);
 
   const view = useMemo(() => {
-    if (!visibleReport) {
+    if (!report) {
       return null;
     }
 
     return buildModuleView({
-      report: visibleReport,
+      report,
       moduleId,
       status,
       metric,
       sliceMode,
       period,
-      endsToday: rangeEndsToday(visibleReport.filters.endDate),
+      endsToday: rangeEndsToday(report.filters.endDate),
       compactAxis,
     });
-  }, [compactAxis, metric, moduleId, period, sliceMode, status, visibleReport]);
+  }, [compactAxis, metric, moduleId, period, report, sliceMode, status]);
 
   const selectPreset = (preset: Exclude<PeriodId, 'custom'>) => {
     setPeriod(preset);
@@ -490,7 +456,7 @@ export const Reports: React.FC = () => {
             <FilterChip
               key={entry.id}
               pressed={moduleId === entry.id}
-              disabled={!controlsReady}
+              disabled={!backendReady}
               onClick={() => {
                 setModuleId(entry.id);
                 setSliceMode('primary');
@@ -502,13 +468,13 @@ export const Reports: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div role="group" aria-label="Período" className="flex flex-wrap gap-2">
             {periods.map((entry) => (
               <FilterChip
                 key={entry.id}
                 pressed={period === entry.id && !datesOpen}
-                disabled={!controlsReady}
+                disabled={!backendReady}
                 onClick={() => selectPreset(entry.id)}
               >
                 {entry.label}
@@ -517,7 +483,7 @@ export const Reports: React.FC = () => {
             <FilterChip
               pressed={period === 'custom' || datesOpen}
               emphasis={period === 'custom' ? 'solid' : 'quiet'}
-              disabled={!controlsReady}
+              disabled={!backendReady}
               onClick={() => setDatesOpen((open) => !open)}
             >
               <Calendar size={14} />
@@ -525,21 +491,17 @@ export const Reports: React.FC = () => {
             </FilterChip>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <FilterChip pressed={useExample} onClick={() => setUseExample((current) => !current)}>
-              Ejemplo
-            </FilterChip>
-            <motion.button
-            type="button"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => visibleReport && downloadCsv(visibleReport)}
-            disabled={!visibleReport || (isLoading && !useExample)}
-            className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 lg:self-auto"
-          >
-            <Download size={16} />
-            Exportar
-            </motion.button>
+          <div role="group" aria-label="Estado" className="flex flex-wrap gap-2">
+            {statusOptions[moduleId].map((entry) => (
+              <FilterChip
+                key={entry.id}
+                pressed={status === entry.id}
+                disabled={!backendReady}
+                onClick={() => setStatusByModule((current) => ({ ...current, [moduleId]: entry.id }))}
+              >
+                {entry.label}
+              </FilterChip>
+            ))}
           </div>
         </div>
 
@@ -585,33 +547,14 @@ export const Reports: React.FC = () => {
           </div>
         )}
 
-        {period === 'custom' && visibleReport && !useExample && (
+        {period === 'custom' && report && (
           <p className="text-xs text-gray-400">
-            {formatDateLabel(visibleReport.filters.startDate)} – {formatDateLabel(visibleReport.filters.endDate)}
+            {formatDateLabel(report.filters.startDate)} – {formatDateLabel(report.filters.endDate)}
           </p>
         )}
-
-        <div role="group" aria-label="Estado" className="flex flex-wrap gap-2">
-          {statusOptions[moduleId].map((entry) => (
-            <FilterChip
-              key={entry.id}
-              pressed={status === entry.id}
-              disabled={!controlsReady}
-              onClick={() => setStatusByModule((current) => ({ ...current, [moduleId]: entry.id }))}
-            >
-              {entry.label}
-            </FilterChip>
-          ))}
-        </div>
       </motion.div>
 
-      {useExample && (
-        <motion.div variants={item} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Estás viendo datos de ejemplo para revisar los gráficos de Ventas, Stock y Canjes.
-        </motion.div>
-      )}
-
-      {!controlsReady && (
+      {!backendReady && (
         <motion.div
           variants={item}
           className={`rounded-2xl border p-4 ${
@@ -627,7 +570,7 @@ export const Reports: React.FC = () => {
         </motion.div>
       )}
 
-      {error && !useExample && (
+      {error && (
         <motion.div variants={item} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 shrink-0" size={18} />
@@ -639,10 +582,10 @@ export const Reports: React.FC = () => {
         </motion.div>
       )}
 
-      {controlsReady && !useExample && !error && !view && <ReportsSkeleton />}
+      {backendReady && !error && !view && <ReportsSkeleton />}
 
       {view && (
-        <motion.div variants={item} className={`space-y-4 ${isLoading && !useExample ? 'opacity-60' : ''}`}>
+        <motion.div variants={item} className={`space-y-4 ${isLoading ? 'opacity-60' : ''}`}>
           <BarPanel view={view} metric={metric} compactAxis={compactAxis} onMetric={setMetric} />
           <DonutPanel view={view} sliceMode={sliceMode} onSliceMode={setSliceMode} />
         </motion.div>

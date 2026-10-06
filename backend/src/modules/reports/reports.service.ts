@@ -99,6 +99,8 @@ export interface ReportsTradeInSnapshot {
   approvedInRange: number;
   openInRange: number;
   cashGenerated: number;
+  openCash: number;
+  otherCash: number;
 }
 
 export interface ReportsOverviewResponse {
@@ -611,10 +613,18 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue || right.purchases - left.purchases)
     .slice(0, 5);
 
-  const tradeInCash = tradeIns
-    .filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status))
-    .reduce((accumulator, tradeIn) => accumulator + toNumber(tradeIn.differencePaid), 0);
-  const openTradeIns = tradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status)).length;
+  const approvedTradeInRows = tradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status));
+  const openTradeInRows = tradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status));
+  const otherTradeInRows = tradeIns.filter(
+    (tradeIn) =>
+      !APPROVED_TRADE_IN_STATUSES.has(tradeIn.status) && !OPEN_TRADE_IN_STATUSES.has(tradeIn.status)
+  );
+  const sumDifference = (rows: typeof tradeIns) =>
+    rows.reduce((accumulator, tradeIn) => accumulator + toNumber(tradeIn.differencePaid), 0);
+  const tradeInCash = sumDifference(approvedTradeInRows);
+  const openTradeInCash = sumDifference(openTradeInRows);
+  const otherTradeInCash = sumDifference(otherTradeInRows);
+  const openTradeIns = openTradeInRows.length;
 
   return {
     filters: {
@@ -678,6 +688,8 @@ export async function getReportsOverview(
       approvedInRange: approvedTradeIns,
       openInRange: openTradeIns,
       cashGenerated: tradeInCash,
+      openCash: openTradeInCash,
+      otherCash: otherTradeInCash,
     },
   };
 }
