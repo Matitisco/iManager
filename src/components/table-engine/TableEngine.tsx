@@ -65,6 +65,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     ImportModal, importConfig, showImport = !!(ImportModal || importConfig),
     customColumnActions, dynamicColumns,
     noun = 'ítem', nounPlural = 'ítems',
+    pagination,
   } = config;
   const scopedStorageKey = user?.uid ? `${storageKey}:${user.uid}` : storageKey;
 
@@ -93,7 +94,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     ];
   }, [columns, dynamicColumns]);
 
-  const PAGE_SIZE = 30;
+  const PAGE_SIZE = pagination?.pageSize ?? 30;
+  const paged = Boolean(pagination);
 
   // ── State: filters, sort, category, panels ─────────────────────────────────
   const filterDefaults = Object.fromEntries(filters.map(f => [f.id, f.defaultValue]));
@@ -147,7 +149,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const filterParamsRef = useRef<Omit<TablePageParams, 'skip' | 'take'>>({ filters: {} });
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
-  const { items, setItems, total, setTotal, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE });
+  const { items, setItems, total, setTotal, page, pageCount, goToPage, isInitialLoading, isLoadingMore, sentinelRef, loadFirstPage } = useTableData({ user, fetchPage, pageSize: PAGE_SIZE, paged });
   const colState = useColumnState(scopedStorageKey, resolvedColumns);
   const tagOptions = useTagOptions(scopedStorageKey);
   const { selectedIds, setSelectedIds, allSelected, toggleSelectAll, applySelection, clearSelection } = useSelection(items, total, fetchFilteredIds, filterParamsRef);
@@ -594,8 +596,14 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       void loadFirstPage(buildFilterParams());
       return;
     }
-    setItems(prev => prev.filter(p => !ids.includes(p.id)));
-    setTotal(prev => prev - ids.length);
+    if (paged) {
+      const remaining = Math.max(0, total - ids.length);
+      const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
+      await goToPage(Math.min(page, lastPage));
+    } else {
+      setItems(prev => prev.filter(p => !ids.includes(p.id)));
+      setTotal(prev => prev - ids.length);
+    }
     setSelectedIds(prev => {
       const next = new Set(prev);
       ids.forEach(id => next.delete(id));
@@ -903,11 +911,38 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
 
       {/* ── Floating status ── */}
       {!isInitialLoading && total > 0 && (
-        <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+        <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center justify-between gap-3 text-xs text-gray-400">
           <span>{total} {total === 1 ? noun : nounPlural} en total</span>
-          {clipboardNotice
-            ? <span className="font-semibold text-gray-700">{clipboardNotice}</span>
-            : selectedIds.size > 0 && <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>}
+          <div className="flex items-center gap-3">
+            {clipboardNotice
+              ? <span className="font-semibold text-gray-700">{clipboardNotice}</span>
+              : selectedIds.size > 0 && <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>}
+            {paged && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Página anterior"
+                  onClick={() => void goToPage(page - 1)}
+                  disabled={page <= 0 || isInitialLoading}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <span className="font-medium text-gray-600">
+                  {page * PAGE_SIZE + 1}–{Math.min(total, (page + 1) * PAGE_SIZE)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Página siguiente"
+                  onClick={() => void goToPage(page + 1)}
+                  disabled={page >= pageCount - 1 || isInitialLoading}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
