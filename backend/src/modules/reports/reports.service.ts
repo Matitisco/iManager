@@ -61,6 +61,7 @@ export interface ReportsInventorySnapshot {
     retailValue: number;
   };
   aging: ReportsAgingBucket[];
+  series: ReportsSeriesPoint[];
 }
 
 export interface ReportsComparison {
@@ -101,6 +102,7 @@ export interface ReportsTradeInSnapshot {
   cashGenerated: number;
   openCash: number;
   otherCash: number;
+  series: ReportsSeriesPoint[];
 }
 
 export interface ReportsOverviewResponse {
@@ -159,7 +161,11 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function buildDateRangeWhere(field: "soldAt" | "tradeAt", startDate: Date | null, endDate: Date | null) {
+function buildDateRangeWhere(
+  field: "soldAt" | "tradeAt" | "createdAt",
+  startDate: Date | null,
+  endDate: Date | null
+) {
   if (!startDate && !endDate) {
     return {};
   }
@@ -397,6 +403,27 @@ function buildSalesSeries(
   return Array.from(buckets.values());
 }
 
+function buildActivitySeries(
+  entries: Array<{ at: Date; amount: number }>,
+  startDate: Date | null,
+  endDate: Date | null
+) {
+  return buildSalesSeries(
+    entries.map((entry) => ({
+      amount: entry.amount,
+      paymentMethod: "",
+      soldAt: entry.at,
+      clientId: null,
+      product: "",
+      category: "",
+      clientName: "",
+      cost: 0,
+    })),
+    startDate,
+    endDate
+  );
+}
+
 export async function getReportsOverview(
   storeId: string,
   input: ReportsOverviewInput
@@ -410,6 +437,10 @@ export async function getReportsOverview(
     ...buildDateRangeWhere("tradeAt", input.startDate, input.endDate),
   };
   const previousWindow = resolvePreviousWindow(input);
+  const inventoryWhere = {
+    storeId,
+    ...buildDateRangeWhere("createdAt", input.startDate, input.endDate),
+  };
 
   const [
     sales,
@@ -423,6 +454,7 @@ export async function getReportsOverview(
     inReviewItems,
     inventoryValuation,
     availableStock,
+    inboundStock,
   ] = await Promise.all([
     prisma.sale.findMany({
       where: salesWhere,
@@ -472,6 +504,7 @@ export async function getReportsOverview(
       select: {
         differencePaid: true,
         status: true,
+        tradeAt: true,
       },
     }),
     prisma.client.count({
@@ -482,26 +515,33 @@ export async function getReportsOverview(
       _sum: { pendingBalance: true },
     }),
     prisma.inventoryItem.count({
-      where: { storeId },
+      where: inventoryWhere,
     }),
     prisma.inventoryItem.count({
-      where: { storeId, status: "DISPONIBLE" },
+      where: { ...inventoryWhere, status: "DISPONIBLE" },
     }),
     prisma.inventoryItem.count({
-      where: { storeId, status: "VENDIDO" },
+      where: { ...inventoryWhere, status: "VENDIDO" },
     }),
     prisma.inventoryItem.count({
-      where: { storeId, status: "EN_REVISION" },
+      where: { ...inventoryWhere, status: "EN_REVISION" },
     }),
     prisma.inventoryItem.aggregate({
-      where: { storeId, status: "DISPONIBLE" },
+      where: { ...inventoryWhere, status: "DISPONIBLE" },
       _sum: {
         cost: true,
         price: true,
       },
     }),
     prisma.inventoryItem.findMany({
-      where: { storeId, status: "DISPONIBLE" },
+      where: { ...inventoryWhere, status: "DISPONIBLE" },
+      select: {
+        createdAt: true,
+        cost: true,
+      },
+    }),
+    prisma.inventoryItem.findMany({
+      where: inventoryWhere,
       select: {
         createdAt: true,
         cost: true,
@@ -677,6 +717,14 @@ export async function getReportsOverview(
           cost: toNumber(item.cost),
         }))
       ),
+      series: buildActivitySeries(
+        inboundStock.map((item) => ({
+          at: item.createdAt,
+          amount: toNumber(item.cost),
+        })),
+        input.startDate,
+        input.endDate
+      ),
     },
     clients: {
       totalClients,
@@ -690,6 +738,14 @@ export async function getReportsOverview(
       cashGenerated: tradeInCash,
       openCash: openTradeInCash,
       otherCash: otherTradeInCash,
+      series: buildActivitySeries(
+        tradeIns.map((tradeIn) => ({
+          at: tradeIn.tradeAt,
+          amount: toNumber(tradeIn.differencePaid),
+        })),
+        input.startDate,
+        input.endDate
+      ),
     },
   };
 }

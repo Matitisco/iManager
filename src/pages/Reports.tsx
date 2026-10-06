@@ -696,24 +696,33 @@ function buildSalesView({ report, status, metric, sliceMode, period, endsToday, 
   };
 }
 
-function buildStockView({ report, status, metric, sliceMode }: ModuleViewInput): ModuleView {
+function buildStockView({ report, status, metric, sliceMode, period, endsToday, compactAxis }: ModuleViewInput): ModuleView {
   const reviewOnly = status === 'review';
+  const timeline = !reviewOnly && report.inventory.series ? report.inventory.series : null;
   const rawPoints = reviewOnly
     ? report.inventory.inReviewItems > 0
       ? [point('En revisión', 0, report.inventory.inReviewItems, true)]
       : []
-    : report.inventory.aging.map((bucket, index) =>
-        point(bucket.label, bucket.costValue, bucket.count, index === 0)
-      );
-  const points = applyMetric(rawPoints, reviewOnly ? 'units' : metric, false).filter((entry) => entry.value > 0);
+    : timeline
+      ? salesPoints({ ...report, salesSeries: timeline }, endsToday, compactAxis)
+      : report.inventory.aging.map((bucket, index) =>
+          point(bucket.label, bucket.costValue, bucket.count, index === 0)
+        );
+  const points = applyMetric(rawPoints, reviewOnly ? 'units' : metric, Boolean(timeline)).filter((entry) =>
+    timeline ? true : entry.value > 0
+  );
+  const inboundUnits = timeline?.reduce((sum, entry) => sum + entry.unitsSold, 0) ?? report.inventory.totalItems;
+  const inboundCost = timeline?.reduce((sum, entry) => sum + entry.revenue, 0) ?? report.inventory.valuation.costValue;
   const headline = reviewOnly
     ? formatNumber(report.inventory.inReviewItems)
     : metric === 'amount'
-      ? formatCurrency(report.inventory.valuation.costValue)
-      : formatNumber(report.inventory.availableItems);
+      ? formatCurrency(timeline ? inboundCost : report.inventory.valuation.costValue)
+      : formatNumber(timeline ? inboundUnits : report.inventory.availableItems);
   const caption = reviewOnly
     ? 'Equipos en revisión'
-    : `${countLabel(report.inventory.availableItems, 'equipo disponible', 'equipos disponibles')} · foto actual`;
+    : timeline
+      ? countLabel(inboundUnits, 'equipo ingresado', 'equipos ingresados')
+      : `${countLabel(report.inventory.availableItems, 'equipo disponible', 'equipos disponibles')} · foto actual`;
 
   const stateSlices = buildSlices(
     [
@@ -735,15 +744,15 @@ function buildStockView({ report, status, metric, sliceMode }: ModuleViewInput):
 
   return {
     moduleId: 'stock',
-    title: reviewOnly ? 'Stock · en revisión' : 'Stock · disponible ahora',
+    title: reviewOnly ? 'Stock · en revisión' : timeline ? `Stock · ${periodTitle[period]}` : 'Stock · disponible ahora',
     headline,
     change: null,
     caption,
-    emptyMessage: reviewOnly ? 'Sin equipos en revisión.' : 'Sin stock disponible.',
+    emptyMessage: reviewOnly ? 'Sin equipos en revisión.' : timeline ? 'Sin ingresos de stock en este período.' : 'Sin stock disponible.',
     points,
     plottedMetric: reviewOnly ? 'units' : metric,
     noun: { singular: 'equipo', plural: 'equipos' },
-    markCurrent: false,
+    markCurrent: Boolean(timeline),
     sliceTitle: sliceMode === 'primary' ? 'Por estado' : 'Por antigüedad',
     sliceEmpty: 'Sin stock para este corte.',
     sliceTotal: sliceMode === 'secondary' && metric === 'amount' ? formatCompactAmount(sliceTotal) : formatNumber(sliceTotal),
@@ -755,23 +764,27 @@ function buildStockView({ report, status, metric, sliceMode }: ModuleViewInput):
   };
 }
 
-function buildTradeInView({ report, status, metric, period }: ModuleViewInput): ModuleView {
+function buildTradeInView({ report, status, metric, period, endsToday, compactAxis }: ModuleViewInput): ModuleView {
   const other = Math.max(
     0,
     report.tradeIns.totalInRange - report.tradeIns.approvedInRange - report.tradeIns.openInRange
   );
+  const timeline = status === 'all' && report.tradeIns.series ? report.tradeIns.series : null;
   const allPoints = [
     point('Aprobados', report.tradeIns.cashGenerated, report.tradeIns.approvedInRange),
     point('En curso', report.tradeIns.openCash ?? 0, report.tradeIns.openInRange, true),
     point('Otros', report.tradeIns.otherCash ?? 0, other),
   ];
-  const rawPoints =
-    status === 'approved'
+  const rawPoints = timeline
+    ? salesPoints({ ...report, salesSeries: timeline }, endsToday, compactAxis)
+    : status === 'approved'
       ? [point('Aprobados', report.tradeIns.cashGenerated, report.tradeIns.approvedInRange, true)]
       : status === 'pending'
         ? [point('En curso', 0, report.tradeIns.openInRange, true)]
         : allPoints;
-  const points = applyMetric(rawPoints, status === 'pending' ? 'units' : metric, false).filter((entry) => entry.value > 0);
+  const points = timeline
+    ? applyMetric(rawPoints, metric, true)
+    : applyMetric(rawPoints, status === 'pending' ? 'units' : metric, false).filter((entry) => entry.value > 0);
   const headlineUnits =
     status === 'approved'
       ? report.tradeIns.approvedInRange
@@ -804,7 +817,7 @@ function buildTradeInView({ report, status, metric, period }: ModuleViewInput): 
     points,
     plottedMetric: status === 'pending' ? 'units' : metric,
     noun: { singular: 'canje', plural: 'canjes' },
-    markCurrent: false,
+    markCurrent: Boolean(timeline),
     sliceTitle: 'Por estado',
     sliceEmpty: 'Sin canjes en este período.',
     sliceTotal: formatNumber(slices.reduce((sum, slice) => sum + slice.value, 0)),
@@ -889,7 +902,7 @@ function BarPanel({
       <div className="mt-6 h-80">
         {hasBars ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart data={view.points} margin={{ top: 28, right: 8, left: 0, bottom: 4 }} barCategoryGap={view.points.length > 8 ? '18%' : '28%'}>
+            <BarChart key={view.points.map((entry) => `${entry.axisLabel}:${entry.value}`).join('|')} data={view.points} margin={{ top: 28, right: 8, left: 0, bottom: 4 }} barCategoryGap={view.points.length > 8 ? '18%' : '28%'}>
               <CartesianGrid stroke="#ececec" strokeDasharray="4 6" vertical={false} />
               <XAxis
                 dataKey="axisLabel"
@@ -1045,7 +1058,7 @@ function DonutPanel({
               <p className="text-xs text-gray-500">Total</p>
             </div>
             <ResponsiveContainer width="100%" height="100%" minWidth={0} className="relative z-10 overflow-visible">
-              <PieChart>
+              <PieChart key={view.slices.map((slice) => `${slice.label}:${slice.value}`).join('|')}>
                 <Pie
                   data={view.slices}
                   dataKey="value"

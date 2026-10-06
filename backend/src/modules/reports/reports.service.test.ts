@@ -136,8 +136,16 @@ describe("getReportsOverview", () => {
       },
     ]);
     tradeInFindManyMock.mockResolvedValue([
-      { differencePaid: { toNumber: () => 120 }, status: "APROBADO" },
-      { differencePaid: { toNumber: () => 30 }, status: "PENDIENTE" },
+      {
+        differencePaid: { toNumber: () => 120 },
+        status: "APROBADO",
+        tradeAt: new Date("2026-04-10T12:00:00.000Z"),
+      },
+      {
+        differencePaid: { toNumber: () => 30 },
+        status: "PENDIENTE",
+        tradeAt: new Date("2026-04-12T12:00:00.000Z"),
+      },
     ]);
     clientCountMock.mockResolvedValue(8);
     clientAggregateMock.mockResolvedValue({
@@ -187,6 +195,18 @@ describe("getReportsOverview", () => {
     expect(overview.tradeIns.cashGenerated).toBe(120);
     expect(overview.tradeIns.openCash).toBe(30);
     expect(overview.tradeIns.otherCash).toBe(0);
+    expect(overview.tradeIns.series.length).toBeGreaterThan(28);
+    expect(overview.tradeIns.series.reduce((sum, point) => sum + point.revenue, 0)).toBe(150);
+    expect(overview.inventory.series.length).toBe(overview.tradeIns.series.length);
+    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, {
+      where: {
+        storeId: "store-1",
+        createdAt: {
+          gte: new Date("2026-04-01T00:00:00.000Z"),
+          lte: new Date("2026-04-30T23:59:59.999Z"),
+        },
+      },
+    });
     expect(overview.comparison.available).toBe(true);
   });
 
@@ -267,6 +287,7 @@ describe("getReportsOverview", () => {
     });
 
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
+    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, { where: { storeId: "store-1" } });
     expect(overview.comparison.available).toBe(false);
     expect(overview.comparison.revenueChange).toBeNull();
   });

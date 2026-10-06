@@ -14,6 +14,13 @@ export interface ReportsWidgetPreferences {
   widgetOrder: ReportsWidgetId[];
 }
 
+export interface ReportsSeriesPoint {
+  label: string;
+  start?: string;
+  revenue: number;
+  unitsSold: number;
+}
+
 export interface ReportsOverview {
   filters: {
     rangeKey: ReportsRangeKey;
@@ -41,12 +48,7 @@ export interface ReportsOverview {
     unitsChange: number | null;
     averageTicketChange: number | null;
   };
-  salesSeries: Array<{
-    label: string;
-    start?: string;
-    revenue: number;
-    unitsSold: number;
-  }>;
+  salesSeries: ReportsSeriesPoint[];
   topProducts: Array<{
     product: string;
     unitsSold: number;
@@ -84,6 +86,7 @@ export interface ReportsOverview {
       count: number;
       costValue: number;
     }>;
+    series?: ReportsSeriesPoint[];
   };
   clients: {
     totalClients: number;
@@ -97,6 +100,7 @@ export interface ReportsOverview {
     cashGenerated: number;
     openCash?: number;
     otherCash?: number;
+    series?: ReportsSeriesPoint[];
   };
 }
 
