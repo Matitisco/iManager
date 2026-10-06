@@ -43,6 +43,7 @@ export interface ReportsOverview {
   };
   salesSeries: Array<{
     label: string;
+    start?: string;
     revenue: number;
     unitsSold: number;
   }>;

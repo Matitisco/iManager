@@ -26,6 +26,7 @@ export interface ReportsSummary {
 
 export interface ReportsSeriesPoint {
   label: string;
+  start: string;
   revenue: number;
   unitsSold: number;
 }
@@ -330,6 +331,7 @@ function buildSalesSeries(
       const key = cursor.toISOString().slice(0, 10);
       buckets.set(key, {
         label: formatDayLabel(cursor),
+        start: key,
         revenue: 0,
         unitsSold: 0,
       });
@@ -371,6 +373,7 @@ function buildSalesSeries(
     const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
     buckets.set(key, {
       label: formatMonthLabel(cursor, includeYear),
+      start: `${key}-01`,
       revenue: 0,
       unitsSold: 0,
     });

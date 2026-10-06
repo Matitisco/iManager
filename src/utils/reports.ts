@@ -196,6 +196,50 @@ export function getRangeWindow(rangeKey: Exclude<ReportsRangeKey, 'custom'>) {
   return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
 }
 
+function seriesDayNumber(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return Date.UTC(year, month - 1, day);
+}
+
+export function foldDailySeriesByWeek<T extends { start?: string; revenue: number; unitsSold: number }>(
+  points: T[]
+): T[] {
+  if (points.length <= 16 || points.some((point) => !point.start)) {
+    return points;
+  }
+
+  const first = seriesDayNumber(points[0]?.start ?? '');
+  const second = seriesDayNumber(points[1]?.start ?? '');
+  if (first === null || second === null || Math.abs(second - first) > 1000 * 60 * 60 * 36) {
+    return points;
+  }
+
+  const groups: T[] = [];
+  let cursor = points.length;
+  while (cursor > 0) {
+    const sliceStart = Math.max(0, cursor - 7);
+    const chunk = points.slice(sliceStart, cursor);
+    const last = chunk[chunk.length - 1];
+    if (!last) {
+      break;
+    }
+
+    groups.unshift({
+      ...last,
+      revenue: chunk.reduce((sum, point) => sum + point.revenue, 0),
+      unitsSold: chunk.reduce((sum, point) => sum + point.unitsSold, 0),
+      start: chunk[0]?.start,
+    });
+    cursor = sliceStart;
+  }
+
+  return groups;
+}
+
 function csvRow(cells: Array<string | number | null | undefined>) {
   return cells.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',');
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ReportsOverview } from '../types/reports';
 import {
   buildReportsCsv,
+  foldDailySeriesByWeek,
   getCustomRangeError,
   getDefaultReportsWidgetPreferences,
   normalizeReportsWidgetPreferences,
@@ -133,6 +134,45 @@ describe('getCustomRangeError', () => {
 
   it('accepts a valid custom range', () => {
     expect(getCustomRangeError('2026-04-01', '2026-04-19')).toBeNull();
+  });
+});
+
+describe('foldDailySeriesByWeek', () => {
+  it('keeps a week of days as individual bars', () => {
+    const points = Array.from({ length: 7 }, (_, index) => ({
+      label: String(index + 1),
+      start: `2026-10-${String(index + 1).padStart(2, '0')}`,
+      revenue: 10,
+      unitsSold: 1,
+    }));
+
+    expect(foldDailySeriesByWeek(points)).toHaveLength(7);
+  });
+
+  it('groups a month of days into trailing weeks', () => {
+    const points = Array.from({ length: 30 }, (_, index) => ({
+      label: String(index + 1),
+      start: `2026-09-${String(index + 1).padStart(2, '0')}`,
+      revenue: 1,
+      unitsSold: 1,
+    }));
+
+    const folded = foldDailySeriesByWeek(points);
+
+    expect(folded).toHaveLength(5);
+    expect(folded[0]).toMatchObject({ revenue: 2, unitsSold: 2 });
+    expect(folded[4]).toMatchObject({ label: '30', revenue: 7, unitsSold: 7 });
+  });
+
+  it('leaves monthly buckets untouched', () => {
+    const points = Array.from({ length: 12 }, (_, index) => ({
+      label: String(index + 1),
+      start: `2026-${String(index + 1).padStart(2, '0')}-01`,
+      revenue: 1,
+      unitsSold: 1,
+    }));
+
+    expect(foldDailySeriesByWeek(points)).toHaveLength(12);
   });
 });
 

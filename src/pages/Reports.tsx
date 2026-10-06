@@ -1,103 +1,129 @@
-import React, { useEffect, useState } from 'react';
-import {
-  AlertCircle,
-  ArrowDown,
-  ArrowUp,
-  Calendar,
-  Download,
-  DollarSign,
-  Package,
-  RefreshCw,
-  Settings2,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Calendar, Download } from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Modal } from '../components/Modal';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { useAppContext } from '../context/AppContext';
 import { fetchReportsOverview } from '../services/reports-api';
-import type {
-  ReportsOverview,
-  ReportsRangeKey,
-  ReportsWidgetId,
-  ReportsWidgetPreferences,
-} from '../types/reports';
+import type { ReportsOverview, ReportsRangeKey } from '../types/reports';
 import {
   buildReportsCsv,
   createDefaultCustomRange,
-  DEFAULT_VISIBLE_REPORTS_WIDGET_IDS,
+  foldDailySeriesByWeek,
+  formatDateInputValue,
   getCustomRangeError,
-  getDefaultReportsWidgetPreferences,
   getRangeWindow,
   parseDateInputBoundary,
-  PRESET_REPORTS_RANGE_KEYS,
-  readStoredReportsWidgetPreferences,
   REPORTS_WIDGET_IDS,
-  writeStoredReportsWidgetPreferences,
 } from '../utils/reports';
 
 const container: Variants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
 };
 
 const item: Variants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 280, damping: 24 } },
 };
 
-const rangeOptionLabels: Record<Exclude<ReportsRangeKey, 'custom'>, string> = {
-  this_month: 'Este mes',
-  last_90_days: '90 días',
-  this_year: 'Este año',
-  all_time: 'Histórico',
+const SLICE_COLORS = ['#161616', '#4B4B4B', '#8A8A8A', '#BDBDBD', '#D9D9D9', '#EEEEEE'];
+const BAR_MUTED = '#D4D4D4';
+const BAR_CURRENT = '#111111';
+
+type ModuleId = 'stock' | 'tradeins' | 'sales';
+type PeriodId = 'week' | 'month' | 'quarter' | 'year' | 'custom';
+type MetricId = 'amount' | 'units';
+type SliceMode = 'primary' | 'secondary';
+
+interface ChartPoint {
+  label: string;
+  axisLabel: string;
+  amount: number;
+  units: number;
+  value: number;
+  current: boolean;
+}
+
+interface ChartSlice {
+  label: string;
+  value: number;
+  display: string;
+  share: number;
+  color: string;
+}
+
+const modules: Array<{ id: ModuleId; label: string }> = [
+  { id: 'stock', label: 'Stock' },
+  { id: 'tradeins', label: 'Canjes' },
+  { id: 'sales', label: 'Ventas' },
+];
+
+const periods: Array<{ id: Exclude<PeriodId, 'custom'>; label: string }> = [
+  { id: 'week', label: 'Semana' },
+  { id: 'month', label: 'Mes' },
+  { id: 'quarter', label: '3 meses' },
+  { id: 'year', label: 'Año' },
+];
+
+const periodTitle: Record<PeriodId, string> = {
+  week: 'últimos 7 días',
+  month: 'últimos 30 días',
+  quarter: 'últimos 3 meses',
+  year: 'este año',
+  custom: 'rango elegido',
 };
 
-const widgetCatalog: Array<{
-  id: ReportsWidgetId;
-  title: string;
-  description: string;
-}> = [
-  {
-    id: 'sales-summary',
-    title: 'Resumen de ventas',
-    description: 'KPIs principales del periodo visible.',
-  },
-  {
-    id: 'sales-by-period',
-    title: 'Ventas por periodo',
-    description: 'Grafico y tabla compacta del rango aplicado.',
-  },
-  {
-    id: 'inventory-value',
-    title: 'Valor de inventario',
-    description: 'Costo inmovilizado y valor potencial del stock disponible.',
-  },
-  {
-    id: 'top-products',
-    title: 'Top productos',
-    description: 'Ranking real por unidades vendidas e ingresos.',
-  },
-  {
-    id: 'business-mix',
-    title: 'Mix del período',
-    description: 'Ventas por categoría y clientes que más compraron.',
-  },
-  {
-    id: 'payment-methods',
-    title: 'Metodos de pago',
-    description: 'Distribucion de ingresos por metodo.',
-  },
-  {
-    id: 'operational-snapshot',
-    title: 'Snapshot operativo',
-    description: 'Clientes, canjes y estado del inventario actual.',
-  },
-];
+const comparisonTitle: Record<PeriodId, string> = {
+  week: 'vs. 7 días anteriores',
+  month: 'vs. 30 días anteriores',
+  quarter: 'vs. 90 días anteriores',
+  year: 'vs. período anterior',
+  custom: 'vs. período anterior',
+};
+
+const statusOptions: Record<ModuleId, Array<{ id: string; label: string }>> = {
+  sales: [
+    { id: 'all', label: 'Todas' },
+    { id: 'completed', label: 'Completadas' },
+    { id: 'pending', label: 'Pendientes' },
+  ],
+  tradeins: [
+    { id: 'all', label: 'Todas' },
+    { id: 'approved', label: 'Aprobadas' },
+    { id: 'pending', label: 'Pendientes' },
+  ],
+  stock: [
+    { id: 'all', label: 'Todas' },
+    { id: 'available', label: 'Disponibles' },
+    { id: 'review', label: 'En revisión' },
+  ],
+};
+
+const metricOptions: Record<ModuleId, Array<{ id: MetricId; label: string }>> = {
+  sales: [
+    { id: 'amount', label: 'Monto' },
+    { id: 'units', label: 'Unidades' },
+  ],
+  stock: [
+    { id: 'amount', label: 'Valor' },
+    { id: 'units', label: 'Unidades' },
+  ],
+  tradeins: [
+    { id: 'amount', label: 'Diferencia' },
+    { id: 'units', label: 'Cantidad' },
+  ],
+};
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-AR', {
@@ -107,32 +133,66 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function formatCompactCurrency(value: number) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value);
+function formatNumber(value: number) {
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(value);
 }
 
-function formatChange(value: number | null) {
-  if (value === null) {
-    return 'Sin base anterior';
+function formatCompactAmount(value: number) {
+  if (Math.abs(value) >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `$ ${millions.toLocaleString('es-AR', {
+      minimumFractionDigits: millions >= 10 ? 1 : 2,
+      maximumFractionDigits: millions >= 10 ? 1 : 2,
+    })}M`;
   }
 
-  const formatted = new Intl.NumberFormat('es-AR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-    signDisplay: 'exceptZero',
-  }).format(value);
+  return formatCurrency(value);
+}
 
-  return `${formatted}%`;
+function formatAxisAmount(value: number) {
+  if (!value) {
+    return '$ 0';
+  }
+
+  if (Math.abs(value) >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `$ ${millions.toLocaleString('es-AR', { maximumFractionDigits: millions >= 10 ? 0 : 1 })}M`;
+  }
+
+  if (Math.abs(value) >= 1_000) {
+    const thousands = value / 1_000;
+    return `$ ${thousands.toLocaleString('es-AR', { maximumFractionDigits: thousands >= 10 ? 0 : 1 })}K`;
+  }
+
+  return formatCurrency(value);
+}
+
+function formatBadge(value: number) {
+  const rounded = Math.round(value);
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(rounded)}%`;
+}
+
+function formatShare(share: number) {
+  const rounded = Math.round(share);
+  if (rounded === 0 && share > 0) {
+    return '<1%';
+  }
+
+  return `${rounded}%`;
+}
+
+function countLabel(count: number, singular: string, plural: string) {
+  return `${formatNumber(count)} ${count === 1 ? singular : plural}`;
+}
+
+function prettyAxisLabel(label: string) {
+  return label.replace(/^0(\d)/, '$1');
 }
 
 function formatDateLabel(value: string | null) {
   if (!value) {
-    return 'Todo el historial';
+    return 'Sin fecha';
   }
 
   return new Intl.DateTimeFormat('es-AR', {
@@ -142,8 +202,45 @@ function formatDateLabel(value: string | null) {
   }).format(new Date(value));
 }
 
-function downloadCsv(report: ReportsOverview, visibleWidgetIds: ReportsWidgetId[]) {
-  const csv = buildReportsCsv(report, visibleWidgetIds);
+function buildPresetRange(preset: Exclude<PeriodId, 'custom'>) {
+  if (preset === 'quarter') {
+    const window = getRangeWindow('last_90_days');
+    return { rangeKey: 'last_90_days' as ReportsRangeKey, ...window };
+  }
+
+  if (preset === 'year') {
+    const window = getRangeWindow('this_year');
+    return { rangeKey: 'this_year' as ReportsRangeKey, ...window };
+  }
+
+  const days = preset === 'week' ? 7 : 30;
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - (days - 1));
+
+  return {
+    rangeKey: 'custom' as ReportsRangeKey,
+    startDate: parseDateInputBoundary(formatDateInputValue(start), 'start'),
+    endDate: parseDateInputBoundary(formatDateInputValue(end), 'end'),
+  };
+}
+
+function rangeEndsToday(endDate: string | null) {
+  if (!endDate) {
+    return false;
+  }
+
+  const end = new Date(endDate);
+  const now = new Date();
+  return (
+    end.getFullYear() === now.getFullYear() &&
+    end.getMonth() === now.getMonth() &&
+    end.getDate() === now.getDate()
+  );
+}
+
+function downloadCsv(report: ReportsOverview) {
+  const csv = buildReportsCsv(report, [...REPORTS_WIDGET_IDS]);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -153,87 +250,132 @@ function downloadCsv(report: ReportsOverview, visibleWidgetIds: ReportsWidgetId[
   window.URL.revokeObjectURL(url);
 }
 
-function moveWidget(
-  preferences: ReportsWidgetPreferences,
-  widgetId: ReportsWidgetId,
-  direction: 'up' | 'down'
-) {
-  const currentIndex = preferences.widgetOrder.indexOf(widgetId);
-  if (currentIndex === -1) {
-    return preferences;
-  }
+function buildSlices(
+  entries: Array<{ label: string; value: number }>,
+  format: (value: number) => string
+): ChartSlice[] {
+  const total = entries.reduce((sum, entry) => sum + Math.max(entry.value, 0), 0);
 
-  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-  if (targetIndex < 0 || targetIndex >= preferences.widgetOrder.length) {
-    return preferences;
-  }
-
-  const nextOrder = [...preferences.widgetOrder];
-  const [movedWidget] = nextOrder.splice(currentIndex, 1);
-  if (!movedWidget) {
-    return preferences;
-  }
-  nextOrder.splice(targetIndex, 0, movedWidget);
-
-  return {
-    ...preferences,
-    widgetOrder: nextOrder,
-  };
+  return entries
+    .filter((entry) => entry.value > 0)
+    .sort((left, right) => right.value - left.value)
+    .map((entry, index) => ({
+      label: entry.label,
+      value: entry.value,
+      display: format(entry.value),
+      share: total > 0 ? (entry.value / total) * 100 : 0,
+      color: SLICE_COLORS[index % SLICE_COLORS.length] ?? BAR_CURRENT,
+    }));
 }
 
-function getVisibleWidgetIdsInOrder(preferences: ReportsWidgetPreferences) {
-  return preferences.widgetOrder.filter((widgetId) =>
-    preferences.visibleWidgetIds.includes(widgetId)
-  );
+function applyMetric(points: ChartPoint[], metric: MetricId, keepZeroCurrent: boolean) {
+  const valued = points.map((point) => ({
+    ...point,
+    value: metric === 'amount' ? point.amount : point.units,
+  }));
+
+  if (keepZeroCurrent || valued.some((point) => point.current && point.value > 0)) {
+    return valued;
+  }
+
+  let fallbackIndex = -1;
+  valued.forEach((point, index) => {
+    if (point.value > 0) {
+      fallbackIndex = index;
+    }
+  });
+
+  if (fallbackIndex === -1) {
+    return valued;
+  }
+
+  return valued.map((point, index) => ({ ...point, current: index === fallbackIndex }));
+}
+
+function point(label: string, amount: number, units: number, current = false): ChartPoint {
+  return { label, axisLabel: label, amount, units, value: 0, current };
+}
+
+function salesPoints(report: ReportsOverview, endsToday: boolean, compactAxis: boolean) {
+  const folded = foldDailySeriesByWeek(report.salesSeries);
+  return folded.map((entry, index) => {
+    const label = prettyAxisLabel(entry.label);
+    const current = index === folded.length - 1;
+    return {
+      label,
+      axisLabel: current && endsToday && !compactAxis ? `${label} · hoy` : label,
+      amount: entry.revenue,
+      units: entry.unitsSold,
+      value: 0,
+      current,
+    };
+  });
+}
+
+function useNarrowScreen() {
+  const [narrow, setNarrow] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return narrow;
+}
+
+function visibleTickIndexes(length: number, currentIndex: number, compact: boolean) {
+  const indexes = new Set<number>();
+  if (compact && length > 4) {
+    indexes.add(0);
+    indexes.add(length - 1);
+    if (currentIndex >= 0) {
+      indexes.add(currentIndex);
+    }
+    return indexes;
+  }
+
+  if (length <= 6) {
+    for (let index = 0; index < length; index += 1) {
+      indexes.add(index);
+    }
+  } else {
+    indexes.add(0);
+    indexes.add(length - 1);
+    for (let step = 1; step < 4; step += 1) {
+      indexes.add(Math.round((step * (length - 1)) / 4));
+    }
+  }
+
+  if (currentIndex >= 0) {
+    indexes.add(currentIndex);
+  }
+
+  return indexes;
 }
 
 export const Reports: React.FC = () => {
   const { user, backendStatus, backendMessage, appSession } = useAppContext();
-  const [appliedRange, setAppliedRange] = useState(() => {
-    const initialWindow = getRangeWindow('this_month');
-    return {
-      rangeKey: 'this_month' as ReportsRangeKey,
-      startDate: initialWindow.startDate,
-      endDate: initialWindow.endDate,
-    };
-  });
+  const [period, setPeriod] = useState<PeriodId>('month');
+  const [appliedRange, setAppliedRange] = useState(() => buildPresetRange('month'));
   const [customRange, setCustomRange] = useState(createDefaultCustomRange);
   const [customRangeError, setCustomRangeError] = useState<string | null>(null);
+  const [datesOpen, setDatesOpen] = useState(false);
+  const [moduleId, setModuleId] = useState<ModuleId>('sales');
+  const [statusByModule, setStatusByModule] = useState<Record<ModuleId, string>>({
+    sales: 'all',
+    stock: 'all',
+    tradeins: 'all',
+  });
+  const [metric, setMetric] = useState<MetricId>('amount');
+  const [sliceMode, setSliceMode] = useState<SliceMode>('primary');
   const [report, setReport] = useState<ReportsOverview | null>(null);
+  const compactAxis = useNarrowScreen();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
-  const [widgetPreferences, setWidgetPreferences] = useState<ReportsWidgetPreferences>(
-    getDefaultReportsWidgetPreferences
-  );
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
-  const backendReady =
-    backendStatus === 'ready' &&
-    !!appSession?.store &&
-    !appSession.onboardingRequired;
-
-  const visibleWidgetIds = getVisibleWidgetIdsInOrder(widgetPreferences);
-  const canExport = Boolean(report) && !isLoading && visibleWidgetIds.length > 0;
-
-  useEffect(() => {
-    if (!user || !appSession?.store?.id) {
-      setWidgetPreferences(getDefaultReportsWidgetPreferences());
-      setPreferencesLoaded(false);
-      return;
-    }
-
-    setWidgetPreferences(readStoredReportsWidgetPreferences(user.uid, appSession.store.id));
-    setPreferencesLoaded(true);
-  }, [appSession?.store?.id, user]);
-
-  useEffect(() => {
-    if (!preferencesLoaded || !user || !appSession?.store?.id) {
-      return;
-    }
-
-    writeStoredReportsWidgetPreferences(user.uid, appSession.store.id, widgetPreferences);
-  }, [appSession?.store?.id, preferencesLoaded, user, widgetPreferences]);
+  const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const status = statusByModule[moduleId];
 
   useEffect(() => {
     if (!user || !backendReady) {
@@ -276,18 +418,31 @@ export const Reports: React.FC = () => {
     };
   }, [appliedRange.endDate, appliedRange.rangeKey, appliedRange.startDate, backendReady, user]);
 
-  const handlePresetSelect = (rangeKey: Exclude<ReportsRangeKey, 'custom'>) => {
-    const nextWindow = getRangeWindow(rangeKey);
-    setAppliedRange({
-      rangeKey,
-      startDate: nextWindow.startDate,
-      endDate: nextWindow.endDate,
+  const view = useMemo(() => {
+    if (!report) {
+      return null;
+    }
+
+    return buildModuleView({
+      report,
+      moduleId,
+      status,
+      metric,
+      sliceMode,
+      period,
+      endsToday: rangeEndsToday(report.filters.endDate),
+      compactAxis,
     });
+  }, [compactAxis, metric, moduleId, period, report, sliceMode, status]);
+
+  const selectPreset = (preset: Exclude<PeriodId, 'custom'>) => {
+    setPeriod(preset);
+    setDatesOpen(false);
     setCustomRangeError(null);
-    setError(null);
+    setAppliedRange(buildPresetRange(preset));
   };
 
-  const handleApplyCustomRange = () => {
+  const applyCustomRange = () => {
     const nextError = getCustomRangeError(customRange.startDate, customRange.endDate);
     if (nextError) {
       setCustomRangeError(nextError);
@@ -299,715 +454,715 @@ export const Reports: React.FC = () => {
       startDate: parseDateInputBoundary(customRange.startDate, 'start'),
       endDate: parseDateInputBoundary(customRange.endDate, 'end'),
     });
+    setPeriod('custom');
     setCustomRangeError(null);
-    setError(null);
-  };
-
-  const toggleWidgetVisibility = (widgetId: ReportsWidgetId) => {
-    setWidgetPreferences((currentPreferences) => {
-      const isVisible = currentPreferences.visibleWidgetIds.includes(widgetId);
-      return {
-        ...currentPreferences,
-        visibleWidgetIds: isVisible
-          ? currentPreferences.visibleWidgetIds.filter((currentId) => currentId !== widgetId)
-          : [...currentPreferences.visibleWidgetIds, widgetId],
-      };
-    });
-  };
-
-  const handleMoveWidget = (widgetId: ReportsWidgetId, direction: 'up' | 'down') => {
-    setWidgetPreferences((currentPreferences) => moveWidget(currentPreferences, widgetId, direction));
-  };
-
-  const resetWidgetPreferences = () => {
-    setWidgetPreferences({
-      visibleWidgetIds: [...DEFAULT_VISIBLE_REPORTS_WIDGET_IDS],
-      widgetOrder: [...REPORTS_WIDGET_IDS],
-    });
-  };
-
-  const renderWidget = (widgetId: ReportsWidgetId) => {
-    if (!report) {
-      return null;
-    }
-
-    switch (widgetId) {
-      case 'sales-summary':
-        return <SalesSummaryWidget report={report} />;
-      case 'sales-by-period':
-        return <SalesByPeriodWidget report={report} />;
-      case 'inventory-value':
-        return <InventoryValueWidget report={report} />;
-      case 'top-products':
-        return <TopProductsWidget report={report} />;
-      case 'business-mix':
-        return <BusinessMixWidget report={report} />;
-      case 'payment-methods':
-        return <PaymentMethodsWidget report={report} />;
-      case 'operational-snapshot':
-        return <OperationalSnapshotWidget report={report} />;
-      default:
-        return null;
-    }
+    setDatesOpen(false);
   };
 
   return (
-    <>
-      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-        {!backendReady && (
-          <motion.div
-            variants={item}
-            className={`rounded-2xl border p-4 ${
-              backendStatus === 'offline'
-                ? 'border-red-200 bg-red-50 text-red-900'
-                : 'border-amber-200 bg-amber-50 text-amber-900'
-            }`}
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
+      <motion.div variants={item} className="space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight text-gray-900">Reportes</h1>
+
+        <div role="group" aria-label="Módulo" className="flex flex-wrap gap-2">
+          {modules.map((entry) => (
+            <FilterChip
+              key={entry.id}
+              pressed={moduleId === entry.id}
+              disabled={!backendReady}
+              onClick={() => {
+                setModuleId(entry.id);
+                setSliceMode('primary');
+                setMetric('amount');
+              }}
+            >
+              {entry.label}
+            </FilterChip>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div role="group" aria-label="Período" className="flex flex-wrap gap-2">
+            {periods.map((entry) => (
+              <FilterChip
+                key={entry.id}
+                pressed={period === entry.id && !datesOpen}
+                disabled={!backendReady}
+                onClick={() => selectPreset(entry.id)}
+              >
+                {entry.label}
+              </FilterChip>
+            ))}
+            <FilterChip
+              pressed={period === 'custom' || datesOpen}
+              emphasis={period === 'custom' ? 'solid' : 'quiet'}
+              disabled={!backendReady}
+              onClick={() => setDatesOpen((open) => !open)}
+            >
+              <Calendar size={14} />
+              Fechas
+            </FilterChip>
+          </div>
+
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => report && downloadCsv(report)}
+            disabled={!report || isLoading}
+            className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 lg:self-auto"
           >
-            <p className="text-sm font-semibold">Reportes requiere backend activo</p>
-            <p className="mt-1 text-sm">
-              {backendMessage || 'Esperando contexto de tienda y conexion backend para calcular metricas reales.'}
-            </p>
-          </motion.div>
-        )}
+            <Download size={16} />
+            Exportar
+          </motion.button>
+        </div>
 
-        <motion.div variants={item} className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">Reportes</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Métricas de {appSession?.store?.name || 'tu tienda'} con ventas, stock, clientes y canjes del período.
-              </p>
-              {report && (
-                <p className="mt-2 text-xs text-gray-400">
-                  {formatDateLabel(report.filters.startDate)}
-                  {report.filters.endDate ? ` -> ${formatDateLabel(report.filters.endDate)}` : ''}
-                </p>
-              )}
+        {datesOpen && (
+          <div className="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-700" htmlFor="reports-start">
+                Desde
+              </label>
+              <input
+                id="reports-start"
+                type="date"
+                value={customRange.startDate}
+                onChange={(event) => setCustomRange((current) => ({ ...current, startDate: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-all focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/10"
+              />
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsCustomizeOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Settings2 size={16} />
-                Personalizar
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => report && downloadCsv(report, visibleWidgetIds)}
-                disabled={!canExport}
-                className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
-              >
-                <Download size={16} />
-                Exportar visible
-              </motion.button>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-700" htmlFor="reports-end">
+                Hasta
+              </label>
+              <input
+                id="reports-end"
+                type="date"
+                value={customRange.endDate}
+                onChange={(event) => setCustomRange((current) => ({ ...current, endDate: event.target.value }))}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-all focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/10"
+              />
             </div>
+            <button
+              type="button"
+              onClick={applyCustomRange}
+              className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+            >
+              Aplicar
+            </button>
           </div>
+        )}
 
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {PRESET_REPORTS_RANGE_KEYS.map((rangeKey) => (
-                <motion.button
-                  key={rangeKey}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handlePresetSelect(rangeKey)}
-                  className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
-                    appliedRange.rangeKey === rangeKey
-                      ? 'border-black bg-black text-white'
-                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Calendar size={16} />
-                    {rangeOptionLabels[rangeKey]}
-                  </span>
-                </motion.button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700">Desde</label>
-                <input
-                  type="date"
-                  value={customRange.startDate}
-                  onChange={(event) => setCustomRange((current) => ({ ...current, startDate: event.target.value }))}
-                  className={`w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm transition-all focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/10 ${
-                    appliedRange.rangeKey === 'custom' ? 'border-black/20' : 'border-gray-200'
-                  }`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700">Hasta</label>
-                <input
-                  type="date"
-                  value={customRange.endDate}
-                  onChange={(event) => setCustomRange((current) => ({ ...current, endDate: event.target.value }))}
-                  className={`w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm transition-all focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/10 ${
-                    appliedRange.rangeKey === 'custom' ? 'border-black/20' : 'border-gray-200'
-                  }`}
-                />
-              </div>
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleApplyCustomRange}
-                className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                Aplicar
-              </motion.button>
-            </div>
+        {customRangeError && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {customRangeError}
           </div>
-
-          {customRangeError && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {customRangeError}
-            </div>
-          )}
-        </motion.div>
-
-        {isLoading && (
-          <motion.div variants={item} className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
-            <div className="flex flex-col items-center gap-3 text-gray-500">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-black" />
-              <p className="text-sm font-medium">Calculando metricas reales...</p>
-            </div>
-          </motion.div>
         )}
 
-        {!isLoading && error && (
-          <motion.div variants={item} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 shrink-0" size={18} />
-              <div>
-                <p className="text-sm font-semibold">No pudimos cargar reportes</p>
-                <p className="mt-1 text-sm">{error}</p>
-              </div>
-            </div>
-          </motion.div>
+        {period === 'custom' && report && (
+          <p className="text-xs text-gray-400">
+            {formatDateLabel(report.filters.startDate)} – {formatDateLabel(report.filters.endDate)}
+          </p>
         )}
 
-        {!isLoading && !error && report && visibleWidgetIds.length === 0 && (
-          <motion.div variants={item}>
-            <EmptyPanel
-              message="No hay widgets visibles. Abri Personalizar para volver a mostrar bloques del reporte."
-            />
-          </motion.div>
-        )}
-
-        {!isLoading && !error && report && visibleWidgetIds.length > 0 && (
-          visibleWidgetIds.map((widgetId) => (
-            <motion.div key={widgetId} variants={item}>
-              {renderWidget(widgetId)}
-            </motion.div>
-          ))
-        )}
+        <div role="group" aria-label="Estado" className="flex flex-wrap gap-2">
+          {statusOptions[moduleId].map((entry) => (
+            <FilterChip
+              key={entry.id}
+              pressed={status === entry.id}
+              disabled={!backendReady}
+              onClick={() => setStatusByModule((current) => ({ ...current, [moduleId]: entry.id }))}
+            >
+              {entry.label}
+            </FilterChip>
+          ))}
+        </div>
       </motion.div>
 
-      <Modal isOpen={isCustomizeOpen} onClose={() => setIsCustomizeOpen(false)} title="Personalizar reportes">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Elegi que widgets mostrar, reordena el layout y deja guardada esta vista en este navegador.
+      {!backendReady && (
+        <motion.div
+          variants={item}
+          className={`rounded-2xl border p-4 ${
+            backendStatus === 'offline'
+              ? 'border-red-200 bg-red-50 text-red-900'
+              : 'border-amber-200 bg-amber-50 text-amber-900'
+          }`}
+        >
+          <p className="text-sm font-semibold">Reportes requiere backend activo</p>
+          <p className="mt-1 text-sm">
+            {backendMessage || 'Esperando la tienda para calcular las métricas.'}
           </p>
+        </motion.div>
+      )}
 
-          <div className="space-y-3">
-            {widgetPreferences.widgetOrder.map((widgetId, index) => {
-              const widget = widgetCatalog.find((entry) => entry.id === widgetId);
-              const isVisible = widgetPreferences.visibleWidgetIds.includes(widgetId);
-              if (!widget) {
-                return null;
-              }
-
-              return (
-                <div key={widgetId} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-gray-900">{widget.title}</p>
-                        <span
-                          className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase tracking-wide ${
-                            isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {isVisible ? 'Visible' : 'Oculto'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">{widget.description}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleMoveWidget(widgetId, 'up')}
-                        disabled={index === 0}
-                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
-                      >
-                        <span className="flex items-center gap-2">
-                          <ArrowUp size={16} />
-                          Subir
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMoveWidget(widgetId, 'down')}
-                        disabled={index === widgetPreferences.widgetOrder.length - 1}
-                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
-                      >
-                        <span className="flex items-center gap-2">
-                          <ArrowDown size={16} />
-                          Bajar
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleWidgetVisibility(widgetId)}
-                        className={`rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                          isVisible
-                            ? 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                            : 'bg-black text-white hover:bg-gray-800'
-                        }`}
-                      >
-                        {isVisible ? 'Ocultar' : 'Mostrar'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+      {error && (
+        <motion.div variants={item} className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 shrink-0" size={18} />
+            <div>
+              <p className="text-sm font-semibold">No pudimos cargar reportes</p>
+              <p className="mt-1 text-sm">{error}</p>
+            </div>
           </div>
+        </motion.div>
+      )}
 
-          <div className="flex flex-wrap justify-between gap-3 border-t border-gray-100 pt-4">
-            <button
-              type="button"
-              onClick={resetWidgetPreferences}
-              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Resetear layout
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsCustomizeOpen(false)}
-              className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </>
+      {backendReady && !error && !view && <ReportsSkeleton />}
+
+      {view && (
+        <motion.div variants={item} className={`space-y-4 ${isLoading ? 'opacity-60' : ''}`}>
+          <BarPanel view={view} metric={metric} compactAxis={compactAxis} onMetric={setMetric} />
+          <DonutPanel view={view} sliceMode={sliceMode} onSliceMode={setSliceMode} />
+        </motion.div>
+      )}
+    </motion.div>
   );
 };
 
-const SalesSummaryWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6">
-    <div>
-      <h2 className="text-lg font-bold text-gray-900">Resumen de ventas</h2>
-      <p className="text-sm text-gray-500">KPI principales del periodo visible.</p>
-    </div>
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard
-        title="Ingresos del rango"
-        value={formatCurrency(report.summary.revenue)}
-        description={`${report.summary.unitsSold} ventas completadas`}
-        icon={<DollarSign size={18} className="text-emerald-600" />}
-      />
-      <StatCard
-        title="Margen estimado"
-        value={formatCurrency(report.summary.grossProfit)}
-        description={`${report.summary.marginRate.toFixed(1)}% sobre lo vendido`}
-        icon={<TrendingUp size={18} className="text-black" />}
-      />
-      <StatCard
-        title="Ticket promedio"
-        value={formatCurrency(report.summary.averageTicket)}
-        description={`${report.summary.pendingSales} pendientes por ${formatCurrency(report.summary.pendingAmount)}`}
-        icon={<Wallet size={18} className="text-gray-700" />}
-      />
-      <StatCard
-        title="Canjes aprobados"
-        value={String(report.summary.approvedTradeIns)}
-        description={`${report.tradeIns.openInRange} en curso · ${formatCurrency(report.tradeIns.cashGenerated)} cobrados`}
-        icon={<RefreshCw size={18} className="text-amber-600" />}
-      />
-    </div>
-    <ComparisonStrip report={report} />
-  </section>
-);
-
-const ComparisonStrip: React.FC<{ report: ReportsOverview }> = ({ report }) => {
-  if (!report.comparison.available) {
-    return (
-      <p className="text-sm text-gray-500">
-        El histórico completo no se compara con un período anterior.
-      </p>
-    );
-  }
-
-  const deltas = [
-    { label: 'Ingresos', change: report.comparison.revenueChange, previous: formatCurrency(report.comparison.revenue) },
-    { label: 'Margen', change: report.comparison.grossProfitChange, previous: formatCurrency(report.comparison.grossProfit) },
-    { label: 'Unidades', change: report.comparison.unitsChange, previous: String(report.comparison.unitsSold) },
-    { label: 'Ticket', change: report.comparison.averageTicketChange, previous: formatCurrency(report.comparison.averageTicket) },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {deltas.map((delta) => (
-        <div key={delta.label} className="rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{delta.label}</p>
-          <p className={`mt-1 text-sm font-bold ${changeTone(delta.change)}`}>{formatChange(delta.change)}</p>
-          <p className="mt-1 text-xs text-gray-500">Antes {delta.previous}</p>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-function changeTone(value: number | null) {
-  if (value === null || value === 0) {
-    return 'text-gray-700';
-  }
-
-  return value > 0 ? 'text-emerald-700' : 'text-red-700';
+interface ModuleViewInput {
+  report: ReportsOverview;
+  moduleId: ModuleId;
+  status: string;
+  metric: MetricId;
+  sliceMode: SliceMode;
+  period: PeriodId;
+  endsToday: boolean;
+  compactAxis: boolean;
 }
 
-const SalesByPeriodWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-6 flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Ventas por periodo</h2>
-        <p className="text-sm text-gray-500">Grafico principal y tabla corta del rango visible.</p>
-      </div>
-      <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-500">
-        {report.salesSeries.length} periodos
-      </div>
-    </div>
+interface ModuleView {
+  moduleId: ModuleId;
+  title: string;
+  headline: string;
+  change: number | null;
+  caption: string;
+  emptyMessage: string;
+  points: ChartPoint[];
+  plottedMetric: MetricId;
+  noun: { singular: string; plural: string };
+  markCurrent: boolean;
+  sliceTitle: string;
+  sliceEmpty: string;
+  sliceTotal: string;
+  slices: ChartSlice[];
+  sliceChoices: Array<{ id: SliceMode; label: string }>;
+}
 
-    {report.salesSeries.length === 0 ? (
-      <EmptyPanel message="Todavia no hay ventas completadas para este rango." />
-    ) : (
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={report.salesSeries} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="reportsRevenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#111827" stopOpacity={0.18} />
-                  <stop offset="95%" stopColor="#111827" stopOpacity={0.01} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+function buildModuleView(input: ModuleViewInput): ModuleView {
+  if (input.moduleId === 'stock') {
+    return buildStockView(input);
+  }
+
+  if (input.moduleId === 'tradeins') {
+    return buildTradeInView(input);
+  }
+
+  return buildSalesView(input);
+}
+
+function buildSalesView({ report, status, metric, sliceMode, period, endsToday, compactAxis }: ModuleViewInput): ModuleView {
+  const pendingOnly = status === 'pending';
+  const rawPoints = pendingOnly
+    ? report.summary.pendingSales > 0
+      ? [point('Pendientes', report.summary.pendingAmount, report.summary.pendingSales, true)]
+      : []
+    : salesPoints(report, endsToday, compactAxis);
+  const points = applyMetric(rawPoints, metric, !pendingOnly);
+  const headlineAmount = pendingOnly ? report.summary.pendingAmount : report.summary.revenue;
+  const headlineUnits = pendingOnly ? report.summary.pendingSales : report.summary.unitsSold;
+  const change = pendingOnly
+    ? null
+    : metric === 'amount'
+      ? report.comparison.revenueChange
+      : report.comparison.unitsChange;
+
+  const captionParts = [
+    !pendingOnly && report.comparison.available ? comparisonTitle[period] : null,
+    countLabel(headlineUnits, 'venta', 'ventas'),
+    status === 'all' && report.summary.pendingSales > 0
+      ? countLabel(report.summary.pendingSales, 'pendiente', 'pendientes')
+      : null,
+  ].filter((part): part is string => Boolean(part));
+
+  const paymentSlices = buildSlices(
+    report.paymentMethods.map((method) => ({ label: method.label, value: method.revenue })),
+    formatCurrency
+  );
+  const modelSlices = buildSlices(
+    report.topProducts.map((product) => ({ label: product.product, value: product.revenue })),
+    formatCurrency
+  );
+  const slices = pendingOnly ? [] : sliceMode === 'primary' ? paymentSlices : modelSlices;
+  const sliceTotal = slices.reduce((sum, slice) => sum + slice.value, 0);
+
+  return {
+    moduleId: 'sales',
+    title: `Ventas · ${periodTitle[period]}`,
+    headline: metric === 'amount' ? formatCurrency(headlineAmount) : formatNumber(headlineUnits),
+    change: report.comparison.available && !pendingOnly ? change : null,
+    caption: captionParts.join(' · '),
+    emptyMessage: pendingOnly ? 'Sin ventas pendientes en este período.' : 'Sin ventas en este período.',
+    points,
+    plottedMetric: metric,
+    noun: { singular: 'venta', plural: 'ventas' },
+    markCurrent: !pendingOnly,
+    sliceTitle: sliceMode === 'primary' ? 'Por medio de pago' : 'Por modelo',
+    sliceEmpty: pendingOnly
+      ? 'Sin desglose de ventas pendientes.'
+      : sliceMode === 'primary'
+        ? 'Sin medios de pago en este período.'
+        : 'Sin modelos en este período.',
+    sliceTotal: formatCompactAmount(sliceTotal),
+    slices,
+    sliceChoices: [
+      { id: 'primary', label: 'Medio de pago' },
+      { id: 'secondary', label: 'Modelo' },
+    ],
+  };
+}
+
+function buildStockView({ report, status, metric, sliceMode }: ModuleViewInput): ModuleView {
+  const reviewOnly = status === 'review';
+  const rawPoints = reviewOnly
+    ? report.inventory.inReviewItems > 0
+      ? [point('En revisión', 0, report.inventory.inReviewItems, true)]
+      : []
+    : report.inventory.aging.map((bucket, index) =>
+        point(bucket.label, bucket.costValue, bucket.count, index === 0)
+      );
+  const points = applyMetric(rawPoints, reviewOnly ? 'units' : metric, false).filter((entry) => entry.value > 0);
+  const headline = reviewOnly
+    ? formatNumber(report.inventory.inReviewItems)
+    : metric === 'amount'
+      ? formatCurrency(report.inventory.valuation.costValue)
+      : formatNumber(report.inventory.availableItems);
+  const caption = reviewOnly
+    ? 'Equipos en revisión'
+    : `${countLabel(report.inventory.availableItems, 'equipo disponible', 'equipos disponibles')} · foto actual`;
+
+  const stateSlices = buildSlices(
+    [
+      { label: 'Disponible', value: report.inventory.availableItems },
+      { label: 'En revisión', value: report.inventory.inReviewItems },
+      { label: 'Vendido', value: report.inventory.soldItems },
+    ],
+    formatNumber
+  );
+  const agingSlices = buildSlices(
+    report.inventory.aging.map((bucket) => ({
+      label: bucket.label,
+      value: metric === 'amount' ? bucket.costValue : bucket.count,
+    })),
+    metric === 'amount' ? formatCurrency : formatNumber
+  );
+  const slices = sliceMode === 'primary' ? stateSlices : agingSlices;
+  const sliceTotal = slices.reduce((sum, slice) => sum + slice.value, 0);
+
+  return {
+    moduleId: 'stock',
+    title: reviewOnly ? 'Stock · en revisión' : 'Stock · disponible ahora',
+    headline,
+    change: null,
+    caption,
+    emptyMessage: reviewOnly ? 'Sin equipos en revisión.' : 'Sin stock disponible.',
+    points,
+    plottedMetric: reviewOnly ? 'units' : metric,
+    noun: { singular: 'equipo', plural: 'equipos' },
+    markCurrent: false,
+    sliceTitle: sliceMode === 'primary' ? 'Por estado' : 'Por antigüedad',
+    sliceEmpty: 'Sin stock para este corte.',
+    sliceTotal: sliceMode === 'secondary' && metric === 'amount' ? formatCompactAmount(sliceTotal) : formatNumber(sliceTotal),
+    slices,
+    sliceChoices: [
+      { id: 'primary', label: 'Estado' },
+      { id: 'secondary', label: 'Antigüedad' },
+    ],
+  };
+}
+
+function buildTradeInView({ report, status, metric, period }: ModuleViewInput): ModuleView {
+  const other = Math.max(
+    0,
+    report.tradeIns.totalInRange - report.tradeIns.approvedInRange - report.tradeIns.openInRange
+  );
+  const allPoints = [
+    point('Aprobados', report.tradeIns.cashGenerated, report.tradeIns.approvedInRange),
+    point('En curso', 0, report.tradeIns.openInRange, true),
+    point('Otros', 0, other),
+  ];
+  const rawPoints =
+    status === 'approved'
+      ? [point('Aprobados', report.tradeIns.cashGenerated, report.tradeIns.approvedInRange, true)]
+      : status === 'pending'
+        ? [point('En curso', 0, report.tradeIns.openInRange, true)]
+        : allPoints;
+  const points = applyMetric(rawPoints, status === 'pending' ? 'units' : metric, false).filter((entry) => entry.value > 0);
+  const headlineUnits =
+    status === 'approved'
+      ? report.tradeIns.approvedInRange
+      : status === 'pending'
+        ? report.tradeIns.openInRange
+        : report.tradeIns.totalInRange;
+  const headline =
+    status === 'pending' || metric === 'units'
+      ? formatNumber(headlineUnits)
+      : formatCurrency(report.tradeIns.cashGenerated);
+
+  const slices = buildSlices(
+    [
+      { label: 'Aprobados', value: report.tradeIns.approvedInRange },
+      { label: 'En curso', value: report.tradeIns.openInRange },
+      { label: 'Otros', value: other },
+    ],
+    formatNumber
+  );
+
+  return {
+    moduleId: 'tradeins',
+    title: `Canjes · ${periodTitle[period]}`,
+    headline,
+    change: null,
+    caption: `${countLabel(report.tradeIns.approvedInRange, 'aprobado', 'aprobados')} · ${countLabel(report.tradeIns.openInRange, 'en curso', 'en curso')}`,
+    emptyMessage: 'Sin canjes en este período.',
+    points,
+    plottedMetric: status === 'pending' ? 'units' : metric,
+    noun: { singular: 'canje', plural: 'canjes' },
+    markCurrent: false,
+    sliceTitle: 'Por estado',
+    sliceEmpty: 'Sin canjes en este período.',
+    sliceTotal: formatNumber(slices.reduce((sum, slice) => sum + slice.value, 0)),
+    slices,
+    sliceChoices: [],
+  };
+}
+
+function FilterChip({
+  pressed,
+  emphasis = 'solid',
+  disabled,
+  onClick,
+  children,
+}: {
+  pressed: boolean;
+  emphasis?: 'solid' | 'quiet';
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const pressedClass = emphasis === 'quiet'
+    ? 'border-black bg-white text-gray-900'
+    : 'border-black bg-black text-white';
+
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed && emphasis === 'solid'}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-40 ${
+        pressed ? pressedClass : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function BarPanel({
+  view,
+  metric,
+  compactAxis,
+  onMetric,
+}: {
+  view: ModuleView;
+  metric: MetricId;
+  compactAxis: boolean;
+  onMetric: (metric: MetricId) => void;
+}) {
+  const axisMetric = view.plottedMetric;
+  const hasBars = view.points.some((entry) => entry.value > 0);
+  const currentIndex = view.points.findIndex((entry) => entry.current);
+  const ticks = visibleTickIndexes(view.points.length, currentIndex, compactAxis);
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-500">{view.title}</p>
+          <p className="mt-2 text-4xl font-black tracking-tight text-gray-900 md:text-5xl">{view.headline}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+            {view.change !== null && (
+              <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs font-bold text-gray-900">
+                {formatBadge(view.change)}
+              </span>
+            )}
+            <span>{view.caption}</span>
+          </div>
+        </div>
+
+        <div role="group" aria-label="Métrica" className="flex gap-2">
+          {metricOptions[view.moduleId].map((entry) => (
+            <FilterChip key={entry.id} pressed={metric === entry.id} onClick={() => onMetric(entry.id)}>
+              {entry.label}
+            </FilterChip>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 h-80">
+        {hasBars ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <BarChart data={view.points} margin={{ top: 28, right: 8, left: 0, bottom: 4 }} barCategoryGap={view.points.length > 8 ? '18%' : '28%'}>
+              <CartesianGrid stroke="#ececec" strokeDasharray="4 6" vertical={false} />
               <XAxis
-                dataKey="label"
+                dataKey="axisLabel"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: '#9ca3af' }}
-                dy={10}
+                interval={0}
+                tick={(props) => (
+                  <ReportAxisTick {...props} visible={ticks} currentIndex={currentIndex} />
+                )}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: '#9ca3af' }}
-                tickFormatter={(value: number) => formatCompactCurrency(value)}
+                width={56}
+                allowDecimals={axisMetric === 'amount'}
+                tick={{ fontSize: 12, fill: '#a3a3a3' }}
+                tickFormatter={(value: number) => (axisMetric === 'amount' ? formatAxisAmount(value) : formatNumber(value))}
               />
               <Tooltip
-                contentStyle={{
-                  borderRadius: '16px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)',
-                }}
-                formatter={(value: number, name: string) => [
-                  name === 'unitsSold' ? `${value} equipos` : formatCurrency(value),
-                  name === 'unitsSold' ? 'Unidades' : 'Ingresos',
-                ]}
+                cursor={{ fill: 'rgba(17,17,17,0.04)' }}
+                wrapperStyle={{ outline: 'none', background: 'transparent', border: 'none', boxShadow: 'none' }}
+                content={(props) => (
+                  <BarTooltip
+                    active={props.active}
+                    payload={props.payload as unknown as Array<{ payload?: ChartPoint }> | undefined}
+                    metric={axisMetric}
+                    singular={view.noun.singular}
+                    plural={view.noun.plural}
+                    markCurrent={view.markCurrent}
+                  />
+                )}
               />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="#111827"
-                strokeWidth={3}
-                fill="url(#reportsRevenueGradient)"
-                fillOpacity={1}
-                animationDuration={900}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
-          <h3 className="text-sm font-bold text-gray-900">Tabla compacta</h3>
-          <p className="mt-1 text-sm text-gray-500">Ultimos periodos visibles del reporte.</p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-500">
-                  <th className="pb-3 font-semibold">Periodo</th>
-                  <th className="pb-3 font-semibold">Ingresos</th>
-                  <th className="pb-3 font-semibold">Unidades</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {report.salesSeries.slice(-6).reverse().map((point) => (
-                  <tr key={point.label} className="hover:bg-gray-50">
-                    <td className="py-3 font-medium text-gray-900">{point.label}</td>
-                    <td className="py-3 text-gray-600">{formatCurrency(point.revenue)}</td>
-                    <td className="py-3 text-gray-600">{point.unitsSold}</td>
-                  </tr>
+              <Bar
+                dataKey="value"
+                radius={[8, 8, 0, 0]}
+                maxBarSize={view.points.length <= 2 ? 112 : view.points.length <= 6 ? 84 : 36}
+                activeBar={{ fill: BAR_CURRENT }}
+              >
+                {view.points.map((entry) => (
+                  <Cell key={entry.axisLabel} fill={entry.current ? BAR_CURRENT : BAR_MUTED} />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    )}
-  </section>
-);
-
-const InventoryValueWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-6 flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Valor de inventario</h2>
-        <p className="text-sm text-gray-500">Lectura actual del stock disponible de la tienda.</p>
-      </div>
-      <Package size={18} className="text-gray-400" />
-    </div>
-
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <HighlightCard
-        title="Costo del stock disponible"
-        value={formatCurrency(report.inventory.valuation.costValue)}
-        description={`${report.inventory.availableItems} equipos listos para vender`}
-      />
-      <HighlightCard
-        title="Valor potencial de venta"
-        value={formatCurrency(report.inventory.valuation.retailValue)}
-        description="Suma de precios de venta del stock disponible"
-      />
-    </div>
-
-    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-      <MetricRow label="Stock total" value={String(report.inventory.totalItems)} />
-      <MetricRow label="Vendidos" value={String(report.inventory.soldItems)} />
-      <MetricRow label="En revisión" value={String(report.inventory.inReviewItems)} />
-    </div>
-
-    <div className="mt-6">
-      <h3 className="text-sm font-bold text-gray-900">Antigüedad del stock disponible</h3>
-      <p className="mt-1 text-sm text-gray-500">Cuánto hace que cada equipo disponible está en la tienda.</p>
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {report.inventory.aging.map((bucket) => (
-          <div key={bucket.label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{bucket.label}</p>
-            <p className="mt-1 text-lg font-black text-gray-900">{bucket.count}</p>
-            <p className="text-xs text-gray-500">{formatCurrency(bucket.costValue)} de costo</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-);
-
-const BusinessMixWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-6">
-      <h2 className="text-lg font-bold text-gray-900">Mix del período</h2>
-      <p className="text-sm text-gray-500">De dónde salieron las ventas completadas del rango.</p>
-    </div>
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      <div>
-        <h3 className="text-sm font-bold text-gray-900">Por categoría</h3>
-        {report.categories.length === 0 ? (
-          <EmptyPanel message="No hay ventas completadas para agrupar por categoría." compact />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         ) : (
-          <div className="mt-3 space-y-3">
-            {report.categories.map((category) => (
-              <div key={category.category} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{category.category}</p>
-                    <p className="text-xs text-gray-500">{category.unitsSold} equipos</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gray-900">{formatCurrency(category.revenue)}</p>
-                    <p className="text-xs text-gray-500">{category.share.toFixed(1)}%</p>
-                  </div>
-                </div>
-              </div>
+          <div className="flex h-full items-center justify-center text-sm text-gray-400">{view.emptyMessage}</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ReportAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  index = 0,
+  visible,
+  currentIndex,
+}: {
+  x?: number | string;
+  y?: number | string;
+  payload?: { value?: string };
+  index?: number;
+  visible?: Set<number>;
+  currentIndex?: number;
+}) {
+  if (!visible?.has(index) || !payload?.value) {
+    return null;
+  }
+
+  const isCurrent = index === currentIndex;
+
+  return (
+    <text
+      x={x}
+      y={Number(y) + 16}
+      textAnchor="middle"
+      fill={isCurrent ? '#111111' : '#a3a3a3'}
+      fontSize={12}
+      fontWeight={isCurrent ? 700 : 500}
+    >
+      {payload.value}
+    </text>
+  );
+}
+
+function BarTooltip({
+  active,
+  payload,
+  metric,
+  singular,
+  plural,
+  markCurrent,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: ChartPoint }>;
+  metric: MetricId;
+  singular: string;
+  plural: string;
+  markCurrent: boolean;
+}) {
+  const entry = payload?.[0]?.payload;
+  if (!active || !entry) {
+    return null;
+  }
+
+  const hint = markCurrent && entry.current ? ' · en curso' : '';
+  const units = countLabel(entry.units, singular, plural);
+  const money = formatCurrency(entry.amount);
+  const primary = metric === 'amount' ? money : units;
+  const secondary = metric === 'amount' ? `${units}${hint}` : entry.amount > 0 ? `${money}${hint}` : hint.replace(' · ', '');
+
+  return (
+    <div className="rounded-xl bg-black px-3 py-2 shadow-lg">
+      <p className="text-sm font-bold text-white">{primary}</p>
+      {secondary && <p className="mt-0.5 text-xs text-white/70">{secondary}</p>}
+    </div>
+  );
+}
+
+function DonutPanel({
+  view,
+  sliceMode,
+  onSliceMode,
+}: {
+  view: ModuleView;
+  sliceMode: SliceMode;
+  onSliceMode: (mode: SliceMode) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold text-gray-900">{view.sliceTitle}</h2>
+        {view.sliceChoices.length > 1 && (
+          <div role="group" aria-label="Corte del gráfico" className="flex gap-2">
+            {view.sliceChoices.map((choice) => (
+              <FilterChip key={choice.id} pressed={sliceMode === choice.id} onClick={() => onSliceMode(choice.id)}>
+                {choice.label}
+              </FilterChip>
             ))}
           </div>
         )}
       </div>
-      <div>
-        <h3 className="text-sm font-bold text-gray-900">Clientes que más compraron</h3>
-        {report.topClients.length === 0 ? (
-          <EmptyPanel message="Todavía no hay clientes asociados a ventas de este rango." compact />
-        ) : (
-          <div className="mt-3 space-y-3">
-            {report.topClients.map((client) => (
-              <div key={client.client} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{client.client}</p>
-                  <p className="text-xs text-gray-500">{client.purchases} compras</p>
-                </div>
-                <p className="text-sm font-bold text-gray-900">{formatCurrency(client.revenue)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  </section>
-);
 
-const TopProductsWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-6 flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Top productos</h2>
-        <p className="text-sm text-gray-500">Ranking del rango visible por unidades vendidas.</p>
-      </div>
-      <TrendingUp size={18} className="text-gray-400" />
-    </div>
-
-    {report.topProducts.length === 0 ? (
-      <EmptyPanel message="No hay productos vendidos todavia en este rango." compact />
-    ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 text-gray-500">
-              <th className="pb-4 font-semibold">Producto</th>
-              <th className="pb-4 font-semibold">Unidades</th>
-              <th className="pb-4 font-semibold">Ingresos</th>
-              <th className="pb-4 font-semibold">Share</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {report.topProducts.map((product) => (
-              <tr key={product.product} className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 font-medium text-gray-900">{product.product}</td>
-                <td className="py-4 text-gray-600">{product.unitsSold}</td>
-                <td className="py-4 text-gray-600">{formatCurrency(product.revenue)}</td>
-                <td className="py-4 text-gray-600">{product.share.toFixed(1)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </section>
-);
-
-const PaymentMethodsWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-4">
-      <h2 className="text-lg font-bold text-gray-900">Metodos de pago</h2>
-      <p className="text-sm text-gray-500">Distribucion de ingresos del rango visible.</p>
-    </div>
-    {report.paymentMethods.length === 0 ? (
-      <EmptyPanel message="Todavia no hay pagos registrados para este rango." compact />
-    ) : (
-      <div className="space-y-3">
-        {report.paymentMethods.map((method) => (
-          <div key={method.label} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{method.label}</p>
-                <p className="text-xs text-gray-500">{method.count} operaciones</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-gray-900">{formatCurrency(method.revenue)}</p>
-                <p className="text-xs text-gray-500">{method.share.toFixed(1)}%</p>
-              </div>
+      {view.slices.length === 0 ? (
+        <div className="flex min-h-64 items-center justify-center text-sm text-gray-400">{view.sliceEmpty}</div>
+      ) : (
+        <div className="mt-6 flex flex-col items-center gap-8 lg:flex-row lg:items-center lg:gap-12">
+          <div className="relative h-[260px] w-[260px] shrink-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <PieChart>
+                <Pie
+                  data={view.slices}
+                  dataKey="value"
+                  nameKey="label"
+                  innerRadius="68%"
+                  outerRadius="100%"
+                  startAngle={90}
+                  endAngle={-270}
+                  paddingAngle={view.slices.length > 1 ? 2 : 0}
+                  stroke={view.slices.length > 1 ? '#ffffff' : 'transparent'}
+                  strokeWidth={view.slices.length > 1 ? 3 : 0}
+                  isAnimationActive
+                >
+                  {view.slices.map((slice) => (
+                    <Cell key={slice.label} fill={slice.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  wrapperStyle={{ outline: 'none', background: 'transparent', border: 'none', boxShadow: 'none' }}
+                  content={(props) => (
+                    <SliceTooltip
+                      active={props.active}
+                      payload={props.payload as unknown as Array<{ payload?: ChartSlice }> | undefined}
+                    />
+                  )}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <p className="text-2xl font-black tracking-tight text-gray-900">{view.sliceTotal}</p>
+              <p className="text-xs text-gray-500">Total</p>
             </div>
           </div>
-        ))}
-      </div>
-    )}
-  </section>
-);
 
-const OperationalSnapshotWidget: React.FC<{ report: ReportsOverview }> = ({ report }) => (
-  <section className="rounded-2xl border border-gray-200 bg-white p-6">
-    <div className="mb-6">
-      <h2 className="text-lg font-bold text-gray-900">Snapshot operativo</h2>
-      <p className="text-sm text-gray-500">Clientes, canjes e inventario actuales del store.</p>
-    </div>
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <MetricRow label="Clientes activos" value={String(report.clients.activeClients)} />
-      <MetricRow label="Clientes totales" value={String(report.clients.totalClients)} />
-      <MetricRow label="Saldo pendiente" value={formatCurrency(report.clients.pendingBalance)} />
-      <MetricRow label="Canjes en rango" value={String(report.tradeIns.totalInRange)} />
-      <MetricRow label="Canjes en curso" value={String(report.tradeIns.openInRange)} />
-      <MetricRow label="Canjes aprobados" value={String(report.tradeIns.approvedInRange)} />
-      <MetricRow label="Caja por canjes" value={formatCurrency(report.tradeIns.cashGenerated)} />
-      <MetricRow label="Stock total" value={String(report.inventory.totalItems)} />
-      <MetricRow label="Disponibles" value={String(report.inventory.availableItems)} />
-      <MetricRow label="En revision" value={String(report.inventory.inReviewItems)} />
-    </div>
-  </section>
-);
-
-interface StatCardProps {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ReactNode;
+          <ul className="flex w-full max-w-xl flex-1 flex-col gap-4">
+            {view.slices.map((slice) => (
+              <li key={slice.label} className="flex items-center gap-3">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{slice.label}</span>
+                <span className="text-sm font-semibold tabular-nums text-gray-900">{slice.display}</span>
+                <span className="w-12 text-right text-sm tabular-nums text-gray-500">{formatShare(slice.share)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, description, icon }) => (
-  <motion.div
-    whileHover={{ y: -3 }}
-    className="h-full rounded-2xl border border-gray-200 bg-white p-5 transition-shadow"
-  >
-    <div className="mb-4 flex items-center justify-between">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50">
-        {icon}
-      </div>
+function SliceTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: ChartSlice }>;
+}) {
+  const slice = payload?.[0]?.payload;
+  if (!active || !slice) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl bg-black px-3 py-2 shadow-lg">
+      <p className="text-sm font-bold text-white">{slice.label}</p>
+      <p className="mt-0.5 text-xs text-white/70">
+        {slice.display} · {formatShare(slice.share)}
+      </p>
     </div>
-    <div className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-400">{title}</div>
-    <div className="text-2xl font-black text-gray-900">{value}</div>
-    <p className="mt-2 text-sm text-gray-500">{description}</p>
-  </motion.div>
-);
-
-const HighlightCard: React.FC<{ title: string; value: string; description: string }> = ({
-  title,
-  value,
-  description,
-}) => (
-  <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-5">
-    <div className="text-xs font-bold uppercase tracking-wide text-gray-400">{title}</div>
-    <div className="mt-2 text-3xl font-black text-gray-900">{value}</div>
-    <p className="mt-2 text-sm text-gray-500">{description}</p>
-  </div>
-);
-
-interface MetricRowProps {
-  label: string;
-  value: string;
+  );
 }
 
-const MetricRow: React.FC<MetricRowProps> = ({ label, value }) => (
-  <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-3">
-    <span className="text-sm text-gray-600">{label}</span>
-    <span className="text-sm font-bold text-gray-900">{value}</span>
-  </div>
-);
-
-const EmptyPanel: React.FC<{ message: string; compact?: boolean }> = ({ message, compact = false }) => (
-  <div
-    className={`flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-4 text-center text-sm text-gray-500 ${
-      compact ? 'min-h-[120px]' : 'min-h-[240px]'
-    }`}
-  >
-    {message}
-  </div>
-);
+function ReportsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+        <div className="h-4 w-40 animate-pulse rounded-full bg-gray-100" />
+        <div className="mt-4 h-12 w-56 animate-pulse rounded-2xl bg-gray-100" />
+        <div className="mt-8 flex h-64 items-end gap-3">
+          {['h-24', 'h-40', 'h-28', 'h-16', 'h-52'].map((height, index) => (
+            <div
+              key={height}
+              className={`flex-1 animate-pulse rounded-t-lg ${index === 4 ? 'bg-gray-900' : 'bg-gray-200'} ${height}`}
+            />
+          ))}
+        </div>
+      </section>
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+        <div className="h-4 w-36 animate-pulse rounded-full bg-gray-100" />
+        <div className="mt-6 flex flex-col items-center gap-8 lg:flex-row">
+          <div className="h-[220px] w-[220px] animate-pulse rounded-full border-[28px] border-gray-200" />
+          <div className="w-full flex-1 space-y-4">
+            {['w-3/4', 'w-2/3', 'w-1/2', 'w-2/5'].map((width) => (
+              <div key={width} className={`h-4 animate-pulse rounded-full bg-gray-100 ${width}`} />
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
