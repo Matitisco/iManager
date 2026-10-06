@@ -155,6 +155,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     storageKey: 'inventory',
     noun: 'equipo',
     nounPlural: 'equipos',
+    showFilteredTotal: true,
     pagination: { pageSize: 16 },
 
     // ── Columns ───────────────────────────────────────────────────────────────

@@ -65,6 +65,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     ImportModal, importConfig, showImport = !!(ImportModal || importConfig),
     customColumnActions, dynamicColumns,
     noun = 'ítem', nounPlural = 'ítems',
+    showFilteredTotal = false,
     pagination,
   } = config;
   const scopedStorageKey = user?.uid ? `${storageKey}:${user.uid}` : storageKey;
@@ -619,13 +620,21 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   };
 
   const hasActiveFilters = filters.some(f => activeFilters[f.id] !== f.defaultValue);
+  const showResultTotal = showFilteredTotal && !isInitialLoading && (searchTerm.trim().length > 0 || hasActiveFilters);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-gray-50 text-gray-900 overflow-hidden">
       {/* ── Header ── */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900 mr-2">{title}</h1>
+        <div className="flex items-baseline gap-2 mr-2 min-w-0">
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+          {showResultTotal && (
+            <span className="text-sm font-medium text-gray-500 whitespace-nowrap" data-testid="filtered-result-total">
+              {total} {total === 1 ? noun : nounPlural}
+            </span>
+          )}
+        </div>
         <div className="flex-1" />
         {/* Toolbar */}
         <div className="relative" ref={filtersRef}>

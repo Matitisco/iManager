@@ -155,6 +155,95 @@ describe('TableEngine', () => {
     expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
   });
 
+  it('shows the full filtered total beside the title, not the current page', async () => {
+    const user = userEvent.setup();
+    const rows: TestRow[] = Array.from({ length: 5 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Equipo ${index + 1}`,
+      quantity: index + 1,
+      categoryId: null,
+    }));
+    const fetchPage = vi.fn(async ({
+      skip = 0,
+      take = 2,
+      search,
+    }: {
+      skip?: number;
+      take?: number;
+      search?: string;
+    }) => {
+      if (search === 'ninguno') return { items: [], total: 0 };
+      if (search === 'uno') return { items: rows.slice(0, 1), total: 1 };
+      return { items: rows.slice(skip, skip + take), total: rows.length };
+    });
+    const config = buildConfig({
+      title: 'Inventario',
+      fetchPage,
+      pagination: { pageSize: 2 },
+      noun: 'equipo',
+      nounPlural: 'equipos',
+      showFilteredTotal: true,
+      filters: [{
+        id: 'status',
+        label: 'Estado',
+        param: 'status',
+        defaultValue: 'Todos',
+        options: [
+          { value: 'Todos', label: 'Todos' },
+          { value: 'Disponible', label: 'Disponible' },
+        ],
+      }],
+    });
+
+    const { rerender } = render(
+      <TableEngine config={config} user={{ uid: 'user-1' }} />
+    );
+
+    expect(await screen.findByText('Equipo 1')).toBeInTheDocument();
+    expect(screen.getByText('Equipo 2')).toBeInTheDocument();
+    expect(screen.queryByTestId('filtered-result-total')).not.toBeInTheDocument();
+
+    rerender(
+      <TableEngine config={config} user={{ uid: 'user-1' }} searchTerm="iphone" />
+    );
+
+    expect(await screen.findByTestId('filtered-result-total')).toHaveTextContent('5 equipos');
+    expect(screen.queryByText('Equipo 3')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect(await screen.findByText('Equipo 3')).toBeInTheDocument();
+    expect(screen.getByTestId('filtered-result-total')).toHaveTextContent('5 equipos');
+
+    rerender(
+      <TableEngine config={config} user={{ uid: 'user-1' }} searchTerm="uno" />
+    );
+    expect(await screen.findByTestId('filtered-result-total')).toHaveTextContent('1 equipo');
+
+    rerender(
+      <TableEngine config={config} user={{ uid: 'user-1' }} searchTerm="ninguno" />
+    );
+    expect(await screen.findByTestId('filtered-result-total')).toHaveTextContent('0 equipos');
+
+    rerender(
+      <TableEngine config={config} user={{ uid: 'user-1' }} />
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('filtered-result-total')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.selectOptions(screen.getByRole('combobox'), 'Disponible');
+
+    expect(await screen.findByTestId('filtered-result-total')).toHaveTextContent('5 equipos');
+    expect(screen.getByText('Equipo 1')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 3')).not.toBeInTheDocument();
+    expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({
+      skip: 0,
+      take: 2,
+      filters: { status: 'Disponible' },
+    }));
+  });
+
   it('supports range selection and bulk delete', async () => {
     const user = userEvent.setup();
     const rows: TestRow[] = [

@@ -242,6 +242,12 @@ export interface TableEngineConfig<TRow extends WithId> {
   noun?: string;
   nounPlural?: string;
 
+  /**
+   * When set, a search or an active filter shows the full result count
+   * beside the page title. The number is the API total, not the current page.
+   */
+  showFilteredTotal?: boolean;
+
   /** When set, the table loads one page at a time instead of infinite scroll. */
   pagination?: {
     pageSize: number;
