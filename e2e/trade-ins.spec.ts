@@ -38,7 +38,9 @@ test('creates a trade-in flow and persists the result', async ({ page, request }
   await page.getByRole('button', { name: /Registrar Canje/i }).click();
 
   await expect(page.getByRole('button', { name: /Registrar Canje/i })).toBeHidden();
-  await expect(page.getByRole('button', { name: receivedDevice }).first()).toBeVisible();
+  await page.reload();
+  await page.getByTestId('sidebar-tab-tradeins').click({ noWaitAfter: true });
+  await expect(page.getByText(receivedDevice).first()).toBeVisible();
 
   const { tradeIns } = await fetchTradeIns(request, email);
   expect(tradeIns).toHaveLength(1);
