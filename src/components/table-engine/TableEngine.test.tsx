@@ -772,6 +772,92 @@ describe('TableEngine', () => {
     }));
   });
 
+  it('copies one row from the context menu without the other selected rows', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+    ];
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage: vi.fn(async () => ({ items: rows, total: rows.length })),
+          onCreate,
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr') as HTMLElement;
+    const betaRow = screen.getByText('Beta').closest('tr') as HTMLElement;
+    await user.click(alphaRow);
+    fireEvent.contextMenu(betaRow);
+    await user.click(screen.getByRole('button', { name: 'Copiar ítem' }));
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledTimes(1);
+    });
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Beta', quantity: 2 }));
+  });
+
+  it('copies a selection that spans pages and pastes it back into the same page size', async () => {
+    clearRowClipboardMemory();
+    const user = userEvent.setup();
+    const rows: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+      { id: '2', name: 'Beta', quantity: 2, categoryId: null },
+      { id: '3', name: 'Gamma', quantity: 3, categoryId: null },
+      { id: '4', name: 'Delta', quantity: 4, categoryId: null },
+    ];
+    const fetchPage = vi.fn(async ({ skip = 0, take = 2 }: { skip?: number; take?: number }) => ({
+      items: rows.slice(skip, skip + take),
+      total: rows.length,
+    }));
+    const onCreate = vi.fn(async () => undefined);
+
+    render(
+      <TableEngine
+        config={buildConfig({
+          fetchPage,
+          fetchFilteredIds: vi.fn(async () => rows.map((row) => row.id)),
+          onCreate,
+          pagination: { pageSize: 2 },
+          noun: 'equipo',
+          nounPlural: 'equipos',
+        })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('table-select-all'));
+    expect(await screen.findByText('4 equipos seleccionados')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
+    expect(await screen.findByText('Se copiaron 4 equipos')).toBeInTheDocument();
+    expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ skip: 0, take: 100 }));
+
+    fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledTimes(4);
+    });
+    ['Alpha', 'Beta', 'Gamma', 'Delta'].forEach((name, index) => {
+      expect(onCreate).toHaveBeenNthCalledWith(index + 1, expect.objectContaining({ name }));
+    });
+    await waitFor(() => {
+      expect(fetchPage).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 0, take: 2 }));
+    });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+  });
+
   it('pastes an external table as new rows without rewriting unique values', async () => {
     clearRowClipboardMemory();
     const onCreate = vi.fn(async () => undefined);
