@@ -597,6 +597,11 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       void loadFirstPage(buildFilterParams());
       return;
     }
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
     if (paged) {
       const remaining = Math.max(0, total - ids.length);
       const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
@@ -605,11 +610,6 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       setItems(prev => prev.filter(p => !ids.includes(p.id)));
       setTotal(prev => prev - ids.length);
     }
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      ids.forEach(id => next.delete(id));
-      return next;
-    });
   };
 
   const confirmBulkMove = async () => {
