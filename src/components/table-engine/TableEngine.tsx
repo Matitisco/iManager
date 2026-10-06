@@ -131,7 +131,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
 
   const renameDoneRef = useRef(false);
   const pastingRef = useRef(false);
-  const copyRowsRef = useRef<(explicit?: TRow) => boolean>(() => false);
+  const copyRowsRef = useRef<(explicit?: TRow) => boolean | Promise<boolean>>(() => false);
   const pasteTextRef = useRef<(text: string) => Promise<void>>(async () => {});
   const inlineEditActiveRef = useRef(false);
   const onCreateRef = useRef(onCreate);
@@ -456,14 +456,12 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     onDuplicateValue: column.onDuplicateValue,
   }));
 
-  const copyRows = (explicit?: TRow) => {
-    const source = explicit
-      ? (selectedIds.has(explicit.id) && selectedIds.size > 1
-        ? items.filter((item) => selectedIds.has(item.id))
-        : [explicit])
-      : items.filter((item) => selectedIds.has(item.id));
-    if (source.length === 0) return false;
+  // Inventory rejects take > 100. Walk the filtered list in those chunks so a
+  // selection that spans pages of 16 still copies every selected row.
+  const COPY_FETCH_TAKE = 100;
 
+  const rememberCopiedRows = (source: TRow[]) => {
+    if (source.length === 0) return false;
     const visible = colState.orderedVisibleCols
       .map((id) => resolvedColumns.find((column) => column.id === id))
       .filter((column): column is ColDef<TRow> => Boolean(column));
@@ -479,6 +477,58 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     void writeClipboard(tsv);
     setClipboardNotice(source.length === 1 ? `Se copió 1 ${noun}` : `Se copiaron ${source.length} ${nounPlural}`);
     return true;
+  };
+
+  const loadSelectedRows = async (wanted: Set<string>, known: Map<string, TRow>) => {
+    const ordered: TRow[] = [];
+    const seen = new Set<string>();
+    let skip = 0;
+    let guard = 0;
+    while (seen.size < wanted.size && guard < 100) {
+      guard += 1;
+      const page = await fetchPage({ skip, take: COPY_FETCH_TAKE, ...filterParamsRef.current });
+      if (page.items.length === 0) break;
+      for (const row of page.items) {
+        if (!wanted.has(row.id) || seen.has(row.id)) continue;
+        seen.add(row.id);
+        ordered.push(row);
+      }
+      skip += page.items.length;
+      if (skip >= page.total) break;
+    }
+    for (const [id, row] of known) {
+      if (wanted.has(id) && !seen.has(id)) ordered.push(row);
+    }
+    return ordered;
+  };
+
+  const copyRows = (explicit?: TRow): boolean | Promise<boolean> => {
+    const copySelection = Boolean(explicit && selectedIds.has(explicit.id) && selectedIds.size > 1) || !explicit;
+    const wantedIds = copySelection
+      ? Array.from(selectedIds)
+      : (explicit ? [explicit.id] : []);
+    if (wantedIds.length === 0) return false;
+
+    const known = new Map<string, TRow>();
+    if (!copySelection && explicit) known.set(explicit.id, explicit);
+    for (const row of items) {
+      if (selectedIds.has(row.id) || row.id === explicit?.id) known.set(row.id, row);
+    }
+    const wanted = new Set(wantedIds);
+    const missing = wantedIds.some((id) => !known.has(id));
+    if (!missing) {
+      const source = copySelection
+        ? items.filter((row) => wanted.has(row.id))
+        : [explicit as TRow];
+      return rememberCopiedRows(source);
+    }
+
+    return loadSelectedRows(wanted, known)
+      .then((source) => rememberCopiedRows(source))
+      .catch(() => {
+        alert(`No se pudieron copiar los ${nounPlural} seleccionados.`);
+        return false;
+      });
   };
 
   const pasteText = async (text: string) => {
@@ -513,15 +563,19 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     } finally {
       pastingRef.current = false;
       if (created > 0) {
-        const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
-        const result = await fetchPage({
-          skip: 0,
-          take: Math.max(PAGE_SIZE, items.length + created),
-          ...filterParamsRef.current,
-        });
-        pendingScrollRestoreRef.current = scrollTop;
-        setItems(result.items);
-        setTotal(result.total);
+        if (paged) {
+          await loadFirstPage(filterParamsRef.current);
+        } else {
+          const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
+          const result = await fetchPage({
+            skip: 0,
+            take: Math.max(PAGE_SIZE, items.length + created),
+            ...filterParamsRef.current,
+          });
+          pendingScrollRestoreRef.current = scrollTop;
+          setItems(result.items);
+          setTotal(result.total);
+        }
       }
     }
   };
@@ -547,7 +601,8 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       if (event.key.toLowerCase() !== 'c' || !(event.metaKey || event.ctrlKey) || event.altKey) return;
       if (isTextEntry(event.target) || inlineEditActiveRef.current) return;
       if (window.getSelection()?.toString()) return;
-      if (copyRowsRef.current()) event.preventDefault();
+      const copied = copyRowsRef.current();
+      if (copied instanceof Promise || copied) event.preventDefault();
     };
     const onPaste = (event: ClipboardEvent) => {
       if (isTextEntry(event.target) || inlineEditActiveRef.current || !onCreateRef.current) return;
