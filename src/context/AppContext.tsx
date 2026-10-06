@@ -4,6 +4,9 @@ import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
+import { invalidateSalesCache } from '../services/sales-table-api';
+import { invalidateClientsCache } from '../services/clients-table-api';
+import { invalidateTradeInsCache } from '../services/trade-ins-table-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
@@ -14,7 +17,7 @@ import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
 
-interface AppState {
+export interface AppState {
   inventory: Product[];
   sales: Sale[];
   salesCategories: SaleCategory[];
@@ -70,6 +73,7 @@ interface AppState {
   createOwnedStore: (storeName: string) => Promise<void>;
   activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
+  refreshStoreData: () => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -126,7 +130,7 @@ function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
   }
 }
 
-const AppContext = createContext<AppState | undefined>(undefined);
+export const AppContext = createContext<AppState | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
@@ -847,6 +851,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return id;
   };
 
+  const refreshStoreData = async () => {
+    if (!user || !backendInventoryEnabled) return;
+    invalidateSalesCache();
+    invalidateClientsCache();
+    invalidateTradeInsCache();
+    const [nextInventory, nextCategories, nextClients, nextClientCategories, nextSales, nextSalesCategories, nextTradeIns, nextTradeInCategories] = await Promise.all([
+      fetchBackendInventory(user),
+      fetchCategories(user).catch(() => [] as InventoryCategory[]),
+      fetchBackendClients(user),
+      fetchClientCategoriesApi(user).catch(() => [] as ClientCategory[]),
+      fetchBackendSales(user),
+      fetchSalesCategoriesApi(user).catch(() => [] as SaleCategory[]),
+      fetchBackendTradeIns(user),
+      fetchTradeInCategoriesApi(user).catch(() => [] as TradeInCategory[]),
+    ]);
+    setInventory(nextInventory);
+    setInventoryCategories(nextCategories);
+    setClients(nextClients);
+    setClientCategories(nextClientCategories);
+    setSales(nextSales);
+    setSalesCategories(nextSalesCategories);
+    setTradeIns(nextTradeIns);
+    setTradeInCategories(nextTradeInCategories);
+  };
+
   const removeCustomColumn = async (id: string) => {
     if (!user) return;
     setCustomColumns(prev => {
@@ -876,7 +905,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
       clientCategories, createClientCategory, renameClientCategory, deleteClientCategory, bulkMoveClientCategory, reorderClientCategories,
       updateStore, updateUserProfile,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, createOwnedStore, activateStore, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, createOwnedStore, activateStore, acceptStoreInvitation, refreshStoreData, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>

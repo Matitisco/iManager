@@ -23,6 +23,8 @@ import { SaleForm } from './components/forms/SaleForm';
 import { TradeInForm } from './components/forms/TradeInForm';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
 import { canSeeBillingSection } from './pages/settings-access';
+import { useIsPhone } from './mobile/use-phone-layout';
+import { MobileApp } from './mobile/MobileApp';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 const SEARCHABLE_TABS = new Set(['inventory', 'clients', 'sales', 'tradeins']);
@@ -69,6 +71,7 @@ function BlockingScreen({
 
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
+  const isPhone = useIsPhone();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('store');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -255,6 +258,7 @@ function AppContent() {
 
   return (
     <>
+      {isPhone ? <MobileApp /> : (
       <div>
         <Layout
           activeTab={activeTab}
@@ -272,6 +276,7 @@ function AppContent() {
           {renderModalContent()}
         </Modal>
       </div>
+      )}
 
       {showInviteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
