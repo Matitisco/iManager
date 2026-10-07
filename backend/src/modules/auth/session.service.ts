@@ -6,6 +6,7 @@ import {
   listStoresForUser,
   type UserStoreSummary,
 } from "../stores/stores.service.js";
+import { normalizeSections } from "../stores/sections.js";
 
 export interface AppSessionResponse {
   user: {
@@ -30,6 +31,7 @@ export interface AppSessionResponse {
   membership: {
     role: "OWNER" | "MANAGER" | "STAFF";
     isDefault: boolean;
+    sections: string[] | null;
   } | null;
   stores: UserStoreSummary[];
   onboardingRequired: boolean;
@@ -83,6 +85,7 @@ export async function buildAppSessionForUser(
     membership: {
       role: membership.role,
       isDefault: membership.isDefault,
+      sections: membership.role === "OWNER" ? null : normalizeSections(membership.sections),
     },
     stores,
     onboardingRequired: false,

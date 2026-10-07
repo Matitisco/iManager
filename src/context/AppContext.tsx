@@ -75,6 +75,7 @@ interface AppState {
   createOwnedStore: (storeName: string) => Promise<void>;
   activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
+  reloadSession: () => Promise<void>;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -442,6 +443,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
+  };
+
+  const reloadSession = async () => {
+    if (!user) return;
+    const { status, session } = await refreshBackendSession(user);
+    if (status === 'ready' && session) setAppSession(session);
   };
 
   const acceptStoreInvitation = async (token: string) => {
@@ -918,7 +925,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
       tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
       clientCategories, createClientCategory, renameClientCategory, deleteClientCategory, bulkMoveClientCategory, reorderClientCategories,
-      updateStore, updateUserProfile,
+      updateStore, updateUserProfile, reloadSession,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, createOwnedStore, activateStore, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}

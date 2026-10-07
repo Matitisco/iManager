@@ -1,0 +1,24 @@
+export const DESK_SECTIONS = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'inventory', label: 'Inventario' },
+  { id: 'sales', label: 'Ventas' },
+  { id: 'tradeins', label: 'Canjes' },
+  { id: 'clients', label: 'Clientes' },
+  { id: 'reports', label: 'Reportes' },
+  { id: 'notifications', label: 'Notificaciones' },
+] as const;
+
+export type DeskSectionId = (typeof DESK_SECTIONS)[number]['id'];
+
+export const DESK_SECTION_IDS: DeskSectionId[] = DESK_SECTIONS.map((section) => section.id);
+
+export function visibleSections(stored: string[] | null | undefined, role?: string | null): DeskSectionId[] {
+  if (role === 'OWNER' || stored == null) return [...DESK_SECTION_IDS];
+  return DESK_SECTION_IDS.filter((id) => stored.includes(id));
+}
+
+export function canOpenSection(id: string, stored: string[] | null | undefined, role?: string | null) {
+  if (id === 'settings') return true;
+  if (role === 'STAFF' && id === 'reports') return false;
+  return visibleSections(stored, role).includes(id as DeskSectionId);
+}
