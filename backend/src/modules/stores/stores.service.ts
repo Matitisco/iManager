@@ -1,6 +1,7 @@
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
 import { assertStoreContact, blankToNull } from "./store-contact.js";
+import { assertSectionList, normalizeSections } from "./sections.js";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
@@ -135,14 +136,27 @@ export async function listMembers(storeId: string) {
     orderBy: { createdAt: "asc" },
   });
 
-  return members.map((m) => ({
-    id: m.id,
-    userId: m.userId,
-    role: m.role,
-    isDefault: m.isDefault,
-    createdAt: m.createdAt,
-    user: m.user,
-  }));
+  return members.map(serializeMember);
+}
+
+function serializeMember(member: {
+  id: string;
+  userId: string;
+  role: StoreRole;
+  isDefault: boolean;
+  createdAt: Date;
+  sections?: unknown;
+  user: { id: string; displayName: string | null; email: string | null; avatarUrl: string | null };
+}) {
+  return {
+    id: member.id,
+    userId: member.userId,
+    role: member.role,
+    isDefault: member.isDefault,
+    createdAt: member.createdAt,
+    sections: member.role === "OWNER" ? null : normalizeSections(member.sections),
+    user: member.user,
+  };
 }
 
 export async function updateMemberRole(
@@ -213,4 +227,35 @@ export async function removeMember(
   }
 
   await prisma.storeMember.delete({ where: { id: memberId } });
+}
+
+export async function updateMemberSections(
+  storeId: string,
+  memberId: string,
+  sections: string[],
+  actorRole: StoreRole,
+  actorUserId: string,
+) {
+  if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
+    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+  }
+
+  const target = await prisma.storeMember.findFirst({
+    where: { id: memberId, storeId },
+    include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
+  });
+  if (!target) {
+    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+  }
+  if (target.role === "OWNER") {
+    throw Object.assign(new Error("El propietario conserva el acceso a todas las secciones"), { statusCode: 403 });
+  }
+
+  const next = assertSectionList(sections);
+  const updated = await prisma.storeMember.update({
+    where: { id: memberId },
+    data: { sections: next },
+    include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
+  });
+  return serializeMember(updated);
 }

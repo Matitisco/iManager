@@ -53,6 +53,35 @@ describe("clients.service", () => {
     });
   });
 
+  it("creates a client with only a name", async () => {
+    prismaMock.client.create.mockResolvedValueOnce({
+      id: "client-2",
+      dni: null,
+      name: "Ana",
+      email: null,
+      phone: null,
+      lastPurchaseAt: null,
+      totalSpent: new Decimal(0),
+      pendingBalance: new Decimal(0),
+      categoryId: null,
+      customFields: {},
+    });
+
+    await expect(createClient("store-1", { name: "Ana", dni: "  " })).resolves.toMatchObject({
+      name: "Ana",
+      dni: "",
+    });
+
+    expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.client.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        storeId: "store-1",
+        dni: null,
+        name: "Ana",
+      }),
+    });
+  });
+
   it("rejects duplicate clients by dni", async () => {
     prismaMock.client.findFirst.mockResolvedValueOnce({ id: "client-1" });
 

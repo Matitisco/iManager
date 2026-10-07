@@ -55,6 +55,7 @@ model StoreMember {
   userId    String
   role      StoreRole
   isDefault Boolean   @default(false)
+  sections  Json?
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
@@ -67,7 +68,7 @@ model Client {
   id             String          @id @default(cuid())
   storeId        String
   categoryId     String?
-  dni            String          @db.VarChar(50)
+  dni            String?         @db.VarChar(50)
   name           String          @db.VarChar(120)
   email          String?         @db.VarChar(255)
   phone          String?         @db.VarChar(50)
@@ -147,6 +148,7 @@ model Sale {
   clientName      String         @default("") @db.VarChar(120)
   categoryId      String?
   inventoryItemId String?
+  deviceLabel     String?        @db.VarChar(120)
   dateLabel       String         @db.VarChar(120)
   amount          Decimal        @db.Decimal(12, 2)
   paymentMethod   String         @db.VarChar(50)
@@ -171,6 +173,7 @@ model TradeIn {
   tradeNumber        Int              @default(autoincrement())
   storeId            String
   clientId           String?
+  clientName         String           @default("") @db.VarChar(120)
   categoryId         String?
   dateLabel          String           @db.VarChar(120)
   deviceReceived     String           @db.VarChar(120)

@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { findOrCreateUserFromFirebase } from "../modules/users/users.service.js";
+import { normalizeSections } from "../modules/stores/sections.js";
 import { getDefaultMembershipForUser } from "../modules/stores/stores.service.js";
 
 export async function resolveAppUser(request: FastifyRequest, reply: FastifyReply) {
@@ -18,5 +19,6 @@ export async function resolveAppUser(request: FastifyRequest, reply: FastifyRepl
     userId: user.id,
     storeId: membership.storeId,
     role: membership.role,
+    sections: membership.role === "OWNER" ? null : normalizeSections(membership.sections),
   };
 }

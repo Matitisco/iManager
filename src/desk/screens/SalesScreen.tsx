@@ -1,17 +1,29 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { ColumnFilter } from '../ColumnFilter';
 import {
   saleBuyer,
+  formatInputMoney,
   formatMoney,
   formatShortDate,
   inPeriod,
+  parseMoney,
   paymentLabel,
   periodBounds,
-  productLabel,
   saleCode,
+  saleEquipment,
+  statusLabel,
   type PeriodKey,
 } from '../format';
 import { TablePager, usePagedRows } from '../pager';
+import {
+  EMPTY_SALE_FILTERS,
+  matchesSaleColumns,
+  saleColumnActive,
+  saleFilterKey,
+  saleFiltersActive,
+  type SaleColumnFilters,
+} from '../sale-column-filters';
 import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
@@ -21,6 +33,8 @@ export function SalesScreen() {
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('Mes');
+  const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
+  const [openColumn, setOpenColumn] = useState<string | null>(null);
   const bounds = periodBounds(period);
 
   const inWindow = (sale: { date: string }) => (parseOk(sale.date) ? inPeriod(sale.date, bounds.start, bounds.end) : period === 'Mes');
@@ -38,13 +52,20 @@ export function SalesScreen() {
   const margin = total - cost;
   const delta = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
+  const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
+  const toggleList = (key: 'payments' | 'statuses', value: string) => setColumns((current) => ({
+    ...current,
+    [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value],
+  }));
   const rows = listed.filter((sale) => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
-    const product = inventory.find((item) => item.id === sale.productId);
-    return `${saleBuyer(sale, clients)} ${productLabel(product)} ${saleCode(sale)}`.toLowerCase().includes(q);
+    const labels = { client: saleBuyer(sale, clients), equipment: saleEquipment(sale, inventory) };
+    if (q && !`${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q)) return false;
+    return matchesSaleColumns(sale, columns, labels);
   });
-  const page = usePagedRows(rows, `${query}|${period}`);
+  const page = usePagedRows(rows, `${query}|${period}|${saleFilterKey(columns)}`);
+  const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
+  const statuses = [...new Set([...listed.map((sale) => sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA'])].filter(Boolean);
 
   const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
 
@@ -77,13 +98,63 @@ export function SalesScreen() {
         </div>
       </div>
       <div className="dcard flush">
-        <div className="dch pad"><h3>Ventas del período</h3><span className="mut">{rows.length} de {listed.length}</span></div>
-        {rows.length === 0 ? <div className="wempty">No encontré ventas.</div> : (
-          <table className="dtable">
-            <thead><tr><th>Venta</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Pago</th><th className="r">Total</th><th>Estado</th></tr></thead>
+        <div className="dch pad"><h3>Ventas del período</h3><span className="mut">{rows.length} de {listed.length}</span>{saleFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_SALE_FILTERS)}>Limpiar filtros</button> : null}</div>
+        <table className="dtable">
+            <thead>
+              <tr>
+                <th><span className="thf">Venta
+                  <ColumnFilter label="venta" open={openColumn === 'venta'} onToggle={() => setOpenColumn((current) => current === 'venta' ? null : 'venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
+                    <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Fecha
+                  <ColumnFilter label="fecha" open={openColumn === 'fecha'} onToggle={() => setOpenColumn((current) => current === 'fecha' ? null : 'fecha')} active={saleColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
+                    <div className="range">
+                      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={columns.dateFrom} onChange={(event) => setColumn({ dateFrom: event.target.value })} /></label>
+                      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={columns.dateTo} onChange={(event) => setColumn({ dateTo: event.target.value })} /></label>
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Cliente
+                  <ColumnFilter label="cliente" open={openColumn === 'cliente'} onToggle={() => setOpenColumn((current) => current === 'cliente' ? null : 'cliente')} active={saleColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
+                    <input aria-label="Contiene" placeholder="Nombre" value={columns.client} onChange={(event) => setColumn({ client: event.target.value })} />
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Equipo
+                  <ColumnFilter label="equipo" open={openColumn === 'equipo'} onToggle={() => setOpenColumn((current) => current === 'equipo' ? null : 'equipo')} active={saleColumnActive(columns, 'equipment')} onClear={() => setColumn({ equipment: '' })}>
+                    <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Pago
+                  <ColumnFilter label="pago" open={openColumn === 'pago'} onToggle={() => setOpenColumn((current) => current === 'pago' ? null : 'pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
+                    <div className="opts">
+                      {payments.map((label) => (
+                        <label key={label} className="chk"><input type="checkbox" checked={columns.payments.includes(label)} onChange={() => toggleList('payments', label)} />{label}</label>
+                      ))}
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+                <th className="r"><span className="thf">Total
+                  <ColumnFilter label="total" align="right" open={openColumn === 'total'} onToggle={() => setOpenColumn((current) => current === 'total' ? null : 'total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
+                    <div className="range">
+                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.amountMin ? formatInputMoney(parseMoney(columns.amountMin)) : ''} onChange={(event) => setColumn({ amountMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.amountMax ? formatInputMoney(parseMoney(columns.amountMax)) : ''} onChange={(event) => setColumn({ amountMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Estado
+                  <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
+                    <div className="opts">
+                      {statuses.map((status) => (
+                        <label key={status} className="chk"><input type="checkbox" checked={columns.statuses.includes(status)} onChange={() => toggleList('statuses', status)} />{statusLabel(status)}</label>
+                      ))}
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+              </tr>
+            </thead>
             <tbody>
               {page.visible.map((sale) => {
-                const product = inventory.find((item) => item.id === sale.productId);
                 return (
                   <PressTarget
                     key={sale.id}
@@ -94,7 +165,7 @@ export function SalesScreen() {
                     <td><b>#{saleCode(sale)}</b></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
-                    <td>{productLabel(product)}</td>
+                    <td>{saleEquipment(sale, inventory)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
@@ -103,7 +174,7 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        )}
+        {rows.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>

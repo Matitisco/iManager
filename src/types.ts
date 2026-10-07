@@ -38,6 +38,7 @@ export interface Sale {
   clientId: string;
   clientName?: string;
   productId: string;
+  deviceLabel?: string;
   amount: number;
   paymentMethod: string;
   status: string;
@@ -50,6 +51,7 @@ export interface TradeIn {
   tradeNumber?: number;
   date: string;
   clientId: string;
+  clientName?: string;
   categoryId?: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;

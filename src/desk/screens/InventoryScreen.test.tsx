@@ -110,6 +110,7 @@ describe('Inventory price list', () => {
     renderScreen();
 
     expect(screen.queryByText('Modelo 11')).not.toBeInTheDocument();
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
     const message = screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement;
     expect(message.value).toContain('Lista de precios — Tienda Centro');

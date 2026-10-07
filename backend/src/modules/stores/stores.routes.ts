@@ -11,6 +11,7 @@ import {
   updateStore,
   listMembers,
   updateMemberRole,
+  updateMemberSections,
   removeMember,
 } from "./stores.service.js";
 
@@ -28,6 +29,10 @@ const storePatchSchema = z.object({
 
 const memberRoleSchema = z.object({
   role: z.enum(["OWNER", "MANAGER", "STAFF"]),
+});
+
+const memberSectionsSchema = z.object({
+  sections: z.array(z.string().trim().min(1).max(40)).max(20),
 });
 
 const createStoreSchema = z.object({
@@ -170,6 +175,37 @@ export async function storesRoutes(app: FastifyInstance) {
         const member = await updateMemberRole(storeId, memberId, role, request.appUser.role, request.appUser.userId);
         return { member };
       } catch (err: unknown) {
+        const e = err as { statusCode?: number; message: string };
+        if (e.statusCode) {
+          return reply.code(e.statusCode).send({ error: e.message });
+        }
+        throw err;
+      }
+    }
+  );
+
+  app.patch(
+    "/:storeId/members/:memberId/sections",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) {
+        return reply.code(403).send({ error: "Store membership required" });
+      }
+      if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
+        return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
+      }
+      const { storeId, memberId } = request.params as { storeId: string; memberId: string };
+      if (request.appUser.storeId !== storeId) {
+        return reply.code(403).send({ error: "Forbidden" });
+      }
+      try {
+        const { sections } = memberSectionsSchema.parse(request.body);
+        const member = await updateMemberSections(storeId, memberId, sections, request.appUser.role, request.appUser.userId);
+        return { member };
+      } catch (err: unknown) {
+        if (err instanceof ZodError) {
+          return reply.code(400).send({ error: "Revisá las secciones" });
+        }
         const e = err as { statusCode?: number; message: string };
         if (e.statusCode) {
           return reply.code(e.statusCode).send({ error: e.message });

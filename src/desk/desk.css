@@ -250,6 +250,16 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .invite { width: 100%; padding: 14px; font-size: 14px; font-weight: 800; border-top: 1px dashed #DADADA; }
 .rtxt { font-size: 12px; font-weight: 700; color: var(--secondary); white-space: nowrap; }
 .chev { color: var(--section); font-size: 20px; font-weight: 800; line-height: 1; }
+.perm { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px; border-bottom: 1px solid var(--border); }
+.perm:last-child { border-bottom: 0; }
+.perm b { display: block; font-size: 15px; }
+.perm small { display: block; margin-top: 2px; font-size: 12px; color: var(--secondary); font-weight: 500; }
+.perm-note { margin: 10px 4px 0; font-size: 13px; font-weight: 600; color: var(--secondary); }
+.sw { width: 44px; height: 26px; border-radius: 999px; background: #E6E8EC; position: relative; flex-shrink: 0; }
+.sw i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.16); transition: transform .15s ease; }
+.sw.on { background: var(--lime); }
+.sw.on i { transform: translateX(18px); }
+.sw:disabled { opacity: .55; }
 .logout { margin-top: 8px; background: #fff; border-radius: 22px; padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
 .logout button { width: 100%; height: 52px; border-radius: 999px; background: #fff; border: 1.5px solid var(--border); font-size: 15px; font-weight: 700; }
 
@@ -408,6 +418,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dhero { background: var(--row); border-radius: 20px; padding: 14px 16px; margin-bottom: 12px; }
 .dhero .eb { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
 .dhero .big { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.eqs-list { list-style: none; margin: -4px 0 12px; padding: 6px; border: 1.5px solid var(--border); border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgba(22,24,29,.12); }
+.eqs-list button { width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; font-weight: 700; }
+.eqs-list button.on, .eqs-list button:hover { background: var(--lime-soft); }
+.eqs-list small { display: block; margin-top: 2px; font-size: 12px; color: var(--secondary); font-weight: 600; }
+.eqs-note { margin: -4px 2px 12px; font-size: 12px; font-weight: 600; color: var(--secondary); }
 .pick { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border-radius: 14px; border: 1.5px solid var(--border); margin-bottom: 8px; text-align: left; font-weight: 700; }
 .pick.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--lime-soft); }
 .pick small { display: block; font-size: 12px; color: var(--secondary); font-weight: 600; }

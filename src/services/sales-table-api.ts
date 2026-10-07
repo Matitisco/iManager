@@ -77,6 +77,7 @@ function applyFiltersAndSort(
         client?.dni,
         product?.model,
         product?.imei,
+        sale.deviceLabel,
       ].some((value) => String(value ?? '').toLowerCase().includes(search));
     });
   }

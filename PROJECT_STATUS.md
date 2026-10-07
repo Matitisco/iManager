@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-07**
 
+## Continuación de issues — integración actualizada
+
+- Integrados los avances de `hifi-desk` hasta `495690e` en `main`: autocompletado de equipos, filtros por columna, base de permisos por miembro y campos opcionales/texto libre de Clientes y Canjes. Se conservaron las correcciones de catálogo, TableEngine y las verificaciones de persistencia después de recargar.
+- La paginación de las cuatro tablas desk es de ocho registros; sus pruebas locales pendientes se revisaron e incorporaron. Los conflictos conservaron esa cobertura y sumaron el cliente de texto libre en Canjes.
+- Validación de integración: frontend 271/271 en 63 archivos, backend unit 91/91 en 20 archivos y ambos lints aprobados. Schema sincronizado exclusivamente en PostgreSQL local `imanager_issues_loop_test`, sin builds ni acceso a producción.
+- Pendientes actuales de GitHub: #71 y #88 se trabajan juntos; #101 sigue después. #89 permanece excluido. El cierre de los otros issues en GitHub no sustituye la revisión de las brechas de estos tres.
+
 ## Preparación del ciclo de issues — 2026-10-07
 
 - Integración de `hifi-desk` hasta `e625808` con `main` hasta `338b1f5`, preservando ambos historiales. Las correcciones recientes de TableEngine (paginación, selección, copiar/pegar y borrados persistidos) se conservan junto con la interfaz desk y los avances #90–#96.

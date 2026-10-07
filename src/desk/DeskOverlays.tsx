@@ -12,25 +12,26 @@ import { createInvitation, listInvitations, revokeInvitation, type Invitation, t
 import type { Client, Product, Sale, TradeIn } from '../types';
 import {
   batteryPercent,
-  clientName,
   conditionLabel,
   saleBuyer,
   equipmentTitle,
   isInStock,
   formatInputMoney,
   formatMoney,
-  formatMoneyCompact,
   formatArDate,
   formatShortDate,
   parseMoney,
   paymentLabel,
-  productLabel,
   saleCode,
+  saleEquipment,
   statusLabel,
+  tradeClientLabel,
   tradeCode,
 } from './format';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
+import { ClientField } from './ClientField';
+import { EquipmentField } from './EquipmentField';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -309,39 +310,28 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = sales.find((sale) => sale.id === id);
   const available = inventory.filter((item) => isInStock(item.status) || item.id === current?.productId || item.id === preset?.productId);
-  const [productId, setProductId] = useState(current?.productId || preset?.productId || available[0]?.id || '');
+  const linkedItem = available.find((item) => item.id === (current?.productId || preset?.productId));
+  const [productId, setProductId] = useState(linkedItem?.id ?? '');
+  const [query, setQuery] = useState(linkedItem ? equipmentTitle(linkedItem.model, linkedItem.capacity) : (current?.deviceLabel ?? ''));
   const linkedName = current?.clientId ? clients.find((client) => client.id === current.clientId)?.name : '';
   const [buyer, setBuyer] = useState(current?.clientName?.trim() || linkedName || preset?.clientName || '');
   const [payment, setPayment] = useState(current?.paymentMethod || 'TRANSFERENCIA');
   const [status, setStatus] = useState(current?.status || 'COMPLETADA');
-  const [amount, setAmount] = useState(formatInputMoney(current?.amount || available.find((item) => item.id === (preset?.productId || available[0]?.id))?.price || 0));
+  const [amount, setAmount] = useState(formatInputMoney(current?.amount || linkedItem?.price || 0));
   const [bad, setBad] = useState<Record<string, string>>({});
-  const selected = available.find((item) => item.id === productId);
+  const selected = productId ? available.find((item) => item.id === productId) : undefined;
 
   return (
-    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Elegí el equipo y cómo pagó el cliente.'} onClose={close}>
+    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Escribí el equipo y cómo pagó el cliente.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      {available.length === 0 ? <div className="wempty">No hay equipos disponibles.</div> : current ? (
-        <Field label="Equipo">
-          <select value={productId} onChange={(event) => {
-            setProductId(event.target.value);
-            const next = available.find((item) => item.id === event.target.value);
-            if (next) setAmount(formatInputMoney(next.price));
-          }}>
-            {available.map((item) => <option key={item.id} value={item.id}>{equipmentTitle(item.model, item.capacity)}</option>)}
-          </select>
-        </Field>
-      ) : (
-        <>
-          <Field label="Equipo"><span /></Field>
-          {available.map((item) => (
-            <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); setAmount(formatInputMoney(item.price)); }}>
-              <div>{equipmentTitle(item.model, item.capacity)}<small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</small></div>
-              <span className="r">{formatMoneyCompact(item.price)}</span>
-            </button>
-          ))}
-        </>
-      )}
+      <EquipmentField
+        items={available}
+        value={query}
+        linked={Boolean(selected)}
+        error={bad.equipment}
+        onValue={(next) => { setQuery(next); setProductId(''); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { setQuery(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(formatInputMoney(item.price)); clearBad(setBad, 'equipment'); }}
+      />
       <Field label="Cliente">
         <input value={buyer} onChange={(event) => setBuyer(event.target.value)} placeholder="Nombre, si lo anotás" maxLength={120} />
       </Field>
@@ -351,18 +341,19 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'SALE_STATUS', SALE_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('SALE_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      {available.length === 0 ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div> : <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
+        if (!query.trim()) next.equipment = 'Completá este dato';
         if (!parseMoney(amount)) next.amount = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
-        if (!selected) throw new Error('Seleccioná un equipo disponible.');
         const payload: Omit<Sale, 'id'> = {
           date: current?.date || formatArDate(new Date()),
           clientId: '',
           clientName: buyer.trim(),
-          productId: selected.id,
+          productId: selected?.id ?? '',
+          deviceLabel: query.trim(),
           amount: parseMoney(amount),
           paymentMethod: payment,
           status,
@@ -375,7 +366,7 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
           signalDesk('desk-check', 'ven');
         }
       }, current ? 'Venta actualizada' : 'Venta registrada');
-      }} />}
+      }} />
     </Sheet>
   );
 }
@@ -391,7 +382,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
-      <div className="kv"><span>Equipo</span><b>{productLabel(product)}</b></div>
+      <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={sale.status} kind="SALE_STATUS" /></b></div>
       {sale.status === 'PENDIENTE' ? (
@@ -403,7 +394,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${productLabel(product)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             if (!navigator.share) { void copy(); return; }
             navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {
@@ -424,7 +415,9 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = tradeIns.find((item) => item.id === id);
   const available = inventory.filter((item) => isInStock(item.status));
-  const [clientId, setClientId] = useState(current?.clientId || clients[0]?.id || '');
+  const linkedClient = current?.clientId ? clients.find((client) => client.id === current.clientId) : undefined;
+  const [clientId, setClientId] = useState(linkedClient?.id ?? '');
+  const [buyer, setBuyer] = useState(linkedClient?.name || current?.clientName?.trim() || '');
   const [received, setReceived] = useState(current?.deviceReceived ?? '');
   const [imei, setImei] = useState(current?.deviceReceivedImei ?? '');
   const [given, setGiven] = useState(current?.deviceGiven || (available[0] ? `${available[0].model} ${available[0].capacity}` : ''));
@@ -436,11 +429,14 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   return (
     <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle={current ? `${tradeCode(tradeIns, current.id)} · ${formatShortDate(current.date)}` : 'El cliente entrega su equipo y se lleva uno del stock.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <Field label="Cliente" error={bad.client}>
-        <select value={clientId} onChange={(event) => { setClientId(event.target.value); clearBad(setBad, 'client'); }}>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-        </select>
-      </Field>
+      <ClientField
+        clients={clients}
+        value={buyer}
+        linked={Boolean(clientId)}
+        error={bad.client}
+        onValue={(next) => { setBuyer(next); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
+      />
       <div className="frow">
         <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
         <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
@@ -469,10 +465,9 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
-        if (!clientId) next.client = 'Completá este dato';
+        if (!buyer.trim()) next.client = 'Completá este dato';
         if (!received.trim()) next.received = 'Completá este dato';
-        if (!imei.trim()) next.imei = 'Completá este dato';
-        else if (imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!given.trim()) next.given = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
@@ -480,6 +475,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const payload: Omit<TradeIn, 'id'> = {
           date: current?.date || formatArDate(new Date()),
           clientId,
+          clientName: buyer.trim(),
           deviceReceived: received.trim(),
           deviceReceivedImei: imei.trim(),
           takeValue: parseMoney(take),
@@ -510,7 +506,7 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${clientName(clients, trade.clientId)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{formatMoney(trade.differencePaid)}</div></div>
@@ -578,8 +574,9 @@ function ClientDetail({ id }: { id: string }) {
     }
   };
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
+  const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   return (
-    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)} · DNI ${client.dni}` : `Sin compras todavía · DNI ${client.dni}`} onClose={close}>
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
@@ -644,7 +641,6 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
-        if (!dni.trim()) next.dni = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -1023,10 +1019,10 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
     fields: [
       { key: 'clientName', label: 'Cliente', required: true },
       { key: 'deviceReceived', label: 'Equipo recibido', required: true },
-      { key: 'deviceReceivedImei', label: 'IMEI recibido', required: true },
-      { key: 'takeValue', label: 'Valor tomado', required: true },
+      { key: 'deviceReceivedImei', label: 'IMEI recibido', required: false },
+      { key: 'takeValue', label: 'Valor tomado', required: false },
       { key: 'deviceGiven', label: 'Equipo entregado', required: true },
-      { key: 'differencePaid', label: 'Diferencia', required: true },
+      { key: 'differencePaid', label: 'Diferencia', required: false },
       { key: 'status', label: 'Estado', required: false },
     ],
     hints: { cliente: 'clientName', recibido: 'deviceReceived', imei: 'deviceReceivedImei', valor: 'takeValue', entrega: 'deviceGiven', diferencia: 'differencePaid', estado: 'status' },

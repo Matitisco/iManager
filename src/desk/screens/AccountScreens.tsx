@@ -3,8 +3,9 @@ import { useAppContext } from '../../context/AppContext';
 import type { Client, Product, Sale, TradeIn } from '../../types';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
+import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
-import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeCode } from '../format';
+import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeClientLabel, tradeCode } from '../format';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
 type NoteTab = 'sales' | 'tradeins' | 'inventory' | 'clients' | 'settings';
@@ -91,11 +92,10 @@ function buildNotes(
   members: TeamMember[] = [],
 ): Note[] {
   const notes: Note[] = [];
-  const nameOf = (id: string) => clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
   const atOf = (value: string) => parseAppDate(value)?.getTime() ?? 0;
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   for (const trade of tradeIns.filter((item) => item.status === 'PENDIENTE')) {
-    notes.push({ id: `cj-${trade.id}`, title: 'Nuevo canje pendiente', body: `${tradeCode(tradeIns, trade.id)} · ${nameOf(trade.clientId)}`, when: relTime(trade.date), at: atOf(trade.date), tab: 'tradeins' });
+    notes.push({ id: `cj-${trade.id}`, title: 'Nuevo canje pendiente', body: `${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`, when: relTime(trade.date), at: atOf(trade.date), tab: 'tradeins' });
   }
   for (const sale of sales.filter((item) => item.status !== 'CANCELADA' && atOf(item.date) >= weekAgo)) {
     notes.push({ id: `sale-${sale.id}`, title: 'Venta registrada', body: `${saleCode(sale)} · ${formatMoney(sale.amount)}`, when: relTime(sale.date), at: atOf(sale.date), tab: 'sales' });
@@ -131,6 +131,7 @@ export function SettingsScreen() {
   const { open, isStaff, toast } = useDesk();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
+  const [selected, setSelected] = useState<TeamMember | null>(null);
 
   const load = () => {
     if (!user || !appSession?.store?.id) return;
@@ -149,6 +150,16 @@ export function SettingsScreen() {
   const store = appSession?.store;
   const inviteLine = invites.map((invite) => `${ROLE_LABEL[invite.role] ?? invite.role} · expira ${formatArDate(new Date(invite.expiresAt))}`).join(' · ');
 
+  if (selected) {
+    return (
+      <MemberPermissions
+        member={selected}
+        onBack={() => setSelected(null)}
+        onSaved={(member) => setMembers((current) => current.map((item) => item.id === member.id ? { ...item, ...member } : item))}
+      />
+    );
+  }
+
   return (
     <div className="dscreen">
       <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" />
@@ -162,7 +173,7 @@ export function SettingsScreen() {
             <div className="sec"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
             <div className="card">
               {members.map((member, index) => (
-                <div className="member" key={member.id}>
+                <button className="member" type="button" key={member.id} onClick={() => setSelected(member)}>
                   <div className={`av-c ${['b', 'p', 'g'][index % 3]}`}>{initials(member.user.displayName || member.user.email || 'U')}</div>
                   <div className="info">
                     <div className="name">{member.user.displayName || member.user.email}</div>
@@ -170,7 +181,8 @@ export function SettingsScreen() {
                   </div>
                   {member.userId === me?.id ? <span className="spill mid">vos</span> : null}
                   <span className={`spill ${member.role === 'OWNER' ? 'off' : 'mid'}`}>{ROLE_LABEL[member.role] ?? member.role}</span>
-                </div>
+                  <span className="chev">›</span>
+                </button>
               ))}
               {invites.length > 0 ? (
                 <button className="member" type="button" onClick={() => open({ type: 'invites' })}>

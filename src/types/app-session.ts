@@ -26,6 +26,7 @@ export interface AppStoreSummary {
 export interface AppMembershipSummary {
   role: AppMembershipRole;
   isDefault: boolean;
+  sections?: string[] | null;
 }
 
 export interface AppUserStore {

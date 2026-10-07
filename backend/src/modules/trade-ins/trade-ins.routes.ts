@@ -20,22 +20,28 @@ import {
 
 const tradeInStatusSchema = z.string().trim().min(1).max(30);
 
-const tradeInCreateSchema = z.object({
-  date: z.string().min(1).max(120),
-  clientId: z.string().min(1),
+const tradeInFieldsSchema = z.object({
+  date: z.string().trim().max(120).optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientName: z.string().trim().max(120).optional().nullable(),
   categoryId: z.string().nullable().optional(),
   deviceReceived: z.string().min(1).max(120),
-  deviceReceivedImei: z.string().min(1).max(100),
-  takeValue: z.number(),
+  deviceReceivedImei: z.string().trim().max(100).optional().nullable(),
+  takeValue: z.number().optional(),
   deviceGiven: z.string().min(1).max(120),
-  differencePaid: z.number(),
-  status: tradeInStatusSchema,
+  differencePaid: z.number().optional(),
+  status: tradeInStatusSchema.optional(),
   batteryHealth: z.string().trim().max(50).optional().nullable(),
   grade: z.string().trim().max(20).optional().nullable(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 
-const tradeInPatchSchema = tradeInCreateSchema
+const tradeInCreateSchema = tradeInFieldsSchema.refine(
+  (value) => Boolean(value.clientId?.trim() || value.clientName?.trim()),
+  { message: "Nombre de cliente requerido", path: ["clientName"] },
+);
+
+const tradeInPatchSchema = tradeInFieldsSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required",

@@ -10,6 +10,7 @@ export interface TeamMember {
   role: MemberRole;
   isDefault: boolean;
   createdAt: string;
+  sections?: string[] | null;
   user: {
     id: string;
     displayName: string | null;
@@ -56,6 +57,25 @@ export async function updateMemberRole(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? 'Error al cambiar rol');
+  }
+  const data = await res.json();
+  return data.member;
+}
+
+export async function updateMemberSections(
+  user: AuthUserLike,
+  storeId: string,
+  memberId: string,
+  sections: string[],
+): Promise<TeamMember> {
+  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}/sections`, {
+    method: 'PATCH',
+    headers: await authHeaders(user),
+    body: JSON.stringify({ sections }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? 'Error al guardar los permisos');
   }
   const data = await res.json();
   return data.member;

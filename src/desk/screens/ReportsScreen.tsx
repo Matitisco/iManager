@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import {
-  clientName,
   saleBuyer,
   conditionLabel,
   formatMoney,
@@ -11,9 +10,10 @@ import {
   isInProgressTrade,
   paymentLabel,
   periodBounds,
-  productLabel,
+  saleEquipment,
   saleCode,
   statusLabel,
+  tradeClientLabel,
   tradeCode,
   type PeriodKey,
 } from '../format';
@@ -94,7 +94,7 @@ export function ReportsScreen() {
       stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(item.price), statusLabel(item.status)]));
     } else {
       tradeRows.forEach((item) => {
-        rows.push([`${tradeCode(tradeIns, item.id)} ${clientName(clients, item.clientId)}`, String(item.differencePaid), statusLabel(item.status)]);
+        rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, String(item.differencePaid), statusLabel(item.status)]);
       });
     }
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -170,7 +170,7 @@ export function ReportsScreen() {
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -197,7 +197,7 @@ export function ReportsScreen() {
           {!tradeRows.length && <p className="gnote">No hay canjes para este período y filtro.</p>}
           {tradeRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{clientName(clients, item.clientId)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{tradeClientLabel(item, clients)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
               <div className="gr"><div className="gamt">+{formatMoneyCompact(item.differencePaid)}</div></div>
               <span className="gchev">›</span>
             </button>
