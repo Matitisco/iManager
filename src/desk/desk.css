@@ -140,6 +140,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .av.add { background: #fff; border: 2px solid var(--bg); color: #6B7280; font-size: 18px; font-weight: 500; }
 
 .dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dtable-scroll { overflow-x: auto; }
+.dtable.trade-table { min-width: 980px; }
+.trade-table .trade-device { min-width: 150px; max-width: 230px; overflow-wrap: anywhere; }
+.trade-table .trade-nowrap { white-space: nowrap; }
 .dtable th { text-align: left; font-size: 12px; font-weight: 700; color: var(--secondary); padding: 12px 16px; border-bottom: 1px solid var(--border); background: #FBFBFC; white-space: nowrap; }
 .dtable th .thf { display: flex; align-items: center; gap: 6px; }
 .dtable th.r .thf { justify-content: flex-end; }

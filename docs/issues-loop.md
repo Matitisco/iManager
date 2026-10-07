@@ -21,8 +21,8 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 | 3 | #81 | Batería: colores y animaciones de referencia | Cerrado | `d6270a7`; 10/10 pruebas + 7 límites/rangos/fracciones; referencia y revisión visual contrastadas |
 | 4 | #85 | Rol Empleado en toda la interfaz | Cerrado | `b976e4c`; 22/22 pruebas de acceso/configuración; sin Agente/Vendedor en src |
 | 5 | #99 | Logo de cajita con fondo amarillo | Cerrado | `7015923`; Box en sidebar/salida, amarillo #FFD000; QA visual 1440/1024 y sesión cerrada; ambos lints |
-| 6 | #98 | Editor de estados acorde a demo estática | Verificado; listo para cierre | QA comparativa 1440/680, 11/11 FE, 81/81 BE y ambos lints; reasignación canónica persistida/reload |
-| 7 | #97 | Canjes en tabla | Pendiente | |
+| 6 | #98 | Editor de estados acorde a demo estática | Cerrado | `d9018ec`; QA comparativa 1440/680, 11/11 FE, 81/81 BE y ambos lints; reasignación canónica persistida/reload |
+| 7 | #97 | Canjes en tabla | Verificado; listo para cierre | 7/7 FE/pager, E2E 1/1, ambos lints; CRUD/reload local y QA 1440/1024 |
 | 8 | #104 | Todas las tablas: 8 ítems por página | Pendiente | Incorporado durante el loop; reemplaza el criterio de 10 de #80 |
 | 9 | #100 | Equipo libre con autocompletado en ventas | Pendiente | |
 | 10 | #103 | Filtros por columna en Ventas y Clientes | Pendiente | |
@@ -41,6 +41,11 @@ El issue #89, «Funcionalidad: definir el flujo integrado de Inventario, Ventas,
 ## Actualizaciones de alcance
 
 Se detectó el issue #104 durante la ejecución. Actualiza #80 a 8 ítems por página y extiende el límite a Inventario, Ventas, Canjes y Clientes. Se delega después de #97; el cierre anterior de #80 conserva la evidencia del criterio vigente en ese momento. La cola contiene ahora 17 issues a resolver.
+
+## Hallazgos para la revisión integral #70
+
+- La QA de #97 reprodujo una carrera preexistente en `seedMissing`: dos consultas iniciales concurrentes de catálogos de una tienda vacía pueden provocar `P2002`. Resolver el alta concurrente y comprobarla antes de finalizar #70.
+- Revisar la fuente de opciones de catálogos en las cuatro tablas: al contar con el catálogo persistido no deben reaparecer valores predeterminados eliminados. La tabla nueva de Canjes ya usa el catálogo disponible y conserva valores históricos de sus registros.
 
 ## Criterio de cierre
 
