@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { catalogChoices, useCatalogs } from '../catalog';
-import { batteryPercent, conditionLabel, equipmentTitle, formatMoney, isInStock } from '../format';
+import { conditionLabel, equipmentTitle, formatMoney, isInStock } from '../format';
 import { TablePager, usePagedRows } from '../pager';
 import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -84,7 +84,7 @@ export function InventoryScreen() {
                     </div>
                   </td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
-                  <td>{item.batteryHealth ? <Battery value={batteryPercent(item.batteryHealth)} /> : '—'}</td>
+                  <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
                   <td className="r"><b>{formatMoney(item.price)}</b></td>
                   <td>{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}</td>
                 </PressTarget>

@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import type { DeskTab, Overlay } from './types';
 import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
+import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
 
 type DeskUi = {
   tab: DeskTab;
@@ -277,8 +279,18 @@ export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondar
   );
 }
 
-export function Battery({ value }: { value: number }) {
-  return <span><span className="dbat"><i style={{ width: `${value}%` }} /></span>{value}%</span>;
+export function Battery({ value }: { value: string | number }) {
+  const percent = Math.max(0, Math.min(100, extractMinBattery(value)));
+  const color = batteryColor(percent);
+
+  return (
+    <span className="dbattery">
+      <span className="dbat" aria-hidden="true">
+        <motion.i initial={{ width: 0 }} animate={{ width: `${percent}%` }} className={color.bg} />
+      </span>
+      <span className={`font-bold ${color.text}`}>{formatBatteryDisplay(value)}</span>
+    </span>
+  );
 }
 
 function SearchIcon() {
