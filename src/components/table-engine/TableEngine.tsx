@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Filter, Columns, Plus, Upload, ArrowUpDown } from 'lucide-react';
 
 import type { TableEngineConfig, WithId, TablePageParams, ColDef } from './types';
@@ -40,6 +40,9 @@ function categoryOf(row: object): string | null | undefined {
   const value = (row as { categoryId?: unknown }).categoryId;
   return typeof value === 'string' ? value : null;
 }
+
+const ROW_HIGHLIGHT = 'linear-gradient(rgb(209 250 229), rgb(209 250 229))';
+const ROW_HIGHLIGHT_OFF = 'linear-gradient(rgba(209, 250, 229, 0), rgba(209, 250, 229, 0))';
 
 function isTextEntry(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -125,6 +128,9 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
   const [clipboardNotice, setClipboardNotice] = useState<string | null>(null);
+  const [copiedRowIds, setCopiedRowIds] = useState<string[]>([]);
+  const [pastedRowIds, setPastedRowIds] = useState<string[]>([]);
+  const reduceMotion = useReducedMotion();
 
   const renameDoneRef = useRef(false);
   const pastingRef = useRef(false);
@@ -474,6 +480,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     );
     rememberRowCopy({ storageKey: scopedStorageKey, tsv, rows: copied });
     void writeClipboard(tsv);
+    setCopiedRowIds(source.map((row) => row.id));
     setClipboardNotice(source.length === 1 ? `Se copió 1 ${noun}` : `Se copiaron ${source.length} ${nounPlural}`);
     return true;
   };
@@ -510,6 +517,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
     } finally {
       pastingRef.current = false;
       if (created > 0) {
+        const knownIds = new Set(items.map((item) => item.id));
         const scrollTop = tableContainerRef.current?.scrollTop ?? 0;
         const result = await fetchPage({
           skip: 0,
@@ -517,8 +525,12 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
           ...filterParamsRef.current,
         });
         pendingScrollRestoreRef.current = scrollTop;
+        const arrived = result.items
+          .filter((item) => !knownIds.has(item.id))
+          .map((item) => item.id);
         setItems(result.items);
         setTotal(result.total);
+        if (arrived.length > 0) setPastedRowIds(arrived);
       }
     }
   };
@@ -562,10 +574,14 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
   }, []);
 
   useEffect(() => {
-    if (!clipboardNotice) return;
-    const timeout = window.setTimeout(() => setClipboardNotice(null), 2500);
+    if (!clipboardNotice && copiedRowIds.length === 0 && pastedRowIds.length === 0) return;
+    const timeout = window.setTimeout(() => {
+      setClipboardNotice(null);
+      setCopiedRowIds((current) => (current.length === 0 ? current : []));
+      setPastedRowIds((current) => (current.length === 0 ? current : []));
+    }, 2500);
     return () => window.clearTimeout(timeout);
-  }, [clipboardNotice]);
+  }, [clipboardNotice, copiedRowIds, pastedRowIds]);
 
   // ── Move / delete rows ─────────────────────────────────────────────────────
   const moveRows = async (ids: string[], categoryId: string | null) => {
@@ -831,14 +847,29 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                   <>
                     {items.map((row, index) => {
                       const isSelected = selectedIds.has(row.id);
+                      const feedback = copiedRowIds.includes(row.id)
+                        ? 'copied'
+                        : pastedRowIds.includes(row.id)
+                          ? 'pasted'
+                          : undefined;
+                      const highlighted = feedback != null;
+                      const enterPasted = feedback === 'pasted' && !reduceMotion;
                       return (
                         <React.Fragment key={row.id}>
                           {addRowInsertAt === index ? addRowNode : null}
-                          <tr
+                          <motion.tr
                             data-row-id={row.id}
+                            data-row-feedback={feedback}
                             onClick={e => handleRowClick(e, row, index)}
                             onContextMenu={e => handleContextMenu(e, row)}
                             onPointerDown={e => itemDrag.startItemDrag(e, row.id)}
+                            initial={enterPasted ? { opacity: 0, y: 8, backgroundImage: ROW_HIGHLIGHT } : false}
+                            animate={{
+                              opacity: 1,
+                              backgroundImage: highlighted ? ROW_HIGHLIGHT : ROW_HIGHLIGHT_OFF,
+                              ...(enterPasted ? { y: 0 } : {}),
+                            }}
+                            transition={{ duration: reduceMotion ? 0 : 0.3, ease: 'easeOut' }}
                             className={`group transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50/60'}`}>
                     <td className="px-4 py-4 sticky left-0 z-10" style={{ background: 'inherit' }}>
                       <input data-testid={`table-row-select-${row.id}`} type="checkbox" checked={isSelected} readOnly
@@ -880,7 +911,7 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
                         onDelete={() => setItemToDelete(row.id)}
                       />
                     </td>
-                          </tr>
+                          </motion.tr>
                         </React.Fragment>
                       );
                     })}
@@ -905,9 +936,22 @@ export function TableEngine<TRow extends WithId>({ config, user, searchTerm = ''
       {!isInitialLoading && total > 0 && (
         <div className="px-4 py-2 bg-white border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
           <span>{total} {total === 1 ? noun : nounPlural} en total</span>
-          {clipboardNotice
-            ? <span className="font-semibold text-gray-700">{clipboardNotice}</span>
-            : selectedIds.size > 0 && <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>}
+          <AnimatePresence mode="wait">
+            {clipboardNotice ? (
+              <motion.span
+                key={clipboardNotice}
+                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+                className="font-semibold text-gray-700"
+              >
+                {clipboardNotice}
+              </motion.span>
+            ) : selectedIds.size > 0 ? (
+              <span className="font-semibold text-gray-600">{selectedIds.size} seleccionados</span>
+            ) : null}
+          </AnimatePresence>
         </div>
       )}
 
