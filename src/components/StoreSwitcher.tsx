@@ -6,7 +6,7 @@ import type { AppMembershipRole } from '../types/app-session';
 const ROLE_LABELS: Record<AppMembershipRole, string> = {
   OWNER: 'Propietario',
   MANAGER: 'Socio',
-  STAFF: 'Agente',
+  STAFF: 'Empleado',
 };
 
 export function StoreSwitcher() {

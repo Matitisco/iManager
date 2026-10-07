@@ -1,7 +1,31 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-04-19**
+**Ultima actualizacion: 2026-10-07**
+
+## Preparación del ciclo de issues — 2026-10-07
+
+- Integración de `hifi-desk` hasta `e625808` con `main` hasta `338b1f5`, preservando ambos historiales. Las correcciones recientes de TableEngine (paginación, selección, copiar/pegar y borrados persistidos) se conservan junto con la interfaz desk y los avances #90–#96.
+- El pegado conserva la aparición inmediata y las solicitudes en paralelo; las filas temporales y los nuevos registros persistidos reciben la animación desk. El refresco de tabla conserva sus controles de concurrencia y evita una segunda consulta para animar.
+- Retirado OpenSpec del repositorio por instrucción del usuario: artefactos, configuración, comandos, workflows y skills locales de los distintos agentes. Las herramientas globales del usuario no se modificaron.
+- Las decisiones del ciclo se registran en `docs/issues-loop-pendientes.md`; el avance se mantiene en `docs/issues-loop.md`. El issue #89 queda excluido por instrucción del usuario.
+- Los scripts de pruebas frontend usan la zona horaria definida en Vitest y ejecutan en Windows y Linux sin sintaxis de variables exclusiva de POSIX.
+- Validación: lint frontend/backend aprobado tras regenerar el cliente Prisma local por los campos de contacto de #96; suite completa frontend 239/239 (49 archivos) y backend unit 77/77 (18 archivos), revisadas por el coordinador. Los dos timeouts iniciales de backend desaparecieron al ejecutar con un solo worker. Las 30 pruebas de TableEngine vuelven a pasar con comprobaciones de animación temporal y persistida, sin consulta de refresco duplicada.
+- E2E de canjes aprobado: creación de cliente y canje, comprobación API y recuperación tras recargar usando exclusivamente `imanager_issues_loop_test` en PostgreSQL local. No se ejecutaron builds ni se accedió a producción.
+
+## Iteración hifi-desk — 2026-10-06
+
+- Ajuste visual #84: los calendarios de Reportes reemplazan el popup nativo por un desplegable del sistema: tipografía DM Sans, superficies blancas, bordes redondeados, selección oscura y acentos lima. Incluye escritura dd/mm/aaaa, selección de mes/año, Hoy/Borrar, navegación por teclado, cierre externo/Escape y ubicación dentro del viewport. Las fechas siguen siendo borradores hasta aplicar el período.
+- Validación del calendario: 37 pruebas de calendario, períodos y Reportes aprobadas; TypeScript frontend/backend aprobado. Revisión visual del componente real a 1440 px y del popup en una ventana de 680×600 px, con selección, cambios de mes/año y cierre verificados.
+- Issue #84: Reportes incorpora Personalizado con fecha de inicio/fin inclusivas y aplicación explícita. Fechas faltantes, inválidas o invertidas conservan el último reporte válido. Totales, gráficos, listas y CSV usan el mismo período en Ventas, Stock y Canjes; la exportación también respeta el filtro de categoría.
+- Stock informa equipos ingresados en el período con su estado actual y explica los registros sin fecha excluidos. Los gráficos cubren todo el rango con hasta 12 barras; fechas YYYY-MM-DD se interpretan y muestran en el calendario local.
+- Validación #84 (2026-10-07): 45 pruebas aprobadas, incluidas 29 nuevas de fechas y pantalla; TypeScript frontend/backend aprobado. Revisión del componente real con datos de prueba a 1440/1024 px, rango de seis años y error de fechas invertidas. Sin cambios de API, AppContext o Prisma.
+- Issue #85: el rol STAFF se muestra como Empleado en toda la interfaz: invitaciones, equipo, perfil, navegación, login, onboarding y selector de tienda. También se unificaron las referencias anteriores a Vendedor.
+- Validación #85: 19 pruebas existentes de Login, Onboarding, Settings y StoreSwitcher aprobadas; TypeScript frontend/backend aprobado. Búsqueda en `src/` sin etiquetas Agente/Vendedor restantes. Cambio de texto, sin modificaciones de permisos, API o base de datos.
+- Issue #62: al volver del popup de Google, el login y el registro recuperan el botón sin esperar la respuesta diferida de Firebase. Cierres/cancelaciones no muestran un error; respuestas de intentos anteriores no alteran un reintento.
+- Validación: 12 pruebas de Login aprobadas, incluidos foco, visibilidad, reintentos y limpieza al desmontar. TypeScript de frontend y backend aprobado. La autenticación real continúa en Firebase; las pruebas usan promesas controladas y eventos del navegador.
+- Issue #81: el indicador de batería hi-fi reutiliza los colores de `main` (rojo <70%, ámbar 70–85%, verde >85%) y anima el llenado con Motion. Conserva rangos y convierte fracciones decimales con los mismos helpers de la referencia.
+- Validación #81: revisión en Chrome del componente real con 69/70/85/86/100%, rangos y fracciones; transición de 87% a 40% y llenado de entrada observados. Los 10 tests existentes de los helpers y TypeScript frontend/backend pasaron. Vista temporal de QA retirada.
 
 ---
 

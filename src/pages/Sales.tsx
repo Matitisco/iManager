@@ -5,6 +5,7 @@ import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
 import type { TableEngineConfig } from '../components/table-engine';
 import type { Sale, Client, Product } from '../types';
+import { formatArDate } from '../lib/ar-date';
 import { formatCurrency } from '../lib/utils';
 import { fetchSalesPage, updateSaleViaApi, invalidateSalesCache, updateCategoryInCache, clearCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
@@ -345,7 +346,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
             })),
         ],
       },
-      { colId: 'date', placeholder: 'Fecha (ej. 2025-04-07)', required: true },
+      { colId: 'date', placeholder: 'Fecha (ej. 07/04/2025)', required: true },
       { colId: 'amount', placeholder: 'Monto', required: true },
       {
         colId: 'paymentMethod',
@@ -367,7 +368,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       amount: Number(formData.amount) || 0,
       paymentMethod: formData.paymentMethod || 'EFECTIVO',
       status: formData.status || 'COMPLETADA',
-      date: (formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
+      date: (formData.date ?? '').trim() || formatArDate(new Date()),
       categoryId: categoryId ?? null,
     }),
     onCreate: async (itemData) => {

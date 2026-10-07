@@ -7,6 +7,8 @@ import {
   createClient,
   deleteClient,
   getClientsErrorStatus,
+  listClientPayments,
+  registerClientPayment,
   importClients,
   listClients,
   updateClient,
@@ -27,6 +29,7 @@ const clientCreateSchema = z.object({
   lastPurchaseDate: z.string().trim().optional().nullable(),
   totalSpent: z.number().nonnegative().optional(),
   pendingBalance: z.number().nonnegative().optional(),
+  tag: z.string().trim().max(30).nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 
@@ -100,6 +103,43 @@ export async function clientsRoutes(app: FastifyInstance) {
           return reply.code(mapped.statusCode).send({ error: mapped.message });
         }
 
+        throw error;
+      }
+    }
+  );
+
+  app.get(
+    "/:id/payments",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const payments = await listClientPayments(request.appUser.storeId, params.id);
+      if (!payments) return reply.code(404).send({ error: "Client not found" });
+      return { payments };
+    }
+  );
+
+  app.post(
+    "/:id/payments",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = z.object({
+        amount: z.number().positive(),
+        method: z.string().trim().min(1).max(50),
+      }).parse(request.body);
+      try {
+        const client = await registerClientPayment(request.appUser.storeId, params.id, {
+          amount: body.amount ?? 0,
+          method: body.method ?? '',
+        });
+        if (!client) return reply.code(404).send({ error: "Client not found" });
+        return reply.code(201).send({ client });
+      } catch (error) {
+        const mapped = getClientsErrorStatus(error);
+        if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
         throw error;
       }
     }

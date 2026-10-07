@@ -87,6 +87,7 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
     headers: await getAuthHeaders(user),
     body: JSON.stringify({
       clientId: sale.clientId,
+      ...(sale.clientName !== undefined ? { clientName: sale.clientName } : {}),
       productId: sale.productId,
       paymentMethod: sale.paymentMethod,
       status: sale.status,

@@ -13,6 +13,7 @@ import { storesRoutes } from "./modules/stores/stores.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { securityRoutes } from "./modules/security/security.routes.js";
 import { invitationsRoutes } from "./modules/invitations/invitations.routes.js";
+import { catalogsRoutes } from "./modules/catalogs/catalogs.routes.js";
 import { env } from "./config/env.js";
 
 export function buildApp() {
@@ -50,6 +51,7 @@ export function buildApp() {
   app.register(usersRoutes, { prefix: "/api/users" });
   app.register(securityRoutes, { prefix: "/api/security" });
   app.register(invitationsRoutes, { prefix: "/api/invitations" });
+  app.register(catalogsRoutes, { prefix: "/api/catalogs" });
 
   return app;
 }

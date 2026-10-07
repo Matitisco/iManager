@@ -11,7 +11,7 @@ type InventorySeedInput = {
 };
 
 type AppSessionResponse = {
-  store: { id: string; name: string } | null;
+  store: { id: string; name: string; phone?: string | null; email?: string | null; instagram?: string | null } | null;
   membership: { role: 'OWNER' | 'MANAGER' | 'STAFF'; isDefault: boolean } | null;
   onboardingRequired: boolean;
 };
@@ -167,6 +167,9 @@ export async function bootstrapStore(
     );
     await onboardingSubmit.click({ noWaitAfter: true });
     await onboardingRequest;
+    const skipContact = page.getByRole('button', { name: 'Ahora no' });
+    const contactShown = await skipContact.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
+    if (contactShown) await skipContact.click();
   }
 
   await waitForSessionReady(request, email);

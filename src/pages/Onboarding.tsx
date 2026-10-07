@@ -6,7 +6,7 @@ import { trimToString } from '../lib/utils';
 const ROLE_LABELS: Record<string, string> = {
   OWNER: 'Propietario',
   MANAGER: 'Socio',
-  STAFF: 'Agente',
+  STAFF: 'Empleado',
 };
 
 interface OnboardingProps {
@@ -43,7 +43,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
       await acceptStoreInvitation(inviteToken);
       onInviteAccepted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo aceptar la invitaciÃ³n');
+      setError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +87,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
         className="text-sm text-gray-500 hover:text-gray-900 underline"
         onClick={() => void logout()}
       >
-        Cerrar sesiÃ³n
+        Cerrar sesión
       </button>
     </div>
   );
@@ -143,7 +143,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
               onClick={() => void handleAcceptInvite()}
               className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isSubmitting ? 'UniÃ©ndote...' : `Unirme a ${inviteState.preview.storeName}`}
+              {isSubmitting ? 'Uniéndote...' : `Unirme a ${inviteState.preview.storeName}`}
             </button>
           </div>
 
@@ -193,13 +193,13 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
           <div className="flex flex-col items-center text-center gap-4">
             {avatar}
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">InvitaciÃ³n invÃ¡lida</h1>
-              <p className="mt-2 text-gray-500">Esta invitaciÃ³n no es vÃ¡lida o ya expirÃ³.</p>
+              <h1 className="text-3xl font-bold text-gray-900">Invitación inválida</h1>
+              <p className="mt-2 text-gray-500">Esta invitación no es válida o ya expiró.</p>
             </div>
           </div>
 
           <p className="mt-6 text-sm text-center text-gray-500">
-            PodÃ©s crear tu propia tienda para comenzar.
+            Podés crear tu propia tienda para comenzar.
           </p>
 
           <form className="mt-4 space-y-4" onSubmit={(e) => void handleCreateStore(e)}>
@@ -246,9 +246,9 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
         <div className="flex flex-col items-center text-center gap-4">
           {avatar}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">CreÃ¡ tu tienda</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Creá tu tienda</h1>
             <p className="mt-2 text-gray-500">
-              Ya iniciaste sesiÃ³n. Ahora necesitamos crear la tienda para activar el contexto de negocio.
+              Ya iniciaste sesión. Ahora necesitamos crear la tienda para activar el contexto de negocio.
             </p>
           </div>
           {userCard}

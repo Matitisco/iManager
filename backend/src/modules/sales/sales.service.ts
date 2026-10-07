@@ -1,10 +1,12 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
   date: string;
-  clientId: string;
+  clientId?: string | null;
+  clientName?: string | null;
   productId: string;
   amount: number;
   paymentMethod: string;
@@ -14,7 +16,8 @@ export interface SaleInput {
 }
 
 export interface SalePatchInput {
-  clientId?: string;
+  clientId?: string | null;
+  clientName?: string | null;
   productId?: string;
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
@@ -29,6 +32,7 @@ export interface SaleResponse {
   saleNumber: number;
   date: string;
   clientId: string;
+  clientName: string;
   productId: string;
   amount: number;
   paymentMethod: SaleInput["paymentMethod"];
@@ -41,6 +45,7 @@ type SaleRecord = {
   id: string;
   saleNumber: number;
   clientId: string | null;
+  clientName: string;
   inventoryItemId: string | null;
   dateLabel: string;
   amount: Decimal;
@@ -64,22 +69,6 @@ class SalesError extends Error {
     this.statusCode = statusCode;
   }
 }
-
-const monthMap: Record<string, number> = {
-  ene: 0,
-  feb: 1,
-  mar: 2,
-  abr: 3,
-  may: 4,
-  jun: 5,
-  jul: 6,
-  ago: 7,
-  sep: 8,
-  set: 8,
-  oct: 9,
-  nov: 10,
-  dic: 11,
-};
 
 const toDecimal = (value: number) => new Decimal(value);
 
@@ -118,42 +107,8 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
   return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
 }
 
-function normalizeDateLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function parseDateLabel(value: string) {
-  const normalized = normalizeDateLabel(value).toLowerCase().replace(/\./g, "");
-  const match = normalized.match(/^(\d{1,2})\s+([a-zñ]{3,4})\s+(\d{4})$/i);
-
-  if (!match) {
-    return new Date();
-  }
-
-  const day = Number(match[1]);
-  const monthKey = match[2].slice(0, 3);
-  const month = monthMap[monthKey];
-  const year = Number(match[3]);
-
-  if (
-    Number.isNaN(day) ||
-    month === undefined ||
-    Number.isNaN(year)
-  ) {
-    return new Date();
-  }
-
-  const parsed = new Date(year, month, day, 12, 0, 0, 0);
-
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function formatDateLabel(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(value);
+function resolveDate(value: string | null | undefined, fallback = new Date()) {
+  return parseArDate(value) ?? fallback;
 }
 
 async function recomputeClientStats(
@@ -180,8 +135,9 @@ function serializeSale(sale: SaleRecord): SaleResponse {
   return {
     id: sale.id,
     saleNumber: sale.saleNumber,
-    date: sale.dateLabel || formatDateLabel(sale.soldAt),
+    date: formatStoredDate(sale.dateLabel, sale.soldAt),
     clientId: sale.clientId ?? "",
+    clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
     amount: sale.amount.toNumber(),
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
@@ -204,11 +160,13 @@ export async function createSale(storeId: string, input: SaleInput) {
   return prisma.$transaction(async (tx) => {
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
-    const client = await tx.client.findFirst({
-      where: { id: input.clientId, storeId },
-    });
+    const client = input.clientId
+      ? await tx.client.findFirst({
+          where: { id: input.clientId, storeId },
+        })
+      : null;
 
-    if (!client) {
+    if (input.clientId && !client) {
       throw new SalesError("Client not found", 404);
     }
 
@@ -220,17 +178,18 @@ export async function createSale(storeId: string, input: SaleInput) {
       throw new SalesError("Inventory item not found", 404);
     }
 
-    if (inventoryItem.status !== "DISPONIBLE") {
+    if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
       throw new SalesError("Inventory item is not available", 409);
     }
 
-    const soldAt = parseDateLabel(input.date);
-    const dateLabel = normalizeDateLabel(input.date) || formatDateLabel(soldAt);
+    const soldAt = resolveDate(input.date);
+    const dateLabel = formatArDate(soldAt);
 
     const sale = await tx.sale.create({
       data: {
         storeId,
-        clientId: client.id,
+        clientId: client?.id ?? null,
+        clientName: input.clientName?.trim() || client?.name || "",
         inventoryItemId: inventoryItem.id,
         dateLabel,
         amount: toDecimal(input.amount),
@@ -247,13 +206,15 @@ export async function createSale(storeId: string, input: SaleInput) {
       data: { status: "VENDIDO" },
     });
 
-    await tx.client.update({
-      where: { id: client.id },
-      data: {
-        totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
-        lastPurchaseAt: soldAt,
-      },
-    });
+    if (client) {
+      await tx.client.update({
+        where: { id: client.id },
+        data: {
+          totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
+          lastPurchaseAt: soldAt,
+        },
+      });
+    }
 
     return serializeSale(sale as SaleRecord);
   });
@@ -273,7 +234,7 @@ export async function updateSale(
   }
 
   return prisma.$transaction(async (tx) => {
-    const nextClientId = input.clientId ?? existing.clientId ?? undefined;
+    const nextClientId = input.clientId === undefined ? existing.clientId : (input.clientId || null);
     const nextInventoryItemId = input.productId ?? existing.inventoryItemId ?? undefined;
 
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
@@ -297,15 +258,13 @@ export async function updateSale(
         throw new SalesError("Inventory item not found", 404);
       }
 
-      if (inventoryItem.status !== "DISPONIBLE") {
+      if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
         throw new SalesError("Inventory item is not available", 409);
       }
     }
 
-    const newSoldAt = input.date ? parseDateLabel(input.date) : existing.soldAt;
-    const newDateLabel = input.date
-      ? normalizeDateLabel(input.date) || formatDateLabel(newSoldAt)
-      : existing.dateLabel;
+    const newSoldAt = input.date ? resolveDate(input.date, existing.soldAt) : existing.soldAt;
+    const newDateLabel = input.date ? formatArDate(newSoldAt) : existing.dateLabel;
     const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
 
     const updated = await tx.sale.update({
@@ -317,6 +276,7 @@ export async function updateSale(
         soldAt: newSoldAt,
         amount: newAmount,
         clientId: nextClientId,
+        clientName: input.clientName !== undefined ? (input.clientName?.trim() ?? "") : existing.clientName,
         inventoryItemId: nextInventoryItemId,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
         customFields:
@@ -338,6 +298,18 @@ export async function updateSale(
         where: { id: nextInventoryItemId, storeId },
         data: { status: "VENDIDO" },
       });
+    }
+
+    const nextStatus = input.status ?? existing.status;
+    if (existing.status === "PENDIENTE" && nextStatus === "COMPLETADA" && nextClientId) {
+      const payer = await tx.client.findFirst({ where: { id: nextClientId, storeId } });
+      if (payer) {
+        const nextBalance = new Decimal(payer.pendingBalance.toString()).minus(newAmount);
+        await tx.client.update({
+          where: { id: payer.id },
+          data: { pendingBalance: nextBalance.lessThan(0) ? new Decimal(0) : nextBalance },
+        });
+      }
     }
 
     if (
@@ -451,20 +423,7 @@ export async function importSales(
     const rowNum = i + 2;
 
     try {
-      // Resolve client by name
-      const clientName = r.clientName?.trim();
-      if (!clientName) {
-        errors.push({ row: rowNum, message: "Nombre de cliente requerido" });
-        continue;
-      }
-      const client = await prisma.client.findFirst({
-        where: { storeId, name: { equals: clientName, mode: "insensitive" } },
-        select: { id: true },
-      });
-      if (!client) {
-        errors.push({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` });
-        continue;
-      }
+      const clientName = r.clientName?.trim() ?? "";
 
       // Resolve inventory item by IMEI
       const imei = r.productImei?.trim();
@@ -492,14 +451,15 @@ export async function importSales(
       const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
 
       const dateStr = r.date?.trim() || "";
-      const soldAt  = parseDateLabel(dateStr) || new Date();
-      const dateLabel = dateStr || formatDateLabel(soldAt);
+      const soldAt = resolveDate(dateStr);
+      const dateLabel = formatArDate(soldAt);
 
       await prisma.$transaction(async (tx) => {
         await tx.sale.create({
           data: {
             storeId,
-            clientId: client.id,
+            clientId: null,
+            clientName,
             inventoryItemId: item.id,
             dateLabel,
             amount: toDecimal(amount),
@@ -513,8 +473,6 @@ export async function importSales(
           where: { id: item.id },
           data: { status: "VENDIDO" },
         });
-
-        await recomputeClientStats(tx, storeId, client.id);
       });
 
       imported++;

@@ -28,6 +28,8 @@ model Store {
   legalName           String?              @db.VarChar(160)
   taxId               String?              @db.VarChar(50)
   phone               String?              @db.VarChar(50)
+  email               String?              @db.VarChar(255)
+  instagram           String?              @db.VarChar(60)
   address             String?              @db.VarChar(255)
   currency            String               @default("ARS") @db.VarChar(10)
   timezone            String               @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
@@ -41,6 +43,8 @@ model Store {
   sales               Sale[]
   tradeIns            TradeIn[]
   tradeInCategories   TradeInCategory[]
+  catalogOptions      StoreCatalogOption[]
+  clientPayments      ClientPayment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -70,11 +74,13 @@ model Client {
   lastPurchaseAt DateTime?
   totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
   pendingBalance Decimal         @default(0) @db.Decimal(12, 2)
+  tag            String?         @db.VarChar(30)
   customFields   Json?
   store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category       ClientCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales          Sale[]
   tradeIns       TradeIn[]
+  payments       ClientPayment[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -112,7 +118,7 @@ model InventoryItem {
   id            String             @id @default(cuid())
   storeId       String
   categoryId    String?
-  imei          String             @db.VarChar(100)
+  imei          String?            @db.VarChar(100)
   model         String             @db.VarChar(100)
   capacity      String             @db.VarChar(50)
   color         String             @db.VarChar(50)
@@ -138,6 +144,7 @@ model Sale {
   saleNumber      Int            @default(autoincrement())
   storeId         String
   clientId        String?
+  clientName      String         @default("") @db.VarChar(120)
   categoryId      String?
   inventoryItemId String?
   dateLabel       String         @db.VarChar(120)
@@ -161,6 +168,7 @@ model Sale {
 
 model TradeIn {
   id                 String           @id @default(cuid())
+  tradeNumber        Int              @default(autoincrement())
   storeId            String
   clientId           String?
   categoryId         String?
@@ -210,6 +218,48 @@ model SaleCategory {
 
   @@index([storeId])
   @@unique([storeId, name])
+}
+
+enum CatalogKind {
+  INVENTORY_STATUS
+  INVENTORY_CAPACITY
+  INVENTORY_CONDITION
+  SALE_STATUS
+  TRADE_IN_STATUS
+  CLIENT_TAG
+}
+
+model ClientPayment {
+  id        String   @id @default(cuid())
+  storeId   String
+  clientId  String
+  amount    Decimal  @db.Decimal(12, 2)
+  method    String   @db.VarChar(50)
+  paidAt    DateTime @default(now())
+  note      String?  @db.VarChar(200)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([storeId])
+  @@index([clientId])
+}
+
+model StoreCatalogOption {
+  id        String      @id @default(cuid())
+  storeId   String
+  kind      CatalogKind
+  value     String      @db.VarChar(30)
+  label     String      @db.VarChar(20)
+  color     String?     @db.VarChar(9)
+  isSystem  Boolean     @default(false)
+  sortOrder Int         @default(0)
+  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([storeId, kind, value])
+  @@index([storeId, kind])
 }
 
 model StoreInvitation {

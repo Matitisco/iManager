@@ -32,6 +32,7 @@ export interface InventoryItemResponse {
   categoryId: string | null;
   customFields: Record<string, unknown>;
   soldAt: string | null;
+  createdAt: string;
 }
 
 export interface InventoryCategoryResponse {
@@ -41,7 +42,7 @@ export interface InventoryCategoryResponse {
 
 type InventoryRecord = {
   id: string;
-  imei: string;
+  imei: string | null;
   model: string;
   capacity: string;
   color: string;
@@ -54,6 +55,7 @@ type InventoryRecord = {
   status: string;
   customFields: Prisma.JsonValue | null;
   sales?: { soldAt: Date }[];
+  createdAt?: Date;
 };
 
 class InventoryError extends Error {
@@ -95,7 +97,7 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
 export function serializeInventoryItem(item: InventoryRecord): InventoryItemResponse {
   return {
     id: item.id,
-    imei: item.imei,
+    imei: item.imei ?? "",
     model: item.model,
     capacity: item.capacity,
     color: item.color,
@@ -108,6 +110,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
+    createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
   };
 }
 
@@ -195,15 +198,16 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 }
 
 type RawInventoryRow = {
-  id: string; imei: string; model: string; capacity: string; color: string;
+  id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
+  createdAt: Date | string | null;
 };
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
   return {
     id: row.id,
-    imei: row.imei,
+    imei: row.imei ?? "",
     model: row.model,
     capacity: row.capacity,
     color: row.color,
@@ -216,6 +220,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     categoryId: row.categoryId ?? null,
     customFields: toCustomFields(row.customFields),
     soldAt: null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
   };
 }
 
@@ -229,7 +234,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields"
+             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -275,21 +280,29 @@ export async function listInventory(storeId: string) {
   return inventory.map(serializeInventoryItem);
 }
 
+function storedImei(value: string) {
+  const imei = value.trim();
+  return imei || null;
+}
+
 export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
   await assertCategoryBelongsToStore(storeId, input.categoryId);
-  const existing = await inventoryPrisma.inventoryItem.findFirst({
-    where: { storeId, imei: input.imei.trim() },
-    select: { id: true },
-  });
+  const imei = storedImei(input.imei);
+  if (imei) {
+    const existing = await inventoryPrisma.inventoryItem.findFirst({
+      where: { storeId, imei },
+      select: { id: true },
+    });
 
-  if (existing) {
-    throw new InventoryError("Inventory item already exists", 409);
+    if (existing) {
+      throw new InventoryError("Inventory item already exists", 409);
+    }
   }
 
   const inventoryItem = await inventoryPrisma.inventoryItem.create({
     data: {
       storeId,
-      imei: input.imei.trim(),
+      imei,
       model: input.model.trim(),
       capacity: input.capacity.trim(),
       color: input.color.trim(),
@@ -320,8 +333,8 @@ export async function updateInventoryItem(
     return null;
   }
 
-  if (input.imei !== undefined) {
-    const nextImei = input.imei.trim();
+  const nextImei = input.imei !== undefined ? storedImei(input.imei) : undefined;
+  if (nextImei) {
     const duplicate = await inventoryPrisma.inventoryItem.findFirst({
       where: {
         storeId,
@@ -341,7 +354,7 @@ export async function updateInventoryItem(
   const updated = await inventoryPrisma.inventoryItem.update({
     where: { id },
     data: {
-      imei: input.imei !== undefined ? input.imei.trim() : existing.imei,
+      imei: input.imei !== undefined ? nextImei : existing.imei,
       model: input.model !== undefined ? input.model.trim() : existing.model,
       capacity: input.capacity !== undefined ? input.capacity.trim() : existing.capacity,
       color: input.color !== undefined ? input.color.trim() : existing.color,
@@ -488,16 +501,25 @@ const STATUS_MAP: Record<string, string> = {
   "en revision": "EN_REVISION",
   en_revision: "EN_REVISION",
   review: "EN_REVISION",
+  reservado: "RESERVADO",
+  reserved: "RESERVADO",
 };
+
+function foldKey(value: string) {
+  return value.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function lookupEnum(value: string | undefined, map: Record<string, string>) {
+  if (!value?.trim()) return undefined;
+  return map[foldKey(value)];
+}
 
 function normalizeEnum<T extends string>(
   value: string | undefined,
   map: Record<string, string>,
   fallback: T
 ): T {
-  if (!value) return fallback;
-  const normalized = map[value.toLowerCase().trim()];
-  return (normalized as T) ?? fallback;
+  return (lookupEnum(value, map) as T) ?? fallback;
 }
 
 function normalizeBattery(raw: unknown): string {
@@ -528,17 +550,32 @@ export async function importInventoryItems(
       continue;
     }
 
+    const condition = raw.condition?.trim()
+      ? lookupEnum(raw.condition, CONDITION_MAP)
+      : "USADO";
+    if (!condition) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` });
+      continue;
+    }
+    const status = raw.status?.trim()
+      ? lookupEnum(raw.status, STATUS_MAP)
+      : "DISPONIBLE";
+    if (!status) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: `Estado «${raw.status}» no existe` });
+      continue;
+    }
+
     const input = {
       imei: raw.imei?.trim() || `IMP-${Date.now()}-${rowNum}`,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color: raw.color?.trim() || "",
-      condition: normalizeEnum(raw.condition, CONDITION_MAP, "USADO" as const),
+      condition,
       grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
       batteryHealth: normalizeBattery(raw.batteryHealth),
       cost: Number(raw.cost) || 0,
       price: Number(raw.price),
-      status: normalizeEnum(raw.status, STATUS_MAP, "DISPONIBLE" as const),
+      status,
     };
 
     try {

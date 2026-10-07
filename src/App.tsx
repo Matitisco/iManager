@@ -3,30 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
-import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
-import { Inventory } from './pages/Inventory';
-import { Sales } from './pages/Sales';
-import { TradeIns } from './pages/TradeIns';
-import { Clients } from './pages/Clients';
-import { Reports } from './pages/Reports';
-import { Settings } from './pages/Settings';
-import { Notifications } from './pages/Notifications';
 import { Login } from './pages/Login';
 import { Onboarding } from './pages/Onboarding';
-import { Modal } from './components/Modal';
-import { ProductForm } from './components/forms/ProductForm';
-import { ClientForm } from './components/forms/ClientForm';
-import { SaleForm } from './components/forms/SaleForm';
-import { TradeInForm } from './components/forms/TradeInForm';
+import { DeskApp } from './desk/DeskApp';
+import { SessionClosed, sessionClosedStore } from './desk/screens/SessionClosed';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
-import { canSeeBillingSection } from './pages/settings-access';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
-const SEARCHABLE_TABS = new Set(['inventory', 'clients', 'sales', 'tradeins']);
-const STAFF_BLOCKED_TABS = new Set(['reports', 'settings']);
 
 function extractInviteToken(): string | null {
   const match = window.location.pathname.match(/^\/invite\/([^/]+)/);
@@ -39,7 +24,7 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', MANAGER: 'Socio', STAFF: 'Vendedor' };
+const ROLE_LABEL: Record<string, string> = { OWNER: 'Dueño', MANAGER: 'Socio', STAFF: 'Empleado' };
 
 function BlockingScreen({
   title,
@@ -69,19 +54,13 @@ function BlockingScreen({
 
 function AppContent() {
   const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [settingsTab, setSettingsTab] = useState('store');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [topNavSearch, setTopNavSearch] = useState('');
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
+  const [closedVersion, setClosedVersion] = useState(0);
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const inviteState = useInvitationPreview(
     inviteToken && user && backendStatus === 'ready' && !appSession?.onboardingRequired ? inviteToken : null
   );
-  const showTopNavSearch = SEARCHABLE_TABS.has(activeTab);
-  const role = appSession?.membership?.role;
-  const isStaff = role === 'STAFF';
 
   const showInviteModal = !!(
     inviteToken
@@ -112,24 +91,6 @@ function AppContent() {
     }
   };
 
-  useEffect(() => {
-    if (!showTopNavSearch && topNavSearch) {
-      setTopNavSearch('');
-    }
-  }, [showTopNavSearch, topNavSearch]);
-
-  useEffect(() => {
-    if (isStaff && STAFF_BLOCKED_TABS.has(activeTab) && activeTab !== 'settings') {
-      setActiveTab('dashboard');
-    }
-    if (isStaff && activeTab === 'settings' && settingsTab !== 'profile' && settingsTab !== 'security') {
-      setActiveTab('dashboard');
-    }
-    if (activeTab === 'settings' && settingsTab === 'billing' && !canSeeBillingSection(role)) {
-      setSettingsTab('profile');
-    }
-  }, [isStaff, activeTab, settingsTab, role]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -139,6 +100,10 @@ function AppContent() {
   }
 
   if (!user) {
+    const storeName = sessionClosedStore();
+    if (storeName) {
+      return <SessionClosed key={closedVersion} storeName={storeName} onRelogin={() => setClosedVersion((version) => version + 1)} />;
+    }
     return <Login inviteToken={inviteToken} />;
   }
 
@@ -177,101 +142,9 @@ function AppContent() {
     );
   }
 
-  const handleNavigate = (tab: string, subTab?: string) => {
-    if (isStaff && tab === 'reports') return;
-    if (isStaff && tab === 'settings' && subTab !== 'profile' && subTab !== 'security') return;
-    if (tab === 'settings' && subTab === 'billing' && !canSeeBillingSection(role)) return;
-    setActiveTab(tab);
-    if (tab === 'settings' && subTab) {
-      setSettingsTab(subTab);
-    }
-  };
-
-  const handleSearchSubmit = () => {
-    const normalizedSearch = topNavSearch.trim();
-    if (!normalizedSearch) {
-      return;
-    }
-
-    if (!SEARCHABLE_TABS.has(activeTab)) {
-      setActiveTab('inventory');
-    }
-
-    setTopNavSearch(normalizedSearch);
-  };
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
-      case 'inventory': return <Inventory searchTerm={topNavSearch} />;
-      case 'sales': return <Sales searchTerm={topNavSearch} />;
-      case 'tradeins': return <TradeIns searchTerm={topNavSearch} />;
-      case 'clients': return <Clients searchTerm={topNavSearch} />;
-      case 'reports': return <Reports />;
-      case 'settings': return <Settings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
-      case 'notifications': return <Notifications />;
-      default: return <div className="flex items-center justify-center h-full text-gray-400">Página en construcción</div>;
-    }
-  };
-
-  const getActionLabel = () => {
-    switch (activeTab) {
-      case 'clients': return 'Nuevo Cliente';
-      case 'tradeins': return 'Nuevo Canje';
-      case 'sales': return 'Nueva Venta';
-      case 'reports': return 'Exportar';
-      case 'settings': return 'Guardar';
-      default: return 'Nuevo Ingreso';
-    }
-  };
-
-  const handleNewAction = () => {
-    if (activeTab === 'reports' || activeTab === 'settings') {
-      alert('Funcionalidad en desarrollo');
-      return;
-    }
-    setIsModalOpen(true);
-  };
-
-  const renderModalContent = () => {
-    switch (activeTab) {
-      case 'clients': return <ClientForm onClose={() => setIsModalOpen(false)} />;
-      case 'tradeins': return <TradeInForm onClose={() => setIsModalOpen(false)} />;
-      case 'sales': return <SaleForm onClose={() => setIsModalOpen(false)} />;
-      default: return <ProductForm onClose={() => setIsModalOpen(false)} />;
-    }
-  };
-
-  const getModalTitle = () => {
-    switch (activeTab) {
-      case 'clients': return 'Registrar Nuevo Cliente';
-      case 'tradeins': return 'Registrar Nuevo Canje';
-      case 'sales': return 'Registrar Nueva Venta';
-      default: return 'Ingresar Nuevo Equipo';
-    }
-  };
-
-  const showHeaderAction = activeTab !== 'reports' && activeTab !== 'settings';
-
   return (
     <>
-      <div>
-        <Layout
-          activeTab={activeTab}
-          setActiveTab={handleNavigate}
-          actionLabel={showHeaderAction ? getActionLabel() : undefined}
-          onNewAction={showHeaderAction ? handleNewAction : undefined}
-          showSearch={showTopNavSearch}
-          searchTerm={topNavSearch}
-          onSearchTermChange={setTopNavSearch}
-          onSearchSubmit={handleSearchSubmit}
-        >
-          {renderContent()}
-        </Layout>
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-          {renderModalContent()}
-        </Modal>
-      </div>
+      <DeskApp />
 
       {showInviteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">

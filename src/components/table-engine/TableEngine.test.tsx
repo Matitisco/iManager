@@ -752,6 +752,8 @@ describe('TableEngine', () => {
     fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
 
     expect(await screen.findByText('Se copiaron 2 ítems')).toBeInTheDocument();
+    expect(alphaRow).toHaveAttribute('data-row-feedback', 'copied');
+    expect(betaRow).toHaveAttribute('data-row-feedback', 'copied');
 
     fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
 
@@ -885,6 +887,7 @@ describe('TableEngine', () => {
 
     expect(await screen.findByText('Se pegó 1 ítem')).toBeInTheDocument();
     expect(screen.getAllByText('Alpha')).toHaveLength(2);
+    expect(document.querySelector('tr[data-row-id^="paste-"]')).toHaveAttribute('data-row-feedback', 'pasted');
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(fetchPage).toHaveBeenCalledTimes(1);
 
@@ -1037,6 +1040,40 @@ describe('TableEngine', () => {
         quantity: 4,
       }));
     });
+  });
+
+  it('marks only the rows that appear after a paste for the entrance animation', async () => {
+    clearRowClipboardMemory();
+    const existing: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+    ];
+    const pasted: TestRow = { id: '9', name: 'Gamma', quantity: 4, categoryId: null };
+    let calls = 0;
+    const fetchPage = vi.fn(async () => {
+      calls += 1;
+      const items = calls === 1 ? existing : [...existing, pasted];
+      return { items, total: items.length };
+    });
+
+    render(
+      <TableEngine
+        config={buildConfig({ fetchPage, onCreate: vi.fn(async () => undefined) })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr');
+    expect(alphaRow).not.toHaveAttribute('data-row-feedback');
+
+    fireEvent.paste(document.body, {
+      clipboardData: { getData: () => 'Nombre\tCantidad\nGamma\t4' },
+    });
+
+    await waitFor(() => expect(document.querySelector('tr[data-row-id="9"]')).toBeInTheDocument());
+    const gammaRow = screen.getByText('Gamma').closest('tr');
+    expect(gammaRow).toHaveAttribute('data-row-feedback', 'pasted');
+    expect(alphaRow).not.toHaveAttribute('data-row-feedback');
+    expect(fetchPage).toHaveBeenCalledTimes(2);
   });
 
   it('renames a dropdown tag from the pencil editor without changing the stored value', async () => {

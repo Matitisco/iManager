@@ -1,5 +1,6 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
@@ -21,6 +22,7 @@ export interface TradeInPatchInput extends Partial<TradeInInput> {}
 
 export interface TradeInResponse {
   id: string;
+  tradeNumber: number;
   date: string;
   clientId: string;
   categoryId: string | null;
@@ -61,6 +63,7 @@ export interface TradeInImportResult {
 
 type TradeInRecord = {
   id: string;
+  tradeNumber?: number;
   clientId: string | null;
   categoryId: string | null;
   dateLabel: string;
@@ -93,22 +96,6 @@ const VALID_TRADE_IN_STATUSES = [
   "PERITAJE TÉC.",
   "LISTO",
 ] as const;
-
-const monthMap: Record<string, number> = {
-  ene: 0,
-  feb: 1,
-  mar: 2,
-  abr: 3,
-  may: 4,
-  jun: 5,
-  jul: 6,
-  ago: 7,
-  sep: 8,
-  set: 8,
-  oct: 9,
-  nov: 10,
-  dic: 11,
-};
 
 const toDecimal = (value: number) => new Decimal(value);
 
@@ -143,48 +130,15 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
   return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
 }
 
-function normalizeDateLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function parseDateLabel(value: string) {
-  const normalized = normalizeDateLabel(value).toLowerCase().replace(/\./g, "");
-  const match = normalized.match(/^(\d{1,2})\s+([a-zñ]{3,4})\s+(\d{4})$/i);
-
-  if (!match) {
-    return new Date();
-  }
-
-  const day = Number(match[1]);
-  const monthKey = match[2].slice(0, 3);
-  const month = monthMap[monthKey];
-  const year = Number(match[3]);
-
-  if (
-    Number.isNaN(day) ||
-    month === undefined ||
-    Number.isNaN(year)
-  ) {
-    return new Date();
-  }
-
-  const parsed = new Date(year, month, day, 12, 0, 0, 0);
-
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function formatDateLabel(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(value);
+function resolveDate(value: string | null | undefined, fallback = new Date()) {
+  return parseArDate(value) ?? fallback;
 }
 
 function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
   return {
     id: tradeIn.id,
-    date: tradeIn.dateLabel || formatDateLabel(tradeIn.tradeAt),
+    tradeNumber: tradeIn.tradeNumber ?? 0,
+    date: formatStoredDate(tradeIn.dateLabel, tradeIn.tradeAt),
     clientId: tradeIn.clientId ?? "",
     categoryId: tradeIn.categoryId ?? null,
     deviceReceived: tradeIn.deviceReceived,
@@ -235,8 +189,8 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
     throw new TradeInsError("Client not found", 404);
   }
 
-  const tradeAt = parseDateLabel(input.date);
-  const dateLabel = normalizeDateLabel(input.date) || formatDateLabel(tradeAt);
+  const tradeAt = resolveDate(input.date);
+  const dateLabel = formatArDate(tradeAt);
 
   const tradeIn = await prisma.tradeIn.create({
     data: {
@@ -285,11 +239,8 @@ export async function updateTradeIn(
 
   await assertCategoryBelongsToStore(storeId, input.categoryId);
 
-  const nextDate = input.date !== undefined ? parseDateLabel(input.date) : existing.tradeAt;
-  const nextDateLabel =
-    input.date !== undefined
-      ? normalizeDateLabel(input.date) || formatDateLabel(nextDate)
-      : existing.dateLabel;
+  const nextDate = input.date !== undefined ? resolveDate(input.date, existing.tradeAt) : existing.tradeAt;
+  const nextDateLabel = input.date !== undefined ? formatArDate(nextDate) : existing.dateLabel;
 
   const updated = await prisma.tradeIn.update({
     where: { id },
@@ -425,8 +376,8 @@ export async function importTradeIns(
         : "PENDIENTE";
 
       const dateInput = row.date?.trim() || "";
-      const tradeAt = parseDateLabel(dateInput);
-      const dateLabel = normalizeDateLabel(dateInput) || formatDateLabel(tradeAt);
+      const tradeAt = resolveDate(dateInput);
+      const dateLabel = formatArDate(tradeAt);
 
       const batteryHealth = normalizeBatteryHealth(row.batteryHealth);
       const grade = normalizeGrade(row.grade);

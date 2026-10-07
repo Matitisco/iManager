@@ -80,7 +80,7 @@ export function useTableData<TRow extends WithId>({
   // Swap in a fresh page without clearing the rows already on screen.
   const reloadVisible = useCallback(async (
     params: Omit<TablePageParams, 'skip' | 'take'>,
-    options?: { page?: number; take?: number },
+    options?: { page?: number; take?: number; onLoaded?: (rows: TRow[]) => void },
   ) => {
     if (!userRef.current) return false;
     const epoch = ++epochRef.current;
@@ -94,6 +94,7 @@ export function useTableData<TRow extends WithId>({
         ...params,
       });
       if (epoch !== epochRef.current) return false;
+      options?.onLoaded?.(result.items);
       setItems(result.items);
       setTotal(result.total);
       pageRef.current = requestedPage;

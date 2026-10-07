@@ -101,6 +101,38 @@ export async function updateBackendClient(user: AuthUserLike, client: Client): P
   return data.client;
 }
 
+export type ClientPaymentRecord = { id: string; amount: number; method: string; paidAt: string };
+
+export async function fetchClientPayments(user: AuthUserLike, clientId: string): Promise<ClientPaymentRecord[]> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}/payments`, {
+    headers: await getAuthHeaders(user),
+  });
+  if (!response.ok) throw new Error('No se pudieron cargar los pagos');
+  const data = await parseJson<{ payments?: ClientPaymentRecord[] }>(response);
+  return data.payments ?? [];
+}
+
+export async function registerBackendClientPayment(
+  user: AuthUserLike,
+  clientId: string,
+  input: { amount: number; method: string },
+): Promise<Client> {
+  const baseUrl = getBaseUrlOrThrow();
+  const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}/payments`, {
+    method: 'POST',
+    headers: await getAuthHeaders(user),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || 'No se pudo registrar el pago');
+  }
+  const data = await parseJson<BackendClientResponse>(response);
+  if (!data.client) throw new Error('Respuesta inválida al registrar el pago');
+  return data.client;
+}
+
 export async function deleteBackendClient(user: AuthUserLike, clientId: string): Promise<void> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}`, {

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -19,6 +19,8 @@ const storePatchSchema = z.object({
   legalName: z.string().max(160).nullable().optional(),
   taxId: z.string().max(50).nullable().optional(),
   phone: z.string().max(50).nullable().optional(),
+  email: z.string().max(255).nullable().optional(),
+  instagram: z.string().max(80).nullable().optional(),
   address: z.string().max(255).nullable().optional(),
   currency: z.string().max(10).optional(),
   timezone: z.string().max(80).optional(),
@@ -115,9 +117,16 @@ export async function storesRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "No tenés permisos para editar la tienda" });
       }
 
-      const body = storePatchSchema.parse(request.body);
-      const store = await updateStore(request.appUser.storeId, body);
-      return { store };
+      try {
+        const body = storePatchSchema.parse(request.body);
+        const store = await updateStore(request.appUser.storeId, body);
+        return { store };
+      } catch (error) {
+        if (error instanceof ZodError) {
+          return reply.code(400).send({ error: "Revisá los datos de la tienda" });
+        }
+        return sendServiceError(reply, error);
+      }
     }
   );
 

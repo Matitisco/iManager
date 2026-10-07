@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
 import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
 import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
+import { markStoreContactOffer } from '../lib/store-contact';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
@@ -29,6 +30,7 @@ interface AppState {
   deleteProduct: (id: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
+  registerClientPayment: (clientId: string, input: { amount: number; method: string }) => Promise<Client>;
   deleteClient: (id: string) => Promise<void>;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<void>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<void>;
@@ -36,6 +38,9 @@ interface AppState {
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
   removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
+  reloadSales: () => Promise<void>;
+  reloadClients: () => Promise<void>;
+  reloadTradeIns: () => Promise<void>;
   inventoryCategories: InventoryCategory[];
   createCategory: (name: string) => Promise<InventoryCategory>;
   renameCategory: (id: string, name: string) => Promise<void>;
@@ -410,6 +415,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await completeBackendOnboarding(user, storeName);
+    if (session.store?.id) markStoreContactOffer(session.store.id);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -421,6 +427,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await createOwnedStoreApi(user, storeName);
+    if (session.store?.id) markStoreContactOffer(session.store.id);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -574,6 +581,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) return;
     const items = await fetchBackendInventory(user);
     setInventory(items);
+  };
+
+  const reloadSales = async () => {
+    if (!user) return;
+    const items = await fetchBackendSales(user);
+    setSales(items);
+  };
+
+  const reloadClients = async () => {
+    if (!user) return;
+    const items = await fetchBackendClients(user);
+    setClients(items);
+  };
+
+  const reloadTradeIns = async () => {
+    if (!user) return;
+    const items = await fetchBackendTradeIns(user);
+    setTradeIns(items);
   };
 
   const reloadCategories = async () => {
@@ -772,6 +797,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
   };
 
+  const registerClientPayment = async (clientId: string, input: { amount: number; method: string }) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!backendClientsEnabled) {
+      throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
+    }
+    const updated = await registerBackendClientPayment(user, clientId, input);
+    setClients(prev => prev.map(client => client.id === updated.id ? updated : client));
+    return updated;
+  };
+
   const deleteClient = async (id: string) => {
     if (!user) return;
     if (!backendClientsEnabled) {
@@ -867,10 +902,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       inventory, sales, tradeIns, clients, customColumns,
       addSale, updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
-      addClient, updateClient, deleteClient,
+      addClient, updateClient, registerClientPayment, deleteClient,
       addTradeIn, updateTradeIn, deleteTradeIn,
       addCustomColumn, removeCustomColumn,
-      reloadInventory,
+      reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
       salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
       tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,

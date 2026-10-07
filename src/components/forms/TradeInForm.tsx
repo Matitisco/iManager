@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { formatArDate } from '../../lib/ar-date';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 
 type ClientMode = 'existing' | 'new';
@@ -86,7 +87,7 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           : formData.clientId;
 
       await addTradeIn({
-        date: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
+        date: formatArDate(new Date()),
         clientId,
         deviceReceived,
         deviceReceivedImei,

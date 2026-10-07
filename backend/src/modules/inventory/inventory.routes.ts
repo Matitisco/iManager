@@ -21,16 +21,16 @@ import {
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
-  imei: z.string().trim().min(1).max(100),
+  imei: z.string().trim().max(100),
   model: z.string().trim().min(1).max(100),
   capacity: z.string().trim().max(50),
   color: z.string().trim().max(50),
-  condition: z.string().trim().min(1).max(20),
-  grade: z.string().trim().min(1).max(20),
+  condition: z.string().trim().max(20),
+  grade: z.string().trim().max(20),
   batteryHealth: z.string().trim().max(50),
   cost: z.number().nonnegative(),
-  price: z.number().nonnegative(),
-  status: z.string().trim().min(1).max(20),
+  price: z.number().positive(),
+  status: z.string().trim().max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });

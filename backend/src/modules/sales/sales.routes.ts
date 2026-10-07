@@ -21,7 +21,8 @@ const paymentMethodSchema = z.string().trim().min(1).max(50);
 
 const saleCreateSchema = z.object({
   date: z.string().min(1).max(120),
-  clientId: z.string().min(1),
+  clientId: z.string().trim().max(50).nullable().optional(),
+  clientName: z.string().trim().max(120).nullable().optional(),
   productId: z.string().min(1),
   amount: z.number().nonnegative(),
   paymentMethod: paymentMethodSchema,
@@ -32,7 +33,8 @@ const saleCreateSchema = z.object({
 
 const salePatchSchema = z
   .object({
-    clientId: z.string().min(1).optional(),
+    clientId: z.string().trim().max(50).nullable().optional(),
+    clientName: z.string().trim().max(120).nullable().optional(),
     productId: z.string().min(1).optional(),
     paymentMethod: paymentMethodSchema.optional(),
     status: z.string().trim().min(1).max(20).optional(),

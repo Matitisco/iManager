@@ -1,8 +1,7 @@
 # iManager — Contexto para agentes AI
 
 > Este archivo es la fuente de verdad para onboarding de agentes.
-> `AGENTS.md` es una copia idéntica de este archivo — mantenlos sincronizados.
-> **Al iniciar sesión, también leer: [`openspec/AGENTS.md`](openspec/AGENTS.md)** — flujo OpenSpec, estructura de carpetas y specs activos.
+> `CLAUDE.md` es una copia idéntica de este archivo — mantenlos sincronizados.
 
 ---
 
@@ -153,8 +152,17 @@ Las skills viven en `skills/`. Cada una tiene un `SKILL.md` con instrucciones.
 | Archivo                              | Para qué                                      |
 |--------------------------------------|-----------------------------------------------|
 | `CLAUDE.md` / `AGENTS.md`           | Este archivo — onboarding completo de agentes |
-| `openspec/AGENTS.md`                | Flujo OpenSpec, estructura de carpetas y specs activos — **leer al inicio** |
 | `PROJECT_STATUS.md`                  | Estado actual, roadmap, issues abiertos       |
 | `ARCHITECTURE_DECISIONS_2026-04-02.md` | Decisiones y tradeoffs de arquitectura      |
 | `README.md`                          | Descripción de producto (para humanos)        |
 | `docs/agent-context/`                | Bootstrap rápido por feature                  |
+
+---
+
+## Fast bootstrap para nuevo agente
+
+1. Leer este archivo (ya lo hiciste)
+2. Leer `PROJECT_STATUS.md` para el estado vivo
+3. Si tocás `src/` → leer `skills/imanager-frontend/SKILL.md`
+4. Si tocás `backend/` → leer `skills/imanager-backend/SKILL.md`
+5. Si tocás Inventory → leer `skills/imanager-inventory/SKILL.md`

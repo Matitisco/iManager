@@ -12,6 +12,7 @@ export interface Product {
   status: string;
   categoryId?: string | null;
   soldAt?: string | null;
+  createdAt?: string;
   customFields?: Record<string, any>;
 }
 
@@ -35,6 +36,7 @@ export interface Sale {
   saleNumber?: number;
   date: string;
   clientId: string;
+  clientName?: string;
   productId: string;
   amount: number;
   paymentMethod: string;
@@ -45,6 +47,7 @@ export interface Sale {
 
 export interface TradeIn {
   id: string;
+  tradeNumber?: number;
   date: string;
   clientId: string;
   categoryId?: string | null;
@@ -74,6 +77,7 @@ export interface Client {
   totalSpent: number;
   pendingBalance: number;
   categoryId?: string | null;
+  tag?: string | null;
   customFields?: Record<string, any>;
 }
 
