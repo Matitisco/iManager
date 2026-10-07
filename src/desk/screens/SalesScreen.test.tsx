@@ -52,6 +52,7 @@ describe('Sales column filters', () => {
     renderScreen();
 
     expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();

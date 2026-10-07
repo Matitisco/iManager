@@ -14,20 +14,20 @@ function Harness({ rows, resetKey }: { rows: number[]; resetKey: string }) {
 }
 
 describe('table pagination', () => {
-  it('shows 10 rows and moves to the next pages', async () => {
+  it('shows 8 rows and moves to the next pages', async () => {
     const user = userEvent.setup();
     const rows = Array.from({ length: 23 }, (_, index) => index + 1);
     render(<Harness rows={rows} resetKey="todos" />);
 
-    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8,9,10');
-    expect(screen.getByText('1–10 de 23')).toBeInTheDocument();
+    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8');
+    expect(screen.getByText('1–8 de 23')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('11,12,13,14,15,16,17,18,19,20');
+    expect(screen.getByTestId('visible')).toHaveTextContent('9,10,11,12,13,14,15,16');
 
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('21,22,23');
-    expect(screen.getByText('21–23 de 23')).toBeInTheDocument();
+    expect(screen.getByTestId('visible')).toHaveTextContent('17,18,19,20,21,22,23');
+    expect(screen.getByText('17–23 de 23')).toBeInTheDocument();
   });
 
   it('hides the pager when the list fits on one page', () => {
@@ -42,9 +42,9 @@ describe('table pagination', () => {
     const { rerender } = render(<Harness rows={rows} resetKey="todos" />);
 
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('11,12,13,14,15');
+    expect(screen.getByTestId('visible')).toHaveTextContent('9,10,11,12,13,14,15');
 
     rerender(<Harness rows={rows.slice(0, 12)} resetKey="filtro" />);
-    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8,9,10');
+    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8');
   });
 });
