@@ -103,6 +103,18 @@ describe('Trade-ins table', () => {
     expect(open).toHaveBeenLastCalledWith({ type: 'import', kind: 'cj' });
   });
 
+  it('shows a free-text client name beside linked clients', async () => {
+    const user = userEvent.setup();
+    state.tradeIns = [trade(1, { clientId: '', clientName: 'Mostrador' }), trade(2)];
+    renderScreen();
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('Buscar cliente, equipo, IMEI o número');
+    await user.type(search, 'mostrador');
+    expect(rows()).toHaveLength(1);
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+  });
+
   it('searches client, equipment and IMEI and shows an explicit empty result', async () => {
     const user = userEvent.setup();
     state.tradeIns = [trade(1), trade(2)];

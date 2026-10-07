@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useCatalogs } from '../catalog';
-import { clientName, formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeCode } from '../format';
+import { formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -27,8 +27,8 @@ export function TradeInsScreen() {
     const q = query.trim().toLowerCase();
     const direction = sort === 'Recientes' ? -1 : 1;
     return tradeIns.filter((item) => {
-      const name = clientName(clients, item.clientId);
-      const haystack = `${name} ${item.deviceReceived} ${item.deviceReceivedImei} ${item.deviceGiven} ${tradeCode(tradeIns, item.id)}`.toLowerCase();
+      const name = tradeClientLabel(item, clients);
+      const haystack = `${name} ${item.clientName ?? ''} ${item.deviceReceived} ${item.deviceReceivedImei} ${item.deviceGiven} ${tradeCode(tradeIns, item.id)}`.toLowerCase();
       return (filter === 'Todos' || item.status === filter) && (!q || haystack.includes(q));
     }).sort((left, right) => {
       const a = parseAppDate(left.date)?.getTime();
@@ -79,11 +79,11 @@ export function TradeInsScreen() {
                     key={item.id}
                     as="tr"
                     onActivate={() => open({ type: 'cj', id: item.id })}
-                    onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${clientName(clients, item.clientId)}`, ...point })}
+                    onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
                   >
                     <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b></td>
                     <td className="trade-nowrap">{formatShortDate(item.date)}</td>
-                    <td>{clientName(clients, item.clientId)}</td>
+                    <td>{tradeClientLabel(item, clients)}</td>
                     <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
                     <td className="trade-device">{item.deviceGiven || '—'}</td>
                     <td className="r trade-nowrap"><b>{formatMoney(item.takeValue)}</b><small>Dif. {formatMoney(item.differencePaid)}</small></td>

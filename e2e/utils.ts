@@ -208,7 +208,7 @@ export async function fetchTradeIns(request: APIRequestContext, email: string) {
   });
   const body = await assertOk(response, 'Fetch trade-ins');
   return JSON.parse(body) as {
-    tradeIns: Array<{ id: string; clientId: string; deviceReceived: string; status: string; differencePaid: number }>;
+    tradeIns: Array<{ id: string; clientId: string; clientName: string; deviceReceived: string; status: string; differencePaid: number }>;
   };
 }
 

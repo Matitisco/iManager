@@ -173,6 +173,7 @@ model TradeIn {
   tradeNumber        Int              @default(autoincrement())
   storeId            String
   clientId           String?
+  clientName         String           @default("") @db.VarChar(120)
   categoryId         String?
   dateLabel          String           @db.VarChar(120)
   deviceReceived     String           @db.VarChar(120)

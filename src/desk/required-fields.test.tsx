@@ -92,9 +92,11 @@ describe('desk required fields', () => {
     renderOverlay('new-cj');
 
     await user.click(screen.getByRole('button', { name: 'Crear canje' }));
-    expect(screen.getByText('Completá este dato')).toBeInTheDocument();
+    expect(screen.getAllByText('Completá este dato')).toHaveLength(2);
     expect(ctx.addTradeIn).not.toHaveBeenCalled();
 
+    await user.type(screen.getByPlaceholderText('Escribí el nombre o elegí un cliente'), 'Visitante');
+    expect(screen.getByText(/Se guarda como texto/)).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Ej. iPhone 11 64GB'), 'iPhone 11 64GB');
     await user.type(screen.getByPlaceholderText('15 dígitos'), '123');
     await user.click(screen.getByRole('button', { name: 'Crear canje' }));
@@ -105,10 +107,30 @@ describe('desk required fields', () => {
     await user.click(screen.getByRole('button', { name: 'Crear canje' }));
 
     await waitFor(() => expect(ctx.addTradeIn).toHaveBeenCalledWith(expect.objectContaining({
-      clientId: 'client-1',
+      clientId: '',
+      clientName: 'Visitante',
       deviceReceived: 'iPhone 11 64GB',
       deviceReceivedImei: '',
       deviceGiven: 'iPhone 13 128GB',
+    })));
+  });
+
+  it('links a trade-in client when a suggestion is picked', async () => {
+    const user = userEvent.setup();
+    ctx.clients = [client(), client({ id: 'client-2', name: 'Bruno Díaz', phone: '11 5555', dni: '30111222' })];
+    ctx.inventory = [product()];
+    renderOverlay('new-cj');
+
+    await user.type(screen.getByPlaceholderText('Escribí el nombre o elegí un cliente'), '3011');
+    await user.click(screen.getByRole('option', { name: /Bruno Díaz/ }));
+    expect(screen.queryByText(/Se guarda como texto/)).not.toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Ej. iPhone 11 64GB'), 'iPhone 11 64GB');
+    await user.click(screen.getByRole('button', { name: 'Crear canje' }));
+
+    await waitFor(() => expect(ctx.addTradeIn).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: 'client-2',
+      clientName: 'Bruno Díaz',
+      deviceReceived: 'iPhone 11 64GB',
     })));
   });
 });

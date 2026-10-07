@@ -12,7 +12,6 @@ import { createInvitation, listInvitations, revokeInvitation, type Invitation, t
 import type { Client, Product, Sale, TradeIn } from '../types';
 import {
   batteryPercent,
-  clientName,
   conditionLabel,
   saleBuyer,
   equipmentTitle,
@@ -26,10 +25,12 @@ import {
   saleCode,
   saleEquipment,
   statusLabel,
+  tradeClientLabel,
   tradeCode,
 } from './format';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
+import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
@@ -414,7 +415,9 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = tradeIns.find((item) => item.id === id);
   const available = inventory.filter((item) => isInStock(item.status));
-  const [clientId, setClientId] = useState(current?.clientId || clients[0]?.id || '');
+  const linkedClient = current?.clientId ? clients.find((client) => client.id === current.clientId) : undefined;
+  const [clientId, setClientId] = useState(linkedClient?.id ?? '');
+  const [buyer, setBuyer] = useState(linkedClient?.name || current?.clientName?.trim() || '');
   const [received, setReceived] = useState(current?.deviceReceived ?? '');
   const [imei, setImei] = useState(current?.deviceReceivedImei ?? '');
   const [given, setGiven] = useState(current?.deviceGiven || (available[0] ? `${available[0].model} ${available[0].capacity}` : ''));
@@ -426,11 +429,14 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
   return (
     <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle={current ? `${tradeCode(tradeIns, current.id)} · ${formatShortDate(current.date)}` : 'El cliente entrega su equipo y se lleva uno del stock.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <Field label="Cliente" error={bad.client}>
-        <select value={clientId} onChange={(event) => { setClientId(event.target.value); clearBad(setBad, 'client'); }}>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-        </select>
-      </Field>
+      <ClientField
+        clients={clients}
+        value={buyer}
+        linked={Boolean(clientId)}
+        error={bad.client}
+        onValue={(next) => { setBuyer(next); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
+      />
       <div className="frow">
         <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
         <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
@@ -459,7 +465,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
-        if (!clientId) next.client = 'Completá este dato';
+        if (!buyer.trim()) next.client = 'Completá este dato';
         if (!received.trim()) next.received = 'Completá este dato';
         if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!given.trim()) next.given = 'Completá este dato';
@@ -469,6 +475,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const payload: Omit<TradeIn, 'id'> = {
           date: current?.date || formatArDate(new Date()),
           clientId,
+          clientName: buyer.trim(),
           deviceReceived: received.trim(),
           deviceReceivedImei: imei.trim(),
           takeValue: parseMoney(take),
@@ -499,7 +506,7 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${clientName(clients, trade.clientId)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{formatMoney(trade.differencePaid)}</div></div>
