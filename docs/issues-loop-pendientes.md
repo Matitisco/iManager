@@ -19,3 +19,12 @@ Documento de decisiones tomadas sin interrumpir el trabajo con preguntas, según
 - E2E de canjes: 1/1 aprobado contra `postgresql://127.0.0.1:5432/imanager_issues_loop_test`, con comprobación de persistencia API y después de recargar. El schema se sincronizó únicamente en esa base local aislada.
 - La revisión automática bloqueó los comandos de borrado recursivo. Se retiraron 200 archivos mediante parches con rutas exactas y luego 138 directorios vacíos verificados mediante eliminación no recursiva. No queda instalación del flujo anterior dentro del proyecto.
 - Sin decisiones de producto pendientes en esta preparación. La publicación del merge queda a cargo del coordinador, que continúa con los issues secuencialmente.
+
+## Issue #62 — recuperación al cerrar Google — 2026-10-07
+
+- **Solicitud:** [#62](https://github.com/Matitisco/iManager/issues/62), leída con `gh issue view 62 --json number,title,body,comments,url`. Al cerrar el popup sin autenticarse, login y registro deben recuperar sus controles y permitir otro intento.
+- **Resultado:** ya resuelto por `ab107ef`, integrado en el `main` activo `20bc6ee`. `src/App.tsx` monta el mismo `Login` antes de autenticar, y login y registro comparten `handleGoogleLogin`. No se identificó una brecha que requiera otra modificación de runtime o pruebas.
+- **Criterios comprobados:** foco de ventana y vuelta a una pestaña visible restauran el botón antes de que Firebase resuelva; `auth/popup-closed-by-user` y `auth/cancelled-popup-request` terminan sin error; se permite reintentar desde login y registro; una promesa antigua que resuelve o rechaza no cambia el estado del reintento; se eliminan listeners al desmontar. El envío por email mantiene su propio estado pendiente.
+- **Evidencia:** `npm run test:frontend -- src/pages/Login.test.tsx` aprobado, 13/13 pruebas. Incluye ambos modos, foco/visibilidad, cancelaciones, reintentos, respuestas tardías, error real del intento vigente y limpieza. El baseline de lint frontend/backend y suites completas ya pasó en la preparación publicada; solo se agrega esta documentación.
+- **Decisión:** conservar la corrección existente y registrar la verificación, sin crear cambios redundantes. Puede cerrarse el issue tras la revisión del coordinador.
+- **Límite:** las pruebas controlan promesas y eventos del navegador; no abren un popup real de una cuenta Google. El adaptador de producción mantiene `signInWithPopup` de Firebase y los errores se propagan al componente.

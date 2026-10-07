@@ -9,13 +9,13 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 - [x] Integrar los avances de `hifi-desk` y las correcciones existentes de `main`, conservando ambos historiales.
 - [x] Quitar OpenSpec y sincronizar `AGENTS.md` con `CLAUDE.md`.
 - [x] Verificar la preparación: frontend 239/239, backend unit 77/77, TableEngine revalidado 30/30, E2E Canjes 1/1 en DB local aislada y ambos lints aprobados.
-- [ ] Publicar la preparación.
+- [x] Publicar la preparación: `20bc6ee` en `origin/main`.
 
 ## Cola secuencial
 
 | Orden | Issue | Alcance | Estado | Evidencia / commit |
 | --- | --- | --- | --- | --- |
-| 1 | #62 | Recuperar login al cancelar Google | Pendiente | |
+| 1 | #62 | Recuperar login al cancelar Google | Verificado; listo para cierre | `ab107ef` en `20bc6ee`; Login 13/13: cancelación, reintento, ambos modos y promesas tardías |
 | 2 | #80 | Inventario: 10 equipos por página | Pendiente | |
 | 3 | #81 | Batería: colores y animaciones de referencia | Pendiente | |
 | 4 | #85 | Rol Empleado en toda la interfaz | Pendiente | |
