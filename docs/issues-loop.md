@@ -10,13 +10,14 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 - [x] Quitar OpenSpec y sincronizar `AGENTS.md` con `CLAUDE.md`.
 - [x] Verificar la preparación: frontend 239/239, backend unit 77/77, TableEngine revalidado 30/30, E2E Canjes 1/1 en DB local aislada y ambos lints aprobados.
 - [x] Publicar la preparación: `20bc6ee` en `origin/main`.
+- [x] CI completa de la preparación aprobada: [run 37639541402](https://github.com/Matitisco/iManager/actions/runs/37639541402), incluidos lints, frontend, backend unit/integración y E2E.
 
 ## Cola secuencial
 
 | Orden | Issue | Alcance | Estado | Evidencia / commit |
 | --- | --- | --- | --- | --- |
-| 1 | #62 | Recuperar login al cancelar Google | Verificado; listo para cierre | `ab107ef` en `20bc6ee`; Login 13/13: cancelación, reintento, ambos modos y promesas tardías |
-| 2 | #80 | Inventario: 10 equipos por página | Pendiente | |
+| 1 | #62 | Recuperar login al cancelar Google | Cerrado | `22eaf75`; Login 13/13: cancelación, reintento, ambos modos y promesas tardías; GitHub cerrado 2026-10-07 |
+| 2 | #80 | Inventario: 10 equipos por página | Verificado; listo para cierre | `47cb20c` integrado; 7/7 pager + pantalla, navegación de 12 equipos, filtros y última página vacía |
 | 3 | #81 | Batería: colores y animaciones de referencia | Pendiente | |
 | 4 | #85 | Rol Empleado en toda la interfaz | Pendiente | |
 | 5 | #99 | Logo de cajita con fondo amarillo | Pendiente | |

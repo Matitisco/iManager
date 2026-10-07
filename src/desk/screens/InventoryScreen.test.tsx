@@ -38,6 +38,54 @@ function renderScreen() {
   );
 }
 
+describe('Inventory pagination', () => {
+  it('shows ten equipment rows, navigates the remainder and recovers after filters or removals', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.inventory = [
+      ...Array.from({ length: 11 }, (_, index) => item(String(index + 1))),
+      item('20', { model: 'Pixel', status: 'VENDIDO' }),
+    ];
+    const { rerender } = renderScreen();
+    const visibleRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
+
+    expect(visibleRows()).toHaveLength(10);
+    expect(screen.getByText('1–10 de 12')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    expect(screen.queryByText('Modelo 11 · 128 GB')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect(visibleRows()).toHaveLength(2);
+    expect(screen.getByText('Modelo 11 · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('11–12 de 12')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+
+    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'Modelo');
+    expect(visibleRows()).toHaveLength(10);
+    expect(screen.getByText('1–10 de 11')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(visibleRows()).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Disponible' }));
+    expect(visibleRows()).toHaveLength(10);
+    expect(screen.getByText('1–10 de 11')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect(screen.getByText('Modelo 11 · 128 GB')).toBeInTheDocument();
+
+    context.inventory = context.inventory.slice(0, 10);
+    rerender(
+      <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+        <InventoryScreen />
+      </DeskProvider>,
+    );
+    expect(visibleRows()).toHaveLength(10);
+    expect(screen.getByText('Modelo 1 · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Modelo 11 · 128 GB')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument();
+  });
+});
+
 describe('Inventory price list', () => {
   beforeEach(() => {
     toast.mockClear();
