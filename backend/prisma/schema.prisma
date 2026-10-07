@@ -125,7 +125,6 @@ model InventoryItem {
   batteryHealth String             @db.VarChar(50)
   cost          Decimal            @db.Decimal(12, 2)
   price         Decimal            @db.Decimal(12, 2)
-  quantity      Int                @default(1)
   status        String             @db.VarChar(20)
   customFields  Json?
   store         Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)

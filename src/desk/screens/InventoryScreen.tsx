@@ -67,7 +67,7 @@ export function InventoryScreen() {
         {rows.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : (
           <table className="dtable">
             <thead>
-              <tr><th>Equipo</th><th>Condición</th><th>Batería</th><th className="r">Cantidad</th><th className="r">Precio</th><th>Estado</th></tr>
+              <tr><th>Equipo</th><th>Condición</th><th>Batería</th><th className="r">Precio</th><th>Estado</th></tr>
             </thead>
             <tbody>
               {page.visible.map((item) => (
@@ -85,7 +85,6 @@ export function InventoryScreen() {
                   </td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r">{item.quantity ?? 1}</td>
                   <td className="r"><b>{formatMoney(item.price)}</b></td>
                   <td>{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}</td>
                 </PressTarget>

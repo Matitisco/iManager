@@ -212,7 +212,6 @@ function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
-      <div className="kv"><span>Cantidad</span><b>{item.quantity ?? 1}</b></div>
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -245,7 +244,6 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
-  const [quantity, setQuantity] = useState(String(current?.quantity ?? 1));
   const [status, setStatus] = useState(current?.status ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
 
@@ -263,10 +261,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
-      <div className="frow">
-        <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
-        <Field label="Cantidad" error={bad.quantity}><input type="number" inputMode="numeric" min={1} max={2147483647} step={1} value={quantity} onChange={(event) => { setQuantity(event.target.value); clearBad(setBad, 'quantity'); }} /></Field>
-      </div>
+      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -275,8 +270,6 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         if (!model.trim()) next.model = 'Completá este dato';
         if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!parseMoney(price)) next.price = 'Completá este dato';
-        const nextQuantity = Number(quantity);
-        if (!quantity.trim() || !Number.isInteger(nextQuantity) || nextQuantity < 1 || nextQuantity > 2147483647) next.quantity = 'Ingresá una cantidad válida (entero mayor o igual a 1)';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -290,7 +283,6 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           batteryHealth: battery ? `${battery}%` : '',
           cost: current?.cost ?? 0,
           price: parseMoney(price),
-          quantity: nextQuantity,
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
@@ -891,7 +883,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'model', label: 'Modelo', required: true },
         { key: 'imei', label: 'IMEI', required: false },
         { key: 'price', label: 'Precio', required: false },
-        { key: 'quantity', label: 'Cantidad', required: false },
         { key: 'capacity', label: 'Capacidad', required: false },
         { key: 'color', label: 'Color', required: false },
         { key: 'condition', label: 'Condición', required: false },
@@ -900,14 +891,13 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      hints: { modelo: 'model', imei: 'imei', precio: 'price', cantidad: 'quantity', quantity: 'quantity', capacidad: 'capacity', color: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
+      hints: { modelo: 'model', imei: 'imei', precio: 'price', capacidad: 'capacity', color: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
         const parseNum = (value?: string) => value ? Number(value.replace(/\./g, '').replace(',', '.')) || 0 : undefined;
         const payload: ImportRow[] = rows.map((row) => ({
           imei: row.imei ?? '',
           model: row.model ?? '',
           price: parseNum(row.price) ?? 0,
-          quantity: row.quantity?.trim() || undefined,
           capacity: row.capacity,
           color: row.color,
           condition: row.condition,
