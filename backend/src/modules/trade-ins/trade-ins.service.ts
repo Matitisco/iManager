@@ -4,15 +4,15 @@ import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.j
 import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
-  date: string;
+  date?: string | null;
   clientId: string;
   categoryId?: string | null;
   deviceReceived: string;
-  deviceReceivedImei: string;
-  takeValue: number;
+  deviceReceivedImei?: string | null;
+  takeValue?: number;
   deviceGiven: string;
-  differencePaid: number;
-  status: string;
+  differencePaid?: number;
+  status?: string;
   batteryHealth?: string | null;
   grade?: string | null;
   customFields?: Record<string, unknown> | null;
@@ -31,7 +31,7 @@ export interface TradeInResponse {
   takeValue: number;
   deviceGiven: string;
   differencePaid: number;
-  status: TradeInInput["status"];
+  status: string;
   batteryHealth?: string | null;
   grade?: string | null;
   customFields: Record<string, unknown>;
@@ -199,11 +199,11 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
       categoryId: input.categoryId ?? null,
       dateLabel,
       deviceReceived: input.deviceReceived,
-      deviceReceivedImei: input.deviceReceivedImei,
-      takeValue: toDecimal(input.takeValue),
+      deviceReceivedImei: input.deviceReceivedImei?.trim() || "",
+      takeValue: toDecimal(input.takeValue ?? 0),
       deviceGiven: input.deviceGiven,
-      differencePaid: toDecimal(input.differencePaid),
-      status: input.status,
+      differencePaid: toDecimal(input.differencePaid ?? 0),
+      status: input.status?.trim() || "PENDIENTE",
       batteryHealth: input.batteryHealth ?? null,
       grade: input.grade?.trim() ? input.grade.trim() : null,
       customFields: normalizeCustomFields(input.customFields),
@@ -252,7 +252,10 @@ export async function updateTradeIn(
       categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       dateLabel: nextDateLabel,
       deviceReceived: input.deviceReceived ?? existing.deviceReceived,
-      deviceReceivedImei: input.deviceReceivedImei ?? existing.deviceReceivedImei,
+      deviceReceivedImei:
+        input.deviceReceivedImei !== undefined
+          ? input.deviceReceivedImei?.trim() || ""
+          : existing.deviceReceivedImei,
       takeValue:
         input.takeValue !== undefined ? toDecimal(input.takeValue) : existing.takeValue,
       deviceGiven: input.deviceGiven ?? existing.deviceGiven,
@@ -308,6 +311,14 @@ export function getTradeInsErrorStatus(error: unknown) {
   return null;
 }
 
+function parseImportAmount(raw: string | undefined): number | null {
+  const text = (raw ?? "").trim();
+  if (!text) return 0;
+  const value = Number.parseFloat(text.replace(",", "."));
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
 export async function importTradeIns(
   storeId: string,
   rows: TradeInImportRow[]
@@ -346,11 +357,7 @@ export async function importTradeIns(
         continue;
       }
 
-      const deviceReceivedImei = row.deviceReceivedImei?.trim();
-      if (!deviceReceivedImei) {
-        errors.push({ row: rowNum, message: "IMEI recibido requerido" });
-        continue;
-      }
+      const deviceReceivedImei = row.deviceReceivedImei?.trim() ?? "";
 
       const deviceGiven = row.deviceGiven?.trim();
       if (!deviceGiven) {
@@ -358,21 +365,21 @@ export async function importTradeIns(
         continue;
       }
 
-      const takeValue = Number.parseFloat((row.takeValue ?? "").replace(",", "."));
-      if (!Number.isFinite(takeValue) || takeValue < 0) {
+      const takeValue = parseImportAmount(row.takeValue);
+      if (takeValue === null) {
         errors.push({ row: rowNum, message: "Valor de toma invalido" });
         continue;
       }
 
-      const differencePaid = Number.parseFloat((row.differencePaid ?? "").replace(",", "."));
-      if (!Number.isFinite(differencePaid) || differencePaid < 0) {
+      const differencePaid = parseImportAmount(row.differencePaid);
+      if (differencePaid === null) {
         errors.push({ row: rowNum, message: "Diferencia abonada invalida" });
         continue;
       }
 
       const rawStatus = row.status?.trim().toUpperCase();
       const status = (VALID_TRADE_IN_STATUSES as readonly string[]).includes(rawStatus ?? "")
-        ? (rawStatus as TradeInInput["status"])
+        ? (rawStatus as string)
         : "PENDIENTE";
 
       const dateInput = row.date?.trim() || "";
@@ -382,13 +389,15 @@ export async function importTradeIns(
       const batteryHealth = normalizeBatteryHealth(row.batteryHealth);
       const grade = normalizeGrade(row.grade);
 
-      const existing = await prisma.tradeIn.findFirst({
-        where: {
-          storeId,
-          deviceReceivedImei,
-        },
-        select: { id: true },
-      });
+      const existing = deviceReceivedImei
+        ? await prisma.tradeIn.findFirst({
+            where: {
+              storeId,
+              deviceReceivedImei,
+            },
+            select: { id: true },
+          })
+        : null;
 
       if (existing) {
         await prisma.tradeIn.update({

@@ -68,7 +68,7 @@ model Client {
   id             String          @id @default(cuid())
   storeId        String
   categoryId     String?
-  dni            String          @db.VarChar(50)
+  dni            String?         @db.VarChar(50)
   name           String          @db.VarChar(120)
   email          String?         @db.VarChar(255)
   phone          String?         @db.VarChar(50)
