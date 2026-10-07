@@ -461,8 +461,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const next: Record<string, string> = {};
         if (!clientId) next.client = 'Completá este dato';
         if (!received.trim()) next.received = 'Completá este dato';
-        if (!imei.trim()) next.imei = 'Completá este dato';
-        else if (imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!given.trim()) next.given = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
@@ -568,8 +567,9 @@ function ClientDetail({ id }: { id: string }) {
     }
   };
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
+  const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   return (
-    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)} · DNI ${client.dni}` : `Sin compras todavía · DNI ${client.dni}`} onClose={close}>
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
@@ -634,7 +634,6 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
-        if (!dni.trim()) next.dni = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -1013,10 +1012,10 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
     fields: [
       { key: 'clientName', label: 'Cliente', required: true },
       { key: 'deviceReceived', label: 'Equipo recibido', required: true },
-      { key: 'deviceReceivedImei', label: 'IMEI recibido', required: true },
-      { key: 'takeValue', label: 'Valor tomado', required: true },
+      { key: 'deviceReceivedImei', label: 'IMEI recibido', required: false },
+      { key: 'takeValue', label: 'Valor tomado', required: false },
       { key: 'deviceGiven', label: 'Equipo entregado', required: true },
-      { key: 'differencePaid', label: 'Diferencia', required: true },
+      { key: 'differencePaid', label: 'Diferencia', required: false },
       { key: 'status', label: 'Estado', required: false },
     ],
     hints: { cliente: 'clientName', recibido: 'deviceReceived', imei: 'deviceReceivedImei', valor: 'takeValue', entrega: 'deviceGiven', diferencia: 'differencePaid', estado: 'status' },

@@ -21,7 +21,7 @@ import {
 } from "./clients.service.js";
 
 const clientCreateSchema = z.object({
-  dni: z.string().min(1).max(50),
+  dni: z.string().trim().max(50).optional().nullable(),
   name: z.string().min(1).max(120),
   categoryId: z.string().nullable().optional(),
   email: z.string().trim().max(255).optional().nullable(),

@@ -63,6 +63,28 @@ describe("trade-ins.service", () => {
     });
   });
 
+  it("imports a trade-in without an imei", async () => {
+    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1" });
+    prismaMock.tradeIn.create.mockResolvedValue({ id: "trade-1" });
+
+    const result = await importTradeIns("store-1", [{
+      clientName: "Juan",
+      deviceReceived: "iPhone 12",
+      deviceGiven: "iPhone 14",
+    }]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.imported).toBe(1);
+    expect(prismaMock.tradeIn.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.tradeIn.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        deviceReceived: "iPhone 12",
+        deviceReceivedImei: "",
+        deviceGiven: "iPhone 14",
+      }),
+    });
+  });
+
   it("reports invalid take values during import", async () => {
     prismaMock.client.findFirst.mockResolvedValue({ id: "client-1" });
 

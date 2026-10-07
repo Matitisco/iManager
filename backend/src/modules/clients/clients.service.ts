@@ -4,7 +4,7 @@ import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface ClientInput {
-  dni: string;
+  dni?: string | null;
   name: string;
   categoryId?: string | null;
   email?: string | null;
@@ -37,7 +37,7 @@ export interface ClientCategoryResponse {
 
 type ClientRecord = {
   id: string;
-  dni: string;
+  dni: string | null;
   name: string;
   email: string | null;
   phone: string | null;
@@ -99,7 +99,7 @@ const formatDate = (value: Date | null) => {
 export function serializeClient(client: ClientRecord): ClientResponse {
   return {
     id: client.id,
-    dni: client.dni,
+    dni: client.dni ?? "",
     name: client.name,
     email: client.email ?? "",
     phone: client.phone ?? "",
@@ -129,16 +129,23 @@ export async function listClients(storeId: string) {
   return clients.map(serializeClient);
 }
 
-export async function createClient(storeId: string, input: ClientInput) {
-  const dni = input.dni.trim();
-  await assertCategoryBelongsToStore(storeId, input.categoryId);
-  const existing = await prisma.client.findFirst({
-    where: { storeId, dni },
-    select: { id: true },
-  });
+function normalizeDni(value?: string | null) {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed : null;
+}
 
-  if (existing) {
-    throw new ClientsError("Client already exists", 409);
+export async function createClient(storeId: string, input: ClientInput) {
+  const dni = normalizeDni(input.dni);
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
+  if (dni) {
+    const existing = await prisma.client.findFirst({
+      where: { storeId, dni },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new ClientsError("Client already exists", 409);
+    }
   }
 
   const client = await prisma.client.create({
@@ -170,18 +177,20 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   }
 
   if (input.dni !== undefined) {
-    const nextDni = input.dni.trim();
-    const duplicate = await prisma.client.findFirst({
-      where: {
-        storeId,
-        dni: nextDni,
-        id: { not: id },
-      },
-      select: { id: true },
-    });
+    const nextDni = normalizeDni(input.dni);
+    if (nextDni) {
+      const duplicate = await prisma.client.findFirst({
+        where: {
+          storeId,
+          dni: nextDni,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
 
-    if (duplicate) {
-      throw new ClientsError("Client already exists", 409);
+      if (duplicate) {
+        throw new ClientsError("Client already exists", 409);
+      }
     }
   }
 
@@ -190,7 +199,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   const updated = await prisma.client.update({
     where: { id },
     data: {
-      dni: input.dni !== undefined ? input.dni.trim() : existing.dni,
+      dni: input.dni !== undefined ? normalizeDni(input.dni) : existing.dni,
       name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
       phone: input.phone !== undefined ? input.phone || null : existing.phone,
@@ -341,13 +350,11 @@ export async function importClients(
         });
         updated++;
       } else {
-        // Generate unique DNI placeholder if not provided
-        const effectiveDni = dni || `IMP-${Date.now()}-${i}`;
         await prisma.client.create({
           data: {
             storeId,
             name,
-            dni: effectiveDni,
+            dni: dni || null,
             email: r.email?.trim() || null,
             phone: r.phone?.trim() || null,
           },
