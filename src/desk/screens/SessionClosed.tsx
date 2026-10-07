@@ -1,4 +1,4 @@
-import { DeskIcon } from '../ui';
+import { Box } from 'lucide-react';
 import '../desk.css';
 
 const FLAG = 'imanager-session-closed';
@@ -16,7 +16,7 @@ export function SessionClosed({ storeName, onRelogin }: { storeName: string; onR
   return (
     <div className="desk-app out">
       <div className="s-out">
-        <div className="logo"><DeskIcon name="logo" size={40} strokeWidth={2.2} /></div>
+        <div className="logo"><Box size={40} aria-hidden="true" /></div>
         <div className="brand">iManager</div>
         <h1>Sesión cerrada</h1>
         <p>Tu inventario, ventas y canjes siguen guardados en {storeName}.</p>
