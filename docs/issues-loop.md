@@ -20,22 +20,27 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 | 2 | #80 | Inventario: 10 equipos por página | Cerrado | `d1a7da6`; 7/7 pager + pantalla, navegación de 12 equipos, filtros y última página vacía |
 | 3 | #81 | Batería: colores y animaciones de referencia | Cerrado | `d6270a7`; 10/10 pruebas + 7 límites/rangos/fracciones; referencia y revisión visual contrastadas |
 | 4 | #85 | Rol Empleado en toda la interfaz | Cerrado | `b976e4c`; 22/22 pruebas de acceso/configuración; sin Agente/Vendedor en src |
-| 5 | #99 | Logo de cajita con fondo amarillo | Verificado; listo para cierre | Box de referencia en sidebar/salida, amarillo #FFD000; QA visual 1440/1024 y sesión cerrada; ambos lints |
-| 6 | #98 | Editor de estados acorde a demo estática | Pendiente | |
+| 5 | #99 | Logo de cajita con fondo amarillo | Cerrado | `7015923`; Box en sidebar/salida, amarillo #FFD000; QA visual 1440/1024 y sesión cerrada; ambos lints |
+| 6 | #98 | Editor de estados acorde a demo estática | Verificado; listo para cierre | QA comparativa 1440/680, 11/11 FE, 81/81 BE y ambos lints; reasignación canónica persistida/reload |
 | 7 | #97 | Canjes en tabla | Pendiente | |
-| 8 | #100 | Equipo libre con autocompletado en ventas | Pendiente | |
-| 9 | #103 | Filtros por columna en Ventas y Clientes | Pendiente | |
-| 10 | #88 | Permisos desde cada pantalla/sección | Pendiente | |
-| 11 | #102 | Permisos al tocar un miembro | Pendiente | |
-| 12 | #71 | Invitaciones y permisos integrales | Pendiente | |
-| 13 | #63 | Código requerido para cuenta nueva | Pendiente | |
-| 14 | #101 | Conversión y entrada de importes ARS/USD | Pendiente | |
-| 15 | #70 | CRUD, edición, selección, borrado y persistencia de las 4 tablas | Pendiente | |
-| 16 | #34 | Mejorar fluidez | Pendiente | |
+| 8 | #104 | Todas las tablas: 8 ítems por página | Pendiente | Incorporado durante el loop; reemplaza el criterio de 10 de #80 |
+| 9 | #100 | Equipo libre con autocompletado en ventas | Pendiente | |
+| 10 | #103 | Filtros por columna en Ventas y Clientes | Pendiente | |
+| 11 | #88 | Permisos desde cada pantalla/sección | Pendiente | |
+| 12 | #102 | Permisos al tocar un miembro | Pendiente | |
+| 13 | #71 | Invitaciones y permisos integrales | Pendiente | |
+| 14 | #63 | Código requerido para cuenta nueva | Pendiente | |
+| 15 | #101 | Conversión y entrada de importes ARS/USD | Pendiente | |
+| 16 | #70 | CRUD, edición, selección, borrado y persistencia de las 4 tablas | Pendiente | |
+| 17 | #34 | Mejorar fluidez | Pendiente | |
 
 ## Excluido por el usuario
 
 El issue #89, «Funcionalidad: definir el flujo integrado de Inventario, Ventas, Canjes y Clientes», permanece abierto y no se implementa en este loop.
+
+## Actualizaciones de alcance
+
+Se detectó el issue #104 durante la ejecución. Actualiza #80 a 8 ítems por página y extiende el límite a Inventario, Ventas, Canjes y Clientes. Se delega después de #97; el cierre anterior de #80 conserva la evidencia del criterio vigente en ese momento. La cola contiene ahora 17 issues a resolver.
 
 ## Criterio de cierre
 

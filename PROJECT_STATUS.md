@@ -17,6 +17,9 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 
 - Issue #99: la marca de la sidebar desk y la pantalla Sesión cerrada usan el mismo icono `Box` de Lucide que la sidebar de referencia de `main`. Conservan el fondo amarillo existente `#FFD000`, trazo oscuro y composición hi-fi (22 px en una superficie de 38 px; 40 px en la pantalla de salida).
 - Validación #99: TypeScript frontend/backend aprobado en paralelo; inspección del componente real en Chrome a 1440/1024 px y de Sesión cerrada tras terminar su animación. La geometría SVG coincide con `Box` de la referencia. Los íconos de dispositivo del inventario y los KPI conservan su significado.
+- Issue #98: el editor compartido de catálogos replica el modal `stx` de la demo desktop: lista, paleta con selección y nombres, íconos SVG, contadores, eliminación reversible, mensajes y botones. Conserva el amarillo vigente de #95. La lista se desplaza en ventanas de poca altura sin ocultar las acciones.
+- La reasignación al eliminar una opción ahora usa el valor final canónico del destino, incluso cuando se crea o renombra en el mismo guardado. Se conserva la transacción PostgreSQL; el editor permanece abierto al fallar y bloquea cierres/ediciones durante una solicitud pendiente.
+- Validación #98: TypeScript frontend/backend aprobado, 11 pruebas frontend pertinentes y 4 de backend aprobadas; el coordinador revisó además la suite backend completa, 81/81 con un worker. QA real contra la demo a 1440×900 y 680×600, incluidos paleta, borrados, mensajes, error y estado pendiente. Reasignación a `En diagnóstico` comprobada por API y tras recargar: catálogo y equipo usan `EN_DIAGNOSTICO`, contador 1. Solo se usó PostgreSQL local aislado.
 
 ## Iteración hifi-desk — 2026-10-06
 

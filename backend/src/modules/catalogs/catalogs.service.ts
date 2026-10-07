@@ -203,8 +203,15 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
       const row = existing.find((item) => item.value === deletion.value);
       if (!row || removed.has(row.value)) continue;
       if (row.isSystem) throw new CatalogError("Lo usa el sistema: se puede renombrar, no borrar");
-      if (!deletion.reassignTo || deletion.reassignTo === row.value) throw new CatalogError("Elegí a qué pasar los registros");
-      await reassign(tx, storeId, kind, row.value, deletion.reassignTo);
+      const target = options.find((option) => option.value === deletion.reassignTo
+        || (!option.value && option.label.trim() === deletion.reassignTo));
+      if (!target || target.value === row.value || deletions.some((item) => item.value === target.value)) {
+        throw new CatalogError("Elegí a qué pasar los registros");
+      }
+      const targetLabel = target.label.trim().slice(0, 20);
+      const targetValue = labelIsValue ? targetLabel : (target.value?.trim() || slug(targetLabel));
+      if (!targetLabel || targetValue === row.value) throw new CatalogError("Elegí a qué pasar los registros");
+      await reassign(tx, storeId, kind, row.value, targetValue);
       await tx.storeCatalogOption.delete({ where: { id: row.id } });
       removed.add(row.value);
     }
