@@ -6,12 +6,9 @@ import {
   conditionLabel,
   formatMoney,
   formatMoneyCompact,
-  formatShortDate,
   equipmentTitle,
-  inPeriod,
   isInStock,
   isInProgressTrade,
-  parseAppDate,
   paymentLabel,
   periodBounds,
   productLabel,
@@ -20,6 +17,18 @@ import {
   tradeCode,
   type PeriodKey,
 } from '../format';
+import {
+  addToReportBucket,
+  customReportBounds,
+  defaultReportRange,
+  formatReportDate,
+  inReportPeriod,
+  makeReportBuckets,
+  parseReportDate,
+  reportRangeLabel,
+  type ReportBounds,
+  type ReportPeriod,
+} from '../report-period';
 import { Pill, useDesk } from '../ui';
 
 const TABS = ['Ventas', 'Stock', 'Canjes'] as const;
@@ -30,40 +39,60 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
   '3 meses': 'últimos 3 meses',
   Año: 'últimos 12 meses',
 };
-const BUCKET_LABEL: Record<PeriodKey, string> = {
-  Semana: 'por día',
-  Mes: 'por semana',
-  '3 meses': 'por mes',
-  Año: 'por mes',
-};
-const DAY = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
 export function ReportsScreen() {
   const { sales, inventory, tradeIns, clients } = useAppContext();
   const { open, toast } = useDesk();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Ventas');
-  const [period, setPeriod] = useState<PeriodKey>('Mes');
+  const [period, setPeriod] = useState<ReportPeriod>('Mes');
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState(defaultReportRange);
+  const [customBounds, setCustomBounds] = useState<ReportBounds | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [cat, setCat] = useState<string | null>(null);
-  const bounds = periodBounds(period);
+  const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
+  const periodData = useMemo(() => ({
+    sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
+    inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
+    tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
+  }), [sales, inventory, tradeIns, bounds]);
 
   const model = useMemo(
-    () => buildReport(tab, period, bounds, { sales, inventory, tradeIns }),
-    [tab, period, bounds, sales, inventory, tradeIns],
+    () => buildReport(tab, period, bounds, periodData, sales),
+    [tab, period, bounds, periodData, sales],
   );
   const active = selected != null && selected < model.buckets.length ? selected : model.buckets.length - 1;
   const max = Math.max(...model.buckets.map((bucket) => bucket.value), 1);
+  const saleRows = periodData.sales.filter((sale) => !cat || paymentLabel(sale.paymentMethod || 'Otro') === cat);
+  const stockRows = periodData.inventory.filter((item) => !cat || statusLabel(item.status) === cat);
+  const tradeRows = periodData.tradeIns.filter((item) => !cat || statusLabel(item.status) === cat);
+  const undatedStock = inventory.filter((item) => !parseReportDate(item.createdAt)).length;
+
+  const applyCustomRange = (event: React.FormEvent) => {
+    event.preventDefault();
+    const result = customReportBounds(draftRange.startDate, draftRange.endDate);
+    if (!result.bounds) {
+      setRangeError(result.error);
+      return;
+    }
+    setCustomBounds(result.bounds);
+    setPeriod('Personalizado');
+    setRangeError(null);
+    setSelected(null);
+    setCat(null);
+  };
 
   const exportReport = () => {
     const rows: string[][] = [['detalle', 'importe', 'estado']];
     if (tab === 'Ventas') {
-      sales.filter((sale) => inPeriod(sale.date, bounds.start, bounds.end)).forEach((sale) => {
+      saleRows.forEach((sale) => {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(sale.amount), statusLabel(sale.status)]);
       });
     } else if (tab === 'Stock') {
-      inventory.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(item.price), statusLabel(item.status)]));
+      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(item.price), statusLabel(item.status)]));
     } else {
-      tradeIns.filter((item) => inPeriod(item.date, bounds.start, bounds.end)).forEach((item) => {
+      tradeRows.forEach((item) => {
         rows.push([`${tradeCode(tradeIns, item.id)} ${clientName(clients, item.clientId)}`, String(item.differencePaid), statusLabel(item.status)]);
       });
     }
@@ -78,10 +107,6 @@ export function ReportsScreen() {
     toast(`Reporte de ${tab.toLowerCase()} exportado`);
   };
 
-  const saleRows = sales.filter((sale) => inPeriod(sale.date, bounds.start, bounds.end) && (!cat || paymentLabel(sale.paymentMethod || 'Otro') === cat));
-  const stockRows = inventory.filter((item) => !cat || statusLabel(item.status) === cat);
-  const tradeRows = tradeIns.filter((item) => (inPeriod(item.date, bounds.start, bounds.end) || !item.date) && (!cat || statusLabel(item.status) === cat));
-
   return (
     <div className="dscreen">
       <div className="dtop">
@@ -91,11 +116,28 @@ export function ReportsScreen() {
         </button>
       </div>
       <div className="gfilters">
-        <div>{TABS.map((item) => <button key={item} className={`gchip${tab === item ? ' on' : ''}`} type="button" onClick={() => { setTab(item); setSelected(null); setCat(null); }}>{item}</button>)}</div>
-        <div>{PERIODS.map((item) => <button key={item} className={`gchip sm${period === item ? ' on' : ''}`} type="button" onClick={() => { setPeriod(item); setSelected(null); }}>{item}</button>)}</div>
+        <div>{TABS.map((item) => <button key={item} className={`gchip${tab === item ? ' on' : ''}`} aria-pressed={tab === item} type="button" onClick={() => { setTab(item); setSelected(null); setCat(null); }}>{item}</button>)}</div>
+        <div className="gperiods">
+          {PERIODS.map((item) => <button key={item} className={`gchip sm${period === item && !customOpen ? ' on' : ''}`} aria-pressed={period === item && !customOpen} type="button" onClick={() => { setPeriod(item); setCustomOpen(false); setRangeError(null); setSelected(null); setCat(null); }}>{item}</button>)}
+          <button className={`gchip sm${customOpen ? ' on' : ''}`} aria-pressed={customOpen} aria-expanded={customOpen} aria-controls="report-custom-range" type="button" onClick={() => setCustomOpen(true)}>Personalizado</button>
+        </div>
       </div>
+      {customOpen && (
+        <form id="report-custom-range" className="grange" noValidate onSubmit={applyCustomRange}>
+          <label className={`fl${rangeError ? ' bad' : ''}`}>
+            <span>Fecha de inicio</span>
+            <input type="date" required value={draftRange.startDate} aria-invalid={!!rangeError} aria-describedby={rangeError ? 'report-range-error' : undefined} onChange={(event) => { setDraftRange((current) => ({ ...current, startDate: event.target.value })); setRangeError(null); }} />
+          </label>
+          <label className={`fl${rangeError ? ' bad' : ''}`}>
+            <span>Fecha de fin</span>
+            <input type="date" required value={draftRange.endDate} aria-invalid={!!rangeError} aria-describedby={rangeError ? 'report-range-error' : undefined} onChange={(event) => { setDraftRange((current) => ({ ...current, endDate: event.target.value })); setRangeError(null); }} />
+          </label>
+          <button className="gapply" type="submit">Aplicar período</button>
+          {rangeError && <p id="report-range-error" className="ferr" role="alert">{rangeError}</p>}
+        </form>
+      )}
       <div className="gtotal">
-        <div className="geye">{model.eye} · {PERIOD_LABEL[period]}</div>
+        <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
         <div className="gamount">{model.money ? formatMoney(model.total) : model.total}</div>
         <span className="gdelta">{model.delta}</span>
       </div>
@@ -106,11 +148,11 @@ export function ReportsScreen() {
             {model.buckets.map((bucket, index) => {
               const height = Math.max(3, Math.round((bucket.value / max) * 96));
               return (
-                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} type="button" onClick={() => setSelected(index)}>
+                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${model.money ? formatMoney(bucket.value) : bucket.value}`} type="button" onClick={() => setSelected(index)}>
                   {index === active ? (
                     <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`} style={{ bottom: height + 8 }}>
                       <b>{model.money ? formatMoneyCompact(bucket.value) : bucket.value}</b>
-                      {index === model.buckets.length - 1 ? ' · en curso' : ` · ${bucket.label}`}
+                      {` · ${bucket.label}`}
                     </span>
                   ) : null}
                   <i style={{ height }} />
@@ -129,10 +171,11 @@ export function ReportsScreen() {
       </div>
       {tab === 'Ventas' && (
         <>
-          <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} recientes</span></div>
+          <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
+          {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatShortDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -141,7 +184,9 @@ export function ReportsScreen() {
       )}
       {tab === 'Stock' && (
         <>
-          <div className="glh"><h3>Equipos</h3><span>{stockRows.length} en stock</span></div>
+          <div className="glh"><h3>Equipos ingresados</h3><span>{stockRows.length} en el período</span></div>
+          <p className="gnote">Equipos ingresados en el período, con su estado actual.{undatedStock > 0 ? ` ${undatedStock} ${undatedStock === 1 ? 'equipo sin fecha de ingreso no se incluye' : 'equipos sin fecha de ingreso no se incluyen'}.` : ''}</p>
+          {!stockRows.length && <p className="gnote">No hay equipos para este período y filtro.</p>}
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
               <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition, item.grade) : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
@@ -154,9 +199,10 @@ export function ReportsScreen() {
       {tab === 'Canjes' && (
         <>
           <div className="glh"><h3>Canjes</h3><span>{tradeRows.length} en total</span></div>
+          {!tradeRows.length && <p className="gnote">No hay canjes para este período y filtro.</p>}
           {tradeRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
-              <div className="gl"><div className="gdate">{formatShortDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{clientName(clients, item.clientId)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{clientName(clients, item.clientId)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
               <div className="gr"><div className="gamt">+{formatMoneyCompact(item.differencePaid)}</div></div>
               <span className="gchev">›</span>
             </button>
@@ -194,7 +240,7 @@ function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string;
       </div>
       <div className="gleg">
         {parts.map((part) => (
-          <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} type="button" onClick={() => onToggle(part.label)}>
+          <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${money && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}`} type="button" onClick={() => onToggle(part.label)}>
             <i style={{ background: part.color }} /><span>{part.label}</span><b>{money && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}</b>
           </button>
         ))}
@@ -205,23 +251,24 @@ function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string;
 
 function buildReport(
   tab: (typeof TABS)[number],
-  period: PeriodKey,
-  bounds: ReturnType<typeof periodBounds>,
+  period: ReportPeriod,
+  bounds: ReportBounds,
   data: { sales: { date: string; amount: number; status: string; paymentMethod: string }[]; inventory: { status: string; createdAt?: string }[]; tradeIns: { date: string; status: string }[] },
+  allSales: { date: string; amount: number; status: string }[],
 ) {
-  const buckets = makeBuckets(period, bounds.end);
+  const { buckets, bucketLabel } = makeReportBuckets(period, bounds);
   if (tab === 'Ventas') {
-    const current = data.sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.start, bounds.end));
-    const previous = data.sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
+    const current = data.sales;
+    const previous = allSales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
     const total = current.reduce((sum, sale) => sum + sale.amount, 0);
     const prev = previous.reduce((sum, sale) => sum + sale.amount, 0);
-    for (const sale of current) addToBucket(buckets, sale.date, sale.amount);
+    for (const sale of current) addToReportBucket(buckets, sale.date, sale.amount);
     return {
       eye: 'Facturación',
       total,
       money: true,
       delta: deltaLabel(total, prev),
-      bucketLabel: BUCKET_LABEL[period],
+      bucketLabel,
       buckets,
       donutTitle: 'Por medio de pago',
       parts: fixedParts(current, (sale) => paymentLabel(sale.paymentMethod || 'Otro'), (sale) => sale.amount, [
@@ -234,39 +281,15 @@ function buildReport(
   }
   if (tab === 'Stock') {
     const available = data.inventory.filter((item) => isInStock(item.status)).length;
-    const dated = data.inventory.filter((item) => item.createdAt);
-    if (dated.length) {
-      const current = dated.filter((item) => item.createdAt && inPeriod(item.createdAt, bounds.start, bounds.end));
-      for (const item of current) addToBucket(buckets, item.createdAt || '', 1);
-      return {
-        eye: 'Equipos ingresados',
-        total: current.length,
-        money: false,
-        delta: `${data.inventory.length} en stock · ${available} disponibles`,
-        bucketLabel: BUCKET_LABEL[period],
-        buckets,
-        donutTitle: 'Por estado',
-        parts: fixedParts(data.inventory, (item) => statusLabel(item.status), () => 1, [
-          { label: 'Disponible', color: '#DDF43B' },
-          { label: 'En revisión', color: '#5B8DEF' },
-          { label: 'Vendido', color: '#397964' },
-          { label: 'Reservado', color: '#DF668B' },
-        ]),
-      };
-    }
+    for (const item of data.inventory) addToReportBucket(buckets, item.createdAt, 1);
     return {
-      eye: 'Equipos en stock',
+      eye: 'Equipos ingresados',
       total: data.inventory.length,
       money: false,
-      delta: `${data.inventory.length} en stock · ${available} disponibles`,
-      bucketLabel: 'por estado',
-      buckets: [
-        { label: 'Disp.', value: available },
-        { label: 'Rev.', value: data.inventory.filter((item) => item.status === 'EN_REVISION').length },
-        { label: 'Res.', value: data.inventory.filter((item) => item.status === 'RESERVADO').length },
-        { label: 'Vend.', value: data.inventory.filter((item) => item.status === 'VENDIDO').length },
-      ],
-      donutTitle: 'Por estado',
+      delta: `${available} disponibles en este grupo`,
+      bucketLabel,
+      buckets,
+      donutTitle: 'Estado actual',
       parts: fixedParts(data.inventory, (item) => statusLabel(item.status), () => 1, [
         { label: 'Disponible', color: '#DDF43B' },
         { label: 'En revisión', color: '#5B8DEF' },
@@ -275,15 +298,15 @@ function buildReport(
       ]),
     };
   }
-  const current = data.tradeIns.filter((item) => inPeriod(item.date, bounds.start, bounds.end));
-  for (const item of current) addToBucket(buckets, item.date, 1);
-  const open = data.tradeIns.filter((item) => isInProgressTrade(item.status)).length;
+  const current = data.tradeIns;
+  for (const item of current) addToReportBucket(buckets, item.date, 1);
+  const open = current.filter((item) => isInProgressTrade(item.status)).length;
   return {
     eye: 'Canjes',
     total: current.length,
     money: false,
     delta: `${open} en curso`,
-    bucketLabel: BUCKET_LABEL[period],
+    bucketLabel,
     buckets,
     donutTitle: 'Por estado',
     parts: fixedParts(current, (item) => statusLabel(item.status), () => 1, [
@@ -294,53 +317,6 @@ function buildReport(
       { label: 'Completado', color: '#16181D' },
     ]),
   };
-}
-
-function makeBuckets(period: PeriodKey, end: Date) {
-  const buckets: { label: string; start: Date; end: Date; value: number }[] = [];
-  if (period === 'Semana') {
-    for (let i = 6; i >= 0; i -= 1) {
-      const start = new Date(end);
-      start.setDate(start.getDate() - i - 1);
-      const next = new Date(start);
-      next.setDate(next.getDate() + 1);
-      buckets.push({ label: DAY[start.getDay()] ?? '', start, end: next, value: 0 });
-    }
-    return buckets;
-  }
-  if (period === 'Mes') {
-    const origin = new Date(end);
-    origin.setDate(origin.getDate() - 30);
-    for (let i = 0; i < 5; i += 1) {
-      const start = new Date(origin);
-      start.setDate(origin.getDate() + i * 6);
-      const next = new Date(origin);
-      next.setDate(origin.getDate() + (i === 4 ? 30 : (i + 1) * 6));
-      buckets.push({
-        label: start.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', ''),
-        start,
-        end: next,
-        value: 0,
-      });
-    }
-    return buckets;
-  }
-  const months = period === '3 meses' ? 3 : 12;
-  for (let i = months - 1; i >= 0; i -= 1) {
-    const start = new Date(end.getFullYear(), end.getMonth() - i, 1);
-    const next = new Date(start.getFullYear(), start.getMonth() + 1, 1);
-    const short = start.toLocaleDateString('es-AR', { month: 'short' }).replace('.', '');
-    const label = period === 'Año' ? 'EFMAMJJASOND'[start.getMonth()] ?? short : short.charAt(0).toUpperCase() + short.slice(1);
-    buckets.push({ label, start, end: next, value: 0 });
-  }
-  return buckets;
-}
-
-function addToBucket(buckets: { start: Date; end: Date; value: number }[], date: string, amount: number) {
-  const value = parseAppDate(date);
-  if (!value) return;
-  const bucket = buckets.find((item) => value >= item.start && value < item.end);
-  if (bucket) bucket.value += amount;
 }
 
 function deltaLabel(current: number, previous: number) {
