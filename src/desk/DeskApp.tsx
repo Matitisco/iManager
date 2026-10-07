@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
 import { initials, isInProgressTrade } from './format';
 import { ClientsScreen } from './screens/ClientsScreen';
@@ -58,6 +59,12 @@ export function DeskApp() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [isStaff]);
+
+  useEffect(() => {
+    const id = appSession?.store?.id;
+    if (!id || isStaff || !hasStoreContactOffer(id)) return;
+    setOverlay((current) => current ?? { type: 'contact' });
+  }, [appSession?.store?.id, isStaff]);
 
   const go = (next: DeskTab) => {
     if (isStaff && next === 'reports') return;

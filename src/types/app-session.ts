@@ -16,6 +16,8 @@ export interface AppStoreSummary {
   legalName: string | null;
   taxId: string | null;
   phone: string | null;
+  email: string | null;
+  instagram: string | null;
   address: string | null;
   currency: string;
   timezone: string;

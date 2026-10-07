@@ -21,6 +21,8 @@ export interface AppSessionResponse {
     legalName: string | null;
     taxId: string | null;
     phone: string | null;
+    email: string | null;
+    instagram: string | null;
     address: string | null;
     currency: string;
     timezone: string;
@@ -72,6 +74,8 @@ export async function buildAppSessionForUser(
       legalName: membership.store.legalName,
       taxId: membership.store.taxId,
       phone: membership.store.phone,
+      email: membership.store.email,
+      instagram: membership.store.instagram,
       address: membership.store.address,
       currency: membership.store.currency,
       timezone: membership.store.timezone,

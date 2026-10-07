@@ -8,6 +8,7 @@ import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updat
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
+import { markStoreContactOffer } from '../lib/store-contact';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
@@ -414,6 +415,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await completeBackendOnboarding(user, storeName);
+    if (session.store?.id) markStoreContactOffer(session.store.id);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -425,6 +427,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await createOwnedStoreApi(user, storeName);
+    if (session.store?.id) markStoreContactOffer(session.store.id);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);

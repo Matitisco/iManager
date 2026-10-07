@@ -1,5 +1,6 @@
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
+import { assertStoreContact, blankToNull } from "./store-contact.js";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
@@ -103,15 +104,25 @@ export interface StoreUpdateInput {
   legalName?: string | null;
   taxId?: string | null;
   phone?: string | null;
+  email?: string | null;
+  instagram?: string | null;
   address?: string | null;
   currency?: string;
   timezone?: string;
 }
 
 export async function updateStore(storeId: string, data: StoreUpdateInput) {
+  const contact = assertStoreContact(data);
   return prisma.store.update({
     where: { id: storeId },
-    data,
+    data: {
+      ...data,
+      ...contact,
+      ...("phone" in data ? { phone: blankToNull(data.phone) } : {}),
+      ...("legalName" in data ? { legalName: blankToNull(data.legalName) } : {}),
+      ...("taxId" in data ? { taxId: blankToNull(data.taxId) } : {}),
+      ...("address" in data ? { address: blankToNull(data.address) } : {}),
+    },
   });
 }
 

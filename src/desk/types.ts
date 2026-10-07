@@ -25,6 +25,7 @@ export type Overlay =
   | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl'; id: string; label: string; x: number; y: number }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' | 'cj' }
   | { type: 'store' }
+  | { type: 'contact' }
   | { type: 'profile' }
   | { type: 'password' }
   | { type: 'invite'; url?: string; role?: string }

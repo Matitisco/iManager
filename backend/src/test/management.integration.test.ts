@@ -48,6 +48,14 @@ describe("management and collaboration integrations", () => {
       },
     });
 
+    const invalidContact = await app.inject({
+      method: "PATCH",
+      url: "/api/stores/current",
+      headers: ownerHeaders,
+      payload: { email: "no-es-correo", instagram: "mi tienda" },
+    });
+    expect(invalidContact.statusCode).toBe(400);
+
     const storeResponse = await app.inject({
       method: "PATCH",
       url: "/api/stores/current",
@@ -55,6 +63,8 @@ describe("management and collaboration integrations", () => {
       payload: {
         name: "Flagship",
         phone: "2614999999",
+        email: "hola@flagship.test",
+        instagram: "@flagship",
       },
     });
     expect(storeResponse.statusCode).toBe(200);
@@ -63,6 +73,8 @@ describe("management and collaboration integrations", () => {
         id: context.store!.id,
         name: "Flagship",
         phone: "2614999999",
+        email: "hola@flagship.test",
+        instagram: "flagship",
       },
     });
 

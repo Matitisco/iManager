@@ -34,11 +34,22 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   expect(onboardingPayload.session.onboardingRequired).toBeFalsy();
   expect(onboardingPayload.session.store?.name).toBe(storeName);
 
+  const contact = page.getByRole('dialog', { name: 'Datos de contacto' });
+  await expect(contact).toBeVisible();
+  await contact.getByLabel('Teléfono').fill('2614001122');
+  await contact.getByLabel('Correo electrónico').fill('hola@tienda.test');
+  await contact.getByLabel('Instagram').fill('@mitienda');
+  await contact.getByRole('button', { name: 'Guardar' }).click();
+  await expect(contact).toBeHidden();
+
   await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
 
   const session = await fetchSession(request, email);
   expect(session.onboardingRequired).toBeFalsy();
   expect(session.store?.name).toBe(storeName);
+  expect(session.store?.phone).toBe('2614001122');
+  expect(session.store?.email).toBe('hola@tienda.test');
+  expect(session.store?.instagram).toBe('mitienda');
   expect(session.membership?.role).toBe('OWNER');
 });
