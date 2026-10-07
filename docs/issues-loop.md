@@ -19,8 +19,8 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 | 1 | #62 | Recuperar login al cancelar Google | Cerrado | `22eaf75`; Login 13/13: cancelación, reintento, ambos modos y promesas tardías; GitHub cerrado 2026-10-07 |
 | 2 | #80 | Inventario: 10 equipos por página | Cerrado | `d1a7da6`; 7/7 pager + pantalla, navegación de 12 equipos, filtros y última página vacía |
 | 3 | #81 | Batería: colores y animaciones de referencia | Cerrado | `d6270a7`; 10/10 pruebas + 7 límites/rangos/fracciones; referencia y revisión visual contrastadas |
-| 4 | #85 | Rol Empleado en toda la interfaz | Verificado; listo para cierre | `cf6e9f8` integrado; 22/22 pruebas de acceso/configuración; sin Agente/Vendedor en src |
-| 5 | #99 | Logo de cajita con fondo amarillo | Pendiente | |
+| 4 | #85 | Rol Empleado en toda la interfaz | Cerrado | `b976e4c`; 22/22 pruebas de acceso/configuración; sin Agente/Vendedor en src |
+| 5 | #99 | Logo de cajita con fondo amarillo | Verificado; listo para cierre | Box de referencia en sidebar/salida, amarillo #FFD000; QA visual 1440/1024 y sesión cerrada; ambos lints |
 | 6 | #98 | Editor de estados acorde a demo estática | Pendiente | |
 | 7 | #97 | Canjes en tabla | Pendiente | |
 | 8 | #100 | Equipo libre con autocompletado en ventas | Pendiente | |

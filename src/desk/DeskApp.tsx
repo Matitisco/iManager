@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Box } from 'lucide-react';
 import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
 import { initials, isInProgressTrade } from './format';
@@ -101,7 +102,7 @@ export function DeskApp() {
       <div className="desk-app">
         <aside className="side">
           <div className="dbrand">
-            <div className="dlogo"><DeskIcon name="logo" size={22} strokeWidth={2.2} /></div>
+            <div className="dlogo"><Box size={22} aria-hidden="true" /></div>
             <div><b>iManager</b><small>{appSession?.store?.name || 'Tienda'}</small></div>
           </div>
           <div className="dgroup">

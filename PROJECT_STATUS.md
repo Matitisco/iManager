@@ -13,6 +13,11 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Validación: lint frontend/backend aprobado tras regenerar el cliente Prisma local por los campos de contacto de #96; suite completa frontend 239/239 (49 archivos) y backend unit 77/77 (18 archivos), revisadas por el coordinador. Los dos timeouts iniciales de backend desaparecieron al ejecutar con un solo worker. Las 30 pruebas de TableEngine vuelven a pasar con comprobaciones de animación temporal y persistida, sin consulta de refresco duplicada.
 - E2E de canjes aprobado: creación de cliente y canje, comprobación API y recuperación tras recargar usando exclusivamente `imanager_issues_loop_test` en PostgreSQL local. No se ejecutaron builds ni se accedió a producción.
 
+## Ciclo de issues — 2026-10-07
+
+- Issue #99: la marca de la sidebar desk y la pantalla Sesión cerrada usan el mismo icono `Box` de Lucide que la sidebar de referencia de `main`. Conservan el fondo amarillo existente `#FFD000`, trazo oscuro y composición hi-fi (22 px en una superficie de 38 px; 40 px en la pantalla de salida).
+- Validación #99: TypeScript frontend/backend aprobado en paralelo; inspección del componente real en Chrome a 1440/1024 px y de Sesión cerrada tras terminar su animación. La geometría SVG coincide con `Box` de la referencia. Los íconos de dispositivo del inventario y los KPI conservan su significado.
+
 ## Iteración hifi-desk — 2026-10-06
 
 - Ajuste visual #84: los calendarios de Reportes reemplazan el popup nativo por un desplegable del sistema: tipografía DM Sans, superficies blancas, bordes redondeados, selección oscura y acentos lima. Incluye escritura dd/mm/aaaa, selección de mes/año, Hoy/Borrar, navegación por teclado, cierre externo/Escape y ubicación dentro del viewport. Las fechas siguen siendo borradores hasta aplicar el período.
