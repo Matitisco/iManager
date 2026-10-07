@@ -33,6 +33,7 @@ import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
+import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
 import { markSessionClosed } from './screens/SessionClosed';
 
 function clearBad(setBad: Dispatch<SetStateAction<Record<string, string>>>, key: string) {
@@ -171,6 +172,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;
+  if (overlay.type === 'contact') return <ContactForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'profile') return <ProfileForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'password') return <PasswordForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'invite') return <InviteForm initialUrl={overlay.url} />;
@@ -674,6 +676,8 @@ function StoreForm({ run, busy, error }: FormProps) {
   const [taxId, setTaxId] = useState(store?.taxId ?? '');
   const [address, setAddress] = useState(store?.address ?? '');
   const [phone, setPhone] = useState(store?.phone ?? '');
+  const [email, setEmail] = useState(store?.email ?? '');
+  const [instagram, setInstagram] = useState(store?.instagram ?? '');
   const [currency, setCurrency] = useState(store?.currency || 'ARS');
   const [bad, setBad] = useState<Record<string, string>>({});
   return (
@@ -682,18 +686,83 @@ function StoreForm({ run, busy, error }: FormProps) {
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
-      <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
+      <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       <Field label="Moneda">
         <select value={currency} onChange={(event) => setCurrency(event.target.value)}><option>ARS</option><option>USD</option></select>
       </Field>
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
-        if (!name.trim()) { setBad({ name: 'Completá este dato' }); return; }
+        const contact = storeContactErrors({ email, instagram });
+        if (!name.trim() || contact.email || contact.instagram) {
+          setBad({ ...contact, ...(!name.trim() ? { name: 'Completá este dato' } : {}) });
+          return;
+        }
         setBad({});
         void run(async () => {
-        await updateStore({ name: name.trim(), taxId: taxId.trim() || null, address: address.trim() || null, phone: phone.trim() || null, currency });
+        await updateStore({
+          name: name.trim(),
+          taxId: taxId.trim() || null,
+          address: address.trim() || null,
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+          instagram: instagram.trim() || null,
+          currency,
+        });
+        if (store?.id) clearStoreContactOffer(store.id);
       }, 'Tienda actualizada');
       }} />
     </Sheet>
+  );
+}
+
+function ContactForm({ run, busy, error }: FormProps) {
+  const { appSession, updateStore } = useAppContext();
+  const { close } = useDesk();
+  const store = appSession?.store;
+  const [phone, setPhone] = useState(store?.phone ?? '');
+  const [email, setEmail] = useState(store?.email ?? '');
+  const [instagram, setInstagram] = useState(store?.instagram ?? '');
+  const [bad, setBad] = useState<Record<string, string>>({});
+  const dismiss = () => {
+    if (store?.id) clearStoreContactOffer(store.id);
+    close();
+  };
+  return (
+    <Sheet title="Datos de contacto" subtitle="Podés completarlos ahora o más tarde desde Configuración." onClose={dismiss}>
+      {error && <div className="ferr">{error}</div>}
+      <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
+      <Actions busy={busy} primary="Guardar" secondary="Ahora no" onSecondary={dismiss} onPrimary={() => {
+        const contact = storeContactErrors({ email, instagram });
+        if (contact.email || contact.instagram) { setBad(contact); return; }
+        setBad({});
+        void run(async () => {
+          await updateStore({
+            phone: phone.trim() || null,
+            email: email.trim() || null,
+            instagram: instagram.trim() || null,
+          });
+          if (store?.id) clearStoreContactOffer(store.id);
+        }, 'Datos de contacto guardados');
+      }} />
+    </Sheet>
+  );
+}
+
+function ContactFields({ phone, email, instagram, bad, onPhone, onEmail, onInstagram, onClear }: {
+  phone: string;
+  email: string;
+  instagram: string;
+  bad: Record<string, string>;
+  onPhone: (value: string) => void;
+  onEmail: (value: string) => void;
+  onInstagram: (value: string) => void;
+  onClear: (key: string) => void;
+}) {
+  return (
+    <>
+      <Field label="Teléfono"><input value={phone} inputMode="tel" placeholder="Ej. 11 5555 5555" onChange={(event) => onPhone(event.target.value)} /></Field>
+      <Field label="Correo electrónico" error={bad.email}><input type="email" value={email} placeholder="hola@tienda.com" onChange={(event) => { onEmail(event.target.value); onClear('email'); }} /></Field>
+      <Field label="Instagram" error={bad.instagram}><input value={instagram} placeholder="@tienda" onChange={(event) => { onInstagram(event.target.value); onClear('instagram'); }} /></Field>
+    </>
   );
 }
 

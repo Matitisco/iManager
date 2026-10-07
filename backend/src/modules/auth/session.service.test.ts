@@ -59,6 +59,8 @@ describe("session.service", () => {
         legalName: null,
         taxId: null,
         phone: null,
+        email: "hola@norte.test",
+        instagram: "norte",
         address: null,
         currency: "ARS",
         timezone: "America/Argentina/Buenos_Aires",
@@ -71,6 +73,7 @@ describe("session.service", () => {
 
     expect(session.onboardingRequired).toBe(false);
     expect(session.store?.id).toBe("store-2");
+    expect(session.store).toMatchObject({ email: "hola@norte.test", instagram: "norte" });
     expect(session.membership?.role).toBe("MANAGER");
     expect(session.stores).toEqual([]);
   });

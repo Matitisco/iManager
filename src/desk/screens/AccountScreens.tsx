@@ -3,6 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import type { Client, Product, Sale, TradeIn } from '../../types';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
+import { contactSummary } from '../../lib/store-contact';
 import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeCode } from '../format';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
@@ -156,7 +157,7 @@ export function SettingsScreen() {
           <>
             <div className="sec">Tienda</div>
             <div className="card">
-              <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub="Nombre y configuración regional" onClick={() => open({ type: 'store' })} />
+              <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
             </div>
             <div className="sec"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
             <div className="card">

@@ -28,6 +28,8 @@ model Store {
   legalName           String?              @db.VarChar(160)
   taxId               String?              @db.VarChar(50)
   phone               String?              @db.VarChar(50)
+  email               String?              @db.VarChar(255)
+  instagram           String?              @db.VarChar(60)
   address             String?              @db.VarChar(255)
   currency            String               @default("ARS") @db.VarChar(10)
   timezone            String               @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
