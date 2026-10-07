@@ -70,6 +70,19 @@ afterEach(() => {
 });
 
 describe('Reports custom period', () => {
+  it('keeps calendar selections as drafts until the period is applied', async () => {
+    context.sales.push(sale('8', '2026-10-07', 42));
+    render(<ReportsScreen />);
+    await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir calendario: fecha de inicio' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hoy' }));
+    expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('07/10/2026');
+    expect(total()).toBe('$ 42');
+    expect(screen.getByText('Facturación · últimos 30 días')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Aplicar período' }));
+    expect(screen.getByText('Facturación · 07/10/2026 al 07/10/2026')).toBeInTheDocument();
+  });
+
   it('applies inclusive dates to revenue, comparison, bars, donut and detail rows', async () => {
     render(<ReportsScreen />);
     await applyRange();
@@ -162,7 +175,7 @@ describe('Reports custom period', () => {
     expect(screen.queryByLabelText('Fecha de inicio')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Semana' })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
-    expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('2026-04-01');
+    expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('01/04/2026');
   });
 
   it('shows an empty report and exports only a header when the range contains no records', async () => {

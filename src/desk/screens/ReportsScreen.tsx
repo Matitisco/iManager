@@ -30,6 +30,7 @@ import {
   type ReportPeriod,
 } from '../report-period';
 import { Pill, useDesk } from '../ui';
+import { ReportDatePicker } from '../report-date-picker';
 
 const TABS = ['Ventas', 'Stock', 'Canjes'] as const;
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
@@ -124,14 +125,8 @@ export function ReportsScreen() {
       </div>
       {customOpen && (
         <form id="report-custom-range" className="grange" noValidate onSubmit={applyCustomRange}>
-          <label className={`fl${rangeError ? ' bad' : ''}`}>
-            <span>Fecha de inicio</span>
-            <input type="date" required value={draftRange.startDate} aria-invalid={!!rangeError} aria-describedby={rangeError ? 'report-range-error' : undefined} onChange={(event) => { setDraftRange((current) => ({ ...current, startDate: event.target.value })); setRangeError(null); }} />
-          </label>
-          <label className={`fl${rangeError ? ' bad' : ''}`}>
-            <span>Fecha de fin</span>
-            <input type="date" required value={draftRange.endDate} aria-invalid={!!rangeError} aria-describedby={rangeError ? 'report-range-error' : undefined} onChange={(event) => { setDraftRange((current) => ({ ...current, endDate: event.target.value })); setRangeError(null); }} />
-          </label>
+          <ReportDatePicker label="Fecha de inicio" value={draftRange.startDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} onChange={(value) => { setDraftRange((current) => ({ ...current, startDate: value })); setRangeError(null); }} />
+          <ReportDatePicker label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
           <button className="gapply" type="submit">Aplicar período</button>
           {rangeError && <p id="report-range-error" className="ferr" role="alert">{rangeError}</p>}
         </form>

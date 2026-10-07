@@ -38,6 +38,8 @@ const motionProxy = new Proxy(
 );
 
 vi.mock('motion/react', () => ({
+  useReducedMotion: () => false,
+  useIsPresent: () => true,
   AnimatePresence: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
   motion: motionProxy,
 }));
