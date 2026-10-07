@@ -18,27 +18,30 @@ test('creates a trade-in flow and persists the result', async ({ page, request }
 
   await bootstrapStoreViaApi(page, request, email, storeName);
   await createInventoryItemViaApi(request, email, {
-    imei: `E2E-TRADE-${Date.now()}`,
+    imei: String(Date.now()).padStart(15, '6').slice(-15),
     model: seededProduct,
     price: 1700,
     cost: 1100,
   });
   await page.reload();
+  await expect(page.getByTestId('sidebar-tab-clients')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-tradeins').click({ noWaitAfter: true });
-  await expect(page.getByTestId('header-new-action')).toBeVisible();
-  await page.waitForTimeout(300);
-  await page.getByTestId('header-new-action').click({ noWaitAfter: true });
-  await page.locator('form').getByRole('button', { name: 'Nuevo', exact: true }).click();
-  await page.getByLabel(/DNI \/ ID/i).fill(clientDni);
-  await page.getByLabel(/Nombre Completo/i).fill(clientName);
-  await page.getByLabel('Equipo Recibido').fill(receivedDevice);
-  await page.getByLabel('IMEI Recibido').fill(`REC-${Date.now()}`);
-  await page.getByLabel('Valor de Toma ($)').fill('1000');
-  await page.getByRole('button', { name: /Registrar Canje/i }).click();
+  await page.getByTestId('sidebar-tab-clients').click();
+  await page.getByRole('button', { name: 'Nuevo cliente' }).click();
+  await page.getByLabel('Nombre y apellido').fill(clientName);
+  await page.getByLabel('DNI').fill(clientDni);
+  await page.getByRole('button', { name: 'Guardar cliente' }).click();
+  await expect(page.getByRole('button', { name: 'Guardar cliente' })).toBeHidden();
 
-  await expect(page.getByRole('button', { name: /Registrar Canje/i })).toBeHidden();
-  await expect(page.getByRole('button', { name: receivedDevice }).first()).toBeVisible();
+  await page.getByTestId('sidebar-tab-tradeins').click();
+  await page.getByRole('button', { name: 'Nuevo canje' }).click();
+  await page.getByLabel('Equipo que recibís').fill(receivedDevice);
+  await page.getByLabel('IMEI recibido').fill(String(Date.now()).padStart(15, '5').slice(-15));
+  await page.getByLabel('Valor tomado').fill('1000');
+  await page.getByRole('button', { name: 'Crear canje' }).click();
+
+  await expect(page.getByRole('button', { name: 'Crear canje' })).toBeHidden();
+  await expect(page.getByText(receivedDevice).first()).toBeVisible();
 
   const { tradeIns } = await fetchTradeIns(request, email);
   expect(tradeIns).toHaveLength(1);

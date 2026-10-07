@@ -18,24 +18,29 @@ test('creates a sale from available inventory and persists client and stock chan
 
   await bootstrapStoreViaApi(page, request, email, storeName);
   const productSeed = await createInventoryItemViaApi(request, email, {
-    imei: `E2E-SALE-${Date.now()}`,
+    imei: String(Date.now()).padStart(15, '7').slice(-15),
     model: productModel,
     price: 1800,
     cost: 1200,
   });
   await page.reload();
+  await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-sales').click({ noWaitAfter: true });
-  await expect(page.getByTestId('header-new-action')).toBeVisible();
-  await page.waitForTimeout(300);
-  await page.getByTestId('header-new-action').click({ noWaitAfter: true });
-  await page.locator('form').getByRole('button', { name: 'Nuevo', exact: true }).click();
-  await page.getByLabel(/DNI \/ ID/i).fill(clientDni);
-  await page.getByLabel(/Nombre Completo/i).fill(clientName);
-  await page.getByRole('button', { name: /Registrar Venta/i }).click();
+  await page.getByTestId('sidebar-tab-clients').click();
+  await page.getByRole('button', { name: 'Nuevo cliente' }).click();
+  await page.getByLabel('Nombre y apellido').fill(clientName);
+  await page.getByLabel('DNI').fill(clientDni);
+  await page.getByRole('button', { name: 'Guardar cliente' }).click();
+  await expect(page.getByRole('button', { name: 'Guardar cliente' })).toBeHidden();
 
-  await expect(page.getByRole('button', { name: /Registrar Venta/i })).toBeHidden();
-  await expect(page.getByText(/1 ventas/i)).toBeVisible();
+  await page.getByTestId('sidebar-tab-sales').click();
+  await page.getByRole('button', { name: 'Registrar venta' }).click();
+  await expect(page.getByRole('button', { name: new RegExp(productModel) })).toBeVisible();
+  await page.getByLabel('Cliente').fill(clientName);
+  await page.getByRole('button', { name: 'Confirmar venta' }).click();
+
+  await expect(page.getByRole('button', { name: 'Confirmar venta' })).toBeHidden();
+  await expect(page.getByText(clientName)).toBeVisible();
 
   const { sales } = await fetchSales(request, email);
   expect(sales).toHaveLength(1);
