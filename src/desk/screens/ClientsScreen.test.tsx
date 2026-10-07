@@ -47,6 +47,7 @@ describe('Client column filters', () => {
     renderScreen();
 
     expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
     await user.click(screen.getByRole('button', { name: 'Con saldo pendiente' }));
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();

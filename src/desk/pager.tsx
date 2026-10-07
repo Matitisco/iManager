@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export const TABLE_PAGE_SIZE = 10;
+export const TABLE_PAGE_SIZE = 8;
 
 export function usePagedRows<T>(rows: T[], resetKey: string) {
   const [page, setPage] = useState(1);
