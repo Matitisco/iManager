@@ -38,12 +38,12 @@ describe('Trade-ins table', () => {
     const user = userEvent.setup();
     state.tradeIns[0].status = 'DIAGNOSTICO';
     const view = renderScreen();
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(8);
     expect(within(rows()[0]).getByText('#C-0012')).toBeInTheDocument();
-    expect(screen.getByText('1–10 de 12')).toBeInTheDocument();
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
-    expect(rows()).toHaveLength(2);
-    expect(screen.getByText('11–12 de 12')).toBeInTheDocument();
+    expect(rows()).toHaveLength(4);
+    expect(screen.getByText('9–12 de 12')).toBeInTheDocument();
     const search = screen.getByPlaceholderText('Buscar cliente, equipo, IMEI o número');
     await user.type(search, 'C-0002');
     expect(rows()).toHaveLength(1);
@@ -58,7 +58,7 @@ describe('Trade-ins table', () => {
     await user.click(screen.getByRole('button', { name: 'Recientes' }));
     await user.click(screen.getByRole('button', { name: 'Antiguos' }));
     expect(within(rows()[0]).getByText('#C-0001')).toBeInTheDocument();
-    expect(screen.getByText('1–10 de 12')).toBeInTheDocument();
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
     state.tradeIns = state.tradeIns.slice(0, 4);
     view.rerender(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, close: vi.fn(), toast: vi.fn(), isStaff: false }}><TradeInsScreen /></DeskProvider>);

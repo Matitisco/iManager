@@ -14,26 +14,35 @@ function Harness({ rows, resetKey }: { rows: number[]; resetKey: string }) {
 }
 
 describe('table pagination', () => {
-  it('shows 10 rows and moves to the next pages', async () => {
+  it('shows eight rows per page and reaches every item once, including the last partial page', async () => {
     const user = userEvent.setup();
-    const rows = Array.from({ length: 23 }, (_, index) => index + 1);
+    const rows = Array.from({ length: 17 }, (_, index) => index + 1);
     render(<Harness rows={rows} resetKey="todos" />);
 
-    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8,9,10');
-    expect(screen.getByText('1–10 de 23')).toBeInTheDocument();
+    const seen = () => screen.getByTestId('visible').textContent!.split(',').map(Number);
+    const visited = [...seen()];
+    expect(seen()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(screen.getByText('1–8 de 17')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('11,12,13,14,15,16,17,18,19,20');
+    visited.push(...seen());
+    expect(seen()).toEqual([9, 10, 11, 12, 13, 14, 15, 16]);
+    expect(screen.getByText('9–16 de 17')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('21,22,23');
-    expect(screen.getByText('21–23 de 23')).toBeInTheDocument();
+    visited.push(...seen());
+    expect(seen()).toEqual([17]);
+    expect(screen.getByText('17–17 de 17')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+    expect(visited).toEqual(rows);
+    expect(new Set(visited).size).toBe(rows.length);
   });
 
   it('hides the pager when the list fits on one page', () => {
-    render(<Harness rows={[1, 2, 3]} resetKey="todos" />);
+    render(<Harness rows={[1, 2, 3, 4, 5, 6, 7, 8]} resetKey="todos" />);
     expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3');
+    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8');
   });
 
   it('returns to the first page when the filter changes', async () => {
@@ -42,9 +51,9 @@ describe('table pagination', () => {
     const { rerender } = render(<Harness rows={rows} resetKey="todos" />);
 
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(screen.getByTestId('visible')).toHaveTextContent('11,12,13,14,15');
+    expect(screen.getByTestId('visible')).toHaveTextContent('9,10,11,12,13,14,15');
 
     rerender(<Harness rows={rows.slice(0, 12)} resetKey="filtro" />);
-    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8,9,10');
+    expect(screen.getByTestId('visible')).toHaveTextContent('1,2,3,4,5,6,7,8');
   });
 });

@@ -22,8 +22,8 @@ Instrucciones del usuario: no hacer preguntas; registrar decisiones y consultas 
 | 4 | #85 | Rol Empleado en toda la interfaz | Cerrado | `b976e4c`; 22/22 pruebas de acceso/configuración; sin Agente/Vendedor en src |
 | 5 | #99 | Logo de cajita con fondo amarillo | Cerrado | `7015923`; Box en sidebar/salida, amarillo #FFD000; QA visual 1440/1024 y sesión cerrada; ambos lints |
 | 6 | #98 | Editor de estados acorde a demo estática | Cerrado | `d9018ec`; QA comparativa 1440/680, 11/11 FE, 81/81 BE y ambos lints; reasignación canónica persistida/reload |
-| 7 | #97 | Canjes en tabla | Verificado; listo para cierre | 7/7 FE/pager, E2E 1/1, ambos lints; CRUD/reload local y QA 1440/1024 |
-| 8 | #104 | Todas las tablas: 8 ítems por página | Pendiente | Incorporado durante el loop; reemplaza el criterio de 10 de #80 |
+| 7 | #97 | Canjes en tabla | Cerrado | `3f058ec`; 7/7 FE/pager, E2E 1/1, ambos lints; CRUD/reload local y QA 1440/1024 |
+| 8 | #104 | Todas las tablas: 8 ítems por página | Verificado; publicación en main | 13/13 pruebas de las cuatro tablas y paginador; TypeScript frontend/backend aprobado. GitHub ya cerrado por PR #112 a hifi-desk |
 | 9 | #100 | Equipo libre con autocompletado en ventas | Pendiente | |
 | 10 | #103 | Filtros por columna en Ventas y Clientes | Pendiente | |
 | 11 | #88 | Permisos desde cada pantalla/sección | Pendiente | |
@@ -50,3 +50,15 @@ Se detectó el issue #104 durante la ejecución. Actualiza #80 a 8 ítems por p�
 ## Criterio de cierre
 
 Cada issue se contrasta con su descripción actual y criterios de aceptación. Se corrigen brechas, se ejecutan verificaciones pertinentes sin build, se publica en `main` y se cierra con evidencia. Un impedimento real se documenta; no se cierra un issue por trabajo incompleto. La lista de GitHub se vuelve a consultar antes de finalizar para comprobar que solo permanece el issue excluido.
+
+## Continuación — estado contrastado con GitHub
+
+La nueva consulta muestra abiertos #71, #88, #101 y el excluido #89. Los otros issues de la cola anterior ya fueron cerrados en GitHub; algunos avances fueron publicados en `hifi-desk` y se integran en `main` conservando historial. Las etiquetas Pendiente de esa cola son el registro de la ejecución anterior, no la lista actual de GitHub.
+
+| Grupo | Alcance | Estado |
+| --- | --- | --- |
+| #71 + #88 | Invitaciones fiables y permisos por usuario/pantalla | Delegado a subagente nuevo GPT-6.1 Sol xhigh |
+| #101 | Conversión ARS/USD, entradas y persistencia histórica | En auditoría del coordinador; siguiente subagente |
+| #89 | Flujo integrado | Excluido expresamente |
+
+La paginación local preexistente de ocho filas se incorpora tras revisar sus cambios y aprobar 13 pruebas pertinentes y ambos lints. Se preservan los directorios de referencias y `.chrome-now.png` sin seguimiento.
