@@ -147,6 +147,7 @@ model Sale {
   clientName      String         @default("") @db.VarChar(120)
   categoryId      String?
   inventoryItemId String?
+  deviceLabel     String?        @db.VarChar(120)
   dateLabel       String         @db.VarChar(120)
   amount          Decimal        @db.Decimal(12, 2)
   paymentMethod   String         @db.VarChar(50)

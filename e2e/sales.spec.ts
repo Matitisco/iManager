@@ -35,8 +35,12 @@ test('creates a sale from available inventory and persists client and stock chan
 
   await page.getByTestId('sidebar-tab-sales').click();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
-  await expect(page.getByRole('button', { name: new RegExp(productModel) })).toBeVisible();
-  await page.getByLabel('Cliente').fill(clientName);
+  const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
+  await expect(dialog.getByRole('option')).toHaveCount(0);
+  await dialog.getByLabel('Equipo').fill(productModel);
+  await dialog.getByRole('option', { name: new RegExp(productModel) }).click();
+  await expect(dialog.getByLabel('Equipo')).toHaveValue(new RegExp(productModel));
+  await dialog.getByLabel('Cliente').fill(clientName);
   await page.getByRole('button', { name: 'Confirmar venta' }).click();
 
   await expect(page.getByRole('button', { name: 'Confirmar venta' })).toBeHidden();

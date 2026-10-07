@@ -393,6 +393,47 @@ describe("core module integrations", () => {
     expect(restoredClient.totalSpent.toNumber()).toBe(0);
   });
 
+  it("records a sale with a free-text device and leaves stock untouched", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: context.user.firebaseUid,
+        email: context.user.email ?? undefined,
+        name: context.user.displayName ?? undefined,
+      }),
+    };
+
+    const saleResponse = await app.inject({
+      method: "POST",
+      url: "/api/sales",
+      headers,
+      payload: {
+        date: "07/10/2026",
+        clientName: "Mostrador",
+        deviceLabel: "iPhone 11 64GB de afuera",
+        amount: 900,
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+      },
+    });
+
+    expect(saleResponse.statusCode).toBe(201);
+    expect(saleResponse.json().sale).toMatchObject({
+      productId: "",
+      deviceLabel: "iPhone 11 64GB de afuera",
+      clientName: "Mostrador",
+      amount: 900,
+    });
+
+    const stock = await prisma.inventoryItem.findUniqueOrThrow({
+      where: { id: fixture.inventoryItem.id },
+    });
+    expect(stock.status).toBe("DISPONIBLE");
+  });
+
   it("rejects assigning a sales category from another store", async () => {
     const app = getApp();
     const context = await seedStoreContext();

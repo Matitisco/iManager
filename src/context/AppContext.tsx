@@ -489,8 +489,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
     }
 
+    const previous = sales.find((sale) => sale.id === updatedSale.id);
     const backendSale = await updateBackendSale(user, updatedSale);
     setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
+    if (previous && previous.productId !== backendSale.productId) {
+      setInventory(prev => prev.map(product => {
+        if (previous.productId && product.id === previous.productId) return { ...product, status: 'DISPONIBLE' };
+        if (backendSale.productId && product.id === backendSale.productId) return { ...product, status: 'VENDIDO' };
+        return product;
+      }));
+    }
   };
 
   const deleteSale = async (id: string) => {

@@ -19,18 +19,18 @@ import {
   isInStock,
   formatInputMoney,
   formatMoney,
-  formatMoneyCompact,
   formatArDate,
   formatShortDate,
   parseMoney,
   paymentLabel,
-  productLabel,
   saleCode,
+  saleEquipment,
   statusLabel,
   tradeCode,
 } from './format';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
+import { EquipmentField } from './EquipmentField';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -309,39 +309,28 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = sales.find((sale) => sale.id === id);
   const available = inventory.filter((item) => isInStock(item.status) || item.id === current?.productId || item.id === preset?.productId);
-  const [productId, setProductId] = useState(current?.productId || preset?.productId || available[0]?.id || '');
+  const linkedItem = available.find((item) => item.id === (current?.productId || preset?.productId));
+  const [productId, setProductId] = useState(linkedItem?.id ?? '');
+  const [query, setQuery] = useState(linkedItem ? equipmentTitle(linkedItem.model, linkedItem.capacity) : (current?.deviceLabel ?? ''));
   const linkedName = current?.clientId ? clients.find((client) => client.id === current.clientId)?.name : '';
   const [buyer, setBuyer] = useState(current?.clientName?.trim() || linkedName || preset?.clientName || '');
   const [payment, setPayment] = useState(current?.paymentMethod || 'TRANSFERENCIA');
   const [status, setStatus] = useState(current?.status || 'COMPLETADA');
-  const [amount, setAmount] = useState(formatInputMoney(current?.amount || available.find((item) => item.id === (preset?.productId || available[0]?.id))?.price || 0));
+  const [amount, setAmount] = useState(formatInputMoney(current?.amount || linkedItem?.price || 0));
   const [bad, setBad] = useState<Record<string, string>>({});
-  const selected = available.find((item) => item.id === productId);
+  const selected = productId ? available.find((item) => item.id === productId) : undefined;
 
   return (
-    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Elegí el equipo y cómo pagó el cliente.'} onClose={close}>
+    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Escribí el equipo y cómo pagó el cliente.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      {available.length === 0 ? <div className="wempty">No hay equipos disponibles.</div> : current ? (
-        <Field label="Equipo">
-          <select value={productId} onChange={(event) => {
-            setProductId(event.target.value);
-            const next = available.find((item) => item.id === event.target.value);
-            if (next) setAmount(formatInputMoney(next.price));
-          }}>
-            {available.map((item) => <option key={item.id} value={item.id}>{equipmentTitle(item.model, item.capacity)}</option>)}
-          </select>
-        </Field>
-      ) : (
-        <>
-          <Field label="Equipo"><span /></Field>
-          {available.map((item) => (
-            <button key={item.id} type="button" className={`pick${item.id === productId ? ' on' : ''}`} onClick={() => { setProductId(item.id); setAmount(formatInputMoney(item.price)); }}>
-              <div>{equipmentTitle(item.model, item.capacity)}<small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</small></div>
-              <span className="r">{formatMoneyCompact(item.price)}</span>
-            </button>
-          ))}
-        </>
-      )}
+      <EquipmentField
+        items={available}
+        value={query}
+        linked={Boolean(selected)}
+        error={bad.equipment}
+        onValue={(next) => { setQuery(next); setProductId(''); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { setQuery(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(formatInputMoney(item.price)); clearBad(setBad, 'equipment'); }}
+      />
       <Field label="Cliente">
         <input value={buyer} onChange={(event) => setBuyer(event.target.value)} placeholder="Nombre, si lo anotás" maxLength={120} />
       </Field>
@@ -351,18 +340,19 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'SALE_STATUS', SALE_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('SALE_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      {available.length === 0 ? <div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div> : <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
+        if (!query.trim()) next.equipment = 'Completá este dato';
         if (!parseMoney(amount)) next.amount = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
-        if (!selected) throw new Error('Seleccioná un equipo disponible.');
         const payload: Omit<Sale, 'id'> = {
           date: current?.date || formatArDate(new Date()),
           clientId: '',
           clientName: buyer.trim(),
-          productId: selected.id,
+          productId: selected?.id ?? '',
+          deviceLabel: query.trim(),
           amount: parseMoney(amount),
           paymentMethod: payment,
           status,
@@ -375,7 +365,7 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
           signalDesk('desk-check', 'ven');
         }
       }, current ? 'Venta actualizada' : 'Venta registrada');
-      }} />}
+      }} />
     </Sheet>
   );
 }
@@ -391,7 +381,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
-      <div className="kv"><span>Equipo</span><b>{productLabel(product)}</b></div>
+      <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={sale.status} kind="SALE_STATUS" /></b></div>
       {sale.status === 'PENDIENTE' ? (
@@ -403,7 +393,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${productLabel(product)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             if (!navigator.share) { void copy(); return; }
             navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {

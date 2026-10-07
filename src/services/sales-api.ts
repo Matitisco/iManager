@@ -89,6 +89,7 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
       clientId: sale.clientId,
       ...(sale.clientName !== undefined ? { clientName: sale.clientName } : {}),
       productId: sale.productId,
+      ...(sale.deviceLabel !== undefined ? { deviceLabel: sale.deviceLabel } : {}),
       paymentMethod: sale.paymentMethod,
       status: sale.status,
       date: sale.date,

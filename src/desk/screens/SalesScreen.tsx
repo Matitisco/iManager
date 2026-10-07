@@ -7,8 +7,8 @@ import {
   inPeriod,
   paymentLabel,
   periodBounds,
-  productLabel,
   saleCode,
+  saleEquipment,
   type PeriodKey,
 } from '../format';
 import { TablePager, usePagedRows } from '../pager';
@@ -41,8 +41,7 @@ export function SalesScreen() {
   const rows = listed.filter((sale) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    const product = inventory.find((item) => item.id === sale.productId);
-    return `${saleBuyer(sale, clients)} ${productLabel(product)} ${saleCode(sale)}`.toLowerCase().includes(q);
+    return `${saleBuyer(sale, clients)} ${saleEquipment(sale, inventory)} ${saleCode(sale)}`.toLowerCase().includes(q);
   });
   const page = usePagedRows(rows, `${query}|${period}`);
 
@@ -83,7 +82,6 @@ export function SalesScreen() {
             <thead><tr><th>Venta</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Pago</th><th className="r">Total</th><th>Estado</th></tr></thead>
             <tbody>
               {page.visible.map((sale) => {
-                const product = inventory.find((item) => item.id === sale.productId);
                 return (
                   <PressTarget
                     key={sale.id}
@@ -94,7 +92,7 @@ export function SalesScreen() {
                     <td><b>#{saleCode(sale)}</b></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
-                    <td>{productLabel(product)}</td>
+                    <td>{saleEquipment(sale, inventory)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>

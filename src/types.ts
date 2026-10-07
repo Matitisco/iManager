@@ -38,6 +38,7 @@ export interface Sale {
   clientId: string;
   clientName?: string;
   productId: string;
+  deviceLabel?: string;
   amount: number;
   paymentMethod: string;
   status: string;
