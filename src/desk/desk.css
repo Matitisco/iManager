@@ -326,7 +326,8 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .fl { display: block; margin-bottom: 12px; }
 .fl > span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--section); margin-bottom: 6px; }
 .fl input, .fl select, .stx-in { width: 100%; height: 48px; border: 1.5px solid var(--border); border-radius: 14px; padding: 0 14px; background: var(--row); font-size: 15px; font-weight: 600; color: var(--primary); -webkit-appearance: none; appearance: none; }
-.fl input:focus, .fl select:focus, .stx-in:focus { outline: none; border-color: var(--primary); background: #fff; }
+.fl textarea.plist { width: 100%; min-height: 220px; resize: vertical; border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--row); font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--primary); }
+.fl input:focus, .fl select:focus, .fl textarea.plist:focus, .stx-in:focus { outline: none; border-color: var(--primary); background: #fff; }
 .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sgs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .sgs.stg { gap: 6px; }

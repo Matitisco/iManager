@@ -3,7 +3,8 @@ import { useAppContext } from '../../context/AppContext';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { conditionLabel, equipmentTitle, formatMoney, isInStock } from '../format';
 import { TablePager, usePagedRows } from '../pager';
-import { Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { priceListMessage } from '../price-list';
+import { Actions, Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -13,12 +14,13 @@ const FILTERS = [
 ];
 
 export function InventoryScreen() {
-  const { inventory } = useAppContext();
+  const { inventory, appSession } = useAppContext();
   const catalogs = useCatalogs();
-  const { open } = useDesk();
+  const { open, toast } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
+  const [listOpen, setListOpen] = useState(false);
 
   useEffect(() => {
     const reset = () => setFilter('Todos');
@@ -38,6 +40,7 @@ export function InventoryScreen() {
     return list;
   }, [inventory, query, filter, sort]);
   const page = usePagedRows(rows, `${query}|${filter}|${sort}`);
+  const priceMessage = priceListMessage(rows, appSession?.store?.name);
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const filters = useMemo(() => {
@@ -55,6 +58,12 @@ export function InventoryScreen() {
         </div>
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
+          <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+            </svg>
+            Lista de precios
+          </button>
           <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
           <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
         </div>
@@ -95,6 +104,29 @@ export function InventoryScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       <div className="dhint">Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.</div>
+      {listOpen ? (
+        <Sheet
+          title="Lista de precios"
+          subtitle={`${rows.length} ${rows.length === 1 ? 'equipo' : 'equipos'} con el filtro actual. Copiá el mensaje y mandalo.`}
+          onClose={() => setListOpen(false)}
+        >
+          <label className="fl">
+            <span>Mensaje</span>
+            <textarea className="plist" readOnly value={priceMessage} />
+          </label>
+          <Actions
+            secondary="Cerrar"
+            onSecondary={() => setListOpen(false)}
+            primary="Copiar mensaje"
+            onPrimary={() => {
+              void navigator.clipboard.writeText(priceMessage).then(
+                () => { toast('Mensaje copiado'); setListOpen(false); },
+                () => toast('No se pudo copiar el mensaje'),
+              );
+            }}
+          />
+        </Sheet>
+      ) : null}
     </div>
   );
 }
