@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { avatarTone, formatMoney, formatMoneyCompact, formatShortDate, initials } from '../format';
+import { ColumnFilter } from '../ColumnFilter';
+import {
+  EMPTY_CLIENT_FILTERS,
+  clientColumnActive,
+  clientFilterKey,
+  clientFiltersActive,
+  matchesClientColumns,
+  type ClientColumnFilters,
+} from '../client-column-filters';
+import { avatarTone, formatInputMoney, formatMoney, formatMoneyCompact, formatShortDate, initials, parseMoney } from '../format';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -9,17 +18,21 @@ export function ClientsScreen() {
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
+  const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
+  const [openColumn, setOpenColumn] = useState<string | null>(null);
   const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
 
+  const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients.filter((client) => {
       const matches = filter === 'Todos' || client.pendingBalance > 0;
       const haystack = `${client.name} ${client.phone} ${client.dni} ${client.email}`.toLowerCase();
-      return matches && (!q || haystack.includes(q));
+      return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
-  }, [clients, query, filter]);
-  const page = usePagedRows(rows, `${query}|${filter}`);
+  }, [clients, query, filter, columns]);
+  const page = usePagedRows(rows, `${query}|${filter}|${clientFilterKey(columns)}`);
+  const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
 
   return (
     <div className="dscreen">
@@ -42,9 +55,54 @@ export function ClientsScreen() {
         />
       </div>
       <div className="dcard flush">
-        {rows.length === 0 ? <div className="wempty">No encontré clientes.</div> : (
-          <table className="dtable">
-            <thead><tr><th>Cliente</th><th>DNI</th><th>Teléfono</th><th>Última compra</th><th className="r">Gastado</th><th>Saldo</th></tr></thead>
+        <div className="dch pad"><h3>Clientes</h3><span className="mut">{rows.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
+        <table className="dtable">
+            <thead>
+              <tr>
+                <th><span className="thf">Cliente
+                  <ColumnFilter label="cliente" open={openColumn === 'cliente'} onToggle={() => setOpenColumn((current) => current === 'cliente' ? null : 'cliente')} active={clientColumnActive(columns, 'name')} onClear={() => setColumn({ name: '', tags: [] })}>
+                    <input aria-label="Contiene" placeholder="Nombre" value={columns.name} onChange={(event) => setColumn({ name: event.target.value })} />
+                    {tags.length > 0 ? <div className="opts">{tags.map((tag) => (
+                      <label key={tag} className="chk"><input type="checkbox" checked={columns.tags.includes(tag)} onChange={(event) => setColumn({ tags: event.target.checked ? [...columns.tags, tag] : columns.tags.filter((item) => item !== tag) })} />{tag}</label>
+                    ))}</div> : null}
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">DNI
+                  <ColumnFilter label="dni" open={openColumn === 'dni'} onToggle={() => setOpenColumn((current) => current === 'dni' ? null : 'dni')} active={clientColumnActive(columns, 'dni')} onClear={() => setColumn({ dni: '' })}>
+                    <input aria-label="Contiene" placeholder="DNI" value={columns.dni} onChange={(event) => setColumn({ dni: event.target.value })} />
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Teléfono
+                  <ColumnFilter label="teléfono" open={openColumn === 'teléfono'} onToggle={() => setOpenColumn((current) => current === 'teléfono' ? null : 'teléfono')} active={clientColumnActive(columns, 'phone')} onClear={() => setColumn({ phone: '' })}>
+                    <input aria-label="Contiene" placeholder="Teléfono" value={columns.phone} onChange={(event) => setColumn({ phone: event.target.value })} />
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Última compra
+                  <ColumnFilter label="última compra" open={openColumn === 'fecha'} onToggle={() => setOpenColumn((current) => current === 'fecha' ? null : 'fecha')} active={clientColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
+                    <div className="range">
+                      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={columns.dateFrom} onChange={(event) => setColumn({ dateFrom: event.target.value })} /></label>
+                      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={columns.dateTo} onChange={(event) => setColumn({ dateTo: event.target.value })} /></label>
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+                <th className="r"><span className="thf">Gastado
+                  <ColumnFilter label="gastado" align="right" open={openColumn === 'gastado'} onToggle={() => setOpenColumn((current) => current === 'gastado' ? null : 'gastado')} active={clientColumnActive(columns, 'spent')} onClear={() => setColumn({ spentMin: '', spentMax: '' })}>
+                    <div className="range">
+                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.spentMin ? formatInputMoney(parseMoney(columns.spentMin)) : ''} onChange={(event) => setColumn({ spentMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.spentMax ? formatInputMoney(parseMoney(columns.spentMax)) : ''} onChange={(event) => setColumn({ spentMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+                <th><span className="thf">Saldo
+                  <ColumnFilter label="saldo" align="right" open={openColumn === 'saldo'} onToggle={() => setOpenColumn((current) => current === 'saldo' ? null : 'saldo')} active={clientColumnActive(columns, 'balance')} onClear={() => setColumn({ balanceMin: '', balanceMax: '' })}>
+                    <div className="range">
+                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.balanceMin ? formatInputMoney(parseMoney(columns.balanceMin)) : ''} onChange={(event) => setColumn({ balanceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.balanceMax ? formatInputMoney(parseMoney(columns.balanceMax)) : ''} onChange={(event) => setColumn({ balanceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
+                    </div>
+                  </ColumnFilter>
+                </span></th>
+              </tr>
+            </thead>
             <tbody>
               {page.visible.map((client) => (
                 <PressTarget
@@ -68,7 +126,7 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        )}
+        {rows.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>
