@@ -11,8 +11,8 @@ import {
   isInProgressTrade,
   isInStock,
   parseAppDate,
-  productLabel,
   saleCode,
+  saleEquipment,
   tradeCode,
 } from '../format';
 import { DeskCta, DeskIcon, Pill, PressTarget, useDesk } from '../ui';
@@ -195,12 +195,11 @@ export function DashboardScreen() {
               <thead><tr><th>Venta</th><th>Cliente</th><th>Equipo</th><th className="r">Total</th><th>Estado</th></tr></thead>
               <tbody>
                 {recent.map((sale) => {
-                  const product = inventory.find((item) => item.id === sale.productId);
                   return (
                     <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
                       <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
                       <td>{saleBuyer(sale, clients)}</td>
-                      <td>{productLabel(product)}</td>
+                      <td>{saleEquipment(sale, inventory)}</td>
                       <td className="r"><b>{formatMoney(sale.amount)}</b></td>
                       <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
                     </PressTarget>

@@ -11,7 +11,7 @@ import {
   isInProgressTrade,
   paymentLabel,
   periodBounds,
-  productLabel,
+  saleEquipment,
   saleCode,
   statusLabel,
   tradeCode,
@@ -170,7 +170,7 @@ export function ReportsScreen() {
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{productLabel(inventory.find((item) => item.id === sale.productId))} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
               <span className="gchev">›</span>
             </button>

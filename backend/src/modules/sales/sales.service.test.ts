@@ -15,6 +15,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   sale: {
     findFirst: vi.fn(),
+    create: vi.fn(),
   },
   $transaction: vi.fn(),
 }));
@@ -65,6 +66,57 @@ describe("sales.service", () => {
     ).rejects.toMatchObject({
       statusCode: 409,
       message: "Inventory item is not available",
+    });
+  });
+
+  it("records a free-text device without touching stock", async () => {
+    prismaMock.sale.create.mockResolvedValue({
+      id: "sale-1",
+      saleNumber: 4,
+      clientId: null,
+      clientName: "Mostrador",
+      inventoryItemId: null,
+      deviceLabel: "iPhone 11 64GB",
+      dateLabel: "07/10/2026",
+      amount: new Decimal(500),
+      paymentMethod: "EFECTIVO",
+      status: "COMPLETADA",
+      categoryId: null,
+      soldAt: new Date("2026-10-07T15:00:00Z"),
+      customFields: {},
+    });
+
+    await expect(createSale("store-1", {
+      date: "07/10/2026",
+      clientName: "Mostrador",
+      deviceLabel: " iPhone 11 64GB ",
+      amount: 500,
+      paymentMethod: "EFECTIVO",
+      status: "COMPLETADA",
+    })).resolves.toMatchObject({
+      productId: "",
+      deviceLabel: "iPhone 11 64GB",
+      clientName: "Mostrador",
+    });
+
+    expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        inventoryItemId: null,
+        deviceLabel: "iPhone 11 64GB",
+      }),
+    }));
+  });
+
+  it("rejects a sale without a device", async () => {
+    await expect(createSale("store-1", {
+      date: "07/10/2026",
+      amount: 500,
+      paymentMethod: "EFECTIVO",
+      status: "COMPLETADA",
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Indicá el equipo",
     });
   });
 

@@ -159,6 +159,12 @@ export function productLabel(product: Product | undefined): string {
   return `${product.model}${product.capacity ? ` ${product.capacity}` : ''}`;
 }
 
+export function saleEquipment(sale: { productId?: string; deviceLabel?: string | null }, inventory: Product[]): string {
+  const product = sale.productId ? inventory.find((item) => item.id === sale.productId) : undefined;
+  if (product) return productLabel(product);
+  return sale.deviceLabel?.trim() || 'Equipo';
+}
+
 export function saleCode(sale: Sale): string {
   const number = sale.saleNumber ?? 0;
   return `V-${String(number || 0).padStart(4, '0')}`;

@@ -7,7 +7,8 @@ export interface SaleInput {
   date: string;
   clientId?: string | null;
   clientName?: string | null;
-  productId: string;
+  productId?: string | null;
+  deviceLabel?: string | null;
   amount: number;
   paymentMethod: string;
   status: string;
@@ -18,7 +19,8 @@ export interface SaleInput {
 export interface SalePatchInput {
   clientId?: string | null;
   clientName?: string | null;
-  productId?: string;
+  productId?: string | null;
+  deviceLabel?: string | null;
   paymentMethod?: SaleInput["paymentMethod"];
   status?: SaleInput["status"];
   date?: string;
@@ -34,6 +36,7 @@ export interface SaleResponse {
   clientId: string;
   clientName: string;
   productId: string;
+  deviceLabel: string;
   amount: number;
   paymentMethod: SaleInput["paymentMethod"];
   status: SaleInput["status"];
@@ -47,6 +50,7 @@ type SaleRecord = {
   clientId: string | null;
   clientName: string;
   inventoryItemId: string | null;
+  deviceLabel: string | null;
   dateLabel: string;
   amount: Decimal;
   paymentMethod: string;
@@ -139,6 +143,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     clientId: sale.clientId ?? "",
     clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
+    deviceLabel: sale.deviceLabel ?? "",
     amount: sale.amount.toNumber(),
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
     status: sale.status as SaleResponse["status"],
@@ -170,16 +175,24 @@ export async function createSale(storeId: string, input: SaleInput) {
       throw new SalesError("Client not found", 404);
     }
 
-    const inventoryItem = await tx.inventoryItem.findFirst({
-      where: { id: input.productId, storeId },
-    });
+    const productId = input.productId?.trim() || "";
+    const deviceLabel = input.deviceLabel?.trim() || null;
+    const inventoryItem = productId
+      ? await tx.inventoryItem.findFirst({
+          where: { id: productId, storeId },
+        })
+      : null;
 
-    if (!inventoryItem) {
+    if (productId && !inventoryItem) {
       throw new SalesError("Inventory item not found", 404);
     }
 
-    if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
+    if (inventoryItem && inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
       throw new SalesError("Inventory item is not available", 409);
+    }
+
+    if (!inventoryItem && !deviceLabel) {
+      throw new SalesError("Indicá el equipo", 400);
     }
 
     const soldAt = resolveDate(input.date);
@@ -190,7 +203,8 @@ export async function createSale(storeId: string, input: SaleInput) {
         storeId,
         clientId: client?.id ?? null,
         clientName: input.clientName?.trim() || client?.name || "",
-        inventoryItemId: inventoryItem.id,
+        inventoryItemId: inventoryItem?.id ?? null,
+        deviceLabel,
         dateLabel,
         amount: toDecimal(input.amount),
         paymentMethod: input.paymentMethod,
@@ -201,10 +215,12 @@ export async function createSale(storeId: string, input: SaleInput) {
       },
     });
 
-    await tx.inventoryItem.update({
-      where: { id: inventoryItem.id },
-      data: { status: "VENDIDO" },
-    });
+    if (inventoryItem) {
+      await tx.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { status: "VENDIDO" },
+      });
+    }
 
     if (client) {
       await tx.client.update({
@@ -235,7 +251,12 @@ export async function updateSale(
 
   return prisma.$transaction(async (tx) => {
     const nextClientId = input.clientId === undefined ? existing.clientId : (input.clientId || null);
-    const nextInventoryItemId = input.productId ?? existing.inventoryItemId ?? undefined;
+    const nextInventoryItemId = input.productId === undefined
+      ? existing.inventoryItemId
+      : (input.productId?.trim() || null);
+    const nextDeviceLabel = input.deviceLabel === undefined
+      ? existing.deviceLabel
+      : (input.deviceLabel?.trim() || null);
 
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
@@ -249,9 +270,13 @@ export async function updateSale(
       }
     }
 
-    if (input.productId && input.productId !== existing.inventoryItemId) {
+    if (!nextInventoryItemId && !nextDeviceLabel) {
+      throw new SalesError("Indicá el equipo", 400);
+    }
+
+    if (nextInventoryItemId && nextInventoryItemId !== existing.inventoryItemId) {
       const inventoryItem = await tx.inventoryItem.findFirst({
-        where: { id: input.productId, storeId },
+        where: { id: nextInventoryItemId, storeId },
       });
 
       if (!inventoryItem) {
@@ -278,6 +303,7 @@ export async function updateSale(
         clientId: nextClientId,
         clientName: input.clientName !== undefined ? (input.clientName?.trim() ?? "") : existing.clientName,
         inventoryItemId: nextInventoryItemId,
+        deviceLabel: nextDeviceLabel,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
         customFields:
           input.customFields !== undefined
