@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useAppContext } from '../context/AppContext';
+import { formatArDate, parseArDate } from '../lib/ar-date';
 import { fetchReportsOverview } from '../services/reports-api';
 import type { ReportsOverview, ReportsRangeKey } from '../types/reports';
 import {
@@ -184,20 +185,13 @@ function countLabel(count: number, singular: string, plural: string) {
   return `${formatNumber(count)} ${count === 1 ? singular : plural}`;
 }
 
-function prettyAxisLabel(label: string) {
-  return label.replace(/^0(\d)/, '$1');
-}
-
 function formatDateLabel(value: string | null) {
   if (!value) {
     return 'Sin fecha';
   }
 
-  return new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+  const date = parseArDate(value) ?? new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Sin fecha' : formatArDate(date);
 }
 
 function buildPresetRange(preset: Exclude<PeriodId, 'custom'>) {
@@ -286,7 +280,7 @@ function point(label: string, amount: number, units: number, current = false): C
 function salesPoints(report: ReportsOverview, endsToday: boolean, compactAxis: boolean) {
   const folded = foldDailySeriesByWeek(report.salesSeries);
   return folded.map((entry, index) => {
-    const label = prettyAxisLabel(entry.label);
+    const label = entry.label;
     const current = index === folded.length - 1;
     return {
       label,

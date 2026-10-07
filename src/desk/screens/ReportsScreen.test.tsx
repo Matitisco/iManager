@@ -89,9 +89,9 @@ describe('Reports custom period', () => {
     expect(total()).toBe('$ 600');
     expect(screen.getByText('Facturación · 01/04/2026 al 03/04/2026')).toBeInTheDocument();
     expect(screen.getByText('▼ 40% vs período anterior')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '1/4: $ 100' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '2/4: $ 200' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '3/4: $ 300' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '01/04/2026: $ 100' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '02/04/2026: $ 200' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '03/04/2026: $ 300' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Efectivo: 50%' })).toBeInTheDocument();
     expect(document.querySelector('.gtip')).not.toHaveTextContent('en curso');
     expect(document.querySelectorAll('.gtk')).toHaveLength(3);
@@ -138,7 +138,7 @@ describe('Reports custom period', () => {
     expect(document.querySelectorAll('.gtk')).toHaveLength(2);
     expect(screen.queryByText('Canje 3')).not.toBeInTheDocument();
     expect(screen.queryByText('Canje 4')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '3/4: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '03/04/2026: 1' })).toBeInTheDocument();
   });
 
   it('exports precisely the visible sales with date and payment filters', async () => {

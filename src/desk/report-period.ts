@@ -1,4 +1,4 @@
-import { parseAppDate, type PeriodKey } from './format';
+import { formatArDate, parseAppDate, type PeriodKey } from './format';
 
 export type ReportPeriod = PeriodKey | 'Personalizado';
 export interface ReportBounds {
@@ -54,12 +54,12 @@ export function inReportPeriod(value: string | undefined, start: Date, end: Date
 }
 
 export function reportRangeLabel(bounds: ReportBounds): string {
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric' } as const;
-  return `${bounds.start.toLocaleDateString('es-AR', options)} al ${addDays(bounds.end, -1).toLocaleDateString('es-AR', options)}`;
+  return `${formatArDate(bounds.start)} al ${formatArDate(addDays(bounds.end, -1))}`;
 }
 
 export function formatReportDate(value: string): string {
-  return parseReportDate(value)?.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) ?? '—';
+  const date = parseReportDate(value);
+  return date ? formatArDate(date) : '—';
 }
 
 function addMonths(date: Date, months: number): Date {
@@ -81,9 +81,7 @@ export function makeReportBuckets(period: ReportPeriod, bounds: ReportBounds) {
   while (start < bounds.end) {
     const next = unit === 'month' ? addMonths(bounds.start, (buckets.length + 1) * step) : addDays(start, step);
     const end = new Date(Math.min(next.getTime(), bounds.end.getTime()));
-    const label = unit === 'month'
-      ? start.toLocaleDateString('es-AR', { month: 'short', ...(bounds.start.getFullYear() !== bounds.end.getFullYear() ? { year: '2-digit' } : {}) }).replace('.', '')
-      : start.toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' });
+    const label = formatArDate(start);
     buckets.push({ label, start, end, value: 0 });
     start = end;
   }

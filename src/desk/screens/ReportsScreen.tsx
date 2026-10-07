@@ -156,7 +156,7 @@ export function ReportsScreen() {
             })}
           </div>
           <div className="gxl">
-            {model.buckets.map((bucket, index) => <span key={`${bucket.label}-${index}`} className={index === active ? 'sel' : ''}>{bucket.label}</span>)}
+            {model.buckets.map((bucket, index) => <span key={`${bucket.label}-${index}`} className={index === active ? 'sel' : ''}>{axisDate(bucket.label)}</span>)}
           </div>
         </div>
         <div className="gcard">
@@ -206,6 +206,12 @@ export function ReportsScreen() {
       )}
     </div>
   );
+}
+
+function axisDate(label: string) {
+  const parts = /^(\d{2}\/\d{2})\/(\d{4})$/.exec(label);
+  if (!parts) return label;
+  return <>{parts[1]}<br />{parts[2]}</>;
 }
 
 function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; onToggle: (label: string) => void }) {

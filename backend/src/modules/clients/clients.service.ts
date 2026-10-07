@@ -1,5 +1,6 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface ClientInput {
@@ -92,7 +93,7 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
 
 const formatDate = (value: Date | null) => {
   if (!value) return "N/A";
-  return value.toLocaleDateString("es-AR");
+  return formatArDate(value);
 };
 
 export function serializeClient(client: ClientRecord): ClientResponse {
@@ -116,8 +117,7 @@ function parseLastPurchaseDate(value?: string | null) {
     return null;
   }
 
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseArDate(value);
 }
 
 export async function listClients(storeId: string) {

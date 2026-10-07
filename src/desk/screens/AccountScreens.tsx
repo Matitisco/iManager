@@ -3,7 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import type { Client, Product, Sale, TradeIn } from '../../types';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
-import { formatMoney, initials, parseAppDate, relTime, saleCode, tradeCode } from '../format';
+import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeCode } from '../format';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
 type NoteTab = 'sales' | 'tradeins' | 'inventory' | 'clients' | 'settings';
@@ -146,7 +146,7 @@ export function SettingsScreen() {
 
   const me = appSession?.user;
   const store = appSession?.store;
-  const inviteLine = invites.map((invite) => `${ROLE_LABEL[invite.role] ?? invite.role} · expira ${new Date(invite.expiresAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '')}`).join(' · ');
+  const inviteLine = invites.map((invite) => `${ROLE_LABEL[invite.role] ?? invite.role} · expira ${formatArDate(new Date(invite.expiresAt))}`).join(' · ');
 
   return (
     <div className="dscreen">

@@ -1,3 +1,4 @@
+import { formatArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export type ReportsRangeKey =
@@ -198,20 +199,6 @@ function addMonths(value: Date, amount: number) {
   return new Date(value.getFullYear(), value.getMonth() + amount, 1);
 }
 
-function formatDayLabel(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-  }).format(value);
-}
-
-function formatMonthLabel(value: Date, includeYear: boolean) {
-  return new Intl.DateTimeFormat("es-AR", {
-    month: "short",
-    ...(includeYear ? { year: "numeric" as const } : {}),
-  }).format(value);
-}
-
 function buildProductLabel(input?: {
   model?: string | null;
   capacity?: string | null;
@@ -338,7 +325,7 @@ function buildSalesSeries(
     while (cursor <= last) {
       const key = cursor.toISOString().slice(0, 10);
       buckets.set(key, {
-        label: formatDayLabel(cursor),
+        label: formatArDate(cursor),
         start: key,
         revenue: 0,
         unitsSold: 0,
@@ -371,16 +358,13 @@ function buildSalesSeries(
     : sortedSales.length > 0
       ? startOfMonth(sortedSales[sortedSales.length - 1].soldAt)
       : startOfMonth(new Date());
-  const includeYear =
-    firstMonth.getFullYear() !== lastMonth.getFullYear() ||
-    (!startDate && !endDate);
   const buckets = new Map<string, ReportsSeriesPoint>();
 
   let cursor = firstMonth;
   while (cursor <= lastMonth) {
     const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
     buckets.set(key, {
-      label: formatMonthLabel(cursor, includeYear),
+      label: formatArDate(cursor),
       start: `${key}-01`,
       revenue: 0,
       unitsSold: 0,
