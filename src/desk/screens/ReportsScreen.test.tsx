@@ -178,6 +178,33 @@ describe('Reports custom period', () => {
     expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('01/04/2026');
   });
 
+  it('keeps the bar count and donut stroke when a chart is clicked', async () => {
+    render(<ReportsScreen />);
+    await applyRange();
+    expect(document.querySelectorAll('.gcol')).toHaveLength(3);
+    expect(document.querySelector('.gcol.sel')).toHaveAttribute('aria-label', '03/04/2026: $ 300');
+    await userEvent.click(screen.getByRole('button', { name: '01/04/2026: $ 100' }));
+    expect(document.querySelectorAll('.gcol')).toHaveLength(3);
+    expect(document.querySelector('.gcol.sel')).toHaveAttribute('aria-label', '01/04/2026: $ 100');
+    const tip = document.querySelector('.gtip');
+    expect(tip).toHaveTextContent('$ 100');
+    expect(tip).toHaveTextContent('01/04/2026');
+    expect(tip).not.toHaveAttribute('style');
+    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Porción Transferencia' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(1);
+    expect(screen.getByText('Venta 3')).toBeInTheDocument();
+    expect(document.querySelector('.gdonut .gc')).toHaveTextContent('Transferencia');
+    const slices = document.querySelectorAll('.gdonut path, .gdonut circle:not([stroke-dasharray])');
+    expect(slices.length).toBeGreaterThan(0);
+    for (const slice of slices) expect(slice).toHaveAttribute('stroke-width', '20');
+    expect(document.querySelectorAll('.gcol')).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Porción Transferencia' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+  });
+
   it('shows an empty report and exports only a header when the range contains no records', async () => {
     render(<ReportsScreen />);
     await applyRange('2020-01-01', '2020-01-01');

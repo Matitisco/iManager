@@ -145,7 +145,7 @@ export function ReportsScreen() {
               return (
                 <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${model.money ? formatMoney(bucket.value) : bucket.value}`} type="button" onClick={() => setSelected(index)}>
                   {index === active ? (
-                    <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`} style={{ bottom: height + 8 }}>
+                    <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`}>
                       <b>{model.money ? formatMoneyCompact(bucket.value) : bucket.value}</b>
                       {` · ${bucket.label}`}
                     </span>
@@ -214,25 +214,52 @@ function axisDate(label: string) {
   return <>{parts[1]}<br />{parts[2]}</>;
 }
 
+const DONUT_CENTER = 66;
+const DONUT_RADIUS = 46;
+
+function donutSlicePath(start: number, end: number) {
+  const sweep = end - start;
+  if (sweep <= 0 || sweep >= Math.PI * 2 - 1e-4) return '';
+  const point = (angle: number) => `${DONUT_CENTER + DONUT_RADIUS * Math.cos(angle)} ${DONUT_CENTER + DONUT_RADIUS * Math.sin(angle)}`;
+  return `M ${point(start)} A ${DONUT_RADIUS} ${DONUT_RADIUS} 0 ${sweep > Math.PI ? 1 : 0} 1 ${point(end)}`;
+}
+
 function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; onToggle: (label: string) => void }) {
   const sum = parts.reduce((acc, part) => acc + part.value, 0);
-  const radius = 46;
-  const circ = 2 * Math.PI * radius;
-  let offset = 0;
+  const visible = parts.filter((part) => part.value > 0);
+  const gap = visible.length > 1 ? Math.min(0.12, (Math.PI * 2) / visible.length / 4) : 0;
+  let cursor = -Math.PI / 2;
   const active = parts.find((part) => part.label === cat);
   return (
     <div className="gcomp">
       <div className="gdonut">
         <svg width="132" height="132" viewBox="0 0 132 132">
-          {sum === 0 ? <circle cx="66" cy="66" r={radius} fill="none" stroke="#E7E7E7" strokeWidth="20" strokeDasharray="5 5" /> : parts.map((part) => {
-            const length = circ * (part.value / sum);
-            const node = (
-              <circle key={part.label} cx="66" cy="66" r={radius} fill="none" stroke={!cat || cat === part.label ? part.color : '#E7E7E7'} strokeWidth={cat === part.label ? 24 : 20}
-                strokeDasharray={`${Math.max(length - 1.6, 0)} ${circ}`} strokeDashoffset={-offset} transform="rotate(-90 66 66)" style={{ cursor: 'pointer' }}
-                onClick={() => onToggle(part.label)} />
-            );
-            offset += length;
-            return node;
+          {sum === 0 ? <circle cx="66" cy="66" r={DONUT_RADIUS} fill="none" stroke="#E7E7E7" strokeWidth="20" strokeDasharray="5 5" /> : visible.map((part) => {
+            const sweep = (Math.PI * 2) * (part.value / sum);
+            const pad = Math.min(gap, sweep * 0.25);
+            const start = cursor + pad / 2;
+            const end = cursor + sweep - pad / 2;
+            cursor += sweep;
+            const path = donutSlicePath(start, end);
+            const props = {
+              fill: 'none' as const,
+              stroke: !cat || cat === part.label ? part.color : '#E7E7E7',
+              strokeWidth: 20,
+              role: 'button' as const,
+              tabIndex: 0,
+              'aria-label': `Porción ${part.label}`,
+              'aria-pressed': cat === part.label,
+              onClick: () => onToggle(part.label),
+              onKeyDown: (event: React.KeyboardEvent) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onToggle(part.label);
+                }
+              },
+            };
+            return path
+              ? <path key={part.label} d={path} {...props} />
+              : <circle key={part.label} cx={DONUT_CENTER} cy={DONUT_CENTER} r={DONUT_RADIUS} {...props} />;
           })}
         </svg>
         <div className="gc">
