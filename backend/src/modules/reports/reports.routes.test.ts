@@ -100,6 +100,21 @@ describe("reportsRoutes", () => {
     await app.close();
   });
 
+  it("rejects the overview when the member cannot open reports", async () => {
+    resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
+      request.appUser = { storeId: "store-1", role: "STAFF", sections: ["inventory"] };
+    });
+    const app = Fastify();
+    await app.register(reportsRoutes);
+
+    const response = await app.inject({ method: "GET", url: "/overview" });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "No tenés acceso a Reportes" });
+    expect(getReportsOverviewMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("rejects custom ranges that omit one of the dates", async () => {
     const app = Fastify();
     await app.register(reportsRoutes);

@@ -55,6 +55,7 @@ model StoreMember {
   userId    String
   role      StoreRole
   isDefault Boolean   @default(false)
+  sections  Json?
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())

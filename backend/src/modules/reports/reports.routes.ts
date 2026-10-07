@@ -25,6 +25,9 @@ export async function reportsRoutes(app: FastifyInstance) {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
       }
+      if (request.appUser.sections && !request.appUser.sections.includes("reports")) {
+        return reply.code(403).send({ error: "No tenés acceso a Reportes" });
+      }
 
       const query = reportsQuerySchema.parse(request.query);
 

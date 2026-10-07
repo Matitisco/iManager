@@ -13,6 +13,7 @@ import { TradeInsScreen } from './screens/TradeInsScreen';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskIcon, DeskProvider } from './ui';
+import { canOpenSection } from './sections';
 import type { DeskTab, Overlay } from './types';
 import './desk.css';
 
@@ -29,7 +30,10 @@ function tabFromHash(hash: string): DeskTab {
 
 export function DeskApp() {
   const { appSession, tradeIns } = useAppContext();
-  const isStaff = appSession?.membership?.role === 'STAFF';
+  const role = appSession?.membership?.role;
+  const sections = appSession?.membership?.sections;
+  const isStaff = role === 'STAFF';
+  const allowed = (id: DeskTab) => canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
@@ -48,9 +52,9 @@ export function DeskApp() {
   useEffect(() => {
     const apply = () => {
       let next = tabFromHash(window.location.hash);
-      if (isStaff && next === 'reports') {
-        next = 'dashboard';
-        history.replaceState(null, '', '#/dash');
+      if (!allowed(next)) {
+        next = allowed('dashboard') ? 'dashboard' : 'settings';
+        history.replaceState(null, '', `#/${ROUTE[next]}`);
       }
       setTab(next);
       setOverlay(null);
@@ -59,7 +63,16 @@ export function DeskApp() {
     const onHash = () => { apply(); setEntered(true); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [isStaff]);
+  }, [sections, role]);
+
+  useEffect(() => {
+    const next = tabFromHash(window.location.hash || '#/dash');
+    if (allowed(next)) return;
+    const fallback = allowed('dashboard') ? 'dashboard' : 'settings';
+    history.replaceState(null, '', `#/${ROUTE[fallback]}`);
+    setTab(fallback);
+    setOverlay(null);
+  }, [sections, role]);
 
   useEffect(() => {
     const id = appSession?.store?.id;
@@ -68,7 +81,7 @@ export function DeskApp() {
   }, [appSession?.store?.id, isStaff]);
 
   const go = (next: DeskTab) => {
-    if (isStaff && next === 'reports') return;
+    if (!allowed(next)) return;
     const hash = `#/${ROUTE[next]}`;
     if (window.location.hash === hash) {
       setTab(next);
@@ -87,14 +100,15 @@ export function DeskApp() {
     isStaff,
   };
 
-  const items: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars'; size: number; meta?: string }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars'; size: number; meta?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
-    ...(isStaff ? [] : [{ id: 'reports' as const, label: 'Reportes', icon: 'bars' as const, size: 22 }]),
+    { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
   ];
+  const items = nav.filter((item) => allowed(item.id));
 
   return (
     <CatalogProvider>
@@ -116,10 +130,10 @@ export function DeskApp() {
           </div>
           <div className="dlabel">Cuenta</div>
           <div className="dgroup">
-            <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
+            {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
               <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
               {unread > 0 ? <span className="dcount">{unread}</span> : null}
-            </button>
+            </button> : null}
             <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
               <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
             </button>
