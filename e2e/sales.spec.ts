@@ -28,8 +28,9 @@ test('creates a sale from available inventory and persists client and stock chan
 
   await page.getByTestId('sidebar-tab-clients').click();
   await page.getByRole('button', { name: 'Nuevo cliente' }).click();
-  await page.getByLabel('Nombre y apellido').fill(clientName);
-  await page.getByLabel('DNI').fill(clientDni);
+  const clientDialog = page.getByRole('dialog', { name: 'Nuevo cliente' });
+  await clientDialog.getByLabel('Nombre y apellido').fill(clientName);
+  await clientDialog.getByLabel('DNI').fill(clientDni);
   await page.getByRole('button', { name: 'Guardar cliente' }).click();
   await expect(page.getByRole('button', { name: 'Guardar cliente' })).toBeHidden();
 
