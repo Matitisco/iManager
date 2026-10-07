@@ -12,6 +12,7 @@ export interface ImportRow {
   batteryHealth?: string;
   cost?: number;
   price: number;
+  quantity?: number | string;
   status?: string;
   customFields?: Record<string, unknown>;
 }

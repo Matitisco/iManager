@@ -9,6 +9,8 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Validación: 12 pruebas de Login aprobadas, incluidos foco, visibilidad, reintentos y limpieza al desmontar. TypeScript de frontend y backend aprobado. La autenticación real continúa en Firebase; las pruebas usan promesas controladas y eventos del navegador.
 - Issue #81: el indicador de batería hi-fi reutiliza los colores de `main` (rojo <70%, ámbar 70–85%, verde >85%) y anima el llenado con Motion. Conserva rangos y convierte fracciones decimales con los mismos helpers de la referencia.
 - Validación #81: revisión en Chrome del componente real con 69/70/85/86/100%, rangos y fracciones; transición de 87% a 40% y llenado de entrada observados. Los 10 tests existentes de los helpers y TypeScript frontend/backend pasaron. Vista temporal de QA retirada.
+- Issue #82: columna Cantidad en Inventario hi-fi, editable por fila desde alta/edición y visible en el detalle. PostgreSQL guarda un entero positivo con valor inicial 1; PATCH e importación sin cantidad conservan el valor existente. Las planillas admiten una columna Cantidad opcional.
+- Validación #82: 12 pruebas de formulario/tabla y 14 pruebas de integración del API aprobadas contra PostgreSQL local aislado. Migración comprobada sobre un equipo anterior al cambio; TypeScript frontend/backend aprobado. Chrome verificó default 1, rechazo de 0, alta con 3 y edición reflejada en tabla/detalle. QA usó datos locales simulados; el backend `hifi-desk-api` desplegó y sincronizó el schema correctamente en Railway.
 
 ---
 

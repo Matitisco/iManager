@@ -9,6 +9,7 @@ export interface Product {
   batteryHealth: string;
   cost: number;
   price: number;
+  quantity?: number;
   status: string;
   categoryId?: string | null;
   soldAt?: string | null;

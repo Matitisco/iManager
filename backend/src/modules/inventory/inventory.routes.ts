@@ -30,6 +30,7 @@ const inventoryItemSchema = z.object({
   batteryHealth: z.string().trim().max(50),
   cost: z.number().nonnegative(),
   price: z.number().positive(),
+  quantity: z.number().int().min(1).max(2147483647).optional(),
   status: z.string().trim().max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
@@ -123,7 +124,9 @@ export async function inventoryRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Store membership required" });
       }
 
-      const body = inventoryItemSchema.parse(request.body) as InventoryItemInput;
+      const parsed = inventoryItemSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0].message });
+      const body = parsed.data as InventoryItemInput;
       try {
         const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
 
@@ -150,7 +153,9 @@ export async function inventoryRoutes(app: FastifyInstance) {
       }
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
-      const body = inventoryPatchSchema.parse(request.body);
+      const parsed = inventoryPatchSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0].message });
+      const body = parsed.data;
       try {
         const inventoryItem = await updateInventoryItem(
           request.appUser.storeId,
@@ -197,6 +202,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
               batteryHealth: z.coerce.string().optional(),
               cost: z.coerce.number().optional(),
               price: z.coerce.number(),
+              quantity: z.union([z.number(), z.string()]).optional(),
               status: z.string().optional(),
               customFields: z.record(z.unknown()).optional(),
             })

@@ -12,6 +12,7 @@ export interface InventoryItemInput {
   batteryHealth: string;
   cost: number;
   price: number;
+  quantity?: number;
   status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
@@ -28,6 +29,7 @@ export interface InventoryItemResponse {
   batteryHealth: string;
   cost: number;
   price: number;
+  quantity: number;
   status: string;
   categoryId: string | null;
   customFields: Record<string, unknown>;
@@ -52,6 +54,7 @@ type InventoryRecord = {
   categoryId: string | null;
   cost: Decimal;
   price: Decimal;
+  quantity: number;
   status: string;
   customFields: Prisma.JsonValue | null;
   sales?: { soldAt: Date }[];
@@ -106,6 +109,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     batteryHealth: item.batteryHealth,
     cost: item.cost.toNumber(),
     price: item.price.toNumber(),
+    quantity: item.quantity,
     status: item.status as InventoryItemResponse["status"],
     categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
@@ -200,6 +204,7 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 type RawInventoryRow = {
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
+  quantity: number;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
   createdAt: Date | string | null;
 };
@@ -216,6 +221,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     batteryHealth: row.batteryHealth,
     cost: Number(row.cost),
     price: Number(row.price),
+    quantity: row.quantity,
     status: row.status as InventoryItemResponse['status'],
     categoryId: row.categoryId ?? null,
     customFields: toCustomFields(row.customFields),
@@ -234,7 +240,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt"
+             "batteryHealth", "cost"::float8, "price"::float8, "quantity", "status", "categoryId", "customFields", "createdAt"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -311,6 +317,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       batteryHealth: input.batteryHealth,
       cost: toDecimal(input.cost),
       price: toDecimal(input.price),
+      quantity: input.quantity ?? 1,
       status: input.status,
       categoryId: input.categoryId ?? null,
       customFields: normalizeCustomFields(input.customFields),
@@ -363,6 +370,7 @@ export async function updateInventoryItem(
       batteryHealth: input.batteryHealth ?? existing.batteryHealth,
       cost: input.cost !== undefined ? toDecimal(input.cost) : existing.cost,
       price: input.price !== undefined ? toDecimal(input.price) : existing.price,
+      quantity: input.quantity ?? existing.quantity,
       status: input.status ?? existing.status,
       categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       customFields:
@@ -463,6 +471,7 @@ export interface ImportRow {
   batteryHealth?: string;
   cost?: number;
   price: number;
+  quantity?: number | string;
   status?: string;
   customFields?: Record<string, unknown>;
 }
@@ -550,6 +559,12 @@ export async function importInventoryItems(
       continue;
     }
 
+    const quantity = raw.quantity === undefined ? undefined : Number(raw.quantity);
+    if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > 2147483647)) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "Cantidad inválida: debe ser un entero entre 1 y 2147483647" });
+      continue;
+    }
+
     const condition = raw.condition?.trim()
       ? lookupEnum(raw.condition, CONDITION_MAP)
       : "USADO";
@@ -604,6 +619,7 @@ export async function importInventoryItems(
             batteryHealth: input.batteryHealth,
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
+            quantity,
             status: input.status,
             customFields: mergedFields,
           },
@@ -622,6 +638,7 @@ export async function importInventoryItems(
             batteryHealth: input.batteryHealth,
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
+            quantity: quantity ?? 1,
             status: input.status,
             customFields: raw.customFields ?? {},
           },
