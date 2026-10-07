@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
 
-const PALETTE = ['#25A66A', '#0F9D8A', '#3B82F6', '#8B5CF6', '#EC4899', '#DC4C4C', '#E8A33D', '#9DB51F', '#737984', '#16181D'];
+const PALETTE = ['#25A66A', '#0F9D8A', '#3B82F6', '#8B5CF6', '#EC4899', '#DC4C4C', '#E8A33D', '#FFD000', '#737984', '#16181D'];
 
 const FALLBACK_META: CatalogPayload['meta'] = {
   INVENTORY_STATUS: { title: 'Estados de equipo', add: 'Agregar estado', noun: ['equipo', 'equipos'] },

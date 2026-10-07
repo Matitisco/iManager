@@ -3,8 +3,8 @@
 .desk-app {
   --bg: #F7F8FA;
   --bg-deep: #EEF0F3;
-  --lime: #DDF43B;
-  --lime-soft: #F5FBD7;
+  --lime: #FFD000;
+  --lime-soft: #FFF4C2;
   --blue: #5B8DEF;
   --primary: #16181D;
   --secondary: #737984;
@@ -19,7 +19,7 @@
   --c-green: #397964;
   --c-blue: #5B8DEF;
   --c-pink: #DF668B;
-  --c-lime: #DDF43B;
+  --c-lime: var(--lime);
   --sh: 0 1px 2px rgba(0,0,0,.04), 0 4px 14px rgba(0,0,0,.05);
   height: 100vh;
   width: 100vw;
@@ -254,7 +254,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .gchip { height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 700; }
 .gchip.sm { height: 32px; font-size: 12px; }
 .gchip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
-.gchip.sm.on { background: var(--lime-soft); color: var(--primary); border-color: #E3EDB0; }
+.gchip.sm.on { background: var(--lime-soft); color: var(--primary); border-color: #F0D56B; }
 .gfilters .gperiods { flex-wrap: wrap; }
 .grange { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 20px; }
 .grange .fl { flex: 1 1 160px; max-width: 220px; min-width: 0; margin: 0; }
@@ -378,7 +378,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .stx-re { width: 100%; background: #FFF6E5; border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
 .stx-re select { height: 32px; border-radius: 8px; border: 1px solid var(--border); background: #fff; padding: 0 8px; }
 .stx-add { width: 100%; height: 40px; margin-top: 10px; border-radius: 12px; border: 1.5px dashed #C9CDD4; font-weight: 700; }
-.stx-add:hover { border-color: #16181D; background: #F5FBD7; }
+.stx-add:hover { border-color: #16181D; background: var(--lime-soft); }
 .stx-err { color: var(--err); font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .sg i { width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; box-shadow: 0 0 0 1.5px rgba(255,255,255,.7); }
 .sacts { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; margin-top: 16px; }

@@ -303,7 +303,7 @@ function buildReport(
         { label: 'Transferencia', color: '#397964' },
         { label: 'Efectivo', color: '#5B8DEF' },
         { label: 'Tarjeta', color: '#DF668B' },
-        { label: 'Cripto', color: '#DDF43B' },
+        { label: 'Cripto', color: 'var(--c-lime)' },
       ]),
     };
   }
@@ -319,7 +319,7 @@ function buildReport(
       buckets,
       donutTitle: 'Estado actual',
       parts: fixedParts(data.inventory, (item) => statusLabel(item.status), () => 1, [
-        { label: 'Disponible', color: '#DDF43B' },
+        { label: 'Disponible', color: 'var(--c-lime)' },
         { label: 'En revisión', color: '#5B8DEF' },
         { label: 'Vendido', color: '#397964' },
         { label: 'Reservado', color: '#DF668B' },
@@ -340,7 +340,7 @@ function buildReport(
     parts: fixedParts(current, (item) => statusLabel(item.status), () => 1, [
       { label: 'Pendiente', color: '#5B8DEF' },
       { label: 'Peritaje téc.', color: '#DF668B' },
-      { label: 'En revisión', color: '#DDF43B' },
+      { label: 'En revisión', color: 'var(--c-lime)' },
       { label: 'Aprobado', color: '#397964' },
       { label: 'Completado', color: '#16181D' },
     ]),
