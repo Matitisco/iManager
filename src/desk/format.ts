@@ -147,6 +147,16 @@ export function clientName(clients: Client[], id: string): string {
   return clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
 }
 
+export function tradeClientLabel(trade: { clientId?: string; clientName?: string | null }, clients: Client[]): string {
+  if (trade.clientId) {
+    const linked = clients.find((client) => client.id === trade.clientId);
+    if (linked?.name.trim()) return linked.name;
+  }
+  const typed = trade.clientName?.trim();
+  if (typed) return typed;
+  return clientName(clients, trade.clientId ?? '');
+}
+
 export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {
   const typed = sale.clientName?.trim();
   if (typed) return typed;

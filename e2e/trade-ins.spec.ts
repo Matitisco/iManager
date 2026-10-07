@@ -36,7 +36,10 @@ test('creates a trade-in flow and persists the result', async ({ page, request }
 
   await page.getByTestId('sidebar-tab-tradeins').click();
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
-  await page.getByLabel('Equipo que recibís').fill(receivedDevice);
+  const dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
+  await dialog.getByLabel('Cliente').fill(clientName);
+  await dialog.getByRole('option', { name: new RegExp(clientName) }).click();
+  await dialog.getByLabel('Equipo que recibís').fill(receivedDevice);
   await page.getByLabel('IMEI recibido').fill(String(Date.now()).padStart(15, '5').slice(-15));
   await page.getByLabel('Valor tomado').fill('1000');
   await page.getByRole('button', { name: 'Crear canje' }).click();
@@ -44,11 +47,14 @@ test('creates a trade-in flow and persists the result', async ({ page, request }
   await expect(page.getByRole('button', { name: 'Crear canje' })).toBeHidden();
   await expect(page.getByText(receivedDevice).first()).toBeVisible();
 
+  const { clients } = await fetchClients(request, email);
+  const client = clients.find((item) => item.dni === clientDni && item.name === clientName);
+  expect(client).toBeTruthy();
+
   const { tradeIns } = await fetchTradeIns(request, email);
   expect(tradeIns).toHaveLength(1);
   expect(tradeIns[0]?.deviceReceived).toBe(receivedDevice);
   expect(tradeIns[0]?.status).toBe('PENDIENTE');
-
-  const { clients } = await fetchClients(request, email);
-  expect(clients.some((client) => client.dni === clientDni && client.name === clientName)).toBeTruthy();
+  expect(tradeIns[0]?.clientId).toBe(client?.id);
+  expect(tradeIns[0]?.clientName).toBe(clientName);
 });

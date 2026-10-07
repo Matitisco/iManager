@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import {
-  clientName,
   saleBuyer,
   formatMoney,
   formatMoneyCompact,
@@ -13,6 +12,7 @@ import {
   parseAppDate,
   saleCode,
   saleEquipment,
+  tradeClientLabel,
   tradeCode,
 } from '../format';
 import { DeskCta, DeskIcon, Pill, PressTarget, useDesk } from '../ui';
@@ -212,11 +212,11 @@ export function DashboardScreen() {
         <div className="dcard">
           <div className="dch"><h3>Canjes en curso</h3><button className="wlink" type="button" onClick={() => go('tradeins')}>Ver todos</button></div>
           {openTrades.length === 0 ? <div className="wempty">No hay canjes en curso.</div> : openTrades.slice(0, 3).map((trade) => (
-            <PressTarget key={trade.id} as="button" className="ticket dash-cj" onActivate={() => open({ type: 'cj', id: trade.id })} onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: trade.id, label: `${tradeCode(tradeIns, trade.id)} · ${clientName(clients, trade.clientId)}`, ...point })}>
+            <PressTarget key={trade.id} as="button" className="ticket dash-cj" onActivate={() => open({ type: 'cj', id: trade.id })} onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: trade.id, label: `${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`, ...point })}>
               <div className="wtop"><span className="date">#{tradeCode(tradeIns, trade.id)} · {formatShortDate(trade.date)}</span><Pill status={trade.status} kind="TRADE_IN_STATUS" /></div>
               <div className="store">Recibido: {trade.deviceReceived}</div>
               <div className="wbot">
-                <div className="items">{clientName(clients, trade.clientId)}<br />Entrega: {trade.deviceGiven}</div>
+                <div className="items">{tradeClientLabel(trade, clients)}<br />Entrega: {trade.deviceGiven}</div>
                 <div className="wamt">{formatMoney(trade.takeValue)}<small>dif. {formatMoney(trade.differencePaid)}</small></div>
               </div>
             </PressTarget>

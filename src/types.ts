@@ -51,6 +51,7 @@ export interface TradeIn {
   tradeNumber?: number;
   date: string;
   clientId: string;
+  clientName?: string;
   categoryId?: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;

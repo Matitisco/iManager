@@ -5,7 +5,8 @@ import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
   date?: string | null;
-  clientId: string;
+  clientId?: string | null;
+  clientName?: string | null;
   categoryId?: string | null;
   deviceReceived: string;
   deviceReceivedImei?: string | null;
@@ -25,6 +26,7 @@ export interface TradeInResponse {
   tradeNumber: number;
   date: string;
   clientId: string;
+  clientName: string;
   categoryId: string | null;
   deviceReceived: string;
   deviceReceivedImei: string;
@@ -65,6 +67,7 @@ type TradeInRecord = {
   id: string;
   tradeNumber?: number;
   clientId: string | null;
+  clientName?: string | null;
   categoryId: string | null;
   dateLabel: string;
   deviceReceived: string;
@@ -140,6 +143,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     tradeNumber: tradeIn.tradeNumber ?? 0,
     date: formatStoredDate(tradeIn.dateLabel, tradeIn.tradeAt),
     clientId: tradeIn.clientId ?? "",
+    clientName: tradeIn.clientName ?? "",
     categoryId: tradeIn.categoryId ?? null,
     deviceReceived: tradeIn.deviceReceived,
     deviceReceivedImei: tradeIn.deviceReceivedImei,
@@ -179,14 +183,33 @@ export async function listTradeIns(storeId: string) {
   return tradeIns.map(serializeTradeIn);
 }
 
-export async function createTradeIn(storeId: string, input: TradeInInput) {
-  await assertCategoryBelongsToStore(storeId, input.categoryId);
+async function linkedClient(storeId: string, clientId?: string | null) {
+  const id = clientId?.trim();
+  if (!id) return null;
+
   const client = await prisma.client.findFirst({
-    where: { id: input.clientId, storeId },
+    where: { id, storeId },
+    select: { id: true, name: true },
   });
 
   if (!client) {
     throw new TradeInsError("Client not found", 404);
+  }
+
+  return client;
+}
+
+function resolveClientName(typed: string | null | undefined, linkedName?: string | null) {
+  return typed?.trim() || linkedName?.trim() || "";
+}
+
+export async function createTradeIn(storeId: string, input: TradeInInput) {
+  await assertCategoryBelongsToStore(storeId, input.categoryId);
+  const client = await linkedClient(storeId, input.clientId);
+  const clientName = resolveClientName(input.clientName, client?.name);
+
+  if (!clientName) {
+    throw new TradeInsError("Nombre de cliente requerido", 400);
   }
 
   const tradeAt = resolveDate(input.date);
@@ -195,7 +218,8 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
   const tradeIn = await prisma.tradeIn.create({
     data: {
       storeId,
-      clientId: client.id,
+      clientId: client?.id ?? null,
+      clientName,
       categoryId: input.categoryId ?? null,
       dateLabel,
       deviceReceived: input.deviceReceived,
@@ -227,14 +251,14 @@ export async function updateTradeIn(
     return null;
   }
 
-  if (input.clientId) {
-    const client = await prisma.client.findFirst({
-      where: { id: input.clientId, storeId },
-    });
+  const client = input.clientId !== undefined ? await linkedClient(storeId, input.clientId) : null;
+  const nextClientId = input.clientId !== undefined ? (client?.id ?? null) : existing.clientId;
+  const nextClientName = input.clientName !== undefined
+    ? resolveClientName(input.clientName, client?.name)
+    : (client?.name || existing.clientName || "");
 
-    if (!client) {
-      throw new TradeInsError("Client not found", 404);
-    }
+  if (!nextClientId && !nextClientName) {
+    throw new TradeInsError("Nombre de cliente requerido", 400);
   }
 
   await assertCategoryBelongsToStore(storeId, input.categoryId);
@@ -245,10 +269,8 @@ export async function updateTradeIn(
   const updated = await prisma.tradeIn.update({
     where: { id },
     data: {
-      clientId:
-        input.clientId !== undefined
-          ? input.clientId || null
-          : existing.clientId,
+      clientId: nextClientId,
+      clientName: nextClientName,
       categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       dateLabel: nextDateLabel,
       deviceReceived: input.deviceReceived ?? existing.deviceReceived,
@@ -404,6 +426,7 @@ export async function importTradeIns(
           where: { id: existing.id },
           data: {
             clientId: client.id,
+            clientName,
             dateLabel,
             deviceReceived,
             deviceReceivedImei,
@@ -422,6 +445,7 @@ export async function importTradeIns(
           data: {
             storeId,
             clientId: client.id,
+            clientName,
             dateLabel,
             deviceReceived,
             deviceReceivedImei,

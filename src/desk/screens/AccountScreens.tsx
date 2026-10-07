@@ -5,7 +5,7 @@ import { listInvitations, type Invitation } from '../../services/invitations-api
 import { listMembers, type TeamMember } from '../../services/members-api';
 import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
-import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeCode } from '../format';
+import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeClientLabel, tradeCode } from '../format';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
 type NoteTab = 'sales' | 'tradeins' | 'inventory' | 'clients' | 'settings';
@@ -92,11 +92,10 @@ function buildNotes(
   members: TeamMember[] = [],
 ): Note[] {
   const notes: Note[] = [];
-  const nameOf = (id: string) => clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
   const atOf = (value: string) => parseAppDate(value)?.getTime() ?? 0;
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   for (const trade of tradeIns.filter((item) => item.status === 'PENDIENTE')) {
-    notes.push({ id: `cj-${trade.id}`, title: 'Nuevo canje pendiente', body: `${tradeCode(tradeIns, trade.id)} · ${nameOf(trade.clientId)}`, when: relTime(trade.date), at: atOf(trade.date), tab: 'tradeins' });
+    notes.push({ id: `cj-${trade.id}`, title: 'Nuevo canje pendiente', body: `${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`, when: relTime(trade.date), at: atOf(trade.date), tab: 'tradeins' });
   }
   for (const sale of sales.filter((item) => item.status !== 'CANCELADA' && atOf(item.date) >= weekAgo)) {
     notes.push({ id: `sale-${sale.id}`, title: 'Venta registrada', body: `${saleCode(sale)} · ${formatMoney(sale.amount)}`, when: relTime(sale.date), at: atOf(sale.date), tab: 'sales' });
