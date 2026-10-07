@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
@@ -6,6 +6,13 @@ import { useInvitationPreview } from '../hooks/useInvitationPreview';
 
 interface LoginProps {
   inviteToken?: string | null;
+}
+
+function getAuthErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+  return '';
 }
 
 export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
@@ -19,6 +26,24 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const inviteState = useInvitationPreview(inviteToken);
+  const googleAttempt = useRef(0);
+
+  useEffect(() => {
+    // Firebase delays rejecting a closed popup. Restore the button when the
+    // user returns, while Firebase continues to resolve the actual session.
+    const releaseGoogleLoading = () => setIsGoogleLoading(false);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') releaseGoogleLoading();
+    };
+
+    window.addEventListener('focus', releaseGoogleLoading);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', releaseGoogleLoading);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      googleAttempt.current += 1;
+    };
+  }, []);
 
   const clearError = () => setError(null);
   const roleLabel =
@@ -41,10 +66,6 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         return 'Este método de acceso no está habilitado en Firebase.';
       case 'auth/network-request-failed':
         return 'No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.';
-      case 'auth/popup-closed-by-user':
-        return 'Cerraste la ventana de Google antes de completar el acceso.';
-      case 'auth/cancelled-popup-request':
-        return 'Ya hay un intento de acceso con Google en curso.';
       case 'auth/popup-blocked':
         return 'El navegador bloqueó la ventana de Google. Permití popups e intentá de nuevo.';
       case 'auth/email-already-in-use':
@@ -63,15 +84,19 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   };
 
   const handleGoogleLogin = async () => {
+    const attempt = ++googleAttempt.current;
     try {
       setIsGoogleLoading(true);
       clearError();
       await login();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (attempt !== googleAttempt.current) return;
+      const errorCode = getAuthErrorCode(err);
+      if (errorCode === 'auth/popup-closed-by-user' || errorCode === 'auth/cancelled-popup-request') return;
       console.error('Login error:', err);
-      setError(getFirebaseErrorMessage(err?.code || ''));
+      setError(getFirebaseErrorMessage(errorCode));
     } finally {
-      setIsGoogleLoading(false);
+      if (attempt === googleAttempt.current) setIsGoogleLoading(false);
     }
   };
 
@@ -96,10 +121,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       } else {
         await loginWithEmail(email, password);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Email auth error:', err);
-      const errorCode = err?.code || '';
-      setError(getFirebaseErrorMessage(errorCode));
+      setError(getFirebaseErrorMessage(getAuthErrorCode(err)));
     } finally {
       setIsLoading(false);
     }
