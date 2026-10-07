@@ -43,13 +43,13 @@ export const Header: React.FC<HeaderProps> = ({
     'Usuario';
   const profileEmail = appSession?.user.email || user?.email || 'Sin correo';
   const profileRole = appSession?.membership?.role || 'STAFF';
-  const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'MANAGER' ? 'Administrador' : 'Vendedor';
+  const profileRoleLabel = profileRole === 'OWNER' ? 'Propietario' : profileRole === 'MANAGER' ? 'Administrador' : 'Empleado';
   const profileAvatarUrl = appSession?.user.avatarUrl || user?.photoURL || '';
   const profileInitials = getInitials(profileName);
 
   const searchPlaceholders: Record<string, string> = {
     inventory: 'Buscar por IMEI, modelo o categoría...',
-    sales: 'Buscar por cliente, modelo o vendedor...',
+    sales: 'Buscar por cliente, modelo o empleado...',
     tradeins: 'Buscar por IMEI, modelo o cliente...',
     clients: 'Buscar por nombre, teléfono o email...',
   };

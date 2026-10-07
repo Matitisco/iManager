@@ -6,7 +6,7 @@ import { trimToString } from '../lib/utils';
 const ROLE_LABELS: Record<string, string> = {
   OWNER: 'Propietario',
   MANAGER: 'Socio',
-  STAFF: 'Agente',
+  STAFF: 'Empleado',
 };
 
 interface OnboardingProps {

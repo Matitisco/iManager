@@ -764,7 +764,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const store = appSession?.store?.name || 'la tienda';
-  const roleLabel = role === 'MANAGER' ? 'Socio' : 'Agente';
+  const roleLabel = role === 'MANAGER' ? 'Socio' : 'Empleado';
   const copy = () => navigator.clipboard.writeText(url).then(() => toast('Link copiado'));
   const share = () => {
     if (!navigator.share) { void copy(); return; }
@@ -788,8 +788,8 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
       ) : (
         <>
           <Field label="Rol"><span /></Field>
-          <Segs options={[{ id: 'STAFF', label: 'Agente' }, { id: 'MANAGER', label: 'Socio' }]} value={role} onChange={(value) => setRole(value as InvitationRole)} />
-          <p className="sheet-note">El Agente carga equipos y ventas. El Socio además ve reportes y aprueba canjes.</p>
+          <Segs options={[{ id: 'STAFF', label: 'Empleado' }, { id: 'MANAGER', label: 'Socio' }]} value={role} onChange={(value) => setRole(value as InvitationRole)} />
+          <p className="sheet-note">El Empleado carga equipos y ventas. El Socio además ve reportes y aprueba canjes.</p>
         </>
       )}
       {url ? (
@@ -826,7 +826,7 @@ function InvitesList() {
     listInvitations(user).then(setRows).catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudieron cargar las invitaciones.')));
   };
   useEffect(() => { load(); }, [user]);
-  const roleName = (value: string) => (value === 'MANAGER' ? 'Socio' : value === 'OWNER' ? 'Propietario' : 'Agente');
+  const roleName = (value: string) => (value === 'MANAGER' ? 'Socio' : value === 'OWNER' ? 'Propietario' : 'Empleado');
   const when = (value: string) => new Date(value).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '');
   return (
     <Sheet title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>

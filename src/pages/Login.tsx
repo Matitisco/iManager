@@ -50,7 +50,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
     inviteState.preview?.role === 'MANAGER'
       ? 'Socio'
       : inviteState.preview?.role === 'STAFF'
-        ? 'Agente'
+        ? 'Empleado'
         : inviteState.preview?.role === 'OWNER'
           ? 'Propietario'
           : null;

@@ -14,7 +14,7 @@ import { DeskIcon, DeskProvider } from './ui';
 import type { DeskTab, Overlay } from './types';
 import './desk.css';
 
-const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Agente' };
+const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', reports: 'rep', notifications: 'notif', settings: 'config',
