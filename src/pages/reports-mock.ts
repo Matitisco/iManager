@@ -1,3 +1,4 @@
+import { formatArDate } from '../lib/ar-date';
 import type { ReportsOverview, ReportsRangeKey } from '../types/reports';
 import { formatDateInputValue, parseDateInputBoundary } from '../utils/reports';
 
@@ -149,7 +150,7 @@ function buildYearSeries(): ReportsOverview['salesSeries'] {
     const date = new Date(today.getFullYear(), month, 1);
     const wave = 0.62 + 0.38 * Math.sin((month / 11) * Math.PI);
     points.push({
-      label: new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(date),
+      label: formatArDate(date),
       start: isoDay(date),
       revenue: Math.round(1_800_000 * wave),
       unitsSold: Math.max(2, Math.round(8 * wave)),
@@ -270,5 +271,5 @@ function isoDay(date: Date) {
 }
 
 function dayLabel(date: Date) {
-  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
+  return formatArDate(date);
 }

@@ -20,6 +20,7 @@ import {
   formatInputMoney,
   formatMoney,
   formatMoneyCompact,
+  formatArDate,
   formatShortDate,
   parseMoney,
   paymentLabel,
@@ -356,7 +357,7 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
         void run(async () => {
         if (!selected) throw new Error('Seleccioná un equipo disponible.');
         const payload: Omit<Sale, 'id'> = {
-          date: current?.date || new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
+          date: current?.date || formatArDate(new Date()),
           clientId: '',
           clientName: buyer.trim(),
           productId: selected.id,
@@ -475,7 +476,7 @@ function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
         if (Object.keys(next).length) return;
         void run(async () => {
         const payload: Omit<TradeIn, 'id'> = {
-          date: current?.date || new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
+          date: current?.date || formatArDate(new Date()),
           clientId,
           deviceReceived: received.trim(),
           deviceReceivedImei: imei.trim(),
@@ -805,7 +806,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
           createInvitation(user, undefined, role)
             .then((created) => {
               setUrl(created.inviteUrl);
-              setExpires(new Date(created.expiresAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', ''));
+              setExpires(formatArDate(new Date(created.expiresAt)));
               window.dispatchEvent(new Event('desk-invites'));
             })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
@@ -827,7 +828,7 @@ function InvitesList() {
   };
   useEffect(() => { load(); }, [user]);
   const roleName = (value: string) => (value === 'MANAGER' ? 'Socio' : value === 'OWNER' ? 'Propietario' : 'Empleado');
-  const when = (value: string) => new Date(value).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '');
+  const when = (value: string) => formatArDate(new Date(value));
   return (
     <Sheet title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>
       {error && <div className="ferr">{error}</div>}

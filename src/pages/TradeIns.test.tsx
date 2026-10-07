@@ -287,7 +287,7 @@ describe('TradeIns', () => {
         'custom-number': 42,
       },
     });
-    expect(builtTradeIn.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(builtTradeIn.date).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
 
     await config.onCreate(builtTradeIn);
     expect(mockState.appContext.addTradeIn).toHaveBeenCalledWith(builtTradeIn);

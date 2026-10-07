@@ -99,7 +99,7 @@ export function DeskApp() {
           </div>
           <div className="dgroup">
             {items.map((item) => (
-              <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" onClick={() => go(item.id)}>
+              <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                 <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                 <span>{item.label}</span>
                 {item.meta ? <span className="dmeta">{item.meta}</span> : null}

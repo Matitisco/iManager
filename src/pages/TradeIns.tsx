@@ -4,6 +4,7 @@ import { motion, type Variants } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
 import { TableEngine } from '../components/table-engine';
 import type { BadgeMeta, TableEngineConfig } from '../components/table-engine';
+import { formatArDate } from '../lib/ar-date';
 import { formatCurrency, trimToString } from '../lib/utils';
 import type { Client, TradeIn } from '../types';
 import {
@@ -404,7 +405,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
             ...clientSelectOptions,
           ],
         },
-        { colId: 'date', placeholder: 'Fecha (ej. 2026-04-08)', required: true },
+        { colId: 'date', placeholder: 'Fecha (ej. 08/04/2026)', required: true },
         { colId: 'deviceReceived', placeholder: 'Equipo recibido', required: true },
         { colId: 'deviceReceivedImei', placeholder: 'IMEI recibido', required: true },
         { colId: 'takeValue', placeholder: 'Valor toma', required: true },
@@ -413,7 +414,7 @@ export const TradeIns: React.FC<TradeInsProps> = ({ searchTerm = '' }) => {
       ],
       buildNewItem: (formData, categoryId) => ({
         customFields: customFieldsFromRowForm(formData, tradeInCustomColumns),
-        date: String(formData.date ?? '').trim() || new Date().toISOString().slice(0, 10),
+        date: String(formData.date ?? '').trim() || formatArDate(new Date()),
         clientId: String(formData.clientId ?? '').trim(),
         categoryId: categoryId ?? null,
         deviceReceived: String(formData.deviceReceived ?? '').trim(),

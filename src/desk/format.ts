@@ -1,26 +1,10 @@
 import type { Client, Product, Sale, TradeIn } from '../types';
+import { formatArDate, parseArDate } from '../lib/ar-date';
 
-const MONTHS: Record<string, number> = {
-  ene: 0, feb: 1, mar: 2, abr: 3, may: 4, jun: 5,
-  jul: 6, ago: 7, sep: 8, oct: 9, nov: 10, dic: 11,
-};
+export { formatArDate };
 
 export function parseAppDate(value: string | null | undefined): Date | null {
-  if (!value || value === 'N/A' || value === '—') return null;
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-    const date = new Date(trimmed);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  const named = trimmed.toLowerCase().match(/^(\d{1,2})\s+([a-zñáéíóú]+)\.?\s+(\d{4})$/i);
-  if (named) {
-    const key = named[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-    const month = MONTHS[key];
-    if (month != null) return new Date(Number(named[3]), month, Number(named[1]));
-  }
-  const numeric = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (numeric) return new Date(Number(numeric[3]), Number(numeric[2]) - 1, Number(numeric[1]));
-  return null;
+  return parseArDate(value);
 }
 
 export function formatMoney(value: number): string {
@@ -31,13 +15,13 @@ export function formatMoney(value: number): string {
 export function formatShortDate(value: string | null | undefined): string {
   const date = parseAppDate(value);
   if (!date) return '—';
-  return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatArDate(date);
 }
 
 export function formatDayMonth(value: string | null | undefined): string {
   const date = parseAppDate(value);
   if (!date) return '';
-  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', '');
+  return formatArDate(date);
 }
 
 export function relTime(value: string | null | undefined): string {
@@ -51,7 +35,7 @@ export function relTime(value: string | null | undefined): string {
   const days = Math.round(hours / 24);
   if (days === 1) return 'ayer';
   if (days < 7) return `hace ${days} d`;
-  return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '');
+  return formatArDate(date);
 }
 
 export function formatMoneyCompact(value: number): string {

@@ -67,12 +67,14 @@ function onDay(year: number, month: number, day: number) {
 }
 
 function dateLabel(date: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(date);
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${read("day")}/${read("month")}/${read("year")}`;
 }
 
 function imei(index: number) {

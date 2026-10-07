@@ -1,5 +1,6 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
@@ -69,22 +70,6 @@ class SalesError extends Error {
   }
 }
 
-const monthMap: Record<string, number> = {
-  ene: 0,
-  feb: 1,
-  mar: 2,
-  abr: 3,
-  may: 4,
-  jun: 5,
-  jul: 6,
-  ago: 7,
-  sep: 8,
-  set: 8,
-  oct: 9,
-  nov: 10,
-  dic: 11,
-};
-
 const toDecimal = (value: number) => new Decimal(value);
 
 async function assertCategoryBelongsToStore(
@@ -122,42 +107,8 @@ function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
   return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
 }
 
-function normalizeDateLabel(value: string) {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function parseDateLabel(value: string) {
-  const normalized = normalizeDateLabel(value).toLowerCase().replace(/\./g, "");
-  const match = normalized.match(/^(\d{1,2})\s+([a-zñ]{3,4})\s+(\d{4})$/i);
-
-  if (!match) {
-    return new Date();
-  }
-
-  const day = Number(match[1]);
-  const monthKey = match[2].slice(0, 3);
-  const month = monthMap[monthKey];
-  const year = Number(match[3]);
-
-  if (
-    Number.isNaN(day) ||
-    month === undefined ||
-    Number.isNaN(year)
-  ) {
-    return new Date();
-  }
-
-  const parsed = new Date(year, month, day, 12, 0, 0, 0);
-
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function formatDateLabel(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(value);
+function resolveDate(value: string | null | undefined, fallback = new Date()) {
+  return parseArDate(value) ?? fallback;
 }
 
 async function recomputeClientStats(
@@ -184,7 +135,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
   return {
     id: sale.id,
     saleNumber: sale.saleNumber,
-    date: sale.dateLabel || formatDateLabel(sale.soldAt),
+    date: formatStoredDate(sale.dateLabel, sale.soldAt),
     clientId: sale.clientId ?? "",
     clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
@@ -231,8 +182,8 @@ export async function createSale(storeId: string, input: SaleInput) {
       throw new SalesError("Inventory item is not available", 409);
     }
 
-    const soldAt = parseDateLabel(input.date);
-    const dateLabel = normalizeDateLabel(input.date) || formatDateLabel(soldAt);
+    const soldAt = resolveDate(input.date);
+    const dateLabel = formatArDate(soldAt);
 
     const sale = await tx.sale.create({
       data: {
@@ -312,10 +263,8 @@ export async function updateSale(
       }
     }
 
-    const newSoldAt = input.date ? parseDateLabel(input.date) : existing.soldAt;
-    const newDateLabel = input.date
-      ? normalizeDateLabel(input.date) || formatDateLabel(newSoldAt)
-      : existing.dateLabel;
+    const newSoldAt = input.date ? resolveDate(input.date, existing.soldAt) : existing.soldAt;
+    const newDateLabel = input.date ? formatArDate(newSoldAt) : existing.dateLabel;
     const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
 
     const updated = await tx.sale.update({
@@ -502,8 +451,8 @@ export async function importSales(
       const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
 
       const dateStr = r.date?.trim() || "";
-      const soldAt  = parseDateLabel(dateStr) || new Date();
-      const dateLabel = dateStr || formatDateLabel(soldAt);
+      const soldAt = resolveDate(dateStr);
+      const dateLabel = formatArDate(soldAt);
 
       await prisma.$transaction(async (tx) => {
         await tx.sale.create({

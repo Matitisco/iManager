@@ -7,6 +7,7 @@ import type { StoreUpdateInput } from '../services/settings-api';
 import { listMembers, updateMemberRole, removeMember, type TeamMember, type MemberRole } from '../services/members-api';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type CreatedInvitation, type InvitationRole } from '../services/invitations-api';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatArDate } from '../lib/ar-date';
 import { canSeeBillingSection } from './settings-access';
 
 const container: Variants = {
@@ -621,7 +622,7 @@ function TeamTab() {
                       <p className="text-sm font-semibold text-gray-900 truncate">{inv.email ?? 'Invitación por enlace'}</p>
                       <p className="text-xs text-gray-500">
                         {ROLE_LABELS[inv.role as MemberRole]} · Expira{' '}
-                        {new Date(inv.expiresAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                        {formatArDate(new Date(inv.expiresAt))}
                       </p>
                     </div>
                     <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 shrink-0">
