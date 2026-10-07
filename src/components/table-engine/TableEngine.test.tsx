@@ -471,6 +471,8 @@ describe('TableEngine', () => {
     fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
 
     expect(await screen.findByText('Se copiaron 2 ítems')).toBeInTheDocument();
+    expect(alphaRow).toHaveAttribute('data-row-feedback', 'copied');
+    expect(betaRow).toHaveAttribute('data-row-feedback', 'copied');
 
     fireEvent.paste(document.body, { clipboardData: { getData: () => '' } });
 
@@ -517,6 +519,38 @@ describe('TableEngine', () => {
         quantity: 4,
       }));
     });
+  });
+
+  it('marks only the rows that appear after a paste for the entrance animation', async () => {
+    clearRowClipboardMemory();
+    const existing: TestRow[] = [
+      { id: '1', name: 'Alpha', quantity: 1, categoryId: null },
+    ];
+    const pasted: TestRow = { id: '9', name: 'Gamma', quantity: 4, categoryId: null };
+    let calls = 0;
+    const fetchPage = vi.fn(async () => {
+      calls += 1;
+      const items = calls === 1 ? existing : [...existing, pasted];
+      return { items, total: items.length };
+    });
+
+    render(
+      <TableEngine
+        config={buildConfig({ fetchPage, onCreate: vi.fn(async () => undefined) })}
+        user={{ uid: 'user-1' }}
+      />
+    );
+
+    const alphaRow = (await screen.findByText('Alpha')).closest('tr');
+    expect(alphaRow).not.toHaveAttribute('data-row-feedback');
+
+    fireEvent.paste(document.body, {
+      clipboardData: { getData: () => 'Nombre\tCantidad\nGamma\t4' },
+    });
+
+    const gammaRow = (await screen.findByText('Gamma')).closest('tr');
+    expect(gammaRow).toHaveAttribute('data-row-feedback', 'pasted');
+    expect(alphaRow).not.toHaveAttribute('data-row-feedback');
   });
 
   it('renames a dropdown tag from the pencil editor without changing the stored value', async () => {
