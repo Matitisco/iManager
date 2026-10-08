@@ -5,14 +5,26 @@ import { listMembers, type TeamMember } from '../../services/members-api';
 import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
 import { formatArDate, initials, relTime } from '../format';
+import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
+
+const SECTION_LABEL: Record<NoticeSection, string> = {
+  inventory: 'Inventario',
+  sales: 'Ventas',
+  tradeins: 'Canjes',
+  clients: 'Clientes',
+};
 
 export function NotificationsScreen() {
   const { operationNotifications, notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead } = useAppContext();
   const { go, toast, openRecord } = useDesk();
   const [filter, setFilter] = useState('Todas');
-  const unread = operationNotifications.filter((note) => !note.readAt).length;
-  const visible = operationNotifications.filter((note) => filter === 'Todas' || !note.readAt);
+  const unread = unreadBySection(operationNotifications);
+  const visible = operationNotifications.filter((note) => {
+    if (filter === 'unread') return !note.readAt;
+    if (filter === 'Todas') return true;
+    return note.section === filter;
+  });
 
   const mark = async (id: string, section: string, recordId: string | null | undefined, kind: string) => {
     try {
@@ -38,15 +50,19 @@ export function NotificationsScreen() {
     <div className="dscreen">
       <PageHead
         title="Notificaciones"
-        subtitle={unread ? unread + ' sin leer' : 'Todo al d\u00eda'}
-        action={<div style={{ display: 'flex', gap: 14 }}>{unread > 0 ? <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>Leer todas</button> : null}<button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void refreshNotifications().catch(() => undefined)}>Actualizar</button></div>}
+        subtitle={unread.total ? `Total: ${unread.total} sin leer` : 'Todo al d\u00eda'}
+        action={<div style={{ display: 'flex', gap: 14 }}>{unread.total > 0 ? <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>Leer todas</button> : null}<button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void refreshNotifications().catch(() => undefined)}>Actualizar</button></div>}
       />
       <div style={{ padding: '0 20px 12px', maxWidth: 860 }}>
-        <ChipRow options={[{ id: 'Todas', label: 'Todas' }, { id: 'unread', label: 'Sin leer' }]} value={filter} onChange={setFilter} />
+        <ChipRow options={[
+          { id: 'Todas', label: 'Todas' },
+          ...Object.entries(SECTION_LABEL).map(([id, label]) => ({ id, label: `${label} ${unread.bySection[id as NoticeSection]}` })),
+          { id: 'unread', label: 'Sin leer' },
+        ]} value={filter} onChange={setFilter} />
       </div>
       {notificationsError ? <div className="wempty" role="alert" style={{ maxWidth: 860 }}>{notificationsError}</div> : null}
       {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Cargando notificaciones...</div> : null}
-      {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{filter === 'Todas' ? 'Todav\u00eda no hay notificaciones.' : 'Est\u00e1s al d\u00eda. No hay notificaciones sin leer.'}</div> : (
+      {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
         <div className="card" style={{ maxWidth: 860 }}>
           {visible.map((note) => {
             const seen = !!note.readAt;
@@ -64,13 +80,23 @@ export function NotificationsScreen() {
   );
 }
 
-export function useUnreadCount() {
+export function useUnreadCounts() {
   const { operationNotifications } = useAppContext();
-  return operationNotifications.filter((note) => !note.readAt).length;
+  return unreadBySection(operationNotifications);
+}
+
+export function useUnreadCount() {
+  return useUnreadCounts().total;
 }
 
 function sectionLabel(section: string) {
-  return ({ inventory: 'Inventario', sales: 'Ventas', tradeins: 'Canjes', clients: 'Clientes' } as Record<string, string>)[section] ?? section;
+  return SECTION_LABEL[section as NoticeSection] ?? section;
+}
+
+function emptyCopy(filter: string) {
+  if (filter === 'Todas') return 'Todav\u00eda no hay notificaciones.';
+  if (filter === 'unread') return 'Est\u00e1s al d\u00eda. No hay notificaciones sin leer.';
+  return `No hay notificaciones de ${sectionLabel(filter)}.`;
 }
 
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
