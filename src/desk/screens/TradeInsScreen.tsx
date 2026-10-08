@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { usePhoneLayout, useSectionNotices } from '../section-notices';
+import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
 import { formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
@@ -19,6 +21,9 @@ export function TradeInsScreen() {
   const { tradeIns, clients, operationDrafts = [] } = useAppContext();
   const catalogs = useCatalogs();
   const { open } = useDesk();
+  const phone = usePhoneLayout();
+  const notices = useSectionNotices('tradeins');
+  const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
@@ -40,7 +45,10 @@ export function TradeInsScreen() {
       return direction * (a - b) || direction * ((left.tradeNumber ?? 0) - (right.tradeNumber ?? 0));
     });
   }, [tradeIns, clients, query, filter, sort]);
-  const page = usePagedRows(rows, `${query}|${filter}|${sort}`);
+  const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
+  const page = usePagedRows(listed, `${query}|${filter}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
+  const visibleKey = page.visible.map((item) => item.id).join('|');
+  useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
 
   const statuses = useMemo(() => {
     const known = catalogs?.ready
@@ -82,8 +90,26 @@ export function TradeInsScreen() {
         />
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
+      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <div className="dcard flush">
-        {rows.length === 0 ? <div className="wempty">No encontré canjes.</div> : (
+        {listed.length === 0 ? <div className="wempty">No encontré canjes.</div> : phone ? (
+          <PhoneRecords>
+            {page.visible.map((item) => {
+              const reason = notices.reasonFor(item.id);
+              return (
+                <PhoneRecord
+                  key={item.id}
+                  reason={reason}
+                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
+                >
+                  <b>#{tradeCode(tradeIns, item.id)} · {tradeClientLabel(item, clients)}</b>
+                  <small>{item.deviceReceived || '—'} · {formatMoney(item.takeValue)}</small>
+                </PhoneRecord>
+              );
+            })}
+          </PhoneRecords>
+        ) : (
           <div className="dtable-scroll">
             <table className="dtable trade-table" aria-label="Canjes">
               <thead><tr><th>Canje</th><th>Fecha</th><th>Cliente</th><th>Recibido</th><th>Entregado</th><th className="r">Valor / diferencia</th><th>Estado</th></tr></thead>
@@ -92,10 +118,11 @@ export function TradeInsScreen() {
                   <PressTarget
                     key={item.id}
                     as="tr"
-                    onActivate={() => open({ type: 'cj', id: item.id })}
+                    className={notices.reasonFor(item.id) ? 'novedad' : undefined}
+                    onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
                   >
-                    <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b></td>
+                    <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
                     <td className="trade-nowrap">{formatShortDate(item.date)}</td>
                     <td>{tradeClientLabel(item, clients)}</td>
                     <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>

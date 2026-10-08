@@ -40,6 +40,11 @@ export interface OperationResult {
   summary: string;
 }
 
+export interface OperationNoticeTarget {
+  recordId: string;
+  reason: string;
+}
+
 export interface OperationNotification {
   id: string;
   storeId: string;
@@ -47,6 +52,7 @@ export interface OperationNotification {
   title: string;
   message: string;
   recordId?: string | null;
+  targets?: OperationNoticeTarget[] | null;
   kind: string;
   createdAt: string;
   readAt?: string | null;

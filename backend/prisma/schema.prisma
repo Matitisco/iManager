@@ -240,6 +240,7 @@ model StoreNotification {
   title     String   @db.VarChar(160)
   message   String   @db.Text
   recordId  String?  @db.VarChar(120)
+  targets   Json?
   kind      String   @db.VarChar(40)
   createdAt DateTime @default(now())
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)

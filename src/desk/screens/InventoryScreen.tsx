@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { usePhoneLayout, useSectionNotices } from '../section-notices';
+import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { conditionLabel, equipmentTitle, formatInputMoney, formatMoney, isInStock, parseMoney } from '../format';
@@ -33,6 +35,9 @@ export function InventoryScreen() {
   const { inventory, appSession, operationDrafts = [] } = useAppContext();
   const catalogs = useCatalogs();
   const { open, toast } = useDesk();
+  const phone = usePhoneLayout();
+  const notices = useSectionNotices('inventory');
+  const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
@@ -62,7 +67,10 @@ export function InventoryScreen() {
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => b.price - a.price);
     return list;
   }, [inventory, query, filter, columns, sort]);
-  const page = usePagedRows(rows, `${query}|${filter}|${columnFilterKey(columns)}|${sort}`);
+  const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
+  const page = usePagedRows(listed, `${query}|${filter}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
+  const visibleKey = page.visible.map((item) => item.id).join('|');
+  useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
   const priceMessage = priceListMessage(rows, appSession?.store?.name);
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
@@ -117,7 +125,27 @@ export function InventoryScreen() {
         <ChipRow options={filters} value={filter} onChange={setFilter} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
       </div>
+      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <div className="dcard flush">
+        {phone ? (
+          <PhoneRecords>
+            {page.visible.map((item) => {
+              const reason = notices.reasonFor(item.id);
+              return (
+                <PhoneRecord
+                  key={item.id}
+                  reason={reason}
+                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
+                >
+                  <b>{equipmentTitle(item.model, item.capacity)}</b>
+                  <small>{[item.color, item.price > 0 ? formatMoney(item.price) : ''].filter(Boolean).join(' · ') || '—'}</small>
+                  {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}
+                </PhoneRecord>
+              );
+            })}
+          </PhoneRecords>
+        ) : (
         <table className="dtable">
             <thead>
               <tr>
@@ -189,13 +217,14 @@ export function InventoryScreen() {
                 <PressTarget
                   key={item.id}
                   as="tr"
-                  onActivate={() => open({ type: 'eq', id: item.id })}
+                  className={notices.reasonFor(item.id) ? 'novedad' : undefined}
+                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
                 >
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><DeskIcon name="logo" size={22} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small></div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small><NoticeTag reason={notices.reasonFor(item.id)} /></div>
                     </div>
                   </td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
@@ -209,7 +238,8 @@ export function InventoryScreen() {
               ))}
             </tbody>
           </table>
-        {rows.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : null}
+        )}
+        {listed.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       <div className="dhint">Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.</div>

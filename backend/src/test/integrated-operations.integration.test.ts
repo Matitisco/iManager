@@ -37,7 +37,15 @@ describe("integrated operation API", () => {
     const notice = (section: string) => confirmed.json().notifications.find((item: { section: string }) => item.section === section);
     expect(notice("tradeins")).toMatchObject({ recordId: tradeId, title: "Canje confirmado", message: "iPhone 11 Confirmed · toma $ 600 · diferencia $ 900" });
     expect(notice("sales")).toMatchObject({ title: "Venta registrada", message: "iPhone 14 128GB · Draft Customer · $ 1.500" });
-    expect(notice("inventory")).toMatchObject({ title: "Stock actualizado", message: "iPhone 14 128GB vendido. Entró un iPhone 11 Confirmed por canje, en revisión" });
+    const receivedItem = confirmed.json().inventory.find((item: { model: string; id: string }) => item.model === "iPhone 11 Confirmed");
+    expect(notice("inventory")).toMatchObject({
+      title: "Stock actualizado",
+      message: "iPhone 14 128GB vendido. Entró un iPhone 11 Confirmed por canje, en revisión",
+      targets: [
+        { recordId: fixture.inventoryItem.id, reason: "Vendido" },
+        { recordId: receivedItem.id, reason: "Nuevo · entró por canje" },
+      ],
+    });
     expect(notice("clients")).toMatchObject({ recordId: client.id, title: "Nuevo cliente", message: "Nuevo cliente: Draft Customer. Debe $ 900" });
     expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
     expect(new Set(confirmed.json().notifications.map((item: { message: string }) => item.message)).size).toBe(4);

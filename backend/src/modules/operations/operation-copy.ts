@@ -17,13 +17,77 @@ export type NoticeFacts = {
   archivedDevice?: string | null;
 };
 
+export type NoticeTarget = {
+  recordId: string;
+  reason: string;
+};
+
 export type SectionNotice = {
   section: string;
   title: string;
   message: string;
   recordId?: string;
+  targets?: NoticeTarget[];
   kind: string;
 };
+
+export function noticeTargets(parts: Array<{ recordId?: string | null; reason: string }>): NoticeTarget[] {
+  const seen = new Set<string>();
+  const targets: NoticeTarget[] = [];
+  for (const part of parts) {
+    const recordId = part.recordId?.trim();
+    if (!recordId || seen.has(recordId)) continue;
+    seen.add(recordId);
+    targets.push({ recordId, reason: part.reason });
+  }
+  return targets;
+}
+
+export function sectionReason(section: string, facts: NoticeFacts): string {
+  if (section === "inventory") return inventoryReason(facts);
+  if (section === "clients") return clientReason(facts);
+  if (section === "tradeins") return tradeReason(facts);
+  return saleReason(facts);
+}
+
+function saleReason(facts: NoticeFacts) {
+  if (facts.action === "cancelled") return "Cancelada";
+  if (facts.action === "updated") return "Actualizada";
+  return "Venta registrada";
+}
+
+function tradeReason(facts: NoticeFacts) {
+  if (facts.action === "draft-created") return "Borrador";
+  if (facts.action === "draft-updated") return "Borrador actualizado";
+  if (facts.action === "cancelled") return "Cancelado";
+  if (facts.action === "updated") return "Actualizado";
+  return "Confirmado";
+}
+
+function inventoryReason(facts: NoticeFacts) {
+  const sold = Boolean(text(facts.soldDevice));
+  const released = Boolean(text(facts.releasedDevice));
+  const archived = Boolean(text(facts.archivedDevice));
+  const incoming = Boolean(text(facts.receivedDevice)) && facts.action !== "cancelled";
+  if (incoming && !sold && !released && !archived) return "Nuevo · entró por canje";
+  if (sold && !incoming && !released && !archived) return "Vendido";
+  if (released && !sold && !incoming) return "Volvió al stock";
+  if (archived && !sold && !incoming && !released) return "Archivado";
+  if (incoming) return "Nuevo · entró por canje";
+  if (sold) return "Vendido";
+  if (released) return "Volvió al stock";
+  if (archived) return "Archivado";
+  return "Actualizado";
+}
+
+function clientReason(facts: NoticeFacts) {
+  const balance = facts.pendingBalance ?? 0;
+  if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance)}`;
+  if (facts.clientCreated) return "Nuevo cliente";
+  if (balance > 0) return `Debe ${money(balance)}`;
+  if (facts.action === "cancelled" || facts.action === "updated") return "Quedó al día";
+  return "Cliente";
+}
 
 function text(value?: string | null) {
   const trimmed = value?.trim();
@@ -105,16 +169,25 @@ function clientCopy(facts: NoticeFacts): { title: string; message: string } {
   return { title: "Cliente", message: name };
 }
 
+function mergedTargets(recordId: string | undefined, fallback: string, extra?: NoticeTarget[]) {
+  const targets = noticeTargets(extra ?? []);
+  if (recordId && !targets.some((target) => target.recordId === recordId)) {
+    targets.unshift({ recordId, reason: fallback });
+  }
+  return targets.length ? targets : undefined;
+}
+
 export function sectionRecords(
   sections: string[],
   facts: NoticeFacts,
   recordIds: Record<string, string>,
-  options?: { archiveReceived?: boolean },
+  options?: { archiveReceived?: boolean; targets?: Record<string, NoticeTarget[]> },
 ): SectionNotice[] {
   return [...new Set(sections)].map((section) => ({
     section,
     ...sectionCopy(section, facts),
     recordId: recordIds[section],
+    targets: mergedTargets(recordIds[section], sectionReason(section, facts), options?.targets?.[section]),
     kind: section === "inventory" && options?.archiveReceived && recordIds.inventory === recordIds.tradeins
       ? "ARCHIVED_TRADE_IN_RECEIVED"
       : "INTEGRATED_OPERATION",

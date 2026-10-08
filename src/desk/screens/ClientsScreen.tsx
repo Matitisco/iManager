@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { usePhoneLayout, useSectionNotices } from '../section-notices';
+import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import {
   EMPTY_CLIENT_FILTERS,
@@ -17,6 +19,9 @@ import { ChipRow, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '..
 export function ClientsScreen() {
   const { clients, operationDrafts = [] } = useAppContext();
   const { open } = useDesk();
+  const phone = usePhoneLayout();
+  const notices = useSectionNotices('clients');
+  const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
@@ -34,7 +39,10 @@ export function ClientsScreen() {
       return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
   }, [clients, query, filter, columns]);
-  const page = usePagedRows(rows, `${query}|${filter}|${clientFilterKey(columns)}`);
+  const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
+  const page = usePagedRows(listed, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const visibleKey = page.visible.map((client) => client.id).join('|');
+  useEffect(() => { notices.markVisible(page.visible.map((client) => client.id)); }, [visibleKey, notices.markVisible]);
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
 
   return (
@@ -73,8 +81,27 @@ export function ClientsScreen() {
           onChange={setFilter}
         />
       </div>
+      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <div className="dcard flush">
-        <div className="dch pad"><h3>Clientes</h3><span className="mut">{rows.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
+        <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
+        {phone ? (
+          <PhoneRecords>
+            {page.visible.map((client) => {
+              const reason = notices.reasonFor(client.id);
+              return (
+                <PhoneRecord
+                  key={client.id}
+                  reason={reason}
+                  onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
+                >
+                  <b>{client.name}</b>
+                  <small>{[client.phone, client.pendingBalance > 0 ? formatMoney(client.pendingBalance) : 'Sin saldo'].filter(Boolean).join(' · ')}</small>
+                </PhoneRecord>
+              );
+            })}
+          </PhoneRecords>
+        ) : (
         <table className="dtable">
             <thead>
               <tr>
@@ -127,14 +154,15 @@ export function ClientsScreen() {
                 <PressTarget
                   key={client.id}
                   as="tr"
+                  className={notices.reasonFor(client.id) ? 'novedad' : undefined}
                   testId={`client-row-${client.id}`}
-                  onActivate={() => open({ type: 'cl', id: client.id })}
+                  onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
                 >
                   <td>
                     <div className="dcell">
                       <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small></div>
+                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small><NoticeTag reason={notices.reasonFor(client.id)} /></div>
                     </div>
                   </td>
                   <td>{client.dni || '-'}</td>
@@ -146,7 +174,8 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        {rows.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
+        )}
+        {listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>

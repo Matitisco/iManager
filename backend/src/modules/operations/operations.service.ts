@@ -4,7 +4,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
-import { operationSummary, sectionRecords } from "./operation-copy.js";
+import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
 const toNum = (value: number | Decimal) => Number(value instanceof Decimal ? value.toString() : value);
@@ -167,6 +167,7 @@ export async function writeOperationNotifications(
     title: string;
     message: string;
     recordId?: string;
+    targets?: Array<{ recordId: string; reason: string }>;
     kind: string;
   }>,
 ) {
@@ -174,7 +175,15 @@ export async function writeOperationNotifications(
   for (const record of records) {
     result.push(
       await tx.storeNotification.create({
-        data: { storeId, ...record },
+        data: {
+          storeId,
+          section: record.section,
+          title: record.title,
+          message: record.message,
+          recordId: record.recordId,
+          kind: record.kind,
+          targets: record.targets?.length ? (record.targets as Prisma.InputJsonValue) : undefined,
+        },
       }),
     );
   }
@@ -185,6 +194,7 @@ export async function writeOperationNotifications(
     title: notification.title,
     message: notification.message,
     recordId: notification.recordId,
+    targets: Array.isArray(notification.targets) ? notification.targets as Array<{ recordId: string; reason: string }> : null,
     kind: notification.kind,
     createdAt: notification.createdAt.toISOString(),
   }));
@@ -482,6 +492,10 @@ export async function createOperation(storeId: string, source: OperationSource, 
         soldDevice: product ? saleLabel : null,
       },
       { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id },
+      { targets: { inventory: noticeTargets([
+        { recordId: product?.id, reason: "Vendido" },
+        { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
+      ]) } },
     ));
     return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming }) };
   });
@@ -626,7 +640,10 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       sales: sale.id,
       inventory: received.id,
       clients: client.id,
-    }));
+    }, { targets: { inventory: noticeTargets([
+      { recordId: product?.id, reason: "Vendido" },
+      { recordId: received.id, reason: "Nuevo · entró por canje" },
+    ]) } }));
     return {
       sale: serializeSale(sale, product),
       tradeIn: serializeTrade({ ...confirmed, saleId: sale.id }),
@@ -772,7 +789,13 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       receivedDevice: incoming?.model ?? null,
       soldDevice: output?.status === "VENDIDO" ? fullDeviceLabel(output) : null,
       releasedDevice: released ? fullDeviceLabel(released) : null,
-    }, { sales: sale.id, inventory: incoming?.id ?? output?.id ?? released?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: nextClientId ?? sale.id }));
+    }, { sales: sale.id, inventory: incoming?.id ?? output?.id ?? released?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: nextClientId ?? sale.id }, {
+      targets: { inventory: noticeTargets([
+        { recordId: output?.status === "VENDIDO" ? output.id : null, reason: "Vendido" },
+        { recordId: released?.id, reason: "Volvió al stock" },
+        { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
+      ]) },
+    }));
     return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : {}), inventory: [output, released, incoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: !!trade, amount: nextAmount, takeValue: trade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: !!trade })} · operación actualizada` };
   });
 }
