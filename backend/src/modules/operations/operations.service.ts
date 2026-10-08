@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
 import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
@@ -339,8 +340,10 @@ export async function createOperation(storeId: string, source: OperationSource, 
         if (!draftProduct) throw new OperationError("Inventory item not found", 404);
         if (!canRegisterOutgoingSale(draftProduct)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
+      const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
       const trade = await tx.tradeIn.create({ data: {
         storeId,
+        tradeNumber,
         clientId: draftClient?.id ?? null,
         clientName: draftClient?.name ?? input.clientName?.trim() ?? "",
         categoryId: input.categoryId ?? null,
@@ -394,9 +397,11 @@ export async function createOperation(storeId: string, source: OperationSource, 
     let incoming: InventoryItem | null = null;
     if (tradeInput) {
       await assertIncomingImei(tx, storeId, tradeInput.deviceReceivedImei);
+      const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
       trade = await tx.tradeIn.create({
         data: {
           storeId,
+          tradeNumber,
           clientId: client?.id ?? null,
           clientName: client?.name ?? input.clientName?.trim() ?? "",
           categoryId: input.categoryId ?? null,
@@ -448,9 +453,11 @@ export async function createOperation(storeId: string, source: OperationSource, 
         },
       });
     }
+    const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const sale = await tx.sale.create({
       data: {
         storeId,
+        saleNumber,
         clientId: client?.id ?? null,
         clientName: client?.name ?? input.clientName?.trim() ?? "",
         categoryId: trade ? input.saleCategoryId ?? null : input.saleCategoryId ?? input.categoryId ?? null,
@@ -600,8 +607,10 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       previousSaleStatus: null,
       ...salePricePatch(product.price, outgoingAmount),
     } });
+    const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const sale = await tx.sale.create({ data: {
       storeId,
+      saleNumber,
       clientId: client.id,
       clientName: client.name,
       categoryId: saleCategoryId ?? null,

@@ -47,6 +47,7 @@ model Store {
   catalogOptions      StoreCatalogOption[]
   clientPayments      ClientPayment[]
   notifications       StoreNotification[]
+  storeCounter        StoreCounter?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -146,6 +147,15 @@ model InventoryItem {
 
   @@index([storeId])
   @@unique([storeId, imei])
+}
+
+// Last issued receipt number per store. Existing Sale/TradeIn numbers stay as they are;
+// the next document continues after the highest number that store already issued.
+model StoreCounter {
+  storeId         String @id
+  lastSaleNumber  Int    @default(0)
+  lastTradeNumber Int    @default(0)
+  store           Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model Sale {

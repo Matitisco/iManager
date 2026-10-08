@@ -1,6 +1,8 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const allocateDocumentNumber = vi.hoisted(() => vi.fn());
+
 const prismaMock = vi.hoisted(() => ({
   client: {
     findFirst: vi.fn(),
@@ -24,11 +26,16 @@ vi.mock("../../plugins/prisma.js", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("../../lib/store-sequence.js", () => ({
+  allocateDocumentNumber,
+}));
+
 import { createCategory, createSale, getSalesErrorStatus, importSales } from "./sales.service.js";
 
 describe("sales.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    allocateDocumentNumber.mockResolvedValue(4);
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
 
@@ -100,8 +107,10 @@ describe("sales.service", () => {
     });
 
     expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
+    expect(allocateDocumentNumber).toHaveBeenCalledWith(prismaMock, "store-1", "sale");
     expect(prismaMock.sale.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
+        saleNumber: 4,
         inventoryItemId: null,
         deviceLabel: "iPhone 11 64GB",
       }),
