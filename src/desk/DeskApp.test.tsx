@@ -32,11 +32,11 @@ describe('sidebar unread counts', () => {
       { id: '4', storeId: 's', section: 'clients', title: 'Saldo pendiente', message: 'Juan Pérez debe $ 50.000', recordId: 'c', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: '2026-10-08T13:00:00.000Z' },
     ];
     render(<DeskApp />);
-    expect(screen.getByLabelText('Notificaciones: 3 sin leer')).toHaveTextContent('3');
-    expect(screen.getByLabelText('Inventario: 2 sin leer')).toHaveTextContent('2');
-    expect(screen.getByLabelText('Ventas: 1 sin leer')).toHaveTextContent('1');
-    expect(screen.queryByLabelText(/Clientes: .* sin leer/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Canjes: .* sin leer/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('3 en total')).toHaveTextContent('3');
+    expect(screen.getByLabelText('2 en Inventario')).toHaveTextContent('2');
+    expect(screen.getByLabelText('1 en Ventas')).toHaveTextContent('1');
+    expect(screen.queryByLabelText(/en Clientes/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/en Canjes/)).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1');
   });
 });

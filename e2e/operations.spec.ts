@@ -201,7 +201,7 @@ test('a cancellation notification survives reload, opens the archived received d
 
   await page.reload();
   await page.getByRole('button', { name: 'Notificaciones' }).click();
-  await page.getByRole('button', { name: 'Sin leer' }).click();
+  await page.getByRole('button', { name: 'Sin leer', exact: true }).click();
   await expect(page.getByRole('button', { name: new RegExp(`${received} archivado`) }).filter({ hasText: 'Inventario' })).toHaveCount(0);
   const activeInventory = await fetchInventory(request, email);
   expect(activeInventory.inventory.some((item) => item.model === received)).toBeFalsy();

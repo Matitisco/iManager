@@ -34,7 +34,7 @@ function SectionUnread({ label, count, meta }: { label: string; count: number; m
   return (
     <span className="dnav-meta">
       {meta ? <span className="dmeta">{meta}</span> : null}
-      {count > 0 ? <span className="dcount" aria-label={`${label}: ${count} sin leer`}>{count}</span> : null}
+      {count > 0 ? <span className="dcount" aria-label={`${count} en ${label}`}>{count}</span> : null}
     </span>
   );
 }
@@ -186,7 +186,7 @@ export function DeskApp() {
           <div className="dgroup">
             {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
               <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
-              {unread.total > 0 ? <span className="dcount" aria-label={`Notificaciones: ${unread.total} sin leer`}>{unread.total}</span> : null}
+              {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
             </button> : null}
             <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
               <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
