@@ -79,10 +79,11 @@ describe('Onboarding', () => {
 
   it('lets the user retry invitation verification on recoverable errors', async () => {
     const user = userEvent.setup();
-    mockInvitationState.error = 'El backend tardÃ³ en responder';
+    mockInvitationState.error = 'El backend tardó en responder';
 
     render(<Onboarding inviteToken="invite-2" />);
 
+    expect(screen.getByText('El backend tardó en responder')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Reintentar/i }));
 
     expect(mockInvitationState.reload).toHaveBeenCalledTimes(1);

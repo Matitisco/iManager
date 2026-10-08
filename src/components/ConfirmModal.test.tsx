@@ -13,12 +13,13 @@ describe('ConfirmModal', () => {
       <ConfirmModal
         isOpen
         title="Eliminar cliente"
-        message="Esta acciÃ³n no se puede deshacer."
+        message="Esta acción no se puede deshacer."
         onConfirm={onConfirm}
         onCancel={onCancel}
       />
     );
 
+    expect(screen.getByText('Esta acción no se puede deshacer.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Eliminar' }));
 
     await waitFor(() => {
@@ -36,12 +37,13 @@ describe('ConfirmModal', () => {
       <ConfirmModal
         isOpen
         title="Eliminar cliente"
-        message="Esta acciÃ³n no se puede deshacer."
+        message="Esta acción no se puede deshacer."
         onConfirm={onConfirm}
         onCancel={onCancel}
       />
     );
 
+    expect(screen.getByText('Esta acción no se puede deshacer.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Eliminar' }));
 
     expect(await screen.findByText('No se pudo borrar')).toBeInTheDocument();

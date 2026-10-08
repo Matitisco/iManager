@@ -573,8 +573,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const requireNotificationAccess = () => {
-    if (!user) throw new Error('No hay sesiÃ³n');
-    if (!backendReady || !canAccess('notifications')) throw new Error(backendMessage || 'No tenÃ©s permiso para ver notificaciones.');
+    if (!user) throw new Error('No hay sesión');
+    if (!backendReady || !canAccess('notifications')) throw new Error(backendMessage || 'No tenés permiso para ver notificaciones.');
     return user;
   };
 
@@ -603,7 +603,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const requestScope = currentScope;
     const notification = operationNotifications.find((item) => item.id === id);
     if (!notification || !['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
-      || !canAccess(notification.section as OperationSource)) throw new Error('No tenÃ©s acceso a esta notificaciÃ³n.');
+      || !canAccess(notification.section as OperationSource)) throw new Error('No tenés acceso a esta notificación.');
     const result = await markNotificationReadApi(currentUser, id);
     if (scopeRef.current !== requestScope) return;
     setOperationNotifications((current) => current.map((item) => item.id === id ? { ...item, readAt: result.readAt } : item));
