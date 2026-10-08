@@ -192,7 +192,7 @@ test('a cancellation notification survives reload, opens the archived received d
   await page.reload();
 
   await page.getByRole('button', { name: 'Notificaciones' }).click();
-  const notification = page.getByRole('button', { name: /Canje cancelado/ }).filter({ hasText: 'Inventario' });
+  const notification = page.getByRole('button', { name: new RegExp(`${received} archivado`) }).filter({ hasText: 'Inventario' });
   await expect(notification).toBeVisible();
   await notification.click();
   const archivedDetail = page.getByRole('dialog', { name: 'Equipo recibido archivado' });
@@ -202,7 +202,7 @@ test('a cancellation notification survives reload, opens the archived received d
   await page.reload();
   await page.getByRole('button', { name: 'Notificaciones' }).click();
   await page.getByRole('button', { name: 'Sin leer' }).click();
-  await expect(page.getByRole('button', { name: /Canje cancelado/ }).filter({ hasText: 'Inventario' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: new RegExp(`${received} archivado`) }).filter({ hasText: 'Inventario' })).toHaveCount(0);
   const activeInventory = await fetchInventory(request, email);
   expect(activeInventory.inventory.some((item) => item.model === received)).toBeFalsy();
 });
