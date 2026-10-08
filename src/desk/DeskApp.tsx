@@ -12,6 +12,7 @@ import { SalesScreen } from './screens/SalesScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
+import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
 import { canOpenSection } from './sections';
 import type { DeskTab, Overlay } from './types';
@@ -210,7 +211,7 @@ export function DeskApp() {
             {tab === 'settings' && <SettingsScreen />}
           </div>
         </main>
-        <div className={`toast${toastOn ? ' show' : ''}`}><i />{message}</div>
+        <DeskToast message={message} show={toastOn} />
         <DeskOverlays overlay={overlay} />
       </div>
     </DeskProvider>
