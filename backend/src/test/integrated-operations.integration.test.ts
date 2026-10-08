@@ -34,10 +34,13 @@ describe("integrated operation API", () => {
     expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toMatchObject({ model: "iPhone 11 Confirmed", cost: 600, condition: "", grade: "", batteryHealth: "", status: "EN_REVISION" });
     expect(confirmed.json().notifications).toHaveLength(4);
     const client = await prisma.client.findFirstOrThrow({ where: { storeId: context.store!.id, name: "Draft Customer" } });
-    expect(confirmed.json().notifications).toEqual(expect.arrayContaining([
-      expect.objectContaining({ section: "tradeins", recordId: tradeId }),
-      expect.objectContaining({ section: "clients", recordId: client.id }),
-    ]));
+    const notice = (section: string) => confirmed.json().notifications.find((item: { section: string }) => item.section === section);
+    expect(notice("tradeins")).toMatchObject({ recordId: tradeId, title: "Canje confirmado", message: "iPhone 11 Confirmed · toma $ 600 · diferencia $ 900" });
+    expect(notice("sales")).toMatchObject({ title: "Venta registrada", message: "iPhone 14 128GB · Draft Customer · $ 1.500" });
+    expect(notice("inventory")).toMatchObject({ title: "Stock actualizado", message: "iPhone 14 128GB vendido. Entró un iPhone 11 Confirmed por canje, en revisión" });
+    expect(notice("clients")).toMatchObject({ recordId: client.id, title: "Nuevo cliente", message: "Nuevo cliente: Draft Customer. Debe $ 900" });
+    expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia/deuda $ 900 · recibido en revisión");
+    expect(new Set(confirmed.json().notifications.map((item: { message: string }) => item.message)).size).toBe(4);
     expect(Number(client.totalSpent)).toBe(1500);
     expect(Number(client.pendingBalance)).toBe(900);
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } })).status).toBe("VENDIDO");
@@ -95,6 +98,9 @@ describe("integrated operation API", () => {
     expect(marked.statusCode).toBe(200);
     const operation = await app.inject({ method: "POST", url: "/api/operations/inventory", headers, payload: { productId: fixture.inventoryItem.id, amount: 1200, paymentMethod: "EFECTIVO", status: "COMPLETADA" } });
     expect(operation.statusCode).toBe(201);
+    expect(operation.json().summary).toBe("Venta $ 1.200 · deuda $ 0 · stock vendido");
+    expect(operation.json().notifications.find((item: { section: string }) => item.section === "inventory")?.message).toBe("iPhone 14 128GB vendido");
+    expect(operation.json().notifications.find((item: { section: string }) => item.section === "sales")?.message).toBe("iPhone 14 128GB · $ 1.200");
     const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${operation.json().sale.id}/cancel`, headers, payload: {} });
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json().inventory).toMatchObject([{ status: "DISPONIBLE", pendingSaleRegistration: false }]);

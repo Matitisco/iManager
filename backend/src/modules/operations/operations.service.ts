@@ -4,6 +4,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
+import { operationSummary, sectionRecords } from "./operation-copy.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
 const toNum = (value: number | Decimal) => Number(value instanceof Decimal ? value.toString() : value);
@@ -188,23 +189,7 @@ export async function writeOperationNotifications(
     createdAt: notification.createdAt.toISOString(),
   }));
 }
-async function notify(
-  tx: Prisma.TransactionClient,
-  storeId: string,
-  sections: string[],
-  title: string,
-  message: string,
-  recordIds: Record<string, string>,
-) {
-  const records = [...new Set(sections)].map((section) => ({
-    section,
-    title,
-    message,
-    recordId: recordIds[section],
-    kind: section === "inventory" && title === "Canje cancelado" && recordIds.inventory === recordIds.tradeins
-      ? "ARCHIVED_TRADE_IN_RECEIVED"
-      : "INTEGRATED_OPERATION",
-  }));
+async function notify(tx: Prisma.TransactionClient, storeId: string, records: ReturnType<typeof sectionRecords>) {
   return writeOperationNotifications(tx, storeId, records);
 }
 async function applyClientOperation(tx: Prisma.TransactionClient, storeId: string, clientId: string, amount: number, paymentStatus: string, date: Date, direction: 1 | -1, debtAmount = amount) {
@@ -240,12 +225,12 @@ async function getClient(tx: Prisma.TransactionClient, storeId: string, input: O
   if (input.clientId) {
     const found = await tx.client.findFirst({ where: { id: input.clientId, storeId } });
     if (!found) throw new OperationError("Client not found", 404);
-    return found;
+    return { client: found, created: false };
   }
   const name = input.clientName?.trim();
-  if (!name) return null;
-  if (prior?.clientId && prior.clientName === name) return tx.client.findFirst({ where: { id: prior.clientId, storeId } });
-  return tx.client.create({ data: { storeId, name, totalSpent: dec(0), pendingBalance: dec(0) } });
+  if (!name) return { client: null, created: false };
+  if (prior?.clientId && prior.clientName === name) return { client: await tx.client.findFirst({ where: { id: prior.clientId, storeId } }), created: false };
+  return { client: await tx.client.create({ data: { storeId, name, totalSpent: dec(0), pendingBalance: dec(0) } }), created: true };
 }
 
 function fullDeviceLabel(product: Pick<InventoryItem, "model" | "capacity">) {
@@ -261,14 +246,6 @@ function salePricePatch(price: { toNumber(): number }, amount: number): { price?
   return { price: dec(amount) };
 }
 
-function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean }) {
-  const amount = input.amount.toFixed(2);
-  const debt = input.status === "PENDIENTE"
-    ? (input.trade ? Math.max(0, input.amount - (input.takeValue ?? 0)) : input.amount).toFixed(2)
-    : "0.00";
-  if (!input.trade) return `Venta $${amount} · deuda $${debt}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
-  return `Canje · total $${amount} · toma $${(input.takeValue ?? 0).toFixed(2)} · diferencia/deuda $${debt}${input.received ? " · recibido en revisión" : ""}`;
-}
 async function replaySaleResult(tx: Prisma.TransactionClient, storeId: string, sale: Sale, summary: string) {
   const trade = sale.tradeInId ? await tx.tradeIn.findFirst({ where: { id: sale.tradeInId, storeId } }) : null;
   const [product, incoming, client] = await Promise.all([
@@ -378,7 +355,12 @@ export async function createOperation(storeId: string, source: OperationSource, 
         draftPaymentMethod: input.paymentMethod ?? null,
         draftPaymentStatus: input.status ?? null,
       } });
-      const notifications = await notify(tx, storeId, ["tradeins"], "Borrador de canje creado", "Se preparó un borrador de canje.", { tradeins: trade.id });
+      const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
+        action: "draft-created",
+        receivedDevice: trade.deviceReceived,
+        takeValue: toNum(trade.takeValue),
+        difference: input.amount === undefined ? null : input.amount - input.tradeIn.takeValue,
+      }, { tradeins: trade.id }));
       return { tradeIn: serializeTrade(trade), inventory: [], clients: [], notifications, summary: "Borrador de canje guardado" };
     }
     const prior = input.requestKey ? await tx.sale.findFirst({ where: { storeId, requestKey: input.requestKey } }) : null;
@@ -393,7 +375,9 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     if (!product && !input.deviceLabel?.trim()) throw new OperationError("Indicá el equipo");
-    const client = await getClient(tx, storeId, input);
+    const resolvedClient = await getClient(tx, storeId, input);
+    const client = resolvedClient.client;
+    const clientCreated = resolvedClient.created;
     if (tradeInput && !client) throw new OperationError("El canje confirmado requiere un cliente", 400);
     const date = at(input.date);
     let trade: TradeIn | null = null;
@@ -482,7 +466,23 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, input.status ?? "COMPLETADA", date, 1, dueAmount) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     if (product && !outputState) throw new OperationError("Inventory item not found", 404);
-    const notifications = await notify(tx, storeId, ["sales", ...(product || incoming ? ["inventory"] : []), ...(trade ? ["tradeins"] : []), ...(client ? ["clients"] : [])], trade ? "Canje confirmado" : "Venta registrada", trade ? "Se registró la venta y el equipo recibido." : "Se registró una venta.", { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id });
+    const saleLabel = sale.deviceLabel ?? "";
+    const notifications = await notify(tx, storeId, sectionRecords(
+      ["sales", ...(product || incoming ? ["inventory"] : []), ...(trade ? ["tradeins"] : []), ...(client ? ["clients"] : [])],
+      {
+        action: trade ? "confirmed" : "created",
+        deviceLabel: saleLabel,
+        clientName: updatedClient?.name ?? client?.name ?? "",
+        clientCreated,
+        amount: toNum(sale.amount),
+        pendingBalance: updatedClient ? toNum(updatedClient.pendingBalance) : null,
+        takeValue: trade ? toNum(trade.takeValue) : null,
+        difference: trade ? toNum(trade.differencePaid) : null,
+        receivedDevice: incoming?.model ?? null,
+        soldDevice: product ? saleLabel : null,
+      },
+      { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id },
+    ));
     return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming }) };
   });
 }
@@ -530,11 +530,13 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     }
     const typedClientName = input.clientName !== undefined
       && (input.clientId === undefined || input.clientId === null);
-    const client = await getClient(tx, storeId, {
+    const resolvedClient = await getClient(tx, storeId, {
       ...input,
       clientId: input.clientId ?? (typedClientName ? null : trade.clientId),
       clientName: input.clientName ?? trade.clientName,
     }, typedClientName ? undefined : trade);
+    const client = resolvedClient.client;
+    const clientCreated = resolvedClient.created;
     if (!client) throw new OperationError("El canje confirmado requiere un cliente", 400);
     if (!receivedDevice.trim() || takeValue < 0 || outgoingAmount === undefined || outgoingAmount < takeValue) {
       throw new OperationError("La diferencia no puede ser negativa");
@@ -607,12 +609,24 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const paymentStatus = input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
     const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, outgoingAmount - takeValue);
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
-    const notifications = await notify(tx, storeId, ["tradeins", "sales", "inventory", "clients"], "Canje confirmado", "Se registro la venta y el equipo recibido.", {
+    const saleLabel = product ? fullDeviceLabel(product) : deviceLabel ?? "";
+    const notifications = await notify(tx, storeId, sectionRecords(["tradeins", "sales", "inventory", "clients"], {
+      action: "confirmed",
+      deviceLabel: saleLabel,
+      clientName: updatedClient?.name ?? client.name,
+      clientCreated,
+      amount: outgoingAmount,
+      pendingBalance: updatedClient ? toNum(updatedClient.pendingBalance) : null,
+      takeValue,
+      difference: outgoingAmount - takeValue,
+      receivedDevice: received.model,
+      soldDevice: product ? saleLabel : null,
+    }, {
       tradeins: trade.id,
       sales: sale.id,
       inventory: received.id,
       clients: client.id,
-    });
+    }));
     return {
       sale: serializeSale(sale, product),
       tradeIn: serializeTrade({ ...confirmed, saleId: sale.id }),
@@ -650,7 +664,9 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     const typedClientName = input.clientName !== undefined
       && (input.clientId === null || (input.clientId === undefined && input.clientName?.trim() !== sale.clientName));
-    const nextClient = await getClient(tx, storeId, { ...input, clientId: input.clientId === undefined ? (input.clientName === undefined ? sale.clientId : null) : input.clientId, clientName: input.clientName === undefined ? sale.clientName : input.clientName }, typedClientName ? undefined : sale);
+    const resolvedNextClient = await getClient(tx, storeId, { ...input, clientId: input.clientId === undefined ? (input.clientName === undefined ? sale.clientId : null) : input.clientId, clientName: input.clientName === undefined ? sale.clientName : input.clientName }, typedClientName ? undefined : sale);
+    const nextClient = resolvedNextClient.client;
+    const clientCreated = resolvedNextClient.created;
     const nextClientId = nextClient?.id ?? null;
     const nextStatus = input.status ?? sale.status;
     const nextDebt = trade ? Math.max(0, nextAmount - nextTakeValue) : nextAmount;
@@ -742,7 +758,21 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const output = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId } }) : null;
     const released = sale.inventoryItemId && sale.inventoryItemId !== nextProductId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const sections = ["sales", ...(output || released || incoming ? ["inventory"] : []), ...(trade ? ["tradeins"] : []), ...(updatedClients.length ? ["clients"] : [])];
-    const notifications = await notify(tx, storeId, sections, "Operación actualizada", "Se actualizaron los datos de la operación.", { sales: sale.id, inventory: incoming?.id ?? output?.id ?? released?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: nextClientId ?? sale.id });
+    const primaryClient = updatedClients.find((item) => item.id === nextClientId) ?? updatedClients[0] ?? null;
+    const saleLabel = updatedSale.deviceLabel ?? "";
+    const notifications = await notify(tx, storeId, sectionRecords(sections, {
+      action: "updated",
+      deviceLabel: saleLabel,
+      clientName: primaryClient?.name ?? nextClient?.name ?? "",
+      clientCreated,
+      amount: nextAmount,
+      pendingBalance: primaryClient ? toNum(primaryClient.pendingBalance) : null,
+      takeValue: trade ? nextTakeValue : null,
+      difference: trade ? nextDebt : null,
+      receivedDevice: incoming?.model ?? null,
+      soldDevice: output?.status === "VENDIDO" ? fullDeviceLabel(output) : null,
+      releasedDevice: released ? fullDeviceLabel(released) : null,
+    }, { sales: sale.id, inventory: incoming?.id ?? output?.id ?? released?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: nextClientId ?? sale.id }));
     return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : {}), inventory: [output, released, incoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: !!trade, amount: nextAmount, takeValue: trade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: !!trade })} · operación actualizada` };
   });
 }
@@ -787,7 +817,12 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
         dateLabel: input.date ? formatArDate(at(input.date)) : trade.dateLabel, tradeAt: input.date ? at(input.date) : trade.tradeAt,
       } });
-      const notifications = await notify(tx, storeId, ["tradeins"], "Borrador de canje actualizado", "Se actualizaron los datos del borrador.", { tradeins: trade.id });
+      const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
+        action: "draft-updated",
+        receivedDevice: updated.deviceReceived,
+        takeValue: toNum(updated.takeValue),
+        difference: updated.draftAmount == null ? null : toNum(updated.draftAmount) - toNum(updated.takeValue),
+      }, { tradeins: trade.id }));
       return { tradeIn: serializeTrade(updated), inventory: [], clients: [], notifications, summary: "Borrador de canje actualizado" };
     });
   }
@@ -849,7 +884,18 @@ export async function cancelSaleOperation(storeId: string, saleId: string) {
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA" } });
     const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1) : null;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
-    const notifications = await notify(tx, storeId, ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])], "Venta cancelada", "Se canceló una venta.", { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id });
+    const notifications = await notify(tx, storeId, sectionRecords(
+      ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])],
+      {
+        action: "cancelled",
+        deviceLabel: sale.deviceLabel,
+        clientName: client?.name ?? sale.clientName,
+        amount: toNum(sale.amount),
+        pendingBalance: client ? toNum(client.pendingBalance) : null,
+        releasedDevice: product ? fullDeviceLabel(product) : null,
+      },
+      { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id },
+    ));
     return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}` };
   });
 }
@@ -890,7 +936,23 @@ export async function cancelTradeOperation(storeId: string, tradeId: string) {
       received ? tx.inventoryItem.findFirst({ where: { id: received.id, storeId } }) : null,
       sale?.inventoryItemId ? tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null,
     ]);
-    const notifications = await notify(tx, storeId, ["tradeins", ...(sale ? ["sales"] : []), ...(received ? ["inventory"] : []), ...(client ? ["clients"] : [])], "Canje cancelado", "Se canceló un canje; el equipo recibido quedó archivado.", { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: output?.id ?? trade.id, clients: client?.id ?? trade.id });
+    const notifications = await notify(tx, storeId, sectionRecords(
+      ["tradeins", ...(sale ? ["sales"] : []), ...(received ? ["inventory"] : []), ...(client ? ["clients"] : [])],
+      {
+        action: "cancelled",
+        deviceLabel: sale?.deviceLabel ?? trade.deviceGiven,
+        clientName: client?.name ?? trade.clientName,
+        amount: sale ? toNum(sale.amount) : null,
+        pendingBalance: client ? toNum(client.pendingBalance) : null,
+        takeValue: toNum(trade.takeValue),
+        difference: toNum(trade.differencePaid),
+        receivedDevice: trade.deviceReceived,
+        archivedDevice: archivedReceived?.model ?? received?.model ?? null,
+        releasedDevice: output ? fullDeviceLabel(output) : null,
+      },
+      { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: output?.id ?? trade.id, clients: client?.id ?? trade.id },
+      { archiveReceived: true },
+    ));
     return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA" }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}` };
   });
 }

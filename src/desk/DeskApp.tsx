@@ -6,7 +6,7 @@ import { initials, isInProgressTrade } from './format';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
-import { NotificationsScreen, SettingsScreen, useUnreadCount } from './screens/AccountScreens';
+import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
@@ -15,6 +15,7 @@ import { CatalogProvider } from './catalog';
 import { DeskIcon, DeskProvider } from './ui';
 import { canOpenSection } from './sections';
 import type { DeskTab, Overlay } from './types';
+import type { NoticeSection } from './unread-count';
 import './desk.css';
 
 const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
@@ -22,6 +23,21 @@ const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', reports: 'rep', notifications: 'notif', settings: 'config',
 };
+
+function sectionUnread(counts: Record<NoticeSection, number>, id: DeskTab) {
+  if (id === 'inventory' || id === 'sales' || id === 'tradeins' || id === 'clients') return counts[id];
+  return 0;
+}
+
+function SectionUnread({ label, count, meta }: { label: string; count: number; meta?: string }) {
+  if (!meta && count <= 0) return null;
+  return (
+    <span className="dnav-meta">
+      {meta ? <span className="dmeta">{meta}</span> : null}
+      {count > 0 ? <span className="dcount" aria-label={`${label}: ${count} sin leer`}>{count}</span> : null}
+    </span>
+  );
+}
 
 function tabFromHash(hash: string): DeskTab {
   const name = hash.replace(/^#\/?/, '').split('/')[0];
@@ -41,7 +57,7 @@ export function DeskApp() {
   const overlayScope = useRef('');
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
-  const unread = useUnreadCount();
+  const unread = useUnreadCounts();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
   const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('reports')].map(Number).join('')}`;
@@ -162,7 +178,7 @@ export function DeskApp() {
               <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                 <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                 <span>{item.label}</span>
-                {item.meta ? <span className="dmeta">{item.meta}</span> : null}
+                <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
               </button>
             ))}
           </div>
@@ -170,7 +186,7 @@ export function DeskApp() {
           <div className="dgroup">
             {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
               <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
-              {unread > 0 ? <span className="dcount">{unread}</span> : null}
+              {unread.total > 0 ? <span className="dcount" aria-label={`Notificaciones: ${unread.total} sin leer`}>{unread.total}</span> : null}
             </button> : null}
             <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
               <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
