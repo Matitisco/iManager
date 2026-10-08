@@ -556,7 +556,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       <div className={currentSale ? undefined : 'sale-split'}>
       <div>
       {!currentSale && equipmentItems.length > 0 ? (
-        <div className="eq-cards" aria-label="Equipos en stock">
+        <div className="eq-cards" aria-label="Modelos disponibles">
           {equipmentItems.map((item) => (
             <button key={item.id} className={`eq-card${item.id === productId ? ' on' : ''}`} type="button" onClick={() => pickEquipment(item)}>
               <span><b>{equipmentTitle(item.model, item.capacity)}</b><small>{[item.color, 'imei' in item && item.imei ? `IMEI ···${item.imei.slice(-4)}` : ''].filter(Boolean).join(' · ') || 'En stock'}</small></span>
