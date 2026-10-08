@@ -21,7 +21,7 @@ function trade(number: number, overrides: Partial<TradeIn> = {}): TradeIn {
     deviceGiven: `Entregado ${number}`, takeValue: number * 1000, differencePaid: number * 100, status: 'PENDIENTE', ...overrides };
 }
 function renderScreen() {
-  return render(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, close: vi.fn(), toast: vi.fn(), isStaff: false }}><TradeInsScreen /></DeskProvider>);
+  return render(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><TradeInsScreen /></DeskProvider>);
 }
 const rows = () => within(screen.getByRole('table', { name: 'Canjes' })).getAllByRole('row').slice(1);
 
@@ -61,7 +61,7 @@ describe('Trade-ins table', () => {
     expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
     state.tradeIns = state.tradeIns.slice(0, 4);
-    view.rerender(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, close: vi.fn(), toast: vi.fn(), isStaff: false }}><TradeInsScreen /></DeskProvider>);
+    view.rerender(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><TradeInsScreen /></DeskProvider>);
     expect(rows()).toHaveLength(4);
     expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument();
   });

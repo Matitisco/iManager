@@ -59,7 +59,7 @@ backend/                 → API propia (Fastify + Prisma)
 | Trade-ins    | PostgreSQL       | ✅ producción  | CRUD real por storeId                                   |
 | Dashboard    | —               | ⏳ demo        | No consulta SQL real                                    |
 | Reports      | —               | ⏳ demo        | Placeholder                                             |
-| Notifications| —               | ⏳ local       | Preview, no persiste                                    |
+| Notifications| PostgreSQL      | ✅ producción | Eventos por tienda, lecturas por usuario y permisos      |
 | Settings     | —               | ⏳ parcial     | UI presente, sin persistencia real                      |
 
 ---
@@ -105,6 +105,7 @@ npx prisma studio                               # UI de PG
 | `src/services/trade-ins-api.ts`      | Canjes       |
 | `src/services/onboarding-api.ts`     | Onboarding   |
 | `src/services/backend-session.ts`    | `/api/me`    |
+| `src/services/operations-api.ts`     | Operaciones integradas y notificaciones |
 
 Todos usan `fetch-with-timeout.ts` (timeout 15s).
 

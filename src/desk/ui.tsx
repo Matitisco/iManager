@@ -10,6 +10,7 @@ type DeskUi = {
   tab: DeskTab;
   go: (tab: DeskTab) => void;
   open: (overlay: Overlay) => void;
+  openRecord: (section: string, recordId: string, kind?: string) => void;
   close: () => void;
   toast: (message: string) => void;
   isStaff: boolean;

@@ -29,7 +29,7 @@ function tabFromHash(hash: string): DeskTab {
 }
 
 export function DeskApp() {
-  const { appSession, tradeIns, user } = useAppContext();
+  const { appSession, tradeIns, inventory, user } = useAppContext();
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const isStaff = role === 'STAFF';
@@ -37,6 +37,7 @@ export function DeskApp() {
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const [pendingRecordOpen, setPendingRecordOpen] = useState<{ tab: DeskTab; overlay: Overlay } | null>(null);
   const overlayScope = useRef('');
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
@@ -51,6 +52,12 @@ export function DeskApp() {
       setOverlay(null);
     }
   }, [operationScope]);
+
+  useEffect(() => {
+    if (!pendingRecordOpen || pendingRecordOpen.tab !== tab) return;
+    setOverlay(pendingRecordOpen.overlay);
+    setPendingRecordOpen(null);
+  }, [pendingRecordOpen, tab]);
 
   useEffect(() => {
     if (!toastOn) return;
@@ -100,9 +107,31 @@ export function DeskApp() {
     window.location.hash = hash;
   };
 
+  const openRecord = (section: string, recordId: string, kind?: string) => {
+    if (!(section in ROUTE)) return;
+    const target = section as DeskTab;
+    if (!allowed(target)) {
+      setMessage('No tenés acceso a esta sección.');
+      setToastOn(true);
+      return;
+    }
+    let next: Overlay;
+    if (target === 'inventory') {
+      next = kind === 'ARCHIVED_TRADE_IN_RECEIVED'
+        ? { type: 'cj', id: recordId, source: 'inventory', kind }
+        : { type: 'eq', id: recordId };
+    } else if (target === 'sales') next = { type: 'sale', id: recordId };
+    else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
+    else if (target === 'clients') next = { type: 'cl', id: recordId };
+    else return;
+    setPendingRecordOpen({ tab: target, overlay: next });
+    go(target);
+  };
+
   const ui = {
     tab,
     go,
+    openRecord,
     open: (next: Overlay) => setOverlay(next),
     close: () => setOverlay(null),
     toast: (text: string) => { setMessage(text); setToastOn(true); },

@@ -168,6 +168,45 @@ test('a linked canje edit updates both records and cancellation keeps the client
   expect(afterCancelInventory.inventory.some((item) => item.model === received)).toBeFalsy();
 });
 
+test('a cancellation notification survives reload, opens the archived received device, and keeps its read state', async ({ page, request }, testInfo) => {
+  const email = buildTestEmail(testInfo, 'notification-archived-trade');
+  const clientName = `Cliente notificación ${Date.now()}`;
+  const received = `Equipo archivado ${Date.now()}`;
+  await bootstrapStoreViaApi(page, request, email, `Notification Link ${testInfo.parallelIndex}`);
+
+  await page.getByTestId('sidebar-tab-tradeins').click();
+  await page.getByRole('button', { name: 'Nuevo canje' }).click();
+  let dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
+  await dialog.getByLabel('Cliente').fill(clientName);
+  await dialog.getByLabel('Equipo recibido').fill(received);
+  await dialog.getByLabel('Valor tomado').fill('0');
+  await dialog.getByRole('combobox', { name: 'Equipo' }).fill('Equipo libre');
+  await dialog.getByLabel('Precio completo de salida').fill('0');
+  await page.getByRole('button', { name: 'Confirmar canje' }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole('row').filter({ hasText: received }).click();
+  const detail = page.getByRole('dialog');
+  await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await expect(detail).toBeHidden();
+  await page.reload();
+
+  await page.getByRole('button', { name: 'Notificaciones' }).click();
+  const notification = page.getByRole('button', { name: /Canje cancelado/ }).filter({ hasText: 'Inventario' });
+  await expect(notification).toBeVisible();
+  await notification.click();
+  const archivedDetail = page.getByRole('dialog', { name: 'Equipo recibido archivado' });
+  await expect(archivedDetail.getByText(received)).toBeVisible();
+  await archivedDetail.getByRole('button', { name: 'Cerrar' }).click();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Notificaciones' }).click();
+  await page.getByRole('button', { name: 'Sin leer' }).click();
+  await expect(page.getByRole('button', { name: /Canje cancelado/ }).filter({ hasText: 'Inventario' })).toHaveCount(0);
+  const activeInventory = await fetchInventory(request, email);
+  expect(activeInventory.inventory.some((item) => item.model === received)).toBeFalsy();
+});
+
 test('a failed linked confirmation keeps the form and entered values open', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'linked-trade-error');
   const duplicateImei = String(Date.now()).padStart(15, '4').slice(-15);

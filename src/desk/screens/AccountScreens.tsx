@@ -1,71 +1,60 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import type { Client, Product, Sale, TradeIn } from '../../types';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
-import { formatArDate, formatMoney, initials, parseAppDate, relTime, saleCode, tradeClientLabel, tradeCode } from '../format';
+import { formatArDate, initials, relTime } from '../format';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
-type NoteTab = 'sales' | 'tradeins' | 'inventory' | 'clients' | 'settings';
-type Note = { id: string; title: string; body: string; when: string; at: number; tab: NoteTab };
-
 export function NotificationsScreen() {
-  const { sales, tradeIns, inventory, clients, appSession, user } = useAppContext();
-  const { go, toast } = useDesk();
-  const storeId = appSession?.store?.id ?? 'local';
-  const key = `imanager-desk-read:${storeId}`;
-  const [read, setRead] = useState<string[]>([]);
+  const { operationNotifications, notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead } = useAppContext();
+  const { go, toast, openRecord } = useDesk();
   const [filter, setFilter] = useState('Todas');
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const unread = operationNotifications.filter((note) => !note.readAt).length;
+  const visible = operationNotifications.filter((note) => filter === 'Todas' || !note.readAt);
 
-  useEffect(() => {
-    try { setRead(JSON.parse(localStorage.getItem(key) || '[]')); } catch { setRead([]); }
-  }, [key]);
-
-  useEffect(() => {
-    if (!user || !appSession?.store?.id) return;
-    listMembers(user, appSession.store.id).then(setMembers).catch(() => setMembers([]));
-  }, [user, appSession?.store?.id]);
-
-  const notes = useMemo(() => buildNotes(sales, tradeIns, inventory, clients, members), [sales, tradeIns, inventory, clients, members]);
-  const unread = notes.filter((note) => !read.includes(note.id)).length;
-  const visible = notes.filter((note) => filter === 'Todas' || !read.includes(note.id));
-
-  const mark = (id: string, tab: NoteTab) => {
-    const next = read.includes(id) ? read : [...read, id];
-    setRead(next);
-    localStorage.setItem(key, JSON.stringify(next));
-    go(tab);
+  const mark = async (id: string, section: string, recordId: string | null | undefined, kind: string) => {
+    try {
+      const note = operationNotifications.find((item) => item.id === id);
+      if (note && !note.readAt) await markNotificationRead(id);
+      if (recordId) openRecord(section, recordId, kind);
+      else if (['inventory', 'sales', 'tradeins', 'clients'].includes(section)) go(section as 'inventory' | 'sales' | 'tradeins' | 'clients');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'No se pudo abrir la notificaci\u00f3n.');
+    }
   };
 
-  const markAll = () => {
-    const next = notes.map((note) => note.id);
-    setRead(next);
-    localStorage.setItem(key, JSON.stringify(next));
-    toast('Todo leído');
+  const markAll = async () => {
+    try {
+      await markAllNotificationsRead();
+      toast('Todo le\u00eddo');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'No se pudieron marcar como le\u00eddas.');
+    }
   };
 
   return (
     <div className="dscreen">
       <PageHead
         title="Notificaciones"
-        subtitle={unread ? `${unread} sin leer` : 'Todo al día'}
-        action={unread > 0 ? <button className="wlink" type="button" onClick={markAll}>Leer todas</button> : undefined}
+        subtitle={unread ? unread + ' sin leer' : 'Todo al d\u00eda'}
+        action={<div style={{ display: 'flex', gap: 14 }}>{unread > 0 ? <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>Leer todas</button> : null}<button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void refreshNotifications().catch(() => undefined)}>Actualizar</button></div>}
       />
       <div style={{ padding: '0 20px 12px', maxWidth: 860 }}>
         <ChipRow options={[{ id: 'Todas', label: 'Todas' }, { id: 'unread', label: 'Sin leer' }]} value={filter} onChange={setFilter} />
       </div>
-      {visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Estás al día. No hay notificaciones sin leer.</div> : (
+      {notificationsError ? <div className="wempty" role="alert" style={{ maxWidth: 860 }}>{notificationsError}</div> : null}
+      {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Cargando notificaciones...</div> : null}
+      {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{filter === 'Todas' ? 'Todav\u00eda no hay notificaciones.' : 'Est\u00e1s al d\u00eda. No hay notificaciones sin leer.'}</div> : (
         <div className="card" style={{ maxWidth: 860 }}>
           {visible.map((note) => {
-            const seen = read.includes(note.id);
+            const seen = !!note.readAt;
             return (
-              <button key={note.id} className="member" type="button" onClick={() => mark(note.id, note.tab)}>
-                <div className={`ico-row${seen ? '' : ' l'}`}><DeskIcon name="note" size={18} /></div>
-                <div className="info"><div className="name">{note.title}</div><div className="role">{note.when ? `${note.body} · ${note.when}` : note.body}</div></div>
-                {seen ? <span className="chev">›</span> : <span className="unread" />}
+              <button key={note.id} className="member" type="button" onClick={() => void mark(note.id, note.section, note.recordId, note.kind)}>
+                <div className={'ico-row' + (seen ? '' : ' l')}><DeskIcon name="note" size={18} /></div>
+                <div className="info"><div className="name">{note.title}</div><div className="role">{note.message} {'\u00b7'} {relTime(note.createdAt)} {'\u00b7'} {sectionLabel(note.section)}</div></div>
+                {seen ? <span className="chev">&rsaquo;</span> : <span className="unread" />}
               </button>
             );
           })}
@@ -76,41 +65,12 @@ export function NotificationsScreen() {
 }
 
 export function useUnreadCount() {
-  const { sales, tradeIns, inventory, clients, appSession } = useAppContext();
-  const storeId = appSession?.store?.id ?? 'local';
-  const notes = buildNotes(sales, tradeIns, inventory, clients);
-  let read: string[] = [];
-  try { read = JSON.parse(localStorage.getItem(`imanager-desk-read:${storeId}`) || '[]'); } catch { read = []; }
-  return notes.filter((note) => !read.includes(note.id)).length;
+  const { operationNotifications } = useAppContext();
+  return operationNotifications.filter((note) => !note.readAt).length;
 }
 
-function buildNotes(
-  sales: Sale[],
-  tradeIns: TradeIn[],
-  inventory: Product[],
-  clients: Client[],
-  members: TeamMember[] = [],
-): Note[] {
-  const notes: Note[] = [];
-  const atOf = (value: string) => parseAppDate(value)?.getTime() ?? 0;
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  for (const trade of tradeIns.filter((item) => item.status === 'PENDIENTE')) {
-    notes.push({ id: `cj-${trade.id}`, title: 'Nuevo canje pendiente', body: `${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`, when: relTime(trade.date), at: atOf(trade.date), tab: 'tradeins' });
-  }
-  for (const sale of sales.filter((item) => item.status !== 'CANCELADA' && atOf(item.date) >= weekAgo)) {
-    notes.push({ id: `sale-${sale.id}`, title: 'Venta registrada', body: `${saleCode(sale)} · ${formatMoney(sale.amount)}`, when: relTime(sale.date), at: atOf(sale.date), tab: 'sales' });
-  }
-  for (const item of inventory.filter((row) => row.status === 'EN_REVISION')) {
-    notes.push({ id: `eq-${item.id}`, title: 'Equipo en revisión', body: `${item.model} · ${item.capacity}`, when: '', at: 0, tab: 'inventory' });
-  }
-  for (const member of members) {
-    const at = Date.parse(member.createdAt) || 0;
-    notes.push({ id: `mb-${member.id}`, title: `${member.user.displayName || member.user.email || 'Alguien'} se unió`, body: 'Ahora es parte del equipo', when: relTime(member.createdAt), at, tab: 'settings' });
-  }
-  for (const client of clients.filter((row) => row.pendingBalance > 0).slice(0, 4)) {
-    notes.push({ id: `cl-${client.id}`, title: 'Saldo pendiente', body: `${client.name} · ${formatMoney(client.pendingBalance)}`, when: '', at: 0, tab: 'clients' });
-  }
-  return notes.sort((a, b) => b.at - a.at);
+function sectionLabel(section: string) {
+  return ({ inventory: 'Inventario', sales: 'Ventas', tradeins: 'Canjes', clients: 'Clientes' } as Record<string, string>)[section] ?? section;
 }
 
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };

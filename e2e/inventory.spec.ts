@@ -40,8 +40,9 @@ test('creates an item as VENDIDO and registers its sale', async ({ page, request
   await page.getByLabel('Color').fill('Verde');
   await page.getByLabel('IMEI').fill(imei);
   await page.getByLabel('Precio de venta').fill('2100');
-  await page.getByRole('button', { name: 'Vendido' }).click();
-  await page.getByRole('button', { name: 'Guardar equipo' }).click();
+  const createDialog = page.getByRole('dialog', { name: 'Registrar equipo' });
+  await createDialog.getByRole('button', { name: 'Vendido', exact: true }).click();
+  await createDialog.getByRole('button', { name: 'Guardar equipo' }).click();
 
   const saleDialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await expect(saleDialog).toBeVisible();

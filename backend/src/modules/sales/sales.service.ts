@@ -62,6 +62,7 @@ type SaleRecord = {
   customFields: Prisma.JsonValue | null;
   tradeInId: string | null;
   integratedOperation: boolean;
+  inventoryItem?: { model: string; capacity: string } | null;
 };
 
 export interface SaleCategoryResponse {
@@ -147,7 +148,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     clientId: sale.clientId ?? "",
     clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
-    deviceLabel: sale.deviceLabel ?? "",
+    deviceLabel: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(" "),
     amount: sale.amount.toNumber(),
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
     status: sale.status as SaleResponse["status"],
@@ -162,6 +163,7 @@ export async function listSales(storeId: string) {
   const sales = await prisma.sale.findMany({
     where: { storeId },
     orderBy: { soldAt: "desc" },
+    include: { inventoryItem: { select: { model: true, capacity: true } } },
   });
 
   return sales.map(serializeSale);

@@ -300,11 +300,11 @@ describe("integrated operation API", () => {
     expect(invalidDraft.statusCode).toBe(400);
     const draft = await app.inject({ method: "POST", url: "/api/operations/sales", headers, payload: {
       clientId: fixture.client.id, productId: fixture.inventoryItem.id, amount: 1200,
-      categoryId: fixture.saleCategory.id, draft: true, tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
+      categoryId: fixture.tradeInCategory.id, saleCategoryId: fixture.saleCategory.id, draft: true, tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
     } });
     expect(draft.statusCode).toBe(201);
     const tradeId = draft.json().tradeIn.id as string;
-    expect(draft.json().tradeIn).toMatchObject({ operationSource: "sales", categoryId: null, draftSaleCategoryId: fixture.saleCategory.id });
+    expect(draft.json().tradeIn).toMatchObject({ operationSource: "sales", categoryId: fixture.tradeInCategory.id, draftSaleCategoryId: fixture.saleCategory.id });
     const drafts = await app.inject({ method: "GET", url: "/api/operations/sales/drafts", headers });
     expect(drafts.json().tradeIns).toHaveLength(1);
     expect((await app.inject({ method: "GET", url: "/api/operations/clients/drafts", headers })).statusCode).toBe(403);
@@ -321,7 +321,7 @@ describe("integrated operation API", () => {
     const confirmed = await app.inject({ method: "POST", url: `/api/operations/sales/trades/${tradeId}/confirm`, headers, payload: {} });
     expect(confirmed.statusCode).toBe(200);
     expect(confirmed.json().sale.categoryId).toBe(fixture.saleCategory.id);
-    expect(confirmed.json()).toMatchObject({ sale: { amount: 1300 }, tradeIn: { takeValue: 500, differencePaid: 800 } });
+    expect(confirmed.json()).toMatchObject({ sale: { amount: 1300 }, tradeIn: { categoryId: fixture.tradeInCategory.id, takeValue: 500, differencePaid: 800 } });
     const reopened = await app.inject({ method: "GET", url: `/api/operations/sales/trades/${tradeId}`, headers });
     expect(reopened.json()).toMatchObject({ sale: { amount: 1300, status: "COMPLETADA" }, tradeIn: { operationSource: "sales" } });
     expect((await app.inject({ method: "GET", url: "/api/operations/sales/drafts", headers })).json().tradeIns).toHaveLength(0);
@@ -358,5 +358,101 @@ describe("integrated operation API", () => {
     }
     const mutation = await app.inject({ method: "POST", url: "/api/inventory/categories", headers, payload: { name: "Denied" } });
     expect(mutation.statusCode).toBe(403);
+  });
+
+  it("clears explicit draft selections, separates categories and date, and preserves or replaces buyers on edits", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+    const draft = await app.inject({ method: "POST", url: "/api/operations/tradeins", headers, payload: {
+      date: "06/10/2026", clientId: fixture.client.id, productId: fixture.inventoryItem.id, amount: 1500,
+      categoryId: fixture.tradeInCategory.id, saleCategoryId: fixture.saleCategory.id, status: "PENDIENTE", draft: true,
+      tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
+    } });
+    expect(draft.statusCode).toBe(201);
+    const tradeId = draft.json().tradeIn.id as string;
+    const confirmed = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/confirm`, headers, payload: {
+      productId: null, deviceLabel: "Equipo libre", amount: 1500, status: "PENDIENTE", date: "07/10/2026",
+      categoryId: null, saleCategoryId: null, tradeIn: { deviceReceived: "iPhone 11 recibido", takeValue: 400 },
+    } });
+    expect(confirmed.statusCode).toBe(200);
+    expect(confirmed.json()).toMatchObject({
+      sale: { productId: "", deviceLabel: "Equipo libre", categoryId: null, date: "07/10/2026", clientId: fixture.client.id },
+      tradeIn: { categoryId: null, date: "07/10/2026" },
+    });
+
+    const amountOnly = await app.inject({ method: "PATCH", url: `/api/operations/sales/sales/${confirmed.json().sale.id}`, headers, payload: { amount: 1600 } });
+    expect(amountOnly.statusCode).toBe(200);
+    expect(amountOnly.json().sale.clientId).toBe(fixture.client.id);
+    const typedSameName = await app.inject({ method: "PATCH", url: `/api/operations/sales/sales/${confirmed.json().sale.id}`, headers, payload: {
+      amount: 1700, clientId: null, clientName: fixture.client.name,
+      categoryId: fixture.tradeInCategory.id, saleCategoryId: fixture.saleCategory.id,
+    } });
+    expect(typedSameName.statusCode).toBe(200);
+    expect(typedSameName.json()).toMatchObject({ sale: { categoryId: fixture.saleCategory.id }, tradeIn: { categoryId: fixture.tradeInCategory.id } });
+    expect(typedSameName.json().sale.clientId).not.toBe(fixture.client.id);
+    expect(await prisma.client.count({ where: { storeId: context.store!.id, name: fixture.client.name } })).toBe(2);
+
+    const cleared = await app.inject({ method: "PATCH", url: `/api/operations/sales/sales/${confirmed.json().sale.id}`, headers, payload: { categoryId: null, saleCategoryId: null } });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json()).toMatchObject({ sale: { categoryId: null }, tradeIn: { categoryId: null } });
+  });
+
+  it("rejects a legacy sale created as cancelled and snapshots old product labels on read", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+    const rejected = await app.inject({ method: "POST", url: "/api/sales", headers, payload: {
+      date: "07/10/2026", clientId: fixture.client.id, productId: fixture.inventoryItem.id,
+      amount: 1200, paymentMethod: "EFECTIVO", status: "CANCELADA",
+    } });
+    expect(rejected.statusCode).toBe(400);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } })).status).toBe("DISPONIBLE");
+    expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(0);
+
+    const soldAt = new Date("2025-05-01T12:00:00.000Z");
+    const legacy = await prisma.sale.create({ data: {
+      storeId: context.store!.id, inventoryItemId: fixture.inventoryItem.id, clientName: "Legacy",
+      dateLabel: "01/05/2025", soldAt, amount: 900, paymentMethod: "EFECTIVO", status: "COMPLETADA",
+    } });
+    const listed = await app.inject({ method: "GET", url: "/api/sales", headers });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().sales.find((sale: { id: string }) => sale.id === legacy.id)?.deviceLabel).toBe("iPhone 14 128GB");
+    expect((await prisma.sale.findUniqueOrThrow({ where: { id: legacy.id } })).deviceLabel).toBeNull();
+  });
+
+  it("limits inventory trade links to its own pending drafts and exposes archived details as read-only", async () => {
+    const app = getApp();
+    const context = await seedStoreContext({ role: "STAFF" });
+    await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["inventory"] } });
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+    const foreign = await app.inject({ method: "POST", url: "/api/operations/tradeins", headers, payload: {
+      amount: 800, deviceLabel: "Equipo libre", draft: true, tradeIn: { deviceReceived: "Foreign source", takeValue: 100 },
+    } });
+    expect(foreign.statusCode).toBe(403);
+    await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["inventory", "tradeins"] } });
+    const otherDraft = await app.inject({ method: "POST", url: "/api/operations/tradeins", headers, payload: {
+      amount: 800, deviceLabel: "Equipo libre", draft: true, tradeIn: { deviceReceived: "Canje sección", takeValue: 100 },
+    } });
+    expect(otherDraft.statusCode).toBe(201);
+    const otherId = otherDraft.json().tradeIn.id as string;
+    await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["inventory"] } });
+    expect((await app.inject({ method: "PATCH", url: `/api/operations/inventory/trades/${otherId}`, headers, payload: { amount: 900 } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: `/api/operations/inventory/trades/${otherId}/cancel`, headers, payload: {} })).statusCode).toBe(403);
+
+    const ownDraft = await app.inject({ method: "POST", url: "/api/operations/inventory", headers, payload: {
+      productId: fixture.inventoryItem.id, clientName: "Cliente inventario", amount: 1200, draft: true,
+      tradeIn: { deviceReceived: "Recibido archivado", takeValue: 200 },
+    } });
+    expect(ownDraft.statusCode).toBe(201);
+    const ownId = ownDraft.json().tradeIn.id as string;
+    expect((await app.inject({ method: "PATCH", url: `/api/operations/inventory/trades/${ownId}`, headers, payload: { amount: 1300 } })).statusCode).toBe(200);
+    const confirmed = await app.inject({ method: "POST", url: `/api/operations/inventory/trades/${ownId}/confirm`, headers, payload: {} });
+    expect(confirmed.statusCode).toBe(200);
+    expect((await app.inject({ method: "PATCH", url: `/api/operations/inventory/trades/${ownId}`, headers, payload: { amount: 1400 } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: `/api/operations/inventory/trades/${ownId}/cancel`, headers, payload: {} })).statusCode).toBe(403);
   });
 });

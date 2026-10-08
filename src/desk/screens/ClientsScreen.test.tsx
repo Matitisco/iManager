@@ -28,7 +28,7 @@ function client(number: number, overrides: Partial<Client> = {}): Client {
 
 function renderScreen() {
   return render(
-    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <ClientsScreen />
     </DeskProvider>,
   );

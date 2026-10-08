@@ -6,4 +6,7 @@
 - [x] Add `/api/operations/:source` routes, source-section authorization, minimal options lookup, and app registration.
 - [x] Route legacy manual sale writes through the shared operation service; block legacy independent writes on linked sales/trade-ins; mark manual inventory `VENDIDO` updates pending registration while keeping imports unchanged.
 - [x] Add integration coverage for draft isolation, confirmation/retry, notification links, client balances, cancellation, manual sold registration, duplicate prevention, and section permissions.
-- [ ] Frontend integration remains in a separate follow-up; do not modify `src/` here.
+- [x] Integrate every Desk entry point with shared operation flows, preserve form state on errors, and recover pending drafts after reload.
+- [x] Replace preview notifications with persisted store events, per-user reads, permission-filtered lists, and record links.
+- [x] Cover notification reads, archived trade detail links, and VENDIDO registration in backend and browser regression checks.
+- [x] Update project status and change artifacts for the delivered full-stack scope.

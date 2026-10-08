@@ -32,7 +32,7 @@ function item(id: string, overrides: Partial<Product> = {}): Product {
 
 function renderScreen() {
   return render(
-    <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+    <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
       <InventoryScreen />
     </DeskProvider>,
   );

@@ -31,7 +31,7 @@ function sale(number: number, overrides: Partial<Sale> = {}): Sale {
 
 function renderScreen() {
   return render(
-    <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <SalesScreen />
     </DeskProvider>,
   );

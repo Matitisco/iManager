@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
+import { writeOperationNotifications } from "../operations/operations.service.js";
 
 export interface InventoryItemInput {
   imei: string;
@@ -121,12 +122,12 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
   };
 }
 
-function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
+function normalizeCustomFields(customFields?: Record<string, unknown> | null): Prisma.InputJsonValue {
   if (!customFields) {
     return {};
   }
 
-  return Object.keys(customFields).length > 0 ? customFields : {};
+  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
 }
 
 // ─── Paged listing ────────────────────────────────────────────────────────────
@@ -310,8 +311,8 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
     }
   }
 
-  const inventoryItem = await inventoryPrisma.inventoryItem.create({
-    data: {
+  const inventoryItem = await withSerializableRetry(async (tx) => {
+    const created = await tx.inventoryItem.create({ data: {
       storeId,
       imei,
       model: input.model.trim(),
@@ -327,7 +328,17 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       previousSaleStatus: input.status === "VENDIDO" ? "DISPONIBLE" : null,
       categoryId: input.categoryId ?? null,
       customFields: normalizeCustomFields(input.customFields),
-    },
+    } });
+    if (created.status === "VENDIDO") {
+      await writeOperationNotifications(tx, storeId, [{
+        section: "inventory",
+        title: "Venta manual por registrar",
+        message: `${created.model} fue marcado como vendido. Completá o cancelá el registro de venta.`,
+        recordId: created.id,
+        kind: "MANUAL_SOLD_PENDING",
+      }]);
+    }
+    return created;
   });
 
   return serializeInventoryItem(inventoryItem);
@@ -397,7 +408,17 @@ export async function updateInventoryItem(
       }
     }
 
-    return tx.inventoryItem.update({ where: { id }, data });
+    const updated = await tx.inventoryItem.update({ where: { id }, data });
+    if (input.status === "VENDIDO" && existing.status !== "VENDIDO") {
+      await writeOperationNotifications(tx, storeId, [{
+        section: "inventory",
+        title: "Venta manual por registrar",
+        message: `${updated.model} fue marcado como vendido. Completá o cancelá el registro de venta.`,
+        recordId: updated.id,
+        kind: "MANUAL_SOLD_PENDING",
+      }]);
+    }
+    return updated;
   });
 
   return updated ? serializeInventoryItem(updated) : null;

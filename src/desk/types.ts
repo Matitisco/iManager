@@ -16,7 +16,7 @@ export type Overlay =
   | { type: 'sale'; id: string }
   | { type: 'edit-sale'; id: string }
   | { type: 'new-cj' }
-  | { type: 'cj'; id: string }
+  | { type: 'cj'; id: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; kind?: string }
   | { type: 'edit-cj'; id: string; source?: 'sales' | 'tradeins' | 'inventory' | 'clients' }
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }

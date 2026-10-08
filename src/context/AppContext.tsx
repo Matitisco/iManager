@@ -15,7 +15,7 @@ import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
 import { canOpenSection } from '../desk/sections';
-import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
+import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 
 interface AppState {
   inventory: Product[];
@@ -27,6 +27,11 @@ interface AppState {
   operationOptions: Partial<Record<OperationSource, OperationOptions>>;
   operationDrafts: TradeIn[];
   operationNotifications: OperationNotification[];
+  notificationsLoading: boolean;
+  notificationsError: string | null;
+  refreshNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   loadOperationOptions: (source: OperationSource) => Promise<OperationOptions>;
   loadOperationDrafts: (source: OperationSource) => Promise<TradeIn[]>;
   createOperation: (source: OperationSource, input: OperationInput) => Promise<OperationResult>;
@@ -161,6 +166,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [operationOptions, setOperationOptions] = useState<Partial<Record<OperationSource, OperationOptions>>>({});
   const [operationDrafts, setOperationDrafts] = useState<TradeIn[]>([]);
   const [operationNotifications, setOperationNotifications] = useState<OperationNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
@@ -252,7 +259,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const activeStoreId = appSession?.store?.id ?? null;
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const canAccess = (section: OperationSource | 'reports') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
+  const canAccess = (section: OperationSource | 'reports' | 'notifications') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
   const backendInventoryEnabled = backendReady && canAccess('inventory');
   const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
   const backendClientsEnabled = backendReady && canAccess('clients');
@@ -260,13 +267,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
   const backendTradeInsEnabled = backendReady && canAccess('tradeins');
   const loadTradeInsEnabled = backendReady && (canAccess('tradeins') || canAccess('reports'));
-  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('reports')].map(Number).join('')}`;
+  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('reports'), canAccess('notifications')].map(Number).join('')}`;
   scopeRef.current = currentScope;
 
   useEffect(() => {
     setOperationOptions({});
     setOperationDrafts([]);
     setOperationNotifications([]);
+    setNotificationsError(null);
+    setNotificationsLoading(false);
     if (!backendInventoryEnabled && !loadInventoryEnabled) setInventory([]);
     if (!backendClientsEnabled) setClients([]);
     if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
@@ -402,6 +411,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [activeStoreId, loadTradeInsEnabled, user]);
 
+  useEffect(() => {
+    if (!user || !backendReady || !canAccess('notifications')) {
+      setOperationNotifications([]);
+      setNotificationsError(null);
+      setNotificationsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    fetchNotifications(user).then(({ notifications }) => {
+      if (cancelled || !canAccess('notifications')) return;
+      setOperationNotifications(notifications.filter((notification) => {
+        return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
+          && canAccess(notification.section as OperationSource);
+      }));
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setNotificationsError(error instanceof Error ? error.message : String(error));
+    }).finally(() => {
+      if (!cancelled) setNotificationsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [currentScope, user]);
+
   const login = async () => {
     try {
       await authAdapter.loginWithGoogle();
@@ -506,7 +540,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (result.notifications?.length) {
       setOperationNotifications((current) => {
         const next = new Map(current.map((notification) => [notification.id, notification]));
-        for (const notification of result.notifications) next.set(notification.id, notification);
+        for (const notification of result.notifications) {
+          if (!['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
+            || !canAccess(notification.section as OperationSource)) continue;
+          next.set(notification.id, { ...notification, readAt: null });
+        }
         return [...next.values()];
       });
     }
@@ -532,6 +570,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOperationDrafts((current) => current.filter((item) => item.id !== result.tradeIn!.id));
       }
     }
+  };
+
+  const requireNotificationAccess = () => {
+    if (!user) throw new Error('No hay sesiÃ³n');
+    if (!backendReady || !canAccess('notifications')) throw new Error(backendMessage || 'No tenÃ©s permiso para ver notificaciones.');
+    return user;
+  };
+
+  const refreshNotifications = async () => {
+    const currentUser = requireNotificationAccess();
+    const requestScope = currentScope;
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    try {
+      const { notifications } = await fetchNotifications(currentUser);
+      if (scopeRef.current !== requestScope || !canAccess('notifications')) return;
+      setOperationNotifications(notifications.filter((notification) => {
+        return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
+          && canAccess(notification.section as OperationSource);
+      }));
+    } catch (error) {
+      if (scopeRef.current === requestScope) setNotificationsError(error instanceof Error ? error.message : String(error));
+      throw error;
+    } finally {
+      if (scopeRef.current === requestScope) setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationRead = async (id: string) => {
+    const currentUser = requireNotificationAccess();
+    const requestScope = currentScope;
+    const notification = operationNotifications.find((item) => item.id === id);
+    if (!notification || !['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
+      || !canAccess(notification.section as OperationSource)) throw new Error('No tenÃ©s acceso a esta notificaciÃ³n.');
+    const result = await markNotificationReadApi(currentUser, id);
+    if (scopeRef.current !== requestScope) return;
+    setOperationNotifications((current) => current.map((item) => item.id === id ? { ...item, readAt: result.readAt } : item));
+  };
+
+  const markAllNotificationsRead = async () => {
+    const currentUser = requireNotificationAccess();
+    const requestScope = currentScope;
+    await markAllNotificationsReadApi(currentUser);
+    if (scopeRef.current !== requestScope) return;
+    const readAt = new Date().toISOString();
+    setOperationNotifications((current) => current.map((notification) => ({ ...notification, readAt: notification.readAt ?? readAt })));
   };
 
   const requireOperationSource = (source: OperationSource) => {
@@ -725,6 +809,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const createdProduct = await createBackendInventoryItem(user, productData);
     setInventory(prev => [createdProduct, ...prev]);
+    if (createdProduct.status === 'VENDIDO' && canAccess('notifications')) void refreshNotifications().catch(() => undefined);
     return createdProduct;
   };
 
@@ -743,6 +828,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
       setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
+      if (backendProduct.status === 'VENDIDO' && previousItem?.status !== 'VENDIDO' && canAccess('notifications')) {
+        void refreshNotifications().catch(() => undefined);
+      }
     } catch (error) {
       if (previousItem) {
         setInventory(prev => prev.map(product => product.id === updatedProduct.id ? previousItem! : product));
@@ -1135,6 +1223,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       inventory, sales, tradeIns, clients, customColumns,
       operationOptions, operationDrafts,
       operationNotifications,
+      notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead,
       loadOperationOptions, loadOperationDrafts,
       createOperation: runCreateOperation,
       updateSaleOperation: runUpdateSaleOperation,

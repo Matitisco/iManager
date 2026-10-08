@@ -49,6 +49,7 @@ export interface OperationNotification {
   recordId?: string | null;
   kind: string;
   createdAt: string;
+  readAt?: string | null;
 }
 
 export interface OperationOptions {
@@ -120,4 +121,16 @@ export async function fetchSaleOperation(user: AuthUserLike, id: string) {
 
 export async function fetchTradeOperation(user: AuthUserLike, source: OperationSource, id: string) {
   return request<OperationResult>(user, `/api/operations/${source}/trades/${id}`, { method: 'GET' });
+}
+
+export async function fetchNotifications(user: AuthUserLike) {
+  return request<{ notifications: OperationNotification[] }>(user, '/api/notifications', { method: 'GET' });
+}
+
+export async function markNotificationReadApi(user: AuthUserLike, id: string) {
+  return request<{ id: string; readAt: string }>(user, `/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', body: '{}' });
+}
+
+export async function markAllNotificationsReadApi(user: AuthUserLike) {
+  return request<{ count: number }>(user, '/api/notifications/read-all', { method: 'POST', body: '{}' });
 }

@@ -14,6 +14,7 @@ import {
   getSaleOperation,
   getTradeOperation,
   isTradeAccessibleToSource,
+  isPendingTradeForSource,
   listOperationDrafts,
   updateSaleOperation,
   updateTradeFromSale,
@@ -138,7 +139,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
       return reply.code(403).send({ error: "This source cannot read the trade-in operation" });
     }
-    try { return await getTradeOperation(request.appUser!.storeId, params.id ?? ""); }
+    try { return await getTradeOperation(request.appUser!.storeId, params.id ?? "", source); }
     catch (error) { return errorReply(error, reply); }
   });
 
@@ -147,7 +148,9 @@ export async function operationsRoutes(app: FastifyInstance) {
     const source = getSource(params.source);
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (!authorized(request, reply, source)) return;
-    if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
+    if ((source === "inventory" || source === "clients")
+      ? !await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)
+      : source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
       return reply.code(403).send({ error: "This source cannot confirm the trade-in" });
     }
     const input = parseInput(request.body, reply);
@@ -172,8 +175,11 @@ export async function operationsRoutes(app: FastifyInstance) {
     const params = routeParams(request);
     const source = getSource(params.source);
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
-    if (source !== "tradeins" && source !== "sales") return reply.code(403).send({ error: "This source cannot edit a trade-in" });
+    if (source !== "tradeins" && source !== "sales" && source !== "inventory" && source !== "clients") return reply.code(403).send({ error: "This source cannot edit a trade-in" });
     if (!authorized(request, reply, source)) return;
+    if (source === "inventory" || source === "clients") {
+      if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only edit its pending trade-in" });
+    } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot edit the trade-in operation" });
     const input = parseInput(request.body, reply);
     if (!input) return;
     try { return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input); }
@@ -184,8 +190,11 @@ export async function operationsRoutes(app: FastifyInstance) {
     const params = routeParams(request);
     const source = getSource(params.source);
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
-    if (source !== "tradeins" && source !== "sales") return reply.code(403).send({ error: "This source cannot cancel a trade-in" });
+    if (source !== "tradeins" && source !== "sales" && source !== "inventory" && source !== "clients") return reply.code(403).send({ error: "This source cannot cancel a trade-in" });
     if (!authorized(request, reply, source)) return;
+    if (source === "inventory" || source === "clients") {
+      if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only cancel its pending trade-in" });
+    } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
     try { return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "") : await cancelTradeOperation(request.appUser!.storeId, params.id ?? ""); }
     catch (error) { return errorReply(error, reply); }
   });

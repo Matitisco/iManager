@@ -174,7 +174,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
     return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, clientId: overlay.clientId, productId: overlay.productId, source: overlay.source, tradeInId: overlay.tradeInId } : undefined} run={run} busy={busy} error={error} />;
   }
-  if (overlay.type === 'cj') return <TradeDetail id={overlay.id} run={run} busy={busy} error={error} />;
+  if (overlay.type === 'cj') return <TradeDetail id={overlay.id} source={overlay.source} kind={overlay.kind} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} source={overlay.type === 'edit-cj' ? overlay.source : 'tradeins'} run={run} busy={busy} error={error} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
@@ -696,16 +696,39 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   );
 }
 
-function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
+function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormProps & { id: string; source?: OperationSource; kind?: string }) {
   const { tradeIns, sales, clients, updateTradeIn, cancelTradeOperation, fetchTradeOperation } = useAppContext();
   const { close, open } = useDesk();
-  const trade = tradeIns.find((item) => item.id === id);
+  const archivedReceivedLink = kind === 'ARCHIVED_TRADE_IN_RECEIVED';
+  const [loadedOperation, setLoadedOperation] = useState<Awaited<ReturnType<typeof fetchTradeOperation>> | null>(null);
+  const trade = tradeIns.find((item) => item.id === id) ?? loadedOperation?.tradeIn;
   const [detailError, setDetailError] = useState<string | null>(null);
   useEffect(() => {
-    if (trade?.confirmationStatus != null) void fetchTradeOperation('tradeins', id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar el canje.')));
-  }, [id, trade?.confirmationStatus]);
-  if (!trade) return null;
+    if (archivedReceivedLink || !trade || trade.confirmationStatus != null) {
+      void fetchTradeOperation(source, id)
+        .then(setLoadedOperation)
+        .catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar el canje.')));
+    }
+  }, [id, source, archivedReceivedLink, trade?.confirmationStatus]);
+  if (!trade && !detailError) return <Sheet title="Cargando registro" onClose={close}><div className="wempty">Cargando detalle...</div></Sheet>;
+  if (!trade) return <Sheet title="Registro no disponible" onClose={close}><div className="ferr">{detailError}</div></Sheet>;
   const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
+  if (archivedReceivedLink) {
+    const archivedReceived = loadedOperation?.inventory.find((item) => item.archivedAt);
+    return (
+      <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close}>
+        {detailError && <div className="ferr">{detailError}</div>}
+        {archivedReceived ? <>
+          <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
+          <div className="kv"><span>Capacidad</span><b>{archivedReceived.capacity || '—'}</b></div>
+          <div className="kv"><span>Estado técnico</span><b><Pill status={archivedReceived.status} kind="TRADE_IN_STATUS" /></b></div>
+          <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
+          <div className="kv"><span>Fecha</span><b>{formatShortDate(trade.date)}</b></div>
+        </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <div className="wempty">Cargando equipo recibido...</div>}
+        <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
+      </Sheet>
+    );
+  }
   if (trade.confirmationStatus != null) {
     return (
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close}>
@@ -722,9 +745,9 @@ function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
         </> : null}
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source: 'tradeins' })}>Retomar</button> : null}
-          {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source: 'tradeins' })}>Editar</button> : null}
-          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await cancelTradeOperation('tradeins', id), 'Operación cancelada')}>Cancelar operación</button> : null}
+          {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button> : null}
+          {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button> : null}
+          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await cancelTradeOperation(source, id), 'Operación cancelada')}>Cancelar operación</button> : null}
         </div>
       </Sheet>
     );

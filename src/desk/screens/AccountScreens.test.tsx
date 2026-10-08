@@ -33,7 +33,7 @@ vi.mock('../../services/invitations-api', () => ({ listInvitations: vi.fn(async 
 
 function renderSettings() {
   return render(
-    <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <SettingsScreen />
     </DeskProvider>,
   );

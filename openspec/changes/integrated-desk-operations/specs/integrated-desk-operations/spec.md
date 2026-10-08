@@ -44,9 +44,25 @@ The backend SHALL persist one notification event for each affected section in th
 - **WHEN** an operation changes sales, inventory, clients, or trade-ins
 - **THEN** one notification is persisted for each affected section and returned with the operation response
 
+#### Scenario: Read persisted notifications
+- **WHEN** a member with notification access opens the feed
+- **THEN** the backend returns stored events for the active store, filtered to sections the member can access, with that member's read state
+
+#### Scenario: Read state is private to each member
+- **WHEN** one member marks an event or all visible events as read
+- **THEN** only that member's read state changes; other members continue to see their own unread state
+
+#### Scenario: Open a cancelled trade-in notification
+- **WHEN** an authorized member follows the Inventory event for a cancelled trade whose received device was archived
+- **THEN** the Desk opens a read-only archived-device detail without adding the device to active inventory
+
 ### Requirement: Source-scoped operation permissions
 The backend SHALL authorize an integrated operation from its source section without granting general access to other sections.
 
 #### Scenario: Inventory-only member records a sale
 - **WHEN** a member with inventory permission uses an integrated sale from inventory
 - **THEN** the operation and minimal product/client lookup are allowed while unrelated sales, client, and trade-in APIs remain protected
+
+#### Scenario: Inventory source can only change its pending draft
+- **WHEN** a member edits, confirms, or cancels a trade draft from Inventory
+- **THEN** the backend permits only a pending draft created from Inventory; a completed, cancelled, or other-source trade cannot be changed from that entry point

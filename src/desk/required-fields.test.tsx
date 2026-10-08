@@ -54,7 +54,7 @@ function product(): Product {
 
 function renderOverlay(type: 'new-cl' | 'new-cj') {
   return render(
-    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <DeskOverlays overlay={{ type }} />
     </DeskProvider>,
   );
