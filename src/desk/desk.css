@@ -51,7 +51,8 @@
 .ditem.on .dic { color: #16181D; }
 .dcount { margin-left: auto; min-width: 20px; height: 20px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
 .dmeta { margin-left: auto; font-size: 12px; color: var(--secondary); font-weight: 700; }
-.dspacer { flex: 1; }
+.dnav { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
+.dnav::-webkit-scrollbar { display: none; }
 .duser { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; width: 100%; text-align: left; }
 .duser:hover { background: #F3F4F6; }
 .duser b { display: block; font-size: 14px; }
@@ -535,6 +536,52 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .moves .down { color: var(--err); }
 .moves small { color: var(--secondary); }
 .sacts.three { grid-template-columns: auto 1fr 1.3fr; }
+
+.dolar { position: relative; flex-shrink: 0; margin: 10px 0 4px; background: var(--bg); border-radius: 16px; }
+.dolar:hover { background: #EEF0F3; }
+.dolar-hit { display: block; width: 100%; text-align: left; padding: 12px 36px 10px 12px; border-radius: 16px; }
+.dolar.error .dolar-hit { padding-bottom: 2px; }
+.dolar-top { display: flex; align-items: center; gap: 8px; }
+.dolar-top b { font-size: 13px; font-weight: 800; }
+.dolar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+.dolar.loading .dolar-dot { background: var(--lime); }
+.dolar.error .dolar-dot { background: var(--err); }
+.dolar-refresh { position: absolute; top: 8px; right: 6px; width: 28px; height: 28px; border-radius: 8px; color: var(--secondary); display: flex; align-items: center; justify-content: center; }
+.dolar-refresh:hover { background: #fff; color: var(--primary); }
+.dolar.error .dolar-refresh { color: var(--err); }
+.dolar-refresh:disabled { opacity: .45; }
+.dolar-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.dolar-cols > span { display: block; min-width: 0; }
+.dolar-cols small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
+.dolar-cols b { display: block; margin-top: 2px; font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.dolar-skel { display: block; height: 12px; width: 70px; margin-top: 7px; border-radius: 999px; background: #E1E3E8; }
+.dolar-foot { display: block; margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--secondary); line-height: 1.35; }
+.dolar.error .dolar-foot { margin: 2px 0 0; padding: 0 12px 10px; color: var(--err); }
+.dolar-foot button { font: inherit; font-weight: 800; color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.dolar-sheet { width: min(440px, calc(100vw - 48px)); padding: 22px 22px 18px; }
+.dolar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.dolar-sheet h3 { margin: 0; font-size: 20px; }
+.dolar-x { width: 32px; height: 32px; border-radius: 50%; background: var(--row); font-size: 20px; line-height: 1; color: var(--primary); }
+.dolar-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.dolar-stat { background: var(--row); border-radius: 16px; padding: 12px 12px 14px; min-width: 0; }
+.dolar-stat span { display: block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--section); }
+.dolar-stat b { display: block; margin-top: 6px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.dolar-stat .dolar-skel { width: 72px; height: 16px; margin-top: 10px; }
+.dolar-meta { margin: 0; font-size: 13px; font-weight: 600; color: var(--secondary); line-height: 1.45; }
+.dolar-meta + .dolar-meta { margin-top: 2px; }
+.dolar-kicker { margin: 16px 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
+.dolar-calc { display: flex; align-items: center; gap: 8px; background: var(--lime-soft); border-radius: 16px; padding: 8px; }
+.dolar-usd { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 10px; border-radius: 12px; background: #fff; border: 1.5px solid var(--border); }
+.dolar-usd span { font-size: 13px; font-weight: 800; color: var(--secondary); }
+.dolar-usd input { width: 72px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; font-weight: 800; color: var(--primary); }
+.dolar-eq { font-weight: 800; color: var(--secondary); }
+.dolar-out { font-size: 18px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.dolar-side { margin-left: auto; height: 32px; padding: 0 10px; border-radius: 999px; background: var(--lime); color: var(--primary); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.dolar-acts { display: flex; gap: 10px; margin-top: 18px; }
+.dolar-acts .btn2 { height: 46px; font-size: 14px; }
+.dolar-acts .btn2.s { flex: 1; }
+.dolar-acts .btn2.p { flex: 0 0 112px; }
+.dolar-acts .btn2 svg { width: 16px; height: 16px; }
 .btn2.ghost-danger { background: #fff; color: var(--err); border: 1.5px solid #F3C7C7; box-shadow: none; }
 
 @media (max-width: 1100px) {
