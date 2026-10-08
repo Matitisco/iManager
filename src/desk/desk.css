@@ -585,10 +585,48 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar-acts .btn2.p { flex: 0 0 112px; }
 .dolar-acts .btn2 svg { width: 16px; height: 16px; }
 
+.dstar { margin-left: auto; color: #E0B000; font-size: 13px; line-height: 1; }
+.svc-screen { max-width: none; }
+.svc-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.svc-badge { display: inline-flex; align-items: center; gap: 6px; border: 1.5px dashed #E2C14A; background: #FFF8DC; color: #6A5310; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.svc-badge-gap { margin: -4px 0 14px; }
+.svc-banner { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 18px; padding: 12px 14px; border: 1.5px dashed #E2C14A; background: #FFF8DC; border-radius: 16px; color: #6A5310; font-size: 13px; font-weight: 600; line-height: 1.45; }
+.svc-banner p { margin: 0; }
+.svc-banner svg, .svc-badge svg { flex-shrink: 0; margin-top: 1px; }
+.svc-views { display: flex; align-items: center; gap: 2px; height: 42px; padding: 3px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+.svc-views button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--secondary); }
+.svc-views button.on { background: var(--row); color: var(--primary); }
+.dkanban.svc { grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); }
+.svc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.dcolh span { display: inline-flex; align-items: center; }
+.ticket .date { display: inline-flex; align-items: center; gap: 4px; }
+.ticket .date.late, .dtable td.late { color: var(--err); font-weight: 800; }
+.sheet.wide { width: min(980px, calc(100vw - 48px)); }
+.svc-grid { display: grid; grid-template-columns: 1.15fr .9fr; gap: 8px 22px; align-items: start; }
+.svc-faults { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 10px; }
+.svc-faults button { height: 34px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff; font-size: 13px; font-weight: 700; }
+.svc-faults button.on { background: var(--lime); border-color: var(--lime); }
+.fl textarea.svc-note { width: 100%; min-height: 108px; resize: vertical; border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--row); font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--primary); }
+.fl textarea.svc-note:focus { outline: none; border-color: var(--primary); background: #fff; }
+.svc-steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; margin: 4px 0 14px; }
+.svc-steps i { display: block; height: 6px; border-radius: 999px; background: var(--row); }
+.svc-steps i.on { background: var(--lime); }
+.svc-now { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.svc-now span { color: var(--secondary); font-size: 13px; font-weight: 700; }
+.svc-log { margin: 8px 0 4px; }
+.svc-log > span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); margin-bottom: 4px; }
+.svc-log ol { list-style: none; margin: 0; padding: 0; }
+.svc-log li { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.svc-log i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.svc-log small { margin-left: auto; color: var(--secondary); font-weight: 600; }
+.svc-wa { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 2px; padding: 12px 14px; border-radius: 14px; background: var(--lime-soft); font-size: 13px; font-weight: 700; }
+.svc-wa a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
 @media (max-width: 1100px) {
   .dgrid.dash, .dgrid.two { grid-template-columns: 1fr; }
   .dstats { grid-template-columns: 1fr 1fr; }
   .xsearch { width: 220px; }
+  .svc-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .desk-app { flex-direction: column; }

@@ -35,6 +35,7 @@ import { cancellationRefund } from './cancel-refund';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import { canSeeFinancials } from './sections';
 import type { CatalogKind } from '../services/catalogs-api';
+import { RepairOrderDetail, RepairOrderForm } from './RepairForms';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
 import { ImanagerIcon } from './icons';
@@ -213,6 +214,8 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   }
   if (overlay.type === 'cj') return <TradeDetail id={overlay.id} source={overlay.source} kind={overlay.kind} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} source={overlay.type === 'edit-cj' ? overlay.source : 'tradeins'} run={run} busy={busy} error={error} />;
+  if (overlay.type === 'new-ot') return <RepairOrderForm busy={busy} error={error} />;
+  if (overlay.type === 'ot') return <RepairOrderDetail id={overlay.id} busy={busy} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;

@@ -3,7 +3,9 @@ import { canOpenSection, canSeeFinancials, visibleSections } from './sections';
 
 describe('desk sections', () => {
   it('keeps every section when access was never customized, and settings always', () => {
-    expect(visibleSections(null, 'STAFF')).toHaveLength(7);
+    expect(visibleSections(null, 'STAFF')).toHaveLength(8);
+    expect(canOpenSection('service', ['service'], 'STAFF')).toBe(true);
+    expect(canOpenSection('service', ['sales'], 'MANAGER')).toBe(false);
     expect(canOpenSection('settings', [], 'STAFF')).toBe(true);
     expect(canOpenSection('reports', ['reports'], 'STAFF')).toBe(false);
     expect(canOpenSection('sales', ['inventory'], 'MANAGER')).toBe(false);

@@ -4,6 +4,7 @@ export const DESK_SECTIONS = [
   { id: 'sales', label: 'Ventas' },
   { id: 'tradeins', label: 'Canjes' },
   { id: 'clients', label: 'Clientes' },
+  { id: 'service', label: 'Servicio técnico' },
   { id: 'reports', label: 'Reportes' },
   { id: 'notifications', label: 'Notificaciones' },
 ] as const;

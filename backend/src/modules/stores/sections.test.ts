@@ -12,7 +12,7 @@ vi.mock("../../plugins/prisma.js", () => ({
 }));
 
 import { updateMemberSections } from "./stores.service.js";
-import { assertSectionList, canSeeFinancials, normalizeSections } from "./sections.js";
+import { assertSectionList, canAccessSection, canSeeFinancials, normalizeSections } from "./sections.js";
 
 const staff = {
   id: "member-2",
@@ -44,6 +44,12 @@ describe("member sections", () => {
     expect(normalizeSections(null)).toBeNull();
     expect(normalizeSections(["sales", "sales", "nope"])).toEqual(["sales"]);
     expect(() => assertSectionList(["ventas"])).toThrow(/no existe/);
+  });
+
+  it("gives the technical service section the same per-member gate as the other sections", () => {
+    expect(canAccessSection("service", { role: "STAFF", sections: ["service"] })).toBe(true);
+    expect(canAccessSection("service", { role: "STAFF", sections: ["sales"] })).toBe(false);
+    expect(canAccessSection("service", { role: "OWNER", sections: [] })).toBe(true);
   });
 
   it("saves the chosen sections for a staff member and protects the owner", async () => {
