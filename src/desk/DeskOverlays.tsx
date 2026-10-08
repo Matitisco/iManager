@@ -744,7 +744,6 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
   const trade = tradeIns.find((item) => item.id === id) ?? loadedOperation?.tradeIn;
   const [detailError, setDetailError] = useState<string | null>(null);
   const [technicalStatus, setTechnicalStatus] = useState(trade?.status || 'PENDIENTE');
-  const [statusEditor, setStatusEditor] = useState<CatalogKind | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     if (archivedReceivedLink || !trade || trade.confirmationStatus != null) {
@@ -815,8 +814,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
         {trade.confirmationStatus !== 'CANCELLED' ? (
           <>
-            <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setStatusEditor('TRADE_IN_STATUS') : undefined} />
-            {statusEditor ? <CatalogEditor kind={statusEditor} onClose={() => setStatusEditor(null)} /> : null}
+            <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
           </>
         ) : null}
         <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>

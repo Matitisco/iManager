@@ -142,7 +142,7 @@ test('a linked canje edit updates both records and cancellation keeps the client
   await page.getByRole('row').filter({ hasText: received }).click();
   let detail = page.getByRole('dialog');
   await expect(detail.getByText('Canje confirmado')).toBeVisible();
-  await detail.getByRole('button', { name: 'Editar' }).click();
+  await detail.getByRole('button', { name: 'Editar', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Editar operación' });
   await dialog.getByRole('combobox', { name: 'Equipo' }).fill('Equipo libre editado');
   await dialog.getByLabel('Valor tomado').fill('1100');
