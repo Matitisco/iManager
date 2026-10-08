@@ -123,10 +123,12 @@ export function sectionRecords(
 
 export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean }) {
   const amount = money(input.amount);
-  const debtValue = input.status === "PENDIENTE"
-    ? (input.trade ? Math.max(0, input.amount - (input.takeValue ?? 0)) : input.amount)
-    : 0;
-  return input.trade
-    ? `Canje · total ${amount} · toma ${money(input.takeValue ?? 0)} · diferencia/deuda ${money(debtValue)}${input.received ? " · recibido en revisión" : ""}`
-    : `Venta ${amount} · deuda ${money(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
+  if (!input.trade) {
+    const debtValue = input.status === "PENDIENTE" ? input.amount : 0;
+    return `Venta ${amount} · deuda ${money(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
+  }
+  const difference = Math.max(0, input.amount - (input.takeValue ?? 0));
+  const debtValue = input.status === "PENDIENTE" ? difference : 0;
+  const settlement = debtValue > 0 ? `debe ${money(debtValue)}` : "pagada";
+  return `Canje · total ${amount} · toma ${money(input.takeValue ?? 0)} · diferencia ${money(difference)} · ${settlement}${input.received ? " · recibido en revisión" : ""}`;
 }

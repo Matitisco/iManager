@@ -39,7 +39,7 @@ describe("integrated operation API", () => {
     expect(notice("sales")).toMatchObject({ title: "Venta registrada", message: "iPhone 14 128GB · Draft Customer · $ 1.500" });
     expect(notice("inventory")).toMatchObject({ title: "Stock actualizado", message: "iPhone 14 128GB vendido. Entró un iPhone 11 Confirmed por canje, en revisión" });
     expect(notice("clients")).toMatchObject({ recordId: client.id, title: "Nuevo cliente", message: "Nuevo cliente: Draft Customer. Debe $ 900" });
-    expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia/deuda $ 900 · recibido en revisión");
+    expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
     expect(new Set(confirmed.json().notifications.map((item: { message: string }) => item.message)).size).toBe(4);
     expect(Number(client.totalSpent)).toBe(1500);
     expect(Number(client.pendingBalance)).toBe(900);
@@ -389,6 +389,7 @@ describe("integrated operation API", () => {
     expect(confirmed.statusCode).toBe(200);
     expect(confirmed.json().sale.categoryId).toBe(fixture.saleCategory.id);
     expect(confirmed.json()).toMatchObject({ sale: { amount: 1300 }, tradeIn: { categoryId: fixture.tradeInCategory.id, takeValue: 500, differencePaid: 800 } });
+    expect(confirmed.json().summary).toBe("Canje · total $ 1.300 · toma $ 500 · diferencia $ 800 · pagada · recibido en revisión");
     const reopened = await app.inject({ method: "GET", url: `/api/operations/sales/trades/${tradeId}`, headers });
     expect(reopened.json()).toMatchObject({ sale: { amount: 1300, status: "COMPLETADA" }, tradeIn: { operationSource: "sales" } });
     expect((await app.inject({ method: "GET", url: "/api/operations/sales/drafts", headers })).json().tradeIns).toHaveLength(0);

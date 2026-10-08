@@ -7,7 +7,7 @@ import { DeskToast } from './toast';
 
 const css = readFileSync(path.resolve(process.cwd(), 'src/desk/desk.css'), 'utf8').replace(/@import[^;]+;/, '');
 
-const LONG_SUMMARY = 'Canje · total $ 950.000 · toma $ 350.000 · diferencia/deuda $ 0 · recibido en revisión';
+const LONG_SUMMARY = 'Canje · total $ 950.000 · toma $ 350.000 · diferencia $ 600.000 · debe $ 600.000 · recibido en revisión';
 
 let browser: Browser;
 
