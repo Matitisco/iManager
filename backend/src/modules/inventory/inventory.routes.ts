@@ -40,6 +40,7 @@ const inventoryPatchSchema = inventoryItemSchema
   .extend({
     capacity: z.string().trim().max(50),
     color: z.string().trim().max(50),
+    price: z.number().nonnegative(),
   })
   .partial();
 

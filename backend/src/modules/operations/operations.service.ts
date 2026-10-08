@@ -252,6 +252,15 @@ function fullDeviceLabel(product: Pick<InventoryItem, "model" | "capacity">) {
   return [product.model, product.capacity].filter(Boolean).join(" ").slice(0, 120);
 }
 
+function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistration: boolean }) {
+  return product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
+}
+
+function salePricePatch(price: { toNumber(): number }, amount: number): { price?: Decimal } {
+  if (price.toNumber() > 0 || !(amount > 0)) return {};
+  return { price: dec(amount) };
+}
+
 function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean }) {
   const amount = input.amount.toFixed(2);
   const debt = input.status === "PENDIENTE"
@@ -282,7 +291,6 @@ export async function getOperationOptions(storeId: string) {
       where: {
         storeId,
         archivedAt: null,
-        price: { gt: 0 },
         OR: [
           { status: "DISPONIBLE" },
           { status: "VENDIDO", pendingSaleRegistration: true },
@@ -342,7 +350,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       if (input.productId) {
         const draftProduct = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
         if (!draftProduct) throw new OperationError("Inventory item not found", 404);
-        if (draftProduct.price.toNumber() <= 0 || !(draftProduct.status === "DISPONIBLE" || (draftProduct.status === "VENDIDO" && draftProduct.pendingSaleRegistration))) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
+        if (!canRegisterOutgoingSale(draftProduct)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
       const trade = await tx.tradeIn.create({ data: {
         storeId,
@@ -381,8 +389,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const productId = input.productId?.trim() || null;
     const product = productId ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } }) : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
-    if (product && product.price.toNumber() <= 0) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
-    if (product && !(product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration))) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
+    if (product && !canRegisterOutgoingSale(product)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     if (!product && !input.deviceLabel?.trim()) throw new OperationError("Indicá el equipo");
@@ -443,6 +450,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           status: "VENDIDO",
           pendingSaleRegistration: false,
           previousSaleStatus: null,
+          ...salePricePatch(product.price, input.amount!),
         },
       });
     }
@@ -514,7 +522,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } })
       : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
-    if (product && (product.price.toNumber() <= 0 || !(product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration)))) {
+    if (product && !canRegisterOutgoingSale(product)) {
       throw new OperationError("El equipo no esta disponible", 409);
     }
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) {
@@ -574,6 +582,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       status: "VENDIDO",
       pendingSaleRegistration: false,
       previousSaleStatus: null,
+      ...salePricePatch(product.price, outgoingAmount),
     } });
     const sale = await tx.sale.create({ data: {
       storeId,
@@ -636,7 +645,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const nextProduct = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId, archivedAt: null } }) : null;
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
     if (nextProduct && nextProductId !== sale.inventoryItemId) {
-      if (nextProduct.price.toNumber() <= 0 || !(nextProduct.status === "DISPONIBLE" || (nextProduct.status === "VENDIDO" && nextProduct.pendingSaleRegistration))) throw new OperationError("El equipo no está disponible", 409);
+      if (!canRegisterOutgoingSale(nextProduct)) throw new OperationError("El equipo no está disponible", 409);
       if (await tx.sale.findFirst({ where: { storeId, inventoryItemId: nextProduct.id, id: { not: sale.id }, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     }
     const typedClientName = input.clientName !== undefined
@@ -648,7 +657,11 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     if (sale.inventoryItemId && sale.inventoryItemId !== nextProductId) {
       await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     }
-    if (nextProduct && nextProduct.id !== sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null } });
+    if (nextProduct && nextProduct.id !== sale.inventoryItemId) {
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null, ...salePricePatch(nextProduct.price, nextAmount) } });
+    } else if (nextProduct && nextProduct.price.toNumber() <= 0 && nextAmount > 0) {
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount) } });
+    }
     const updatedSale = await tx.sale.update({
       where: { id: sale.id },
       data: {
@@ -757,7 +770,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       if (input.productId) {
         const product = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
         if (!product) throw new OperationError("Inventory item not found", 404);
-        if (product.price.toNumber() <= 0 || !(product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration))) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
+        if (!canRegisterOutgoingSale(product)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
       const updated = await tx.tradeIn.update({ where: { id: tradeId }, data: {
         clientId, clientName: client ? client.name : input.clientName === undefined ? trade.clientName : input.clientName?.trim() ?? "",
