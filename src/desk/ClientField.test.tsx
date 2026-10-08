@@ -51,7 +51,7 @@ describe('ClientField', () => {
     expect(options).toHaveLength(6);
     expect(options.map((option) => option.textContent).join(' ')).toContain('Ana Gómez');
     expect(screen.queryByRole('option', { name: /Bruno/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Se guarda como texto/)).toBeInTheDocument();
+    expect(screen.getByText(/Se crea un cliente nuevo al guardar/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('option', { name: /Ana Gómez/ }));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'a', name: 'Ana Gómez' }));

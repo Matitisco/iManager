@@ -10,6 +10,13 @@ export const SECTION_IDS = [
 
 export type SectionId = (typeof SECTION_IDS)[number];
 
+export function canAccessSection(section: SectionId, member: { role: string; sections?: unknown }): boolean {
+  if (section === "reports" && member.role === "STAFF") return false;
+  if (member.role === "OWNER" || member.sections == null) return true;
+  const sections = normalizeSections(member.sections);
+  return sections?.includes(section) ?? true;
+}
+
 const KNOWN = new Set<string>(SECTION_IDS);
 
 export function normalizeSections(value: unknown): string[] | null {

@@ -391,6 +391,7 @@ describe("core module integrations", () => {
     });
     expect(restoredInventory.status).toBe("DISPONIBLE");
     expect(restoredClient.totalSpent.toNumber()).toBe(0);
+    expect(await prisma.sale.findUniqueOrThrow({ where: { id: saleId } })).toMatchObject({ status: "CANCELADA", integratedOperation: true });
   });
 
   it("records a sale with a free-text device and leaves stock untouched", async () => {
@@ -538,7 +539,8 @@ describe("core module integrations", () => {
       tradeIn: {
         id: tradeInId,
         status: "LISTO",
-        differencePaid: 550,
+        confirmationStatus: "PENDING",
+        draftAmount: 1250,
       },
     });
 
@@ -560,6 +562,7 @@ describe("core module integrations", () => {
       }),
     });
     expect(deleteResponse.statusCode).toBe(204);
+    expect(await prisma.tradeIn.findUniqueOrThrow({ where: { id: tradeInId } })).toMatchObject({ confirmationStatus: "CANCELLED", status: "CANCELADO" });
   });
 
   it("rejects assigning a trade-in category from another store", async () => {

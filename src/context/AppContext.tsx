@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
-import { createBackendSale, deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
-import { createBackendTradeIn, deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
+import { deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
+import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
@@ -14,6 +14,8 @@ import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
+import { canOpenSection } from '../desk/sections';
+import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 
 interface AppState {
   inventory: Product[];
@@ -22,19 +24,33 @@ interface AppState {
   tradeIns: TradeIn[];
   clients: Client[];
   customColumns: CustomColumn[];
-  addSale: (sale: Omit<Sale, 'id'>) => Promise<void>;
-  updateSale: (sale: Sale) => Promise<void>;
-  deleteSale: (id: string) => Promise<void>;
-  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  operationOptions: Partial<Record<OperationSource, OperationOptions>>;
+  operationDrafts: TradeIn[];
+  operationNotifications: OperationNotification[];
+  loadOperationOptions: (source: OperationSource) => Promise<OperationOptions>;
+  loadOperationDrafts: (source: OperationSource) => Promise<TradeIn[]>;
+  createOperation: (source: OperationSource, input: OperationInput) => Promise<OperationResult>;
+  updateSaleOperation: (id: string, input: OperationInput) => Promise<OperationResult>;
+  updateTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
+  confirmTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
+  cancelSaleOperation: (id: string) => Promise<OperationResult>;
+  cancelTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
+  fetchSaleOperation: (id: string) => Promise<OperationResult>;
+  fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
+  applyOperationResult: (result: OperationResult) => void;
+  addSale: (sale: Omit<Sale, 'id'>) => Promise<OperationResult>;
+  updateSale: (sale: Sale) => Promise<OperationResult | void>;
+  deleteSale: (id: string) => Promise<OperationResult | void>;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
   registerClientPayment: (clientId: string, input: { amount: number; method: string }) => Promise<Client>;
   deleteClient: (id: string) => Promise<void>;
-  addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<void>;
-  updateTradeIn: (tradeIn: TradeIn) => Promise<void>;
-  deleteTradeIn: (id: string) => Promise<void>;
+  addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<OperationResult>;
+  updateTradeIn: (tradeIn: TradeIn) => Promise<OperationResult | void>;
+  deleteTradeIn: (id: string) => Promise<OperationResult | void>;
   addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
   removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
@@ -142,6 +158,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [tradeInCategories, setTradeInCategories] = useState<TradeInCategory[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [operationOptions, setOperationOptions] = useState<Partial<Record<OperationSource, OperationOptions>>>({});
+  const [operationDrafts, setOperationDrafts] = useState<TradeIn[]>([]);
+  const [operationNotifications, setOperationNotifications] = useState<OperationNotification[]>([]);
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
@@ -150,6 +169,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const scopeRef = useRef('');
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -175,6 +195,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTradeIns([]);
       setTradeInCategories([]);
       setClients([]);
+      setOperationOptions({});
+      setOperationDrafts([]);
       setClientCategories([]);
       setCustomColumns([]);
       setAppSession(null);
@@ -229,10 +251,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [user]);
 
   const activeStoreId = appSession?.store?.id ?? null;
-  const backendInventoryEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const backendClientsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const backendSalesEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const backendTradeInsEnabled = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
+  const canAccess = (section: OperationSource | 'reports') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
+  const backendInventoryEnabled = backendReady && canAccess('inventory');
+  const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
+  const backendClientsEnabled = backendReady && canAccess('clients');
+  const backendSalesEnabled = backendReady && canAccess('sales');
+  const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
+  const backendTradeInsEnabled = backendReady && canAccess('tradeins');
+  const loadTradeInsEnabled = backendReady && (canAccess('tradeins') || canAccess('reports'));
+  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('reports')].map(Number).join('')}`;
+  scopeRef.current = currentScope;
+
+  useEffect(() => {
+    setOperationOptions({});
+    setOperationDrafts([]);
+    setOperationNotifications([]);
+    if (!backendInventoryEnabled && !loadInventoryEnabled) setInventory([]);
+    if (!backendClientsEnabled) setClients([]);
+    if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
+    if (!backendTradeInsEnabled && !loadTradeInsEnabled) { setTradeIns([]); setTradeInCategories([]); }
+  }, [currentScope]);
 
   useEffect(() => {
     if (!user) {
@@ -253,7 +292,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    if (backendInventoryEnabled) {
+    if (loadInventoryEnabled) {
       setInventory([]);
       setInventoryCategories([]);
       void loadBackendInventory();
@@ -262,7 +301,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       cancelled = true;
     };
-  }, [activeStoreId, backendInventoryEnabled, user]);
+  }, [activeStoreId, loadInventoryEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -319,7 +358,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    if (backendSalesEnabled) {
+    if (loadSalesEnabled) {
       setSales([]);
       setSalesCategories([]);
       void loadBackendSalesAndCategories();
@@ -328,7 +367,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       cancelled = true;
     };
-  }, [activeStoreId, backendSalesEnabled, user]);
+  }, [activeStoreId, loadSalesEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -352,7 +391,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    if (backendTradeInsEnabled) {
+    if (loadTradeInsEnabled) {
       setTradeIns([]);
       setTradeInCategories([]);
       void loadBackendTradeIns();
@@ -361,7 +400,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       cancelled = true;
     };
-  }, [activeStoreId, backendTradeInsEnabled, user]);
+  }, [activeStoreId, loadTradeInsEnabled, user]);
 
   const login = async () => {
     try {
@@ -462,30 +501,142 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAppSession(data.session);
   };
 
+  const applyOperationResult = (result: OperationResult, requestScope = currentScope) => {
+    if (scopeRef.current !== requestScope) return;
+    if (result.notifications?.length) {
+      setOperationNotifications((current) => {
+        const next = new Map(current.map((notification) => [notification.id, notification]));
+        for (const notification of result.notifications) next.set(notification.id, notification);
+        return [...next.values()];
+      });
+    }
+    setInventory((current) => {
+      const next = new Map(current.map((item) => [item.id, item]));
+      for (const item of result.inventory ?? []) {
+        if (item.archivedAt) next.delete(item.id);
+        else next.set(item.id, { ...next.get(item.id), ...item });
+      }
+      return [...next.values()];
+    });
+    setClients((current) => {
+      const next = new Map(current.map((item) => [item.id, item]));
+      for (const item of result.clients ?? []) next.set(item.id, { ...next.get(item.id), ...item });
+      return [...next.values()];
+    });
+    if (result.sale) setSales((current) => [result.sale!, ...current.filter((item) => item.id !== result.sale!.id)]);
+    if (result.tradeIn) {
+      setTradeIns((current) => [result.tradeIn!, ...current.filter((item) => item.id !== result.tradeIn!.id)]);
+      if (result.tradeIn.confirmationStatus === 'PENDING') {
+        setOperationDrafts((current) => [result.tradeIn!, ...current.filter((item) => item.id !== result.tradeIn!.id)]);
+      } else {
+        setOperationDrafts((current) => current.filter((item) => item.id !== result.tradeIn!.id));
+      }
+    }
+  };
+
+  const requireOperationSource = (source: OperationSource) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!backendReady || !canAccess(source)) {
+      throw new Error(backendMessage || 'No tenés permiso para realizar esta operación.');
+    }
+    return user;
+  };
+
+  const loadOperationOptions = async (source: OperationSource) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const options = await fetchOperationOptions(currentUser, source);
+    if (scopeRef.current === requestScope && canAccess(source)) {
+      setOperationOptions((current) => ({ ...current, [source]: options }));
+    }
+    return options;
+  };
+
+  const loadOperationDrafts = async (source: OperationSource) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const { tradeIns: drafts } = await fetchOperationDrafts(currentUser, source);
+    if (scopeRef.current === requestScope && canAccess(source)) setOperationDrafts(drafts);
+    return drafts;
+  };
+
+  const runCreateOperation = async (source: OperationSource, input: OperationInput) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const result = await createOperation(currentUser, source, input);
+    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runUpdateSaleOperation = async (id: string, input: OperationInput) => {
+    const currentUser = requireOperationSource('sales');
+    const requestScope = currentScope;
+    const result = await updateSaleOperation(currentUser, id, input);
+    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runUpdateTradeOperation = async (source: OperationSource, id: string, input: OperationInput) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const result = await updateTradeOperation(currentUser, source, id, input);
+    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runConfirmTradeOperation = async (source: OperationSource, id: string, input: OperationInput) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const result = await confirmTradeOperation(currentUser, source, id, input);
+    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runCancelSaleOperation = async (id: string) => {
+    const currentUser = requireOperationSource('sales');
+    const requestScope = currentScope;
+    const result = await cancelSaleOperation(currentUser, id);
+    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runCancelTradeOperation = async (source: OperationSource, id: string) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const result = await cancelTradeOperation(currentUser, source, id);
+    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runFetchSaleOperation = async (id: string) => {
+    const currentUser = requireOperationSource('sales');
+    const requestScope = currentScope;
+    const result = await fetchSaleOperation(currentUser, id);
+    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
+    return result;
+  };
+
+  const runFetchTradeOperation = async (source: OperationSource, id: string) => {
+    const currentUser = requireOperationSource(source);
+    const requestScope = currentScope;
+    const result = await fetchTradeOperation(currentUser, source, id);
+    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    return result;
+  };
+
   const addSale = async (saleData: Omit<Sale, 'id'>) => {
-    if (!user) return;
     if (!backendSalesEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para guardar ventas. Reintenta en unos segundos.'
       );
     }
 
-    const createdSale = await createBackendSale(user, saleData);
-    setSales(prev => [createdSale, ...prev]);
-    setInventory(prev => prev.map(product => (
-      product.id === createdSale.productId ? { ...product, status: 'VENDIDO' } : product
-    )));
-    setClients(prev => prev.map(client => {
-      if (client.id !== createdSale.clientId) {
-        return client;
-      }
-
-      return {
-        ...client,
-        totalSpent: (client.totalSpent || 0) + createdSale.amount,
-        lastPurchaseDate: createdSale.date,
-      };
-    }));
+    return await runCreateOperation('sales', {
+      ...saleData,
+      status: saleData.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA',
+      draft: false,
+      requestKey: saleData.requestKey || `legacy-sale-${crypto.randomUUID()}`,
+    });
   };
 
   const updateSale = async (updatedSale: Sale) => {
@@ -497,6 +648,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const previous = sales.find((sale) => sale.id === updatedSale.id);
+    if (previous?.integratedOperation || previous?.tradeInId) {
+      if (updatedSale.status === 'CANCELADA') return await runCancelSaleOperation(updatedSale.id);
+      else return await runUpdateSaleOperation(updatedSale.id, {
+        clientId: updatedSale.clientId || null,
+        clientName: updatedSale.clientName || null,
+        productId: updatedSale.productId || null,
+        deviceLabel: updatedSale.deviceLabel || null,
+        amount: updatedSale.amount,
+        paymentMethod: updatedSale.paymentMethod,
+        status: updatedSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA',
+        date: updatedSale.date,
+        saleCategoryId: updatedSale.categoryId ?? null,
+        customFields: updatedSale.customFields,
+      });
+    }
     const backendSale = await updateBackendSale(user, updatedSale);
     setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
     if (previous && previous.productId !== backendSale.productId) {
@@ -517,6 +683,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const existingSale = sales.find((sale) => sale.id === id);
+    if (existingSale?.integratedOperation || existingSale?.tradeInId) {
+      return await runCancelSaleOperation(id);
+    }
     await deleteBackendSale(user, id);
 
     if (existingSale?.productId) {
@@ -548,7 +717,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
-    if (!user) return;
+    if (!user) throw new Error('No authenticated user');
     if (!backendInventoryEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para guardar inventario. Reintenta en unos segundos.'
@@ -556,6 +725,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const createdProduct = await createBackendInventoryItem(user, productData);
     setInventory(prev => [createdProduct, ...prev]);
+    return createdProduct;
   };
 
   const updateProduct = async (updatedProduct: Product) => {
@@ -840,8 +1010,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para guardar canjes. Reintenta en unos segundos.'
       );
     }
-    const createdTradeIn = await createBackendTradeIn(user, tradeInData);
-    setTradeIns(prev => [createdTradeIn, ...prev]);
+    return await runCreateOperation('tradeins', {
+      date: tradeInData.date,
+      clientId: null,
+      clientName: null,
+      productId: null,
+      deviceLabel: tradeInData.deviceGiven,
+      amount: tradeInData.takeValue + tradeInData.differencePaid,
+      paymentMethod: 'TRANSFERENCIA',
+      status: 'COMPLETADA',
+      categoryId: tradeInData.categoryId ?? null,
+      draft: true,
+      requestKey: `legacy-trade-${crypto.randomUUID()}`,
+      tradeIn: {
+        deviceReceived: tradeInData.deviceReceived,
+        deviceReceivedImei: tradeInData.deviceReceivedImei || undefined,
+        takeValue: tradeInData.takeValue,
+        status: tradeInData.status,
+        batteryHealth: tradeInData.batteryHealth,
+        grade: tradeInData.grade,
+        customFields: tradeInData.customFields,
+      },
+    });
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
@@ -850,6 +1040,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para actualizar canjes. Reintenta en unos segundos.'
       );
+    }
+    const existing = tradeIns.find((trade) => trade.id === updatedTradeIn.id);
+    if (existing?.confirmationStatus != null) {
+      const result = await runUpdateTradeOperation('tradeins', updatedTradeIn.id, {
+        clientId: updatedTradeIn.clientId || null,
+        clientName: updatedTradeIn.clientName || null,
+        productId: existing.draftProductId ?? null,
+        deviceLabel: existing.draftDeviceLabel ?? updatedTradeIn.deviceGiven,
+        amount: existing.draftAmount ?? updatedTradeIn.takeValue + updatedTradeIn.differencePaid,
+        paymentMethod: existing.draftPaymentMethod ?? 'TRANSFERENCIA',
+        status: existing.draftPaymentStatus ?? 'COMPLETADA',
+        categoryId: updatedTradeIn.categoryId ?? null,
+        tradeIn: {
+          deviceReceived: updatedTradeIn.deviceReceived,
+          deviceReceivedImei: updatedTradeIn.deviceReceivedImei || undefined,
+          takeValue: updatedTradeIn.takeValue,
+          status: updatedTradeIn.status,
+          batteryHealth: updatedTradeIn.batteryHealth,
+          grade: updatedTradeIn.grade,
+          customFields: updatedTradeIn.customFields,
+        },
+      });
+      if (!result.tradeIn) return result;
+      return result;
     }
     const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
     setTradeIns(prev => prev.map(t => t.id === backendTradeIn.id ? backendTradeIn : t));
@@ -861,6 +1075,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para eliminar canjes. Reintenta en unos segundos.'
       );
+    }
+    const existing = tradeIns.find((trade) => trade.id === id);
+    if (existing?.confirmationStatus != null) {
+      return await runCancelTradeOperation('tradeins', id);
     }
     await deleteBackendTradeIn(user, id);
     setTradeIns(prev => prev.filter(t => t.id !== id));
@@ -915,6 +1133,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       inventory, sales, tradeIns, clients, customColumns,
+      operationOptions, operationDrafts,
+      operationNotifications,
+      loadOperationOptions, loadOperationDrafts,
+      createOperation: runCreateOperation,
+      updateSaleOperation: runUpdateSaleOperation,
+      updateTradeOperation: runUpdateTradeOperation,
+      confirmTradeOperation: runConfirmTradeOperation,
+      cancelSaleOperation: runCancelSaleOperation,
+      cancelTradeOperation: runCancelTradeOperation,
+      fetchSaleOperation: runFetchSaleOperation,
+      fetchTradeOperation: runFetchTradeOperation,
+      applyOperationResult,
       addSale, updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
       addClient, updateClient, registerClientPayment, deleteClient,

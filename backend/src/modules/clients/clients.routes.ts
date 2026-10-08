@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
+import { requireSectionAccess } from "../../middleware/section-access.js";
 import type { ClientInput } from "./clients.service.js";
 import {
   createClient,
@@ -39,7 +40,7 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.get(
     "/",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -54,7 +55,7 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.post(
     "/",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -80,7 +81,7 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.patch(
     "/:id",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -110,7 +111,7 @@ export async function clientsRoutes(app: FastifyInstance) {
 
   app.get(
     "/:id/payments",
-    { preHandler: [authenticate, resolveAppUser] },
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
     async (request, reply) => {
       if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
@@ -122,7 +123,7 @@ export async function clientsRoutes(app: FastifyInstance) {
 
   app.post(
     "/:id/payments",
-    { preHandler: [authenticate, resolveAppUser] },
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
     async (request, reply) => {
       if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
@@ -147,7 +148,7 @@ export async function clientsRoutes(app: FastifyInstance) {
 
   app.post(
     "/import",
-    { preHandler: [authenticate, resolveAppUser] },
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
     async (request, reply) => {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
@@ -173,7 +174,7 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.delete(
     "/:id",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -193,34 +194,34 @@ export async function clientsRoutes(app: FastifyInstance) {
 
   // ── Categories ────────────────────────────────────────────────────────────
 
-  app.get("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.get("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const categories = await listClientCategories(request.appUser.storeId);
     return { categories };
   });
 
-  app.post("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.post("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
     const category = await createClientCategory(request.appUser.storeId, name);
     return reply.code(201).send({ category });
   });
 
-  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { categoryIds } = z.object({ categoryIds: z.array(z.string()) }).parse(request.body);
     await reorderClientCategories(request.appUser.storeId, categoryIds);
     return reply.code(204).send();
   });
 
-  app.patch("/categories/bulk-move", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.patch("/categories/bulk-move", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const body = z.object({ itemIds: z.array(z.string()), categoryId: z.string().nullable() }).parse(request.body);
     await bulkMoveClientCategory(request.appUser.storeId, body.itemIds, body.categoryId);
     return reply.code(204).send();
   });
 
-  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
@@ -229,7 +230,7 @@ export async function clientsRoutes(app: FastifyInstance) {
     return { category };
   });
 
-  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const deleted = await deleteClientCategory(request.appUser.storeId, id);

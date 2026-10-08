@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
@@ -9,7 +9,8 @@ import { importBackendClients } from '../services/clients-import-api';
 import { fetchClientPayments, type ClientPaymentRecord } from '../services/clients-api';
 import { importBackendTradeIns } from '../services/trade-ins-import-api';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../services/invitations-api';
-import type { Client, Product, Sale, TradeIn } from '../types';
+import type { Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
+import type { OperationInput, OperationSource } from '../services/operations-api';
 import {
   batteryPercent,
   conditionLabel,
@@ -109,13 +110,17 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (action: () => Promise<void>, ok: string, options?: { keepOpen?: boolean }) => {
+  const run = async (action: () => Promise<unknown>, ok: string, options?: { keepOpen?: boolean; afterSuccess?: () => void }) => {
     setBusy(true);
     setError(null);
     try {
-      await action();
+      const result = await action();
       if (!options?.keepOpen) desk.close();
-      desk.toast(ok);
+      options?.afterSuccess?.();
+      const summary = result && typeof result === 'object' && 'summary' in result && typeof result.summary === 'string'
+        ? result.summary
+        : ok;
+      desk.toast(summary);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo guardar.'));
     } finally {
@@ -137,17 +142,18 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   }
 
   if (overlay.type === 'del') {
+    const integratedSale = overlay.kind === 'sale' && Boolean(ctx.sales.find((sale) => sale.id === overlay.id)?.integratedOperation || ctx.sales.find((sale) => sale.id === overlay.id)?.tradeInId);
     const copy = {
       eq: ['este equipo', 'Equipo eliminado'],
-      sale: ['esta venta', 'Venta eliminada'],
+      sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],
       cj: ['este canje', 'Canje eliminado'],
       cl: ['este cliente', 'Cliente eliminado'],
     }[overlay.kind];
     return (
       <Dialog
-        title={`¿Eliminar ${copy[0]}?`}
-        text={`${overlay.label} se va a borrar y no se puede deshacer.`}
-        ok="Eliminar"
+        title={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar registro'}
+        text={integratedSale ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
+        ok={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
         danger
         busy={busy}
         error={error}
@@ -166,10 +172,10 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
-    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, productId: overlay.productId } : undefined} run={run} busy={busy} error={error} />;
+    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, clientId: overlay.clientId, productId: overlay.productId, source: overlay.source, tradeInId: overlay.tradeInId } : undefined} run={run} busy={busy} error={error} />;
   }
   if (overlay.type === 'cj') return <TradeDetail id={overlay.id} run={run} busy={busy} error={error} />;
-  if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
+  if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} source={overlay.type === 'edit-cj' ? overlay.source : 'tradeins'} run={run} busy={busy} error={error} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;
@@ -182,6 +188,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
 }
 
 function batteryText(value: string) {
+  if (!value.trim()) return '-';
   if (/\d+\s*-\s*\d+/.test(value)) return value.includes('%') ? value : `${value}%`;
   return `${batteryPercent(value)}%`;
 }
@@ -202,7 +209,11 @@ function EquipmentDetail({ id }: { id: string }) {
     setError(null);
     try {
       if (status !== item.status) await updateProduct({ ...item, status });
-      toast('Estado actualizado');
+      if (status === 'VENDIDO' && item.status !== 'VENDIDO') {
+        open({ type: 'new-sale', productId: item.id, source: 'inventory' });
+      } else {
+        toast('Estado actualizado');
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo guardar.'));
     } finally {
@@ -212,7 +223,10 @@ function EquipmentDetail({ id }: { id: string }) {
   return (
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{formatMoney(item.price)}</div></div>
+      <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? formatMoney(item.price) : 'Sin precio'}</div></div>
+      {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
+        <div className="pending-sale"><div><b>Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
+      ) : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
@@ -221,7 +235,7 @@ function EquipmentDetail({ id }: { id: string }) {
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
         {isInStock(item.status)
-          ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id })}>Vender</button>
+          ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 p" type="button" disabled={busy} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
       </div>
@@ -231,7 +245,7 @@ function EquipmentDetail({ id }: { id: string }) {
 
 function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { inventory, addProduct, updateProduct } = useAppContext();
-  const { close } = useDesk();
+  const { close, open } = useDesk();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = inventory.find((item) => item.id === id);
@@ -250,6 +264,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
   const [status, setStatus] = useState(current?.status ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
+  let createdProductId = '';
 
   return (
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close}>
@@ -293,106 +308,318 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         };
         if (current) await updateProduct({ ...current, ...payload });
         else {
-          await addProduct(payload);
+          const created = await addProduct(payload);
+          createdProductId = created.id;
           signalDesk('desk-eq-saved');
         }
         signalDesk('desk-check', 'inv');
-      }, current ? 'Equipo actualizado' : 'Equipo cargado');
+      }, current ? 'Equipo actualizado' : 'Equipo cargado', {
+        afterSuccess: status === 'VENDIDO' && current?.status !== 'VENDIDO'
+          ? () => open({ type: 'new-sale', productId: current?.id ?? createdProductId, source: 'inventory' })
+          : undefined,
+      });
       }} />
     </Sheet>
   );
 }
 
-function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; productId?: string } }) {
-  const { sales, clients, inventory, addSale, updateSale } = useAppContext();
+function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string } }) {
+  return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
+}
+
+function operationMoneyValue(value: number | null | undefined) {
+  return value == null ? '' : formatInputMoney(value) || '0';
+}
+
+function operationMoneyInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return formatInputMoney(Number(digits)) || '0';
+}
+
+function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false, run, busy, error }: FormProps & {
+  saleId?: string;
+  tradeId?: string;
+  source: OperationSource;
+  preset?: { clientName?: string; clientId?: string; productId?: string };
+  startWithTrade?: boolean;
+}) {
+  const context = useAppContext();
+  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
   const { close } = useDesk();
   const catalogs = useCatalogs();
+  const requestKey = useRef(`desk-${crypto.randomUUID()}`);
+  const dirty = useRef(new Set<string>());
+  const explicitSale = sales.find((sale) => sale.id === saleId);
+  const tradeRef = explicitSale?.tradeInId ?? tradeId;
+  const currentTrade = tradeIns.find((trade) => trade.id === tradeRef) ?? operationDrafts.find((trade) => trade.id === tradeRef);
+  const currentSale = explicitSale ?? sales.find((sale) => sale.id === currentTrade?.saleId);
   const [editor, setEditor] = useState<CatalogKind | null>(null);
-  const current = sales.find((sale) => sale.id === id);
-  const available = inventory.filter((item) => isInStock(item.status) || item.id === current?.productId || item.id === preset?.productId);
-  const linkedItem = available.find((item) => item.id === (current?.productId || preset?.productId));
-  const [productId, setProductId] = useState(linkedItem?.id ?? '');
-  const [query, setQuery] = useState(linkedItem ? equipmentTitle(linkedItem.model, linkedItem.capacity) : (current?.deviceLabel ?? ''));
-  const linkedName = current?.clientId ? clients.find((client) => client.id === current.clientId)?.name : '';
-  const [buyer, setBuyer] = useState(current?.clientName?.trim() || linkedName || preset?.clientName || '');
-  const [payment, setPayment] = useState(current?.paymentMethod || 'TRANSFERENCIA');
-  const [status, setStatus] = useState(current?.status || 'COMPLETADA');
-  const [amount, setAmount] = useState(formatInputMoney(current?.amount || linkedItem?.price || 0));
+  const [optionError, setOptionError] = useState<string | null>(null);
+  const [hasTrade, setHasTrade] = useState(startWithTrade || Boolean(tradeRef));
+  const options = operationOptions[source];
+  const productOptions = options?.products ?? [];
+  const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
+  const linkedProductId = currentSale?.productId || currentTrade?.draftProductId || preset?.productId || '';
+  const linkedProduct = productOptions.find((item) => item.id === linkedProductId) ?? inventory.find((item) => item.id === linkedProductId);
+  const [productId, setProductId] = useState(linkedProductId);
+  const [deviceLabel, setDeviceLabel] = useState(currentSale?.deviceLabel || currentTrade?.draftDeviceLabel || (linkedProduct ? equipmentTitle(linkedProduct.model, linkedProduct.capacity) : ''));
+  const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
+  const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
+  const [amount, setAmount] = useState(operationMoneyValue(currentSale?.amount ?? currentTrade?.draftAmount ?? linkedProduct?.price));
+  const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
+  const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
+  const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
+  const [take, setTake] = useState(currentTrade ? operationMoneyValue(currentTrade.takeValue) : '');
+  const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
+  const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
+  const [grade, setGrade] = useState(currentTrade?.grade ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
-  const selected = productId ? available.find((item) => item.id === productId) : undefined;
 
-  return (
-    <Sheet title={current ? 'Editar venta' : 'Registrar venta'} subtitle={current ? `${saleCode(current)} · ${formatShortDate(current.date)}` : 'Escribí el equipo y cómo pagó el cliente.'} onClose={close}>
-      {error && <div className="ferr">{error}</div>}
-      <EquipmentField
-        items={available}
-        value={query}
-        linked={Boolean(selected)}
-        error={bad.equipment}
-        onValue={(next) => { setQuery(next); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { setQuery(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(formatInputMoney(item.price)); clearBad(setBad, 'equipment'); }}
-      />
-      <Field label="Cliente">
-        <input value={buyer} onChange={(event) => setBuyer(event.target.value)} placeholder="Nombre, si lo anotás" maxLength={120} />
-      </Field>
-      <Field label="Forma de pago"><span /></Field>
-      <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
-      <Field label="Total" error={bad.amount}><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'amount'); }} /></Field>
-      <Field label="Estado"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'SALE_STATUS', SALE_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('SALE_STATUS') : undefined} />
-      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Confirmar venta'} onSecondary={close} onPrimary={() => {
-        const next: Record<string, string> = {};
-        if (!query.trim()) next.equipment = 'Completá este dato';
-        if (!parseMoney(amount)) next.amount = 'Completá este dato';
-        setBad(next);
-        if (Object.keys(next).length) return;
-        void run(async () => {
-        const payload: Omit<Sale, 'id'> = {
-          date: current?.date || formatArDate(new Date()),
-          clientId: '',
+  useEffect(() => {
+    let active = true;
+    loadOperationOptions(source).catch((err: unknown) => {
+      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudieron cargar las opciones.'));
+    });
+    return () => { active = false; };
+  }, [source]);
+
+  useEffect(() => {
+    let active = true;
+    const loadLinked = currentSale?.integratedOperation && saleId
+      ? fetchSaleOperation(saleId)
+      : tradeRef ? fetchTradeOperation(source, tradeRef) : null;
+    loadLinked?.catch((err: unknown) => {
+      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación vinculada.'));
+    });
+    return () => { active = false; };
+  }, [saleId, tradeRef, source, currentSale?.integratedOperation]);
+
+  useEffect(() => {
+    const update = (key: string, action: () => void) => { if (!dirty.current.has(key)) action(); };
+    if (currentSale) {
+      update('clientId', () => setClientId(currentSale.clientId || ''));
+      update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
+      update('productId', () => setProductId(currentSale.productId || ''));
+      update('deviceLabel', () => setDeviceLabel(currentSale.deviceLabel || ''));
+      update('amount', () => setAmount(operationMoneyValue(currentSale.amount)));
+      update('payment', () => setPayment(currentSale.paymentMethod || 'TRANSFERENCIA'));
+      update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
+    }
+    if (currentTrade) {
+      update('hasTrade', () => setHasTrade(true));
+      update('clientId', () => setClientId(currentTrade.clientId || ''));
+      update('buyer', () => setBuyer(currentTrade.clientName?.trim() || clients.find((client) => client.id === currentTrade.clientId)?.name || ''));
+      update('productId', () => setProductId(currentSale?.productId || currentTrade.draftProductId || ''));
+      update('deviceLabel', () => setDeviceLabel(currentSale?.deviceLabel || currentTrade.draftDeviceLabel || currentTrade.deviceGiven || ''));
+      const tradeAmount = currentTrade.confirmationStatus === 'PENDING'
+        ? currentTrade.draftAmount
+        : currentTrade.draftAmount ?? currentTrade.differencePaid + currentTrade.takeValue;
+      update('amount', () => setAmount(operationMoneyValue(currentSale?.amount ?? tradeAmount)));
+      update('payment', () => setPayment(currentSale?.paymentMethod || currentTrade.draftPaymentMethod || 'TRANSFERENCIA'));
+      update('paymentStatus', () => setPaymentStatus(currentSale ? (currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA') : currentTrade.draftPaymentStatus || 'COMPLETADA'));
+      update('received', () => setReceived(currentTrade.deviceReceived || ''));
+      update('imei', () => setImei(currentTrade.deviceReceivedImei || ''));
+      update('take', () => setTake(operationMoneyValue(currentTrade.takeValue)));
+      update('technicalStatus', () => setTechnicalStatus(currentTrade.status || 'PENDIENTE'));
+      update('battery', () => setBattery(currentTrade.batteryHealth || ''));
+      update('grade', () => setGrade(currentTrade.grade || ''));
+    }
+    if (linkedProduct) {
+      update('productId', () => setProductId(linkedProduct.id));
+      update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
+      if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
+        update('amount', () => setAmount(formatInputMoney(linkedProduct.price)));
+      }
+    }
+  }, [currentSale, currentTrade, linkedProduct, clients]);
+
+  const selectedProduct = productId
+    ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
+    : undefined;
+  const equipmentItems: (OperationProductOption | Product)[] = [
+    ...productOptions,
+    ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
+  ].filter((item) => item.id === productId || (item.price > 0 && (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status)))));
+  const difference = parseMoney(amount) - parseMoney(take);
+  const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
+
+  const buildInput = (draft: boolean): OperationInput => ({
+    date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
+    clientId: clientId || null,
+    clientName: buyer.trim() || null,
+    productId: productId || null,
+    deviceLabel: deviceLabel.trim() || undefined,
+    ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
+    paymentMethod: payment,
+    status: paymentStatus,
+    saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
+    categoryId: currentTrade?.categoryId ?? currentSale?.categoryId ?? null,
+    requestKey: requestKey.current,
+    draft,
+    ...(hasTrade ? { tradeIn: {
+      deviceReceived: received.trim(),
+      deviceReceivedImei: imei.trim() || undefined,
+      takeValue: parseMoney(take),
+      status: technicalStatus,
+      batteryHealth: battery,
+      grade,
+      customFields: currentTrade?.customFields,
+    } } : {}),
+  });
+
+  const validate = (kind: 'draft' | 'confirm') => {
+    const next: Record<string, string> = {};
+    if (kind === 'draft') {
+      if (!hasTrade || !received.trim()) next.received = 'Completá el modelo recibido';
+      if (!take.trim()) next.take = 'Completá el valor tomado';
+      if (amount.trim() && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
+    } else {
+      if (hasTrade && !buyer.trim()) next.client = 'Completá el nombre del cliente';
+      if (source === 'clients' && !clientId) next.client = 'Elegí un cliente existente de la lista';
+      if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
+      if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
+      if (!amount.trim()) next.amount = 'Completá el precio de salida';
+      if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
+      if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
+      if (hasTrade && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
+    }
+    setBad(next);
+    return Object.keys(next).length === 0;
+  };
+  const save = (kind: 'draft' | 'confirm') => {
+    if (!validate(kind)) return;
+    const input = buildInput(kind === 'draft');
+    void run(async () => {
+      if (kind === 'draft') {
+        if (tradeRef && currentTrade?.confirmationStatus === 'PENDING') {
+          if (source !== 'tradeins' && currentTrade.operationSource !== source) throw new Error('Este borrador solo se puede editar desde su sección de origen.');
+          return await updateTradeOperation(source, tradeRef, input);
+        } else {
+          return await createOperation(source, input);
+        }
+      }
+      if (currentTrade?.confirmationStatus === 'PENDING' && tradeRef) {
+        return await confirmTradeOperation(source, tradeRef, input);
+      } else if (currentSale?.integratedOperation && saleId) {
+        return await updateSaleOperation(saleId, input);
+      } else if (hasTrade && hasConfirmedOperation && tradeRef && (source === 'sales' || source === 'tradeins')) {
+        return await updateTradeOperation(source, tradeRef, input);
+      } else if (currentSale && !currentSale.integratedOperation) {
+        const updated: Sale = {
+          ...currentSale,
+          clientId: clientId || '',
           clientName: buyer.trim(),
-          productId: selected?.id ?? '',
-          deviceLabel: query.trim(),
+          productId: productId || '',
+          deviceLabel: deviceLabel.trim(),
           amount: parseMoney(amount),
           paymentMethod: payment,
-          status,
-          categoryId: current?.categoryId,
-          customFields: current?.customFields,
+          status: paymentStatus,
         };
-        if (current) await updateSale({ ...current, ...payload });
-        else {
-          await addSale(payload);
-          signalDesk('desk-check', 'ven');
-        }
-      }, current ? 'Venta actualizada' : 'Venta registrada');
-      }} />
+        return await updateSale(updated);
+      } else {
+        return await createOperation(source, { ...input, draft: false });
+      }
+    }, kind === 'draft' ? 'Borrador de canje guardado' : hasTrade ? 'Canje confirmado' : 'Venta registrada');
+  };
+
+  const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
+  const dueCopy = hasTrade ? `Diferencia a cobrar: ${formatMoney(difference)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${formatMoney(parseMoney(amount))}` : 'Venta cobrada';
+  return (
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close}>
+      {error && <div className="ferr">{error}</div>}
+      {optionError && <div className="ferr">{optionError}</div>}
+      <ClientField
+        clients={optionClients}
+        value={buyer}
+        linked={Boolean(clientId)}
+        error={bad.client}
+        readOnly={Boolean(currentSale && !currentSale.integratedOperation)}
+        onValue={(value) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
+      />
+      <EquipmentField
+        items={equipmentItems}
+        value={deviceLabel}
+        linked={Boolean(selectedProduct)}
+        error={bad.equipment}
+        onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(operationMoneyValue(item.price)); clearBad(setBad, 'equipment'); }}
+      />
+      {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
+      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
+      {hasTrade ? (
+        <>
+          <div className="frow">
+            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
+            <Field label="IMEI recibido"><input value={imei} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value); }} placeholder="Opcional" /></Field>
+          </div>
+          <div className="frow">
+            <Field label="Valor tomado" error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
+            <Field label="Diferencia"><input aria-label="Diferencia" value={formatMoney(difference)} readOnly /></Field>
+          </div>
+          <Field label="Estado técnico"><span /></Field>
+          <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
+          <div className="frow">
+            <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
+            <Field label="Grado recibido"><input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Opcional" /></Field>
+          </div>
+        </>
+      ) : null}
+      <Field label="Precio completo de salida" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      <p className="op-summary">{dueCopy}</p>
+      <Field label="Forma de pago"><span /></Field>
+      <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
+      <Field label="Cobro"><span /></Field>
+      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
+      <div className="sacts">
+        <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
+        {hasTrade && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
+        <button className="btn2 p" type="button" disabled={busy} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
+      </div>
     </Sheet>
   );
 }
 
 function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { sales, clients, inventory, updateSale, updateProduct } = useAppContext();
-  const { close, toast } = useDesk();
+  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation } = useAppContext();
+  const { close, open, toast } = useDesk();
   const sale = sales.find((item) => item.id === id);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  useEffect(() => {
+    if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
+  }, [id, sale?.integratedOperation]);
   if (!sale) return null;
-  const product = inventory.find((item) => item.id === sale.productId);
+  const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
+  const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
-      {error && <div className="ferr">{error}</div>}
-      <div className="dhero"><div className="eb">Total</div><div className="big">{formatMoney(sale.amount)}</div></div>
+      {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+      <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Estado</span><b><Pill status={sale.status} kind="SALE_STATUS" /></b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${formatMoney(linkedTrade ? linkedTrade.differencePaid : sale.amount)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      {linkedTrade ? <>
+        <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
+        <div className="kv"><span>Valor tomado</span><b>{formatMoney(linkedTrade.takeValue)}</b></div>
+        <div className="kv"><span>Diferencia del canje</span><b>{formatMoney(linkedTrade.differencePaid)}</b></div>
+        <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
+        <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
+      </> : null}
       {sale.status === 'PENDIENTE' ? (
-        <Actions busy={busy} secondary="Cancelar venta" primary="Marcar cobrada" onSecondary={() => run(async () => {
-          await updateSale({ ...sale, status: 'CANCELADA' });
-          if (product && product.status === 'VENDIDO') await updateProduct({ ...product, status: 'DISPONIBLE' });
-        }, `${saleCode(sale)} cancelada`)} onPrimary={() => run(async () => { await updateSale({ ...sale, status: 'COMPLETADA' }); }, `${saleCode(sale)} cobrada`)} />
+        <div className="sacts">
+          <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), `${saleCode(sale)} cancelada`)}>Cancelar venta</button>
+          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
+          {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+        </div>
       ) : (
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada')}>Cancelar operación</button> : null}
+          <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
             const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
@@ -408,98 +635,100 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   );
 }
 
-function TradeForm({ id, run, busy, error }: FormProps & { id?: string }) {
-  const { tradeIns, clients, inventory, addTradeIn, updateTradeIn } = useAppContext();
+function TradeForm({ id, source = 'tradeins', run, busy, error }: FormProps & { id?: string; source?: OperationSource }) {
+  const { tradeIns } = useAppContext();
+  const legacy = id ? tradeIns.find((trade) => trade.id === id && trade.confirmationStatus == null) : undefined;
+  if (legacy) return <LegacyTradeForm trade={legacy} run={run} busy={busy} error={error} />;
+  return <OperationForm tradeId={id} source={source} startWithTrade run={run} busy={busy} error={error} />;
+}
+
+function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: TradeIn }) {
+  const { tradeIns, clients, updateTradeIn } = useAppContext();
   const { close } = useDesk();
+  const [clientId, setClientId] = useState(trade.clientId || '');
+  const [buyer, setBuyer] = useState(trade.clientName || clients.find((client) => client.id === trade.clientId)?.name || '');
+  const [received, setReceived] = useState(trade.deviceReceived || '');
+  const [imei, setImei] = useState(trade.deviceReceivedImei || '');
+  const [given, setGiven] = useState(trade.deviceGiven || '');
+  const [take, setTake] = useState(operationMoneyValue(trade.takeValue));
+  const [difference, setDifference] = useState(operationMoneyValue(trade.differencePaid));
+  const [status, setStatus] = useState(trade.status || 'PENDIENTE');
+  const [bad, setBad] = useState<Record<string, string>>({});
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
-  const current = tradeIns.find((item) => item.id === id);
-  const available = inventory.filter((item) => isInStock(item.status));
-  const linkedClient = current?.clientId ? clients.find((client) => client.id === current.clientId) : undefined;
-  const [clientId, setClientId] = useState(linkedClient?.id ?? '');
-  const [buyer, setBuyer] = useState(linkedClient?.name || current?.clientName?.trim() || '');
-  const [received, setReceived] = useState(current?.deviceReceived ?? '');
-  const [imei, setImei] = useState(current?.deviceReceivedImei ?? '');
-  const [given, setGiven] = useState(current?.deviceGiven || (available[0] ? `${available[0].model} ${available[0].capacity}` : ''));
-  const [take, setTake] = useState(formatInputMoney(current?.takeValue ?? 0));
-  const [diff, setDiff] = useState(formatInputMoney(current?.differencePaid ?? 0));
-  const [status, setStatus] = useState(current?.status || 'PENDIENTE');
-  const [bad, setBad] = useState<Record<string, string>>({});
-
   return (
-    <Sheet title={current ? 'Editar canje' : 'Nuevo canje'} subtitle={current ? `${tradeCode(tradeIns, current.id)} · ${formatShortDate(current.date)}` : 'El cliente entrega su equipo y se lleva uno del stock.'} onClose={close}>
+    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <ClientField
-        clients={clients}
-        value={buyer}
-        linked={Boolean(clientId)}
-        error={bad.client}
-        onValue={(next) => { setBuyer(next); setClientId(''); clearBad(setBad, 'client'); }}
-        onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
-      />
+      <ClientField clients={clients} value={buyer} linked={Boolean(clientId)} error={bad.client}
+        onValue={(value) => { setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }} />
       <div className="frow">
-        <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 11 64GB" /></Field>
-        <Field label="IMEI recibido" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+        <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} /></Field>
+        <Field label="IMEI recibido"><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => setImei(event.target.value.replace(/\D/g, '').slice(0, 15))} /></Field>
       </div>
-      <Field label="Equipo que entregás" error={bad.given}>
-        <select value={given} onChange={(event) => {
-          clearBad(setBad, 'given');
-          setGiven(event.target.value);
-          const match = available.find((item) => `${item.model} ${item.capacity}` === event.target.value);
-          if (match) setDiff(formatInputMoney(Math.max(0, match.price - parseMoney(take))));
-        }}>
-          {!available.some((item) => `${item.model} ${item.capacity}` === given) && given && given !== 'A definir' ? <option value={given}>{given}</option> : null}
-          {available.map((item) => {
-            const label = `${item.model} ${item.capacity}`;
-            return <option key={item.id} value={label}>{label}</option>;
-          })}
-          <option value="A definir">A definir</option>
-        </select>
-      </Field>
+      <Field label="Equipo entregado" error={bad.given}><input value={given} onChange={(event) => { setGiven(event.target.value); clearBad(setBad, 'given'); }} /></Field>
       <div className="frow">
-        <Field label="Valor tomado"><input value={take} inputMode="numeric" placeholder="$ 0" onChange={(event) => setTake(formatInputMoney(parseMoney(event.target.value)))} /></Field>
-        <Field label="Diferencia"><input value={diff} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDiff(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+        <Field label="Valor tomado"><input value={take} inputMode="numeric" onChange={(event) => setTake(operationMoneyInput(event.target.value))} /></Field>
+        <Field label="Diferencia"><input value={difference} inputMode="numeric" onChange={(event) => setDifference(operationMoneyInput(event.target.value))} /></Field>
       </div>
-      <Field label="Estado"><span /></Field>
+      <Field label="Estado técnico"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Crear canje'} onSecondary={close} onPrimary={() => {
+      <Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
-        if (!buyer.trim()) next.client = 'Completá este dato';
         if (!received.trim()) next.received = 'Completá este dato';
-        if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
         if (!given.trim()) next.given = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
-        void run(async () => {
-        const payload: Omit<TradeIn, 'id'> = {
-          date: current?.date || formatArDate(new Date()),
+        void run(async () => await updateTradeIn({
+          ...trade,
           clientId,
           clientName: buyer.trim(),
           deviceReceived: received.trim(),
           deviceReceivedImei: imei.trim(),
+          deviceGiven: given.trim(),
           takeValue: parseMoney(take),
-          deviceGiven: given,
-          differencePaid: parseMoney(diff),
+          differencePaid: parseMoney(difference),
           status,
-          batteryHealth: current?.batteryHealth || '100%',
-          grade: current?.grade || 'A',
-          categoryId: current?.categoryId,
-          customFields: current?.customFields,
-        };
-        if (current) await updateTradeIn({ ...current, ...payload });
-        else await addTradeIn(payload);
-      }, current ? 'Canje actualizado' : 'Canje creado');
+        }), 'Canje actualizado');
       }} />
     </Sheet>
   );
 }
 
 function TradeDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { tradeIns, clients, updateTradeIn } = useAppContext();
-  const { close } = useDesk();
+  const { tradeIns, sales, clients, updateTradeIn, cancelTradeOperation, fetchTradeOperation } = useAppContext();
+  const { close, open } = useDesk();
   const trade = tradeIns.find((item) => item.id === id);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  useEffect(() => {
+    if (trade?.confirmationStatus != null) void fetchTradeOperation('tradeins', id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar el canje.')));
+  }, [id, trade?.confirmationStatus]);
   if (!trade) return null;
+  const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
+  if (trade.confirmationStatus != null) {
+    return (
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close}>
+        {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+        <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
+        <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
+        {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
+        <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
+        <div className="kv"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
+        {trade.confirmationStatus === 'CONFIRMED' ? <>
+            <div className="kv"><span>Precio de salida</span><b>{linkedSale ? formatMoney(linkedSale.amount) : '—'}</b></div>
+          <div className="kv"><span>Diferencia</span><b>{formatMoney(trade.differencePaid)}</b></div>
+            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? formatMoney(trade.differencePaid) : formatMoney(0)}</b></div>
+        </> : null}
+        <div className="sacts">
+          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source: 'tradeins' })}>Retomar</button> : null}
+          {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source: 'tradeins' })}>Editar</button> : null}
+          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await cancelTradeOperation('tradeins', id), 'Operación cancelada')}>Cancelar operación</button> : null}
+        </div>
+      </Sheet>
+    );
+  }
   const flow = ['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN', 'APROBADO', 'LISTO'];
   const nextLabel: Record<string, string> = { PENDIENTE: 'Enviar a peritaje', 'PERITAJE TÉC.': 'Pasar a revisión', 'EN REVISIÓN': 'Aprobar canje', APROBADO: 'Completar canje' };
   const index = flow.indexOf(trade.status);
@@ -579,8 +808,8 @@ function ClientDetail({ id }: { id: string }) {
     <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
-      <div className="kv"><span>Teléfono</span><b>{client.phone || '—'}</b></div>
-      <div className="kv"><span>Email</span><b>{client.email || '—'}</b></div>
+      <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
+      <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {client.pendingBalance > 0 ? (
         <>
           <Field label="Monto"><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); setError(null); }} /></Field>
@@ -600,7 +829,7 @@ function ClientDetail({ id }: { id: string }) {
         {client.pendingBalance > 0
           ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name })}>Nueva venta</button>
+        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>
       </div>
     </Sheet>
   );
@@ -939,7 +1168,7 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
   }} />;
 }
 
-type FormProps = { run: (action: () => Promise<void>, ok: string, options?: { keepOpen?: boolean }) => Promise<void>; busy: boolean; error: string | null };
+type FormProps = { run: (action: () => Promise<unknown>, ok: string, options?: { keepOpen?: boolean; afterSuccess?: () => void }) => Promise<void>; busy: boolean; error: string | null };
 
 function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<void>) {
   if (kind === 'inv') {

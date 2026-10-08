@@ -186,16 +186,17 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   };
 }
 
-export function PressTarget({ as, className, onActivate, onMenu, children }: {
+export function PressTarget({ as, className, testId, onActivate, onMenu, children }: {
   as: 'tr' | 'button';
   className?: string;
+  testId?: string;
   onActivate: () => void;
   onMenu: (point: { x: number; y: number }) => void;
   children: React.ReactNode;
 }) {
   const bind = usePress(onMenu, onActivate);
-  if (as === 'button') return <button className={className} type="button" {...bind}>{children}</button>;
-  return <tr className={className} {...bind}>{children}</tr>;
+    if (as === 'button') return <button className={className} type="button" data-testid={testId} {...bind}>{children}</button>;
+    return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: {

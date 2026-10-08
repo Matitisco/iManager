@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ColumnFilter } from '../ColumnFilter';
 import {
@@ -29,12 +29,22 @@ import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDes
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory } = useAppContext();
+  const { sales, clients, inventory, operationDrafts = [], loadOperationDrafts } = useAppContext();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('Mes');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof loadOperationDrafts !== 'function') return;
+    let active = true;
+    loadOperationDrafts('sales').catch((error: unknown) => {
+      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
+    });
+    return () => { active = false; };
+  }, []);
+  const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
   const bounds = periodBounds(period);
 
   const inWindow = (sale: { date: string }) => (parseOk(sale.date) ? inPeriod(sale.date, bounds.start, bounds.end) : period === 'Mes');
@@ -83,6 +93,17 @@ export function SalesScreen() {
           <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
         </div>
       </div>
+      {draftError ? <div className="ferr">{draftError}</div> : null}
+      {ownDrafts.length > 0 ? (
+        <div className="dcard op-drafts">
+          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos aunque hayas recargado la página.</small></div>
+          <div className="op-draft-list">{ownDrafts.map((trade) => (
+            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'sales' })}>
+              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
+            </button>
+          ))}</div>
+        </div>
+      ) : null}
       <div className="dstats">
         <div className="dstat"><div className="eb">Facturación total</div><div className="big">{formatMoney(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div>
         <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{formatMoney(avg)}</div></div>

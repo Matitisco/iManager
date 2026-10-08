@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 
 export interface InventoryItemInput {
   imei: string;
@@ -33,6 +34,8 @@ export interface InventoryItemResponse {
   customFields: Record<string, unknown>;
   soldAt: string | null;
   createdAt: string;
+  archivedAt?: string | null;
+  pendingSaleRegistration?: boolean;
 }
 
 export interface InventoryCategoryResponse {
@@ -56,6 +59,8 @@ type InventoryRecord = {
   customFields: Prisma.JsonValue | null;
   sales?: { soldAt: Date }[];
   createdAt?: Date;
+  archivedAt?: Date | null;
+  pendingSaleRegistration?: boolean;
 };
 
 class InventoryError extends Error {
@@ -111,6 +116,8 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     customFields: toCustomFields(item.customFields),
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
     createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
+    archivedAt: item.archivedAt?.toISOString() ?? null,
+    pendingSaleRegistration: item.pendingSaleRegistration ?? false,
   };
 }
 
@@ -140,7 +147,7 @@ export interface ListInventoryParams {
 }
 
 function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>): Prisma.Sql {
-  const parts: Prisma.Sql[] = [Prisma.sql`"storeId" = ${storeId}`];
+  const parts: Prisma.Sql[] = [Prisma.sql`"storeId" = ${storeId}`, Prisma.sql`"archivedAt" IS NULL`];
 
   if (params.search) {
     const search = `%${params.search.trim()}%`;
@@ -202,6 +209,8 @@ type RawInventoryRow = {
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
   createdAt: Date | string | null;
+  archivedAt: Date | string | null;
+  pendingSaleRegistration: boolean;
 };
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
@@ -221,6 +230,8 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     customFields: toCustomFields(row.customFields),
     soldAt: null,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
+    archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null,
+    pendingSaleRegistration: row.pendingSaleRegistration,
   };
 }
 
@@ -234,7 +245,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt"
+             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -266,7 +277,7 @@ export async function getInventoryFilteredIds(
 
 export async function listInventory(storeId: string) {
   const inventory = await inventoryPrisma.inventoryItem.findMany({
-    where: { storeId },
+    where: { storeId, archivedAt: null },
     include: {
       sales: {
         select: { soldAt: true },
@@ -312,6 +323,8 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       cost: toDecimal(input.cost),
       price: toDecimal(input.price),
       status: input.status,
+      pendingSaleRegistration: input.status === "VENDIDO",
+      previousSaleStatus: input.status === "VENDIDO" ? "DISPONIBLE" : null,
       categoryId: input.categoryId ?? null,
       customFields: normalizeCustomFields(input.customFields),
     },
@@ -325,65 +338,83 @@ export async function updateInventoryItem(
   id: string,
   input: Partial<InventoryItemInput>
 ) {
-  const existing = await inventoryPrisma.inventoryItem.findFirst({
-    where: { id, storeId },
-  });
-
-  if (!existing) {
-    return null;
-  }
-
-  const nextImei = input.imei !== undefined ? storedImei(input.imei) : undefined;
-  if (nextImei) {
-    const duplicate = await inventoryPrisma.inventoryItem.findFirst({
-      where: {
-        storeId,
-        imei: nextImei,
-        id: { not: id },
-      },
-      select: { id: true },
+  const updated = await withSerializableRetry(async (tx) => {
+    const existing = await tx.inventoryItem.findFirst({
+      where: { id, storeId, archivedAt: null },
     });
+    if (!existing) return null;
 
-    if (duplicate) {
-      throw new InventoryError("Inventory item already exists", 409);
+    if (input.categoryId) {
+      const category = await tx.inventoryCategory.findFirst({
+        where: { id: input.categoryId, storeId },
+        select: { id: true },
+      });
+      if (!category) throw new InventoryError("Category not found", 404);
     }
-  }
 
-  await assertCategoryBelongsToStore(storeId, input.categoryId);
+    const nextImei = input.imei !== undefined ? storedImei(input.imei) : undefined;
+    if (nextImei) {
+      const duplicate = await tx.inventoryItem.findFirst({
+        where: { storeId, imei: nextImei, id: { not: id } },
+        select: { id: true },
+      });
+      if (duplicate) throw new InventoryError("Inventory item already exists", 409);
+    }
 
-  const updated = await inventoryPrisma.inventoryItem.update({
-    where: { id },
-    data: {
-      imei: input.imei !== undefined ? nextImei : existing.imei,
-      model: input.model !== undefined ? input.model.trim() : existing.model,
-      capacity: input.capacity !== undefined ? input.capacity.trim() : existing.capacity,
-      color: input.color !== undefined ? input.color.trim() : existing.color,
-      condition: input.condition ?? existing.condition,
-      grade: input.grade ?? existing.grade,
-      batteryHealth: input.batteryHealth ?? existing.batteryHealth,
-      cost: input.cost !== undefined ? toDecimal(input.cost) : existing.cost,
-      price: input.price !== undefined ? toDecimal(input.price) : existing.price,
-      status: input.status ?? existing.status,
-      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
-      customFields:
-        input.customFields !== undefined
-          ? normalizeCustomFields(input.customFields)
-          : existing.customFields ?? {},
-    },
+    if (input.status !== undefined) {
+      const activeSale = await tx.sale.findFirst({
+        where: { storeId, inventoryItemId: id, status: { not: "CANCELADA" } },
+        select: { id: true },
+      });
+      if (activeSale && input.status !== existing.status) {
+        throw new InventoryError("El estado de un equipo con venta activa se gestiona desde Operaciones", 409);
+      }
+    }
+
+    const data: Prisma.InventoryItemUpdateInput = {};
+    if (input.imei !== undefined) data.imei = nextImei;
+    if (input.model !== undefined) data.model = input.model.trim();
+    if (input.capacity !== undefined) data.capacity = input.capacity.trim();
+    if (input.color !== undefined) data.color = input.color.trim();
+    if (input.condition !== undefined) data.condition = input.condition;
+    if (input.grade !== undefined) data.grade = input.grade;
+    if (input.batteryHealth !== undefined) data.batteryHealth = input.batteryHealth;
+    if (input.cost !== undefined) data.cost = toDecimal(input.cost);
+    if (input.price !== undefined) data.price = toDecimal(input.price);
+    if (input.categoryId !== undefined) data.category = input.categoryId
+      ? { connect: { id: input.categoryId } }
+      : { disconnect: true };
+    if (input.customFields !== undefined) data.customFields = normalizeCustomFields(input.customFields) as Prisma.InputJsonValue;
+
+    if (input.status !== undefined) {
+      data.status = input.status;
+      if (input.status === "VENDIDO" && existing.status !== "VENDIDO") {
+        data.pendingSaleRegistration = true;
+        data.previousSaleStatus = existing.status;
+      } else if (input.status !== "VENDIDO") {
+        data.pendingSaleRegistration = false;
+        data.previousSaleStatus = null;
+      }
+    }
+
+    return tx.inventoryItem.update({ where: { id }, data });
   });
 
-  return serializeInventoryItem(updated);
+  return updated ? serializeInventoryItem(updated) : null;
 }
 
 export async function deleteInventoryItem(storeId: string, id: string) {
   const existing = await inventoryPrisma.inventoryItem.findFirst({
     where: { id, storeId },
-    select: { id: true },
   });
 
   if (!existing) {
     return false;
   }
+
+  const linkedSale = await inventoryPrisma.sale.findFirst({ where: { storeId, inventoryItemId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
+  const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED" }, select: { id: true } });
+  if (linkedSale || activeReceivedTrade) throw new InventoryError("El equipo pertenece a una operación activa", 409);
 
   await inventoryPrisma.inventoryItem.delete({
     where: { id },

@@ -42,6 +42,8 @@ export interface SaleResponse {
   status: SaleInput["status"];
   categoryId: string | null;
   customFields: Record<string, unknown>;
+  tradeInId: string | null;
+  integratedOperation: boolean;
 }
 
 type SaleRecord = {
@@ -58,6 +60,8 @@ type SaleRecord = {
   categoryId: string | null;
   soldAt: Date;
   customFields: Prisma.JsonValue | null;
+  tradeInId: string | null;
+  integratedOperation: boolean;
 };
 
 export interface SaleCategoryResponse {
@@ -149,6 +153,8 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     status: sale.status as SaleResponse["status"],
     categoryId: sale.categoryId ?? null,
     customFields: toCustomFields(sale.customFields),
+    tradeInId: sale.tradeInId ?? null,
+    integratedOperation: sale.integratedOperation,
   };
 }
 
@@ -247,6 +253,9 @@ export async function updateSale(
 
   if (!existing) {
     return null;
+  }
+  if (existing.integratedOperation || existing.tradeInId) {
+    throw new SalesError("Esta venta está vinculada a una operación. Editala desde Operaciones.", 409);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -364,6 +373,9 @@ export async function deleteSale(storeId: string, id: string) {
 
     if (!existing) {
       return false;
+    }
+    if (existing.integratedOperation || existing.tradeInId) {
+      throw new SalesError("Esta venta está vinculada a una operación. Gestioná la operación desde su origen.", 409);
     }
 
     if (existing.inventoryItemId) {

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
+import { requireSectionAccess } from "../../middleware/section-access.js";
 import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
@@ -62,7 +63,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.get(
     "/",
-    { preHandler: [authenticate, resolveAppUser] },
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
     async (request, reply) => {
       if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
 
@@ -94,7 +95,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   app.get(
     "/ids",
-    { preHandler: [authenticate, resolveAppUser] },
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
     async (request, reply) => {
       if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
 
@@ -116,7 +117,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post(
     "/",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -142,7 +143,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.patch(
     "/:id",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -177,7 +178,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post(
     "/import",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -213,7 +214,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.delete(
     "/:id",
     {
-      preHandler: [authenticate, resolveAppUser],
+      preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
       if (!request.appUser) {
@@ -233,13 +234,13 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
   // ─── Categories ─────────────────────────────────────────────────────────────
 
-  app.get("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.get("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const categories = await listCategories(request.appUser.storeId);
     return { categories };
   });
 
-  app.post("/categories", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.post("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
     try {
@@ -252,14 +253,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
     }
   });
 
-  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { ids } = z.object({ ids: z.array(z.string()).min(1).max(200) }).parse(request.body);
     await reorderCategories(request.appUser.storeId, ids);
     return reply.code(204).send();
   });
 
-  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
@@ -274,7 +275,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     }
   });
 
-  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const deleted = await deleteCategory(request.appUser.storeId, id);
@@ -282,7 +283,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     return reply.code(204).send();
   });
 
-  app.post("/bulk-move", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
+  app.post("/bulk-move", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
     const { ids, categoryId } = z.object({
       ids: z.array(z.string()).min(1).max(500),

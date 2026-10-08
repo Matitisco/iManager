@@ -37,6 +37,16 @@ export interface TradeInResponse {
   batteryHealth?: string | null;
   grade?: string | null;
   customFields: Record<string, unknown>;
+  confirmationStatus: "PENDING" | "CONFIRMED" | "CANCELLED" | null;
+  operationSource: string | null;
+  receivedInventoryItemId: string | null;
+  saleId: string | null;
+  draftProductId: string | null;
+  draftDeviceLabel: string | null;
+  draftSaleCategoryId: string | null;
+  draftAmount: number | null;
+  draftPaymentMethod: string | null;
+  draftPaymentStatus: string | null;
 }
 
 export interface TradeInCategoryResponse {
@@ -71,7 +81,7 @@ type TradeInRecord = {
   categoryId: string | null;
   dateLabel: string;
   deviceReceived: string;
-  deviceReceivedImei: string;
+  deviceReceivedImei: string | null;
   takeValue: Decimal;
   deviceGiven: string;
   differencePaid: Decimal;
@@ -80,6 +90,16 @@ type TradeInRecord = {
   grade: string | null;
   tradeAt: Date;
   customFields: Prisma.JsonValue | null;
+  confirmationStatus: "PENDING" | "CONFIRMED" | "CANCELLED" | null;
+  operationSource: string | null;
+  receivedInventoryItemId: string | null;
+  draftProductId: string | null;
+  draftDeviceLabel: string | null;
+  draftSaleCategoryId: string | null;
+  draftAmount: Decimal | null;
+  draftPaymentMethod: string | null;
+  draftPaymentStatus: string | null;
+  sale?: { id: string } | null;
 };
 
 class TradeInsError extends Error {
@@ -146,7 +166,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     clientName: tradeIn.clientName ?? "",
     categoryId: tradeIn.categoryId ?? null,
     deviceReceived: tradeIn.deviceReceived,
-    deviceReceivedImei: tradeIn.deviceReceivedImei,
+    deviceReceivedImei: tradeIn.deviceReceivedImei ?? "",
     takeValue: tradeIn.takeValue.toNumber(),
     deviceGiven: tradeIn.deviceGiven,
     differencePaid: tradeIn.differencePaid.toNumber(),
@@ -154,6 +174,16 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     batteryHealth: tradeIn.batteryHealth ?? undefined,
     grade: tradeIn.grade ?? undefined,
     customFields: toCustomFields(tradeIn.customFields),
+    confirmationStatus: tradeIn.confirmationStatus,
+    operationSource: tradeIn.operationSource,
+    receivedInventoryItemId: tradeIn.receivedInventoryItemId,
+    saleId: tradeIn.sale?.id ?? null,
+    draftProductId: tradeIn.draftProductId,
+    draftDeviceLabel: tradeIn.draftDeviceLabel,
+    draftSaleCategoryId: tradeIn.draftSaleCategoryId,
+    draftAmount: tradeIn.draftAmount?.toNumber() ?? null,
+    draftPaymentMethod: tradeIn.draftPaymentMethod,
+    draftPaymentStatus: tradeIn.draftPaymentStatus,
   };
 }
 
@@ -178,6 +208,7 @@ export async function listTradeIns(storeId: string) {
   const tradeIns = await prisma.tradeIn.findMany({
     where: { storeId },
     orderBy: { tradeAt: "desc" },
+    include: { sale: { select: { id: true } } },
   });
 
   return tradeIns.map(serializeTradeIn);
@@ -250,6 +281,9 @@ export async function updateTradeIn(
   if (!existing) {
     return null;
   }
+  if (existing.confirmationStatus != null || existing.receivedInventoryItemId) {
+    throw new TradeInsError("Este canje está vinculado a una operación. Editalo desde Operaciones.", 409);
+  }
 
   const client = input.clientId !== undefined ? await linkedClient(storeId, input.clientId) : null;
   const nextClientId = input.clientId !== undefined ? (client?.id ?? null) : existing.clientId;
@@ -308,11 +342,13 @@ export async function updateTradeIn(
 export async function deleteTradeIn(storeId: string, id: string) {
   const existing = await prisma.tradeIn.findFirst({
     where: { id, storeId },
-    select: { id: true },
   });
 
   if (!existing) {
     return false;
+  }
+  if (existing.confirmationStatus != null || existing.receivedInventoryItemId) {
+    throw new TradeInsError("Este canje está vinculado a una operación. Gestioná la operación desde su origen.", 409);
   }
 
   await prisma.tradeIn.delete({

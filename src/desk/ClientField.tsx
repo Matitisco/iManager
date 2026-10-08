@@ -1,29 +1,31 @@
 import { useMemo, useState } from 'react';
-import type { Client } from '../types';
+import type { Client, OperationClientOption } from '../types';
 import { clientHint, clientSuggestions } from './trade-client';
 import { Field } from './ui';
 
-export function ClientField({
+export function ClientField<T extends Client | OperationClientOption>({
   clients,
   value,
   linked,
   error,
+  readOnly = false,
   onValue,
   onPick,
 }: {
-  clients: Client[];
+  clients: T[];
   value: string;
   linked: boolean;
   error?: string;
+  readOnly?: boolean;
   onValue: (value: string) => void;
-  onPick: (client: Client) => void;
+  onPick: (client: T) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const suggestions = useMemo(() => clientSuggestions(clients, value), [clients, value]);
   const visible = open && suggestions.length > 0;
 
-  function pick(client: Client) {
+  function pick(client: T) {
     onPick(client);
     setOpen(false);
   }
@@ -38,13 +40,14 @@ export function ClientField({
           aria-controls="trade-client-list"
           value={value}
           maxLength={120}
+          readOnly={readOnly}
           placeholder="Escribí el nombre o elegí un cliente"
           onChange={(event) => {
             onValue(event.target.value);
             setOpen(true);
             setActive(0);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { if (!readOnly) setOpen(true); }}
           onBlur={() => setOpen(false)}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && open) {
@@ -90,7 +93,7 @@ export function ClientField({
           ))}
         </ul>
       ) : null}
-      {value.trim() && !linked ? <p className="eqs-note">Se guarda como texto. Elegí una sugerencia si ya es cliente.</p> : null}
+      {value.trim() && !linked ? <p className="eqs-note">Se crea un cliente nuevo al guardar, aunque tenga el mismo nombre. Elegí una sugerencia para usar un cliente existente.</p> : null}
     </div>
   );
 }

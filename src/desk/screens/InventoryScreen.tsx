@@ -29,7 +29,7 @@ const BATTERY_FILTERS = [
 ] as const;
 
 export function InventoryScreen() {
-  const { inventory, appSession } = useAppContext();
+  const { inventory, appSession, operationDrafts = [], loadOperationDrafts } = useAppContext();
   const catalogs = useCatalogs();
   const { open, toast } = useDesk();
   const [query, setQuery] = useState('');
@@ -38,6 +38,16 @@ export function InventoryScreen() {
   const [sort, setSort] = useState('Recientes');
   const [listOpen, setListOpen] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof loadOperationDrafts !== 'function') return;
+    let active = true;
+    loadOperationDrafts('inventory').catch((error: unknown) => {
+      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
+    });
+    return () => { active = false; };
+  }, []);
+  const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
 
   useEffect(() => {
     const reset = () => {
@@ -99,6 +109,17 @@ export function InventoryScreen() {
           <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
         </div>
       </div>
+      {draftError ? <div className="ferr">{draftError}</div> : null}
+      {ownDrafts.length > 0 ? (
+        <div className="dcard op-drafts">
+          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar el cliente y la venta.</small></div>
+          <div className="op-draft-list">{ownDrafts.map((trade) => (
+            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'inventory' })}>
+              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
+            </button>
+          ))}</div>
+        </div>
+      ) : null}
       <div className="dbar">
         <ChipRow options={filters} value={filter} onChange={setFilter} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
@@ -186,8 +207,11 @@ export function InventoryScreen() {
                   </td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r"><b>{formatMoney(item.price)}</b></td>
-                  <td>{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}</td>
+                  <td className="r"><b>{item.price > 0 ? formatMoney(item.price) : '-'}</b></td>
+                  <td>
+                    {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
+                    {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small>Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
+                  </td>
                 </PressTarget>
               ))}
             </tbody>

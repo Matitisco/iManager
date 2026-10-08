@@ -18,6 +18,7 @@ model User {
   twoFactorCode     String?       @db.VarChar(6)
   twoFactorExpiry   DateTime?
   memberships       StoreMember[]
+  notificationReads NotificationRead[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -45,6 +46,7 @@ model Store {
   tradeInCategories   TradeInCategory[]
   catalogOptions      StoreCatalogOption[]
   clientPayments      ClientPayment[]
+  notifications       StoreNotification[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -129,10 +131,14 @@ model InventoryItem {
   cost          Decimal            @db.Decimal(12, 2)
   price         Decimal            @db.Decimal(12, 2)
   status        String             @db.VarChar(20)
+  archivedAt    DateTime?
+  pendingSaleRegistration Boolean  @default(false)
+  previousSaleStatus String?       @db.VarChar(20)
   customFields  Json?
   store         Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category      InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales         Sale[]
+  receivedTradeIns TradeIn[]       @relation("ReceivedInventory")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -148,6 +154,11 @@ model Sale {
   clientName      String         @default("") @db.VarChar(120)
   categoryId      String?
   inventoryItemId String?
+  tradeInId       String?        @unique
+  requestKey      String?        @db.VarChar(120)
+  integratedOperation Boolean    @default(false)
+  previousInventoryStatus String? @db.VarChar(20)
+  previousPendingSaleRegistration Boolean?
   deviceLabel     String?        @db.VarChar(120)
   dateLabel       String         @db.VarChar(120)
   amount          Decimal        @db.Decimal(12, 2)
@@ -159,6 +170,7 @@ model Sale {
   client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   category        SaleCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  tradeIn         TradeIn?       @relation(fields: [tradeInId], references: [id], onDelete: SetNull)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -166,6 +178,7 @@ model Sale {
   @@index([storeId, soldAt])
   @@index([clientId])
   @@index([inventoryItemId])
+  @@unique([storeId, requestKey])
 }
 
 model TradeIn {
@@ -177,24 +190,72 @@ model TradeIn {
   categoryId         String?
   dateLabel          String           @db.VarChar(120)
   deviceReceived     String           @db.VarChar(120)
-  deviceReceivedImei String           @db.VarChar(100)
+  deviceReceivedImei String?          @db.VarChar(100)
   takeValue          Decimal          @db.Decimal(12, 2)
-  deviceGiven        String           @db.VarChar(120)
+  deviceGiven        String           @default("") @db.VarChar(120)
   differencePaid     Decimal          @db.Decimal(12, 2)
   status             String           @db.VarChar(30)
   batteryHealth      String?          @db.VarChar(50)
   grade              String?          @db.VarChar(20)
+  confirmationStatus TradeInConfirmationStatus?
+  receivedInventoryItemId String?
+  previousOutgoingStatus String?      @db.VarChar(20)
+  previousOutgoingPendingRegistration Boolean?
+  requestKey         String?          @db.VarChar(120)
+  operationSource    String?          @db.VarChar(20)
+  draftProductId     String?          @db.VarChar(120)
+  draftDeviceLabel   String?          @db.VarChar(120)
+  draftSaleCategoryId String?         @db.VarChar(120)
+  draftAmount        Decimal?         @db.Decimal(12, 2)
+  draftPaymentMethod String?          @db.VarChar(50)
+  draftPaymentStatus String?          @db.VarChar(20)
   customFields       Json?
   tradeAt            DateTime
   store              Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client             Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   category           TradeInCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  receivedInventoryItem InventoryItem? @relation("ReceivedInventory", fields: [receivedInventoryItemId], references: [id], onDelete: SetNull)
+  sale               Sale?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   @@index([storeId])
   @@index([storeId, tradeAt])
   @@index([clientId])
+  @@unique([storeId, requestKey])
+}
+
+enum TradeInConfirmationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model StoreNotification {
+  id        String   @id @default(cuid())
+  storeId   String
+  section   String   @db.VarChar(30)
+  title     String   @db.VarChar(160)
+  message   String   @db.Text
+  recordId  String?  @db.VarChar(120)
+  kind      String   @db.VarChar(40)
+  createdAt DateTime @default(now())
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  reads     NotificationRead[]
+
+  @@index([storeId, section, createdAt])
+}
+
+model NotificationRead {
+  id             String            @id @default(cuid())
+  notificationId String
+  userId         String
+  readAt         DateTime           @default(now())
+  notification   StoreNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId])
 }
 
 model TradeInCategory {

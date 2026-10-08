@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useCatalogs } from '../catalog';
 import { formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
@@ -15,12 +15,22 @@ const DEFAULT_STATUSES = [
 ];
 
 export function TradeInsScreen() {
-  const { tradeIns, clients } = useAppContext();
+  const { tradeIns, clients, operationDrafts = [], loadOperationDrafts } = useAppContext();
   const catalogs = useCatalogs();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
+  const [draftError, setDraftError] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof loadOperationDrafts !== 'function') return;
+    let active = true;
+    loadOperationDrafts('tradeins').catch((error: unknown) => {
+      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
+    });
+    return () => { active = false; };
+  }, []);
+  const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
   const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
 
   const rows = useMemo(() => {
@@ -60,6 +70,17 @@ export function TradeInsScreen() {
           <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
         </div>
       </div>
+      {draftError ? <div className="ferr">{draftError}</div> : null}
+      {ownDrafts.length > 0 ? (
+        <div className="dcard op-drafts">
+          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta y el equipo entregado.</small></div>
+          <div className="op-draft-list">{ownDrafts.map((trade) => (
+            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'tradeins' })}>
+              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
+            </button>
+          ))}</div>
+        </div>
+      ) : null}
       <div className="dbar">
         <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, ...statuses]}
@@ -87,7 +108,12 @@ export function TradeInsScreen() {
                     <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
                     <td className="trade-device">{item.deviceGiven || '—'}</td>
                     <td className="r trade-nowrap"><b>{formatMoney(item.takeValue)}</b><small>Dif. {formatMoney(item.differencePaid)}</small></td>
-                    <td>{item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : '—'}</td>
+                    <td>
+                      {item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : '—'}
+                      {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
+                      {item.confirmationStatus === 'CONFIRMED' ? <small className="trade-confirmation">Canje confirmado</small> : null}
+                      {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">Operación cancelada</small> : null}
+                    </td>
                   </PressTarget>
                 ))}
               </tbody>

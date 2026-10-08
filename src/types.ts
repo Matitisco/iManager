@@ -10,6 +10,8 @@ export interface Product {
   cost: number;
   price: number;
   status: string;
+  pendingSaleRegistration?: boolean;
+  archivedAt?: string | null;
   categoryId?: string | null;
   soldAt?: string | null;
   createdAt?: string;
@@ -44,6 +46,24 @@ export interface Sale {
   status: string;
   categoryId?: string | null;
   customFields?: Record<string, any>;
+  tradeInId?: string | null;
+  integratedOperation?: boolean;
+  requestKey?: string | null;
+}
+
+export interface OperationProductOption {
+  id: string;
+  model: string;
+  capacity: string;
+  color: string;
+  imei: string;
+  price: number;
+  pendingSaleRegistration: boolean;
+}
+
+export interface OperationClientOption {
+  id: string;
+  name: string;
 }
 
 export interface TradeIn {
@@ -62,6 +82,16 @@ export interface TradeIn {
   batteryHealth?: string;
   grade?: string;
   customFields?: Record<string, any>;
+  confirmationStatus?: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | null;
+  saleId?: string | null;
+  receivedInventoryItemId?: string | null;
+  operationSource?: 'inventory' | 'sales' | 'tradeins' | 'clients' | null;
+  draftProductId?: string | null;
+  draftDeviceLabel?: string | null;
+  draftAmount?: number | null;
+  draftSaleCategoryId?: string | null;
+  draftPaymentMethod?: string | null;
+  draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
 }
 
 export interface TradeInCategory {

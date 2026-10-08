@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { Product } from '../types';
+import type { OperationProductOption, Product } from '../types';
 import { equipmentTitle, formatMoneyCompact } from './format';
 import { equipmentSuggestions } from './sale-equipment';
 import { Field } from './ui';
 
-export function EquipmentField({
+export function EquipmentField<T extends Product | OperationProductOption>({
   items,
   value,
   linked,
@@ -12,19 +12,19 @@ export function EquipmentField({
   onValue,
   onPick,
 }: {
-  items: Product[];
+  items: T[];
   value: string;
   linked: boolean;
   error?: string;
   onValue: (value: string) => void;
-  onPick: (item: Product) => void;
+  onPick: (item: T) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const suggestions = useMemo(() => equipmentSuggestions(items, value), [items, value]);
   const visible = open && suggestions.length > 0;
 
-  function pick(item: Product) {
+  function pick(item: T) {
     onPick(item);
     setOpen(false);
   }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ColumnFilter } from '../ColumnFilter';
 import {
@@ -14,12 +14,22 @@ import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
-  const { clients } = useAppContext();
+  const { clients, operationDrafts = [], loadOperationDrafts } = useAppContext();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof loadOperationDrafts !== 'function') return;
+    let active = true;
+    loadOperationDrafts('clients').catch((error: unknown) => {
+      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
+    });
+    return () => { active = false; };
+  }, []);
+  const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
   const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -47,6 +57,17 @@ export function ClientsScreen() {
           <DeskCta onClick={() => open({ type: 'new-cl' })}>Nuevo cliente</DeskCta>
         </div>
       </div>
+      {draftError ? <div className="ferr">{draftError}</div> : null}
+      {ownDrafts.length > 0 ? (
+        <div className="dcard op-drafts">
+          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta.</small></div>
+          <div className="op-draft-list">{ownDrafts.map((trade) => (
+            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'clients' })}>
+              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
+            </button>
+          ))}</div>
+        </div>
+      ) : null}
       <div className="dbar">
         <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
@@ -108,17 +129,18 @@ export function ClientsScreen() {
                 <PressTarget
                   key={client.id}
                   as="tr"
+                  testId={`client-row-${client.id}`}
                   onActivate={() => open({ type: 'cl', id: client.id })}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
                 >
                   <td>
                     <div className="dcell">
                       <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '—'}</small></div>
+                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small></div>
                     </div>
                   </td>
-                  <td>{client.dni || '—'}</td>
-                  <td>{client.phone || '—'}</td>
+                  <td>{client.dni || '-'}</td>
+                  <td>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
                   <td className="r">{formatMoney(client.totalSpent)}</td>
                   <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {formatMoneyCompact(client.pendingBalance)}</span> : <span className="spill mid">Sin saldo</span>}</td>

@@ -12,12 +12,12 @@ export type Overlay =
   | { type: 'new-eq' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
-  | { type: 'new-sale'; clientName?: string; productId?: string }
+  | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string }
   | { type: 'sale'; id: string }
   | { type: 'edit-sale'; id: string }
   | { type: 'new-cj' }
   | { type: 'cj'; id: string }
-  | { type: 'edit-cj'; id: string }
+  | { type: 'edit-cj'; id: string; source?: 'sales' | 'tradeins' | 'inventory' | 'clients' }
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }

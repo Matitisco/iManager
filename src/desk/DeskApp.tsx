@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box } from 'lucide-react';
 import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
@@ -29,7 +29,7 @@ function tabFromHash(hash: string): DeskTab {
 }
 
 export function DeskApp() {
-  const { appSession, tradeIns } = useAppContext();
+  const { appSession, tradeIns, user } = useAppContext();
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const isStaff = role === 'STAFF';
@@ -37,11 +37,20 @@ export function DeskApp() {
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const overlayScope = useRef('');
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
   const unread = useUnreadCount();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
+  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('reports')].map(Number).join('')}`;
+
+  useEffect(() => {
+    if (overlayScope.current !== operationScope) {
+      overlayScope.current = operationScope;
+      setOverlay(null);
+    }
+  }, [operationScope]);
 
   useEffect(() => {
     if (!toastOn) return;

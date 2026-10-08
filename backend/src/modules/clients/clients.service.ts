@@ -176,6 +176,11 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     return null;
   }
 
+  if (input.totalSpent !== undefined || input.pendingBalance !== undefined) {
+    const activeIntegratedSale = await prisma.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
+    if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
+  }
+
   if (input.dni !== undefined) {
     const nextDni = normalizeDni(input.dni);
     if (nextDni) {
@@ -196,9 +201,10 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
 
   await assertCategoryBelongsToStore(storeId, input.categoryId);
 
-  const updated = await prisma.client.update({
-    where: { id },
-    data: {
+  const updated = await prisma.$transaction(async (tx) => {
+    const client = await tx.client.update({
+      where: { id },
+      data: {
       dni: input.dni !== undefined ? normalizeDni(input.dni) : existing.dni,
       name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
@@ -217,7 +223,13 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
         input.customFields !== undefined
           ? normalizeCustomFields(input.customFields)
           : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
-    },
+      },
+    });
+    if (input.name !== undefined && client.name !== existing.name) {
+      await tx.sale.updateMany({ where: { storeId, clientId: id, integratedOperation: true }, data: { clientName: client.name } });
+      await tx.tradeIn.updateMany({ where: { storeId, clientId: id, confirmationStatus: { not: null } }, data: { clientName: client.name } });
+    }
+    return client;
   });
 
   return serializeClient(updated);
@@ -286,6 +298,10 @@ export async function deleteClient(storeId: string, id: string) {
   if (!existing) {
     return false;
   }
+
+  const activeOperation = await prisma.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
+  const activeTrade = await prisma.tradeIn.findFirst({ where: { storeId, clientId: id, confirmationStatus: { not: "CANCELLED" } }, select: { id: true } });
+  if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
 
   await prisma.client.delete({
     where: { id },
