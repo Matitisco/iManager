@@ -4,6 +4,8 @@ const tx = vi.hoisted(() => ({
   storeCatalogOption: { findMany: vi.fn(), update: vi.fn(), create: vi.fn(), delete: vi.fn() },
   inventoryItem: { updateMany: vi.fn() },
   client: { updateMany: vi.fn() },
+  repairOrder: { updateMany: vi.fn() },
+  repairStatusEvent: { updateMany: vi.fn() },
 }));
 vi.mock("../../plugins/prisma.js", () => ({ prisma: { $transaction: (run: (client: typeof tx) => unknown) => run(tx) } }));
 import { saveCatalog } from "./catalogs.service.js";

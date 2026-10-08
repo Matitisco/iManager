@@ -1,0 +1,228 @@
+import { useState } from 'react';
+import { useAppContext } from '../context/AppContext';
+import { ClientField } from './ClientField';
+import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
+import type { CatalogKind } from '../services/catalogs-api';
+import { formatInputMoney, formatShortDate, parseMoney } from './format';
+import { ReportDatePicker } from './report-date-picker';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, REPAIR_FAULTS, REPAIR_READY, REPAIR_RECEIVED, repairFault, repairPrice, repairStatusMeta } from './repairs';
+import { TentativeBadge } from './screens/ServiceScreen';
+import { Actions, Field, Pill, Segs, Sheet, useDesk } from './ui';
+
+function moneyInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return formatInputMoney(Number(digits)) || '0';
+}
+
+function isoDate(value: string) {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value.trim();
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+export function RepairOrderForm({ busy, error }: { busy: boolean; error: string | null }) {
+  const { clients, addRepairOrder } = useAppContext();
+  const { close, toast } = useDesk();
+  const catalogs = useCatalogs();
+  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
+  const [clientName, setClientName] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [device, setDevice] = useState('');
+  const [imei, setImei] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [fault, setFault] = useState('');
+  const [estimate, setEstimate] = useState('');
+  const [deposit, setDeposit] = useState('0');
+  const [delivery, setDelivery] = useState('');
+  const [technician, setTechnician] = useState('');
+  const [status, setStatus] = useState(REPAIR_RECEIVED);
+  const [notify, setNotify] = useState(true);
+  const [bad, setBad] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
+  const linked = clients.find((client) => client.id === clientId);
+  const phone = linked?.phone?.trim() ?? '';
+
+  const toggleTag = (tag: string) => {
+    setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+    setBad((current) => ({ ...current, fault: '' }));
+  };
+
+  const save = async () => {
+    const next: Record<string, string> = {};
+    if (!clientName.trim()) next.client = 'Completá este dato';
+    if (!device.trim()) next.device = 'Completá este dato';
+    if (imei && imei.length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+    if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
+    setBad(next);
+    if (Object.keys(next).length || !addRepairOrder) return;
+    setSaving(true);
+    try {
+      await addRepairOrder({
+        clientId: clientId || null,
+        clientName: clientName.trim(),
+        device: device.trim(),
+        imei,
+        fault: fault.trim(),
+        faultTags: tags,
+        estimate: estimate.trim() ? parseMoney(estimate) : null,
+        deposit: parseMoney(deposit),
+        technician: technician.trim(),
+        status: status || REPAIR_RECEIVED,
+        estimatedDelivery: delivery ? isoDate(delivery) : null,
+        notifyWhatsapp: notify,
+      });
+      close();
+      toast('Orden creada');
+    } catch (err) {
+      setBad((current) => ({ ...current, form: err instanceof Error ? err.message : 'No se pudo crear la orden' }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet wide title="Nueva orden de reparación" onClose={close}>
+      <div className="svc-badge-gap"><TentativeBadge /></div>
+      {error || bad.form ? <div className="ferr">{error || bad.form}</div> : null}
+      <div className="svc-grid">
+        <div>
+          <ClientField
+            clients={clients}
+            value={clientName}
+            linked={Boolean(clientId)}
+            error={bad.client}
+            onValue={(value) => { setClientName(value); setClientId(''); setBad((current) => ({ ...current, client: '' })); }}
+            onPick={(client) => { setClientName(client.name); setClientId(client.id); setBad((current) => ({ ...current, client: '' })); }}
+          />
+          <div className="frow">
+            <Field label="Equipo" error={bad.device}>
+              <input value={device} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDevice(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
+            </Field>
+            <Field label="IMEI" error={bad.imei}>
+              <input value={imei} inputMode="numeric" maxLength={15} placeholder="15 dígitos" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); setBad((current) => ({ ...current, imei: '' })); }} />
+            </Field>
+          </div>
+          <Field label="Falla reportada" error={bad.fault}><span /></Field>
+          <div className="svc-faults">
+            {REPAIR_FAULTS.map((tag) => (
+              <button key={tag} type="button" className={tags.includes(tag) ? 'on' : ''} aria-pressed={tags.includes(tag)} onClick={() => toggleTag(tag)}>{tag}</button>
+            ))}
+          </div>
+          <label className={`fl${bad.fault ? ' bad' : ''}`}>
+            <textarea className="svc-note" value={fault} maxLength={2000} placeholder="Contá qué le pasa al equipo, cómo llegó, si tiene clave, accesorios que deja, etc." onChange={(event) => { setFault(event.target.value); setBad((current) => ({ ...current, fault: '' })); }} />
+          </label>
+        </div>
+        <div>
+          <div className="frow">
+            <Field label="Presupuesto estimado">
+              <input value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => setEstimate(moneyInput(event.target.value))} />
+            </Field>
+            <Field label="Seña">
+              <input value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDeposit(moneyInput(event.target.value))} />
+            </Field>
+          </div>
+          <div className="frow">
+            <ReportDatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
+            <Field label="Técnico">
+              <input value={technician} maxLength={120} placeholder="Técnico Ejemplo" onChange={(event) => setTechnician(event.target.value)} />
+            </Field>
+          </div>
+          <Field label="Estado"><span /></Field>
+          <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('REPAIR_STATUS') : undefined} />
+          <label className="op-check">
+            <input type="checkbox" checked={notify} onChange={(event) => setNotify(event.target.checked)} />
+            Avisarle al cliente por WhatsApp cuando esté listo para retirar
+          </label>
+          {notify && !phone ? <p className="eqs-note">Sin teléfono no se puede armar el WhatsApp. Si elegís un cliente que ya tiene número, el aviso sale con un link de wa.me.</p> : null}
+        </div>
+      </div>
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
+      <Actions busy={busy || saving} primary="Crear orden" onSecondary={close} onPrimary={() => { void save(); }} />
+    </Sheet>
+  );
+}
+
+export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
+  const { repairOrders = [], changeRepairStatus } = useAppContext();
+  const { close, toast } = useDesk();
+  const catalogs = useCatalogs();
+  const order = repairOrders.find((item) => item.id === id);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
+  if (!order) {
+    return (
+      <Sheet title="Orden" onClose={close}>
+        <p className="sub">No encontré esta orden.</p>
+        <Actions busy={busy} primary="Cerrar" secondary="Volver" onSecondary={close} onPrimary={close} />
+      </Sheet>
+    );
+  }
+  const index = statuses.findIndex((status) => status.id === order.status);
+  const next = index >= 0 ? statuses[index + 1] : undefined;
+  const advance = async () => {
+    if (!next || !changeRepairStatus) return;
+    setError('');
+    setSaving(true);
+    try {
+      const saved = await changeRepairStatus(order.id, next.id);
+      if (order.status !== REPAIR_READY && saved.status === REPAIR_READY) {
+        if (saved.whatsappUrl) window.open(saved.whatsappUrl, '_blank', 'noopener,noreferrer');
+        else if (saved.notifyWhatsapp) toast('La orden está lista, pero el cliente no tiene teléfono para WhatsApp.');
+      }
+      toast(`Pasó a ${repairStatusMeta(saved.status, statuses).label}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
+      <div className="svc-badge-gap"><TentativeBadge /></div>
+      <div className="svc-steps" aria-hidden="true">
+        {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
+      </div>
+      <div className="svc-now">
+        <Pill status={order.status} kind="REPAIR_STATUS" />
+        {next ? <span>Sigue: {next.label}</span> : null}
+      </div>
+      {error ? <div className="ferr">{error}</div> : null}
+      <div className="kv"><span>Cliente</span><b>{order.clientName}</b></div>
+      <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
+      <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
+      <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash')}</b></div>
+      <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash')}</b></div>
+      <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
+      <div className="svc-log">
+        <span>Historial</span>
+        <ol>
+          {order.events.map((event) => {
+            const meta = repairStatusMeta(event.status, statuses);
+            return (
+              <li key={event.id}>
+                <i style={{ background: meta.color }} />
+                <b>{meta.label}</b>
+                <small>{event.createdAt}</small>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {order.whatsappUrl ? (
+        <div className="svc-wa">
+          <span>Listo para avisar al cliente</span>
+          <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+        </div>
+      ) : null}
+      {next ? (
+        <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
+      ) : (
+        <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
+      )}
+    </Sheet>
+  );
+}

@@ -80,6 +80,34 @@ export interface Accessory {
   movements?: AccessoryMovement[];
 }
 
+export interface RepairStatusEvent {
+  id: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface RepairOrder {
+  id: string;
+  orderNumber: number;
+  code: string;
+  clientId: string | null;
+  clientName: string;
+  clientPhone: string;
+  device: string;
+  imei: string;
+  fault: string;
+  faultTags: string[];
+  estimate: number | null;
+  deposit: number;
+  technician: string;
+  status: string;
+  estimatedDelivery: string | null;
+  notifyWhatsapp: boolean;
+  receivedAt: string;
+  whatsappUrl: string | null;
+  events: RepairStatusEvent[];
+}
+
 export interface OperationProductOption {
   id: string;
   model: string;

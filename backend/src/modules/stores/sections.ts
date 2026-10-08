@@ -4,6 +4,7 @@ export const SECTION_IDS = [
   "sales",
   "tradeins",
   "clients",
+  "service",
   "commissions",
   "reports",
   "notifications",

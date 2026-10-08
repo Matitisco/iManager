@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory, Accessory } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory, Accessory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
@@ -17,6 +17,7 @@ import { normalizeDropdownOptions } from '../utils/dropdown-options';
 import { canOpenSection } from '../desk/sections';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 import { createBackendAccessory, deleteBackendAccessory, fetchBackendAccessories, fetchBackendAccessory, updateBackendAccessory, type AccessoryInput } from '../services/accessories-api';
+import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, fetchBackendRepairs, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 
 interface AppState {
   inventory: Product[];
@@ -25,6 +26,12 @@ interface AppState {
   updateAccessory: (id: string, input: AccessoryInput) => Promise<Accessory>;
   deleteAccessory: (id: string) => Promise<void>;
   loadAccessory: (id: string) => Promise<Accessory>;
+  repairOrders: RepairOrder[];
+  repairOrdersError: string | null;
+  addRepairOrder: (input: RepairOrderInput) => Promise<RepairOrder>;
+  updateRepairOrder: (id: string, input: Partial<RepairOrderInput>) => Promise<RepairOrder>;
+  changeRepairStatus: (id: string, status: string) => Promise<RepairOrder>;
+  deleteRepairOrder: (id: string) => Promise<void>;
   sales: Sale[];
   salesCategories: SaleCategory[];
   tradeIns: TradeIn[];
@@ -165,6 +172,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const authAdapter = getAuthAdapter();
   const [inventory, setInventory] = useState<Product[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
+  const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
+  const [repairOrdersError, setRepairOrdersError] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
@@ -267,7 +276,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const activeStoreId = appSession?.store?.id ?? null;
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const canAccess = (section: OperationSource | 'reports' | 'notifications') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
+  const canAccess = (section: OperationSource | 'reports' | 'notifications' | 'service') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
   const backendInventoryEnabled = backendReady && canAccess('inventory');
   const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
   const loadAccessoriesEnabled = backendReady && (canAccess('inventory') || canAccess('sales'));
@@ -276,7 +285,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
   const backendTradeInsEnabled = backendReady && canAccess('tradeins');
   const loadTradeInsEnabled = backendReady && (canAccess('tradeins') || canAccess('reports'));
-  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('reports'), canAccess('notifications')].map(Number).join('')}`;
+  const loadRepairsEnabled = backendReady && canAccess('service');
+  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('service'), canAccess('reports'), canAccess('notifications')].map(Number).join('')}`;
   scopeRef.current = currentScope;
 
   useEffect(() => {
@@ -290,6 +300,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!backendClientsEnabled) setClients([]);
     if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
     if (!backendTradeInsEnabled && !loadTradeInsEnabled) { setTradeIns([]); setTradeInCategories([]); }
+    if (!loadRepairsEnabled) { setRepairOrders([]); setRepairOrdersError(null); }
   }, [currentScope]);
 
   useEffect(() => {
@@ -339,6 +350,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     return () => { cancelled = true; };
   }, [activeStoreId, loadAccessoriesEnabled, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await fetchBackendRepairs(user);
+        if (cancelled) return;
+        setRepairOrders(rows);
+        setRepairOrdersError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setRepairOrdersError(error instanceof Error ? error.message : 'No se pudieron cargar las órdenes de servicio.');
+      }
+    };
+    if (loadRepairsEnabled) {
+      setRepairOrders([]);
+      setRepairOrdersError(null);
+      void load();
+    }
+    return () => { cancelled = true; };
+  }, [activeStoreId, loadRepairsEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -876,6 +909,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return accessory;
   };
 
+  const rememberClient = (client: Client | null | undefined) => {
+    if (!client) return;
+    setClients((current) => current.some((item) => item.id === client.id) ? current : [client, ...current]);
+  };
+
+  const addRepairOrder = async (input: RepairOrderInput) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const result = await createBackendRepair(user, input);
+    setRepairOrders((current) => [result.order, ...current.filter((item) => item.id !== result.order.id)]);
+    rememberClient(result.client);
+    return result.order;
+  };
+
+  const updateRepairOrder = async (id: string, input: Partial<RepairOrderInput>) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const order = await updateBackendRepair(user, id, input);
+    setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
+    return order;
+  };
+
+  const changeRepairStatus = async (id: string, status: string) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const order = await changeBackendRepairStatus(user, id, status);
+    setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
+    return order;
+  };
+
+  const deleteRepairOrder = async (id: string) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    await deleteBackendRepair(user, id);
+    setRepairOrders((current) => current.filter((item) => item.id !== id));
+  };
+
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     if (!user) throw new Error('No authenticated user');
     if (!backendInventoryEnabled) {
@@ -1297,6 +1367,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       inventory, accessories, addAccessory, updateAccessory, deleteAccessory, loadAccessory,
+      repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder,
       sales, tradeIns, clients, customColumns,
       operationOptions, operationDrafts,
       operationNotifications,

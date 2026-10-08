@@ -1,6 +1,6 @@
 ﻿import type { FastifyReply, FastifyRequest } from "fastify";
 import { canAccessSection, type SectionId } from "../modules/stores/sections.js";
-const LABELS: Record<SectionId, string> = { dashboard: "Dashboard", inventory: "Inventario", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", commissions: "Comisiones", reports: "Reportes", notifications: "Notificaciones" };
+const LABELS: Record<SectionId, string> = { dashboard: "Dashboard", inventory: "Inventario", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", commissions: "Comisiones", reports: "Reportes", notifications: "Notificaciones" };
 
 export function requireSectionAccess(section: SectionId) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
