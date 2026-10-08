@@ -10,6 +10,7 @@ import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
+import { BlueDollar } from './BlueDollar';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
@@ -176,26 +177,28 @@ export function DeskApp() {
             <div className="dlogo"><Box size={22} aria-hidden="true" /></div>
             <div><b>iManager</b><small>{appSession?.store?.name || 'Tienda'}</small></div>
           </div>
-          <div className="dgroup">
-            {items.map((item) => (
-              <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
-                <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
-                <span>{item.label}</span>
-                <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
+          <div className="dnav">
+            <div className="dgroup">
+              {items.map((item) => (
+                <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
+                  <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
+                  <span>{item.label}</span>
+                  <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
+                </button>
+              ))}
+            </div>
+            <div className="dlabel">Cuenta</div>
+            <div className="dgroup">
+              {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
+                <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
+                {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
+              </button> : null}
+              <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
+                <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
               </button>
-            ))}
+            </div>
           </div>
-          <div className="dlabel">Cuenta</div>
-          <div className="dgroup">
-            {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
-              <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
-              {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
-            </button> : null}
-            <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
-              <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
-            </button>
-          </div>
-          <div className="dspacer" />
+          <BlueDollar />
           <button className="duser" type="button" onClick={() => go('settings')}>
             <div className="av-c b">{initials(name)}</div>
             <div className="info"><b>{name}</b><small>{ROLE[appSession?.membership?.role ?? 'STAFF']}</small></div>
