@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ColumnFilter } from '../ColumnFilter';
 import {
@@ -15,6 +15,7 @@ import {
   statusLabel,
   type PeriodKey,
 } from '../format';
+import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
   EMPTY_SALE_FILTERS,
@@ -29,21 +30,13 @@ import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDes
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, operationDrafts = [], loadOperationDrafts } = useAppContext();
+  const { sales, clients, inventory, operationDrafts = [] } = useAppContext();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('Mes');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof loadOperationDrafts !== 'function') return;
-    let active = true;
-    loadOperationDrafts('sales').catch((error: unknown) => {
-      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
-    });
-    return () => { active = false; };
-  }, []);
+  const draftError = useOperationDraftError('sales');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
   const bounds = periodBounds(period);
 

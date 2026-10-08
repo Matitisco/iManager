@@ -57,6 +57,16 @@ export interface OperationOptions {
   clients: OperationClientOption[];
 }
 
+export class OperationRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'OperationRequestError';
+    this.status = status;
+  }
+}
+
 const baseUrl = () => {
   const value = getBackendBaseUrl();
   if (!value) throw new Error('Backend no configurado');
@@ -78,7 +88,9 @@ async function request<T>(user: AuthUserLike, path: string, init: RequestInit = 
     headers: { ...(await headers(user, init.body !== undefined)), ...init.headers },
   });
   const body = await response.json().catch(() => null) as (T & { error?: string }) | null;
-  if (!response.ok) throw new Error(body?.error || `No se pudo guardar la operación (${response.status})`);
+  if (!response.ok) {
+    throw new OperationRequestError(response.status, body?.error || `No se pudo guardar la operación (${response.status})`);
+  }
   if (!body) throw new Error('Respuesta inválida del servidor');
   return body;
 }

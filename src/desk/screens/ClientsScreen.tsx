@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ColumnFilter } from '../ColumnFilter';
 import {
@@ -10,25 +10,18 @@ import {
   type ClientColumnFilters,
 } from '../client-column-filters';
 import { avatarTone, formatInputMoney, formatMoney, formatMoneyCompact, formatShortDate, initials, parseMoney } from '../format';
+import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
-  const { clients, operationDrafts = [], loadOperationDrafts } = useAppContext();
+  const { clients, operationDrafts = [] } = useAppContext();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof loadOperationDrafts !== 'function') return;
-    let active = true;
-    loadOperationDrafts('clients').catch((error: unknown) => {
-      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
-    });
-    return () => { active = false; };
-  }, []);
+  const draftError = useOperationDraftError('clients');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
   const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
 
