@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { operationSummary, sectionCopy, sectionRecords } from "./operation-copy.js";
+import { operationSummary, sectionCopy, sectionReason, sectionRecords } from "./operation-copy.js";
 
 describe("section operation copy", () => {
   it("describes the impact of each section with Argentine amounts", () => {
@@ -28,6 +28,9 @@ describe("section operation copy", () => {
     expect(records.map((record) => record.title)).toEqual(["Venta registrada", "Stock actualizado", "Canje confirmado", "Nuevo cliente"]);
     expect(new Set(records.map((record) => record.message)).size).toBe(4);
     expect(records.find((record) => record.section === "inventory")?.message).toBe("iPhone 14 128GB vendido. Entró un iPhone 11 por canje, en revisión");
+    expect(records.find((record) => record.section === "inventory")?.targets).toEqual([{ recordId: "in-1", reason: "Nuevo · entró por canje" }]);
+    expect(records.find((record) => record.section === "clients")?.targets).toEqual([{ recordId: "cl-1", reason: "Nuevo cliente · debe $ 900" }]);
+    expect(records.find((record) => record.section === "sales")?.targets?.[0]?.reason).toBe("Venta registrada");
     expect(records.find((record) => record.section === "clients")?.message).toBe("Nuevo cliente: Juan Pérez. Debe $ 900");
     expect(records.every((record) => record.message !== "Se registró una venta.")).toBe(true);
   });
@@ -42,5 +45,27 @@ describe("section operation copy", () => {
     expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
     const [notice] = sectionRecords(["inventory"], { action: "cancelled", archivedDevice: "iPhone 11" }, { inventory: "trade-1", tradeins: "trade-1" }, { archiveReceived: true });
     expect(notice).toMatchObject({ message: "iPhone 11 archivado", kind: "ARCHIVED_TRADE_IN_RECEIVED" });
+  });
+
+  it("stores a reason for every affected record, including both phones of a trade", () => {
+    expect(sectionReason("inventory", { action: "created", soldDevice: "iPhone 13" })).toBe("Vendido");
+    expect(sectionReason("inventory", { action: "confirmed", receivedDevice: "iPhone 11" })).toBe("Nuevo · entró por canje");
+    expect(sectionReason("clients", { action: "created", clientCreated: true, pendingBalance: 0 })).toBe("Nuevo cliente");
+    expect(sectionReason("clients", { action: "created", pendingBalance: 50000 })).toBe("Debe $ 50.000");
+    const [notice] = sectionRecords(["inventory"], {
+      action: "confirmed",
+      soldDevice: "iPhone 14",
+      receivedDevice: "iPhone 11",
+    }, { inventory: "received" }, {
+      targets: { inventory: [
+        { recordId: "sold", reason: "Vendido" },
+        { recordId: "received", reason: "Nuevo · entró por canje" },
+      ] },
+    });
+    expect(notice.recordId).toBe("received");
+    expect(notice.targets).toEqual([
+      { recordId: "sold", reason: "Vendido" },
+      { recordId: "received", reason: "Nuevo · entró por canje" },
+    ]);
   });
 });

@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { usePhoneLayout, useSectionNotices } from '../section-notices';
+import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import {
   saleBuyer,
@@ -32,6 +34,9 @@ const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 export function SalesScreen() {
   const { sales, clients, inventory, operationDrafts = [] } = useAppContext();
   const { open } = useDesk();
+  const phone = usePhoneLayout();
+  const notices = useSectionNotices('sales');
+  const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('Mes');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
@@ -66,7 +71,10 @@ export function SalesScreen() {
     if (q && !`${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q)) return false;
     return matchesSaleColumns(sale, columns, labels);
   });
-  const page = usePagedRows(rows, `${query}|${period}|${saleFilterKey(columns)}`);
+  const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : rows;
+  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const visibleKey = page.visible.map((sale) => sale.id).join('|');
+  useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA'])].filter(Boolean);
 
@@ -111,8 +119,27 @@ export function SalesScreen() {
           <small className="mut">vs período anterior</small>
         </div>
       </div>
+      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <div className="dcard flush">
-        <div className="dch pad"><h3>Ventas del período</h3><span className="mut">{rows.length} de {listed.length}</span>{saleFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_SALE_FILTERS)}>Limpiar filtros</button> : null}</div>
+        <div className="dch pad"><h3>Ventas del período</h3><span className="mut">{shown.length} de {listed.length}</span>{saleFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_SALE_FILTERS)}>Limpiar filtros</button> : null}</div>
+        {phone ? (
+          <PhoneRecords>
+            {page.visible.map((sale) => {
+              const reason = notices.reasonFor(sale.id);
+              return (
+                <PhoneRecord
+                  key={sale.id}
+                  reason={reason}
+                  onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
+                >
+                  <b>#{saleCode(sale)} · {saleBuyer(sale, clients)}</b>
+                  <small>{saleEquipment(sale, inventory)} · {formatMoney(sale.amount)}</small>
+                </PhoneRecord>
+              );
+            })}
+          </PhoneRecords>
+        ) : (
         <table className="dtable">
             <thead>
               <tr>
@@ -173,10 +200,11 @@ export function SalesScreen() {
                   <PressTarget
                     key={sale.id}
                     as="tr"
-                    onActivate={() => open({ type: 'sale', id: sale.id })}
+                    className={notices.reasonFor(sale.id) ? 'novedad' : undefined}
+                    onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                   >
-                    <td><b>#{saleCode(sale)}</b></td>
+                    <td><b>#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}</td>
@@ -188,7 +216,8 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        {rows.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
+        )}
+        {shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
     </div>

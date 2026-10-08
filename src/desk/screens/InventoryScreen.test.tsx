@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
+import type { OperationNotification } from '../../services/operations-api';
 import { DeskProvider } from '../ui';
 import { InventoryScreen } from './InventoryScreen';
 
@@ -9,6 +10,8 @@ const toast = vi.fn();
 const context = vi.hoisted(() => ({
   inventory: [] as Product[],
   appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string } } | null,
+  operationNotifications: [] as OperationNotification[],
+  markNotificationRead: vi.fn(async () => undefined),
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -41,6 +44,8 @@ function renderScreen() {
 describe('Inventory price list', () => {
   beforeEach(() => {
     toast.mockClear();
+    context.markNotificationRead.mockClear();
+    context.operationNotifications = [];
     context.appSession = { store: { name: 'Tienda Centro' } };
     context.inventory = [
       ...Array.from({ length: 11 }, (_, index) => item(String(index + 1))),
@@ -166,5 +171,66 @@ describe('Inventory column filters', () => {
     window.dispatchEvent(new Event('desk-eq-saved'));
     await waitFor(() => expect(screen.getByText('Modelo 1 · 128 GB')).toBeInTheDocument());
     expect(screen.queryByText('Pixel · 128 GB')).not.toBeInTheDocument();
+  });
+});
+
+describe('Inventory novedades', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    context.markNotificationRead.mockClear();
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.inventory = [
+      item('1', { model: 'iPhone 13', status: 'VENDIDO' }),
+      item('2', { model: 'Pixel', status: 'DISPONIBLE' }),
+    ];
+    context.operationNotifications = [{
+      id: 'n1',
+      storeId: 's',
+      section: 'inventory',
+      title: 'Equipo vendido',
+      message: 'iPhone 13 vendido',
+      recordId: '1',
+      kind: 'INTEGRATED_OPERATION',
+      createdAt: '2026-10-08T12:00:00.000Z',
+      readAt: null,
+    }];
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('highlights the affected row, filters to novedades, and marks the note read once the row is shown', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const row = screen.getByText('iPhone 13 · 128 GB').closest('tr') as HTMLElement;
+    expect(row).toHaveClass('novedad');
+    expect(within(row).getByTestId('notice-reason')).toHaveTextContent('Vendido');
+    expect(screen.getByTestId('section-notices')).toHaveTextContent('1 novedad');
+    await waitFor(() => expect(context.markNotificationRead).toHaveBeenCalledWith('n1'));
+
+    await user.click(screen.getByTestId('section-notices'));
+    expect(screen.getByTestId('section-notices')).toHaveTextContent('Ver todas');
+    expect(screen.queryByText('Pixel · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByText('iPhone 13 · 128 GB')).toBeInTheDocument();
+  });
+
+  it('shows the same reason on the phone list', () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    renderScreen();
+    const list = screen.getByTestId('phone-rows');
+    expect(within(list).getByText('iPhone 13 · 128 GB')).toBeInTheDocument();
+    expect(within(list).getByTestId('notice-reason')).toHaveTextContent('Vendido');
+    expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
   });
 });
