@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const allocateDocumentNumber = vi.hoisted(() => vi.fn());
+
 const prismaMock = vi.hoisted(() => ({
   client: {
     findFirst: vi.fn(),
@@ -14,10 +16,15 @@ const prismaMock = vi.hoisted(() => ({
     count: vi.fn(),
     create: vi.fn(),
   },
+  $transaction: vi.fn(),
 }));
 
 vi.mock("../../plugins/prisma.js", () => ({
   prisma: prismaMock,
+}));
+
+vi.mock("../../lib/store-sequence.js", () => ({
+  allocateDocumentNumber,
 }));
 
 import {
@@ -53,6 +60,8 @@ function tradeRecord(overrides: Record<string, unknown> = {}) {
 describe("trade-ins.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    allocateDocumentNumber.mockResolvedValue(4);
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
 
   it("fails when the client does not exist", async () => {
@@ -87,8 +96,10 @@ describe("trade-ins.service", () => {
     });
 
     expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
+    expect(allocateDocumentNumber).toHaveBeenCalledWith(prismaMock, "store-1", "trade");
     expect(prismaMock.tradeIn.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        tradeNumber: 4,
         clientId: null,
         clientName: "Mostrador",
         deviceReceived: "iPhone 11",
@@ -152,8 +163,10 @@ describe("trade-ins.service", () => {
     expect(result.errors).toEqual([]);
     expect(result.imported).toBe(1);
     expect(prismaMock.tradeIn.findFirst).not.toHaveBeenCalled();
+    expect(allocateDocumentNumber).toHaveBeenCalledWith(prismaMock, "store-1", "trade");
     expect(prismaMock.tradeIn.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        tradeNumber: 4,
         clientId: "client-1",
         clientName: "Juan",
         deviceReceived: "iPhone 12",

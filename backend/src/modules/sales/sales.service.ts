@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
@@ -205,9 +206,11 @@ export async function createSale(storeId: string, input: SaleInput) {
 
     const soldAt = resolveDate(input.date);
     const dateLabel = formatArDate(soldAt);
+    const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
 
     const sale = await tx.sale.create({
       data: {
+        saleNumber,
         storeId,
         clientId: client?.id ?? null,
         clientName: input.clientName?.trim() || client?.name || "",
@@ -495,8 +498,10 @@ export async function importSales(
       const dateLabel = formatArDate(soldAt);
 
       await prisma.$transaction(async (tx) => {
+        const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
         await tx.sale.create({
           data: {
+            saleNumber,
             storeId,
             clientId: null,
             clientName,

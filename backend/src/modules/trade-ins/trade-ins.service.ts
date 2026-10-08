@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
@@ -246,27 +247,31 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
   const tradeAt = resolveDate(input.date);
   const dateLabel = formatArDate(tradeAt);
 
-  const tradeIn = await prisma.tradeIn.create({
-    data: {
-      storeId,
-      clientId: client?.id ?? null,
-      clientName,
-      categoryId: input.categoryId ?? null,
-      dateLabel,
-      deviceReceived: input.deviceReceived,
-      deviceReceivedImei: input.deviceReceivedImei?.trim() || "",
-      takeValue: toDecimal(input.takeValue ?? 0),
-      deviceGiven: input.deviceGiven,
-      differencePaid: toDecimal(input.differencePaid ?? 0),
-      status: input.status?.trim() || "PENDIENTE",
-      batteryHealth: input.batteryHealth ?? null,
-      grade: input.grade?.trim() ? input.grade.trim() : null,
-      customFields: normalizeCustomFields(input.customFields),
-      tradeAt,
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
+    const tradeIn = await tx.tradeIn.create({
+      data: {
+        tradeNumber,
+        storeId,
+        clientId: client?.id ?? null,
+        clientName,
+        categoryId: input.categoryId ?? null,
+        dateLabel,
+        deviceReceived: input.deviceReceived,
+        deviceReceivedImei: input.deviceReceivedImei?.trim() || "",
+        takeValue: toDecimal(input.takeValue ?? 0),
+        deviceGiven: input.deviceGiven,
+        differencePaid: toDecimal(input.differencePaid ?? 0),
+        status: input.status?.trim() || "PENDIENTE",
+        batteryHealth: input.batteryHealth ?? null,
+        grade: input.grade?.trim() ? input.grade.trim() : null,
+        customFields: normalizeCustomFields(input.customFields),
+        tradeAt,
+      },
+    });
 
-  return serializeTradeIn(tradeIn as TradeInRecord);
+    return serializeTradeIn(tradeIn as TradeInRecord);
+  });
 }
 
 export async function updateTradeIn(
@@ -477,22 +482,26 @@ export async function importTradeIns(
         });
         updated++;
       } else {
-        await prisma.tradeIn.create({
-          data: {
-            storeId,
-            clientId: client.id,
-            clientName,
-            dateLabel,
-            deviceReceived,
-            deviceReceivedImei,
-            takeValue: toDecimal(takeValue),
-            deviceGiven,
-            differencePaid: toDecimal(differencePaid),
-            status,
-            batteryHealth,
-            grade,
-            tradeAt,
-          },
+        await prisma.$transaction(async (tx) => {
+          const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
+          await tx.tradeIn.create({
+            data: {
+              tradeNumber,
+              storeId,
+              clientId: client.id,
+              clientName,
+              dateLabel,
+              deviceReceived,
+              deviceReceivedImei,
+              takeValue: toDecimal(takeValue),
+              deviceGiven,
+              differencePaid: toDecimal(differencePaid),
+              status,
+              batteryHealth,
+              grade,
+              tradeAt,
+            },
+          });
         });
         imported++;
       }

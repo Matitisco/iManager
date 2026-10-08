@@ -1,4 +1,5 @@
 import { PrismaClient, type Client } from "@prisma/client";
+import { allocateDocumentNumber } from "../src/lib/store-sequence.js";
 
 const prisma = new PrismaClient();
 const SEED = "reports-charts";
@@ -308,18 +309,22 @@ async function main() {
     });
     serial += 1;
 
-    await prisma.sale.create({
-      data: {
-        storeId,
-        clientId: client.id,
-        inventoryItemId: item.id,
-        dateLabel: dateLabel(input.soldAt),
-        amount: input.amount,
-        paymentMethod: payment,
-        status: input.pending ? "PENDIENTE" : "COMPLETADA",
-        soldAt: input.soldAt,
-        customFields: { seed: SEED },
-      },
+    await prisma.$transaction(async (tx) => {
+      const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
+      await tx.sale.create({
+        data: {
+          saleNumber,
+          storeId,
+          clientId: client.id,
+          inventoryItemId: item.id,
+          dateLabel: dateLabel(input.soldAt),
+          amount: input.amount,
+          paymentMethod: payment,
+          status: input.pending ? "PENDIENTE" : "COMPLETADA",
+          soldAt: input.soldAt,
+          customFields: { seed: SEED },
+        },
+      });
     });
 
     if (!input.pending) {
@@ -359,22 +364,26 @@ async function main() {
     const received = MODELS[tradeSerial % MODELS.length];
     const given = MODELS[(tradeSerial + 2) % MODELS.length];
     const tradeAt = atNoon(tradeIn.daysAgo);
-    await prisma.tradeIn.create({
-      data: {
-        storeId,
-        clientId: clients[tradeSerial % clients.length].id,
-        dateLabel: dateLabel(tradeAt),
-        deviceReceived: `${received.model} ${received.capacity}`,
-        deviceReceivedImei: imei(80_000 + tradeSerial),
-        takeValue: Math.round(tradeIn.difference * 1.8),
-        deviceGiven: `${given.model} ${given.capacity}`,
-        differencePaid: tradeIn.difference,
-        status: tradeIn.status,
-        batteryHealth: "86%",
-        grade: "A",
-        tradeAt,
-        customFields: { seed: SEED },
-      },
+    await prisma.$transaction(async (tx) => {
+      const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
+      await tx.tradeIn.create({
+        data: {
+          tradeNumber,
+          storeId,
+          clientId: clients[tradeSerial % clients.length].id,
+          dateLabel: dateLabel(tradeAt),
+          deviceReceived: `${received.model} ${received.capacity}`,
+          deviceReceivedImei: imei(80_000 + tradeSerial),
+          takeValue: Math.round(tradeIn.difference * 1.8),
+          deviceGiven: `${given.model} ${given.capacity}`,
+          differencePaid: tradeIn.difference,
+          status: tradeIn.status,
+          batteryHealth: "86%",
+          grade: "A",
+          tradeAt,
+          customFields: { seed: SEED },
+        },
+      });
     });
     tradeSerial += 1;
   }
@@ -385,22 +394,26 @@ async function main() {
       const tradeAt = onDay(today.year, month, 6 + index * 7);
       const received = MODELS[(month + index) % MODELS.length];
       const given = MODELS[(month + index + 1) % MODELS.length];
-      await prisma.tradeIn.create({
-        data: {
-          storeId,
-          clientId: clients[(month + index) % clients.length].id,
-          dateLabel: dateLabel(tradeAt),
-          deviceReceived: `${received.model} ${received.capacity}`,
-          deviceReceivedImei: imei(90_000 + month * 10 + index),
-          takeValue: 400_000 + month * 20_000,
-          deviceGiven: `${given.model} ${given.capacity}`,
-          differencePaid: 120_000 + index * 40_000 + month * 8_000,
-          status: statuses[index],
-          batteryHealth: "84%",
-          grade: "B",
-          tradeAt,
-          customFields: { seed: SEED },
-        },
+      await prisma.$transaction(async (tx) => {
+        const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
+        await tx.tradeIn.create({
+          data: {
+            tradeNumber,
+            storeId,
+            clientId: clients[(month + index) % clients.length].id,
+            dateLabel: dateLabel(tradeAt),
+            deviceReceived: `${received.model} ${received.capacity}`,
+            deviceReceivedImei: imei(90_000 + month * 10 + index),
+            takeValue: 400_000 + month * 20_000,
+            deviceGiven: `${given.model} ${given.capacity}`,
+            differencePaid: 120_000 + index * 40_000 + month * 8_000,
+            status: statuses[index],
+            batteryHealth: "84%",
+            grade: "B",
+            tradeAt,
+            customFields: { seed: SEED },
+          },
+        });
       });
     }
   }
