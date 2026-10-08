@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useCatalogs } from '../catalog';
 import { formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
@@ -15,21 +16,13 @@ const DEFAULT_STATUSES = [
 ];
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, operationDrafts = [], loadOperationDrafts } = useAppContext();
+  const { tradeIns, clients, operationDrafts = [] } = useAppContext();
   const catalogs = useCatalogs();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
-  const [draftError, setDraftError] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof loadOperationDrafts !== 'function') return;
-    let active = true;
-    loadOperationDrafts('tradeins').catch((error: unknown) => {
-      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
-    });
-    return () => { active = false; };
-  }, []);
+  const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
   const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
 

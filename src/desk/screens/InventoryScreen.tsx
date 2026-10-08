@@ -11,6 +11,7 @@ import {
   type InventoryColumnFilters,
 } from '../inventory-filters';
 import { TablePager, usePagedRows } from '../pager';
+import { useOperationDraftError } from '../operation-drafts';
 import { priceListMessage } from '../price-list';
 import { Actions, Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
 
@@ -29,7 +30,7 @@ const BATTERY_FILTERS = [
 ] as const;
 
 export function InventoryScreen() {
-  const { inventory, appSession, operationDrafts = [], loadOperationDrafts } = useAppContext();
+  const { inventory, appSession, operationDrafts = [] } = useAppContext();
   const catalogs = useCatalogs();
   const { open, toast } = useDesk();
   const [query, setQuery] = useState('');
@@ -38,15 +39,7 @@ export function InventoryScreen() {
   const [sort, setSort] = useState('Recientes');
   const [listOpen, setListOpen] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof loadOperationDrafts !== 'function') return;
-    let active = true;
-    loadOperationDrafts('inventory').catch((error: unknown) => {
-      if (active) setDraftError(error instanceof Error ? error.message : 'No se pudieron cargar los borradores.');
-    });
-    return () => { active = false; };
-  }, []);
+  const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
 
   useEffect(() => {
