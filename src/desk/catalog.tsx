@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
+import { ImanagerIcon } from './icons';
 
 const PALETTE = [
   ['#25A66A', 'Verde'], ['#0F9D8A', 'Turquesa'], ['#3B82F6', 'Azul'],
@@ -166,7 +167,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
       <div className={`dialog stx${colored ? '' : ' nc'}`} role="dialog" aria-modal="true" aria-label={meta.title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="stx-h">
           <h3>{meta.title}</h3>
-          <button type="button" className="stx-x" aria-label="Cerrar" disabled={busy} onClick={close}>×</button>
+          <button type="button" className="stx-x" aria-label="Cerrar" disabled={busy} onClick={close}><ImanagerIcon name="cerrar" size={16} /></button>
         </div>
         <p className="stx-sub">{colored ? 'Tocá el color para cambiarlo. ' : ''}Si renombrás, se actualizan los {meta.noun[1]} que {thing.startsWith('esta') ? 'la' : 'lo'} usan.</p>
         <div className="stx-list" ref={listRef}>
@@ -188,7 +189,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
                     if (openColor === row.key) setOpenColor(null);
                     const fallback = kept.find((candidate) => candidate.key !== row.key);
                     setRows((current) => current.map((item) => item.key === row.key ? { ...item, deleted: !item.deleted, reassignTo: !item.deleted && fallback ? (fallback.value || fallback.label) : undefined } : item));
-                  }}>{row.deleted ? 'Deshacer' : <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>}</button>
+                  }}>{row.deleted ? 'Deshacer' : <ImanagerIcon name="borrar" size={16} />}</button>
                 )}
               </div>
               {openColor === row.key && colored && !row.deleted ? (

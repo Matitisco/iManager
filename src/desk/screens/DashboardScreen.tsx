@@ -15,6 +15,7 @@ import {
   tradeClientLabel,
   tradeCode,
 } from '../format';
+import { ImanagerIcon } from '../icons';
 import { DeskCta, DeskIcon, Pill, PressTarget, useDesk } from '../ui';
 
 const TASKS = [
@@ -166,20 +167,20 @@ export function DashboardScreen() {
             <div className="sub">{monthSales.length} ventas{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</div>
           </button>
           <button className="mini" type="button" onClick={() => go('inventory')}>
-            <div className="ico"><DeskIcon name="logo" size={22} /></div>
+            <div className="ico"><ImanagerIcon name="equipo" size={20} /></div>
             <div className="eyebrow">En stock</div>
             <div className="val">{inventory.length} equipos</div>
             <div className="sub">{available} disponibles</div>
             <div className="budget"><i style={{ width: `${stockPct}%` }} /></div>
           </button>
           <button className="mini" type="button" onClick={() => go('tradeins')}>
-            <div className="ico"><DeskIcon name="swap" size={22} /></div>
+            <div className="ico"><ImanagerIcon name="canje" size={20} /></div>
             <div className="eyebrow">Canjes en curso</div>
             <div className="val">{openTrades.length}</div>
             <div className="sub">{tradeIns.length} en total</div>
           </button>
           <button className="mini" type="button" onClick={() => go('clients')}>
-            <div className="ico"><DeskIcon name="user" size={22} /></div>
+            <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
             <div className="val">{formatMoneyCompact(balanceTotal)}</div>
             <div className="sub">{balance.length} clientes</div>

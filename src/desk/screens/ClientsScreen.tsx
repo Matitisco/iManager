@@ -14,6 +14,7 @@ import {
 import { avatarTone, formatInputMoney, formatMoney, formatMoneyCompact, formatShortDate, initials, parseMoney } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
+import { ImanagerIcon } from '../icons';
 import { ChipRow, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
@@ -56,9 +57,7 @@ export function ClientsScreen() {
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
           <ImportButton onClick={() => open({ type: 'import', kind: 'cl' })} />
           <button className="dbtn s" type="button" onClick={() => open({ type: 'new-cl' })}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <ImanagerIcon name="agregar" size={16} />
             Nuevo cliente
           </button>
         </div>

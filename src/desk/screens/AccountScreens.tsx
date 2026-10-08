@@ -6,6 +6,7 @@ import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
 import { formatArDate, initials, relTime } from '../format';
 import { unreadBySection, type NoticeSection } from '../unread-count';
+import { ImanagerIcon, notificationIcon } from '../icons';
 import { ChipRow, DeskIcon, PageHead, useDesk } from '../ui';
 
 const SECTION_LABEL: Record<NoticeSection, string> = {
@@ -68,7 +69,7 @@ export function NotificationsScreen() {
             const seen = !!note.readAt;
             return (
               <button key={note.id} className="member" type="button" onClick={() => void mark(note.id, note.section, note.recordId, note.kind)}>
-                <div className={'ico-row' + (seen ? '' : ' l')}><DeskIcon name="note" size={18} /></div>
+                <div className={'ico-row' + (seen ? '' : ' l')}><ImanagerIcon name={notificationIcon(note)} size={20} active={!seen} /></div>
                 <div className="info"><div className="name">{note.title}</div><div className="role">{note.message} {'\u00b7'} {relTime(note.createdAt)} {'\u00b7'} {sectionLabel(note.section)}</div></div>
                 {seen ? <span className="chev">&rsaquo;</span> : <span className="unread" />}
               </button>
@@ -185,7 +186,7 @@ export function SettingsScreen() {
         )}
         <div className="sec">Mi cuenta</div>
         <div className="card">
-          <MRow icon={<DeskIcon name="user" size={18} />} title="Perfil" sub={`${me?.displayName || 'Usuario'} · ${me?.email || ''}`} onClick={() => open({ type: 'profile' })} />
+          <MRow icon={<ImanagerIcon name="cliente" size={20} />} title="Perfil" sub={`${me?.displayName || 'Usuario'} · ${me?.email || ''}`} onClick={() => open({ type: 'profile' })} />
           <MRow icon={<DeskIcon name="lock" size={18} />} title="Seguridad" sub="Cambiar contraseña" onClick={() => open({ type: 'password' })} />
           <MRow icon={<DeskIcon name="card" size={18} />} title="Facturación" sub="Usuario Beta" right="Acceso anticipado" onClick={() => toast('Estás en el acceso anticipado.')} />
         </div>

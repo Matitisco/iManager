@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ImanagerIcon } from './icons';
 import { novedadesLabel } from './section-notices';
 import { PressTarget } from './ui';
 
@@ -6,7 +7,7 @@ export function NoticesBar({ count, active, onToggle }: { count: number; active:
   if (count <= 0) return null;
   return (
     <button className={`novedades${active ? ' on' : ''}`} type="button" data-testid="section-notices" aria-pressed={active} onClick={onToggle}>
-      <span>{novedadesLabel(count)}</span>
+      <span className="novedades-lead"><ImanagerIcon name="novedad" size={20} active />{novedadesLabel(count)}</span>
       <small>{active ? 'Ver todas' : 'Ver'}</small>
     </button>
   );
