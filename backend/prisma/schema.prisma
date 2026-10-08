@@ -130,6 +130,8 @@ model InventoryItem {
   batteryHealth String             @db.VarChar(50)
   cost          Decimal            @db.Decimal(12, 2)
   price         Decimal            @db.Decimal(12, 2)
+  // The desk UI no longer edits quantity, but production rows still store it.
+  quantity      Int                @default(1)
   status        String             @db.VarChar(20)
   archivedAt    DateTime?
   pendingSaleRegistration Boolean  @default(false)
