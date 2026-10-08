@@ -82,7 +82,11 @@ describe("repair orders", () => {
     const hidden = await app.inject({ method: "GET", url: `/api/repairs/${orderId}`, headers: otherHeaders });
     expect(hidden.statusCode).toBe(404);
 
-    const removed = await app.inject({ method: "DELETE", url: `/api/repairs/${orderId}`, headers: ownerHeaders });
+    const removed = await app.inject({
+      method: "DELETE",
+      url: `/api/repairs/${orderId}`,
+      headers: buildAuthHeaders({ uid: owner.user.firebaseUid, email: owner.user.email ?? undefined, name: "Dueño Ejemplo" }),
+    });
     expect(removed.statusCode).toBe(204);
     expect(await prisma.repairOrder.count({ where: { storeId: owner.store!.id } })).toBe(0);
     expect(await prisma.repairStatusEvent.count({ where: { storeId: owner.store!.id } })).toBe(0);
