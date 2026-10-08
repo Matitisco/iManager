@@ -142,7 +142,7 @@ test('a linked canje edit updates both records and cancellation keeps the client
   await page.getByRole('row').filter({ hasText: received }).click();
   let detail = page.getByRole('dialog');
   await expect(detail.getByText('Canje confirmado')).toBeVisible();
-  await detail.getByRole('button', { name: 'Editar' }).click();
+  await detail.getByRole('button', { name: 'Editar', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Editar operación' });
   await dialog.getByRole('combobox', { name: 'Equipo' }).fill('Equipo libre editado');
   await dialog.getByLabel('Valor tomado').fill('1100');
@@ -158,7 +158,15 @@ test('a linked canje edit updates both records and cancellation keeps the client
 
   await page.getByRole('row').filter({ hasText: received }).click();
   detail = page.getByRole('dialog');
+  await expect(detail.getByRole('button', { name: 'Peritaje téc.' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'En revisión' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'Aprobado' })).toBeVisible();
+  await detail.getByRole('button', { name: 'Peritaje téc.' }).click();
+  await detail.getByRole('button', { name: 'Guardar estado' }).click();
+  await expect.poll(async () => (await fetchTradeIns(request, email)).tradeIns[0]?.status).toBe('PERITAJE TÉC.');
   await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await expect(page.getByRole('dialog', { name: 'Cancelar operación' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Cancelar operación' }).getByRole('button', { name: 'Cancelar operación' }).click();
   await expect(page.getByText(/Operación cancelada/).last()).toBeVisible();
   const afterCancelSales = await fetchSales(request, email);
   expect(afterCancelSales.sales[0]?.status).toBe('CANCELADA');
@@ -188,6 +196,11 @@ test('a cancellation notification survives reload, opens the archived received d
   await page.getByRole('row').filter({ hasText: received }).click();
   const detail = page.getByRole('dialog');
   await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
+  await confirm.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(detail.getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
+  await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
   await expect(detail).toBeHidden();
   await page.reload();
 

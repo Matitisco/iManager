@@ -83,6 +83,27 @@ const CJ_STATUS = [
   { id: 'LISTO', label: 'Completado', color: '#0F9D8A' },
   { id: 'RECHAZADO', label: 'Rechazado', color: '#DC4C4C' },
 ];
+
+function ConfirmOperationDialog({ label, busy, error, onClose, onOk }: {
+  label: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onOk: () => void;
+}) {
+  return (
+    <Dialog
+      title="Cancelar operación"
+      text={`${label} se cancelará y quedará en el historial.`}
+      ok="Cancelar operación"
+      danger
+      busy={busy}
+      error={error}
+      onClose={onClose}
+      onOk={onOk}
+    />
+  );
+}
 export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
   if (!overlay) return null;
   if (overlay.type === 'ctx') return <ContextMenu overlay={overlay} />;
@@ -594,10 +615,22 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const { close, open, toast } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
   if (!sale) return null;
+  if (confirmCancel) {
+    return (
+      <ConfirmOperationDialog
+        label={saleCode(sale)}
+        busy={busy}
+        error={error}
+        onClose={() => { if (!busy) setConfirmCancel(false); }}
+        onOk={() => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada'); }}
+      />
+    );
+  }
   const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
   const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
   return (
@@ -624,7 +657,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       ) : (
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada')}>Cancelar operación</button> : null}
+          {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
             const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
@@ -703,12 +736,15 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
 }
 
 function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormProps & { id: string; source?: OperationSource; kind?: string }) {
-  const { tradeIns, sales, clients, updateTradeIn, cancelTradeOperation, fetchTradeOperation } = useAppContext();
+  const { tradeIns, sales, clients, updateTradeIn, updateTradeOperation, cancelTradeOperation, fetchTradeOperation } = useAppContext();
   const { close, open } = useDesk();
+  const catalogs = useCatalogs();
   const archivedReceivedLink = kind === 'ARCHIVED_TRADE_IN_RECEIVED';
   const [loadedOperation, setLoadedOperation] = useState<Awaited<ReturnType<typeof fetchTradeOperation>> | null>(null);
   const trade = tradeIns.find((item) => item.id === id) ?? loadedOperation?.tradeIn;
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [technicalStatus, setTechnicalStatus] = useState(trade?.status || 'PENDIENTE');
+  const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     if (archivedReceivedLink || !trade || trade.confirmationStatus != null) {
       void fetchTradeOperation(source, id)
@@ -716,6 +752,9 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         .catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar el canje.')));
     }
   }, [id, source, archivedReceivedLink, trade?.confirmationStatus]);
+  useEffect(() => {
+    setTechnicalStatus(trade?.status || 'PENDIENTE');
+  }, [trade?.id, trade?.status]);
   if (!trade && !detailError) return <Sheet title="Cargando registro" onClose={close}><div className="wempty">Cargando detalle...</div></Sheet>;
   if (!trade) return <Sheet title="Registro no disponible" onClose={close}><div className="ferr">{detailError}</div></Sheet>;
   const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
@@ -736,10 +775,48 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
     );
   }
   if (trade.confirmationStatus != null) {
+    const knownStatuses = catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS);
+    const technicalOptions = !technicalStatus || knownStatuses.some((option) => option.id === technicalStatus)
+      ? knownStatuses
+      : [...knownStatuses, { id: technicalStatus, label: statusLabel(technicalStatus) || technicalStatus }];
+    const saveTechnicalStatus = () => {
+      if (technicalStatus === trade.status) return;
+      void run(
+        async () => await updateTradeOperation(source, id, {
+          tradeIn: {
+            deviceReceived: trade.deviceReceived,
+            takeValue: trade.takeValue,
+            status: technicalStatus,
+            ...(trade.deviceReceivedImei ? { deviceReceivedImei: trade.deviceReceivedImei } : {}),
+            ...(trade.batteryHealth != null ? { batteryHealth: trade.batteryHealth } : {}),
+            ...(trade.grade != null ? { grade: trade.grade } : {}),
+            ...(trade.customFields ? { customFields: trade.customFields } : {}),
+          },
+        }),
+        'Estado técnico actualizado',
+        { keepOpen: true },
+      );
+    };
+    if (confirmCancel) {
+      return (
+        <ConfirmOperationDialog
+          label={tradeCode(tradeIns, trade.id)}
+          busy={busy}
+          error={error}
+          onClose={() => { if (!busy) setConfirmCancel(false); }}
+          onOk={() => { void run(async () => await cancelTradeOperation(source, id), 'Operación cancelada'); }}
+        />
+      );
+    }
     return (
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close}>
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
+        {trade.confirmationStatus !== 'CANCELLED' ? (
+          <>
+            <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
+          </>
+        ) : null}
         <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
         {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
         <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
@@ -751,9 +828,10 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         </> : null}
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 s" type="button" disabled={busy || technicalStatus === trade.status} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button> : null}
           {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button> : null}
           {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button> : null}
-          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await cancelTradeOperation(source, id), 'Operación cancelada')}>Cancelar operación</button> : null}
+          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
         </div>
       </Sheet>
     );

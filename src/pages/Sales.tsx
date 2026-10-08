@@ -349,7 +349,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
           { value: 'TRANSFERENCIA', label: 'Transferencia' },
           { value: 'TARJETA', label: 'Tarjeta' },
           { value: 'CANJE / PAGO', label: 'Canje / Pago' },
-          { value: 'T. CrÃ©dito', label: 'T. CrÃ©dito' },
+          { value: 'T. Crédito', label: 'T. Crédito' },
         ],
       },
       // status: engine auto-derives from ColDef enumOptions (COMPLETADA / PENDIENTE)
