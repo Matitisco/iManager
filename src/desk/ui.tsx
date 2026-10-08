@@ -330,7 +330,7 @@ export function ImportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-type DeskIconName = 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'percent';
+type DeskIconName = 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'percent' | 'wrench' | 'board' | 'alert' | 'cal';
 
 export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIconName; size?: number; strokeWidth?: number }) {
   return (
@@ -351,6 +351,10 @@ export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIco
       {name === 'gear' && <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></>}
       {name === 'edit' && <><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>}
       {name === 'trash' && <path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" />}
+      {name === 'wrench' && <path d="M14.7 6.3a4.5 4.5 0 0 0-6.2 6.1L3.5 17.4a1.6 1.6 0 0 0 2.2 2.2l5-5a4.5 4.5 0 0 0 6.1-6.2L14 11l-2-2z" />}
+      {name === 'board' && <><rect x="3" y="4" width="5" height="16" rx="1.4" /><rect x="10" y="4" width="5" height="11" rx="1.4" /><rect x="17" y="4" width="4" height="7" rx="1.4" /></>}
+      {name === 'alert' && <path d="M12 4l8 14H4zM12 10v4M12 16.5h.01" />}
+      {name === 'cal' && <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3.5V7M16 3.5V7M4 10h16" /></>}
     </svg>
   );
 }

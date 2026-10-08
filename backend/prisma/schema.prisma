@@ -51,6 +51,7 @@ model Store {
   accessories         Accessory[]
   commissionRules     CommissionRule[]
   commissionPayments  CommissionPayment[]
+  repairOrders        RepairOrder[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -90,6 +91,7 @@ model Client {
   sales          Sale[]
   tradeIns       TradeIn[]
   payments       ClientPayment[]
+  repairOrders   RepairOrder[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -304,6 +306,47 @@ enum CatalogKind {
   SALE_STATUS
   TRADE_IN_STATUS
   CLIENT_TAG
+  REPAIR_STATUS
+}
+
+model RepairOrder {
+  id                String              @id @default(cuid())
+  orderNumber       Int                 @default(autoincrement())
+  storeId           String
+  clientId          String?
+  clientName        String              @db.VarChar(120)
+  device            String              @db.VarChar(120)
+  imei              String              @default("") @db.VarChar(20)
+  fault             String              @default("") @db.Text
+  faultTags         String              @default("") @db.Text
+  estimate          Decimal?            @db.Decimal(12, 2)
+  deposit           Decimal             @default(0) @db.Decimal(12, 2)
+  technician        String              @default("") @db.VarChar(120)
+  status            String              @default("RECIBIDO") @db.VarChar(40)
+  estimatedDelivery DateTime?
+  notifyWhatsapp    Boolean             @default(false)
+  receivedAt        DateTime            @default(now())
+  store             Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client            Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  events            RepairStatusEvent[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([clientId])
+}
+
+model RepairStatusEvent {
+  id        String      @id @default(cuid())
+  storeId   String
+  orderId   String
+  status    String      @db.VarChar(40)
+  order     RepairOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@index([storeId])
+  @@index([orderId, createdAt])
 }
 
 model ClientPayment {

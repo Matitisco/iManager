@@ -15,6 +15,7 @@ const FALLBACK_META: CatalogPayload['meta'] = {
   SALE_STATUS: { title: 'Estados de venta', add: 'Agregar estado', noun: ['venta', 'ventas'] },
   TRADE_IN_STATUS: { title: 'Estados de canje', add: 'Agregar estado', noun: ['canje', 'canjes'] },
   CLIENT_TAG: { title: 'Etiquetas de cliente', add: 'Agregar etiqueta', noun: ['cliente', 'clientes'] },
+  REPAIR_STATUS: { title: 'Estados de servicio', add: 'Agregar estado', noun: ['orden', 'órdenes'] },
 };
 
 type Draft = { key: string; value?: string; label: string; color: string | null; isSystem: boolean; count: number; deleted?: boolean; reassignTo?: string };

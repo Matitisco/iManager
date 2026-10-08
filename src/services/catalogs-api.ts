@@ -8,7 +8,8 @@ export type CatalogKind =
   | 'INVENTORY_CONDITION'
   | 'SALE_STATUS'
   | 'TRADE_IN_STATUS'
-  | 'CLIENT_TAG';
+  | 'CLIENT_TAG'
+  | 'REPAIR_STATUS';
 
 export interface CatalogOption {
   id: string;

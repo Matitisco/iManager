@@ -42,6 +42,9 @@ describe("member sections", () => {
     expect(canAccessSection("commissions", { role: "MANAGER", sections: ["commissions"] })).toBe(true);
     expect(canAccessSection("commissions", { role: "STAFF", sections: null })).toBe(false);
     expect(canAccessSection("commissions", { role: "STAFF", sections: ["commissions"] })).toBe(false);
+    expect(canAccessSection("service", { role: "STAFF", sections: ["service"] })).toBe(true);
+    expect(canAccessSection("service", { role: "STAFF", sections: ["sales"] })).toBe(false);
+    expect(canAccessSection("service", { role: "OWNER", sections: [] })).toBe(true);
   });
 
   it("saves the chosen sections for a staff member and protects the owner", async () => {

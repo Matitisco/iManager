@@ -10,6 +10,7 @@ import { InventoryScreen } from './screens/InventoryScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCount } from './screens/AccountScreens';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
+import { ServiceScreen } from './screens/ServiceScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
 import { BlueDollar } from './BlueDollar';
 import { DeskOverlays } from './DeskOverlays';
@@ -22,7 +23,7 @@ import './desk.css';
 const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
-  clients: 'clientes', commissions: 'comisiones', reports: 'rep', notifications: 'notif', settings: 'config',
+  clients: 'clientes', service: 'servicio', commissions: 'comisiones', reports: 'rep', notifications: 'notif', settings: 'config',
 };
 
 function tabFromHash(hash: string): DeskTab {
@@ -46,7 +47,7 @@ export function DeskApp() {
   const unread = useUnreadCount();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
-  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('commissions'), allowed('reports')].map(Number).join('')}`;
+  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('service'), allowed('commissions'), allowed('reports')].map(Number).join('')}`;
 
   useEffect(() => {
     if (overlayScope.current !== operationScope) {
@@ -127,6 +128,7 @@ export function DeskApp() {
     } else if (target === 'sales') next = { type: 'sale', id: recordId };
     else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
     else if (target === 'clients') next = { type: 'cl', id: recordId };
+    else if (target === 'service') next = { type: 'ot', id: recordId };
     else return;
     setPendingRecordOpen({ tab: target, overlay: next });
     go(target);
@@ -142,12 +144,13 @@ export function DeskApp() {
     isStaff,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'percent' | 'bars'; size: number; meta?: string; nuevo?: boolean }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'percent' | 'bars'; size: number; meta?: string; nuevo?: boolean; star?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
+    { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18, star: true },
     { id: 'commissions', label: 'Comisiones', icon: 'percent', size: 18, nuevo: true },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
   ];
@@ -168,7 +171,7 @@ export function DeskApp() {
                 <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                   <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                   <span>{item.label}</span>
-                  {item.nuevo ? <span className="dnew">Nuevo</span> : item.meta ? <span className="dmeta">{item.meta}</span> : null}
+                  {item.star ? <span className="dstar" aria-hidden="true">★</span> : item.nuevo ? <span className="dnew">Nuevo</span> : item.meta ? <span className="dmeta">{item.meta}</span> : null}
                 </button>
               ))}
             </div>
@@ -196,6 +199,7 @@ export function DeskApp() {
             {tab === 'sales' && <SalesScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
+            {tab === 'service' && <ServiceScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
