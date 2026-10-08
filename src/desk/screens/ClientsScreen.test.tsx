@@ -26,13 +26,32 @@ function client(number: number, overrides: Partial<Client> = {}): Client {
   };
 }
 
-function renderScreen() {
+function renderScreen(open = vi.fn()) {
   return render(
-    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'clients', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <ClientsScreen />
     </DeskProvider>,
   );
 }
+
+describe('New client action', () => {
+  beforeEach(() => {
+    context.clients = [client(1)];
+  });
+
+  it('opens the client form from a secondary button', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const open = vi.fn();
+    renderScreen(open);
+
+    const button = screen.getByRole('button', { name: 'Nuevo cliente' });
+    expect(button).toHaveClass('dbtn', 's');
+    expect(button).not.toHaveClass('p');
+
+    await user.click(button);
+    expect(open).toHaveBeenCalledWith({ type: 'new-cl' });
+  });
+});
 
 describe('Client column filters', () => {
   beforeEach(() => {
