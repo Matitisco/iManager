@@ -185,7 +185,7 @@ export async function listSales(storeId: string) {
   return sales.map(serializeSale);
 }
 
-export async function createSale(storeId: string, input: SaleInput) {
+export async function createSale(storeId: string, input: SaleInput, registeredByUserId?: string | null) {
   return prisma.$transaction(async (tx) => {
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
@@ -236,6 +236,7 @@ export async function createSale(storeId: string, input: SaleInput) {
         categoryId: input.categoryId ?? null,
         customFields: normalizeCustomFields(input.customFields),
         soldAt,
+        registeredByUserId: registeredByUserId || null,
       },
     });
 
@@ -469,7 +470,8 @@ const VALID_PAYMENT_METHODS = [
 
 export async function importSales(
   storeId: string,
-  rows: SaleImportRow[]
+  rows: SaleImportRow[],
+  registeredByUserId?: string | null,
 ): Promise<SaleImportResult> {
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
@@ -522,6 +524,7 @@ export async function importSales(
             paymentMethod,
             status,
             soldAt,
+            registeredByUserId: registeredByUserId || null,
           },
         });
 

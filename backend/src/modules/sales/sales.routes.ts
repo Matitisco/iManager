@@ -81,7 +81,7 @@ export async function salesRoutes(app: FastifyInstance) {
         status:        z.string().trim().optional(),
       });
       const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);
-      const result = await importSales(request.appUser.storeId, rows);
+      const result = await importSales(request.appUser.storeId, rows, request.appUser.userId);
       return reply.code(200).send(result);
     }
   );
@@ -208,7 +208,7 @@ export async function salesRoutes(app: FastifyInstance) {
       const body = saleCreateSchema.parse(request.body) as Parameters<typeof createSale>[1];
 
       try {
-        const operation = await createOperation(request.appUser.storeId, "sales", body);
+        const operation = await createOperation(request.appUser.storeId, "sales", body, request.appUser.userId);
         return reply.code(201).send(operation);
       } catch (error) {
         const operationError = getOperationErrorStatus(error);

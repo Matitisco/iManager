@@ -4,6 +4,7 @@ export const DESK_SECTIONS = [
   { id: 'sales', label: 'Ventas' },
   { id: 'tradeins', label: 'Canjes' },
   { id: 'clients', label: 'Clientes' },
+  { id: 'commissions', label: 'Comisiones' },
   { id: 'reports', label: 'Reportes' },
   { id: 'notifications', label: 'Notificaciones' },
 ] as const;
@@ -19,6 +20,6 @@ export function visibleSections(stored: string[] | null | undefined, role?: stri
 
 export function canOpenSection(id: string, stored: string[] | null | undefined, role?: string | null) {
   if (id === 'settings') return true;
-  if (role === 'STAFF' && id === 'reports') return false;
+  if (role === 'STAFF' && (id === 'reports' || id === 'commissions')) return false;
   return visibleSections(stored, role).includes(id as DeskSectionId);
 }

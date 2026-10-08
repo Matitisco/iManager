@@ -17,6 +17,7 @@ import { catalogsRoutes } from "./modules/catalogs/catalogs.routes.js";
 import { operationsRoutes } from "./modules/operations/operations.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { accessoriesRoutes } from "./modules/accessories/accessories.routes.js";
+import { commissionsRoutes } from "./modules/commissions/commissions.routes.js";
 import { env } from "./config/env.js";
 
 export function buildApp() {
@@ -58,6 +59,7 @@ export function buildApp() {
   app.register(operationsRoutes, { prefix: "/api/operations" });
   app.register(notificationsRoutes, { prefix: "/api/notifications" });
   app.register(accessoriesRoutes, { prefix: "/api/accessories" });
+  app.register(commissionsRoutes, { prefix: "/api/commissions" });
 
   return app;
 }

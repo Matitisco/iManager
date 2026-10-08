@@ -4,6 +4,7 @@ export type DeskTab =
   | 'sales'
   | 'tradeins'
   | 'clients'
+  | 'commissions'
   | 'reports'
   | 'notifications'
   | 'settings';

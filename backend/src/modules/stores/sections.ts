@@ -4,14 +4,17 @@ export const SECTION_IDS = [
   "sales",
   "tradeins",
   "clients",
+  "commissions",
   "reports",
   "notifications",
 ] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
 
+const STAFF_BLOCKED = new Set<SectionId>(["reports", "commissions"]);
+
 export function canAccessSection(section: SectionId, member: { role: string; sections?: unknown }): boolean {
-  if (section === "reports" && member.role === "STAFF") return false;
+  if (member.role === "STAFF" && STAFF_BLOCKED.has(section)) return false;
   if (member.role === "OWNER" || member.sections == null) return true;
   const sections = normalizeSections(member.sections);
   return sections?.includes(section) ?? true;

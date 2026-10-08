@@ -51,6 +51,7 @@
 .ditem.on .dic { color: #16181D; }
 .dcount { margin-left: auto; min-width: 20px; height: 20px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
 .dmeta { margin-left: auto; font-size: 12px; color: var(--secondary); font-weight: 700; }
+.dnew { margin-left: auto; background: var(--lime); color: var(--primary); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; }
 .dnav { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
 .dnav::-webkit-scrollbar { display: none; }
 .duser { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; width: 100%; text-align: left; }
@@ -584,9 +585,45 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar-acts .btn2 svg { width: 16px; height: 16px; }
 .btn2.ghost-danger { background: #fff; color: var(--err); border: 1.5px solid #F3C7C7; box-shadow: none; }
 
+.ckpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.ckpi { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 16px 18px; min-width: 0; }
+.ckpi .eyebrow { margin-bottom: 8px; }
+.ckpi .val { font-size: 28px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.ckpi .sub { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--secondary); }
+.ckpi .sub.ok { color: var(--ok); }
+.ypill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--lime); color: var(--primary); font-size: 12px; font-weight: 800; }
+.cpay { height: 34px; padding: 0 12px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 800; }
+.cpay.s { background: #fff; color: var(--primary); border: 1px solid var(--border); }
+.cpay:disabled { opacity: .55; }
+.comm-sheet { width: min(760px, calc(100vw - 48px)); }
+.cperson { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.cperson b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.cperson small { display: block; margin-top: 2px; color: var(--secondary); font-size: 13px; font-weight: 600; }
+.cstats { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 10px; margin-bottom: 14px; }
+.cstat { background: var(--row); border-radius: 16px; padding: 12px 14px; }
+.cstat.hot { background: var(--lime-soft); }
+.cstat span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--section); }
+.cstat b { display: block; margin-top: 4px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.crule { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 2px 12px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.crule b { display: block; font-size: 14px; }
+.crule small { color: var(--secondary); font-weight: 600; }
+.cmore { text-align: center; color: var(--secondary); font-size: 13px; font-weight: 700; padding: 10px 0 2px; }
+.comm-check { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.comm-check input { width: 18px; height: 18px; accent-color: var(--primary); }
+.comm-preview { background: var(--lime-soft); border-radius: 16px; padding: 14px 16px; margin-bottom: 8px; }
+.comm-preview span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); margin-bottom: 4px; }
+.comm-preview b { font-size: 14px; font-weight: 700; line-height: 1.4; }
+.comm-note { font-size: 12px; font-weight: 600; color: var(--secondary); line-height: 1.45; margin: 4px 0 12px; }
+.comm-empty { padding: 28px 20px; text-align: center; color: var(--secondary); font-weight: 700; }
+.dtable tfoot td { font-weight: 800; border-top: 1px solid var(--border); background: #fff; }
+.dtable tr.static { cursor: default; }
+.dtable tr.static:hover { background: transparent; }
+.paid { color: var(--ok); font-weight: 800; }
+
 @media (max-width: 1100px) {
   .dgrid.dash, .dgrid.two { grid-template-columns: 1fr; }
   .dstats { grid-template-columns: 1fr 1fr; }
   .sale-split { grid-template-columns: 1fr; }
   .xsearch { width: 220px; }
+  .ckpis { grid-template-columns: 1fr 1fr; }
 }
