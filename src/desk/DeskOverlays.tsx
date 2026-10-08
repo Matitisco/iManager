@@ -331,6 +331,10 @@ function operationMoneyValue(value: number | null | undefined) {
   return value == null ? '' : formatInputMoney(value) || '0';
 }
 
+function listedSalePrice(price: number | null | undefined) {
+  return price && price > 0 ? formatInputMoney(price) : '';
+}
+
 function operationMoneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
@@ -366,7 +370,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [deviceLabel, setDeviceLabel] = useState(currentSale?.deviceLabel || currentTrade?.draftDeviceLabel || (linkedProduct ? equipmentTitle(linkedProduct.model, linkedProduct.capacity) : ''));
   const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
-  const [amount, setAmount] = useState(operationMoneyValue(currentSale?.amount ?? currentTrade?.draftAmount ?? linkedProduct?.price));
+  const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
+  const [amount, setAmount] = useState(seededAmount != null ? operationMoneyValue(seededAmount) : listedSalePrice(linkedProduct?.price));
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
@@ -430,7 +435,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       update('productId', () => setProductId(linkedProduct.id));
       update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
       if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
-        update('amount', () => setAmount(formatInputMoney(linkedProduct.price)));
+        update('amount', () => setAmount(listedSalePrice(linkedProduct.price)));
       }
     }
   }, [currentSale, currentTrade, linkedProduct, clients]);
@@ -441,7 +446,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const equipmentItems: (OperationProductOption | Product)[] = [
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
-  ].filter((item) => item.id === productId || (item.price > 0 && (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status)))));
+  ].filter((item) => item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
   const difference = parseMoney(amount) - parseMoney(take);
   const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
 
@@ -480,7 +485,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       if (source === 'clients' && !clientId) next.client = 'Elegí un cliente existente de la lista';
       if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
       if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
-      if (!amount.trim()) next.amount = 'Completá el precio de salida';
+      if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) next.amount = 'Completá el precio de salida';
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
       if (hasTrade && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
@@ -545,7 +550,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         linked={Boolean(selectedProduct)}
         error={bad.equipment}
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(operationMoneyValue(item.price)); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(listedSalePrice(item.price)); clearBad(setBad, 'equipment'); }}
       />
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
@@ -568,6 +573,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         </>
       ) : null}
       <Field label="Precio completo de salida" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />

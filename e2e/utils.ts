@@ -212,6 +212,35 @@ export async function fetchTradeIns(request: APIRequestContext, email: string) {
   };
 }
 
+export async function importInventoryViaApi(
+  request: APIRequestContext,
+  email: string,
+  input: { imei: string; model: string; price: number; cost?: number },
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/inventory/import`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: {
+      rows: [{
+        imei: input.imei,
+        model: input.model,
+        capacity: '128GB',
+        color: 'Negro',
+        condition: 'USADO',
+        grade: 'A',
+        batteryHealth: '90%',
+        cost: input.cost ?? 0,
+        price: input.price,
+        status: 'DISPONIBLE',
+      }],
+    },
+  });
+  const body = await assertOk(response, 'Import inventory');
+  return JSON.parse(body) as { imported: number; updated: number; errors: Array<{ message: string }> };
+}
+
 export async function createInventoryItemViaApi(
   request: APIRequestContext,
   email: string,

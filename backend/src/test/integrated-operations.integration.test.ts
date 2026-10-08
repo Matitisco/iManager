@@ -214,27 +214,88 @@ describe("integrated operation API", () => {
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: receivedId } })).archivedAt).toBeNull();
   });
 
-  it("rejects zero-priced outgoing stock during both sale creation and draft confirmation", async () => {
+  it("registers a sale for a zero-price device using the operation amount", async () => {
     const app = getApp();
     const context = await seedStoreContext();
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
     await prisma.inventoryItem.update({ where: { id: fixture.inventoryItem.id }, data: { price: 0 } });
-    const sale = await app.inject({ method: "POST", url: "/api/operations/sales", headers, payload: {
-      productId: fixture.inventoryItem.id, clientId: fixture.client.id, amount: 1000,
-    } });
-    expect(sale.statusCode).toBe(409);
+    const marked = await app.inject({ method: "PATCH", url: `/api/inventory/${fixture.inventoryItem.id}`, headers, payload: { status: "VENDIDO", price: 0 } });
+    expect(marked.statusCode).toBe(200);
+    expect(marked.json().inventoryItem).toMatchObject({ status: "VENDIDO", pendingSaleRegistration: true, price: 0 });
 
-    await prisma.inventoryItem.update({ where: { id: fixture.inventoryItem.id }, data: { price: 1200 } });
+    const options = await app.inject({ method: "GET", url: "/api/operations/inventory/options", headers });
+    expect(options.statusCode).toBe(200);
+    expect(options.json().products).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: fixture.inventoryItem.id, price: 0, pendingSaleRegistration: true }),
+    ]));
+
+    const sale = await app.inject({ method: "POST", url: "/api/operations/inventory", headers, payload: {
+      productId: fixture.inventoryItem.id, clientId: fixture.client.id, amount: 1000, paymentMethod: "EFECTIVO", status: "COMPLETADA",
+    } });
+    expect(sale.statusCode).toBe(201);
+    expect(sale.json().sale).toMatchObject({ amount: 1000, productId: fixture.inventoryItem.id });
+    expect(sale.json().inventory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: fixture.inventoryItem.id, price: 1000, status: "VENDIDO", pendingSaleRegistration: false }),
+    ]));
+    const stored = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } });
+    expect(stored.price.toNumber()).toBe(1000);
+    expect(stored.pendingSaleRegistration).toBe(false);
+
+    const second = await prisma.inventoryItem.create({ data: {
+      storeId: context.store!.id, model: "iPhone sin precio", capacity: "128GB", color: "Black", condition: "USADO", grade: "A", batteryHealth: "90%", cost: 400, price: 0, status: "DISPONIBLE",
+    } });
     const draft = await app.inject({ method: "POST", url: "/api/operations/tradeins", headers, payload: {
-      productId: fixture.inventoryItem.id, clientId: fixture.client.id, amount: 1000, draft: true,
+      productId: second.id, clientId: fixture.client.id, amount: 1100, draft: true,
       tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
     } });
     expect(draft.statusCode).toBe(201);
-    await prisma.inventoryItem.update({ where: { id: fixture.inventoryItem.id }, data: { price: 0 } });
     const confirmed = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${draft.json().tradeIn.id}/confirm`, headers, payload: {} });
-    expect(confirmed.statusCode).toBe(409);
-    expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(0);
+    expect(confirmed.statusCode).toBe(200);
+    expect(confirmed.json().sale.amount).toBe(1100);
+    const confirmedItem = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: second.id } });
+    expect(confirmedItem.status).toBe("VENDIDO");
+    expect(confirmedItem.pendingSaleRegistration).toBe(false);
+    expect(confirmedItem.price.toNumber()).toBe(1100);
+    expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(2);
+  });
+
+  it("registers a sale for a device received in a trade-in", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+    const created = await app.inject({ method: "POST", url: "/api/operations/sales", headers, payload: {
+      clientId: fixture.client.id, productId: fixture.inventoryItem.id, amount: 1200,
+      tradeIn: { deviceReceived: "iPhone recibido", takeValue: 400 },
+    } });
+    expect(created.statusCode).toBe(201);
+    const receivedId = created.json().tradeIn.receivedInventoryItemId as string;
+    const received = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: receivedId } });
+    expect(received.price.toNumber()).toBe(0);
+    expect(received.status).toBe("EN_REVISION");
+
+    const marked = await app.inject({ method: "PATCH", url: `/api/inventory/${receivedId}`, headers, payload: { status: "VENDIDO", price: 0, model: "iPhone recibido" } });
+    expect(marked.statusCode).toBe(200);
+    expect(marked.json().inventoryItem).toMatchObject({ status: "VENDIDO", pendingSaleRegistration: true, price: 0 });
+
+    const options = await app.inject({ method: "GET", url: "/api/operations/inventory/options", headers });
+    expect(options.json().products).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: receivedId, price: 0, pendingSaleRegistration: true }),
+    ]));
+
+    const sale = await app.inject({ method: "POST", url: "/api/operations/inventory", headers, payload: {
+      productId: receivedId, clientName: "Reventa", amount: 900, paymentMethod: "EFECTIVO", status: "COMPLETADA",
+    } });
+    expect(sale.statusCode).toBe(201);
+    expect(sale.json().sale).toMatchObject({ amount: 900, productId: receivedId });
+    expect(sale.json().inventory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: receivedId, price: 900, status: "VENDIDO", pendingSaleRegistration: false }),
+    ]));
+    const stored = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: receivedId } });
+    expect(stored.price.toNumber()).toBe(900);
+    expect(stored.status).toBe("VENDIDO");
+    expect(stored.pendingSaleRegistration).toBe(false);
   });
 
   it("keeps legacy manual sale creation on the shared service when it includes a canje", async () => {
