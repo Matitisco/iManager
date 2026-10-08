@@ -9,6 +9,8 @@ export type DeskTab =
   | 'settings';
 
 export type Overlay =
+  | { type: 'new-acc' }
+  | { type: 'edit-acc'; id: string }
   | { type: 'new-eq' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
@@ -21,8 +23,8 @@ export type Overlay =
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
-  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl'; id: string; label: string }
-  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl'; id: string; label: string; x: number; y: number }
+  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'acc'; id: string; label: string }
+  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'acc'; id: string; label: string; x: number; y: number }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' | 'cj' }
   | { type: 'store' }
   | { type: 'contact' }

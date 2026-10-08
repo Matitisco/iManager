@@ -119,7 +119,9 @@ export function DeskApp() {
     if (target === 'inventory') {
       next = kind === 'ARCHIVED_TRADE_IN_RECEIVED'
         ? { type: 'cj', id: recordId, source: 'inventory', kind }
-        : { type: 'eq', id: recordId };
+        : kind === 'ACCESSORY_LOW_STOCK'
+          ? { type: 'edit-acc', id: recordId }
+          : { type: 'eq', id: recordId };
     } else if (target === 'sales') next = { type: 'sale', id: recordId };
     else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
     else if (target === 'clients') next = { type: 'cl', id: recordId };

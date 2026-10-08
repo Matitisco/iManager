@@ -4,6 +4,8 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
+import { AccessoryError, attachSaleAccessories, restoreSaleAccessories } from "../accessories/accessories.service.js";
+import type { AccessoryLineInput } from "../accessories/accessory-lines.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
 const toNum = (value: number | Decimal) => Number(value instanceof Decimal ? value.toString() : value);
@@ -33,6 +35,7 @@ export type OperationInput = {
     grade?: string | null;
     customFields?: Record<string, unknown> | null;
   };
+  accessories?: AccessoryLineInput[];
 };
 export class OperationError extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -320,6 +323,16 @@ export async function listOperationDrafts(storeId: string, source: OperationSour
   return { tradeIns: tradeIns.map(serializeTrade) };
 }
 
+async function consumeAccessories(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  sale: { id: string; saleNumber: number; deviceLabel?: string | null },
+  lines?: AccessoryLineInput[],
+) {
+  if (!lines?.length) return null;
+  return attachSaleAccessories(tx, storeId, sale, lines);
+}
+
 export async function createOperation(storeId: string, source: OperationSource, input: OperationInput) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
@@ -474,8 +487,12 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, input.status ?? "COMPLETADA", date, 1, dueAmount) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     if (product && !outputState) throw new OperationError("Inventory item not found", 404);
-    const notifications = await notify(tx, storeId, ["sales", ...(product || incoming ? ["inventory"] : []), ...(trade ? ["tradeins"] : []), ...(client ? ["clients"] : [])], trade ? "Canje confirmado" : "Venta registrada", trade ? "Se registró la venta y el equipo recibido." : "Se registró una venta.", { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id });
-    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming }) };
+    const attached = await consumeAccessories(tx, storeId, sale, input.accessories);
+    const notifications = [
+      ...await notify(tx, storeId, ["sales", ...(product || incoming ? ["inventory"] : []), ...(trade ? ["tradeins"] : []), ...(client ? ["clients"] : [])], trade ? "Canje confirmado" : "Venta registrada", trade ? "Se registró la venta y el equipo recibido." : "Se registró una venta.", { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id }),
+      ...(attached?.notifications ?? []),
+    ];
+    return { sale: attached?.lines.length ? { ...serializeSale(sale), accessories: attached.lines } : serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], ...(attached?.accessories.length ? { accessories: attached.accessories } : {}), notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming }) };
   });
 }
 
@@ -598,17 +615,22 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const paymentStatus = input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
     const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, outgoingAmount - takeValue);
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
-    const notifications = await notify(tx, storeId, ["tradeins", "sales", "inventory", "clients"], "Canje confirmado", "Se registro la venta y el equipo recibido.", {
-      tradeins: trade.id,
-      sales: sale.id,
-      inventory: received.id,
-      clients: client.id,
-    });
+    const attached = await consumeAccessories(tx, storeId, sale, input.accessories);
+    const notifications = [
+      ...await notify(tx, storeId, ["tradeins", "sales", "inventory", "clients"], "Canje confirmado", "Se registro la venta y el equipo recibido.", {
+        tradeins: trade.id,
+        sales: sale.id,
+        inventory: received.id,
+        clients: client.id,
+      }),
+      ...(attached?.notifications ?? []),
+    ];
     return {
-      sale: serializeSale(sale, product),
+      sale: attached?.lines.length ? { ...serializeSale(sale, product), accessories: attached.lines } : serializeSale(sale, product),
       tradeIn: serializeTrade({ ...confirmed, saleId: sale.id }),
       inventory: [outputState, received].filter(present).map(serializeProduct),
       clients: updatedClient ? [serializeClient(updatedClient)] : [],
+      ...(attached?.accessories.length ? { accessories: attached.accessories } : {}),
       notifications,
       summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, status: paymentStatus, hasInventory: !!product, received: true }),
     };
@@ -834,10 +856,11 @@ export async function cancelSaleOperation(storeId: string, saleId: string) {
     if (sale.inventoryItemId && sale.integratedOperation) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA" } });
+    const restored = await restoreSaleAccessories(tx, storeId, sale.id);
     const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1) : null;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const notifications = await notify(tx, storeId, ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])], "Venta cancelada", "Se canceló una venta.", { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id });
-    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}` };
+    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], ...(restored.length ? { accessories: restored } : {}), notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}` };
   });
 }
 
@@ -867,6 +890,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string) {
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
     if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
     if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA" } });
+    const restored = sale ? await restoreSaleAccessories(tx, storeId, sale.id) : [];
     if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO" } });
@@ -878,11 +902,14 @@ export async function cancelTradeOperation(storeId: string, tradeId: string) {
       sale?.inventoryItemId ? tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null,
     ]);
     const notifications = await notify(tx, storeId, ["tradeins", ...(sale ? ["sales"] : []), ...(received ? ["inventory"] : []), ...(client ? ["clients"] : [])], "Canje cancelado", "Se canceló un canje; el equipo recibido quedó archivado.", { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: output?.id ?? trade.id, clients: client?.id ?? trade.id });
-    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA" }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}` };
+    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA" }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], ...(restored.length ? { accessories: restored } : {}), notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}` };
   });
 }
 
-export function getOperationErrorStatus(error: unknown) { return error instanceof OperationError ? { statusCode: error.statusCode, message: error.message } : null; }
+export function getOperationErrorStatus(error: unknown) {
+  if (error instanceof OperationError || error instanceof AccessoryError) return { statusCode: error.statusCode, message: error.message };
+  return null;
+}
 export async function isIntegratedSale(storeId: string, saleId: string) {
   return Boolean(await prisma.sale.findFirst({ where: { id: saleId, storeId, integratedOperation: true }, select: { id: true } }));
 }

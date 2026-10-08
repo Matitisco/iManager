@@ -101,11 +101,10 @@ describe('desk required fields', () => {
     ctx.inventory = [product()];
     renderOverlay('new-cj');
 
-    const fields = screen.getAllByRole('combobox');
-    await user.type(fields[0], 'Visitante');
+    await user.type(screen.getByRole('combobox', { name: 'Cliente' }), 'Visitante');
     await user.type(screen.getByLabelText('Equipo recibido'), 'iPhone 11 64GB');
     await user.type(screen.getByLabelText('Valor tomado'), '100');
-    await user.type(fields[1], 'Equipo de salida');
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'Equipo de salida');
     const salePrice = screen.getByLabelText('Precio completo de salida');
     await user.type(salePrice, '50');
     await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
@@ -136,12 +135,11 @@ describe('desk required fields', () => {
     ctx.inventory = [product()];
     renderOverlay('new-cj');
 
-    const fields = screen.getAllByRole('combobox');
-    await user.type(fields[0], '3011');
+    await user.type(screen.getByRole('combobox', { name: 'Cliente' }), '3011');
     await user.click(screen.getByRole('option', { name: /Bruno D\u00edaz/ }));
     await user.type(screen.getByLabelText('Equipo recibido'), 'iPhone 11 64GB');
     await user.type(screen.getByLabelText('Valor tomado'), '100');
-    await user.type(fields[1], 'Equipo de salida');
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'Equipo de salida');
     await user.type(screen.getByLabelText('Precio completo de salida'), '200');
     await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
 

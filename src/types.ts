@@ -49,6 +49,35 @@ export interface Sale {
   tradeInId?: string | null;
   integratedOperation?: boolean;
   requestKey?: string | null;
+  accessories?: SaleAccessoryLine[];
+}
+
+export interface SaleAccessoryLine {
+  accessoryId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface AccessoryMovement {
+  id: string;
+  delta: number;
+  kind: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface Accessory {
+  id: string;
+  name: string;
+  category: string;
+  compatibleWith: string;
+  sku: string;
+  cost: number;
+  price: number;
+  stock: number;
+  minStock: number;
+  movements?: AccessoryMovement[];
 }
 
 export interface OperationProductOption {

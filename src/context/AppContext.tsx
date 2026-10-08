@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory, Accessory } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
 import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
@@ -16,9 +16,15 @@ import { getAuthAdapter } from '../services/auth-adapter';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
 import { canOpenSection } from '../desk/sections';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
+import { createBackendAccessory, deleteBackendAccessory, fetchBackendAccessories, fetchBackendAccessory, updateBackendAccessory, type AccessoryInput } from '../services/accessories-api';
 
 interface AppState {
   inventory: Product[];
+  accessories: Accessory[];
+  addAccessory: (input: AccessoryInput) => Promise<Accessory>;
+  updateAccessory: (id: string, input: AccessoryInput) => Promise<Accessory>;
+  deleteAccessory: (id: string) => Promise<void>;
+  loadAccessory: (id: string) => Promise<Accessory>;
   sales: Sale[];
   salesCategories: SaleCategory[];
   tradeIns: TradeIn[];
@@ -158,6 +164,7 @@ const AppContext = createContext<AppState | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
   const [inventory, setInventory] = useState<Product[]>([]);
+  const [accessories, setAccessories] = useState<Accessory[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
@@ -197,6 +204,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (!user) {
       setInventory([]);
+      setAccessories([]);
       setSales([]);
       setSalesCategories([]);
       setTradeIns([]);
@@ -262,6 +270,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const canAccess = (section: OperationSource | 'reports' | 'notifications') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
   const backendInventoryEnabled = backendReady && canAccess('inventory');
   const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
+  const loadAccessoriesEnabled = backendReady && (canAccess('inventory') || canAccess('sales'));
   const backendClientsEnabled = backendReady && canAccess('clients');
   const backendSalesEnabled = backendReady && canAccess('sales');
   const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
@@ -277,6 +286,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setNotificationsError(null);
     setNotificationsLoading(false);
     if (!backendInventoryEnabled && !loadInventoryEnabled) setInventory([]);
+    if (!loadAccessoriesEnabled) setAccessories([]);
     if (!backendClientsEnabled) setClients([]);
     if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
     if (!backendTradeInsEnabled && !loadTradeInsEnabled) { setTradeIns([]); setTradeInCategories([]); }
@@ -311,6 +321,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       cancelled = true;
     };
   }, [activeStoreId, loadInventoryEnabled, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await fetchBackendAccessories(user);
+        if (!cancelled) setAccessories(rows);
+      } catch (error) {
+        if (!cancelled) console.error('Backend accessories load failed.', error);
+      }
+    };
+    if (loadAccessoriesEnabled) {
+      setAccessories([]);
+      void load();
+    }
+    return () => { cancelled = true; };
+  }, [activeStoreId, loadAccessoriesEnabled, user]);
 
   useEffect(() => {
     if (!user) {
@@ -561,6 +589,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       for (const item of result.clients ?? []) next.set(item.id, { ...next.get(item.id), ...item });
       return [...next.values()];
     });
+    if (result.accessories?.length) {
+      setAccessories((current) => {
+        const next = new Map(current.map((item) => [item.id, item]));
+        for (const item of result.accessories ?? []) next.set(item.id, { ...next.get(item.id), ...item, movements: item.movements ?? next.get(item.id)?.movements });
+        return [...next.values()];
+      });
+    }
     if (result.sale) setSales((current) => [result.sale!, ...current.filter((item) => item.id !== result.sale!.id)]);
     if (result.tradeIn) {
       setTradeIns((current) => [result.tradeIn!, ...current.filter((item) => item.id !== result.tradeIn!.id)]);
@@ -798,6 +833,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     setSales(prev => prev.filter(sale => sale.id !== id));
+  };
+
+  const mergeAccessoryNotifications = (notifications?: OperationNotification[]) => {
+    if (!notifications?.length) return;
+    setOperationNotifications((current) => {
+      const next = new Map(current.map((notification) => [notification.id, notification]));
+      for (const notification of notifications) next.set(notification.id, { ...notification, readAt: null });
+      return [...next.values()];
+    });
+  };
+
+  const addAccessory = async (input: AccessoryInput) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadAccessoriesEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar accesorios.');
+    const result = await createBackendAccessory(user, input);
+    setAccessories((current) => [result.accessory, ...current.filter((item) => item.id !== result.accessory.id)]);
+    mergeAccessoryNotifications(result.notifications);
+    return result.accessory;
+  };
+
+  const updateAccessory = async (id: string, input: AccessoryInput) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadAccessoriesEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar accesorios.');
+    const result = await updateBackendAccessory(user, id, input);
+    setAccessories((current) => current.map((item) => item.id === id ? result.accessory : item));
+    mergeAccessoryNotifications(result.notifications);
+    return result.accessory;
+  };
+
+  const deleteAccessory = async (id: string) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadAccessoriesEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar accesorios.');
+    await deleteBackendAccessory(user, id);
+    setAccessories((current) => current.filter((item) => item.id !== id));
+  };
+
+  const loadAccessory = async (id: string) => {
+    if (!user) throw new Error('No hay sesión');
+    const accessory = await fetchBackendAccessory(user, id);
+    setAccessories((current) => current.map((item) => item.id === id ? accessory : item));
+    return accessory;
   };
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
@@ -1220,7 +1296,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      inventory, sales, tradeIns, clients, customColumns,
+      inventory, accessories, addAccessory, updateAccessory, deleteAccessory, loadAccessory,
+      sales, tradeIns, clients, customColumns,
       operationOptions, operationDrafts,
       operationNotifications,
       notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead,

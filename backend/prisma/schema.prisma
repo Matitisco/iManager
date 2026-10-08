@@ -47,6 +47,7 @@ model Store {
   catalogOptions      StoreCatalogOption[]
   clientPayments      ClientPayment[]
   notifications       StoreNotification[]
+  accessories         Accessory[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -173,6 +174,8 @@ model Sale {
   category        SaleCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   tradeIn         TradeIn?       @relation(fields: [tradeInId], references: [id], onDelete: SetNull)
+  accessoryLines  SaleAccessory[]
+  accessoryMovements AccessoryMovement[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -342,6 +345,62 @@ model StoreInvitation {
 
   @@index([storeId])
   @@index([token])
+}
+
+model Accessory {
+  id             String               @id @default(cuid())
+  storeId        String
+  name           String               @db.VarChar(160)
+  category       String               @db.VarChar(40)
+  compatibleWith String               @default("") @db.VarChar(160)
+  sku            String               @default("") @db.VarChar(40)
+  cost           Decimal              @default(0) @db.Decimal(12, 2)
+  price          Decimal              @default(0) @db.Decimal(12, 2)
+  stock          Int                  @default(0)
+  minStock       Int                  @default(0)
+  store          Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  movements      AccessoryMovement[]
+  saleLines      SaleAccessory[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([storeId])
+  @@index([storeId, category])
+}
+
+model AccessoryMovement {
+  id          String    @id @default(cuid())
+  storeId     String
+  accessoryId String
+  delta       Int
+  kind        String    @db.VarChar(20)
+  note        String    @default("") @db.VarChar(160)
+  saleId      String?
+  accessory   Accessory @relation(fields: [accessoryId], references: [id], onDelete: Cascade)
+  sale        Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([storeId])
+  @@index([accessoryId, createdAt])
+  @@index([saleId])
+}
+
+model SaleAccessory {
+  id          String    @id @default(cuid())
+  storeId     String
+  saleId      String
+  accessoryId String
+  name        String    @db.VarChar(160)
+  quantity    Int
+  unitPrice   Decimal   @db.Decimal(12, 2)
+  voidedAt    DateTime?
+  accessory   Accessory @relation(fields: [accessoryId], references: [id], onDelete: Restrict)
+  sale        Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([storeId])
+  @@index([saleId])
+  @@index([accessoryId])
 }
 
 enum UserStatus {

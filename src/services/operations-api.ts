@@ -1,4 +1,4 @@
-import type { Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
+import type { Accessory, Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -29,6 +29,7 @@ export interface OperationInput {
     grade?: string;
     customFields?: Record<string, unknown>;
   };
+  accessories?: { accessoryId: string; quantity: number }[];
 }
 
 export interface OperationResult {
@@ -36,6 +37,7 @@ export interface OperationResult {
   tradeIn?: TradeIn;
   inventory: Product[];
   clients: Client[];
+  accessories?: Accessory[];
   notifications: OperationNotification[];
   summary: string;
 }

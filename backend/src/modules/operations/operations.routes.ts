@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
+import { accessoryLinesSchema } from "../accessories/accessory-lines.js";
 import {
   cancelOperationFromSale,
   cancelTradeFromSale,
@@ -54,6 +55,7 @@ const inputSchema = z.object({
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
   tradeIn: tradeSchema,
+  accessories: accessoryLinesSchema,
 });
 
 function getSource(value: unknown): OperationSource | null {
