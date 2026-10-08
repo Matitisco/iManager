@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ImanagerIcon } from './icons';
 
 export function ColumnFilter({ label, open, onToggle, active, align = 'left', onClear, children }: {
   label: string;
@@ -50,7 +51,7 @@ export function ColumnFilter({ label, open, onToggle, active, align = 'left', on
   return (
     <span className="thfil">
       <button ref={anchor} type="button" className={active ? 'on' : ''} aria-label={`Filtrar ${label}`} aria-expanded={open} aria-pressed={active} onClick={onToggle}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"><path d="M4 5h16l-6 7v6l-4 2v-8L4 5z" /></svg>
+        <ImanagerIcon name="filtrar" size={16} active={active} />
       </button>
       {open ? createPortal(
         <div ref={popover} className="thpop" role="dialog" aria-label={`Filtrar ${label}`} style={{ top: point.top, left: point.left }}>

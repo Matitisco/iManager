@@ -5,6 +5,7 @@ import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
 import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
+import { ImanagerIcon, nearestIconSize, statusIcon } from './icons';
 
 type DeskUi = {
   tab: DeskTab;
@@ -31,7 +32,14 @@ export function useDesk() {
 export function Pill({ status, kind }: { status: string; kind?: CatalogKind }) {
   const catalogs = useCatalogs();
   const row = kind ? catalogs?.options.find((option) => option.kind === kind && option.value === status) : undefined;
-  return <span className="spill cst" style={{ ['--pc' as string]: row?.color || statusColor(status) }}>{row?.label ?? statusLabel(status)}</span>;
+  const label = row?.label ?? statusLabel(status);
+  const icon = statusIcon(status) ?? statusIcon(label);
+  return (
+    <span className="spill cst" style={{ ['--pc' as string]: row?.color || statusColor(status) }}>
+      {icon ? <ImanagerIcon name={icon} size={16} /> : null}
+      {label}
+    </span>
+  );
 }
 
 export function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
@@ -46,11 +54,15 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
 export function ChipRow({ options, value, onChange }: { options: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
   return (
     <div className="wchips">
-      {options.map((option) => (
-        <button key={option.id} className={`wchip${option.id === value ? ' on' : ''}`} onClick={() => onChange(option.id)} type="button">
-          {option.label}
-        </button>
-      ))}
+      {options.map((option) => {
+        const icon = statusIcon(option.id) ?? statusIcon(option.label);
+        return (
+          <button key={option.id} className={`wchip${option.id === value ? ' on' : ''}`} onClick={() => onChange(option.id)} type="button">
+            {icon ? <ImanagerIcon name={icon} size={16} /> : null}
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -297,11 +309,7 @@ export function Battery({ value }: { value: string | number }) {
 }
 
 function SearchIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4-4" />
-    </svg>
-  );
+  return <ImanagerIcon name="buscar" size={16} />;
 }
 
 function ChevronIcon() {
@@ -313,19 +321,13 @@ function ChevronIcon() {
 }
 
 function PlusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.1" strokeLinecap="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+  return <ImanagerIcon name="agregar" size={16} />;
 }
 
 export function ImportButton({ onClick }: { onClick: () => void }) {
   return (
     <button className="dbtn s" type="button" onClick={onClick}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 19V6M7 11l5-5 5 5" />
-      </svg>
+      <ImanagerIcon name="importar" size={16} />
       Importar
     </button>
   );
@@ -334,9 +336,11 @@ export function ImportButton({ onClick }: { onClick: () => void }) {
 type DeskIconName = 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card';
 
 export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIconName; size?: number; strokeWidth?: number }) {
+  if (name === 'logo') return <ImanagerIcon name="equipo" size={nearestIconSize(size)} />;
+  if (name === 'edit') return <ImanagerIcon name="editar" size={nearestIconSize(size)} />;
+  if (name === 'trash') return <ImanagerIcon name="borrar" size={nearestIconSize(size)} />;
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      {name === 'logo' && <><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /></>}
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" data-desk-icon={name}>
       {name === 'grid' && <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></>}
       {name === 'list' && <><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 10h17M8 14.5h8" /></>}
       {name === 'cart' && <><path d="M3 4h2.5l2 11h10.5l2-8H7" /><circle cx="9.5" cy="19" r="1.3" /><circle cx="17" cy="19" r="1.3" /></>}
@@ -349,8 +353,6 @@ export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIco
       {name === 'lock' && <><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>}
       {name === 'card' && <><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18" /></>}
       {name === 'gear' && <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></>}
-      {name === 'edit' && <><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></>}
-      {name === 'trash' && <path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" />}
     </svg>
   );
 }

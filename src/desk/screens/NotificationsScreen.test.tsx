@@ -46,6 +46,9 @@ describe('Notifications screen unread counts', () => {
     renderScreen();
 
     expect(screen.getByText('Total: 2 sin leer')).toBeInTheDocument();
+    expect(document.querySelector('[data-icon="vendido"]')).toHaveAttribute('data-active', 'true');
+    expect(document.querySelector('[data-icon="venta-por-registrar"]')).toHaveAttribute('data-active', 'false');
+    expect(document.querySelector('[data-icon="cliente"]')).toHaveAttribute('data-active', 'true');
     expect(screen.getByRole('button', { name: 'Inventario 1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ventas 0' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Canjes 0' })).toBeInTheDocument();

@@ -15,7 +15,8 @@ import {
 import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
 import { priceListMessage } from '../price-list';
-import { Actions, Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
+import { ImanagerIcon } from '../icons';
+import { Actions, Battery, ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -101,9 +102,7 @@ export function InventoryScreen() {
         <div className="dright">
           <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
           <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
-            </svg>
+            <ImanagerIcon name="lista-de-precios" size={16} />
             Lista de precios
           </button>
           <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
@@ -138,9 +137,15 @@ export function InventoryScreen() {
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
                 >
-                  <b>{equipmentTitle(item.model, item.capacity)}</b>
-                  <small>{[item.color, item.price > 0 ? formatMoney(item.price) : ''].filter(Boolean).join(' · ') || '—'}</small>
+                  <span className="phone-eq">
+                    <ImanagerIcon name="equipo" size={20} />
+                    <span>
+                      <b>{equipmentTitle(item.model, item.capacity)}</b>
+                      <small>{[item.color, item.price > 0 ? formatMoney(item.price) : ''].filter(Boolean).join(' · ') || '—'}</small>
+                    </span>
+                  </span>
                   {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}
+                  {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
               );
             })}
@@ -223,7 +228,7 @@ export function InventoryScreen() {
                 >
                   <td>
                     <div className="dcell">
-                      <div className="dthumb"><DeskIcon name="logo" size={22} /></div>
+                      <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
                       <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small><NoticeTag reason={notices.reasonFor(item.id)} /></div>
                     </div>
                   </td>
@@ -232,7 +237,7 @@ export function InventoryScreen() {
                   <td className="r"><b>{item.price > 0 ? formatMoney(item.price) : '-'}</b></td>
                   <td>
                     {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
-                    {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small>Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
+                    {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
                 </PressTarget>
               ))}

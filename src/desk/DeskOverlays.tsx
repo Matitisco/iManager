@@ -33,6 +33,7 @@ import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
+import { ImanagerIcon } from './icons';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -248,7 +249,7 @@ function EquipmentDetail({ id }: { id: string }) {
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? formatMoney(item.price) : 'Sin precio'}</div></div>
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
-        <div className="pending-sale"><div><b>Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
+        <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
@@ -1022,7 +1023,10 @@ function StoreForm({ run, busy, error }: FormProps) {
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
       <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       <Field label="Moneda">
-        <select value={currency} onChange={(event) => setCurrency(event.target.value)}><option>ARS</option><option>USD</option></select>
+        <span className="money-row">
+          <ImanagerIcon name="dolar" size={16} active={currency === 'USD'} />
+          <select value={currency} onChange={(event) => setCurrency(event.target.value)}><option>ARS</option><option>USD</option></select>
+        </span>
       </Field>
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
         const contact = storeContactErrors({ email, instagram });
