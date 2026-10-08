@@ -197,7 +197,7 @@ test('a cancellation notification survives reload, opens the archived received d
   const detail = page.getByRole('dialog');
   await detail.getByRole('button', { name: 'Cancelar operación' }).click();
   const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
-  await confirm.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await confirm.getByRole('button', { name: 'Volver', exact: true }).click();
   await expect(detail.getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
   await detail.getByRole('button', { name: 'Cancelar operación' }).click();
   await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
