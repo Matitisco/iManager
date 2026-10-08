@@ -19,8 +19,9 @@ model User {
   twoFactorExpiry   DateTime?
   memberships       StoreMember[]
   notificationReads NotificationRead[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  registeredSales   Sale[]             @relation("RegisteredSales")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Store {
@@ -48,6 +49,8 @@ model Store {
   clientPayments      ClientPayment[]
   notifications       StoreNotification[]
   accessories         Accessory[]
+  commissionRules     CommissionRule[]
+  commissionPayments  CommissionPayment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -58,11 +61,13 @@ model StoreMember {
   userId    String
   role      StoreRole
   isDefault Boolean   @default(false)
-  sections  Json?
-  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  sections           Json?
+  store              Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commissionRules    CommissionRule[]
+  commissionPayments CommissionPayment[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@unique([storeId, userId])
 }
@@ -174,13 +179,16 @@ model Sale {
   category        SaleCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   tradeIn         TradeIn?       @relation(fields: [tradeInId], references: [id], onDelete: SetNull)
-  accessoryLines  SaleAccessory[]
+  accessoryLines     SaleAccessory[]
   accessoryMovements AccessoryMovement[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  registeredByUserId String?
+  registeredBy       User?          @relation("RegisteredSales", fields: [registeredByUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([storeId])
   @@index([storeId, soldAt])
+  @@index([storeId, registeredByUserId])
   @@index([clientId])
   @@index([inventoryItemId])
   @@unique([storeId, requestKey])
@@ -401,6 +409,41 @@ model SaleAccessory {
   @@index([storeId])
   @@index([saleId])
   @@index([accessoryId])
+}
+
+model CommissionRule {
+  id                 String       @id @default(cuid())
+  storeId            String
+  memberId           String?
+  basis              String       @db.VarChar(30)
+  rate               Decimal      @db.Decimal(12, 2)
+  includeAccessories Boolean      @default(false)
+  settlement         String       @default("MONTHLY") @db.VarChar(20)
+  effectiveFrom      DateTime
+  createdByUserId    String?
+  store              Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member             StoreMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([storeId, effectiveFrom])
+  @@index([storeId, memberId])
+}
+
+model CommissionPayment {
+  id           String      @id @default(cuid())
+  storeId      String
+  memberId     String
+  periodKey    String      @db.VarChar(7)
+  amount       Decimal     @db.Decimal(12, 2)
+  paidAt       DateTime    @default(now())
+  paidByUserId String?
+  store        Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member       StoreMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@unique([storeId, memberId, periodKey])
+  @@index([storeId, periodKey])
 }
 
 enum UserStatus {

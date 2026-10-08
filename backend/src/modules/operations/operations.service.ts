@@ -333,7 +333,7 @@ async function consumeAccessories(
   return attachSaleAccessories(tx, storeId, sale, lines);
 }
 
-export async function createOperation(storeId: string, source: OperationSource, input: OperationInput) {
+export async function createOperation(storeId: string, source: OperationSource, input: OperationInput, registeredByUserId?: string | null) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
     if (input.tradeIn) await assertCategory(tx, storeId, "tradeins", input.categoryId);
@@ -476,6 +476,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         tradeInId: trade?.id ?? null,
         requestKey: input.requestKey ?? null,
         integratedOperation: true,
+        registeredByUserId: registeredByUserId || null,
         previousInventoryStatus: product?.previousSaleStatus ?? product?.status ?? null,
         previousPendingSaleRegistration:
           product?.status === "VENDIDO" && product?.pendingSaleRegistration
@@ -496,7 +497,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
   });
 }
 
-export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
+export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput, registeredByUserId?: string | null) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
     if (!trade) throw new OperationError("Trade-in not found", 404);
@@ -607,6 +608,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       tradeInId: trade.id,
       customFields: toJson(input.customFields),
       integratedOperation: true,
+      registeredByUserId: registeredByUserId || null,
       previousInventoryStatus: product?.previousSaleStatus ?? product?.status ?? null,
       previousPendingSaleRegistration: product?.status === "VENDIDO" && product?.pendingSaleRegistration
         ? false

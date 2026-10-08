@@ -126,7 +126,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
             grade: body.grade,
             customFields: body.customFields,
           },
-        });
+        }, request.appUser.userId);
         return reply.code(201).send({ ...operation, tradeIn: operation.tradeIn });
       } catch (error) {
         const operationError = getOperationErrorStatus(error);

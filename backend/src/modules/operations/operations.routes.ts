@@ -119,7 +119,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" && !input.productId) return reply.code(400).send({ error: "Inventory source requires an existing product sale" });
     if (source === "clients" && !input.clientId) return reply.code(400).send({ error: "Clients source requires an existing client sale" });
     if (source === "tradeins" && !input.tradeIn) return reply.code(400).send({ error: "Trade-ins source requires exchange details" });
-    try { return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input)); }
+    try { return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input, request.appUser!.userId)); }
     catch (error) { return errorReply(error, reply); }
   });
 
@@ -157,7 +157,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     }
     const input = parseInput(request.body, reply);
     if (!input) return;
-    try { return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input); }
+    try { return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input, request.appUser!.userId); }
     catch (error) { return errorReply(error, reply); }
   });
 

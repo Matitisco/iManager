@@ -4,6 +4,7 @@ import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
 import { initials, isInProgressTrade } from './format';
 import { ClientsScreen } from './screens/ClientsScreen';
+import { CommissionsScreen } from './screens/CommissionsScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCount } from './screens/AccountScreens';
@@ -21,7 +22,7 @@ import './desk.css';
 const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
-  clients: 'clientes', reports: 'rep', notifications: 'notif', settings: 'config',
+  clients: 'clientes', commissions: 'comisiones', reports: 'rep', notifications: 'notif', settings: 'config',
 };
 
 function tabFromHash(hash: string): DeskTab {
@@ -45,7 +46,7 @@ export function DeskApp() {
   const unread = useUnreadCount();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
-  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('reports')].map(Number).join('')}`;
+  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('commissions'), allowed('reports')].map(Number).join('')}`;
 
   useEffect(() => {
     if (overlayScope.current !== operationScope) {
@@ -141,12 +142,13 @@ export function DeskApp() {
     isStaff,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars'; size: number; meta?: string }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'percent' | 'bars'; size: number; meta?: string; nuevo?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
+    { id: 'commissions', label: 'Comisiones', icon: 'percent', size: 18, nuevo: true },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
   ];
   const items = nav.filter((item) => allowed(item.id));
@@ -166,7 +168,7 @@ export function DeskApp() {
                 <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                   <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                   <span>{item.label}</span>
-                  {item.meta ? <span className="dmeta">{item.meta}</span> : null}
+                  {item.nuevo ? <span className="dnew">Nuevo</span> : item.meta ? <span className="dmeta">{item.meta}</span> : null}
                 </button>
               ))}
             </div>
@@ -194,6 +196,7 @@ export function DeskApp() {
             {tab === 'sales' && <SalesScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
+            {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'settings' && <SettingsScreen />}
