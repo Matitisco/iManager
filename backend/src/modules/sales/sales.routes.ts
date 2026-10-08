@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { accessoryLinesSchema } from "../accessories/accessory-lines.js";
 import { cancelOperationFromSale, createOperation, getOperationErrorStatus, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
   createSale,
@@ -42,6 +43,7 @@ const saleCreateSchema = z.object({
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
   tradeIn: operationTradeInSchema.optional(),
+  accessories: accessoryLinesSchema,
 });
 
 const salePatchSchema = z

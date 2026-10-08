@@ -31,8 +31,10 @@ import {
 } from './format';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
+import { AccessoryForm } from './AccessoryForm';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
+import { SaleAccessories, type SaleAccessoryLine } from './SaleAccessories';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -92,7 +94,7 @@ export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
 
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
   const { open, close } = useDesk();
-  const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
+  const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'acc' ? 'edit-acc' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
       <div className="ctx" style={{ top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
@@ -148,6 +150,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
       sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],
       cj: ['este canje', 'Canje eliminado'],
       cl: ['este cliente', 'Cliente eliminado'],
+      acc: ['este accesorio', 'Accesorio eliminado'],
     }[overlay.kind];
     return (
       <Dialog
@@ -163,12 +166,14 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
           if (overlay.kind === 'sale') await ctx.deleteSale(overlay.id);
           if (overlay.kind === 'cj') await ctx.deleteTradeIn(overlay.id);
           if (overlay.kind === 'cl') await ctx.deleteClient(overlay.id);
+          if (overlay.kind === 'acc' && ctx.deleteAccessory) await ctx.deleteAccessory(overlay.id);
         }, copy[1])}
       />
     );
   }
 
   if (overlay.type === 'eq') return <EquipmentDetail id={overlay.id} />;
+  if (overlay.type === 'new-acc' || overlay.type === 'edit-acc') return <AccessoryForm id={overlay.type === 'edit-acc' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
@@ -345,7 +350,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   startWithTrade?: boolean;
 }) {
   const context = useAppContext();
-  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
+  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], accessories = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
   const { close } = useDesk();
   const catalogs = useCatalogs();
   const requestKey = useRef(`desk-${crypto.randomUUID()}`);
@@ -368,7 +373,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
   const [amount, setAmount] = useState(operationMoneyValue(currentSale?.amount ?? currentTrade?.draftAmount ?? linkedProduct?.price));
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
-  const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [paymentStatus, setPaymentStatus] = useState<string>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [lines, setLines] = useState<SaleAccessoryLine[]>([]);
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
   const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
   const [take, setTake] = useState(currentTrade ? operationMoneyValue(currentTrade.takeValue) : '');
@@ -444,6 +450,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   ].filter((item) => item.id === productId || (item.price > 0 && (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status)))));
   const difference = parseMoney(amount) - parseMoney(take);
   const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
+  const accessoryTotal = lines.reduce((sum, line) => sum + line.quantity * (accessories.find((item) => item.id === line.id)?.price ?? 0), 0);
 
   const buildInput = (draft: boolean): OperationInput => ({
     date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
@@ -451,9 +458,9 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
     clientName: buyer.trim() || null,
     productId: productId || null,
     deviceLabel: deviceLabel.trim() || undefined,
-    ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
+    ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) + (draft ? 0 : accessoryTotal) }),
     paymentMethod: payment,
-    status: paymentStatus,
+    status: paymentStatus === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA',
     saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
     categoryId: currentTrade?.categoryId ?? currentSale?.categoryId ?? null,
     requestKey: requestKey.current,
@@ -467,6 +474,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       grade,
       customFields: currentTrade?.customFields,
     } } : {}),
+    ...(!draft && lines.length ? { accessories: lines.map((line) => ({ accessoryId: line.id, quantity: line.quantity })) } : {}),
   });
 
   const validate = (kind: 'draft' | 'confirm') => {
@@ -481,6 +489,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
       if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
       if (!amount.trim()) next.amount = 'Completá el precio de salida';
+      if (paymentStatus !== 'COMPLETADA' && paymentStatus !== 'PENDIENTE') next.status = 'Elegí Completada o Pendiente';
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
       if (hasTrade && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
@@ -525,27 +534,44 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
-  const dueCopy = hasTrade ? `Diferencia a cobrar: ${formatMoney(difference)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${formatMoney(parseMoney(amount))}` : 'Venta cobrada';
+  const dueCopy = hasTrade ? `Diferencia a cobrar: ${formatMoney(difference)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${formatMoney(parseMoney(amount) + accessoryTotal)}` : 'Venta cobrada';
+  const pickEquipment = (item: OperationProductOption | Product) => {
+    dirty.current.add('deviceLabel');
+    dirty.current.add('productId');
+    dirty.current.add('amount');
+    setDeviceLabel(equipmentTitle(item.model, item.capacity));
+    setProductId(item.id);
+    setAmount(operationMoneyValue(item.price));
+    clearBad(setBad, 'equipment');
+  };
+  const saleStatuses = catalogChoices(catalogs?.options ?? [], 'SALE_STATUS', [
+    { id: 'COMPLETADA', label: 'Completada', color: '#25A66A' },
+    { id: 'PENDIENTE', label: 'Pendiente', color: '#E8A33D' },
+    { id: 'CANCELADA', label: 'Cancelada', color: '#DC4C4C' },
+  ]);
   return (
-    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close}>
+    <Sheet wide={!currentSale} title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : hasTrade ? 'La venta y el canje se guardan como una sola operación.' : 'Elegí el equipo, sumá los accesorios que se lleva y cómo pagó.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       {optionError && <div className="ferr">{optionError}</div>}
-      <ClientField
-        clients={optionClients}
-        value={buyer}
-        linked={Boolean(clientId)}
-        error={bad.client}
-        readOnly={Boolean(currentSale && !currentSale.integratedOperation)}
-        onValue={(value) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
-        onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
-      />
+      <div className={currentSale ? undefined : 'sale-split'}>
+      <div>
+      {!currentSale && equipmentItems.length > 0 ? (
+        <div className="eq-cards" aria-label="Equipos en stock">
+          {equipmentItems.map((item) => (
+            <button key={item.id} className={`eq-card${item.id === productId ? ' on' : ''}`} type="button" onClick={() => pickEquipment(item)}>
+              <span><b>{equipmentTitle(item.model, item.capacity)}</b><small>{[item.color, 'imei' in item && item.imei ? `IMEI ···${item.imei.slice(-4)}` : ''].filter(Boolean).join(' · ') || 'En stock'}</small></span>
+              <b>{formatMoney(item.price)}</b>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <EquipmentField
         items={equipmentItems}
         value={deviceLabel}
         linked={Boolean(selectedProduct)}
         error={bad.equipment}
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(operationMoneyValue(item.price)); clearBad(setBad, 'equipment'); }}
+        onPick={pickEquipment}
       />
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
@@ -567,13 +593,33 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
           </div>
         </>
       ) : null}
+      <ClientField
+        clients={optionClients}
+        value={buyer}
+        linked={Boolean(clientId)}
+        error={bad.client}
+        readOnly={Boolean(currentSale && !currentSale.integratedOperation)}
+        onValue={(value) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
+      />
       <Field label="Precio completo de salida" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       <p className="op-summary">{dueCopy}</p>
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
-      <Field label="Cobro"><span /></Field>
-      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
+      <Field label="Estado" error={bad.status}><span /></Field>
+      <Segs options={saleStatuses} value={paymentStatus} onChange={setPaymentStatus} onEdit={catalogs?.canEdit ? () => setEditor('SALE_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
+      </div>
+      {!currentSale ? (
+        <SaleAccessories
+          catalog={accessories}
+          lines={lines}
+          onChange={setLines}
+          equipmentLabel={deviceLabel}
+          equipmentAmount={parseMoney(amount)}
+        />
+      ) : null}
+      </div>
       <div className="sacts">
         <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
         {hasTrade && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
@@ -600,6 +646,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{formatMoney(sale.amount)}</div></div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
+      {sale.accessories?.map((line) => <div className="kv" key={line.accessoryId}><span>{line.name}</span><b>{line.quantity} u. · {formatMoney(line.unitPrice * line.quantity)}</b></div>)}
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${formatMoney(linkedTrade ? linkedTrade.differencePaid : sale.amount)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       {linkedTrade ? <>

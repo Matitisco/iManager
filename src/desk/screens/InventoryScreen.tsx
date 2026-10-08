@@ -11,8 +11,10 @@ import {
   type InventoryColumnFilters,
 } from '../inventory-filters';
 import { TablePager, usePagedRows } from '../pager';
+import { needsRestock } from '../accessories';
 import { priceListMessage } from '../price-list';
 import { Actions, Battery, ChipRow, DeskCta, DeskIcon, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
+import { AccessoriesPanel } from './AccessoriesPanel';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -29,10 +31,12 @@ const BATTERY_FILTERS = [
 ] as const;
 
 export function InventoryScreen() {
-  const { inventory, appSession, operationDrafts = [], loadOperationDrafts } = useAppContext();
+  const { inventory, accessories = [], appSession, operationDrafts = [], loadOperationDrafts } = useAppContext();
   const catalogs = useCatalogs();
   const { open, toast } = useDesk();
+  const [stockTab, setStockTab] = useState<'equipos' | 'accesorios'>('equipos');
   const [query, setQuery] = useState('');
+  const [accessoryQuery, setAccessoryQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
@@ -62,7 +66,7 @@ export function InventoryScreen() {
     const q = query.trim().toLowerCase();
     let list = inventory.filter((item) => {
       const matchesFilter = filter === 'Todos' || (filter === 'DISPONIBLE' ? isInStock(item.status) : item.status === filter);
-      const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
+      const haystack = `${item.model} ${item.capacity} ${item.color} ${item.imei}`.toLowerCase();
       return matchesFilter && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     if (sort === 'Precio ↑') list = [...list].sort((a, b) => a.price - b.price);
@@ -73,6 +77,7 @@ export function InventoryScreen() {
   const priceMessage = priceListMessage(rows, appSession?.store?.name);
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
+  const lowAccessories = accessories.filter((item) => needsRestock(item)).length;
   const filters = useMemo(() => {
     const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', FILTERS.filter((item) => item.id !== 'Todos'));
     const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
@@ -95,20 +100,28 @@ export function InventoryScreen() {
       <div className="dtop">
         <div>
           <h1>Inventario</h1>
-          <div className="dsub">{inventory.length} equipos · {available} disponibles</div>
+          <div className="dsub">{stockTab === 'accesorios' ? `${accessories.length} accesorios · ${lowAccessories} con stock bajo` : `${inventory.length} equipos · ${available} disponibles`}</div>
         </div>
         <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
-          <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
+          <SearchBox value={stockTab === 'accesorios' ? accessoryQuery : query} onChange={stockTab === 'accesorios' ? setAccessoryQuery : setQuery} placeholder={stockTab === 'accesorios' ? 'Buscar accesorio, código o modelo' : 'Buscar modelo, color o IMEI'} />
+          {stockTab === 'equipos' ? <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
             </svg>
             Lista de precios
-          </button>
-          <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
-          <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
+          </button> : null}
+          <ImportButton onClick={() => stockTab === 'accesorios' ? toast('La importación de accesorios todavía no está disponible.') : open({ type: 'import', kind: 'inv' })} />
+          {stockTab === 'accesorios'
+            ? <DeskCta onClick={() => open({ type: 'new-acc' })}>Nuevo accesorio</DeskCta>
+            : <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>}
         </div>
       </div>
+      <div className="inv-tabs">
+        <button className={`inv-tab${stockTab === 'equipos' ? ' on' : ''}`} type="button" onClick={() => setStockTab('equipos')}>Equipos <span className="n">{inventory.length}</span></button>
+        <button className={`inv-tab${stockTab === 'accesorios' ? ' on' : ''}`} type="button" onClick={() => setStockTab('accesorios')}>Accesorios <span className="n">{accessories.length}</span></button>
+      </div>
+      {stockTab === 'accesorios' ? <AccessoriesPanel query={accessoryQuery} /> : null}
+      {stockTab === 'equipos' ? <>
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -243,6 +256,7 @@ export function InventoryScreen() {
           />
         </Sheet>
       ) : null}
+      </> : null}
     </div>
   );
 }

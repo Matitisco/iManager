@@ -226,12 +226,12 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: 
   );
 }
 
-export function Sheet({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void }) {
+export function Sheet({ title, subtitle, children, onClose, wide }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   useEscape(onClose);
 
   return (
     <div className="ov" onMouseDown={onClose}>
-      <div className="sheet" role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         <h3>{title}</h3>
         {subtitle ? <p className="sub">{subtitle}</p> : null}
         {children}

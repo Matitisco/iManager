@@ -44,6 +44,7 @@ export interface SaleResponse {
   customFields: Record<string, unknown>;
   tradeInId: string | null;
   integratedOperation: boolean;
+  accessories: { accessoryId: string; name: string; quantity: number; unitPrice: number }[];
 }
 
 type SaleRecord = {
@@ -63,6 +64,7 @@ type SaleRecord = {
   tradeInId: string | null;
   integratedOperation: boolean;
   inventoryItem?: { model: string; capacity: string } | null;
+  accessoryLines?: { accessoryId: string; name: string; quantity: number; unitPrice: Decimal; voidedAt: Date | null }[];
 };
 
 export interface SaleCategoryResponse {
@@ -156,6 +158,14 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     customFields: toCustomFields(sale.customFields),
     tradeInId: sale.tradeInId ?? null,
     integratedOperation: sale.integratedOperation,
+    accessories: (sale.accessoryLines ?? [])
+      .filter((line) => !line.voidedAt)
+      .map((line) => ({
+        accessoryId: line.accessoryId,
+        name: line.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice.toNumber(),
+      })),
   };
 }
 
@@ -163,7 +173,13 @@ export async function listSales(storeId: string) {
   const sales = await prisma.sale.findMany({
     where: { storeId },
     orderBy: { soldAt: "desc" },
-    include: { inventoryItem: { select: { model: true, capacity: true } } },
+    include: {
+      inventoryItem: { select: { model: true, capacity: true } },
+      accessoryLines: {
+        where: { voidedAt: null },
+        select: { accessoryId: true, name: true, quantity: true, unitPrice: true, voidedAt: true },
+      },
+    },
   });
 
   return sales.map(serializeSale);

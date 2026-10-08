@@ -69,7 +69,7 @@ describe('Inventory price list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cerrar' }));
     await user.click(screen.getByRole('button', { name: 'Todos' }));
-    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'azul');
+    await user.type(screen.getByPlaceholderText('Buscar modelo, color o IMEI'), 'azul');
     await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
     expect(screen.getByRole('textbox', { name: 'Mensaje' })).toHaveValue([
       'Lista de precios — Tienda Centro',
@@ -102,7 +102,7 @@ describe('Inventory price list', () => {
     expect(value.indexOf('Barato')).toBeLessThan(value.indexOf('Caro'));
 
     await user.click(screen.getByRole('button', { name: 'Cerrar' }));
-    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'inexistente');
+    await user.type(screen.getByPlaceholderText('Buscar modelo, color o IMEI'), 'inexistente');
     expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
   });
 });
