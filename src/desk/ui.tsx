@@ -200,7 +200,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, childre
     return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
 }
 
-export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: {
+export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar' }: {
   title: string;
   text: string;
   ok: string;
@@ -209,6 +209,7 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: 
   danger?: boolean;
   busy?: boolean;
   error?: string | null;
+  cancel?: string;
 }) {
   useEscape(onClose);
   return (
@@ -218,7 +219,7 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error }: 
         <p>{text}</p>
         {error ? <div className="ferr">{error}</div> : null}
         <div className="row">
-          <button type="button" className="cancel" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button type="button" className="cancel" onClick={onClose} disabled={busy}>{cancel}</button>
           <button type="button" className={`ok${danger ? ' danger' : ''}`} onClick={onOk} disabled={busy}>{ok}</button>
         </div>
       </div>

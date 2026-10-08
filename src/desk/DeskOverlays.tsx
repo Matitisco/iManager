@@ -96,6 +96,7 @@ function ConfirmOperationDialog({ label, busy, error, onClose, onOk }: {
       title="Cancelar operación"
       text={`${label} se cancelará y quedará en el historial.`}
       ok="Cancelar operación"
+      cancel="Volver"
       danger
       busy={busy}
       error={error}
@@ -175,6 +176,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
         title={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar registro'}
         text={integratedSale ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
         ok={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
+        cancel={integratedSale ? 'Volver' : 'Cancelar'}
         danger
         busy={busy}
         error={error}

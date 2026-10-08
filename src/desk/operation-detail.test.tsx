@@ -100,7 +100,7 @@ describe('operation detail', () => {
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('C-0003 se cancelará y quedará en el historial.');
 
-    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await user.click(screen.getByRole('button', { name: 'Volver' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
 
