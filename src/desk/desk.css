@@ -633,7 +633,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .side { width: 100%; height: auto; flex-direction: row; align-items: center; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; gap: 8px; }
   .dbrand, .dlabel, .dspacer, .duser { display: none; }
   .dnav { display: contents; }
-  .dolar { flex: 0 0 auto; width: 210px; margin: 0; }
+  .dolar { flex: 0 0 auto; width: 196px; margin: 0; }
+  .dolar-hit { padding: 6px 34px 6px 10px; }
+  .dolar-cols { margin-top: 2px; }
+  .dolar-cols b { font-size: 14px; }
+  .dolar:not(.error) .dolar-foot { display: none; }
+  .dolar-refresh { top: 50%; transform: translateY(-50%); }
   .dgroup { flex-direction: row; }
   .ditem { width: auto; flex: 0 0 auto; }
   .stage { min-height: 0; }
