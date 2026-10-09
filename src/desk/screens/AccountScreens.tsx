@@ -149,19 +149,19 @@ export function SettingsScreen() {
   }
 
   return (
-    <div className="dscreen">
+    <div className="dscreen" data-testid="settings-screen">
       <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" back={back} />
       <div className="settings-grid">
         {!isStaff && (
           <>
-            <div className="sec">Tienda</div>
+            <div className="sec" data-testid="settings-store">Tienda</div>
             <div className="card">
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
             </div>
-            <div className="sec"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
+            <div className="sec" data-testid="settings-team"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
             <div className="card">
               {members.map((member, index) => (
-                <button className="member" type="button" key={member.id} onClick={() => setSelected(member)}>
+                <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} onClick={() => setSelected(member)}>
                   <div className={`av-c ${['b', 'p', 'g'][index % 3]}`}>{initials(member.user.displayName || member.user.email || 'U')}</div>
                   <div className="info">
                     <div className="name">{member.user.displayName || member.user.email}</div>
@@ -173,7 +173,7 @@ export function SettingsScreen() {
                 </button>
               ))}
               {invites.length > 0 ? (
-                <button className="member" type="button" onClick={() => open({ type: 'invites' })}>
+                <button className="member" type="button" data-testid="settings-invites" onClick={() => open({ type: 'invites' })}>
                   <div className="info">
                     <div className="name">{invites.length === 1 ? '1 link de invitación activo' : `${invites.length} links de invitación activos`}</div>
                     <div className="role">{inviteLine}</div>
@@ -181,17 +181,17 @@ export function SettingsScreen() {
                   <span className="chev">›</span>
                 </button>
               ) : null}
-              <button className="invite" type="button" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
+              <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
             </div>
           </>
         )}
-        <div className="sec">Mi cuenta</div>
+        <div className="sec" data-testid="settings-account">Mi cuenta</div>
         <div className="card">
           <MRow icon={<ImanagerIcon name="cliente" size={20} />} title="Perfil" sub={`${me?.displayName || 'Usuario'} · ${me?.email || ''}`} onClick={() => open({ type: 'profile' })} />
           <MRow icon={<DeskIcon name="lock" size={18} />} title="Seguridad" sub="Cambiar contraseña" onClick={() => open({ type: 'password' })} />
           <MRow icon={<DeskIcon name="card" size={18} />} title="Facturación" sub="Usuario Beta" right="Acceso anticipado" onClick={() => toast('Estás en el acceso anticipado.')} />
         </div>
-        <div className="logout"><button type="button" onClick={() => open({ type: 'logout' })}>Cerrar sesión</button></div>
+        <div className="logout"><button type="button" data-testid="settings-logout" onClick={() => open({ type: 'logout' })}>Cerrar sesión</button></div>
       </div>
     </div>
   );

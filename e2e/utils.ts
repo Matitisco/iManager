@@ -272,6 +272,18 @@ export async function importInventoryViaApi(
   return JSON.parse(body) as { imported: number; updated: number; errors: Array<{ message: string }> };
 }
 
+export async function acceptInvitationViaApi(request: APIRequestContext, email: string, token: string) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/invitations/accept`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: { token },
+  });
+  const body = await assertOk(response, 'Accept invitation');
+  return JSON.parse(body) as { session: { store: { id: string; name: string } | null } };
+}
+
 export async function createInvitationViaApi(
   request: APIRequestContext,
   ownerEmail: string,

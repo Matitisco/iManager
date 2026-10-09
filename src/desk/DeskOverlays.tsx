@@ -21,6 +21,7 @@ import {
   formatImei,
   formatInputMoney,
   formatArDate,
+  initials,
   formatArDateTime,
   formatShortDate,
   parseMoney,
@@ -180,6 +181,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
     const google = ctx.user?.providerData?.some((provider) => provider.providerId === 'google.com');
     return (
       <Dialog
+        className="logout-ask"
         title="¿Cerrar sesión?"
         text={google ? 'Vas a tener que volver a entrar con tu cuenta de Google.' : 'Vas a tener que volver a entrar con tu email y contraseña.'}
         ok="Cerrar sesión"
@@ -1165,6 +1167,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
 function StoreForm({ run, busy, error }: FormProps) {
   const { appSession, updateStore } = useAppContext();
   const { close } = useDesk();
+  const isPhone = usePhoneLayout();
   const store = appSession?.store;
   const [name, setName] = useState(store?.name ?? '');
   const [taxId, setTaxId] = useState(store?.taxId ?? '');
@@ -1179,12 +1182,14 @@ function StoreForm({ run, busy, error }: FormProps) {
   const [manualSell, setManualSell] = useState(store?.manualSell ? formatInputMoney(store.manualSell) : '');
   const [bad, setBad] = useState<Record<string, string>>({});
   return (
-    <Sheet title="Datos de la tienda" onClose={close}>
+    <Sheet title={isPhone ? 'Tienda' : 'Datos de la tienda'} subtitle={isPhone ? 'Configuración' : undefined} className="cfg-sheet" onClose={close}>
       {error && <div className="ferr">{error}</div>}
+      {isPhone ? <h4 className="cfg-h">Información de la tienda</h4> : null}
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
       <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
+      {isPhone ? <h4 className="cfg-h">Moneda y dólar</h4> : null}
       <Field label="Moneda principal">
         <span className="money-row">
           <ImanagerIcon name="dolar" size={16} active={currency === 'USD'} />
@@ -1301,13 +1306,29 @@ function ContactFields({ phone, email, instagram, bad, onPhone, onEmail, onInsta
 function ProfileForm({ run, busy, error }: FormProps) {
   const { appSession, updateUserProfile } = useAppContext();
   const { close } = useDesk();
+  const isPhone = usePhoneLayout();
   const [name, setName] = useState(appSession?.user.displayName ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
+  const email = appSession?.user.email ?? '';
+  const shown = name.trim() || appSession?.user.displayName || 'Usuario';
+  const role = appSession?.membership?.role;
+  const roleLabel = role === 'OWNER' ? 'Propietario' : role === 'MANAGER' ? 'Socio' : role === 'STAFF' ? 'Empleado' : '';
   return (
-    <Sheet title="Perfil" onClose={close}>
+    <Sheet title="Perfil" subtitle={isPhone ? 'Configuración' : undefined} className="cfg-sheet" onClose={close}>
       {error && <div className="ferr">{error}</div>}
+      {isPhone ? (
+        <div className="cfg-who">
+          <div className="av-c k">{initials(shown)}</div>
+          <div>
+            <b>{shown}</b>
+            <small>{email}</small>
+          </div>
+        </div>
+      ) : null}
+      {isPhone ? <h4 className="cfg-h">Mi perfil</h4> : null}
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
-      <Field label="Email"><input type="email" value={appSession?.user.email ?? ''} disabled /></Field>
+      <Field label="Email"><input type="email" value={email} disabled /></Field>
+      {isPhone && roleLabel ? <Field label="Rol"><input value={roleLabel} disabled /></Field> : null}
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
         if (!name.trim()) { setBad({ name: 'Completá este dato' }); return; }
         setBad({});
@@ -1328,10 +1349,10 @@ function PasswordForm({ run, busy, error }: FormProps) {
   const [bad, setBad] = useState<Record<string, string>>({});
   const emailUser = user?.providerData?.some((provider) => provider.providerId === 'password') ?? false;
   if (!emailUser) {
-    return <Sheet title="Seguridad" subtitle="Esta cuenta entra con Google. La contraseña se administra ahí." onClose={close}><div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div></Sheet>;
+    return <Sheet className="cfg-sheet" title="Seguridad" subtitle="Esta cuenta entra con Google. La contraseña se administra ahí." onClose={close}><div className="sacts one"><button className="btn2 p" type="button" onClick={close}>Entendido</button></div></Sheet>;
   }
   return (
-    <Sheet title="Cambiar contraseña" subtitle="Usá al menos 8 caracteres." onClose={close}>
+    <Sheet className="cfg-sheet" title="Cambiar contraseña" subtitle="Usá al menos 8 caracteres." onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <Field label="Contraseña actual" error={bad.current}><input type="password" value={current} onChange={(event) => { setCurrent(event.target.value); clearBad(setBad, 'current'); }} /></Field>
       <Field label="Nueva contraseña" error={bad.next}><input type="password" value={next} onChange={(event) => { setNext(event.target.value); clearBad(setBad, 'next'); }} /></Field>
@@ -1360,14 +1381,24 @@ function PasswordForm({ run, busy, error }: FormProps) {
 function InviteForm({ initialUrl }: { initialUrl?: string }) {
   const { user, appSession } = useAppContext();
   const { close, toast } = useDesk();
+  const isPhone = usePhoneLayout();
   const [role, setRole] = useState<InvitationRole>('STAFF');
   const [url, setUrl] = useState(initialUrl ?? '');
   const [expires, setExpires] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (copiedTimer.current) window.clearTimeout(copiedTimer.current); }, []);
   const store = appSession?.store?.name || 'la tienda';
   const roleLabel = role === 'MANAGER' ? 'Socio' : 'Empleado';
-  const copy = () => navigator.clipboard.writeText(url).then(() => toast('Link copiado'));
+  const copy = () => navigator.clipboard.writeText(url).then(() => {
+    toast('Link copiado');
+    if (!isPhone) return;
+    setCopied(true);
+    if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
+  });
   const share = () => {
     if (!navigator.share) { void copy(); return; }
     navigator.share({ title: 'Invitación a iManager', url }).catch((err: unknown) => {
@@ -1377,6 +1408,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
   };
   return (
     <Sheet
+      className="cfg-sheet"
       title={url ? 'Link listo' : 'Invitar al equipo'}
       subtitle={url ? `Pasáselo a quien quieras sumar como ${roleLabel}. Sirve para una sola persona${expires ? ` y vence el ${expires}` : ''}.` : `Generá un link de un solo uso para sumar a alguien a ${store}.`}
       onClose={close}
@@ -1384,7 +1416,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
       {error && <div className="ferr">{error}</div>}
       {url ? (
         <>
-          <div className="linkrow"><span>{url}</span><button className="copy" type="button" onClick={() => { void copy(); }}>Copiar</button></div>
+          <div className="linkrow"><span>{url}</span><button className="copy" type="button" data-testid="invite-copy" onClick={() => { void copy(); }}>{copied ? 'Copiado' : 'Copiar'}</button></div>
           <p className="sheet-note">Cuando alguien entra con el link, deja de funcionar. Lo podés cancelar desde Configuración.</p>
         </>
       ) : (
@@ -1397,7 +1429,7 @@ function InviteForm({ initialUrl }: { initialUrl?: string }) {
       {url ? (
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Listo</button>
-          <button className="btn2 p" type="button" onClick={share}>Compartir link</button>
+          <button className="btn2 p" type="button" data-testid="invite-share" onClick={share}>Compartir link</button>
         </div>
       ) : (
         <Actions busy={busy} primary="Generar link" onSecondary={close} onPrimary={() => {
@@ -1431,7 +1463,7 @@ function InvitesList() {
   const roleName = (value: string) => (value === 'MANAGER' ? 'Socio' : value === 'OWNER' ? 'Propietario' : 'Empleado');
   const when = (value: string) => formatArDate(new Date(value));
   return (
-    <Sheet title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>
+    <Sheet className="cfg-sheet" title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>
       {error && <div className="ferr">{error}</div>}
       {rows.length === 0 ? <div className="wempty">No quedan invitaciones.</div> : rows.map((invite) => (
         <div className="kv" key={invite.id}>

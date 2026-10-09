@@ -42,8 +42,12 @@ export function MemberPermissions({ member, onBack, onSaved }: {
     }
   };
 
+  const saveBar = locked ? null : (
+    <Actions primary="Guardar permisos" onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />
+  );
+
   return (
-    <div className="dscreen">
+    <div className={`dscreen${phone && saveBar ? ' has-save' : ''}`}>
       <PageHead
         title="Permisos"
         subtitle={`${name} · ${member.user.email || 'Sin email'} · ${ROLE_LABEL[member.role] ?? member.role}`}
@@ -97,9 +101,15 @@ export function MemberPermissions({ member, onBack, onSaved }: {
           </div>
         </div>
         {locked ? <p className="perm-note">El propietario conserva el acceso a todas las secciones.</p> : null}
-        {error ? <div className="ferr">{error}</div> : null}
-        {locked ? null : <Actions primary="Guardar permisos" onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />}
+        {phone ? null : error ? <div className="ferr">{error}</div> : null}
+        {phone ? null : saveBar}
       </div>
+      {phone && saveBar ? (
+        <div className="phone-save" data-testid="permissions-save">
+          {error ? <div className="ferr">{error}</div> : null}
+          {saveBar}
+        </div>
+      ) : null}
     </div>
   );
 }
