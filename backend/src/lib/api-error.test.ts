@@ -93,4 +93,16 @@ describe("registerApiErrorHandler", () => {
 
     await app.close();
   });
+
+  it("labels the repair order fields in Spanish with the right gender", () => {
+    const parsed = z.object({ deposit: z.number().nonnegative(), estimate: z.number().nonnegative(), device: z.string().min(1) })
+      .safeParse({ deposit: -1, estimate: -1, device: "" });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(toValidationBody(parsed.error)?.fields).toEqual({
+      deposit: "La seña no puede ser negativa",
+      estimate: "El presupuesto no puede ser negativo",
+      device: "El equipo es obligatorio",
+    });
+  });
 });

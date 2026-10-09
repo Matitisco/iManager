@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 type TransactionClient = Prisma.TransactionClient;
-type DocumentKind = "sale" | "trade";
+type DocumentKind = "sale" | "trade" | "repair";
 
 /**
  * Allocates the next receipt number for one store.
@@ -33,7 +33,8 @@ export async function allocateDocumentNumber(
         ) + 1
         RETURNING "lastSaleNumber" AS allocated
       `
-    : await tx.$queryRaw<Array<{ allocated: number | bigint }>>`
+    : kind === "trade"
+    ? await tx.$queryRaw<Array<{ allocated: number | bigint }>>`
         INSERT INTO "StoreCounter" ("storeId", "lastSaleNumber", "lastTradeNumber")
         SELECT
           ${storeId},
@@ -45,6 +46,20 @@ export async function allocateDocumentNumber(
           COALESCE((SELECT MAX("tradeNumber") FROM "TradeIn" WHERE "storeId" = ${storeId}), 0)
         ) + 1
         RETURNING "lastTradeNumber" AS allocated
+      `
+    : await tx.$queryRaw<Array<{ allocated: number | bigint }>>`
+        INSERT INTO "StoreCounter" ("storeId", "lastSaleNumber", "lastTradeNumber", "lastRepairNumber")
+        SELECT
+          ${storeId},
+          COALESCE((SELECT MAX("saleNumber") FROM "Sale" WHERE "storeId" = ${storeId}), 0),
+          COALESCE((SELECT MAX("tradeNumber") FROM "TradeIn" WHERE "storeId" = ${storeId}), 0),
+          COALESCE((SELECT MAX("orderNumber") FROM "RepairOrder" WHERE "storeId" = ${storeId}), 0) + 1
+        ON CONFLICT ("storeId") DO UPDATE
+        SET "lastRepairNumber" = GREATEST(
+          "StoreCounter"."lastRepairNumber",
+          COALESCE((SELECT MAX("orderNumber") FROM "RepairOrder" WHERE "storeId" = ${storeId}), 0)
+        ) + 1
+        RETURNING "lastRepairNumber" AS allocated
       `;
 
   const allocated = readAllocated(rows);
@@ -62,10 +77,12 @@ function readAllocated(rows: Array<{ allocated: number | bigint }>) {
 }
 
 async function keepIdentityAhead(tx: TransactionClient, kind: DocumentKind, allocated: number) {
-  const table = kind === "sale" ? "Sale" : "TradeIn";
-  const column = kind === "sale" ? "saleNumber" : "tradeNumber";
-  const lockKey = kind === "sale" ? 147001 : 147002;
-  const sequence = Prisma.raw(kind === "sale" ? `"Sale_saleNumber_seq"` : `"TradeIn_tradeNumber_seq"`);
+  const table = kind === "sale" ? "Sale" : kind === "trade" ? "TradeIn" : "RepairOrder";
+  const column = kind === "sale" ? "saleNumber" : kind === "trade" ? "tradeNumber" : "orderNumber";
+  const lockKey = kind === "sale" ? 147001 : kind === "trade" ? 147002 : 147003;
+  const sequence = Prisma.raw(
+    kind === "sale" ? `"Sale_saleNumber_seq"` : kind === "trade" ? `"TradeIn_tradeNumber_seq"` : `"RepairOrder_orderNumber_seq"`,
+  );
   const tableName = `public."${table}"`;
 
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey}::bigint)`;

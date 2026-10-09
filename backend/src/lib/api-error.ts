@@ -46,6 +46,13 @@ const FIELD_LABELS: Record<string, string> = {
   startDate: "fecha de inicio",
   endDate: "fecha de fin",
   rangeKey: "período",
+  device: "equipo",
+  fault: "falla",
+  faultTags: "falla",
+  estimate: "presupuesto",
+  deposit: "seña",
+  technician: "técnico",
+  estimatedDelivery: "fecha de entrega",
 };
 
 const FEMININE_LABELS = new Set([
@@ -61,6 +68,9 @@ const FEMININE_LABELS = new Set([
   "contraseña",
   "fecha de inicio",
   "fecha de fin",
+  "falla",
+  "seña",
+  "fecha de entrega",
 ]);
 
 type FieldIssue = { field: string; message: string };
@@ -177,7 +187,7 @@ function zodMessage(issue: ZodIssue, label: string): string {
 
   if (issue.code === "too_small" && (issue.type === "number" || issue.type === "bigint")) {
     const minimum = Number(issue.minimum);
-    if (minimum === 0) return phrase(label, "no puede ser negativo");
+    if (minimum === 0) return phrase(label, negative(label));
     const relation = issue.inclusive ? "mayor o igual a" : "mayor a";
     return phrase(label, `tiene que ser ${relation} ${minimum}`);
   }
@@ -228,7 +238,7 @@ function fastifyIssue(issue: FastifyValidationIssue, url: string): FieldIssue {
       return { field, message: phrase(label, `puede tener hasta ${limit ?? 0} caracteres`) };
     case "minimum":
     case "exclusiveMinimum":
-      if (limit === 0) return { field, message: phrase(label, "no puede ser negativo") };
+      if (limit === 0) return { field, message: phrase(label, negative(label)) };
       return { field, message: phrase(label, `tiene que ser mayor${issue.keyword === "minimum" ? " o igual" : ""} a ${limit ?? 0}`) };
     case "maximum":
     case "exclusiveMaximum":
@@ -263,6 +273,10 @@ function fieldLabel(field: string, url: string): string {
   const key = field.split(".").filter((part) => !/^\d+$/.test(part)).pop() ?? field;
   if (key === "amount" && /\/payments(?:\?|$)/.test(url)) return "pago";
   return FIELD_LABELS[key] ?? "dato";
+}
+
+function negative(label: string): string {
+  return FEMININE_LABELS.has(label) ? "no puede ser negativa" : "no puede ser negativo";
 }
 
 function phrase(label: string, rest: string): string {

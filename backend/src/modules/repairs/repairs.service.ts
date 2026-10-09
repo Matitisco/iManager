@@ -1,8 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
+import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { prisma } from "../../plugins/prisma.js";
+import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
+import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
 
 export interface RepairOrderInput {
@@ -165,8 +168,10 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
       const client = await tx.client.create({ data: { storeId, name: clientName } });
       clientId = client.id;
     }
+    const orderNumber = await allocateDocumentNumber(tx, storeId, "repair");
     const order = await tx.repairOrder.create({
       data: {
+        orderNumber,
         storeId,
         clientId,
         clientName,
@@ -189,9 +194,18 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
   return { order: serialize(created, name), client: clientPayload(created.client) };
 }
 
-export async function updateRepair(storeId: string, id: string, input: Partial<RepairOrderInput>) {
+export async function updateRepair(
+  storeId: string,
+  id: string,
+  input: Partial<RepairOrderInput>,
+  options: { canChangePrice: boolean; actor?: Actor | null } = { canChangePrice: true },
+) {
   const current = await load(storeId, id);
   if (!current) return null;
+  const estimateChanged = input.estimate !== undefined && (
+    input.estimate == null ? current.estimate != null : moneyChanged(current.estimate, input.estimate)
+  );
+  if (estimateChanged && !options.canChangePrice) throw new RepairError(SENSITIVE_DENIED, 403);
   const name = await storeName(storeId);
   const data: {
     clientId?: string | null;
@@ -227,7 +241,20 @@ export async function updateRepair(storeId: string, id: string, input: Partial<R
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
   if (input.notifyWhatsapp !== undefined) data.notifyWhatsapp = input.notifyWhatsapp;
-  const updated = await prisma.repairOrder.update({ where: { id }, data, include });
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.repairOrder.update({ where: { id }, data, include });
+    if (estimateChanged && options.actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor: options.actor,
+        action: "repair.estimate",
+        entityType: "repair",
+        entityId: id,
+        detail: `${current.estimate?.toString() ?? "—"} → ${input.estimate ?? "—"}`,
+      });
+    }
+    return row;
+  });
   return { order: serialize(updated, name) };
 }
 
@@ -248,9 +275,21 @@ export async function changeRepairStatus(storeId: string, id: string, status: st
   return { order: serialize(updated, name) };
 }
 
-export async function deleteRepair(storeId: string, id: string) {
-  const current = await prisma.repairOrder.findFirst({ where: { id, storeId }, select: { id: true } });
+export async function deleteRepair(storeId: string, id: string, actor?: Actor | null) {
+  const current = await prisma.repairOrder.findFirst({ where: { id, storeId }, select: { id: true, orderNumber: true, device: true } });
   if (!current) return false;
-  await prisma.repairOrder.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.repairOrder.delete({ where: { id } });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "repair.deleted",
+        entityType: "repair",
+        entityId: id,
+        detail: `${repairCode(current.orderNumber)} · ${current.device}`,
+      });
+    }
+  });
   return true;
 }

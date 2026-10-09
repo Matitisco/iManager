@@ -218,6 +218,14 @@ const STATUS_ICONS: Record<string, ImanagerIconName> = {
   Cancelada: 'cerrar',
   RECHAZADO: 'cerrar',
   Rechazado: 'cerrar',
+  EN_DIAGNOSTICO: 'en-revision',
+  'En diagnóstico': 'en-revision',
+  ESPERANDO_REPUESTO: 'reservado',
+  'Esperando repuesto': 'reservado',
+  EN_REPARACION: 'servicio-tecnico',
+  'En reparación': 'servicio-tecnico',
+  LISTO_PARA_RETIRAR: 'disponible',
+  'Listo para retirar': 'disponible',
 };
 
 export function statusIcon(status: string | null | undefined): ImanagerIconName | null {

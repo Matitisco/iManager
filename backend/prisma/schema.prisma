@@ -163,6 +163,7 @@ model StoreCounter {
   storeId         String @id
   lastSaleNumber  Int    @default(0)
   lastTradeNumber Int    @default(0)
+  lastRepairNumber Int   @default(0)
   store           Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 

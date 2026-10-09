@@ -55,6 +55,7 @@ describe('blue dollar widget', () => {
     expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1280));
     expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1300));
+    expect(screen.getByTestId('blue-widget').querySelector('svg[data-icon="dolar"]')).toBeTruthy();
   });
 
   it('opens the detail with the calculator, source switch and close actions', async () => {

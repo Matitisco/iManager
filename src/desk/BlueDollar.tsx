@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { formatMoney } from './format';
+import { ImanagerIcon } from './icons';
 import {
   BLUE_REFRESH_LABEL,
   BLUE_REFRESH_MS,
@@ -96,6 +97,7 @@ export function BlueDollar() {
         <button className="dolar-hit" type="button" onClick={() => setOpen(true)}>
           <span className="dolar-top">
             <i className="dolar-dot" aria-hidden="true" />
+            <ImanagerIcon name="dolar" size={16} />
             <b>Dólar blue</b>
           </span>
           <span className="dolar-cols">

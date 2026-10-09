@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
+import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
+import { loadActor } from "../audit/audit.js";
 import {
   changeRepairStatus,
   createRepair,
@@ -61,7 +63,7 @@ const statusSchema = z.object({
   status: z.string().trim().min(1, "Elegí un estado").max(40),
 });
 
-function guard(request: { appUser?: { userId: string; storeId: string; role: string; sections?: unknown } }, reply: { code: (status: number) => { send: (body: unknown) => unknown } }) {
+function guard(request: { appUser?: { userId: string; storeId: string; role: string; sections?: unknown; sensitiveAccess?: boolean | null } }, reply: { code: (status: number) => { send: (body: unknown) => unknown } }) {
   if (!request.appUser) {
     reply.code(403).send({ error: "Store membership required" });
     return null;
@@ -73,10 +75,8 @@ function guard(request: { appUser?: { userId: string; storeId: string; role: str
   return request.appUser;
 }
 
+// Zod errors go to the global handler (lib/api-error.ts), which answers 400 in Spanish with per-field messages.
 function sendError(error: unknown, reply: { code: (status: number) => { send: (body: unknown) => unknown } }) {
-  if (error instanceof ZodError) {
-    return reply.code(400).send({ error: error.issues[0]?.message ?? "Revisá la orden" });
-  }
   const mapped = getRepairErrorStatus(error);
   if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
   throw error;
@@ -118,7 +118,9 @@ export async function repairsRoutes(app: FastifyInstance) {
     try {
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = patchSchema.parse(request.body);
-      const result = await updateRepair(member.storeId, id, body);
+      const canChangePrice = canManageSensitive(member);
+      const actor = body.estimate !== undefined && canChangePrice ? await loadActor(member.userId) : null;
+      const result = await updateRepair(member.storeId, id, body, { canChangePrice, actor });
       if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
       return result;
     } catch (error) {
@@ -144,7 +146,9 @@ export async function repairsRoutes(app: FastifyInstance) {
     const member = guard(request, reply);
     if (!member) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const deleted = await deleteRepair(member.storeId, id);
+    const actor = await requireSensitiveActor(member, reply);
+    if (!actor) return;
+    const deleted = await deleteRepair(member.storeId, id, actor);
     if (!deleted) return reply.code(404).send({ error: "Orden no encontrada" });
     return reply.code(204).send();
   });
