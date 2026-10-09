@@ -1,5 +1,6 @@
 import type { Product, InventoryCategory } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
+import { readApiErrorMessage } from '../lib/api-message';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -133,7 +134,7 @@ export async function createBackendInventoryItem(
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo crear el equipo (${response.status})`);
+    throw new Error(readApiErrorMessage(body, `No se pudo crear el equipo (${response.status})`));
   }
 
   const data = await parseJson<BackendInventoryResponse>(response);
@@ -154,7 +155,7 @@ export async function updateBackendInventoryItem(user: AuthUserLike, item: Produ
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo actualizar el equipo (${response.status})`);
+    throw new Error(readApiErrorMessage(body, `No se pudo actualizar el equipo (${response.status})`));
   }
 
   const data = await parseJson<BackendInventoryResponse>(response);

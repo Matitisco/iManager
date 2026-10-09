@@ -53,6 +53,50 @@ describe('Onboarding', () => {
     expect(container.querySelector('a[href="#"]')).toBeNull();
   });
 
+  it('asks for a store name before calling the backend', async () => {
+    const user = userEvent.setup();
+    render(<Onboarding />);
+
+    const input = screen.getByLabelText('Nombre de la tienda');
+    await user.clear(input);
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText('El nombre es obligatorio')).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('blocks a store name longer than the backend allows', async () => {
+    const user = userEvent.setup();
+    render(<Onboarding />);
+
+    const input = screen.getByLabelText('Nombre de la tienda');
+    await user.clear(input);
+    await user.click(input);
+    await user.paste('a'.repeat(121));
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText('El nombre puede tener hasta 120 caracteres')).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('shows the spanish api message and hides raw zod json', async () => {
+    const user = userEvent.setup();
+    mockAppContext.completeOnboarding.mockRejectedValueOnce(new Error(JSON.stringify({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: '[{"code":"too_small","path":["storeName"]}]',
+    })));
+    render(<Onboarding />);
+
+    const input = screen.getByLabelText('Nombre de la tienda');
+    await user.clear(input);
+    await user.type(input, 'Sucursal Norte');
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText('No se pudo completar el onboarding')).toBeInTheDocument();
+    expect(screen.queryByText(/too_small/)).not.toBeInTheDocument();
+  });
+
   it('creates a store from the onboarding form', async () => {
     const user = userEvent.setup();
     render(<Onboarding />);

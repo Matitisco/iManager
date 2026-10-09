@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
-import { trimToString } from '../lib/utils';
+import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
+import { getFriendlyErrorMessage, trimToString } from '../lib/utils';
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: 'Propietario',
@@ -51,12 +52,18 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
 
   const handleCreateStore = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nameError = limitedText('nombre', storeName, INPUT_LIMITS.storeName);
+    if (nameError) {
+      setError(nameError);
+      return;
+    }
+
     setError('');
     setIsSubmitting(true);
     try {
-      await completeOnboarding(storeName);
+      await completeOnboarding(trimToString(storeName));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo completar el onboarding');
+      setError(getFriendlyErrorMessage(err, 'No se pudo completar el onboarding'));
     } finally {
       setIsSubmitting(false);
     }
@@ -227,7 +234,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
             <button
               data-testid="onboarding-submit"
               type="submit"
-              disabled={isSubmitting || !trimToString(storeName)}
+              disabled={isSubmitting}
               className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? 'Creando tienda...' : 'Crear tienda y continuar'}
@@ -281,7 +288,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
           <button
             data-testid="onboarding-submit"
             type="submit"
-            disabled={isSubmitting || !trimToString(storeName)}
+            disabled={isSubmitting}
             className="w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSubmitting ? 'Creando tienda...' : 'Crear tienda y continuar'}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
+import { INPUT_LIMITS } from '../lib/input-limits';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportModal } from '../components/table-engine/components/ImportModal';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
@@ -320,15 +321,22 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
-      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" disabled={lockPrice} onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
+      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
+        const raw = event.target.value;
+        if (raw.includes('-')) { setPrice(raw); return; }
+        setPrice(formatInputMoney(parseMoney(raw)));
+        clearBad(setBad, 'price');
+      }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
+        else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
         if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
-        if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
+        if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
+        else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -929,6 +937,10 @@ function ClientDetail({ id }: { id: string }) {
   if (!client) return null;
   const pay = async () => {
     const value = parseMoney(amount);
+    if (amount.includes('-') || value < 0) {
+      setError('El pago no puede ser negativo');
+      return;
+    }
     if (!value) {
       setError('Completá el monto');
       return;
@@ -959,7 +971,16 @@ function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {client.pendingBalance > 0 ? (
         <>
-          <Field label="Monto"><input value={amount} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setAmount(formatInputMoney(parseMoney(event.target.value))); setError(null); }} /></Field>
+          <Field label="Monto"><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+            const raw = event.target.value;
+            if (raw.includes('-')) {
+              setAmount(raw);
+              setError('El pago no puede ser negativo');
+              return;
+            }
+            setAmount(formatInputMoney(parseMoney(raw)));
+            setError(null);
+          }} /></Field>
           <Field label="Forma de pago"><span /></Field>
           <Segs options={PAYMENTS} value={method} onChange={setMethod} />
         </>
@@ -1017,6 +1038,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
+        else if (name.trim().length > INPUT_LIMITS.clientName) next.name = `El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`;
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {

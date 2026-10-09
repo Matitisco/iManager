@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProductForm } from './ProductForm';
@@ -135,5 +135,30 @@ describe('ProductForm', () => {
     } finally {
       mockAppContext.customColumns = originalColumns;
     }
+  });
+
+  it('blocks a negative cost or price and a model of 500 characters', async () => {
+    const user = userEvent.setup();
+    render(<ProductForm onClose={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('IMEI'), '111222333');
+    await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
+    await user.type(screen.getByLabelText('Color'), 'Negro');
+    fireEvent.change(screen.getByLabelText('Costo ($)'), { target: { value: '-10' } });
+    await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+
+    expect(await screen.findByText('El costo no puede ser negativo')).toBeInTheDocument();
+    expect(mockAppContext.addProduct).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Costo ($)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Precio Venta ($)'), { target: { value: '-20' } });
+    await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+    expect(await screen.findByText('El precio no puede ser negativo')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Precio Venta ($)'), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText('Modelo'), { target: { value: 'a'.repeat(500) } });
+    await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+    expect(await screen.findByText('El modelo puede tener hasta 100 caracteres')).toBeInTheDocument();
+    expect(mockAppContext.addProduct).not.toHaveBeenCalled();
   });
 });

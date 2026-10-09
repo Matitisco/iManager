@@ -8,6 +8,7 @@ import {
   fetchBackendClients,
   fetchClientCategoriesApi,
   renameClientCategoryApi,
+  registerBackendClientPayment,
   updateBackendClient,
 } from './clients-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -140,5 +141,27 @@ describe('clients-api', () => {
       id: 'cat-2',
       name: 'VIP Norte',
     });
+  });
+
+  it('shows a spanish payment error and hides zod json', async () => {
+    vi.mocked(fetchWithTimeout)
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'El nombre puede tener hasta 120 caracteres',
+        fields: { name: 'El nombre puede tener hasta 120 caracteres' },
+      }, 400))
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'El pago no puede ser negativo',
+        message: '[{"code":"too_small"}]',
+        fields: { amount: 'El pago no puede ser negativo' },
+      }, 400))
+      .mockResolvedValueOnce(jsonResponse({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: '[{"code":"too_small"}]',
+      }, 500));
+
+    await expect(createBackendClient(mockUser, createClientPayload)).rejects.toThrow('El nombre puede tener hasta 120 caracteres');
+    await expect(registerBackendClientPayment(mockUser, 'client-1', { amount: -1, method: 'EFECTIVO' })).rejects.toThrow('El pago no puede ser negativo');
+    await expect(registerBackendClientPayment(mockUser, 'client-1', { amount: -1, method: 'EFECTIVO' })).rejects.toThrow('No se pudo registrar el pago');
   });
 });

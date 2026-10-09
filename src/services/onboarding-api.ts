@@ -1,5 +1,6 @@
 import type { AppSessionResponse } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
+import { readApiErrorMessage } from '../lib/api-message';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -35,7 +36,7 @@ export async function completeBackendOnboarding(user: AuthUserLike, storeName: s
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo completar el onboarding (${response.status})`);
+    throw new Error(readApiErrorMessage(body, `No se pudo completar el onboarding (${response.status})`));
   }
 
   const data = (await response.json()) as { session?: AppSessionResponse };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { TagField } from '../TagField';
 import { parseCellTags } from '../../utils/cell-tags';
@@ -40,8 +41,18 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       return;
     }
 
-    if (!Number.isFinite(formData.cost) || formData.cost < 0 || !Number.isFinite(formData.price) || formData.price < 0) {
-      setError('Costo y precio deben ser números válidos mayores o iguales a 0.');
+    if (model.length > INPUT_LIMITS.model) {
+      setError(`El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`);
+      return;
+    }
+
+    if (!Number.isFinite(formData.cost) || formData.cost < 0) {
+      setError('El costo no puede ser negativo');
+      return;
+    }
+
+    if (!Number.isFinite(formData.price) || formData.price < 0) {
+      setError('El precio no puede ser negativo');
       return;
     }
 
@@ -65,7 +76,7 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { formatArDate } from '../../lib/ar-date';
+import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 
 type ClientMode = 'existing' | 'new';
@@ -47,6 +48,11 @@ export const SaleForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       if (!dni || !name) {
         setError('Completá DNI y nombre para crear el cliente.');
+        return;
+      }
+
+      if (name.length > INPUT_LIMITS.clientName) {
+        setError(`El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`);
         return;
       }
     }
