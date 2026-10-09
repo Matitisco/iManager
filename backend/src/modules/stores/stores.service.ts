@@ -1,5 +1,6 @@
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
+import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { assertStoreContact, blankToNull } from "./store-contact.js";
 import { assertSectionList, normalizeSections } from "./sections.js";
 import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
@@ -51,9 +52,10 @@ export async function createStoreForUser(userId: string, storeName: string) {
     throw Object.assign(new Error("El nombre de la tienda es obligatorio"), { statusCode: 400 });
   }
 
-  const existingCount = await prisma.storeMember.count({ where: { userId } });
-
   return prisma.$transaction(async (tx) => {
+    await lockTransactionKey(tx, userMembershipLockKey(userId));
+    const existingCount = await tx.storeMember.count({ where: { userId } });
+
     if (existingCount > 0) {
       await tx.storeMember.updateMany({
         where: { userId },

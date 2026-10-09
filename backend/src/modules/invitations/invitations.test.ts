@@ -23,6 +23,7 @@ const {
       create: vi.fn(),
       updateMany: vi.fn(),
     },
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(),
   },
   findOrCreateUserFromFirebaseMock: vi.fn(),
@@ -129,7 +130,7 @@ describe("invitations.service", () => {
       ...invitationRecord,
       store: { name: "Tienda Norte" },
     });
-    prismaMock.storeInvitation.findUnique.mockResolvedValueOnce(invitationRecord);
+    prismaMock.storeInvitation.findUnique.mockResolvedValue(invitationRecord);
     findOrCreateUserFromFirebaseMock.mockResolvedValue({
       id: "user-1",
       firebaseUid: auth.firebaseUid,

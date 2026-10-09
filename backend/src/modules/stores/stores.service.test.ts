@@ -14,6 +14,7 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     create: vi.fn(),
   },
+  $executeRaw: vi.fn(),
   $transaction: vi.fn(),
 }));
 
