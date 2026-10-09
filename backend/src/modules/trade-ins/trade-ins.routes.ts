@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
@@ -29,7 +30,7 @@ const tradeInFieldsSchema = z.object({
   clientName: z.string().trim().max(120).optional().nullable(),
   categoryId: z.string().nullable().optional(),
   deviceReceived: z.string().min(1).max(120),
-  deviceReceivedImei: z.string().trim().max(100).optional().nullable(),
+  deviceReceivedImei: zodOptionalImei().nullable().optional(),
   takeValue: z.number().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   deviceGiven: z.string().min(1).max(120),

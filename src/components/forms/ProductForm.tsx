@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
+import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { TagField } from '../TagField';
 import { parseCellTags } from '../../utils/cell-tags';
@@ -31,8 +32,13 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const model = formData.model.trim();
     const color = formData.color.trim();
 
-    if (!imei || !model || !color) {
-      setError('Completá IMEI, modelo y color para guardar el equipo.');
+    if (imeiFormatError(imei)) {
+      setError(IMEI_FORMAT_MESSAGE);
+      return;
+    }
+
+    if (!model || !color) {
+      setError('Completá modelo y color para guardar el equipo.');
       return;
     }
 
@@ -84,8 +90,8 @@ export const ProductForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       )}
 
       <div className="space-y-1">
-        <label htmlFor="product-imei" className="text-xs font-bold text-gray-700">IMEI</label>
-        <input id="product-imei" required type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+        <label htmlFor="product-imei" className="text-xs font-bold text-gray-700">{IMEI_OPTIONAL_LABEL}</label>
+        <input id="product-imei" type="text" inputMode="numeric" maxLength={15} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
           value={formData.imei} onChange={e => setFormData({...formData, imei: e.target.value})} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

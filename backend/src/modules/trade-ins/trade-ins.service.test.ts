@@ -180,13 +180,42 @@ describe("trade-ins.service", () => {
     });
   });
 
+  it("rejects a received IMEI that is not 15 digits", async () => {
+    await expect(createTradeIn("store-1", {
+      clientName: "Ana",
+      deviceReceived: "iPhone 11",
+      deviceReceivedImei: "12345",
+      deviceGiven: "iPhone 14",
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: "El IMEI tiene 15 dígitos",
+    });
+    expect(prismaMock.tradeIn.create).not.toHaveBeenCalled();
+  });
+
+  it("reports an invalid received IMEI during import", async () => {
+    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1" });
+
+    const result = await importTradeIns("store-1", [{
+      clientName: "Juan",
+      deviceReceived: "iPhone 12",
+      deviceReceivedImei: "12345",
+      deviceGiven: "iPhone 14",
+      takeValue: "100",
+      differencePaid: "50",
+    }]);
+
+    expect(result.errors).toEqual([{ row: 2, message: "El IMEI tiene 15 dígitos" }]);
+    expect(prismaMock.tradeIn.create).not.toHaveBeenCalled();
+  });
+
   it("reports invalid take values during import", async () => {
     prismaMock.client.findFirst.mockResolvedValue({ id: "client-1" });
 
     const result = await importTradeIns("store-1", [{
       clientName: "Juan",
       deviceReceived: "iPhone 12",
-      deviceReceivedImei: "IMEI-1",
+      deviceReceivedImei: "350000000000095",
       deviceGiven: "iPhone 14",
       takeValue: "-1",
       differencePaid: "100",

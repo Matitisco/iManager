@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { IMEI_FORMAT_MESSAGE, parseOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
@@ -34,8 +35,9 @@ const repairSchema = z.object({
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
   notifyWhatsapp: z.boolean().optional().default(false),
 }).superRefine((value, context) => {
-  if (value.imei && !/^\d{15}$/.test(value.imei)) {
-    context.addIssue({ code: "custom", message: "El IMEI tiene 15 dígitos", path: ["imei"] });
+  const imei = parseOptionalImei(value.imei);
+  if (imei.ok === false) {
+    context.addIssue({ code: "custom", message: IMEI_FORMAT_MESSAGE, path: ["imei"] });
   }
   if (!value.fault && value.faultTags.length === 0) {
     context.addIssue({ code: "custom", message: "Contá la falla", path: ["fault"] });
@@ -56,8 +58,9 @@ const patchSchema = z.object({
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
   notifyWhatsapp: z.boolean().optional(),
 }).superRefine((value, context) => {
-  if (value.imei && !/^\d{15}$/.test(value.imei)) {
-    context.addIssue({ code: "custom", message: "El IMEI tiene 15 dígitos", path: ["imei"] });
+  const imei = parseOptionalImei(value.imei);
+  if (imei.ok === false) {
+    context.addIssue({ code: "custom", message: IMEI_FORMAT_MESSAGE, path: ["imei"] });
   }
 }).refine((value) => Object.keys(value).length > 0, { message: "No hay cambios" });
 

@@ -8,6 +8,7 @@ import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 
@@ -59,7 +60,9 @@ async function assertCategory(tx: Prisma.TransactionClient, storeId: string, sou
   if (!found) throw new OperationError("Category not found", 404);
 }
 async function assertIncomingImei(tx: Prisma.TransactionClient, storeId: string, imei?: string | null, exceptInventoryId?: string) {
-  const normalized = imei?.trim();
+  const parsed = parseOptionalImei(imei);
+  if (parsed.ok === false) throw new OperationError(parsed.message, 400);
+  const normalized = parsed.imei;
   if (!normalized) return;
   const duplicate = await tx.inventoryItem.findFirst({
     where: {
@@ -358,6 +361,8 @@ export async function createOperation(storeId: string, source: OperationSource, 
         if (!draftProduct) throw new OperationError("Inventory item not found", 404);
         if (!canRegisterOutgoingSale(draftProduct)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
+      const receivedImei = parseOptionalImei(input.tradeIn.deviceReceivedImei);
+      if (receivedImei.ok === false) throw new OperationError(receivedImei.message, 400);
       const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
       const trade = await tx.tradeIn.create({ data: {
         storeId,
@@ -368,7 +373,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         dateLabel: formatArDate(date),
         tradeAt: date,
         deviceReceived: input.tradeIn.deviceReceived.trim(),
-        deviceReceivedImei: input.tradeIn.deviceReceivedImei?.trim() || null,
+        deviceReceivedImei: receivedImei.imei,
         takeValue: dec(input.tradeIn.takeValue),
         currency,
         deviceGiven: input.deviceLabel?.trim() ?? "",

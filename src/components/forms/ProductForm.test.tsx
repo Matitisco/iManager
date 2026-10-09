@@ -23,12 +23,12 @@ describe('ProductForm', () => {
     const user = userEvent.setup();
     render(<ProductForm onClose={vi.fn()} />);
 
-    await user.type(screen.getByLabelText('IMEI'), '   ');
+    await user.type(screen.getByLabelText('IMEI (opcional)'), '   ');
     await user.type(screen.getByLabelText('Modelo'), '   ');
     await user.type(screen.getByLabelText('Color'), '   ');
     await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
 
-    expect(await screen.findByText(/imei.*modelo.*color/i)).toBeInTheDocument();
+    expect(await screen.findByText(/modelo.*color/i)).toBeInTheDocument();
     expect(mockAppContext.addProduct).not.toHaveBeenCalled();
   });
 
@@ -39,7 +39,7 @@ describe('ProductForm', () => {
 
     render(<ProductForm onClose={onClose} />);
 
-    await user.type(screen.getByLabelText('IMEI'), ' 111222333 ');
+    fireEvent.change(screen.getByLabelText('IMEI (opcional)'), { target: { value: ' 350000000000095 ' } });
     await user.type(screen.getByLabelText('Modelo'), ' iPhone 15 ');
     await user.clear(screen.getByLabelText('Color'));
     await user.type(screen.getByLabelText('Color'), ' Negro ');
@@ -56,7 +56,7 @@ describe('ProductForm', () => {
     await waitFor(() => {
       expect(mockAppContext.addProduct).toHaveBeenCalledWith(
         expect.objectContaining({
-          imei: '111222333',
+          imei: '350000000000095',
           model: 'iPhone 15',
           color: 'Negro',
           cost: 1000,
@@ -89,7 +89,7 @@ describe('ProductForm', () => {
       expect(screen.getAllByRole('option', { name: 'Nuevo' }).length).toBeGreaterThan(0);
       await user.selectOptions(select, 'Usado');
 
-      await user.type(screen.getByLabelText('IMEI'), '111222333');
+      await user.type(screen.getByLabelText('IMEI (opcional)'), '350000000000095');
       await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
       await user.clear(screen.getByLabelText('Color'));
       await user.type(screen.getByLabelText('Color'), 'Negro');
@@ -118,7 +118,7 @@ describe('ProductForm', () => {
     try {
       render(<ProductForm onClose={vi.fn()} />);
 
-      await user.type(screen.getByLabelText('IMEI'), '111222333');
+      await user.type(screen.getByLabelText('IMEI (opcional)'), '350000000000095');
       await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
       await user.clear(screen.getByLabelText('Color'));
       await user.type(screen.getByLabelText('Color'), 'Negro');
@@ -141,7 +141,7 @@ describe('ProductForm', () => {
     const user = userEvent.setup();
     render(<ProductForm onClose={vi.fn()} />);
 
-    await user.type(screen.getByLabelText('IMEI'), '111222333');
+    await user.type(screen.getByLabelText('IMEI (opcional)'), '350000000000095');
     await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
     await user.type(screen.getByLabelText('Color'), 'Negro');
     fireEvent.change(screen.getByLabelText('Costo ($)'), { target: { value: '-10' } });
@@ -160,5 +160,24 @@ describe('ProductForm', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
     expect(await screen.findByText('El modelo puede tener hasta 100 caracteres')).toBeInTheDocument();
     expect(mockAppContext.addProduct).not.toHaveBeenCalled();
+  });
+
+  it('saves without an IMEI and blocks a partial one', async () => {
+    const user = userEvent.setup();
+    mockAppContext.addProduct.mockResolvedValue(undefined);
+    render(<ProductForm onClose={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('IMEI (opcional)'), '12345');
+    await user.type(screen.getByLabelText('Modelo'), 'iPhone 15');
+    await user.type(screen.getByLabelText('Color'), 'Negro');
+    await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+    expect(await screen.findByText('El IMEI tiene 15 dígitos')).toBeInTheDocument();
+    expect(mockAppContext.addProduct).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText('IMEI (opcional)'));
+    await user.click(screen.getByRole('button', { name: 'Guardar Equipo' }));
+    await waitFor(() => {
+      expect(mockAppContext.addProduct).toHaveBeenCalledWith(expect.objectContaining({ imei: '', model: 'iPhone 15' }));
+    });
   });
 });

@@ -147,10 +147,29 @@ describe("sales.service", () => {
   it("stores the client name without requiring a client row", async () => {
     prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
 
-    const result = await importSales("store-1", [{ clientName: "Alguien", productImei: "IMEI", amount: "1000" }]);
+    const result = await importSales("store-1", [{ clientName: "Alguien", productImei: "350000000000095", amount: "1000" }]);
 
-    expect(result.errors).toEqual([{ row: 2, message: 'Producto no encontrado (IMEI): "IMEI"' }]);
+    expect(result.errors).toEqual([{ row: 2, message: 'Producto no encontrado (IMEI): "350000000000095"' }]);
     expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("imports a sale without an IMEI and without linking stock", async () => {
+    prismaMock.sale.create.mockResolvedValue({ id: "sale-1" });
+
+    const result = await importSales("store-1", [{ clientName: "Alguien", amount: "1000" }]);
+
+    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ clientName: "Alguien", inventoryItemId: null }),
+    });
+  });
+
+  it("rejects a sale import IMEI that is not 15 digits", async () => {
+    const result = await importSales("store-1", [{ productImei: "12345", amount: "1000" }]);
+
+    expect(result.errors).toEqual([{ row: 2, message: "El IMEI tiene 15 dígitos" }]);
+    expect(prismaMock.sale.create).not.toHaveBeenCalled();
   });
 
   it("returns null for non-domain errors", () => {

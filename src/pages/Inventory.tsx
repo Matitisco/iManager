@@ -380,13 +380,13 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     // ── Add row inline ────────────────────────────────────────────────────────
     addRowFields: [
       { colId: 'model', placeholder: 'Modelo (ej. iPhone 15 Pro)', required: true },
-      { colId: 'imei', placeholder: 'IMEI' },
+      { colId: 'imei', placeholder: 'IMEI (opcional)' },
       { colId: 'price', placeholder: 'Precio' },
     ],
     buildNewItem: (formData, categoryId) => {
       return {
         model: formData.model ?? '',
-        imei: (formData.imei ?? '').trim() || `MAN-${Date.now()}`,
+        imei: (formData.imei ?? '').trim(),
         price: Number(formData.price) || 0,
         cost: Number(formData.cost) || 0,
         capacity: formData.capacity ?? '',
@@ -404,7 +404,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     editPanelTitle: 'Editar equipo',
     editPanelFields: [
       { label: 'Modelo',    field: 'model',         type: 'text',   span: 2 },
-      { label: 'IMEI',      field: 'imei',          type: 'text',   span: 2, mono: true },
+      { label: 'IMEI (opcional)', field: 'imei', type: 'text', span: 2, mono: true },
       { label: 'Precio',    field: 'price',         type: 'number' },
       { label: 'Costo',     field: 'cost',          type: 'number' },
       { label: 'Capacidad', field: 'capacity',      type: 'text' },
@@ -443,7 +443,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
       title: 'Importar inventario',
       fields: [
         { key: 'model',         label: 'Modelo',       required: true },
-        { key: 'imei',          label: 'IMEI',         required: false },
+        { key: 'imei',          label: 'IMEI (opcional)', required: false },
         { key: 'price',         label: 'Precio',       required: false },
         { key: 'capacity',      label: 'Capacidad',    required: false, hint: 'ej: 128GB' },
         { key: 'color',         label: 'Color',        required: false },

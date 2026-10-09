@@ -397,7 +397,7 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
       title: 'Importar ventas',
       fields: [
         { key: 'clientName',    label: 'Cliente (nombre)',  required: true },
-        { key: 'productImei',   label: 'IMEI del producto', required: true },
+        { key: 'productImei',   label: 'IMEI (opcional)', required: false },
         { key: 'amount',        label: 'Monto',             required: false },
         { key: 'date',          label: 'Fecha',             required: false, hint: 'ej: 01 abr 2026' },
         { key: 'paymentMethod', label: 'Método de pago',    required: false, hint: 'EFECTIVO / TRANSFERENCIA / TARJETA' },

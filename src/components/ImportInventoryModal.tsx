@@ -18,7 +18,7 @@ interface FieldDef {
 
 const INVENTORY_FIELDS: FieldDef[] = [
   { key: 'model',         label: 'Modelo',       required: true },
-  { key: 'imei',          label: 'IMEI',         required: false },
+  { key: 'imei',          label: 'IMEI (opcional)', required: false },
   { key: 'price',         label: 'Precio',       required: false },
   { key: 'capacity',      label: 'Capacidad',    required: false, hint: 'ej: 128GB' },
   { key: 'color',         label: 'Color',        required: false },

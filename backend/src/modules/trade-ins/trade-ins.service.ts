@@ -4,6 +4,7 @@ import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.j
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
+import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { moneyChanged } from "../audit/audit.js";
 
@@ -112,6 +113,12 @@ type TradeInRecord = {
   cancelledAt?: Date | null;
   sale?: { id: string } | null;
 };
+
+function requiredTradeImei(value: string | null | undefined) {
+  const parsed = parseOptionalImei(value);
+  if (parsed.ok === false) throw new TradeInsError(parsed.message, 400);
+  return parsed.imei ?? "";
+}
 
 class TradeInsError extends Error {
   statusCode: number;
@@ -272,7 +279,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
         categoryId: input.categoryId ?? null,
         dateLabel,
         deviceReceived: input.deviceReceived,
-        deviceReceivedImei: input.deviceReceivedImei?.trim() || "",
+        deviceReceivedImei: requiredTradeImei(input.deviceReceivedImei),
         takeValue: toDecimal(input.takeValue ?? 0),
         currency,
         deviceGiven: input.deviceGiven,
@@ -333,7 +340,7 @@ export async function updateTradeIn(
       deviceReceived: input.deviceReceived ?? existing.deviceReceived,
       deviceReceivedImei:
         input.deviceReceivedImei !== undefined
-          ? input.deviceReceivedImei?.trim() || ""
+          ? requiredTradeImei(input.deviceReceivedImei)
           : existing.deviceReceivedImei,
       takeValue:
         input.takeValue !== undefined ? toDecimal(input.takeValue) : existing.takeValue,
@@ -450,7 +457,12 @@ export async function importTradeIns(
         continue;
       }
 
-      const deviceReceivedImei = row.deviceReceivedImei?.trim() ?? "";
+      const parsedImei = parseOptionalImei(row.deviceReceivedImei);
+      if (parsedImei.ok === false) {
+        errors.push({ row: rowNum, message: parsedImei.message });
+        continue;
+      }
+      const deviceReceivedImei = parsedImei.imei ?? "";
 
       const deviceGiven = row.deviceGiven?.trim();
       if (!deviceGiven) {

@@ -91,7 +91,7 @@ export async function seedCatalogFixture(storeId: string) {
     data: {
       storeId,
       categoryId: inventoryCategory.id,
-      imei: "IMEI-1234567890",
+      imei: "359123456789012",
       model: "iPhone 14",
       capacity: "128GB",
       color: "Black",

@@ -6,6 +6,7 @@ import { requireSectionAccess } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
+import { zodOptionalImei } from "../../lib/imei.js";
 import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
@@ -25,7 +26,7 @@ import {
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
-  imei: z.string().trim().max(100),
+  imei: zodOptionalImei().optional(),
   model: z.string().trim().min(1).max(100),
   capacity: z.string().trim().max(50),
   color: z.string().trim().max(50),
