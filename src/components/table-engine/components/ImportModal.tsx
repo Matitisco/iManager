@@ -1,6 +1,7 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
+import { Sheet } from '../../../desk/ui';
 import type { ImportFieldDef, GenericImportResult } from '../types';
 import { parseWorkbook } from '../../../utils/parse-workbook';
 
@@ -122,12 +123,13 @@ interface Props {
     onCreate: (label: string, type: 'text' | 'number') => Promise<string | null>;
   };
   mapHints?: Record<string, string>;
+  sheet?: boolean;
 }
 
 const PREVIEW_ROWS = 12;
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, title = 'Importar', extraColumns, mapHints = {},
+  fields, onImport, onClose, title = 'Importar', extraColumns, mapHints = {}, sheet = false,
 }) => {
   const [step, setStep]       = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
@@ -275,33 +277,8 @@ export const ImportModal: React.FC<Props> = ({
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-            <p className="text-sm text-gray-500">{subtitle}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <X size={18} className="text-gray-500" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5">
+  const importSteps = (
+        <div className={sheet ? 'inv-import-body' : 'overflow-y-auto flex-1 p-5'}>
 
           {/* ── Upload ── */}
           {step === 'upload' && (
@@ -311,7 +288,7 @@ export const ImportModal: React.FC<Props> = ({
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors
+                className={`inv-drop border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors
                   ${dragging ? 'border-black bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}
               >
                 <Upload size={32} className="text-gray-400" />
@@ -589,8 +566,9 @@ export const ImportModal: React.FC<Props> = ({
             </div>
           )}
         </div>
+  );
 
-        {/* Footer */}
+  const modalFooter = (
         <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
           {step === 'upload' && (
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
@@ -667,6 +645,64 @@ export const ImportModal: React.FC<Props> = ({
             </button>
           )}
         </div>
+  );
+
+  const noun = fileRows.length === 1 ? 'equipo' : 'equipos';
+  const sheetFooter = step === 'upload' ? (
+    <div className="sacts one"><button type="button" className="btn2 s" onClick={onClose}>Cancelar</button></div>
+  ) : step === 'sheet-select' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => setStep('upload')}>Volver</button>
+      <button type="button" className="btn2 p" disabled={!selectedSheet} onClick={() => getSheet && loadSheet(getSheet, selectedSheet)}>Continuar</button>
+    </div>
+  ) : step === 'header-select' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => { setStep(sheetNames.length > 1 ? 'sheet-select' : 'upload'); setFileError(null); }}>Volver</button>
+      <button type="button" className="btn2 p" onClick={confirmHeaderRow}>Continuar</button>
+    </div>
+  ) : step === 'mapping' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => { setStep('header-select'); setFileError(null); }}>Volver</button>
+      <button type="button" className="btn2 p" disabled={!requiredMapped || importing} onClick={handleImport}>{importing ? 'Importando…' : `Importar ${fileRows.length} ${noun}`}</button>
+    </div>
+  ) : (
+    <div className="sacts one"><button type="button" className="btn2 p" onClick={onClose}>Cerrar</button></div>
+  );
+
+  if (sheet) {
+    return (
+      <Sheet title={title} subtitle={subtitle} onClose={onClose} className="inv-import">
+        {importSteps}
+        {sheetFooter}
+      </Sheet>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <p className="text-sm text-gray-500">{subtitle}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <X size={18} className="text-gray-500" />
+          </button>
+        </div>
+        {importSteps}
+        {modalFooter}
       </motion.div>
     </motion.div>
   );

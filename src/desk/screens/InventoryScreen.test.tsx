@@ -234,3 +234,75 @@ describe('Inventory novedades', () => {
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
   });
 });
+
+function usePhone() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: String(query).includes('760'),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+describe('Inventory phone list', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.inventory = [];
+    context.operationNotifications = [];
+    usePhone();
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('shows the empty state and keeps the price list inside the header menu', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lista de precios' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Más opciones' }));
+    expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
+  });
+
+  it('renders the card, searches by IMEI and applies the filter sheet', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'iPhone 13', imei: '490154203237518', capacity: '128GB', color: 'Medianoche', condition: 'USADO', grade: 'A', batteryHealth: '96%', price: 650000 }),
+      item('2', { model: 'Pixel', imei: '350000000000020', color: 'Azul', condition: 'USADO', grade: 'A', batteryHealth: '83-85%', price: 150000, status: 'VENDIDO' }),
+    ];
+    renderScreen();
+    const card = screen.getByText('iPhone 13 · 128GB').closest('button') as HTMLElement;
+    expect(within(card).getByText('IMEI 49 015420 323751 8')).toBeInTheDocument();
+    expect(within(card).getByText('Usado · Medianoche')).toBeInTheDocument();
+    expect(within(card).getByText('Grado A · Bat. 96%')).toBeInTheDocument();
+    expect(within(card).getByText('$ 650.000')).toBeInTheDocument();
+    expect(within(card).getByText('Disponible')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await user.type(screen.getByPlaceholderText('Buscar por IMEI, modelo o color'), '490154203237518');
+    expect(screen.getByText('iPhone 13 · 128GB')).toBeInTheDocument();
+    expect(screen.queryByText('Pixel · 128 GB')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText('Buscar por IMEI, modelo o color'));
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('button', { name: '≥ 90%' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('iPhone 13 · 128GB')).toBeInTheDocument();
+    expect(screen.queryByText(/Pixel/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
+
+    await user.click(screen.getByRole('button', { name: 'Más opciones' }));
+    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
+    expect(screen.getByRole('dialog', { name: 'Lista de precios' })).toBeInTheDocument();
+  });
+});
