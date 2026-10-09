@@ -20,5 +20,6 @@ export async function resolveAppUser(request: FastifyRequest, reply: FastifyRepl
     storeId: membership.storeId,
     role: membership.role,
     sections: membership.role === "OWNER" ? null : normalizeSections(membership.sections),
+    sensitiveAccess: membership.sensitiveAccess ?? null,
   };
 }

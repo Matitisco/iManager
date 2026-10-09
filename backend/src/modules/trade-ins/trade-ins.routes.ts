@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { requireSensitiveActor } from "../stores/sensitive-access.js";
 import { cancelTradeOperation, createOperation, getOperationErrorStatus, isIntegratedTradeIn, updateTradeFromLegacy } from "../operations/operations.service.js";
 import type { TradeInInput } from "./trade-ins.service.js";
 import {
@@ -190,9 +191,11 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       }
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
       if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
         try {
-          await cancelTradeOperation(request.appUser.storeId, params.id);
+          await cancelTradeOperation(request.appUser.storeId, params.id, actor);
           return reply.code(204).send();
         } catch (error) {
           const operationError = getOperationErrorStatus(error);
@@ -200,7 +203,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
           throw error;
         }
       }
-      const deleted = await deleteTradeIn(request.appUser.storeId, params.id);
+      const deleted = await deleteTradeIn(request.appUser.storeId, params.id, actor);
 
       if (!deleted) {
         return reply.code(404).send({ error: "Trade-in not found" });

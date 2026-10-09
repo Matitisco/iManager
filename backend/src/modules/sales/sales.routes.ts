@@ -3,6 +3,8 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { loadActor } from "../audit/audit.js";
+import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { cancelOperationFromSale, createOperation, getOperationErrorStatus, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
   createSale,
@@ -233,14 +235,18 @@ export async function salesRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = salePatchSchema.parse(request.body);
+      if (body.status === "CANCELADA" && !canManageSensitive(request.appUser)) {
+        return reply.code(403).send({ error: "No tenés permiso para esta acción" });
+      }
       try {
+        const actor = body.status === "CANCELADA" ? await loadActor(request.appUser.userId) : null;
         if (await isIntegratedSale(request.appUser.storeId, params.id)) {
           if (body.status === "CANCELADA") {
-            return await cancelOperationFromSale(request.appUser.storeId, params.id);
+            return await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
           }
           return await updateSaleOperation(request.appUser.storeId, params.id, body);
         }
-        const sale = await updateSale(request.appUser.storeId, params.id, body);
+        const sale = await updateSale(request.appUser.storeId, params.id, body, actor);
 
         if (!sale) {
           return reply.code(404).send({ error: "Sale not found" });
@@ -271,9 +277,11 @@ export async function salesRoutes(app: FastifyInstance) {
       }
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
       if (await isIntegratedSale(request.appUser.storeId, params.id)) {
         try {
-          await cancelOperationFromSale(request.appUser.storeId, params.id);
+          await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
           return reply.code(204).send();
         } catch (error) {
           const mapped = getOperationErrorStatus(error);
@@ -281,7 +289,7 @@ export async function salesRoutes(app: FastifyInstance) {
           throw error;
         }
       }
-      const deleted = await deleteSale(request.appUser.storeId, params.id);
+      const deleted = await deleteSale(request.appUser.storeId, params.id, actor);
 
       if (!deleted) {
         return reply.code(404).send({ error: "Sale not found" });

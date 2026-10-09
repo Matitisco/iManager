@@ -14,6 +14,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
   const { user, appSession, reloadSession } = useAppContext();
   const locked = member.role === 'OWNER';
   const [sections, setSections] = useState(() => visibleSections(member.sections, member.role));
+  const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const name = member.user.displayName || member.user.email || 'Miembro';
@@ -28,7 +29,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
     setBusy(true);
     setError('');
     try {
-      const saved = await updateMemberSections(user, appSession.store.id, member.id, sections);
+      const saved = await updateMemberSections(user, appSession.store.id, member.id, sections, sensitive);
       if (member.userId === appSession.user.id) await reloadSession();
       onSaved(saved);
       onBack();
@@ -71,6 +72,26 @@ export function MemberPermissions({ member, onBack, onSaved }: {
               </div>
             );
           })}
+        </div>
+        <div className="sec">Acciones</div>
+        <div className="card">
+          <div className="perm">
+            <div>
+              <b>Acciones sensibles</b>
+              <small>{sensitive ? 'Puede cancelar, borrar y cambiar precio o costo' : 'Sin permiso'}</small>
+            </div>
+            <button
+              type="button"
+              className={`sw${sensitive ? ' on' : ''}`}
+              role="switch"
+              aria-checked={sensitive || locked}
+              aria-label="Acciones sensibles"
+              disabled={locked || busy}
+              onClick={() => setSensitive((current) => !current)}
+            >
+              <i />
+            </button>
+          </div>
         </div>
         {locked ? <p className="perm-note">El propietario conserva el acceso a todas las secciones.</p> : null}
         {error ? <div className="ferr">{error}</div> : null}

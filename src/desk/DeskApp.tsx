@@ -14,6 +14,7 @@ import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
+import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { canOpenSection } from './sections';
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
@@ -153,6 +154,7 @@ export function DeskApp() {
     close: () => setOverlay(null),
     toast: (text: string) => { setMessage(text); setToastOn(true); },
     isStaff,
+    canManageSensitive: memberCanManageSensitive(appSession?.membership),
   };
 
   const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars'; size: number; meta?: string }[] = [

@@ -11,4 +11,5 @@ export type AppUserContext = {
   storeId: string;
   role: "OWNER" | "MANAGER" | "STAFF";
   sections?: string[] | null;
+  sensitiveAccess?: boolean | null;
 };

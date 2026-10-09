@@ -3,7 +3,9 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
+import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
@@ -159,7 +161,11 @@ export async function inventoryRoutes(app: FastifyInstance) {
         const inventoryItem = await updateInventoryItem(
           request.appUser.storeId,
           params.id,
-          body
+          body,
+          {
+            actor: await loadActor(request.appUser.userId),
+            enforcePriceCost: !canManageSensitive(request.appUser),
+          },
         );
 
         if (!inventoryItem) {
@@ -209,7 +215,10 @@ export async function inventoryRoutes(app: FastifyInstance) {
       });
 
       const { rows } = bodySchema.parse(request.body) as { rows: ImportRow[] };
-      const result = await importInventoryItems(request.appUser.storeId, rows);
+      const result = await importInventoryItems(request.appUser.storeId, rows, {
+        actor: await loadActor(request.appUser.userId),
+        lockPrice: !canManageSensitive(request.appUser),
+      });
       return reply.code(200).send(result);
     }
   );
@@ -225,7 +234,9 @@ export async function inventoryRoutes(app: FastifyInstance) {
       }
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
-      const deleted = await deleteInventoryItem(request.appUser.storeId, params.id);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      const deleted = await deleteInventoryItem(request.appUser.storeId, params.id, actor);
 
       if (!deleted) {
         return reply.code(404).send({ error: "Inventory item not found" });

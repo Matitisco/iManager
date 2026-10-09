@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
+import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
 
 export interface InventoryItemInput {
@@ -37,6 +38,10 @@ export interface InventoryItemResponse {
   createdAt: string;
   archivedAt?: string | null;
   pendingSaleRegistration?: boolean;
+  priceChangedBy: string | null;
+  priceChangedAt: string | null;
+  costChangedBy: string | null;
+  costChangedAt: string | null;
 }
 
 export interface InventoryCategoryResponse {
@@ -62,6 +67,10 @@ type InventoryRecord = {
   createdAt?: Date;
   archivedAt?: Date | null;
   pendingSaleRegistration?: boolean;
+  priceChangedBy?: string | null;
+  priceChangedAt?: Date | null;
+  costChangedBy?: string | null;
+  costChangedAt?: Date | null;
 };
 
 class InventoryError extends Error {
@@ -119,6 +128,10 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
     archivedAt: item.archivedAt?.toISOString() ?? null,
     pendingSaleRegistration: item.pendingSaleRegistration ?? false,
+    priceChangedBy: item.priceChangedBy ?? null,
+    priceChangedAt: item.priceChangedAt ? new Date(item.priceChangedAt).toISOString() : null,
+    costChangedBy: item.costChangedBy ?? null,
+    costChangedAt: item.costChangedAt ? new Date(item.costChangedAt).toISOString() : null,
   };
 }
 
@@ -212,6 +225,10 @@ type RawInventoryRow = {
   createdAt: Date | string | null;
   archivedAt: Date | string | null;
   pendingSaleRegistration: boolean;
+  priceChangedBy: string | null;
+  priceChangedAt: Date | string | null;
+  costChangedBy: string | null;
+  costChangedAt: Date | string | null;
 };
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
@@ -233,6 +250,10 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
     archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null,
     pendingSaleRegistration: row.pendingSaleRegistration,
+    priceChangedBy: row.priceChangedBy ?? null,
+    priceChangedAt: row.priceChangedAt ? new Date(row.priceChangedAt).toISOString() : null,
+    costChangedBy: row.costChangedBy ?? null,
+    costChangedAt: row.costChangedAt ? new Date(row.costChangedAt).toISOString() : null,
   };
 }
 
@@ -246,7 +267,8 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration"
+             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration",
+             "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -347,13 +369,20 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
 export async function updateInventoryItem(
   storeId: string,
   id: string,
-  input: Partial<InventoryItemInput>
+  input: Partial<InventoryItemInput>,
+  options?: { actor?: Actor | null; enforcePriceCost?: boolean },
 ) {
   const updated = await withSerializableRetry(async (tx) => {
     const existing = await tx.inventoryItem.findFirst({
       where: { id, storeId, archivedAt: null },
     });
     if (!existing) return null;
+
+    const priceChanges = input.price !== undefined && moneyChanged(existing.price, input.price);
+    const costChanges = input.cost !== undefined && moneyChanged(existing.cost, input.cost);
+    if (options?.enforcePriceCost && (priceChanges || costChanges)) {
+      throw new InventoryError("No tenés permiso para cambiar precio o costo", 403);
+    }
 
     if (input.categoryId) {
       const category = await tx.inventoryCategory.findFirst({
@@ -390,8 +419,17 @@ export async function updateInventoryItem(
     if (input.condition !== undefined) data.condition = input.condition;
     if (input.grade !== undefined) data.grade = input.grade;
     if (input.batteryHealth !== undefined) data.batteryHealth = input.batteryHealth;
+    const changedAt = new Date();
     if (input.cost !== undefined) data.cost = toDecimal(input.cost);
+    if (costChanges && options?.actor) {
+      data.costChangedBy = options.actor.name;
+      data.costChangedAt = changedAt;
+    }
     if (input.price !== undefined) data.price = toDecimal(input.price);
+    if (priceChanges && options?.actor) {
+      data.priceChangedBy = options.actor.name;
+      data.priceChangedAt = changedAt;
+    }
     if (input.categoryId !== undefined) data.category = input.categoryId
       ? { connect: { id: input.categoryId } }
       : { disconnect: true };
@@ -409,6 +447,26 @@ export async function updateInventoryItem(
     }
 
     const updated = await tx.inventoryItem.update({ where: { id }, data });
+    if (options?.actor && priceChanges) {
+      await writeAudit(tx, {
+        storeId,
+        actor: options.actor,
+        action: "inventory.price",
+        entityType: "inventory",
+        entityId: id,
+        detail: `${existing.price.toString()} → ${input.price}`,
+      });
+    }
+    if (options?.actor && costChanges) {
+      await writeAudit(tx, {
+        storeId,
+        actor: options.actor,
+        action: "inventory.cost",
+        entityType: "inventory",
+        entityId: id,
+        detail: `${existing.cost.toString()} → ${input.cost}`,
+      });
+    }
     if (input.status === "VENDIDO" && existing.status !== "VENDIDO") {
       await writeOperationNotifications(tx, storeId, [{
         section: "inventory",
@@ -424,7 +482,7 @@ export async function updateInventoryItem(
   return updated ? serializeInventoryItem(updated) : null;
 }
 
-export async function deleteInventoryItem(storeId: string, id: string) {
+export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null) {
   const existing = await inventoryPrisma.inventoryItem.findFirst({
     where: { id, storeId },
   });
@@ -440,6 +498,17 @@ export async function deleteInventoryItem(storeId: string, id: string) {
   await inventoryPrisma.inventoryItem.delete({
     where: { id },
   });
+
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "inventory.deleted",
+      entityType: "inventory",
+      entityId: id,
+      detail: existing.model,
+    });
+  }
 
   return true;
 }
@@ -585,7 +654,8 @@ function normalizeBattery(raw: unknown): string {
 
 export async function importInventoryItems(
   storeId: string,
-  rows: ImportRow[]
+  rows: ImportRow[],
+  options?: { actor?: Actor | null; lockPrice?: boolean },
 ): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, updated: 0, errors: [] };
 
@@ -634,18 +704,18 @@ export async function importInventoryItems(
     try {
       const existing = await inventoryPrisma.inventoryItem.findFirst({
         where: { storeId, imei: input.imei },
-        select: { id: true },
+        select: { id: true, customFields: true, price: true, cost: true },
       });
 
       if (existing) {
-        const prev = await inventoryPrisma.inventoryItem.findFirst({
-          where: { id: existing.id },
-          select: { customFields: true },
-        });
         const mergedFields = {
-          ...(toCustomFields(prev?.customFields ?? null)),
+          ...(toCustomFields(existing.customFields ?? null)),
           ...(raw.customFields ?? {}),
         };
+        const priceChanges = moneyChanged(existing.price, input.price);
+        const applyPrice = !(options?.lockPrice && priceChanges);
+        const costChanges = providedCost !== undefined && moneyChanged(existing.cost, providedCost);
+        const changedAt = new Date();
         await inventoryPrisma.inventoryItem.update({
           where: { id: existing.id },
           data: {
@@ -656,11 +726,33 @@ export async function importInventoryItems(
             grade: input.grade,
             batteryHealth: input.batteryHealth,
             ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
-            price: toDecimal(input.price),
+            ...(costChanges && options?.actor ? { costChangedBy: options.actor.name, costChangedAt: changedAt } : {}),
+            ...(applyPrice ? { price: toDecimal(input.price) } : {}),
+            ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             status: input.status,
             customFields: mergedFields,
           },
         });
+        if (options?.actor && applyPrice && priceChanges) {
+          await writeAudit(prisma, {
+            storeId,
+            actor: options.actor,
+            action: "inventory.price",
+            entityType: "inventory",
+            entityId: existing.id,
+            detail: `${existing.price.toString()} → ${input.price}`,
+          });
+        }
+        if (options?.actor && costChanges && providedCost !== undefined) {
+          await writeAudit(prisma, {
+            storeId,
+            actor: options.actor,
+            action: "inventory.cost",
+            entityType: "inventory",
+            entityId: existing.id,
+            detail: `${existing.cost.toString()} → ${providedCost}`,
+          });
+        }
         result.updated++;
       } else {
         await inventoryPrisma.inventoryItem.create({

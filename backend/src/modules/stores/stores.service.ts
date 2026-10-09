@@ -146,6 +146,7 @@ function serializeMember(member: {
   isDefault: boolean;
   createdAt: Date;
   sections?: unknown;
+  sensitiveAccess?: boolean | null;
   user: { id: string; displayName: string | null; email: string | null; avatarUrl: string | null };
 }) {
   return {
@@ -155,6 +156,7 @@ function serializeMember(member: {
     isDefault: member.isDefault,
     createdAt: member.createdAt,
     sections: member.role === "OWNER" ? null : normalizeSections(member.sections),
+    sensitiveAccess: member.role === "OWNER" ? null : member.sensitiveAccess ?? null,
     user: member.user,
   };
 }
@@ -235,6 +237,7 @@ export async function updateMemberSections(
   sections: string[],
   actorRole: StoreRole,
   actorUserId: string,
+  sensitiveAccess?: boolean | null,
 ) {
   if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
     throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
@@ -254,7 +257,10 @@ export async function updateMemberSections(
   const next = assertSectionList(sections);
   const updated = await prisma.storeMember.update({
     where: { id: memberId },
-    data: { sections: next },
+    data: {
+      sections: next,
+      ...(sensitiveAccess !== undefined ? { sensitiveAccess } : {}),
+    },
     include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
   });
   return serializeMember(updated);

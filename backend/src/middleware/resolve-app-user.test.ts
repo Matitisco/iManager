@@ -57,6 +57,7 @@ describe("resolveAppUser", () => {
       storeId: "store-1",
       role: "OWNER",
       sections: null,
+      sensitiveAccess: null,
     });
   });
 });

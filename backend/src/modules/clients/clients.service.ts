@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
+import { writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface ClientInput {
@@ -289,10 +290,10 @@ export async function registerClientPayment(
   });
 }
 
-export async function deleteClient(storeId: string, id: string) {
+export async function deleteClient(storeId: string, id: string, actor?: Actor | null) {
   const existing = await prisma.client.findFirst({
     where: { id, storeId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!existing) {
@@ -306,6 +307,17 @@ export async function deleteClient(storeId: string, id: string) {
   await prisma.client.delete({
     where: { id },
   });
+
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "client.deleted",
+      entityType: "client",
+      entityId: id,
+      detail: existing.name,
+    });
+  }
 
   return true;
 }

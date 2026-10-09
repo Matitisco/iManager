@@ -12,6 +12,10 @@ export interface Product {
   status: string;
   pendingSaleRegistration?: boolean;
   archivedAt?: string | null;
+  priceChangedBy?: string | null;
+  priceChangedAt?: string | null;
+  costChangedBy?: string | null;
+  costChangedAt?: string | null;
   categoryId?: string | null;
   soldAt?: string | null;
   createdAt?: string;
@@ -49,6 +53,8 @@ export interface Sale {
   tradeInId?: string | null;
   integratedOperation?: boolean;
   requestKey?: string | null;
+  cancelledBy?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface OperationProductOption {
@@ -92,6 +98,8 @@ export interface TradeIn {
   draftSaleCategoryId?: string | null;
   draftPaymentMethod?: string | null;
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
+  cancelledBy?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface TradeInCategory {

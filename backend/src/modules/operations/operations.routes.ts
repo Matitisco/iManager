@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
+import { requireSensitiveActor } from "../stores/sensitive-access.js";
 import {
   cancelOperationFromSale,
   cancelTradeFromSale,
@@ -195,7 +196,9 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" || source === "clients") {
       if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only cancel its pending trade-in" });
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
-    try { return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "") : await cancelTradeOperation(request.appUser!.storeId, params.id ?? ""); }
+    const actor = await requireSensitiveActor(request.appUser, reply);
+    if (!actor) return;
+    try { return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor); }
     catch (error) { return errorReply(error, reply); }
   });
 
@@ -205,7 +208,9 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (source !== "sales") return reply.code(403).send({ error: "Only sales source can cancel a sale" });
     if (!authorized(request, reply, source)) return;
-    try { return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? ""); }
+    const actor = await requireSensitiveActor(request.appUser, reply);
+    if (!actor) return;
+    try { return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor); }
     catch (error) { return errorReply(error, reply); }
   });
 }

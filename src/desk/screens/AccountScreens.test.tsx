@@ -96,6 +96,7 @@ describe('Member permissions', () => {
     expect(screen.getByText(/Empleado/)).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Dashboard' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
 
     await user.click(screen.getByRole('switch', { name: 'Inventario' }));
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
@@ -114,7 +115,32 @@ describe('Member permissions', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Propietario/ }));
     expect(screen.getByText('El propietario conserva el acceso a todas las secciones.')).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Reportes' })).toBeDisabled();
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeDisabled();
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
     expect(screen.queryByRole('button', { name: 'Guardar permisos' })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked());
+  });
+
+  it('saves an explicit sensitive-action grant for a manager', async () => {
+    const user = userEvent.setup();
+    membersApi.listMembers.mockResolvedValue([member({
+      role: 'MANAGER',
+      sections: null,
+      user: { id: 'u3', displayName: 'Socio', email: 'socio@test.com', avatarUrl: null },
+    })]);
+    membersApi.updateMemberSections.mockResolvedValue(member({ role: 'MANAGER', sensitiveAccess: false }));
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: /Socio/ }));
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
+    await user.click(screen.getByRole('switch', { name: 'Acciones sensibles' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar permisos' }));
+    await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalledWith(
+      context.user,
+      's',
+      'm2',
+      expect.any(Array),
+      false,
+    ));
   });
 });
