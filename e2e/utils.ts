@@ -195,7 +195,32 @@ export async function fetchClients(request: APIRequestContext, email: string) {
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch clients');
-  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string }> };
+  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string; phone: string; pendingBalance: number; totalSpent: number }> };
+}
+
+export async function createClientViaApi(
+  request: APIRequestContext,
+  email: string,
+  input: {
+    name: string;
+    dni?: string;
+    phone?: string;
+    email?: string;
+    pendingBalance?: number;
+    totalSpent?: number;
+    lastPurchaseDate?: string;
+    balanceCurrency?: 'ARS' | 'USD';
+  },
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/clients`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: input,
+  });
+  const body = await assertOk(response, 'Create client');
+  return JSON.parse(body) as { client: { id: string; name: string } };
 }
 
 export async function fetchSales(request: APIRequestContext, email: string) {

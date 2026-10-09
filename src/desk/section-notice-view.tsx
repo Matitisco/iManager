@@ -24,17 +24,19 @@ export function PhoneRecords({ children }: { children: ReactNode }) {
 
 export function PhoneRecord({
   reason,
+  testId,
   onActivate,
   onMenu,
   children,
 }: {
   reason?: string;
+  testId?: string;
   onActivate: () => void;
   onMenu: (point: { x: number; y: number }) => void;
   children: ReactNode;
 }) {
   return (
-    <PressTarget as="button" className={reason ? 'phone-row novedad' : 'phone-row'} onActivate={onActivate} onMenu={onMenu}>
+    <PressTarget as="button" className={reason ? 'phone-row novedad' : 'phone-row'} testId={testId} onActivate={onActivate} onMenu={onMenu}>
       {children}
       <NoticeTag reason={reason} />
     </PressTarget>

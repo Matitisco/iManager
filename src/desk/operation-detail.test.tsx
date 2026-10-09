@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
@@ -9,7 +9,7 @@ import type { Overlay } from './types';
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
   tradeIns: [] as TradeIn[],
-  clients: [] as { id: string; name: string; pendingBalance?: number }[],
+  clients: [] as Array<{ id: string; name: string; pendingBalance?: number; totalSpent?: number; phone?: string; email?: string; dni?: string; lastPurchaseDate?: string; balanceCurrency?: string | null }>,
   inventory: [] as { id: string; model: string; capacity: string }[],
   updateSale: vi.fn(),
   updateTradeIn: vi.fn(),
@@ -228,6 +228,51 @@ describe('operation detail', () => {
     })];
     renderOverlay({ type: 'sale', id: 's1' });
     expect(screen.getByText('Cancelada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
+  });
+
+  it('keeps edit off the desk client sheet and shows it on a phone', () => {
+    ctx.clients = [{
+      id: 'c1',
+      name: 'Ana Pérez',
+      pendingBalance: 1500,
+      totalSpent: 8000,
+      phone: '1100000001',
+      email: 'ana@ejemplo.com',
+      dni: '30111222',
+      lastPurchaseDate: '2026-10-05',
+      balanceCurrency: 'ARS',
+    }];
+    renderOverlay({ type: 'cl', id: 'c1' });
+    const desk = screen.getByRole('dialog', { name: 'Ana Pérez' });
+    expect(within(desk).getByText('Saldo pendiente')).toBeInTheDocument();
+    expect(within(desk).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(within(desk).queryByText('Total gastado')).not.toBeInTheDocument();
+    cleanup();
+
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      renderOverlay({ type: 'cl', id: 'c1' });
+      const phone = screen.getByRole('dialog', { name: 'Ana Pérez' });
+      expect(phone).toHaveClass('cl-sheet');
+      expect(within(phone).getByText('Total gastado')).toBeInTheDocument();
+      expect(within(phone).getByText(/ARS/)).toBeInTheDocument();
+      expect(within(phone).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+      expect(within(phone).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
+      expect(within(phone).getByRole('button', { name: 'Nueva venta' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+      cleanup();
+    }
   });
 
   it('keeps the trade sheet actions on a phone and hides cancel without permission', () => {

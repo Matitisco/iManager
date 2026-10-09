@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
@@ -11,30 +11,68 @@ import {
   matchesClientColumns,
   type ClientColumnFilters,
 } from '../client-column-filters';
-import { useMoney } from '../exchange';
-import { avatarTone, formatInputMoney, formatShortDate, initials, parseMoney } from '../format';
+import { useMoney, type MoneyApi } from '../exchange';
+import { avatarTone, formatInputMoney, formatShortDate, initials, parseAppDate, parseMoney } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
-import { ChipRow, IconButton, ImportButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
+import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import type { Client } from '../../types';
+
+const SORTS = ['Deudores', 'Nombre', 'Última compra', 'Gastado'];
+
+function activeClientColumnCount(filters: ClientColumnFilters) {
+  return Number(clientColumnActive(filters, 'name'))
+    + Number(clientColumnActive(filters, 'dni'))
+    + Number(clientColumnActive(filters, 'phone'))
+    + Number(clientColumnActive(filters, 'date'))
+    + Number(clientColumnActive(filters, 'spent'))
+    + Number(clientColumnActive(filters, 'balance'));
+}
+
+function sortClients(rows: Client[], sort: string) {
+  const copy = [...rows];
+  const byName = (left: Client, right: Client) => left.name.localeCompare(right.name, 'es');
+  if (sort === 'Nombre') return copy.sort(byName);
+  if (sort === 'Última compra') {
+    return copy.sort((left, right) => {
+      const a = parseAppDate(left.lastPurchaseDate === 'N/A' ? '' : left.lastPurchaseDate)?.getTime();
+      const b = parseAppDate(right.lastPurchaseDate === 'N/A' ? '' : right.lastPurchaseDate)?.getTime();
+      if (a == null && b == null) return byName(left, right);
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return b - a || byName(left, right);
+    });
+  }
+  if (sort === 'Gastado') return copy.sort((left, right) => right.totalSpent - left.totalSpent || byName(left, right));
+  return copy.sort((left, right) => {
+    const debt = Number(right.pendingBalance > 0) - Number(left.pendingBalance > 0);
+    if (debt) return debt;
+    if (left.pendingBalance !== right.pendingBalance) return right.pendingBalance - left.pendingBalance;
+    return byName(left, right);
+  });
+}
 
 export function ClientsScreen() {
   const { clients, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
-  const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('clients');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
+  const [sort, setSort] = useState('Deudores');
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const draftError = useOperationDraftError('clients');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
   const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
+  const setDraft = (patch: Partial<ClientColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients.filter((client) => {
@@ -44,10 +82,17 @@ export function ClientsScreen() {
     });
   }, [clients, query, filter, columns]);
   const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
-  const page = usePagedRows(listed, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const ordered = phone ? sortClients(listed, sort) : listed;
+  const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`);
   const visibleKey = page.visible.map((client) => client.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((client) => client.id)); }, [visibleKey, notices.markVisible]);
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
+  const filterCount = activeClientColumnCount(columns);
+  const quietEmpty = clients.length === 0 && !query.trim() && filter === 'Todos' && !clientFiltersActive(columns) && !onlyNotices;
+  const openFilters = () => {
+    setDraftFilters(columns);
+    setFiltersOpen(true);
+  };
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
@@ -55,7 +100,12 @@ export function ClientsScreen() {
         title="Clientes"
         subtitle={`${clients.length} clientes · ${withBalance} con saldo`}
         back={back}
-        tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
+        tools={(
+          <span className="rslot">
+            <IconButton label="Filtros" name="filtrar" pressed={filterCount > 0} onClick={openFilters} />
+            {filterCount > 0 ? <span className="rbadge">{filterCount}</span> : null}
+          </span>
+        )}
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
@@ -67,10 +117,10 @@ export function ClientsScreen() {
           </div>
         )}
       />
-      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
+      {phone ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
-        <div className="dcard op-drafts">
+        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
           <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta.</small></div>
           <div className="op-draft-list">{ownDrafts.map((trade) => (
             <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'clients' })}>
@@ -85,28 +135,51 @@ export function ClientsScreen() {
           value={filter}
           onChange={setFilter}
         />
+        {phone ? (
+          <MenuButton
+            testId="clients-sort"
+            label={sort === 'Deudores' ? 'Ordenar' : sort}
+            options={SORTS}
+            value={sort}
+            active={sort !== 'Deudores'}
+            onChange={setSort}
+          />
+        ) : null}
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      {phone ? (
+        listed.length === 0 ? (
+          quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="wempty">No hay clientes con ese filtro.</div>
+        ) : (
+          <>
+            {clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}
+            <PhoneRecords>
+              {page.visible.map((client, index) => {
+                const reason = notices.reasonFor(client.id);
+                const group = client.pendingBalance > 0 ? 'Con saldo' : 'Todos';
+                const previous = index > 0 ? page.visible[index - 1] : null;
+                const showGroup = filter === 'Todos' && sort === 'Deudores' && (!previous || (previous.pendingBalance > 0) !== (client.pendingBalance > 0));
+                return (
+                  <Fragment key={client.id}>
+                    {showGroup ? <div className="cl-sec">{group}</div> : null}
+                    <PhoneRecord
+                      reason={reason}
+                      testId={`client-row-${client.id}`}
+                      onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
+                      onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
+                    >
+                      <ClientCard client={client} money={money} />
+                    </PhoneRecord>
+                  </Fragment>
+                );
+              })}
+            </PhoneRecords>
+            <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
+          </>
+        )
+      ) : (
       <div className="dcard flush">
         <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
-        {phone ? (
-          <PhoneRecords>
-            {page.visible.map((client) => {
-              const reason = notices.reasonFor(client.id);
-              return (
-                <PhoneRecord
-                  key={client.id}
-                  reason={reason}
-                  onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
-                >
-                  <b>{client.name}</b>
-                  <small>{[client.phone, client.pendingBalance > 0 ? money.show(client.pendingBalance, client.balanceCurrency) : 'Sin saldo'].filter(Boolean).join(' · ')}</small>
-                </PhoneRecord>
-              );
-            })}
-          </PhoneRecords>
-        ) : (
         <table className="dtable">
             <thead>
               <tr>
@@ -179,11 +252,112 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        )}
         {listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      )}
       {phone ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
+      {filtersOpen ? (
+        <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cl-sheet">
+          <div className="inv-filters">
+            <Field label="Nombre">
+              <input aria-label="Nombre" placeholder="Nombre" value={draftFilters.name} onChange={(event) => setDraft({ name: event.target.value })} />
+            </Field>
+            {tags.length > 0 ? (
+              <div className="inv-checks">
+                {tags.map((tag) => (
+                  <label key={tag} className="chk">
+                    <input type="checkbox" checked={draftFilters.tags.includes(tag)} onChange={(event) => setDraft({ tags: event.target.checked ? [...draftFilters.tags, tag] : draftFilters.tags.filter((item) => item !== tag) })} />
+                    {tag}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+            <Field label="DNI">
+              <input aria-label="DNI" placeholder="DNI" value={draftFilters.dni} onChange={(event) => setDraft({ dni: event.target.value })} />
+            </Field>
+            <Field label="Teléfono">
+              <input aria-label="Teléfono" placeholder="Teléfono" value={draftFilters.phone} onChange={(event) => setDraft({ phone: event.target.value })} />
+            </Field>
+            <p className="sec">Última compra</p>
+            <div className="inv-range">
+              <Field label="Compra desde">
+                <input aria-label="Compra desde" placeholder="dd/mm/aaaa" value={draftFilters.dateFrom} onChange={(event) => setDraft({ dateFrom: event.target.value })} />
+              </Field>
+              <Field label="Compra hasta">
+                <input aria-label="Compra hasta" placeholder="dd/mm/aaaa" value={draftFilters.dateTo} onChange={(event) => setDraft({ dateTo: event.target.value })} />
+              </Field>
+            </div>
+            <p className="sec">Gastado · {money.active}</p>
+            <div className="inv-range">
+              <Field label="Gastado mínimo">
+                <input aria-label="Gastado mínimo" inputMode="numeric" value={draftFilters.spentMin ? formatInputMoney(parseMoney(draftFilters.spentMin)) : ''} onChange={(event) => setDraft({ spentMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+              </Field>
+              <Field label="Gastado máximo">
+                <input aria-label="Gastado máximo" inputMode="numeric" value={draftFilters.spentMax ? formatInputMoney(parseMoney(draftFilters.spentMax)) : ''} onChange={(event) => setDraft({ spentMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+              </Field>
+            </div>
+            <p className="sec">Saldo · {money.active}</p>
+            <div className="inv-range">
+              <Field label="Saldo mínimo">
+                <input aria-label="Saldo mínimo" inputMode="numeric" value={draftFilters.balanceMin ? formatInputMoney(parseMoney(draftFilters.balanceMin)) : ''} onChange={(event) => setDraft({ balanceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+              </Field>
+              <Field label="Saldo máximo">
+                <input aria-label="Saldo máximo" inputMode="numeric" value={draftFilters.balanceMax ? formatInputMoney(parseMoney(draftFilters.balanceMax)) : ''} onChange={(event) => setDraft({ balanceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+              </Field>
+            </div>
+          </div>
+          <Actions
+            secondary="Limpiar filtros"
+            onSecondary={() => setDraftFilters(EMPTY_CLIENT_FILTERS)}
+            primary="Aplicar filtros"
+            onPrimary={() => { setColumns(draftFilters); setFiltersOpen(false); }}
+          />
+        </Sheet>
+      ) : null}
+    </div>
+  );
+}
+
+function ClientCard({ client, money }: { client: Client; money: MoneyApi }) {
+  const contact = [client.dni ? `DNI ${client.dni}` : '', client.phone].filter(Boolean).join(' · ');
+  const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
+  return (
+    <span className="cl-card">
+      <span className="cl-top">
+        <span className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</span>
+        <span className="cl-id">
+          <b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b>
+          {contact ? <small>{contact}</small> : null}
+          {client.email ? <small>{client.email}</small> : null}
+        </span>
+        <span className="cl-balance">
+          {client.pendingBalance > 0
+            ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span>
+            : <span className="spill mid">Sin saldo</span>}
+        </span>
+      </span>
+      <span className="cl-bot">
+        <span><em>Última compra</em><b>{bought ? formatShortDate(client.lastPurchaseDate) : '—'}</b></span>
+        <span><em>Total gastado</em><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></span>
+      </span>
+    </span>
+  );
+}
+
+function ClientsEmpty({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="inv-empty" data-testid="clients-empty">
+      <div className="inv-empty-box">
+        <div className="inv-empty-mark"><ImanagerIcon name="cliente" size={24} /></div>
+        <b>No hay clientes</b>
+        <p>Cargá tu primer cliente para empezar tu cartera.</p>
+        <button className="dbtn p" type="button" onClick={onCreate}>
+          <ImanagerIcon name="agregar" size={16} />
+          Nuevo cliente
+        </button>
+      </div>
+      <p className="inv-count">0 resultados</p>
     </div>
   );
 }
