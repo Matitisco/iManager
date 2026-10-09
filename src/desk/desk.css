@@ -1032,4 +1032,25 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .press-host > .ticket { padding-right: 46px; }
   .dtable td .row-more { position: absolute; top: 6px; right: 8px; }
   .dtable td:has(.row-more) { position: relative; }
+  .dtop:has(.hero-h) { align-items: flex-start; }
+  .dtop .hero-h { font-size: 30px; line-height: 1.15; }
+  .greet { overflow-wrap: anywhere; }
+  .dash-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; max-width: 168px; }
+  .dash-tools .avatars { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+  .dash-bell { position: relative; flex: none; }
+  .dash-bell-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .hero-cta { margin-top: 4px; max-width: 100%; }
+  .hero-cta .dbtn { width: 100%; justify-content: center; height: 52px; border-radius: 16px; font-size: 15px; }
+  .dgrid, .dcard, .hero, .dkpis, .press-host { min-width: 0; max-width: 100%; }
+  .dkpis { gap: 10px; }
+  .dkpis .mini { min-width: 0; }
+  .mini .val, .mini .sub, .mini .eyebrow { overflow-wrap: anywhere; }
+  .dcard .sale-top { flex-wrap: wrap; }
+  .dcard .sale-bot b { overflow-wrap: anywhere; }
+  .dash-cj { max-width: 100%; }
+  .dash-cj .wtop, .dash-cj .wbot, .dash-cj .items, .dash-cj .store, .dash-cj .date { min-width: 0; }
+  .dash-cj .store, .dash-cj .items, .dash-cj .date { overflow-wrap: anywhere; }
+  .dash-cj .wbot { flex-wrap: wrap; align-items: flex-start; }
+  .dash-cj .wamt { white-space: normal; max-width: 100%; }
+  .dash-cj .wtop .spill { flex: none; max-width: 100%; white-space: normal; }
 }

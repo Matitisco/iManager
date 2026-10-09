@@ -9,15 +9,19 @@ import {
   isInProgressTrade,
   isInStock,
   parseAppDate,
+  paymentLabel,
   saleCode,
   saleEquipment,
   tradeClientLabel,
   tradeCode,
 } from '../format';
 import { ImanagerIcon } from '../icons';
-import { canSeeFinancials } from '../sections';
+import { canOpenSection, canSeeFinancials } from '../sections';
 import { usePhoneLayout } from '../section-notices';
-import { DeskCta, DeskIcon, MobileDock, Pill, PressTarget, RowMenu, ScreenTitle, useDesk } from '../ui';
+import { PhoneRecord, PhoneRecords } from '../section-notice-view';
+import { unreadBySection } from '../unread-count';
+import { DeskCta, DeskIcon, Pill, PressTarget, ScreenTitle, useDesk } from '../ui';
+import type { Sale } from '../../types';
 
 const TASKS = [
   { id: 'inv', label: 'Revisá ingresos o cambios en inventario' },
@@ -26,7 +30,7 @@ const TASKS = [
 ] as const;
 
 export function DashboardScreen() {
-  const { appSession, user, sales, inventory, tradeIns, clients } = useAppContext();
+  const { appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
   const money = useMoney();
   const { go, open, toast, back } = useDesk();
   const phone = usePhoneLayout();
@@ -115,12 +119,18 @@ export function DashboardScreen() {
     return (b.saleNumber ?? 0) - (a.saleNumber ?? 0);
   }).slice(0, 5), [sales]);
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
+  const canNotify = canOpenSection('notifications', appSession?.membership?.sections, appSession?.membership?.role);
+  const unread = unreadBySection(operationNotifications ?? []);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const stockPct = inventory.length ? Math.round((available / inventory.length) * 100) : 0;
+  const avatarLabels = members.length
+    ? members.map((member) => member.user.displayName?.trim() || member.user.email || 'Usuario')
+    : [name];
+  const shownAvatars = phone ? avatarLabels.slice(0, 3) : avatarLabels;
 
   const people = (
     <div className="avatars">
-      {(members.length ? members.map((member) => member.user.displayName?.trim() || member.user.email || 'Usuario') : [name]).map((label, index) => (
+      {shownAvatars.map((label, index) => (
         <div key={`${label}-${index}`} className={`av ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
       ))}
       <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
@@ -128,11 +138,16 @@ export function DashboardScreen() {
   );
 
   return (
-    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+    <div className="dscreen">
       <ScreenTitle
         title={<><div className="greet">Hola, {name}</div><h1 className="hero-h">¿Qué hay para <span className="hl">hoy</span>?</h1></>}
         back={back}
-        tools={people}
+        tools={phone ? (
+          <div className="dash-tools">
+            {people}
+            {canNotify ? <DashboardBell count={unread.total} onClick={() => go('notifications')} /> : null}
+          </div>
+        ) : people}
         desktop={<div className="dright">{people}<DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div>}
       />
 
@@ -162,6 +177,11 @@ export function DashboardScreen() {
             <div className="bar"><i style={{ width: `${pct}%` }} /></div>
             <span>{done === TASKS.length ? 'listo' : `faltan ${TASKS.length - done}`}</span>
           </div>
+          {phone ? (
+            <div className="hero-cta" data-testid="dashboard-register-sale">
+              <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
+            </div>
+          ) : null}
         </div>
         <div className="dkpis">
           <button className="mini" type="button" onClick={() => go('sales')}>
@@ -193,16 +213,33 @@ export function DashboardScreen() {
       </div>
 
       <div className="dgrid two">
-        <div className="dcard">
+        <div className="dcard" data-testid="dashboard-sales">
           <div className="dch"><h3>Ventas recientes</h3><button className="wlink" type="button" onClick={() => go('sales')}>Ver todas</button></div>
-          {recent.length === 0 ? <div className="wempty">No encontré ventas.</div> : (
+          {recent.length === 0 ? <div className="wempty">No encontré ventas.</div> : phone ? (
+            <PhoneRecords>
+              {recent.map((sale) => (
+                <PhoneRecord
+                  key={sale.id}
+                  onActivate={() => open({ type: 'sale', id: sale.id })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
+                >
+                  <RecentSaleCard
+                    sale={sale}
+                    buyer={saleBuyer(sale, clients)}
+                    equipment={saleEquipment(sale, inventory)}
+                    amount={money.show(sale.amount, sale.amountCurrency)}
+                  />
+                </PhoneRecord>
+              ))}
+            </PhoneRecords>
+          ) : (
             <table className="dtable compact">
               <thead><tr><th>Venta</th><th>Cliente</th><th>Equipo</th><th className="r">Total</th><th>Estado</th></tr></thead>
               <tbody>
                 {recent.map((sale) => {
                   return (
                     <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
-                      <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small>{phone ? <RowMenu onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })} /> : null}</td>
+                      <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
                       <td>{saleBuyer(sale, clients)}</td>
                       <td>{saleEquipment(sale, inventory)}</td>
                       <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
@@ -214,7 +251,7 @@ export function DashboardScreen() {
             </table>
           )}
         </div>
-        <div className="dcard">
+        <div className="dcard" data-testid="dashboard-trades">
           <div className="dch"><h3>Canjes en curso</h3><button className="wlink" type="button" onClick={() => go('tradeins')}>Ver todos</button></div>
           {openTrades.length === 0 ? <div className="wempty">No hay canjes en curso.</div> : openTrades.slice(0, 3).map((trade) => (
             <PressTarget key={trade.id} as="button" className="ticket dash-cj" onActivate={() => open({ type: 'cj', id: trade.id })} onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: trade.id, label: `${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`, ...point })}>
@@ -228,7 +265,35 @@ export function DashboardScreen() {
           ))}
         </div>
       </div>
-      {phone ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} /> : null}
     </div>
+  );
+}
+
+function DashboardBell({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="rbtn dash-bell"
+      data-testid="dashboard-bell"
+      aria-label={count > 0 ? `Notificaciones, ${count} sin leer` : 'Notificaciones'}
+      onClick={onClick}
+    >
+      <DeskIcon name="bell" size={18} />
+      {count > 0 ? <span className="dash-bell-count" aria-hidden="true">{count > 9 ? '9+' : count}</span> : null}
+    </button>
+  );
+}
+
+function RecentSaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: string; equipment: string; amount: string }) {
+  return (
+    <span className="sale-card">
+      <span className="sale-top">
+        <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
+        <Pill status={sale.status} kind="SALE_STATUS" />
+      </span>
+      <b>{buyer}</b>
+      <small>{equipment}</small>
+      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><b>{amount}</b></span>
+    </span>
   );
 }
