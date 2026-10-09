@@ -4,6 +4,8 @@ import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.j
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { moneyChanged } from "../audit/audit.js";
 
 export interface TradeInInput {
   date?: string | null;
@@ -19,6 +21,7 @@ export interface TradeInInput {
   batteryHealth?: string | null;
   grade?: string | null;
   customFields?: Record<string, unknown> | null;
+  currency?: string | null;
 }
 
 export interface TradeInPatchInput extends Partial<TradeInInput> {}
@@ -33,6 +36,7 @@ export interface TradeInResponse {
   deviceReceived: string;
   deviceReceivedImei: string;
   takeValue: number;
+  currency: string | null;
   deviceGiven: string;
   differencePaid: number;
   status: string;
@@ -87,6 +91,7 @@ type TradeInRecord = {
   deviceReceived: string;
   deviceReceivedImei: string | null;
   takeValue: Decimal;
+  currency?: string | null;
   deviceGiven: string;
   differencePaid: Decimal;
   status: string;
@@ -174,6 +179,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     deviceReceived: tradeIn.deviceReceived,
     deviceReceivedImei: tradeIn.deviceReceivedImei ?? "",
     takeValue: tradeIn.takeValue.toNumber(),
+    currency: tradeIn.currency ?? null,
     deviceGiven: tradeIn.deviceGiven,
     differencePaid: tradeIn.differencePaid.toNumber(),
     status: tradeIn.status as TradeInResponse["status"],
@@ -256,6 +262,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
 
   return prisma.$transaction(async (tx) => {
     const tradeNumber = await allocateDocumentNumber(tx, storeId, "trade");
+    const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     const tradeIn = await tx.tradeIn.create({
       data: {
         tradeNumber,
@@ -267,6 +274,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
         deviceReceived: input.deviceReceived,
         deviceReceivedImei: input.deviceReceivedImei?.trim() || "",
         takeValue: toDecimal(input.takeValue ?? 0),
+        currency,
         deviceGiven: input.deviceGiven,
         differencePaid: toDecimal(input.differencePaid ?? 0),
         status: input.status?.trim() || "PENDIENTE",
@@ -312,6 +320,9 @@ export async function updateTradeIn(
   const nextDate = input.date !== undefined ? resolveDate(input.date, existing.tradeAt) : existing.tradeAt;
   const nextDateLabel = input.date !== undefined ? formatArDate(nextDate) : existing.dateLabel;
 
+  const valueChanges = (input.takeValue !== undefined && moneyChanged(existing.takeValue, input.takeValue))
+    || (input.differencePaid !== undefined && moneyChanged(existing.differencePaid, input.differencePaid));
+  const nextCurrency = currencyOnWrite(input.currency, valueChanges, valueChanges ? await storeCurrency(storeId, prisma) : "ARS");
   const updated = await prisma.tradeIn.update({
     where: { id },
     data: {
@@ -326,6 +337,7 @@ export async function updateTradeIn(
           : existing.deviceReceivedImei,
       takeValue:
         input.takeValue !== undefined ? toDecimal(input.takeValue) : existing.takeValue,
+      ...(nextCurrency ? { currency: nextCurrency } : {}),
       deviceGiven: input.deviceGiven ?? existing.deviceGiven,
       differencePaid:
         input.differencePaid !== undefined

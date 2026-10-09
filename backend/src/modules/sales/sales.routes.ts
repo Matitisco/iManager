@@ -39,6 +39,7 @@ const saleCreateSchema = z.object({
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: z.number().nonnegative(),
+  amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   paymentMethod: paymentMethodSchema,
   status: z.string().trim().min(1).max(20),
   categoryId: z.string().nullable().optional(),
@@ -56,6 +57,7 @@ const salePatchSchema = z
     status: z.string().trim().min(1).max(20).optional(),
     date: z.string().min(1).max(120).optional(),
     amount: z.number().nonnegative().optional(),
+    amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
     customFields: z.record(z.unknown()).optional().nullable(),
   })

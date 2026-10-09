@@ -13,6 +13,7 @@ export interface OperationInput {
   productId?: string | null;
   deviceLabel?: string;
   amount?: number;
+  currency?: 'ARS' | 'USD' | null;
   paymentMethod?: string;
   status?: OperationSaleStatus;
   categoryId?: string | null;

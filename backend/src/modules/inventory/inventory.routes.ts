@@ -37,6 +37,7 @@ const inventoryItemSchema = z.object({
   status: z.string().trim().max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
+  currency: z.enum(["ARS", "USD"]).nullable().optional(),
 });
 
 const inventoryPatchSchema = inventoryItemSchema

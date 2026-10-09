@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
+import { useMoney } from '../exchange';
 import {
   saleBuyer,
-  formatMoney,
-  formatMoneyCompact,
   formatShortDate,
   initials,
   isInProgressTrade,
@@ -27,6 +26,7 @@ const TASKS = [
 
 export function DashboardScreen() {
   const { appSession, user, sales, inventory, tradeIns, clients } = useAppContext();
+  const money = useMoney();
   const { go, open, toast } = useDesk();
   const storeId = appSession?.store?.id ?? 'local';
   const storageKey = `imanager-desk-focus:${storeId}`;
@@ -92,20 +92,20 @@ export function DashboardScreen() {
     if (!date) return false;
     return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   });
-  const monthTotal = monthSales.reduce((sum, sale) => sum + sale.amount, 0);
+  const monthTotal = money.sum(monthSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate() + 1);
-  const prevTotal = sales.reduce((sum, sale) => {
-    if (sale.status === 'CANCELADA') return sum;
+  const prevSales = sales.filter((sale) => {
+    if (sale.status === 'CANCELADA') return false;
     const date = parseAppDate(sale.date);
-    if (!date || date < prevStart || date >= prevEnd) return sum;
-    return sum + sale.amount;
-  }, 0);
-  const monthDelta = prevTotal > 0 ? Math.round(((monthTotal - prevTotal) / prevTotal) * 100) : null;
+    return !!date && date >= prevStart && date < prevEnd;
+  });
+  const prevTotal = money.sum(prevSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const monthDelta = monthTotal != null && prevTotal != null && prevTotal > 0 ? Math.round(((monthTotal - prevTotal) / prevTotal) * 100) : null;
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status));
   const balance = clients.filter((client) => client.pendingBalance > 0);
-  const balanceTotal = balance.reduce((sum, client) => sum + client.pendingBalance, 0);
+  const balanceTotal = money.sum(balance.map((client) => ({ amount: client.pendingBalance, currency: client.balanceCurrency })));
   const recent = useMemo(() => [...sales].sort((a, b) => {
     const left = parseAppDate(b.date)?.getTime() ?? 0;
     const right = parseAppDate(a.date)?.getTime() ?? 0;
@@ -165,7 +165,7 @@ export function DashboardScreen() {
           <button className="mini" type="button" onClick={() => go('sales')}>
             <div className="ico"><DeskIcon name="cart" size={22} /></div>
             <div className="eyebrow">Ventas del mes</div>
-            <div className="val">{seeFinancials ? formatMoneyCompact(monthTotal) : monthSales.length}</div>
+            <div className="val">{seeFinancials ? (monthTotal == null ? '—' : money.compactActive(monthTotal)) : monthSales.length}</div>
             <div className="sub">{seeFinancials ? <>{monthSales.length} ventas{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
           </button>
           <button className="mini" type="button" onClick={() => go('inventory')}>
@@ -184,7 +184,7 @@ export function DashboardScreen() {
           <button className="mini" type="button" onClick={() => go('clients')}>
             <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
-            <div className="val">{formatMoneyCompact(balanceTotal)}</div>
+            <div className="val">{balanceTotal == null ? '—' : money.compactActive(balanceTotal)}</div>
             <div className="sub">{balance.length} clientes</div>
           </button>
         </div>
@@ -203,7 +203,7 @@ export function DashboardScreen() {
                       <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
                       <td>{saleBuyer(sale, clients)}</td>
                       <td>{saleEquipment(sale, inventory)}</td>
-                      <td className="r"><b>{formatMoney(sale.amount)}</b></td>
+                      <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
                       <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
                     </PressTarget>
                   );
@@ -220,7 +220,7 @@ export function DashboardScreen() {
               <div className="store">Recibido: {trade.deviceReceived}</div>
               <div className="wbot">
                 <div className="items">{tradeClientLabel(trade, clients)}<br />Entrega: {trade.deviceGiven}</div>
-                <div className="wamt">{formatMoney(trade.takeValue)}<small>dif. {formatMoney(trade.differencePaid)}</small></div>
+                <div className="wamt">{money.show(trade.takeValue, trade.currency)}<small>dif. {money.show(trade.differencePaid, trade.currency)}</small></div>
               </div>
             </PressTarget>
           ))}

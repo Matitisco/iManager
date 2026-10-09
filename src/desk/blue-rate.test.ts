@@ -99,6 +99,6 @@ describe('blue dollar quote', () => {
     localStorage.setItem(BLUE_STORAGE_KEY, '{');
     expect(readBlueState().source).toBe('dolarapi');
     localStorage.setItem(BLUE_STORAGE_KEY, JSON.stringify({ source: 'dolar-hoy', quotes: { dolarapi: { buy: 'x' } } }));
-    expect(readBlueState()).toEqual({ source: 'dolarapi', quotes: {}, days: {} });
+    expect(readBlueState()).toEqual({ source: 'dolarapi', quotes: {}, days: {}, houses: {} });
   });
 });

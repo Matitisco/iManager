@@ -59,6 +59,11 @@ describe("onboarding.service", () => {
     expect(prismaMock.store.create).toHaveBeenCalledWith({
       data: {
         name: "Mi Tienda",
+        currency: "ARS",
+        exchangeMode: "auto",
+        exchangeSource: "blue",
+        manualBuy: null,
+        manualSell: null,
       },
     });
     expect(prismaMock.storeMember.create).toHaveBeenCalledWith({

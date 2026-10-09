@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { DeskTab, Overlay } from './types';
 import { useCatalogs } from './catalog';
@@ -254,13 +254,20 @@ export function Sheet({ title, subtitle, children, onClose, wide }: { title: str
   );
 }
 
-export function Field({ label, error, children }: { label: string; error?: string; children?: React.ReactNode }) {
+export function Field({ label, error, mark, children }: { label: string; error?: string; mark?: string; children?: React.ReactNode }) {
+  const autoId = useId();
+  const child = isValidElement<{ id?: string }>(children) ? children : null;
+  const controlId = child?.props.id || autoId;
+  const control = child ? cloneElement(child, { id: child.props.id || controlId }) : children;
   return (
-    <label className={`fl${error ? ' bad' : ''}`}>
-      <span>{label}</span>
-      {children}
+    <div className={`fl${error ? ' bad' : ''}`}>
+      <span>
+        <label htmlFor={controlId}>{label}</label>
+        {mark ? <em className="fl-mark" aria-hidden="true"> · {mark}</em> : null}
+      </span>
+      {control}
       {error ? <div className="err">{error}</div> : null}
-    </label>
+    </div>
   );
 }
 

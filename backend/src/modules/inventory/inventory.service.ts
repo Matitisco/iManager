@@ -4,6 +4,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface InventoryItemInput {
   imei: string;
@@ -15,6 +16,7 @@ export interface InventoryItemInput {
   batteryHealth: string;
   cost: number;
   price: number;
+  currency?: string | null;
   status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
@@ -31,6 +33,7 @@ export interface InventoryItemResponse {
   batteryHealth: string;
   cost: number;
   price: number;
+  currency: string | null;
   status: string;
   categoryId: string | null;
   customFields: Record<string, unknown>;
@@ -61,6 +64,7 @@ type InventoryRecord = {
   categoryId: string | null;
   cost: Decimal;
   price: Decimal;
+  currency?: string | null;
   status: string;
   customFields: Prisma.JsonValue | null;
   sales?: { soldAt: Date }[];
@@ -121,6 +125,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     batteryHealth: item.batteryHealth,
     cost: item.cost.toNumber(),
     price: item.price.toNumber(),
+    currency: item.currency ?? null,
     status: item.status as InventoryItemResponse["status"],
     categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
@@ -221,6 +226,7 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 type RawInventoryRow = {
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
+  currency: string | null;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
   createdAt: Date | string | null;
   archivedAt: Date | string | null;
@@ -243,6 +249,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     batteryHealth: row.batteryHealth,
     cost: Number(row.cost),
     price: Number(row.price),
+    currency: row.currency ?? null,
     status: row.status as InventoryItemResponse['status'],
     categoryId: row.categoryId ?? null,
     customFields: toCustomFields(row.customFields),
@@ -267,7 +274,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration",
+             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
       FROM "InventoryItem"
       WHERE ${where}
@@ -333,6 +340,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
     }
   }
 
+  const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, prisma));
   const inventoryItem = await withSerializableRetry(async (tx) => {
     const created = await tx.inventoryItem.create({ data: {
       storeId,
@@ -345,6 +353,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       batteryHealth: input.batteryHealth,
       cost: toDecimal(input.cost),
       price: toDecimal(input.price),
+      currency,
       status: input.status,
       pendingSaleRegistration: input.status === "VENDIDO",
       previousSaleStatus: input.status === "VENDIDO" ? "DISPONIBLE" : null,
@@ -426,6 +435,8 @@ export async function updateInventoryItem(
       data.costChangedAt = changedAt;
     }
     if (input.price !== undefined) data.price = toDecimal(input.price);
+    const nextCurrency = currencyOnWrite(input.currency, priceChanges || costChanges, priceChanges || costChanges ? await storeCurrency(storeId, tx) : "ARS");
+    if (nextCurrency) data.currency = nextCurrency;
     if (priceChanges && options?.actor) {
       data.priceChangedBy = options.actor.name;
       data.priceChangedAt = changedAt;
@@ -658,6 +669,7 @@ export async function importInventoryItems(
   options?: { actor?: Actor | null; lockPrice?: boolean },
 ): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, updated: 0, errors: [] };
+  const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
 
   for (let i = 0; i < rows.length; i++) {
     const raw = rows[i];
@@ -728,6 +740,7 @@ export async function importInventoryItems(
             ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
             ...(costChanges && options?.actor ? { costChangedBy: options.actor.name, costChangedAt: changedAt } : {}),
             ...(applyPrice ? { price: toDecimal(input.price) } : {}),
+            ...((applyPrice && priceChanges) || costChanges ? { currency: importedCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             status: input.status,
             customFields: mergedFields,
@@ -767,6 +780,7 @@ export async function importInventoryItems(
             batteryHealth: input.batteryHealth,
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
+            currency: importedCurrency,
             status: input.status,
             customFields: raw.customFields ?? {},
           },

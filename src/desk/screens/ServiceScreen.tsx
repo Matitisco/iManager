@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { catalogChoices, useCatalogs } from '../catalog';
+import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
 import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, repairFault, repairOverdue, repairPrice, repairStatusMeta, REPAIR_DELIVERED, REPAIR_READY } from '../repairs';
 import { DeskCta, DeskIcon, Pill, SearchBox, useDesk } from '../ui';
 
 export function ServiceScreen() {
   const { repairOrders = [], repairOrdersError = null } = useAppContext();
+  const money = useMoney();
   const catalogs = useCatalogs();
   const { open } = useDesk();
   const [query, setQuery] = useState('');
@@ -82,7 +84,7 @@ export function ServiceScreen() {
                       <div className="items">{repairFault(order)}</div>
                       <div className="wbot">
                         <span className="items">{order.clientName}</span>
-                        <span className="wamt">{repairPrice(order.estimate, 'quote')}</span>
+                        <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
                     </button>
                   );
@@ -116,7 +118,7 @@ export function ServiceScreen() {
                       <td>{order.clientName}</td>
                       <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>
                       <td>{repairFault(order)}</td>
-                      <td>{repairPrice(order.estimate, 'dash')}</td>
+                      <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>
                       <td><Pill status={order.status} kind="REPAIR_STATUS" /></td>
                     </tr>

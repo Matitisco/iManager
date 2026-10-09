@@ -13,14 +13,14 @@ function detail(item: Product): string {
   return parts.join(' · ');
 }
 
-export function priceListMessage(items: Product[], storeName?: string): string {
+export function priceListMessage(items: Product[], storeName?: string, formatPrice: (item: Product) => string = (item) => formatMoney(item.price)): string {
   const store = storeName?.trim();
   const title = store ? `Lista de precios — ${store}` : 'Lista de precios';
   if (items.length === 0) return `${title}\n\nNo hay equipos para mostrar.`;
   const lines = items.map((item) => {
     const extra = detail(item);
     const specs = extra ? ` — ${extra}` : '';
-    return `• ${equipmentTitle(item.model, item.capacity)}${specs} — ${formatMoney(item.price)}`;
+    return `• ${equipmentTitle(item.model, item.capacity)}${specs} — ${formatPrice(item)}`;
   });
   return `${title}\n\n${lines.join('\n')}`;
 }

@@ -9,6 +9,7 @@ export interface Product {
   batteryHealth: string;
   cost?: number;
   price: number;
+  currency?: string | null;
   status: string;
   pendingSaleRegistration?: boolean;
   archivedAt?: string | null;
@@ -46,6 +47,7 @@ export interface Sale {
   productId: string;
   deviceLabel?: string;
   amount: number;
+  amountCurrency?: string | null;
   paymentMethod: string;
   status: string;
   categoryId?: string | null;
@@ -76,6 +78,7 @@ export interface RepairOrder {
   faultTags: string[];
   estimate: number | null;
   deposit: number;
+  currency?: string | null;
   technician: string;
   status: string;
   estimatedDelivery: string | null;
@@ -92,6 +95,7 @@ export interface OperationProductOption {
   color: string;
   imei: string;
   price: number;
+  currency?: string | null;
   pendingSaleRegistration: boolean;
 }
 
@@ -110,6 +114,7 @@ export interface TradeIn {
   deviceReceived: string;
   deviceReceivedImei: string;
   takeValue: number;
+  currency?: string | null;
   deviceGiven: string;
   differencePaid: number;
   status: string;
@@ -144,6 +149,7 @@ export interface Client {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  balanceCurrency?: string | null;
   categoryId?: string | null;
   tag?: string | null;
   customFields?: Record<string, any>;

@@ -7,7 +7,8 @@ import { cancellationRefund } from "../../lib/cancel-refund.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
-import { cancellationStamp, writeAudit, type Actor } from "../audit/audit.js";
+import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
@@ -29,6 +30,7 @@ export type OperationInput = {
   requestKey?: string;
   draft?: boolean;
   saleCategoryId?: string | null;
+  currency?: string | null;
   tradeIn?: {
     deviceReceived: string;
     deviceReceivedImei?: string | null;
@@ -81,6 +83,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || (product ? fullDeviceLabel(product) : ""),
     amount: toNum(sale.amount),
+    amountCurrency: sale.amountCurrency ?? null,
     paymentMethod: sale.paymentMethod,
     status: sale.status,
     categoryId: sale.categoryId ?? null,
@@ -104,6 +107,7 @@ function serializeTrade(trade: TradeForResponse) {
     deviceReceived: trade.deviceReceived,
     deviceReceivedImei: trade.deviceReceivedImei ?? "",
     takeValue: toNum(trade.takeValue),
+    currency: trade.currency ?? null,
     deviceGiven: trade.deviceGiven,
     differencePaid: toNum(trade.differencePaid),
     status: trade.status,
@@ -137,6 +141,7 @@ function serializeProduct(product: InventoryItem) {
     batteryHealth: product.batteryHealth,
     cost: toNum(product.cost),
     price: toNum(product.price),
+    currency: product.currency ?? null,
     status: product.status,
     categoryId: product.categoryId ?? null,
     customFields: product.customFields ?? {},
@@ -263,9 +268,9 @@ function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistrat
   return product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
 }
 
-function salePricePatch(price: { toNumber(): number }, amount: number): { price?: Decimal } {
+function salePricePatch(price: { toNumber(): number }, amount: number, currency?: string): { price?: Decimal; currency?: string } {
   if (price.toNumber() > 0 || !(amount > 0)) return {};
-  return { price: dec(amount) };
+  return { price: dec(amount), ...(currency ? { currency } : {}) };
 }
 
 async function replaySaleResult(tx: Prisma.TransactionClient, storeId: string, sale: Sale, summary: string) {
@@ -302,6 +307,7 @@ export async function getOperationOptions(storeId: string) {
         color: true,
         imei: true,
         price: true,
+        currency: true,
         pendingSaleRegistration: true,
       },
       orderBy: { createdAt: "desc" },
@@ -312,7 +318,7 @@ export async function getOperationOptions(storeId: string) {
       orderBy: { name: "asc" },
     }),
   ]);
-  return { products: products.map((p) => ({ ...p, price: toNum(p.price) })), clients };
+  return { products: products.map((p) => ({ ...p, price: toNum(p.price), currency: p.currency ?? null })), clients };
 }
 
 export async function listOperationDrafts(storeId: string, source: OperationSource) {
@@ -330,6 +336,7 @@ export async function listOperationDrafts(storeId: string, source: OperationSour
 export async function createOperation(storeId: string, source: OperationSource, input: OperationInput) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
+    const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     if (input.tradeIn) await assertCategory(tx, storeId, "tradeins", input.categoryId);
     else if (source === "tradeins") await assertCategory(tx, storeId, "tradeins", input.categoryId);
     else await assertCategory(tx, storeId, "sales", input.saleCategoryId ?? input.categoryId);
@@ -363,6 +370,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         deviceReceived: input.tradeIn.deviceReceived.trim(),
         deviceReceivedImei: input.tradeIn.deviceReceivedImei?.trim() || null,
         takeValue: dec(input.tradeIn.takeValue),
+        currency,
         deviceGiven: input.deviceLabel?.trim() ?? "",
         differencePaid: dec(0),
         status: input.tradeIn.status ?? "PENDIENTE",
@@ -421,6 +429,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           deviceReceived: tradeInput.deviceReceived.trim(),
           deviceReceivedImei: tradeInput.deviceReceivedImei?.trim() || null,
           takeValue: dec(tradeInput.takeValue),
+          currency,
           deviceGiven: product?.model ?? input.deviceLabel?.trim() ?? "",
           differencePaid: dec(input.amount! - tradeInput.takeValue),
         status: tradeInput.status ?? "PENDIENTE",
@@ -444,6 +453,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           batteryHealth: tradeInput.batteryHealth?.trim() || "",
           cost: dec(tradeInput.takeValue),
           price: dec(0),
+          currency,
           status: "EN_REVISION",
           customFields: {},
         },
@@ -460,7 +470,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           status: "VENDIDO",
           pendingSaleRegistration: false,
           previousSaleStatus: null,
-          ...salePricePatch(product.price, input.amount!),
+          ...salePricePatch(product.price, input.amount!, currency),
         },
       });
     }
@@ -477,6 +487,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         dateLabel: formatArDate(date),
         soldAt: date,
         amount: dec(input.amount!),
+        amountCurrency: currency,
         paymentMethod: input.paymentMethod?.trim() || "EFECTIVO",
         status: input.status ?? "COMPLETADA",
         customFields: toJson(input.customFields),
@@ -526,6 +537,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const priorSale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
     if (priorSale) return replaySaleResult(tx, storeId, priorSale, "Canje ya confirmado");
     if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje no esta pendiente", 409);
+    const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     const saleCategoryId = input.saleCategoryId !== undefined ? input.saleCategoryId : trade.draftSaleCategoryId;
     await assertCategory(tx, storeId, "sales", saleCategoryId);
     if (input.categoryId !== undefined) await assertCategory(tx, storeId, "tradeins", input.categoryId);
@@ -587,6 +599,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       batteryHealth: receivedBattery || "",
       cost: dec(takeValue),
       price: dec(0),
+      currency,
       status: "EN_REVISION",
       customFields: toJson(receivedCustomFields),
     } });
@@ -599,6 +612,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       deviceReceived: receivedDevice.trim(),
       deviceReceivedImei: receivedImei,
       takeValue: dec(takeValue),
+      currency,
       status: receivedStatus,
       batteryHealth: receivedBattery,
       grade: receivedGrade,
@@ -616,7 +630,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       status: "VENDIDO",
       pendingSaleRegistration: false,
       previousSaleStatus: null,
-      ...salePricePatch(product.price, outgoingAmount),
+      ...salePricePatch(product.price, outgoingAmount, currency),
     } });
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const sale = await tx.sale.create({ data: {
@@ -630,6 +644,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       dateLabel: formatArDate(date),
       soldAt: date,
       amount: dec(outgoingAmount),
+      amountCurrency: currency,
       paymentMethod: input.paymentMethod ?? trade.draftPaymentMethod ?? "EFECTIVO",
       status: input.status ?? trade.draftPaymentStatus ?? "COMPLETADA",
       tradeInId: trade.id,
@@ -688,6 +703,9 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const nextTradeInput = input.tradeIn;
     const nextTakeValue = nextTradeInput?.takeValue ?? (trade ? toNum(trade.takeValue) : 0);
     const nextAmount = input.amount ?? toNum(sale.amount);
+    const amountChanges = input.amount !== undefined && moneyChanged(sale.amount, input.amount);
+    const takeChanges = Boolean(trade && nextTradeInput?.takeValue !== undefined && moneyChanged(trade.takeValue, nextTradeInput.takeValue));
+    const nextCurrency = currencyOnWrite(input.currency, amountChanges || takeChanges, amountChanges || takeChanges ? await storeCurrency(storeId, tx) : "ARS");
     if (trade && nextAmount < nextTakeValue) throw new OperationError("La diferencia no puede ser negativa");
     const nextDate = input.date ? at(input.date) : sale.soldAt;
     const nextProductId = input.productId === undefined ? sale.inventoryItemId : input.productId?.trim() || null;
@@ -711,9 +729,9 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     }
     if (nextProduct && nextProduct.id !== sale.inventoryItemId) {
-      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null, ...salePricePatch(nextProduct.price, nextAmount) } });
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null, ...salePricePatch(nextProduct.price, nextAmount, nextCurrency) } });
     } else if (nextProduct && nextProduct.price.toNumber() <= 0 && nextAmount > 0) {
-      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount) } });
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
     const updatedSale = await tx.sale.update({
       where: { id: sale.id },
@@ -721,6 +739,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         clientId: nextClientId,
         clientName: nextClient?.name ?? input.clientName?.trim() ?? "",
         amount: dec(nextAmount),
+        ...(nextCurrency ? { amountCurrency: nextCurrency } : {}),
         status: nextStatus,
         paymentMethod: input.paymentMethod ?? sale.paymentMethod,
         dateLabel: formatArDate(nextDate),
@@ -766,6 +785,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
               ? trade.deviceReceivedImei
               : nextTradeInput.deviceReceivedImei?.trim() || null,
           takeValue: dec(nextTakeValue),
+          ...(nextCurrency ? { currency: nextCurrency } : {}),
           differencePaid: dec(nextDebt),
           deviceGiven: nextProduct?.model ?? nextDeviceLabel ?? "",
           status: nextTradeInput?.status ?? trade.status,

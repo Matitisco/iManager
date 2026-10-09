@@ -7,9 +7,10 @@ export function parseAppDate(value: string | null | undefined): Date | null {
   return parseArDate(value);
 }
 
-export function formatMoney(value: number): string {
+export function formatMoney(value: number, currency: 'ARS' | 'USD' = 'ARS'): string {
   const amount = Number.isFinite(value) ? Math.round(value) : 0;
-  return `$ ${new Intl.NumberFormat('es-AR').format(amount)}`;
+  const formatted = new Intl.NumberFormat('es-AR').format(amount);
+  return currency === 'USD' ? `US$ ${formatted}` : `$ ${formatted}`;
 }
 
 export function formatShortDate(value: string | null | undefined): string {
@@ -38,13 +39,14 @@ export function relTime(value: string | null | undefined): string {
   return formatArDate(date);
 }
 
-export function formatMoneyCompact(value: number): string {
+export function formatMoneyCompact(value: number, currency: 'ARS' | 'USD' = 'ARS'): string {
   const amount = Number.isFinite(value) ? value : 0;
+  const prefix = currency === 'USD' ? 'US$' : '$';
   if (Math.abs(amount) >= 1_000_000) {
     const compact = (amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
-    return `$ ${compact}M`;
+    return `${prefix} ${compact}M`;
   }
-  return formatMoney(amount);
+  return formatMoney(amount, currency);
 }
 
 export function formatInputMoney(value: number): string {

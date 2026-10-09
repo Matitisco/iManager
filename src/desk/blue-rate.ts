@@ -31,13 +31,33 @@ type StoredQuote = {
 
 export type BlueDay = { buy: number; sell: number };
 
+export const EXCHANGE_HOUSES = [
+  { id: 'blue', label: 'Blue', url: 'https://dolarapi.com/v1/dolares/blue' },
+  { id: 'oficial', label: 'Oficial', url: 'https://dolarapi.com/v1/dolares/oficial' },
+  { id: 'mep', label: 'MEP', url: 'https://dolarapi.com/v1/dolares/bolsa' },
+] as const;
+
+export type ExchangeSourceId = (typeof EXCHANGE_HOUSES)[number]['id'];
+
+type HouseCache = { quote: StoredQuote; days: Record<string, BlueDay> };
+
 export type BlueState = {
   source: BlueSourceId;
   quotes: Partial<Record<BlueSourceId, StoredQuote>>;
   days: Partial<Record<BlueSourceId, Record<string, BlueDay>>>;
+  houses: Partial<Record<ExchangeSourceId, HouseCache>>;
 };
 
 const SOURCE_IDS = new Set<string>(BLUE_SOURCES.map((item) => item.id));
+const HOUSE_IDS = new Set<string>(EXCHANGE_HOUSES.map((item) => item.id));
+
+export function isExchangeSource(value: unknown): value is ExchangeSourceId {
+  return typeof value === 'string' && HOUSE_IDS.has(value);
+}
+
+export function exchangeHouseLabel(source: ExchangeSourceId): string {
+  return EXCHANGE_HOUSES.find((item) => item.id === source)?.label ?? 'Blue';
+}
 
 export function isBlueSource(value: unknown): value is BlueSourceId {
   return typeof value === 'string' && SOURCE_IDS.has(value);
@@ -151,7 +171,7 @@ export function isFreshQuote(fetchedAt: string, now = Date.now()): boolean {
 }
 
 function emptyState(): BlueState {
-  return { source: 'dolarapi', quotes: {}, days: {} };
+  return { source: 'dolarapi', quotes: {}, days: {}, houses: {} };
 }
 
 function isStoredQuote(value: unknown): value is StoredQuote {
@@ -195,7 +215,21 @@ export function readBlueState(): BlueState {
         if (Object.keys(clean).length > 0) days[item.id] = clean;
       }
     }
-    return { source: isBlueSource(record.source) ? record.source : 'dolarapi', quotes, days };
+    const houses: BlueState['houses'] = {};
+    if (record.houses && typeof record.houses === 'object') {
+      for (const item of EXCHANGE_HOUSES) {
+        const snap = (record.houses as Record<string, unknown>)[item.id];
+        if (!snap || typeof snap !== 'object') continue;
+        const row = snap as Record<string, unknown>;
+        if (!isStoredQuote(row.quote) || !row.days || typeof row.days !== 'object') continue;
+        const clean: Record<string, BlueDay> = {};
+        for (const [day, point] of Object.entries(row.days)) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(day) && isDay(point)) clean[day] = point;
+        }
+        houses[item.id] = { quote: row.quote, days: clean };
+      }
+    }
+    return { source: isBlueSource(record.source) ? record.source : 'dolarapi', quotes, days, houses };
   } catch {
     return emptyState();
   }
@@ -259,6 +293,56 @@ export async function refreshBlueQuote(source: BlueSourceId): Promise<{ quote: B
       [source]: { buy: quote.buy, sell: quote.sell, updatedAt: quote.updatedAt, fetchedAt: new Date().toISOString() },
     },
     days: { ...latest.days, [source]: pruned },
+  });
+  return { quote, days: pruned };
+}
+
+export function houseFromState(state: BlueState, source: ExchangeSourceId): { quote: BlueQuote; days: Record<string, BlueDay> } | null {
+  const snap = state.houses[source];
+  if (!snap) return null;
+  return {
+    quote: { source: 'dolarapi', buy: snap.quote.buy, sell: snap.quote.sell, updatedAt: snap.quote.updatedAt },
+    days: snap.days,
+  };
+}
+
+export function houseFetchedAt(state: BlueState, source: ExchangeSourceId): string | null {
+  return state.houses[source]?.quote.fetchedAt ?? null;
+}
+
+// DolarApi houses share the blue payload (compra / venta / fechaActualizacion).
+export async function refreshExchangeQuote(source: ExchangeSourceId): Promise<{ quote: BlueQuote; days: Record<string, BlueDay> }> {
+  const spec = EXCHANGE_HOUSES.find((item) => item.id === source);
+  if (!spec) throw new Error('Fuente desconocida');
+  const quote = parseBlueQuote('dolarapi', await fetchJson(spec.url));
+  const today = argentinaDay(new Date());
+  const cached = readBlueState();
+  const houseDays = cached.houses[source]?.days ?? {};
+  const legacyDays = source === 'blue' ? cached.days.dolarapi ?? {} : {};
+  const existing = Object.keys(houseDays).length > 0 ? houseDays : legacyDays;
+  const hadPrior = Object.keys(existing).some((day) => day < today);
+  let previous: number | null = null;
+  if (!hadPrior && source === 'blue') {
+    try {
+      previous = previousCloseFromAmbito(quote.sell, await fetchJson(AMBITO_PREVIOUS_CLOSE_URL));
+    } catch {
+      previous = null;
+    }
+  }
+  const days = { ...existing };
+  if (previous != null) {
+    const day = shiftDay(today, -1);
+    if (!days[day]) days[day] = { buy: previous, sell: previous };
+  }
+  days[today] = { buy: quote.buy, sell: quote.sell };
+  const pruned = pruneDays(days, today);
+  const latest = readBlueState();
+  writeBlueState({
+    ...latest,
+    houses: {
+      ...latest.houses,
+      [source]: { quote: { buy: quote.buy, sell: quote.sell, updatedAt: quote.updatedAt, fetchedAt: new Date().toISOString() }, days: pruned },
+    },
   });
   return { quote, days: pruned };
 }

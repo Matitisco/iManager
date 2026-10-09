@@ -31,6 +31,7 @@ const tradeInFieldsSchema = z.object({
   deviceReceived: z.string().min(1).max(120),
   deviceReceivedImei: z.string().trim().max(100).optional().nullable(),
   takeValue: z.number().optional(),
+  currency: z.enum(["ARS", "USD"]).nullable().optional(),
   deviceGiven: z.string().min(1).max(120),
   differencePaid: z.number().optional(),
   status: tradeInStatusSchema.optional(),

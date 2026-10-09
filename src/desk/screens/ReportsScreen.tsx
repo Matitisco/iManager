@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { useMoney } from '../exchange';
 import {
   saleBuyer,
   conditionLabel,
-  formatMoney,
-  formatMoneyCompact,
   equipmentTitle,
   isInStock,
   isInProgressTrade,
@@ -43,6 +42,7 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 
 export function ReportsScreen() {
   const { sales, inventory, tradeIns, clients } = useAppContext();
+  const money = useMoney();
   const { open, toast } = useDesk();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Ventas');
   const [period, setPeriod] = useState<ReportPeriod>('Mes');
@@ -59,9 +59,18 @@ export function ReportsScreen() {
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
   }), [sales, inventory, tradeIns, bounds]);
 
+  const salesValue = money.sum(periodData.sales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const projectedSales = periodData.sales.map((sale) => ({
+    ...sale,
+    amount: salesValue == null ? 0 : (money.number(sale.amount, sale.amountCurrency) ?? 0),
+  }));
+  const projectedHistory = sales.map((sale) => ({
+    ...sale,
+    amount: money.number(sale.amount, sale.amountCurrency) ?? 0,
+  }));
   const model = useMemo(
-    () => buildReport(tab, period, bounds, periodData, sales),
-    [tab, period, bounds, periodData, sales],
+    () => buildReport(tab, period, bounds, { ...periodData, sales: projectedSales }, projectedHistory),
+    [tab, period, bounds, periodData, projectedSales, projectedHistory],
   );
   const active = selected != null && selected < model.buckets.length ? selected : model.buckets.length - 1;
   const max = Math.max(...model.buckets.map((bucket) => bucket.value), 1);
@@ -88,13 +97,13 @@ export function ReportsScreen() {
     const rows: string[][] = [['detalle', 'importe', 'estado']];
     if (tab === 'Ventas') {
       saleRows.forEach((sale) => {
-        rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(sale.amount), statusLabel(sale.status)]);
+        rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(money.number(sale.amount, sale.amountCurrency) ?? sale.amount), statusLabel(sale.status)]);
       });
     } else if (tab === 'Stock') {
-      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(item.price), statusLabel(item.status)]));
+      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(money.number(item.price, item.currency) ?? item.price), statusLabel(item.status)]));
     } else {
       tradeRows.forEach((item) => {
-        rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, String(item.differencePaid), statusLabel(item.status)]);
+        rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, String(money.number(item.differencePaid, item.currency) ?? item.differencePaid), statusLabel(item.status)]);
       });
     }
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -133,7 +142,7 @@ export function ReportsScreen() {
       )}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
-        <div className="gamount">{model.money ? formatMoney(model.total) : model.total}</div>
+        <div className="gamount">{model.money ? (salesValue == null ? '—' : money.showActive(salesValue)) : model.total}</div>
         <span className="gdelta">{model.delta}</span>
       </div>
       <div className="repgrid">
@@ -143,10 +152,10 @@ export function ReportsScreen() {
             {model.buckets.map((bucket, index) => {
               const height = Math.max(3, Math.round((bucket.value / max) * 96));
               return (
-                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${model.money ? formatMoney(bucket.value) : bucket.value}`} type="button" onClick={() => setSelected(index)}>
+                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${model.money ? (salesValue == null ? 'sin cotización' : money.showActive(bucket.value)) : bucket.value}`} type="button" onClick={() => setSelected(index)}>
                   {index === active ? (
                     <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`}>
-                      <b>{model.money ? formatMoneyCompact(bucket.value) : bucket.value}</b>
+                      <b>{model.money ? (salesValue == null ? '—' : money.compactActive(bucket.value)) : bucket.value}</b>
                       {` · ${bucket.label}`}
                     </span>
                   ) : null}
@@ -161,7 +170,7 @@ export function ReportsScreen() {
         </div>
         <div className="gcard">
           <div className="ghd"><h3>{model.donutTitle}</h3><span>tocá para filtrar</span></div>
-          <Donut parts={model.parts} money={model.money} total={model.total} cat={cat} onToggle={(label) => setCat((current) => current === label ? null : label)} />
+          <Donut parts={model.parts} money={model.money && salesValue != null} total={model.money ? (salesValue ?? 0) : model.total} cat={cat} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
       {tab === 'Ventas' && (
@@ -171,7 +180,7 @@ export function ReportsScreen() {
           {saleRows.map((sale) => (
             <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
               <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
-              <div className="gr"><div className="gamt">{formatMoneyCompact(sale.amount)}</div></div>
+              <div className="gr"><div className="gamt">{money.compact(sale.amount, sale.amountCurrency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -185,7 +194,7 @@ export function ReportsScreen() {
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
               <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition, item.grade) : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
-              <div className="gr"><div className="gamt">{formatMoneyCompact(item.price)}</div></div>
+              <div className="gr"><div className="gamt">{money.compact(item.price, item.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -198,7 +207,7 @@ export function ReportsScreen() {
           {tradeRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
               <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{tradeClientLabel(item, clients)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
-              <div className="gr"><div className="gamt">+{formatMoneyCompact(item.differencePaid)}</div></div>
+              <div className="gr"><div className="gamt">+{money.compact(item.differencePaid, item.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -224,7 +233,8 @@ function donutSlicePath(start: number, end: number) {
   return `M ${point(start)} A ${DONUT_RADIUS} ${DONUT_RADIUS} 0 ${sweep > Math.PI ? 1 : 0} 1 ${point(end)}`;
 }
 
-function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; onToggle: (label: string) => void }) {
+function Donut({ parts, money: showMoney, total, cat, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; onToggle: (label: string) => void }) {
+  const money = useMoney();
   const sum = parts.reduce((acc, part) => acc + part.value, 0);
   const visible = parts.filter((part) => part.value > 0);
   const gap = visible.length > 1 ? Math.min(0.12, (Math.PI * 2) / visible.length / 4) : 0;
@@ -263,13 +273,13 @@ function Donut({ parts, money, total, cat, onToggle }: { parts: { label: string;
           })}
         </svg>
         <div className="gc">
-          {sum === 0 ? <><b>—</b><small>sin datos</small></> : active ? <><b>{Math.round((active.value / sum) * 100)}%</b><small>{active.label}</small></> : <><b>{money ? formatMoneyCompact(total) : total}</b><small>total</small></>}
+          {sum === 0 ? <><b>—</b><small>sin datos</small></> : active ? <><b>{Math.round((active.value / sum) * 100)}%</b><small>{active.label}</small></> : <><b>{showMoney ? money.compactActive(total) : total}</b><small>total</small></>}
         </div>
       </div>
       <div className="gleg">
         {parts.map((part) => (
-          <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${money && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}`} type="button" onClick={() => onToggle(part.label)}>
-            <i style={{ background: part.color }} /><span>{part.label}</span><b>{money && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}</b>
+          <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${showMoney && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}`} type="button" onClick={() => onToggle(part.label)}>
+            <i style={{ background: part.color }} /><span>{part.label}</span><b>{showMoney && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}</b>
           </button>
         ))}
       </div>

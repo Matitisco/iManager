@@ -19,7 +19,6 @@ import {
   equipmentTitle,
   isInStock,
   formatInputMoney,
-  formatMoney,
   formatArDate,
   formatArDateTime,
   formatShortDate,
@@ -32,6 +31,8 @@ import {
   tradeCode,
 } from './format';
 import { cancellationRefund } from './cancel-refund';
+import { useMoney } from './exchange';
+import { FX_WARNING } from './money';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import { canSeeFinancials } from './sections';
 import type { CatalogKind } from '../services/catalogs-api';
@@ -90,16 +91,22 @@ const CJ_STATUS = [
   { id: 'RECHAZADO', label: 'Rechazado', color: '#DC4C4C' },
 ];
 
-function ConfirmOperationDialog({ label, refund, busy, error, onClose, onOk }: {
+function stampedCurrency(value: string | null | undefined): 'ARS' | 'USD' | undefined {
+  return value === 'ARS' || value === 'USD' ? value : undefined;
+}
+
+function ConfirmOperationDialog({ label, refund, currency, busy, error, onClose, onOk }: {
   label: string;
   refund: number;
+  currency?: string | null;
   busy: boolean;
   error: string | null;
   onClose: () => void;
   onOk: () => void;
 }) {
+  const money = useMoney();
   const text = refund > 0
-    ? `${label} se cancelará y quedará en el historial. Se devolverán ${formatMoney(refund)}.`
+    ? `${label} se cancelará y quedará en el historial. Se devolverán ${money.show(refund, currency)}.`
     : `${label} se cancelará y quedará en el historial.`;
   return (
     <Dialog
@@ -235,6 +242,7 @@ function batteryText(value: string) {
 
 function EquipmentDetail({ id }: { id: string }) {
   const { inventory, updateProduct } = useAppContext();
+  const money = useMoney();
   const { close, open, toast } = useDesk();
   const catalogs = useCatalogs();
   const item = inventory.find((row) => row.id === id);
@@ -263,7 +271,7 @@ function EquipmentDetail({ id }: { id: string }) {
   return (
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? formatMoney(item.price) : 'Sin precio'}</div></div>
+      <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
       <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
       <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
@@ -287,6 +295,7 @@ function EquipmentDetail({ id }: { id: string }) {
 
 function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { inventory, addProduct, updateProduct, appSession } = useAppContext();
+  const money = useMoney();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { close, open, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
@@ -305,7 +314,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [battery, setBattery] = useState(current?.batteryHealth && current.batteryHealth !== '0%' ? String(batteryPercent(current.batteryHealth)) : '');
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
-  const [price, setPrice] = useState(current ? formatInputMoney(current.price) : '');
+  const [price, setPrice] = useState(current ? money.inputValue(current.price, current.currency) : '');
   const [status, setStatus] = useState(current?.status ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
   let createdProductId = '';
@@ -324,7 +333,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
-      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
+      <Field label="Precio de venta" mark={money.active} error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
         const raw = event.target.value;
         if (raw.includes('-')) { setPrice(raw); return; }
         setPrice(formatInputMoney(parseMoney(raw)));
@@ -342,6 +351,13 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
+        const priced = current
+          ? money.commitGroup([{ typed: lockPrice ? current.price : parseMoney(price), original: current.price, currency: current.currency }])
+          : { blocked: false, amounts: [{ amount: parseMoney(price), currency: money.active }] };
+        if (priced.blocked) {
+          setBad({ price: FX_WARNING });
+          return;
+        }
         void run(async () => {
         const payload: Omit<Product, 'id'> = {
           imei: imei.trim(),
@@ -352,7 +368,8 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           grade: !condition ? '' : condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
           batteryHealth: battery ? `${battery}%` : '',
           cost: seeCosts ? (current?.cost ?? 0) : 0,
-          price: lockPrice && current ? current.price : parseMoney(price),
+          price: priced.amounts[0]?.amount ?? parseMoney(price),
+          currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
@@ -382,18 +399,14 @@ function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; p
   return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
 }
 
-function operationMoneyValue(value: number | null | undefined) {
-  return value == null ? '' : formatInputMoney(value) || '0';
-}
-
-function listedSalePrice(price: number | null | undefined) {
-  return price && price > 0 ? formatInputMoney(price) : '';
-}
-
 function operationMoneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
   return formatInputMoney(Number(digits)) || '0';
+}
+
+function productMoneyCurrency(item: { currency?: string | null } | null | undefined) {
+  return item?.currency;
 }
 
 function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false, run, busy, error }: FormProps & {
@@ -404,6 +417,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   startWithTrade?: boolean;
 }) {
   const context = useAppContext();
+  const money = useMoney();
   const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
   const { close } = useDesk();
   const catalogs = useCatalogs();
@@ -426,12 +440,13 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
-  const [amount, setAmount] = useState(seededAmount != null ? operationMoneyValue(seededAmount) : listedSalePrice(linkedProduct?.price));
+  const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
+  const [amount, setAmount] = useState(seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
   const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
-  const [take, setTake] = useState(currentTrade ? operationMoneyValue(currentTrade.takeValue) : '');
+  const [take, setTake] = useState(currentTrade ? (money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0') : '');
   const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
   const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
   const [grade, setGrade] = useState(currentTrade?.grade ?? '');
@@ -463,7 +478,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
       update('productId', () => setProductId(currentSale.productId || ''));
       update('deviceLabel', () => setDeviceLabel(currentSale.deviceLabel || ''));
-      update('amount', () => setAmount(operationMoneyValue(currentSale.amount)));
+      update('amount', () => setAmount(money.inputValue(currentSale.amount, currentSale.amountCurrency) || '0'));
       update('payment', () => setPayment(currentSale.paymentMethod || 'TRANSFERENCIA'));
       update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
     }
@@ -476,12 +491,12 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       const tradeAmount = currentTrade.confirmationStatus === 'PENDING'
         ? currentTrade.draftAmount
         : currentTrade.draftAmount ?? currentTrade.differencePaid + currentTrade.takeValue;
-      update('amount', () => setAmount(operationMoneyValue(currentSale?.amount ?? tradeAmount)));
+      update('amount', () => setAmount(money.inputValue(currentSale?.amount ?? tradeAmount ?? 0, currentSale?.amountCurrency ?? currentTrade.currency) || '0'));
       update('payment', () => setPayment(currentSale?.paymentMethod || currentTrade.draftPaymentMethod || 'TRANSFERENCIA'));
       update('paymentStatus', () => setPaymentStatus(currentSale ? (currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA') : currentTrade.draftPaymentStatus || 'COMPLETADA'));
       update('received', () => setReceived(currentTrade.deviceReceived || ''));
       update('imei', () => setImei(currentTrade.deviceReceivedImei || ''));
-      update('take', () => setTake(operationMoneyValue(currentTrade.takeValue)));
+      update('take', () => setTake(money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0'));
       update('technicalStatus', () => setTechnicalStatus(currentTrade.status || 'PENDIENTE'));
       update('battery', () => setBattery(currentTrade.batteryHealth || ''));
       update('grade', () => setGrade(currentTrade.grade || ''));
@@ -490,10 +505,10 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       update('productId', () => setProductId(linkedProduct.id));
       update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
       if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
-        update('amount', () => setAmount(listedSalePrice(linkedProduct.price)));
+        update('amount', () => setAmount(linkedProduct.price > 0 ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
       }
     }
-  }, [currentSale, currentTrade, linkedProduct, clients]);
+  }, [currentSale, currentTrade, linkedProduct, clients, money]);
 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
@@ -550,7 +565,25 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   };
   const save = (kind: 'draft' | 'confirm') => {
     if (!validate(kind)) return;
+    const includeAmount = !(kind === 'draft' && !amount.trim());
+    const originalAmount = currentSale?.amount ?? currentTrade?.draftAmount ?? selectedProduct?.price ?? 0;
+    const originalCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(selectedProduct);
+    const fields = [
+      ...(includeAmount ? [{ typed: parseMoney(amount), original: originalAmount, currency: originalCurrency }] : []),
+      ...(hasTrade ? [{ typed: parseMoney(take), original: currentTrade?.takeValue ?? 0, currency: currentTrade?.currency }] : []),
+    ];
+    const group = money.commitGroup(fields);
+    if (group.blocked) {
+      setBad({ amount: FX_WARNING });
+      return;
+    }
     const input = buildInput(kind === 'draft');
+    const amountField = includeAmount ? group.amounts[0] : undefined;
+    const takeField = hasTrade ? group.amounts[includeAmount ? 1 : 0] : undefined;
+    if (amountField && input.amount !== undefined) input.amount = amountField.amount;
+    const stamp = stampedCurrency(amountField?.currency ?? takeField?.currency);
+    if (stamp) input.currency = stamp;
+    if (takeField && input.tradeIn) input.tradeIn.takeValue = takeField.amount;
     void run(async () => {
       if (kind === 'draft') {
         if (tradeRef && currentTrade?.confirmationStatus === 'PENDING') {
@@ -573,7 +606,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
           clientName: buyer.trim(),
           productId: productId || '',
           deviceLabel: deviceLabel.trim(),
-          amount: parseMoney(amount),
+          amount: amountField?.amount ?? parseMoney(amount),
+          amountCurrency: stampedCurrency(amountField?.currency),
           paymentMethod: payment,
           status: paymentStatus,
         };
@@ -585,7 +619,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
-  const dueCopy = hasTrade ? `Diferencia a cobrar: ${formatMoney(difference)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${formatMoney(parseMoney(amount))}` : 'Venta cobrada';
+  const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
+  const dueCopy = hasTrade ? `Diferencia a cobrar: ${money.show(difference, typedCurrency)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   return (
     <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close}>
       {error && <div className="ferr">{error}</div>}
@@ -605,7 +640,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         linked={Boolean(selectedProduct)}
         error={bad.equipment}
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(listedSalePrice(item.price)); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
@@ -616,8 +651,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
             <Field label="IMEI recibido"><input value={imei} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value); }} placeholder="Opcional" /></Field>
           </div>
           <div className="frow">
-            <Field label="Valor tomado" error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
-            <Field label="Diferencia"><input aria-label="Diferencia" value={formatMoney(difference)} readOnly /></Field>
+            <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
+            <Field label="Diferencia"><input aria-label="Diferencia" value={money.show(difference, typedCurrency)} readOnly /></Field>
           </div>
           <Field label="Estado técnico"><span /></Field>
           <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
@@ -627,7 +662,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
           </div>
         </>
       ) : null}
-      <Field label="Precio completo de salida" error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
       <Field label="Forma de pago"><span /></Field>
@@ -646,6 +681,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
 
 function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation } = useAppContext();
+  const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -668,6 +704,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
         busy={busy}
         error={error}
         onClose={() => { if (!busy) setConfirmCancel(false); }}
+        currency={sale.amountCurrency}
         onOk={() => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada'); }}
       />
     );
@@ -676,16 +713,16 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
-      <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{formatMoney(sale.amount)}</div></div>
+      <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${formatMoney(linkedTrade ? linkedTrade.differencePaid : sale.amount)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       {linkedTrade ? <>
         <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
-        <div className="kv"><span>Valor tomado</span><b>{formatMoney(linkedTrade.takeValue)}</b></div>
-        <div className="kv"><span>Diferencia del canje</span><b>{formatMoney(linkedTrade.differencePaid)}</b></div>
+        <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
+        <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
         <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
         <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
       </> : null}
@@ -701,7 +738,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
           {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             if (!navigator.share) { void copy(); return; }
             navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {
@@ -724,14 +761,15 @@ function TradeForm({ id, source = 'tradeins', run, busy, error }: FormProps & { 
 
 function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: TradeIn }) {
   const { tradeIns, clients, updateTradeIn } = useAppContext();
+  const money = useMoney();
   const { close } = useDesk();
   const [clientId, setClientId] = useState(trade.clientId || '');
   const [buyer, setBuyer] = useState(trade.clientName || clients.find((client) => client.id === trade.clientId)?.name || '');
   const [received, setReceived] = useState(trade.deviceReceived || '');
   const [imei, setImei] = useState(trade.deviceReceivedImei || '');
   const [given, setGiven] = useState(trade.deviceGiven || '');
-  const [take, setTake] = useState(operationMoneyValue(trade.takeValue));
-  const [difference, setDifference] = useState(operationMoneyValue(trade.differencePaid));
+  const [take, setTake] = useState(money.inputValue(trade.takeValue, trade.currency) || '0');
+  const [difference, setDifference] = useState(money.inputValue(trade.differencePaid, trade.currency) || '0');
   const [status, setStatus] = useState(trade.status || 'PENDIENTE');
   const [bad, setBad] = useState<Record<string, string>>({});
   const catalogs = useCatalogs();
@@ -748,8 +786,8 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
       </div>
       <Field label="Equipo entregado" error={bad.given}><input value={given} onChange={(event) => { setGiven(event.target.value); clearBad(setBad, 'given'); }} /></Field>
       <div className="frow">
-        <Field label="Valor tomado"><input value={take} inputMode="numeric" onChange={(event) => setTake(operationMoneyInput(event.target.value))} /></Field>
-        <Field label="Diferencia"><input value={difference} inputMode="numeric" onChange={(event) => setDifference(operationMoneyInput(event.target.value))} /></Field>
+        <Field label="Valor tomado" mark={money.active}><input value={take} inputMode="numeric" onChange={(event) => setTake(operationMoneyInput(event.target.value))} /></Field>
+        <Field label="Diferencia" mark={money.active}><input value={difference} inputMode="numeric" onChange={(event) => setDifference(operationMoneyInput(event.target.value))} /></Field>
       </div>
       <Field label="Estado técnico"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
@@ -760,6 +798,14 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
         if (!given.trim()) next.given = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
+        const priced = money.commitGroup([
+          { typed: parseMoney(take), original: trade.takeValue, currency: trade.currency },
+          { typed: parseMoney(difference), original: trade.differencePaid, currency: trade.currency },
+        ]);
+        if (priced.blocked) {
+          setBad({ take: FX_WARNING });
+          return;
+        }
         void run(async () => await updateTradeIn({
           ...trade,
           clientId,
@@ -767,8 +813,9 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
           deviceReceived: received.trim(),
           deviceReceivedImei: imei.trim(),
           deviceGiven: given.trim(),
-          takeValue: parseMoney(take),
-          differencePaid: parseMoney(difference),
+          takeValue: priced.amounts[0]?.amount ?? trade.takeValue,
+          differencePaid: priced.amounts[1]?.amount ?? trade.differencePaid,
+          currency: stampedCurrency(priced.amounts[0]?.currency),
           status,
         }), 'Canje actualizado');
       }} />
@@ -778,6 +825,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
 
 function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormProps & { id: string; source?: OperationSource; kind?: string }) {
   const { tradeIns, sales, clients, updateTradeIn, updateTradeOperation, cancelTradeOperation, fetchTradeOperation } = useAppContext();
+  const money = useMoney();
   const { close, open, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
   const archivedReceivedLink = kind === 'ARCHIVED_TRADE_IN_RECEIVED';
@@ -808,7 +856,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
           <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
           <div className="kv"><span>Capacidad</span><b>{archivedReceived.capacity || '—'}</b></div>
           <div className="kv"><span>Estado técnico</span><b><Pill status={archivedReceived.status} kind="TRADE_IN_STATUS" /></b></div>
-          <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
+          <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
           <div className="kv"><span>Fecha</span><b>{formatShortDate(trade.date)}</b></div>
         </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <div className="wempty">Cargando equipo recibido...</div>}
         <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
@@ -851,6 +899,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         <ConfirmOperationDialog
           label={tradeCode(tradeIns, trade.id)}
           refund={refund}
+          currency={trade.currency}
           busy={busy}
           error={error}
           onClose={() => { if (!busy) setConfirmCancel(false); }}
@@ -870,12 +919,12 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         ) : null}
         <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
         {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
-        <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
+        <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
         <div className="kv"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
         {trade.confirmationStatus === 'CONFIRMED' ? <>
-            <div className="kv"><span>Precio de salida</span><b>{linkedSale ? formatMoney(linkedSale.amount) : '—'}</b></div>
-          <div className="kv"><span>Diferencia</span><b>{formatMoney(trade.differencePaid)}</b></div>
-            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? formatMoney(trade.differencePaid) : formatMoney(0)}</b></div>
+            <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div>
+          <div className="kv"><span>Diferencia</span><b>{money.show(trade.differencePaid, trade.currency)}</b></div>
+            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? money.show(trade.differencePaid, trade.currency) : money.showActive(0)}</b></div>
         </> : null}
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
@@ -896,9 +945,9 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
     <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
-      <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{formatMoney(trade.differencePaid)}</div></div>
+      <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
-      <div className="kv"><span>Valor tomado</span><b>{formatMoney(trade.takeValue)}</b></div>
+      <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
       {next ? (
@@ -915,6 +964,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
 
 function ClientDetail({ id }: { id: string }) {
   const { clients, user, registerClientPayment } = useAppContext();
+  const money = useMoney();
   const { close, open, toast } = useDesk();
   const client = clients.find((item) => item.id === id);
   const [method, setMethod] = useState('TRANSFERENCIA');
@@ -923,10 +973,12 @@ function ClientDetail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const quoteRate = money.rate;
+  const activeCurrency = money.active;
   useEffect(() => {
     if (!client) return;
-    setAmount(formatInputMoney(client.pendingBalance));
-  }, [client?.id]);
+    setAmount(money.inputValue(client.pendingBalance, client.balanceCurrency));
+  }, [client?.id, client?.pendingBalance, client?.balanceCurrency, quoteRate, activeCurrency]);
 
   useEffect(() => {
     if (!user) return;
@@ -940,6 +992,8 @@ function ClientDetail({ id }: { id: string }) {
   if (!client) return null;
   const pay = async () => {
     const value = parseMoney(amount);
+    const projected = money.number(client.pendingBalance, client.balanceCurrency);
+    const stored = projected != null && projected > 0 ? Math.round(value * client.pendingBalance / projected) : value;
     if (amount.includes('-') || value < 0) {
       setError('El pago no puede ser negativo');
       return;
@@ -948,16 +1002,16 @@ function ClientDetail({ id }: { id: string }) {
       setError('Completá el monto');
       return;
     }
-    if (value > client.pendingBalance) {
+    if (stored > client.pendingBalance) {
       setError('El monto supera el saldo');
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const updated = await registerClientPayment(client.id, { amount: value, method });
+      const updated = await registerClientPayment(client.id, { amount: stored, method, currency: stampedCurrency(client.balanceCurrency) });
       toast('Pago registrado');
-      setAmount(formatInputMoney(updated.pendingBalance));
+      setAmount(money.inputValue(updated.pendingBalance, updated.balanceCurrency));
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
     } finally {
@@ -969,7 +1023,7 @@ function ClientDetail({ id }: { id: string }) {
   return (
     <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close}>
       {error && <div className="ferr">{error}</div>}
-      <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{formatMoney(client.pendingBalance)}</div></div>
+      <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{money.show(client.pendingBalance, client.balanceCurrency)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {client.pendingBalance > 0 ? (
@@ -992,7 +1046,7 @@ function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : paymentLabel(payment.method)}</span><b>{formatMoney(payment.amount)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
           ))}
         </>
       ) : null}
@@ -1008,6 +1062,7 @@ function ClientDetail({ id }: { id: string }) {
 
 function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { clients, addClient, updateClient } = useAppContext();
+  const money = useMoney();
   const { close } = useDesk();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
@@ -1017,7 +1072,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [dni, setDni] = useState(current?.dni ?? '');
   const [phone, setPhone] = useState(current?.phone ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
-  const [balance, setBalance] = useState(formatInputMoney(current?.pendingBalance ?? 0));
+  const [balance, setBalance] = useState(current ? money.inputValue(current.pendingBalance, current.balanceCurrency) : '');
   const [tag, setTag] = useState(current?.tag ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
 
@@ -1034,7 +1089,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
         </div>
       )}
       <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
-      {current ? <Field label="Saldo pendiente"><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => setBalance(formatInputMoney(parseMoney(event.target.value)))} /></Field> : null}
+      {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
       <Field label="Etiqueta"><span /></Field>
       <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -1042,6 +1097,10 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
         else if (name.trim().length > INPUT_LIMITS.clientName) next.name = `El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`;
+        const priced = current
+          ? money.commitGroup([{ typed: parseMoney(balance), original: current.pendingBalance, currency: current.balanceCurrency }])
+          : { blocked: false, amounts: [{ amount: 0, currency: null as string | null }] };
+        if (priced.blocked) next.balance = FX_WARNING;
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -1052,7 +1111,8 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
           email: email.trim(),
           lastPurchaseDate: current?.lastPurchaseDate || 'N/A',
           totalSpent: current?.totalSpent ?? 0,
-          pendingBalance: parseMoney(balance),
+          pendingBalance: priced.amounts[0]?.amount ?? 0,
+          balanceCurrency: priced.amounts[0]?.currency ?? null,
           tag: tag || null,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
@@ -1075,7 +1135,11 @@ function StoreForm({ run, busy, error }: FormProps) {
   const [phone, setPhone] = useState(store?.phone ?? '');
   const [email, setEmail] = useState(store?.email ?? '');
   const [instagram, setInstagram] = useState(store?.instagram ?? '');
-  const [currency, setCurrency] = useState(store?.currency || 'ARS');
+  const [currency, setCurrency] = useState<'ARS' | 'USD'>(store?.currency === 'USD' ? 'USD' : 'ARS');
+  const [exchangeMode, setExchangeMode] = useState<'auto' | 'manual'>(store?.exchangeMode === 'manual' ? 'manual' : 'auto');
+  const [exchangeSource, setExchangeSource] = useState<'blue' | 'oficial' | 'mep'>(store?.exchangeSource === 'oficial' || store?.exchangeSource === 'mep' ? store.exchangeSource : 'blue');
+  const [manualBuy, setManualBuy] = useState(store?.manualBuy ? formatInputMoney(store.manualBuy) : '');
+  const [manualSell, setManualSell] = useState(store?.manualSell ? formatInputMoney(store.manualSell) : '');
   const [bad, setBad] = useState<Record<string, string>>({});
   return (
     <Sheet title="Datos de la tienda" onClose={close}>
@@ -1084,16 +1148,43 @@ function StoreForm({ run, busy, error }: FormProps) {
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
       <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
-      <Field label="Moneda">
+      <Field label="Moneda principal">
         <span className="money-row">
           <ImanagerIcon name="dolar" size={16} active={currency === 'USD'} />
-          <select value={currency} onChange={(event) => setCurrency(event.target.value)}><option>ARS</option><option>USD</option></select>
+          <select data-testid="store-currency" value={currency} onChange={(event) => setCurrency(event.target.value === 'USD' ? 'USD' : 'ARS')}><option value="ARS">ARS</option><option value="USD">USD</option></select>
         </span>
       </Field>
+      <Field label="Cotización del dólar">
+        <select data-testid="store-exchange-mode" value={exchangeMode} onChange={(event) => setExchangeMode(event.target.value as 'auto' | 'manual')}>
+          <option value="auto">Automática desde DolarApi</option>
+          <option value="manual">Manual, la carga la tienda</option>
+        </select>
+      </Field>
+      {exchangeMode === 'auto' ? (
+        <Field label="Tipo de dólar">
+          <select data-testid="store-exchange-source" value={exchangeSource} onChange={(event) => setExchangeSource(event.target.value as 'blue' | 'oficial' | 'mep')}>
+            <option value="blue">Blue</option>
+            <option value="oficial">Oficial</option>
+            <option value="mep">MEP</option>
+          </select>
+        </Field>
+      ) : (
+        <div className="frow">
+          <Field label="Compra" error={bad.manualBuy}><input data-testid="store-manual-buy" inputMode="numeric" value={manualBuy} placeholder="Ej. 1200" onChange={(event) => { setManualBuy(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'manualBuy'); }} /></Field>
+          <Field label="Venta" error={bad.manualSell}><input data-testid="store-manual-sell" inputMode="numeric" value={manualSell} placeholder="Ej. 1250" onChange={(event) => { setManualSell(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'manualSell'); }} /></Field>
+        </div>
+      )}
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
         const contact = storeContactErrors({ email, instagram });
-        if (!name.trim() || contact.email || contact.instagram) {
-          setBad({ ...contact, ...(!name.trim() ? { name: 'Completá este dato' } : {}) });
+        const buy = parseMoney(manualBuy);
+        const sell = parseMoney(manualSell);
+        const manualGap = exchangeMode === 'manual' && ((buy > 0) !== (sell > 0));
+        if (!name.trim() || contact.email || contact.instagram || manualGap) {
+          setBad({
+            ...contact,
+            ...(!name.trim() ? { name: 'Completá este dato' } : {}),
+            ...(manualGap ? { manualBuy: 'Completá compra y venta', manualSell: 'Completá compra y venta' } : {}),
+          });
           return;
         }
         setBad({});
@@ -1106,6 +1197,10 @@ function StoreForm({ run, busy, error }: FormProps) {
           email: email.trim() || null,
           instagram: instagram.trim() || null,
           currency,
+          exchangeMode,
+          exchangeSource,
+          manualBuy: exchangeMode === 'manual' && buy > 0 ? buy : null,
+          manualSell: exchangeMode === 'manual' && sell > 0 ? sell : null,
         });
         if (store?.id) clearStoreContactOffer(store.id);
       }, 'Tienda actualizada');

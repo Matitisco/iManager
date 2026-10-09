@@ -53,6 +53,11 @@ const FIELD_LABELS: Record<string, string> = {
   deposit: "seña",
   technician: "técnico",
   estimatedDelivery: "fecha de entrega",
+  currency: "moneda",
+  exchangeMode: "cotización",
+  exchangeSource: "fuente",
+  manualBuy: "compra",
+  manualSell: "venta",
 };
 
 const FEMININE_LABELS = new Set([
@@ -71,6 +76,11 @@ const FEMININE_LABELS = new Set([
   "falla",
   "seña",
   "fecha de entrega",
+  "moneda",
+  "cotización",
+  "fuente",
+  "compra",
+  "venta",
 ]);
 
 type FieldIssue = { field: string; message: string };

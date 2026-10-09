@@ -23,9 +23,9 @@ export function repairFault(order: Pick<RepairOrder, 'fault' | 'faultTags'>) {
   return 'Sin detalle';
 }
 
-export function repairPrice(estimate: number | null, empty: 'quote' | 'dash') {
+export function repairPrice(estimate: number | null, empty: 'quote' | 'dash', format: (value: number) => string = (value) => formatMoney(value)) {
   if (estimate == null) return empty === 'quote' ? 'A cotizar' : '—';
-  return formatMoney(estimate);
+  return format(estimate);
 }
 
 export function dayMonth(value: string | null | undefined) {

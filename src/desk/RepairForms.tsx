@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { ClientField } from './ClientField';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
+import { useMoney } from './exchange';
 import { formatInputMoney, formatShortDate, parseMoney } from './format';
 import { ReportDatePicker } from './report-date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, REPAIR_FAULTS, REPAIR_READY, REPAIR_RECEIVED, repairFault, repairPrice, repairStatusMeta } from './repairs';
@@ -23,6 +24,7 @@ function isoDate(value: string) {
 
 export function RepairOrderForm({ busy, error }: { busy: boolean; error: string | null }) {
   const { clients, addRepairOrder } = useAppContext();
+  const money = useMoney();
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
   const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
@@ -68,6 +70,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         faultTags: tags,
         estimate: estimate.trim() ? parseMoney(estimate) : null,
         deposit: parseMoney(deposit),
+        currency: money.active,
         technician: technician.trim(),
         status: status || REPAIR_RECEIVED,
         estimatedDelivery: delivery ? isoDate(delivery) : null,
@@ -116,10 +119,10 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         </div>
         <div>
           <div className="frow">
-            <Field label="Presupuesto estimado">
+            <Field label="Presupuesto estimado" mark={money.active}>
               <input value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => setEstimate(moneyInput(event.target.value))} />
             </Field>
-            <Field label="Seña">
+            <Field label="Seña" mark={money.active}>
               <input value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDeposit(moneyInput(event.target.value))} />
             </Field>
           </div>
@@ -146,6 +149,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
 
 export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const { repairOrders = [], changeRepairStatus } = useAppContext();
+  const money = useMoney();
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
   const order = repairOrders.find((item) => item.id === id);
@@ -194,8 +198,8 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       <div className="kv"><span>Cliente</span><b>{order.clientName}</b></div>
       <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
       <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
-      <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash')}</b></div>
-      <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash')}</b></div>
+      <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</b></div>
+      <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', (value) => money.show(value, order.currency))}</b></div>
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       <div className="svc-log">
         <span>Historial</span>

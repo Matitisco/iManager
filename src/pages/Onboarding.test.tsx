@@ -107,7 +107,14 @@ describe('Onboarding', () => {
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
     await waitFor(() => {
-      expect(mockAppContext.completeOnboarding).toHaveBeenCalledWith('Sucursal Norte');
+      expect(mockAppContext.completeOnboarding).toHaveBeenCalledWith({
+        storeName: 'Sucursal Norte',
+        currency: 'ARS',
+        exchangeMode: 'auto',
+        exchangeSource: 'blue',
+        manualBuy: null,
+        manualSell: null,
+      });
     });
   });
 

@@ -2,6 +2,7 @@ import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
 import { assertStoreContact, blankToNull } from "./store-contact.js";
 import { assertSectionList, normalizeSections } from "./sections.js";
+import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
@@ -109,6 +110,10 @@ export interface StoreUpdateInput {
   instagram?: string | null;
   address?: string | null;
   currency?: string;
+  exchangeMode?: string;
+  exchangeSource?: string;
+  manualBuy?: number | null;
+  manualSell?: number | null;
   timezone?: string;
 }
 
@@ -117,7 +122,13 @@ export async function updateStore(storeId: string, data: StoreUpdateInput) {
   return prisma.store.update({
     where: { id: storeId },
     data: {
-      ...data,
+      ...("name" in data ? { name: data.name } : {}),
+      ...("timezone" in data ? { timezone: data.timezone } : {}),
+      ...("currency" in data ? { currency: asCurrency(data.currency) } : {}),
+      ...("exchangeMode" in data ? { exchangeMode: asExchangeMode(data.exchangeMode) } : {}),
+      ...("exchangeSource" in data ? { exchangeSource: asExchangeSource(data.exchangeSource) } : {}),
+      ...("manualBuy" in data ? { manualBuy: positiveRate(data.manualBuy) } : {}),
+      ...("manualSell" in data ? { manualSell: positiveRate(data.manualSell) } : {}),
       ...contact,
       ...("phone" in data ? { phone: blankToNull(data.phone) } : {}),
       ...("legalName" in data ? { legalName: blankToNull(data.legalName) } : {}),

@@ -26,12 +26,21 @@ function getBaseUrlOrThrow() {
   return trimTrailingSlash(baseUrl);
 }
 
-export async function completeBackendOnboarding(user: AuthUserLike, storeName: string): Promise<AppSessionResponse> {
+export type OnboardingInput = {
+  storeName: string;
+  currency?: 'ARS' | 'USD';
+  exchangeMode?: 'auto' | 'manual';
+  exchangeSource?: 'blue' | 'oficial' | 'mep';
+  manualBuy?: number | null;
+  manualSell?: number | null;
+};
+
+export async function completeBackendOnboarding(user: AuthUserLike, input: OnboardingInput): Promise<AppSessionResponse> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/onboarding`, {
     method: 'POST',
     headers: await getAuthHeaders(user),
-    body: JSON.stringify({ storeName }),
+    body: JSON.stringify(input),
   });
 
   if (!response.ok) {

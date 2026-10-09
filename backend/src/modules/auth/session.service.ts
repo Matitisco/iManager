@@ -7,6 +7,7 @@ import {
   type UserStoreSummary,
 } from "../stores/stores.service.js";
 import { normalizeSections } from "../stores/sections.js";
+import { serializeStore } from "../stores/store-settings.js";
 
 export interface AppSessionResponse {
   user: {
@@ -26,6 +27,10 @@ export interface AppSessionResponse {
     instagram: string | null;
     address: string | null;
     currency: string;
+    exchangeMode: "auto" | "manual";
+    exchangeSource: "blue" | "oficial" | "mep";
+    manualBuy: number | null;
+    manualSell: number | null;
     timezone: string;
   } | null;
   membership: {
@@ -71,18 +76,7 @@ export async function buildAppSessionForUser(
 
   return {
     user: serializeSessionUser(user),
-    store: {
-      id: membership.store.id,
-      name: membership.store.name,
-      legalName: membership.store.legalName,
-      taxId: membership.store.taxId,
-      phone: membership.store.phone,
-      email: membership.store.email,
-      instagram: membership.store.instagram,
-      address: membership.store.address,
-      currency: membership.store.currency,
-      timezone: membership.store.timezone,
-    },
+    store: serializeStore(membership.store),
     membership: {
       role: membership.role,
       isDefault: membership.isDefault,

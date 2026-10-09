@@ -27,6 +27,10 @@ export interface StoreUpdateInput {
   instagram?: string | null;
   address?: string | null;
   currency?: string;
+  exchangeMode?: 'auto' | 'manual';
+  exchangeSource?: 'blue' | 'oficial' | 'mep';
+  manualBuy?: number | null;
+  manualSell?: number | null;
   timezone?: string;
 }
 
