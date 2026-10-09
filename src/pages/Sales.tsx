@@ -10,6 +10,7 @@ import { formatCurrency } from '../lib/utils';
 import { fetchSalesPage, updateSaleViaApi, deleteSaleViaApi, invalidateSalesCache, updateCategoryInCache } from '../services/sales-table-api';
 import { importBackendSales } from '../services/sales-import-api';
 import { customFieldsFromRowForm, withCustomField } from '../utils/cell-tags';
+import { canSeeFinancials } from '../desk/sections';
 
 // ── Payment method badge metadata ─────────────────────────────────────────────
 const PAYMENT_BADGE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
@@ -48,6 +49,7 @@ interface SalesProps {
 export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
   const {
     user,
+    appSession,
     clients,
     inventory,
     sales,
@@ -71,9 +73,10 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
   // Stats (computed from the cached full list in AppContext)
   const totalRevenue = sales.reduce((sum, s) => sum + s.amount, 0);
   const averageTicket = sales.length > 0 ? totalRevenue / sales.length : 0;
+  const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const totalMargin = sales.reduce((sum, s) => {
     const p = inventory.find(i => i.id === s.productId);
-    return sum + (p ? s.amount - p.cost : 0);
+    return sum + (p ? s.amount - (p.cost ?? 0) : 0);
   }, 0);
   const marginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
@@ -416,23 +419,27 @@ export const Sales: React.FC<SalesProps> = ({ searchTerm = '' }) => {
     <div className="flex flex-col h-full gap-5">
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0">
-        <StatCard
-          title="FACTURACIÓN TOTAL"
-          value={formatCurrency(totalRevenue)}
-          trend={`${sales.length} ventas`}
-          icon={<TrendingUp size={16} className="text-emerald-500" />}
-        />
+        {seeFinancials ? (
+          <StatCard
+            title="FACTURACIÓN TOTAL"
+            value={formatCurrency(totalRevenue)}
+            trend={`${sales.length} ventas`}
+            icon={<TrendingUp size={16} className="text-emerald-500" />}
+          />
+        ) : null}
         <StatCard
           title="TICKET PROMEDIO"
           value={formatCurrency(averageTicket)}
           trend={sales.length > 0 ? 'Datos reales' : 'Sin ventas'}
           icon={<BarChart size={16} className="text-gray-400" />}
         />
-        <StatCard
-          title="MARGEN BRUTO ESTIMADO"
-          value={`${marginRate.toFixed(1)}%`}
-          trend={formatCurrency(totalMargin)}
-        />
+        {seeFinancials ? (
+          <StatCard
+            title="MARGEN BRUTO ESTIMADO"
+            value={`${marginRate.toFixed(1)}%`}
+            trend={formatCurrency(totalMargin)}
+          />
+        ) : null}
       </div>
 
       {/* Table engine */}

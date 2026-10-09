@@ -17,6 +17,11 @@ export function canAccessSection(section: SectionId, member: { role: string; sec
   return sections?.includes(section) ?? true;
 }
 
+/** Cost, margin and store billing follow the same gate as Reportes. */
+export function canSeeFinancials(member: { role: string; sections?: unknown }): boolean {
+  return canAccessSection("reports", member);
+}
+
 const KNOWN = new Set<string>(SECTION_IDS);
 
 export function normalizeSections(value: unknown): string[] | null {

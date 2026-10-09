@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { canSeeFinancials } from "../stores/sections.js";
 import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
@@ -153,6 +154,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = inventoryPatchSchema.parse(request.body);
+      if (!canSeeFinancials(request.appUser)) delete body.cost;
       try {
         const inventoryItem = await updateInventoryItem(
           request.appUser.storeId,

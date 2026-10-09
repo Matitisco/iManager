@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
+import { canSeeFinancials } from "../stores/sections.js";
 import {
   getReportsErrorStatus,
   getReportsOverview,
@@ -25,7 +26,7 @@ export async function reportsRoutes(app: FastifyInstance) {
       if (!request.appUser) {
         return reply.code(403).send({ error: "Store membership required" });
       }
-      if (request.appUser.sections && !request.appUser.sections.includes("reports")) {
+      if (!canSeeFinancials(request.appUser)) {
         return reply.code(403).send({ error: "No tenés acceso a Reportes" });
       }
 

@@ -124,6 +124,17 @@ function normalizeCustomColumn(id: string, raw: Record<string, unknown>): Custom
   };
 }
 
+function withoutStoredCost(item: Product): Product {
+  if (!Object.prototype.hasOwnProperty.call(item, 'cost')) return item;
+  const next = { ...item };
+  delete next.cost;
+  return next;
+}
+
+function visibleInventory(items: Product[], seeCosts: boolean) {
+  return seeCosts ? items : items.map(withoutStoredCost);
+}
+
 function getCustomColumnsStorageKey(uid: string) {
   return `customColumns:${uid}`;
 }
@@ -293,7 +304,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const [backendInventory, cats] = await Promise.all([fetchBackendInventory(user), fetchCategories(user).catch(() => [])]);
         if (cancelled) return;
-        setInventory(backendInventory);
+        setInventory(visibleInventory(backendInventory, canAccess('reports')));
         setInventoryCategories(cats);
       } catch (error) {
         if (cancelled) return;
@@ -552,7 +563,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const next = new Map(current.map((item) => [item.id, item]));
       for (const item of result.inventory ?? []) {
         if (item.archivedAt) next.delete(item.id);
-        else next.set(item.id, { ...next.get(item.id), ...item });
+        else {
+          const merged = { ...next.get(item.id), ...item };
+          if (!canAccess('reports')) delete merged.cost;
+          next.set(item.id, merged);
+        }
       }
       return [...next.values()];
     });
@@ -807,7 +822,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para guardar inventario. Reintenta en unos segundos.'
       );
     }
-    const createdProduct = await createBackendInventoryItem(user, productData);
+    const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData)], canAccess('reports'))[0];
     setInventory(prev => [createdProduct, ...prev]);
     if (createdProduct.status === 'VENDIDO' && canAccess('notifications')) void refreshNotifications().catch(() => undefined);
     return createdProduct;
@@ -815,10 +830,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
+    const visibleUpdate = canAccess('reports') ? updatedProduct : withoutStoredCost(updatedProduct);
     let previousItem: Product | undefined;
     setInventory(prev => {
-      previousItem = prev.find(p => p.id === updatedProduct.id);
-      return prev.map(product => product.id === updatedProduct.id ? updatedProduct : product);
+      previousItem = prev.find(p => p.id === visibleUpdate.id);
+      return prev.map(product => product.id === visibleUpdate.id ? visibleUpdate : product);
     });
     try {
       if (!backendInventoryEnabled) {
@@ -826,7 +842,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           backendMessage || 'El backend todavia no esta listo para actualizar inventario. Reintenta en unos segundos.'
         );
       }
-      const backendProduct = await updateBackendInventoryItem(user, updatedProduct);
+      const backendProduct = visibleInventory([await updateBackendInventoryItem(user, updatedProduct)], canAccess('reports'))[0];
       setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
       if (backendProduct.status === 'VENDIDO' && previousItem?.status !== 'VENDIDO' && canAccess('notifications')) {
         void refreshNotifications().catch(() => undefined);
@@ -853,7 +869,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const reloadInventory = async () => {
     if (!user) return;
     const items = await fetchBackendInventory(user);
-    setInventory(items);
+    setInventory(visibleInventory(items, canAccess('reports')));
   };
 
   const reloadSales = async () => {

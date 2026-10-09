@@ -1,14 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Sale } from '../../types';
+import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { SalesScreen } from './SalesScreen';
 
 const context = vi.hoisted(() => ({
   sales: [] as Sale[],
   clients: [] as never[],
-  inventory: [] as never[],
+  inventory: [] as Product[],
+  appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -45,6 +46,7 @@ describe('Sales column filters', () => {
     ];
     context.clients = [];
     context.inventory = [];
+    context.appSession = null;
   });
 
   it('filters with the search, resets to page 1 and keeps the header when nothing matches', async () => {
@@ -80,5 +82,35 @@ describe('Sales column filters', () => {
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();
     expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+
+  it('shows billing and margin only to members who can open reports', () => {
+    context.sales = [sale(1, { amount: 1000, productId: 'eq', status: 'COMPLETADA' })];
+    context.inventory = [{
+      id: 'eq', imei: '123456789012345', model: 'Pixel', capacity: '128 GB', color: 'Negro',
+      condition: 'NUEVO', grade: '', batteryHealth: '100', cost: 400, price: 1000, status: 'VENDIDO',
+    }];
+
+    context.appSession = { membership: { role: 'OWNER', sections: null } };
+    const owner = renderScreen();
+    expect(screen.getByText('Facturación total')).toBeInTheDocument();
+    expect(screen.getByText('Margen bruto est.')).toBeInTheDocument();
+    expect(screen.getByText('precio menos costo')).toBeInTheDocument();
+    expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
+    owner.unmount();
+
+    context.appSession = { membership: { role: 'STAFF', sections: ['sales', 'reports'] } };
+    const staff = renderScreen();
+    expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
+    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
+    expect(screen.queryByText('precio menos costo')).not.toBeInTheDocument();
+    expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
+    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
+    staff.unmount();
+
+    context.appSession = { membership: { role: 'MANAGER', sections: ['sales'] } };
+    renderScreen();
+    expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
+    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
   });
 });
