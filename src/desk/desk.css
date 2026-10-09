@@ -561,9 +561,9 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar.error .dolar-foot { margin: 2px 0 0; padding: 0 12px 10px; color: var(--err); }
 .dolar-foot button { font: inherit; font-weight: 800; color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .dolar-sheet { width: min(440px, calc(100vw - 24px)); padding: 22px 22px 18px; }
-.dolar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.dolar-sheet h3 { margin: 0; font-size: 20px; }
-.dolar-x { width: 32px; height: 32px; border-radius: 50%; background: var(--row); font-size: 20px; line-height: 1; color: var(--primary); }
+.dolar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; margin-bottom: 14px; }
+.dolar-sheet h3 { margin: 0; min-width: 0; font-size: 20px; }
+.dolar-x { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--row); font-size: 20px; line-height: 1; color: var(--primary); }
 .dolar-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 .dolar-stat { background: var(--row); border-radius: 16px; padding: 12px 12px 14px; min-width: 0; }
 .dolar-stat span { display: block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--section); }
@@ -679,9 +679,22 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   margin: 0 0 16px;
 }
 @media (max-width: 640px) {
-  .dolar-calc { flex-wrap: wrap; }
-  .dolar-out { min-width: 0; }
-  .dolar-side { flex: 1 1 100%; width: 100%; margin-left: 0; white-space: normal; text-align: center; height: auto; min-height: 32px; padding: 8px 10px; }
+  .ov.dolar-ov { align-items: flex-end; padding: 12px; }
+  .dolar-sheet { width: 100%; max-width: 100%; padding: 18px 14px 16px; }
+  .dolar-sheet h3, .dolar-meta, .dolar-kicker { overflow-wrap: anywhere; }
+  .dolar-stats { gap: 6px; }
+  .dolar-stat { padding: 10px 8px 12px; }
+  .dolar-stat b { font-size: clamp(12px, 3.6vw, 16px); white-space: normal; overflow-wrap: anywhere; }
+  .dolar-stat .dolar-skel { width: auto; max-width: 100%; }
+  .dolar-calc { flex-wrap: wrap; align-items: center; }
+  .dolar-usd { flex: 1 1 140px; max-width: 100%; min-width: 0; }
+  .dolar-usd input { width: auto; flex: 1; min-width: 0; }
+  .dolar-out { flex: 1 1 88px; min-width: 0; font-size: 16px; white-space: normal; overflow-wrap: anywhere; }
+  .dolar-side { flex: 1 1 100%; width: 100%; max-width: 100%; margin-left: 0; white-space: normal; text-align: center; height: auto; min-height: 36px; padding: 8px 12px; }
+  .dolar-acts { flex-direction: column; align-items: stretch; }
+  .dolar-acts .btn2,
+  .dolar-acts .btn2.s,
+  .dolar-acts .btn2.p { flex: none; width: 100%; max-width: 100%; min-width: 0; height: auto; min-height: 46px; white-space: normal; text-align: center; padding: 10px 14px; }
   .ov.reset { align-items: flex-end; padding: 12px; }
   .sheet.compact {
     width: 100%;

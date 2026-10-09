@@ -76,7 +76,7 @@ export function BlueDollar() {
         ) : null}
       </div>
       {open ? (
-        <div className="ov" data-testid="blue-overlay" onMouseDown={() => setOpen(false)}>
+        <div className="ov dolar-ov" data-testid="blue-overlay" onMouseDown={() => setOpen(false)}>
           <div
             className="sheet dolar-sheet"
             role="dialog"

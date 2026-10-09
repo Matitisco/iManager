@@ -74,10 +74,44 @@ test('configures the store currency and converts a saved price', async ({ page }
   await expect(page.getByText('$ 70.000')).toHaveCount(0);
 });
 
+async function expectDollarSheetInsideViewport(page: Page) {
+  const report = await page.locator('.dolar-sheet').evaluate((sheet) => {
+    const viewportWidth = window.innerWidth;
+    const nodes = [sheet, ...sheet.querySelectorAll('*')];
+    const outside: string[] = [];
+    for (const node of nodes) {
+      if (!(node instanceof Element)) continue;
+      const box = node.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) continue;
+      let text = box;
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        text = range.getBoundingClientRect();
+      } catch {
+        text = box;
+      }
+      const right = Math.max(box.right, text.width > 0 ? text.right : box.right);
+      const left = Math.min(box.left, text.width > 0 ? text.left : box.left);
+      if (left < -1 || right > viewportWidth + 1) {
+        const label = node.getAttribute('data-testid') || (typeof node.className === 'string' ? node.className : node.tagName);
+        outside.push(`${label} [${Math.round(left)}…${Math.round(right)}] de ${viewportWidth}`);
+      }
+    }
+    return {
+      outside,
+      scrolls: sheet.scrollWidth > sheet.clientWidth + 1,
+      viewportWidth,
+    };
+  });
+  expect(report.outside).toEqual([]);
+  expect(report.scrolls).toBe(false);
+}
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('keeps the buy/sell toggle inside the dollar sheet', async ({ page }, testInfo) => {
+  test('keeps the dollar sheet inside a narrow phone', async ({ page }, testInfo) => {
     const email = buildTestEmail(testInfo, 'currency-phone');
     await mockDollar(page);
     await loginViaUi(page, email);
@@ -90,13 +124,14 @@ test.describe('phone', () => {
 
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     await page.getByTestId('blue-widget').click();
-    await page.getByTestId('blue-usd').fill('100');
-    const sheet = await page.locator('.dolar-sheet').boundingBox();
-    const side = await page.getByTestId('blue-rate-side').boundingBox();
-    expect(sheet).toBeTruthy();
-    expect(side).toBeTruthy();
-    expect(side!.x).toBeGreaterThanOrEqual(sheet!.x - 1);
-    expect(side!.x + side!.width).toBeLessThanOrEqual(sheet!.x + sheet!.width + 1);
     await expect(page.getByTestId('blue-rate-side')).toHaveText(/al precio de venta/);
+
+    for (const width of [390, 360]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.getByTestId('blue-usd').fill('9999999');
+      await expectDollarSheetInsideViewport(page);
+      await page.getByTestId('blue-rate-side').click();
+      await expectDollarSheetInsideViewport(page);
+    }
   });
 });
