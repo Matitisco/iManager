@@ -28,7 +28,8 @@ import {
   type ReportBounds,
   type ReportPeriod,
 } from '../report-period';
-import { Pill, useDesk } from '../ui';
+import { usePhoneLayout } from '../section-notices';
+import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { ReportDatePicker } from '../report-date-picker';
 
 const TABS = ['Ventas', 'Stock', 'Canjes'] as const;
@@ -43,6 +44,7 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 export function ReportsScreen() {
   const { sales, inventory, tradeIns, clients } = useAppContext();
   const money = useMoney();
+  const phone = usePhoneLayout();
   const { open, toast } = useDesk();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Ventas');
   const [period, setPeriod] = useState<ReportPeriod>('Mes');
@@ -79,8 +81,7 @@ export function ReportsScreen() {
   const tradeRows = periodData.tradeIns.filter((item) => !cat || statusLabel(item.status) === cat);
   const undatedStock = inventory.filter((item) => !parseReportDate(item.createdAt)).length;
 
-  const applyCustomRange = (event: React.FormEvent) => {
-    event.preventDefault();
+  const commitRange = () => {
     const result = customReportBounds(draftRange.startDate, draftRange.endDate);
     if (!result.bounds) {
       setRangeError(result.error);
@@ -91,6 +92,17 @@ export function ReportsScreen() {
     setRangeError(null);
     setSelected(null);
     setCat(null);
+    if (phone) setCustomOpen(false);
+  };
+
+  const applyCustomRange = (event: React.FormEvent) => {
+    event.preventDefault();
+    commitRange();
+  };
+
+  const closeCustom = () => {
+    setCustomOpen(false);
+    setRangeError(null);
   };
 
   const exportReport = () => {
@@ -117,28 +129,45 @@ export function ReportsScreen() {
     toast(`Reporte de ${tab.toLowerCase()} exportado`);
   };
 
+  const customPressed = phone ? period === 'Personalizado' || customOpen : customOpen;
+  const activeBucket = active >= 0 ? model.buckets[active] : undefined;
+  const exportButton = (
+    <button className="circ" type="button" aria-label="Exportar" onClick={exportReport}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
+    </button>
+  );
+  const rangePickers = (
+    <>
+      <ReportDatePicker label="Fecha de inicio" value={draftRange.startDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, startDate: value })); setRangeError(null); }} />
+      <ReportDatePicker label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
+    </>
+  );
+
   return (
     <div className="dscreen">
-      <div className="dtop">
-        <div><h1>Reportes</h1></div>
-        <button className="circ" type="button" aria-label="Exportar" onClick={exportReport}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
-        </button>
-      </div>
+      <ScreenTitle title="Reportes" tools={exportButton} desktop={exportButton} />
       <div className="gfilters">
-        <div>{TABS.map((item) => <button key={item} className={`gchip${tab === item ? ' on' : ''}`} aria-pressed={tab === item} type="button" onClick={() => { setTab(item); setSelected(null); setCat(null); }}>{item}</button>)}</div>
-        <div className="gperiods">
+        <div role="group" aria-label="Tipo de reporte">{TABS.map((item) => <button key={item} className={`gchip${tab === item ? ' on' : ''}`} aria-pressed={tab === item} type="button" onClick={() => { setTab(item); setSelected(null); setCat(null); }}>{item}</button>)}</div>
+        <div className="gperiods" role="group" aria-label="Período">
           {PERIODS.map((item) => <button key={item} className={`gchip sm${period === item && !customOpen ? ' on' : ''}`} aria-pressed={period === item && !customOpen} type="button" onClick={() => { setPeriod(item); setCustomOpen(false); setRangeError(null); setSelected(null); setCat(null); }}>{item}</button>)}
-          <button className={`gchip sm${customOpen ? ' on' : ''}`} aria-pressed={customOpen} aria-expanded={customOpen} aria-controls="report-custom-range" type="button" onClick={() => setCustomOpen(true)}>Personalizado</button>
+          <button className={`gchip sm${customPressed ? ' on' : ''}`} aria-pressed={customPressed} aria-expanded={customOpen} aria-controls="report-custom-range" type="button" onClick={() => setCustomOpen(true)}>Personalizado</button>
         </div>
       </div>
-      {customOpen && (
+      {customOpen && !phone && (
         <form id="report-custom-range" className="grange" noValidate onSubmit={applyCustomRange}>
-          <ReportDatePicker label="Fecha de inicio" value={draftRange.startDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} onChange={(value) => { setDraftRange((current) => ({ ...current, startDate: value })); setRangeError(null); }} />
-          <ReportDatePicker label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
+          {rangePickers}
           <button className="gapply" type="submit">Aplicar período</button>
           {rangeError && <p id="report-range-error" className="ferr" role="alert">{rangeError}</p>}
         </form>
+      )}
+      {customOpen && phone && (
+        <Sheet title="Período personalizado" subtitle="Elegí el inicio y el fin del reporte." onClose={closeCustom} className="report-range">
+          <div id="report-custom-range">
+            {rangePickers}
+            {rangeError && <p id="report-range-error" className="ferr" role="alert">{rangeError}</p>}
+          </div>
+          <Actions primary="Aplicar período" onPrimary={commitRange} onSecondary={closeCustom} />
+        </Sheet>
       )}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
@@ -148,6 +177,14 @@ export function ReportsScreen() {
       <div className="repgrid">
         <div className="gcard">
           <div className="ghd"><h3>Evolución</h3><span>{model.bucketLabel}</span></div>
+          {phone && activeBucket ? (
+            <div className="gnow">
+              <span>
+                <b>{model.money ? (salesValue == null ? '—' : money.compactActive(activeBucket.value)) : activeBucket.value}</b>
+                {` · ${activeBucket.label}`}
+              </span>
+            </div>
+          ) : null}
           <div className="gbars">
             {model.buckets.map((bucket, index) => {
               const height = Math.max(3, Math.round((bucket.value / max) * 96));
@@ -170,7 +207,7 @@ export function ReportsScreen() {
         </div>
         <div className="gcard">
           <div className="ghd"><h3>{model.donutTitle}</h3><span>tocá para filtrar</span></div>
-          <Donut parts={model.parts} money={model.money && salesValue != null} total={model.money ? (salesValue ?? 0) : model.total} cat={cat} onToggle={(label) => setCat((current) => current === label ? null : label)} />
+          <Donut parts={model.parts} money={model.money && salesValue != null} total={model.money ? (salesValue ?? 0) : model.total} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
       {tab === 'Ventas' && (
@@ -233,7 +270,7 @@ function donutSlicePath(start: number, end: number) {
   return `M ${point(start)} A ${DONUT_RADIUS} ${DONUT_RADIUS} 0 ${sweep > Math.PI ? 1 : 0} 1 ${point(end)}`;
 }
 
-function Donut({ parts, money: showMoney, total, cat, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; onToggle: (label: string) => void }) {
+function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; phone: boolean; onToggle: (label: string) => void }) {
   const money = useMoney();
   const sum = parts.reduce((acc, part) => acc + part.value, 0);
   const visible = parts.filter((part) => part.value > 0);
@@ -277,11 +314,18 @@ function Donut({ parts, money: showMoney, total, cat, onToggle }: { parts: { lab
         </div>
       </div>
       <div className="gleg">
-        {parts.map((part) => (
-          <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${showMoney && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}`} type="button" onClick={() => onToggle(part.label)}>
-            <i style={{ background: part.color }} /><span>{part.label}</span><b>{showMoney && sum ? `${Math.round((part.value / sum) * 100)}%` : part.value}</b>
-          </button>
-        ))}
+        {parts.map((part) => {
+          const pct = `${sum ? Math.round((part.value / sum) * 100) : 0}%`;
+          const desktopFigure = showMoney && sum ? pct : part.value;
+          return (
+            <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${showMoney && sum ? pct : part.value}`} type="button" onClick={() => onToggle(part.label)}>
+              <i style={{ background: part.color }} />
+              <span>{part.label}</span>
+              {phone && sum > 0 ? <em>{showMoney ? money.showActive(part.value) : part.value}</em> : null}
+              <b>{phone && sum > 0 ? pct : desktopFigure}</b>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

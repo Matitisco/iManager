@@ -7,7 +7,10 @@ import { ReportsScreen } from './ReportsScreen';
 const context = vi.hoisted(() => ({ sales: [] as Sale[], inventory: [] as Product[], tradeIns: [] as TradeIn[], clients: [] as Client[] }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
-vi.mock('../ui', () => ({ useDesk: () => desk, Pill: ({ status }: { status: string }) => <span>{status}</span> }));
+vi.mock('../ui', async () => {
+  const actual = await vi.importActual<typeof import('../ui')>('../ui');
+  return { ...actual, useDesk: () => desk, Pill: ({ status }: { status: string }) => <span>{status}</span> };
+});
 
 const sale = (id: string, date: string, amount: number, paymentMethod = 'EFECTIVO', status = 'COMPLETADA'): Sale => ({
   id, date, amount, paymentMethod, status, saleNumber: Number(id), clientId: '', clientName: `Venta ${id}`, productId: '',
@@ -205,6 +208,14 @@ describe('Reports custom period', () => {
     expect(document.querySelectorAll('.gtk')).toHaveLength(3);
   });
 
+  it('keeps the custom range inline on a wide screen', async () => {
+    render(<ReportsScreen />);
+    await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
+    expect(screen.getByLabelText('Fecha de inicio')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Período personalizado' })).not.toBeInTheDocument();
+    expect(document.querySelector('.gnow')).not.toBeInTheDocument();
+  });
+
   it('shows an empty report and exports only a header when the range contains no records', async () => {
     render(<ReportsScreen />);
     await applyRange('2020-01-01', '2020-01-01');
@@ -212,5 +223,55 @@ describe('Reports custom period', () => {
     expect(screen.getByText('No hay ventas para este período y filtro.')).toBeInTheDocument();
     expect(document.querySelectorAll('.gcol')).toHaveLength(1);
     expect(await exportedCsv()).toBe('"detalle","importe","estado"');
+  });
+});
+
+describe('Reports on a phone', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('opens the custom period as a sheet and keeps the payment legend under the total', async () => {
+    render(<ReportsScreen />);
+    expect(document.querySelector('.gnow')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
+    const sheet = screen.getByRole('dialog', { name: 'Período personalizado' });
+    expect(sheet.querySelector('.sheet-grab')).toBeInTheDocument();
+    expect(sheet.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Aplicar período' }));
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-04-04' } });
+    fireEvent.change(screen.getByLabelText('Fecha de fin'), { target: { value: '2026-04-01' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Aplicar período' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('no puede ser posterior');
+    expect(sheet).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-04-01' } });
+    fireEvent.change(screen.getByLabelText('Fecha de fin'), { target: { value: '2026-04-03' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Aplicar período' }));
+    expect(screen.queryByRole('dialog', { name: 'Período personalizado' })).not.toBeInTheDocument();
+    expect(total()).toBe('$ 600');
+    expect(screen.getByText('Facturación · 01/04/2026 al 03/04/2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'true');
+    const cash = screen.getByRole('button', { name: 'Efectivo: 50%' });
+    expect(cash).toHaveTextContent('$ 300');
+    expect(cash).toHaveTextContent('50%');
+    expect(document.querySelector('.gnow')).toHaveTextContent('03/04/2026');
+    await userEvent.click(screen.getByRole('button', { name: 'Semana' }));
+    expect(screen.getByRole('button', { name: 'Semana' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
