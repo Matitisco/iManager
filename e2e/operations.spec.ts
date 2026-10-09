@@ -231,7 +231,7 @@ test('a failed linked confirmation keeps the form and entered values open', asyn
   const dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(`Cliente error ${Date.now()}`);
   await dialog.getByLabel('Equipo recibido').fill('Equipo con IMEI duplicado');
-  await dialog.getByLabel('IMEI recibido').fill(duplicateImei);
+  await dialog.getByLabel('IMEI (opcional)').fill(duplicateImei);
   await dialog.getByLabel('Valor tomado').fill('100');
   await dialog.getByRole('combobox', { name: 'Equipo' }).fill('Equipo libre');
   await dialog.getByLabel('Precio completo de salida').fill('900');
@@ -240,7 +240,7 @@ test('a failed linked confirmation keeps the form and entered values open', asyn
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/Ya existe un equipo con ese IMEI/)).toBeVisible();
   await expect(dialog.getByLabel('Equipo recibido')).toHaveValue('Equipo con IMEI duplicado');
-  await expect(dialog.getByLabel('IMEI recibido')).toHaveValue(duplicateImei);
+  await expect(dialog.getByLabel('IMEI (opcional)')).toHaveValue(duplicateImei);
 });
 
 test('Inventory and Client-origin drafts can be resumed from their own sections', async ({ page, request }, testInfo) => {

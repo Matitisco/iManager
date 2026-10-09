@@ -5,6 +5,7 @@ import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import type { CatalogKind } from '../services/catalogs-api';
 import { useMoney } from './exchange';
 import { formatInputMoney, formatShortDate, parseMoney } from './format';
+import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../lib/imei';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
@@ -58,7 +59,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
     const next: Record<string, string> = {};
     if (!clientName.trim()) next.client = 'Completá este dato';
     if (!device.trim()) next.device = 'Completá este dato';
-    if (imei && imei.length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+    if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
     setBad(next);
     if (Object.keys(next).length || !addRepairOrder) return;
@@ -105,7 +106,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
             <Field label="Equipo" error={bad.device}>
               <input value={device} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDevice(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
             </Field>
-            <Field label="IMEI" error={bad.imei}>
+            <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
               <input value={imei} inputMode="numeric" maxLength={15} placeholder="15 dígitos" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); setBad((current) => ({ ...current, imei: '' })); }} />
             </Field>
           </div>

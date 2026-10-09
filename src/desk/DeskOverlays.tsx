@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../context/AppContext';
 import { INPUT_LIMITS } from '../lib/input-limits';
+import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../lib/imei';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportModal } from '../components/table-engine/components/ImportModal';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
@@ -338,7 +339,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
-      <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
       <Field label="Precio de venta" mark={money.active} error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
@@ -354,7 +355,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
-        if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
+        if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
         if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
         else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
@@ -564,6 +565,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
     const next: Record<string, string> = {};
     if (kind === 'draft') {
       if (!hasTrade || !received.trim()) next.received = 'Completá el modelo recibido';
+      if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (!take.trim()) next.take = 'Completá el valor tomado';
       if (amount.trim() && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
     } else {
@@ -573,6 +575,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
       if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) next.amount = 'Completá el precio de salida';
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
+      if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
       if (hasTrade && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
     }
@@ -645,7 +648,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         <>
           <div className="frow">
             <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
-            <Field label="IMEI recibido"><input value={imei} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value); }} placeholder="Opcional" /></Field>
+            <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
           </div>
           <div className="frow">
             <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
@@ -816,7 +819,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
         onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }} />
       <div className="frow">
         <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} /></Field>
-        <Field label="IMEI recibido"><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => setImei(event.target.value.replace(/\D/g, '').slice(0, 15))} /></Field>
+        <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       </div>
       <Field label="Equipo entregado" error={bad.given}><input value={given} onChange={(event) => { setGiven(event.target.value); clearBad(setBad, 'given'); }} /></Field>
       <div className="frow">
@@ -829,6 +832,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
       <Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!received.trim()) next.received = 'Completá este dato';
+        if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
         if (!given.trim()) next.given = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
@@ -1516,7 +1520,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       title: 'Importar equipos',
       fields: [
         { key: 'model', label: 'Modelo', required: true },
-        { key: 'imei', label: 'IMEI', required: false },
+        { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
         { key: 'price', label: 'Precio', required: false },
         { key: 'capacity', label: 'Capacidad', required: false },
         { key: 'color', label: 'Color', required: false },
@@ -1552,7 +1556,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       title: 'Importar ventas',
       fields: [
         { key: 'clientName', label: 'Cliente', required: false },
-        { key: 'productImei', label: 'IMEI', required: true },
+        { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
         { key: 'amount', label: 'Total', required: false },
         { key: 'date', label: 'Fecha', required: false },
         { key: 'paymentMethod', label: 'Pago', required: false },
@@ -1588,7 +1592,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
     fields: [
       { key: 'clientName', label: 'Cliente', required: true },
       { key: 'deviceReceived', label: 'Equipo recibido', required: true },
-      { key: 'deviceReceivedImei', label: 'IMEI recibido', required: false },
+      { key: 'deviceReceivedImei', label: IMEI_OPTIONAL_LABEL, required: false },
       { key: 'takeValue', label: 'Valor tomado', required: false },
       { key: 'deviceGiven', label: 'Equipo entregado', required: true },
       { key: 'differencePaid', label: 'Diferencia', required: false },

@@ -29,10 +29,10 @@ describe('TradeInForm', () => {
     render(<TradeInForm onClose={vi.fn()} />);
 
     await user.type(screen.getByLabelText('Equipo Recibido'), '   ');
-    await user.type(screen.getByLabelText('IMEI Recibido'), '   ');
+    await user.type(screen.getByLabelText('IMEI (opcional)'), '   ');
     await user.click(screen.getByRole('button', { name: 'Registrar Canje' }));
 
-    expect(await screen.findByText(/equipo recibido.*imei/i)).toBeInTheDocument();
+    expect(await screen.findByText('Completá el equipo recibido.')).toBeInTheDocument();
     expect(mockAppContext.addTradeIn).not.toHaveBeenCalled();
   });
 
@@ -43,7 +43,7 @@ describe('TradeInForm', () => {
     render(<TradeInForm onClose={onClose} />);
 
     await user.type(screen.getByLabelText('Equipo Recibido'), 'iPhone 12');
-    await user.type(screen.getByLabelText('IMEI Recibido'), 'recibido-123');
+    await user.type(screen.getByLabelText('IMEI (opcional)'), '350000000000095');
     await user.clear(screen.getByLabelText('Valor de Toma ($)'));
     await user.type(screen.getByLabelText('Valor de Toma ($)'), '900');
     await user.click(screen.getByRole('button', { name: 'Registrar Canje' }));
@@ -53,7 +53,7 @@ describe('TradeInForm', () => {
         expect.objectContaining({
           clientId: 'client-1',
           deviceReceived: 'iPhone 12',
-          deviceReceivedImei: 'recibido-123',
+          deviceReceivedImei: '350000000000095',
           deviceGiven: 'iPhone 14',
           takeValue: 900,
           differencePaid: 1400,

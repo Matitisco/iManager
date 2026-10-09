@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { formatArDate } from '../../lib/ar-date';
 import { INPUT_LIMITS } from '../../lib/input-limits';
+import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 
 type ClientMode = 'existing' | 'new';
@@ -43,8 +44,13 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const deviceReceived = formData.deviceReceived.trim();
     const deviceReceivedImei = formData.deviceReceivedImei.trim();
 
-    if (!deviceReceived || !deviceReceivedImei) {
-      setError('Completá el equipo recibido y su IMEI.');
+    if (!deviceReceived) {
+      setError('Completá el equipo recibido.');
+      return;
+    }
+
+    if (imeiFormatError(deviceReceivedImei)) {
+      setError(IMEI_FORMAT_MESSAGE);
       return;
     }
 
@@ -230,11 +236,12 @@ export const TradeInForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="trade-in-imei-received" className="text-xs font-bold text-gray-700">IMEI Recibido</label>
+          <label htmlFor="trade-in-imei-received" className="text-xs font-bold text-gray-700">{IMEI_OPTIONAL_LABEL}</label>
           <input
             id="trade-in-imei-received"
-            required
             type="text"
+            inputMode="numeric"
+            maxLength={15}
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
             value={formData.deviceReceivedImei}
             onChange={e => setFormData({ ...formData, deviceReceivedImei: e.target.value })}

@@ -4,10 +4,11 @@ import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
+import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface InventoryItemInput {
-  imei: string;
+  imei?: string | null;
   model: string;
   capacity: string;
   color: string;
@@ -321,9 +322,10 @@ export async function listInventory(storeId: string) {
   return inventory.map(serializeInventoryItem);
 }
 
-function storedImei(value: string) {
-  const imei = value.trim();
-  return imei || null;
+function storedImei(value: string | null | undefined) {
+  const parsed = parseOptionalImei(value);
+  if (parsed.ok === false) throw new InventoryError(parsed.message, 400);
+  return parsed.imei;
 }
 
 export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
@@ -699,9 +701,14 @@ export async function importInventoryItems(
       continue;
     }
 
+    const parsedImei = parseOptionalImei(raw.imei);
+    if (parsedImei.ok === false) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: parsedImei.message });
+      continue;
+    }
     const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
     const input = {
-      imei: raw.imei?.trim() || `IMP-${Date.now()}-${rowNum}`,
+      imei: parsedImei.imei,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color: raw.color?.trim() || "",
@@ -714,10 +721,12 @@ export async function importInventoryItems(
     };
 
     try {
-      const existing = await inventoryPrisma.inventoryItem.findFirst({
-        where: { storeId, imei: input.imei },
-        select: { id: true, customFields: true, price: true, cost: true },
-      });
+      const existing = input.imei
+        ? await inventoryPrisma.inventoryItem.findFirst({
+          where: { storeId, imei: input.imei },
+          select: { id: true, customFields: true, price: true, cost: true },
+        })
+        : null;
 
       if (existing) {
         const mergedFields = {

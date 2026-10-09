@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
@@ -33,7 +34,7 @@ const sectionFor: Record<OperationSource, "inventory" | "sales" | "tradeins" | "
 };
 const tradeSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
-  deviceReceivedImei: z.string().trim().max(100).nullable().optional(),
+  deviceReceivedImei: zodOptionalImei().nullable().optional(),
   takeValue: z.number().nonnegative(),
   status: z.string().trim().max(30).optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),

@@ -4,6 +4,7 @@ import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.j
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
+import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface SaleInput {
@@ -510,17 +511,19 @@ export async function importSales(
     try {
       const clientName = r.clientName?.trim() ?? "";
 
-      // Resolve inventory item by IMEI
-      const imei = r.productImei?.trim();
-      if (!imei) {
-        errors.push({ row: rowNum, message: "IMEI del producto requerido" });
+      const parsedImei = parseOptionalImei(r.productImei);
+      if (parsedImei.ok === false) {
+        errors.push({ row: rowNum, message: parsedImei.message });
         continue;
       }
-      const item = await prisma.inventoryItem.findFirst({
-        where: { storeId, imei },
-        select: { id: true },
-      });
-      if (!item) {
+      const imei = parsedImei.imei;
+      const item = imei
+        ? await prisma.inventoryItem.findFirst({
+          where: { storeId, imei },
+          select: { id: true },
+        })
+        : null;
+      if (imei && !item) {
         errors.push({ row: rowNum, message: `Producto no encontrado (IMEI): "${imei}"` });
         continue;
       }
@@ -547,7 +550,7 @@ export async function importSales(
             storeId,
             clientId: null,
             clientName,
-            inventoryItemId: item.id,
+            inventoryItemId: item?.id ?? null,
             dateLabel,
             amount: toDecimal(amount),
             paymentMethod,
@@ -556,10 +559,12 @@ export async function importSales(
           },
         });
 
-        await tx.inventoryItem.update({
-          where: { id: item.id },
-          data: { status: "VENDIDO" },
-        });
+        if (item) {
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: { status: "VENDIDO" },
+          });
+        }
       });
 
       imported++;
