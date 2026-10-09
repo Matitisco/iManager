@@ -43,12 +43,9 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   const [delivery, setDelivery] = useState('');
   const [technician, setTechnician] = useState('');
   const [status, setStatus] = useState(REPAIR_RECEIVED);
-  const [notify, setNotify] = useState(true);
   const [bad, setBad] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [editor, setEditor] = useState<CatalogKind | null>(null);
-  const linked = clients.find((client) => client.id === clientId);
-  const phone = linked?.phone?.trim() ?? '';
 
   const toggleTag = (tag: string) => {
     setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
@@ -78,7 +75,6 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         technician: technician.trim(),
         status: status || REPAIR_RECEIVED,
         estimatedDelivery: delivery ? isoDate(delivery) : null,
-        notifyWhatsapp: notify,
       });
       close();
       toast('Orden creada');
@@ -137,11 +133,6 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
           </div>
           <Field label="Estado"><span /></Field>
           <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('REPAIR_STATUS') : undefined} />
-          <label className="op-check">
-            <input type="checkbox" checked={notify} onChange={(event) => setNotify(event.target.checked)} />
-            Avisarle al cliente por WhatsApp cuando esté listo para retirar
-          </label>
-          {notify && !phone ? <p className="eqs-note">Sin teléfono no se puede armar el WhatsApp. Si elegís un cliente que ya tiene número, el aviso sale con un link de wa.me.</p> : null}
         </div>
       </div>
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}

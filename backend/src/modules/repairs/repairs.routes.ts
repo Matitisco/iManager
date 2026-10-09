@@ -33,7 +33,6 @@ const repairSchema = z.object({
   technician: z.string().trim().max(120).optional().default(""),
   status: z.string().trim().min(1).max(40).optional(),
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
-  notifyWhatsapp: z.boolean().optional().default(false),
 }).superRefine((value, context) => {
   const imei = parseOptionalImei(value.imei);
   if (imei.ok === false) {
@@ -56,7 +55,6 @@ const patchSchema = z.object({
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   technician: z.string().trim().max(120).optional(),
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
-  notifyWhatsapp: z.boolean().optional(),
 }).superRefine((value, context) => {
   const imei = parseOptionalImei(value.imei);
   if (imei.ok === false) {

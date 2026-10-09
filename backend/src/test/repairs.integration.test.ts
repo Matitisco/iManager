@@ -40,12 +40,12 @@ describe("repair orders", () => {
         deposit: 20000,
         technician: "Técnico Ejemplo",
         estimatedDelivery: "06/10/2026",
-        notifyWhatsapp: true,
       },
     });
     expect(created.statusCode).toBe(201);
     const body = created.json();
     expect(body.order.status).toBe("RECIBIDO");
+    expect(body.order.notifyWhatsapp).toBe(true);
     expect(body.order.code).toMatch(/^OT-/);
     expect(body.order.events).toEqual([expect.objectContaining({ status: "RECIBIDO" })]);
     expect(body.order.whatsappUrl).toBeNull();

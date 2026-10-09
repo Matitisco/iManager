@@ -387,7 +387,6 @@ export async function createRepairViaApi(
     currency?: 'ARS' | 'USD' | null;
     status?: string;
     estimatedDelivery?: string | null;
-    notifyWhatsapp?: boolean;
     technician?: string;
     imei?: string;
   },

@@ -17,7 +17,6 @@ export interface RepairOrderInput {
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;
-  notifyWhatsapp?: boolean;
 }
 
 type RepairResult = {
