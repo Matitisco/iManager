@@ -355,6 +355,36 @@ export async function updateStoreViaApi(
   return JSON.parse(body) as { store: { currency: string } };
 }
 
+export async function createRepairViaApi(
+  request: APIRequestContext,
+  email: string,
+  input: {
+    clientName: string;
+    clientId?: string | null;
+    device: string;
+    fault?: string;
+    faultTags?: string[];
+    estimate?: number | null;
+    deposit?: number;
+    currency?: 'ARS' | 'USD' | null;
+    status?: string;
+    estimatedDelivery?: string | null;
+    notifyWhatsapp?: boolean;
+    technician?: string;
+    imei?: string;
+  },
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/repairs`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: input,
+  });
+  const body = await assertOk(response, 'Create repair');
+  return JSON.parse(body) as { order: { id: string; code: string; status: string; whatsappUrl: string | null } };
+}
+
 export async function createInventoryItemViaApi(
   request: APIRequestContext,
   email: string,
