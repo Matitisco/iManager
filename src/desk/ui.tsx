@@ -312,7 +312,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, childre
   return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
 }
 
-export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar' }: {
+export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className }: {
   title: string;
   text: string;
   ok: string;
@@ -322,11 +322,12 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, ca
   busy?: boolean;
   error?: string | null;
   cancel?: string;
+  className?: string;
 }) {
   useEscape(onClose);
   return (
     <div className="ov center" onMouseDown={onClose}>
-      <div className="dialog" role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <div className={`dialog${className ? ` ${className}` : ''}`} role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         <h3>{title}</h3>
         <p>{text}</p>
         {error ? <div className="ferr">{error}</div> : null}

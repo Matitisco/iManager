@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TeamMember } from '../../services/members-api';
 import { DeskProvider } from '../ui';
 import { SettingsScreen } from './AccountScreens';
@@ -134,6 +134,7 @@ describe('Member permissions', () => {
     await user.click(await screen.findByRole('button', { name: /Socio/ }));
     expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
     await user.click(screen.getByRole('switch', { name: 'Acciones sensibles' }));
+    expect(screen.queryByTestId('permissions-save')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Guardar permisos' }));
     await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalledWith(
       context.user,
@@ -142,5 +143,56 @@ describe('Member permissions', () => {
       expect.any(Array),
       false,
     ));
+  });
+});
+
+describe('settings on a phone', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('keeps the blocks and pins Guardar permisos', async () => {
+    const user = userEvent.setup();
+    const back = vi.fn();
+    membersApi.listMembers.mockResolvedValue([member({
+      role: 'MANAGER',
+      sections: null,
+      user: { id: 'u3', displayName: 'Socio', email: 'socio@test.com', avatarUrl: null },
+    })]);
+    render(
+      <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false, back }}>
+        <SettingsScreen />
+      </DeskProvider>,
+    );
+
+    expect(screen.getByTestId('page-back')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-store')).toHaveTextContent('Tienda');
+    expect(screen.getByTestId('settings-team')).toHaveTextContent('Equipo');
+    expect(screen.getByTestId('settings-account')).toHaveTextContent('Mi cuenta');
+    expect(screen.getByTestId('settings-logout')).toHaveTextContent('Cerrar sesión');
+    expect(screen.getByTestId('settings-invite')).toHaveTextContent('Invitar al equipo');
+    await user.click(screen.getByTestId('page-back'));
+    expect(back).toHaveBeenCalled();
+
+    await user.click(await screen.findByRole('button', { name: /Socio/ }));
+    const bar = screen.getByTestId('permissions-save');
+    expect(within(bar).getByRole('button', { name: 'Guardar permisos' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
   });
 });
