@@ -264,6 +264,72 @@ export async function createInvitationViaApi(
   return JSON.parse(body) as { id: string; token: string; inviteUrl: string; role: string };
 }
 
+export async function createSaleViaApi(
+  request: APIRequestContext,
+  email: string,
+  input: { date: string; clientName: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD' },
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: {
+      date: input.date,
+      clientName: input.clientName,
+      deviceLabel: input.deviceLabel,
+      amount: input.amount,
+      amountCurrency: input.amountCurrency,
+      paymentMethod: 'EFECTIVO',
+      status: 'COMPLETADA',
+    },
+  });
+  const body = await assertOk(response, 'Create sale');
+  return JSON.parse(body) as { sale?: { id: string } };
+}
+
+export async function createTradeInViaApi(
+  request: APIRequestContext,
+  email: string,
+  input: { date: string; clientName: string; deviceReceived: string; deviceGiven: string; takeValue: number; currency?: 'ARS' | 'USD' },
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/trade-ins`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: {
+      date: input.date,
+      clientName: input.clientName,
+      deviceReceived: input.deviceReceived,
+      deviceGiven: input.deviceGiven,
+      takeValue: input.takeValue,
+      differencePaid: 0,
+      status: 'PERITAJE TÉC.',
+      currency: input.currency,
+      draft: true,
+    },
+  });
+  const body = await assertOk(response, 'Create trade-in');
+  return JSON.parse(body) as { tradeIn?: { id: string } };
+}
+
+export async function updateStoreViaApi(
+  request: APIRequestContext,
+  email: string,
+  data: { currency?: 'ARS' | 'USD' },
+) {
+  const response = await request.patch(`${DEFAULT_API_BASE_URL}/api/stores/current`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data,
+  });
+  const body = await assertOk(response, 'Update store');
+  return JSON.parse(body) as { store: { currency: string } };
+}
+
 export async function createInventoryItemViaApi(
   request: APIRequestContext,
   email: string,
