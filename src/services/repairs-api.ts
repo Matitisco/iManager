@@ -1,5 +1,6 @@
 import type { Client, RepairOrder } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
+import { readApiErrorMessage } from '../lib/api-message';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -47,7 +48,7 @@ async function request(user: AuthUserLike, path: string, init: RequestInit = {})
   });
   if (response.status === 204) return {} as RepairResult;
   const body = await response.json().catch(() => null) as RepairResult | null;
-  if (!response.ok) throw new Error(body?.error || `No se pudo guardar la orden (${response.status})`);
+  if (!response.ok) throw new Error(readApiErrorMessage(body, `No se pudo guardar la orden (${response.status})`));
   return body ?? {};
 }
 
