@@ -75,10 +75,25 @@ test.describe('desktop trade-ins stays put', () => {
     await expect(page.getByTestId('tradeins-empty')).toHaveCount(0);
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByText('No encontré canjes.')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Canje' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Canje' })).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar cliente, equipo, IMEI o número')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Importar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nuevo canje' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Importar' })).toHaveCount(1);
+
+    await createTradeInViaApi(request, email, {
+      date: '09/10/2026',
+      clientName: 'Cliente escritorio',
+      deviceReceived: 'Recibido escritorio',
+      deviceGiven: 'Entregado escritorio',
+      takeValue: 1000,
+    });
+    await page.reload();
+    await page.getByTestId('sidebar-tab-tradeins').click();
+    await expect(page.getByRole('columnheader', { name: 'Canje' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: /Recibido escritorio/ })).toBeVisible();
+    await expect(page.getByTestId('tradeins-timeline')).toHaveCount(0);
+    await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
+    await expect(page.getByTestId('page-back')).toHaveCount(0);
   });
 });
 
@@ -145,7 +160,7 @@ test.describe('trade-ins on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' }).click();
     const form = page.getByRole('dialog', { name: 'Nuevo canje' });
     await expect(form.locator('.sheet-grab')).toBeVisible();
-    await expect(form.getByText(/USD/)).toBeVisible();
+    await expect(form.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
     await expect(form.getByTestId('trade-no-stock')).toBeVisible();
     await expect(form.getByRole('button', { name: 'Peritaje téc.' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Cobrado' })).toBeVisible();
@@ -180,7 +195,7 @@ test.describe('trade-ins on a phone', () => {
     await page.getByRole('button', { name: 'Retomar' }).click();
     const resume = page.getByRole('dialog', { name: 'Retomar canje' });
     await expect(resume.getByTestId('trade-no-stock')).toHaveCount(0);
-    await expect(resume.getByText(/USD/)).toBeVisible();
+    await expect(resume.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
     await resume.getByLabel('Cliente').fill(clientName);
     await expect(resume.getByText(/Se crea un cliente nuevo al guardar/)).toBeVisible();
     await resume.getByRole('combobox', { name: 'Equipo' }).fill(model);
@@ -241,7 +256,7 @@ test.describe('trade-ins on a phone', () => {
     await detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true }).click();
     const editor = page.getByRole('dialog', { name: 'Editar operación' });
     await expect(editor.getByLabel('Cliente')).toHaveValue(clientName);
-    await expect(editor.getByText(/USD/)).toBeVisible();
+    await expect(editor.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
     await expect(editor.locator('.sheet-foot').getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);
