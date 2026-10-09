@@ -147,11 +147,11 @@ function AppContent() {
       <DeskApp />
 
       {showInviteModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 max-[760px]:items-end max-[760px]:px-0">
+          <div data-testid="store-invite-modal" className="w-full max-w-md min-w-0 bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5 max-[760px]:max-h-[92dvh] max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:rounded-b-none max-[760px]:rounded-t-3xl max-[760px]:p-5 max-[760px]:pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
             {inviteState.isLoading ? (
               <>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-gray-900 break-words">
                   {inviteState.isRetrying ? 'Reintentando verificación...' : 'Verificando invitación...'}
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -162,7 +162,7 @@ function AppContent() {
               </>
             ) : inviteState.invalid ? (
               <>
-                <h2 className="text-xl font-semibold text-gray-900">Invitación inválida</h2>
+                <h2 className="text-xl font-semibold text-gray-900 break-words">Invitación inválida</h2>
                 <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
                 <button
                   onClick={clearInvite}
@@ -173,9 +173,9 @@ function AppContent() {
               </>
             ) : inviteState.error ? (
               <>
-                <h2 className="text-xl font-semibold text-gray-900">No pudimos verificar la invitación todavía</h2>
-                <p className="text-sm text-gray-500">{inviteState.error}</p>
-                <div className="flex gap-3">
+                <h2 className="text-xl font-semibold text-gray-900 break-words">No pudimos verificar la invitación todavía</h2>
+                <p className="text-sm text-gray-500 break-words">{inviteState.error}</p>
+                <div className="flex gap-3 max-[760px]:flex-col">
                   <button
                     onClick={clearInvite}
                     disabled={inviteAccepting}
@@ -186,7 +186,7 @@ function AppContent() {
                   <button
                     onClick={inviteState.reload}
                     disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400]"
                   >
                     Reintentar
                   </button>
@@ -195,8 +195,8 @@ function AppContent() {
             ) : (
               <>
                 <div className="flex flex-col gap-1">
-                  <h2 className="text-xl font-semibold text-gray-900">Te invitaron a una tienda</h2>
-                  <p className="text-sm text-gray-500">
+                  <h2 className="text-xl font-semibold text-gray-900 break-words">Te invitaron a una tienda</h2>
+                  <p className="text-sm text-gray-500 break-words">
                     Fuiste invitado a unirte a{' '}
                     <span className="font-medium text-gray-800">{inviteState.preview!.storeName}</span>{' '}
                     como{' '}
@@ -208,7 +208,7 @@ function AppContent() {
                 {inviteError && (
                   <p className="text-sm text-red-600">{inviteError}</p>
                 )}
-                <div className="flex gap-3">
+                <div className="flex gap-3 max-[760px]:flex-col">
                   <button
                     onClick={clearInvite}
                     disabled={inviteAccepting}
@@ -219,7 +219,7 @@ function AppContent() {
                   <button
                     onClick={handleAcceptInvite}
                     disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400]"
                   >
                     {inviteAccepting ? 'Aceptando...' : 'Aceptar invitación'}
                   </button>

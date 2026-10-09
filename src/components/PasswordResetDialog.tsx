@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Field } from '../desk/ui';
+import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import '../desk/desk.css';
 import {
   PASSWORD_RESET_SENT_MESSAGE,
@@ -21,6 +22,8 @@ export const PasswordResetDialog: React.FC<PasswordResetDialogProps> = ({ initia
   const aliveRef = useRef(true);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const phone = usePhoneLayout();
+  const keyboardInset = useKeyboardInset(phone);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -55,7 +58,11 @@ export const PasswordResetDialog: React.FC<PasswordResetDialogProps> = ({ initia
 
   return (
     <div className="desk-app reset-host">
-      <div className="ov reset" onMouseDown={onClose}>
+      <div
+        className="ov reset"
+        onMouseDown={onClose}
+        style={phone ? { ['--keyboard-inset' as string]: `${keyboardInset}px` } : undefined}
+      >
         <form
           className="sheet compact"
           role="dialog"
