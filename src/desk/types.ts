@@ -4,6 +4,7 @@ export type DeskTab =
   | 'sales'
   | 'tradeins'
   | 'clients'
+  | 'service'
   | 'reports'
   | 'notifications'
   | 'settings';
@@ -18,6 +19,8 @@ export type Overlay =
   | { type: 'new-cj' }
   | { type: 'cj'; id: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; kind?: string }
   | { type: 'edit-cj'; id: string; source?: 'sales' | 'tradeins' | 'inventory' | 'clients' }
+  | { type: 'new-ot' }
+  | { type: 'ot'; id: string }
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }

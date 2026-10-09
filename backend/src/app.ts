@@ -16,6 +16,7 @@ import { invitationsRoutes } from "./modules/invitations/invitations.routes.js";
 import { catalogsRoutes } from "./modules/catalogs/catalogs.routes.js";
 import { operationsRoutes } from "./modules/operations/operations.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
+import { repairsRoutes } from "./modules/repairs/repairs.routes.js";
 import { env } from "./config/env.js";
 import { registerApiErrorHandler } from "./lib/api-error.js";
 import { redactFinancials } from "./lib/redact-financials.js";
@@ -64,6 +65,7 @@ export function buildApp() {
   app.register(catalogsRoutes, { prefix: "/api/catalogs" });
   app.register(operationsRoutes, { prefix: "/api/operations" });
   app.register(notificationsRoutes, { prefix: "/api/notifications" });
+  app.register(repairsRoutes, { prefix: "/api/repairs" });
   registerApiErrorHandler(app);
 
   return app;

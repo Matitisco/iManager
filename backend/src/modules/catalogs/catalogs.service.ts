@@ -8,6 +8,7 @@ export const CATALOG_KINDS = [
   "SALE_STATUS",
   "TRADE_IN_STATUS",
   "CLIENT_TAG",
+  "REPAIR_STATUS",
 ] as const satisfies readonly CatalogKind[];
 
 type Kind = (typeof CATALOG_KINDS)[number];
@@ -78,6 +79,14 @@ const DEFAULTS: Record<Kind, { value: string; label: string; color: string | nul
     { value: "Mayorista", label: "Mayorista", color: "#3B82F6", isSystem: false },
     { value: "Nuevo", label: "Nuevo", color: "#E8A33D", isSystem: false },
   ],
+  REPAIR_STATUS: [
+    { value: "RECIBIDO", label: "Recibido", color: "#9AA0AA", isSystem: true },
+    { value: "EN_DIAGNOSTICO", label: "En diagnóstico", color: "#8B5CF6", isSystem: false },
+    { value: "ESPERANDO_REPUESTO", label: "Esperando repuesto", color: "#E8A33D", isSystem: false },
+    { value: "EN_REPARACION", label: "En reparación", color: "#5B8DEF", isSystem: false },
+    { value: "LISTO_PARA_RETIRAR", label: "Listo para retirar", color: "#25A66A", isSystem: false },
+    { value: "ENTREGADO", label: "Entregado", color: "#16181D", isSystem: true },
+  ],
 };
 
 const META: Record<Kind, { title: string; add: string; noun: [string, string] }> = {
@@ -87,6 +96,7 @@ const META: Record<Kind, { title: string; add: string; noun: [string, string] }>
   SALE_STATUS: { title: "Estados de venta", add: "Agregar estado", noun: ["venta", "ventas"] },
   TRADE_IN_STATUS: { title: "Estados de canje", add: "Agregar estado", noun: ["canje", "canjes"] },
   CLIENT_TAG: { title: "Etiquetas de cliente", add: "Agregar etiqueta", noun: ["cliente", "clientes"] },
+  REPAIR_STATUS: { title: "Estados de servicio", add: "Agregar estado", noun: ["orden", "órdenes"] },
 };
 
 function slug(label: string) {
@@ -119,11 +129,12 @@ async function seedMissing(storeId: string) {
 }
 
 async function usageCounts(storeId: string) {
-  const [items, sales, trades, clients] = await Promise.all([
+  const [items, sales, trades, clients, repairs] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { storeId }, select: { status: true, capacity: true, condition: true } }),
     prisma.sale.findMany({ where: { storeId }, select: { status: true } }),
     prisma.tradeIn.findMany({ where: { storeId }, select: { status: true } }),
     prisma.client.findMany({ where: { storeId }, select: { tag: true } }),
+    prisma.repairOrder.findMany({ where: { storeId }, select: { status: true } }),
   ]);
   const bump = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
   const inventoryStatus = new Map<string, number>();
@@ -132,6 +143,7 @@ async function usageCounts(storeId: string) {
   const saleStatus = new Map<string, number>();
   const tradeStatus = new Map<string, number>();
   const clientTag = new Map<string, number>();
+  const repairStatus = new Map<string, number>();
   for (const item of items) {
     bump(inventoryStatus, item.status);
     bump(capacity, item.capacity);
@@ -140,7 +152,8 @@ async function usageCounts(storeId: string) {
   for (const sale of sales) bump(saleStatus, sale.status);
   for (const trade of trades) bump(tradeStatus, trade.status);
   for (const client of clients) if (client.tag) bump(clientTag, client.tag);
-  return { inventoryStatus, capacity, condition, saleStatus, tradeStatus, clientTag };
+  for (const order of repairs) bump(repairStatus, order.status);
+  return { inventoryStatus, capacity, condition, saleStatus, tradeStatus, clientTag, repairStatus };
 }
 
 function countFor(kind: Kind, value: string, counts: Awaited<ReturnType<typeof usageCounts>>) {
@@ -149,6 +162,7 @@ function countFor(kind: Kind, value: string, counts: Awaited<ReturnType<typeof u
   if (kind === "INVENTORY_CONDITION") return counts.condition.get(value) ?? 0;
   if (kind === "SALE_STATUS") return counts.saleStatus.get(value) ?? 0;
   if (kind === "CLIENT_TAG") return counts.clientTag.get(value) ?? 0;
+  if (kind === "REPAIR_STATUS") return counts.repairStatus.get(value) ?? 0;
   return counts.tradeStatus.get(value) ?? 0;
 }
 
@@ -187,6 +201,9 @@ async function reassign(tx: Prisma.TransactionClient, storeId: string, kind: Kin
     await tx.sale.updateMany({ where: { storeId, status: from }, data: { status: to } });
   } else if (kind === "CLIENT_TAG") {
     await tx.client.updateMany({ where: { storeId, tag: from }, data: { tag: to } });
+  } else if (kind === "REPAIR_STATUS") {
+    await tx.repairOrder.updateMany({ where: { storeId, status: from }, data: { status: to } });
+    await tx.repairStatusEvent.updateMany({ where: { storeId, status: from }, data: { status: to } });
   } else {
     await tx.tradeIn.updateMany({ where: { storeId, status: from }, data: { status: to } });
   }

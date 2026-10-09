@@ -82,6 +82,12 @@ const STATUS_LABEL: Record<string, string> = {
   'EN REVISIÓN': 'En revisión',
   APROBADO: 'Aprobado',
   RECHAZADO: 'Rechazado',
+  RECIBIDO: 'Recibido',
+  EN_DIAGNOSTICO: 'En diagnóstico',
+  ESPERANDO_REPUESTO: 'Esperando repuesto',
+  EN_REPARACION: 'En reparación',
+  LISTO_PARA_RETIRAR: 'Listo para retirar',
+  ENTREGADO: 'Entregado',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -108,6 +114,18 @@ const STATUS_COLOR: Record<string, string> = {
   Completado: '#0F9D8A',
   RECHAZADO: '#DC4C4C',
   Rechazado: '#DC4C4C',
+  RECIBIDO: '#9AA0AA',
+  Recibido: '#9AA0AA',
+  EN_DIAGNOSTICO: '#8B5CF6',
+  'En diagnóstico': '#8B5CF6',
+  ESPERANDO_REPUESTO: '#E8A33D',
+  'Esperando repuesto': '#E8A33D',
+  EN_REPARACION: '#5B8DEF',
+  'En reparación': '#5B8DEF',
+  LISTO_PARA_RETIRAR: '#25A66A',
+  'Listo para retirar': '#25A66A',
+  ENTREGADO: '#16181D',
+  Entregado: '#16181D',
 };
 
 export function statusLabel(status: string): string {

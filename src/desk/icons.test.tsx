@@ -56,4 +56,13 @@ describe('iManager icons', () => {
     expect(notificationIcon({ section: 'inventory', title: 'Venta manual por registrar', kind: 'MANUAL_SOLD_PENDING' })).toBe('venta-por-registrar');
     expect(notificationIcon({ section: 'other', title: 'Aviso' })).toBe('novedad');
   });
+
+  it('gives the technical service statuses the designed glyphs', () => {
+    expect(statusIcon('EN_DIAGNOSTICO')).toBe('en-revision');
+    expect(statusIcon('ESPERANDO_REPUESTO')).toBe('reservado');
+    expect(statusIcon('EN_REPARACION')).toBe('servicio-tecnico');
+    expect(statusIcon('LISTO_PARA_RETIRAR')).toBe('disponible');
+    expect(statusIcon('RECIBIDO')).toBeNull();
+    expect(statusIcon('ENTREGADO')).toBeNull();
+  });
 });

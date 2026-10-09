@@ -9,7 +9,9 @@ import { InventoryScreen } from './screens/InventoryScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
+import { ServiceScreen } from './screens/ServiceScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
+import { BlueDollar } from './BlueDollar';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
@@ -23,7 +25,7 @@ import './desk.css';
 const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
-  clients: 'clientes', reports: 'rep', notifications: 'notif', settings: 'config',
+  clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
 };
 
 function sectionUnread(counts: Record<NoticeSection, number>, id: DeskTab) {
@@ -62,7 +64,7 @@ export function DeskApp() {
   const unread = useUnreadCounts();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
-  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('reports')].map(Number).join('')}`;
+  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('service'), allowed('reports')].map(Number).join('')}`;
 
   useEffect(() => {
     if (overlayScope.current !== operationScope) {
@@ -141,6 +143,7 @@ export function DeskApp() {
     } else if (target === 'sales') next = { type: 'sale', id: recordId };
     else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
     else if (target === 'clients') next = { type: 'cl', id: recordId };
+    else if (target === 'service') next = { type: 'ot', id: recordId };
     else return;
     setPendingRecordOpen({ tab: target, overlay: next });
     go(target);
@@ -157,12 +160,13 @@ export function DeskApp() {
     canManageSensitive: memberCanManageSensitive(appSession?.membership),
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars'; size: number; meta?: string }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number; meta?: string; star?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
+    { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18, star: true },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
   ];
   const items = nav.filter((item) => allowed(item.id));
@@ -176,26 +180,29 @@ export function DeskApp() {
             <div className="dlogo"><Box size={22} aria-hidden="true" /></div>
             <div><b>iManager</b><small>{appSession?.store?.name || 'Tienda'}</small></div>
           </div>
-          <div className="dgroup">
-            {items.map((item) => (
-              <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
-                <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
-                <span>{item.label}</span>
-                <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
+          <div className="dnav">
+            <div className="dgroup">
+              {items.map((item) => (
+                <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
+                  <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
+                  <span>{item.label}</span>
+                  {item.star ? <span className="dstar" aria-hidden="true">★</span> : null}
+                  <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
+                </button>
+              ))}
+            </div>
+            <div className="dlabel">Cuenta</div>
+            <div className="dgroup">
+              {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
+                <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
+                {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
+              </button> : null}
+              <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
+                <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
               </button>
-            ))}
+            </div>
           </div>
-          <div className="dlabel">Cuenta</div>
-          <div className="dgroup">
-            {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" onClick={() => go('notifications')}>
-              <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
-              {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
-            </button> : null}
-            <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" onClick={() => go('settings')}>
-              <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
-            </button>
-          </div>
-          <div className="dspacer" />
+          <BlueDollar />
           <button className="duser" type="button" onClick={() => go('settings')}>
             <div className="av-c b">{initials(name)}</div>
             <div className="info"><b>{name}</b><small>{ROLE[appSession?.membership?.role ?? 'STAFF']}</small></div>
@@ -208,6 +215,7 @@ export function DeskApp() {
             {tab === 'sales' && <SalesScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
+            {tab === 'service' && <ServiceScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'settings' && <SettingsScreen />}
