@@ -4,7 +4,7 @@ import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
-import { useMoney, type MoneyApi } from '../exchange';
+import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
 import { conditionLabel, equipmentTitle, formatImei, formatInputMoney, formatMoney, isInStock, parseMoney } from '../format';
 import {
   EMPTY_COLUMN_FILTERS,
@@ -57,16 +57,10 @@ function activeColumnCount(filters: InventoryColumnFilters) {
     + Number(Boolean(filters.equipo.trim()));
 }
 
-function approxUsd(money: MoneyApi, amount: number, currency?: string | null) {
-  if (!(amount > 0) || money.active !== 'ARS' || !(money.rate && money.rate > 0)) return null;
-  const pesos = money.number(amount, currency);
-  if (pesos == null) return null;
-  return `≈ ${formatMoney(Math.round(pesos / money.rate), 'USD')}`;
-}
-
 export function InventoryScreen() {
   const { inventory, appSession, operationDrafts = [] } = useAppContext();
   const money = useMoney();
+  const { sell } = useDisplayQuote();
   const catalogs = useCatalogs();
   const { open, toast, back } = useDesk();
   const phone = usePhoneLayout();
@@ -145,7 +139,7 @@ export function InventoryScreen() {
     setFiltersOpen(true);
     setMoreOpen(false);
   };
-  const showApprox = phone && money.active === 'ARS' && Boolean(money.rate) && page.visible.some((item) => item.price > 0);
+  const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
@@ -214,7 +208,7 @@ export function InventoryScreen() {
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
                 >
-                  <InventoryCard item={item} money={money} />
+                  <InventoryCard item={item} money={money} sell={sell} />
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
               );
@@ -398,10 +392,10 @@ export function InventoryScreen() {
   );
 }
 
-function InventoryCard({ item, money }: { item: Product; money: MoneyApi }) {
+function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; sell: number | null }) {
   const condition = [plainCondition(item.condition), item.color].filter(Boolean).join(' · ');
   const specs = [gradeText(item.condition, item.grade), batteryLine(item.batteryHealth)].filter(Boolean).join(' · ');
-  const approx = approxUsd(money, item.price, item.currency);
+  const approx = approxUsd(item.price, item.currency, money.active, sell);
   return (
     <span className="inv-card">
       <span className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>

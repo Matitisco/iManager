@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   BLUE_REFRESH_MS,
   exchangeHouseLabel,
+  formatClock,
   houseFetchedAt,
   houseFromState,
   isFreshQuote,
@@ -243,4 +244,23 @@ export function useMoney(): MoneyApi {
 
 export function useExchangeOptional() {
   return useContext(ExchangeContext);
+}
+
+export function useDisplayQuote() {
+  const exchange = useExchangeOptional();
+  const sell = exchange && exchange.phase !== 'loading' && exchange.quote && exchange.quote.sell > 0 ? exchange.quote.sell : null;
+  const staleClock = exchange?.phase === 'error' && exchange.quote?.updatedAt ? formatClock(exchange.quote.updatedAt) : '';
+  return { sell, staleClock };
+}
+
+export function approxUsd(amount: number, currency: string | null | undefined, active: MoneyCurrency, sellRate: number | null): string | null {
+  if (!(amount > 0) || active !== 'ARS' || sellRate == null || !(sellRate > 0)) return null;
+  const pesos = projectAmount(amount, currency, 'ARS', sellRate);
+  if (pesos.blocked || !(pesos.value > 0)) return null;
+  return `≈ ${formatMoney(Math.round(pesos.value / sellRate), 'USD')}`;
+}
+
+export function approxActive(total: number | null, active: MoneyCurrency, sellRate: number | null): string | null {
+  if (total == null || !(total > 0) || active !== 'ARS' || sellRate == null || !(sellRate > 0)) return null;
+  return `≈ ${formatMoney(Math.round(total / sellRate), 'USD')}`;
 }

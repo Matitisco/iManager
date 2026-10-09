@@ -75,6 +75,7 @@ describe('blue dollar widget', () => {
     await user.click(screen.getByRole('button', { name: /Dólar blue/ }));
 
     expect(screen.getByRole('heading', { name: 'Dólar blue' })).toBeInTheDocument();
+    expect(screen.queryByTestId('blue-mode')).not.toBeInTheDocument();
     expect(screen.getByText('Fuente: DolarApi (cotización blue).')).toBeInTheDocument();
     expect(screen.getByText(/se refresca cada 15 min/)).toBeInTheDocument();
     expect(screen.getByText(`▲ ${formatMoney(10)}`)).toBeInTheDocument();
@@ -152,12 +153,103 @@ describe('blue dollar widget', () => {
     const widget = screen.getByTestId('blue-widget');
     expect(widget).toHaveAttribute('data-variant', 'chip');
     expect(widget).toHaveAttribute('data-state', 'loading');
+    expect(widget).toHaveAttribute('data-mode', 'auto');
+    expect(widget.querySelectorAll('.dolar-skel')).toHaveLength(2);
+    expect(widget).not.toHaveTextContent(formatMoney(1280));
     await waitFor(() => expect(widget).toHaveAttribute('data-state', 'ready'));
     expect(screen.getByText('Blue')).toBeInTheDocument();
     expect(widget).toHaveTextContent(formatMoney(1280));
     expect(widget).toHaveTextContent(formatMoney(1300));
     await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
     expect(screen.getByRole('heading', { name: 'Dólar blue' })).toBeInTheDocument();
+    expect(screen.getByTestId('blue-mode')).toHaveTextContent('Automática');
+    expect(screen.getByTestId('blue-refresh-now')).toHaveTextContent('Actualizar');
     expect(screen.getByTestId('blue-overlay')).toBeInTheDocument();
+  });
+
+  it('keeps the last sell price on the phone chip and retries', async () => {
+    const user = userEvent.setup();
+    const today = argentinaDay(new Date());
+    localStorage.setItem(BLUE_STORAGE_KEY, JSON.stringify({
+      source: 'dolarapi',
+      quotes: {},
+      days: {},
+      houses: {
+        blue: {
+          quote: { buy: 1280, sell: 1300, updatedAt, fetchedAt: new Date(Date.now() - BLUE_REFRESH_MS - 1000).toISOString() },
+          days: { [shiftDay(today, -1)]: { buy: 1290, sell: 1290 }, [today]: { buy: 1280, sell: 1300 } },
+        },
+      },
+    }));
+    const fetchMock = vi.fn(async (): Promise<ReturnType<typeof json>> => { throw new Error('offline'); });
+    vi.stubGlobal('fetch', fetchMock);
+    renderWidget('chip');
+
+    expect(await screen.findByTestId('blue-retry')).toBeInTheDocument();
+    const widget = screen.getByTestId('blue-widget');
+    expect(widget).toHaveAttribute('data-state', 'error');
+    expect(widget).toHaveAttribute('data-quote', 'stale');
+    expect(widget).toHaveTextContent(formatMoney(1300));
+    expect(widget).toHaveTextContent('21:40');
+    expect(widget).not.toHaveTextContent(formatMoney(1280));
+    expect(screen.getByTestId('blue-toast')).toHaveTextContent('No pudimos actualizar el dólar. Mostramos el de las 21:40.');
+
+    await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
+    expect(screen.getByTestId('blue-alert')).toHaveTextContent('Mostramos el dato de las 21:40');
+
+    fetchMock.mockImplementation(async () => json(dolar));
+    await user.click(screen.getByTestId('blue-retry'));
+    await waitFor(() => expect(widget).toHaveAttribute('data-state', 'ready'));
+    expect(screen.queryByTestId('blue-toast')).not.toBeInTheDocument();
+  });
+
+  it('says there is no quote when the phone chip never received one', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    renderWidget('chip');
+    expect(await screen.findByText('sin dato')).toBeInTheDocument();
+    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-quote', 'none');
+    expect(screen.getByTestId('blue-toast')).toHaveTextContent('No pudimos actualizar el dólar.');
+    await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
+    expect(screen.getByTestId('blue-alert')).toHaveTextContent('No hay cotización');
+    expect(screen.queryByTestId('blue-status')).not.toBeInTheDocument();
+  });
+
+  it('shows a manual store quote on the phone chip without refreshing', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1100, manualSell: 1150 }}>
+        <BlueDollar variant="chip" />
+      </ExchangeProvider>,
+    );
+    const widget = screen.getByTestId('blue-widget');
+    expect(widget).toHaveAttribute('data-state', 'ready');
+    expect(widget).toHaveAttribute('data-mode', 'manual');
+    expect(widget).toHaveTextContent('Dólar');
+    expect(widget).toHaveTextContent(formatMoney(1100));
+    expect(widget).toHaveTextContent(formatMoney(1150));
+    expect(screen.queryByTestId('blue-retry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('blue-toast')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dólar' }));
+    expect(screen.getByTestId('blue-mode')).toHaveTextContent('Manual');
+    expect(screen.getByText('Cotización cargada por la tienda.')).toBeInTheDocument();
+    expect(screen.queryByTestId('blue-refresh-now')).not.toBeInTheDocument();
+  });
+
+  it('asks to configure a manual quote when the store has none', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'oficial', manualBuy: null, manualSell: null }}>
+        <BlueDollar variant="chip" />
+      </ExchangeProvider>,
+    );
+    const widget = screen.getByTestId('blue-widget');
+    expect(widget).toHaveAttribute('data-state', 'error');
+    expect(widget).toHaveAttribute('data-mode', 'manual');
+    expect(widget).toHaveTextContent('sin dato');
+    expect(screen.queryByTestId('blue-retry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('blue-toast')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dólar' }));
+    expect(screen.getByTestId('blue-alert')).toHaveTextContent('Cargá la cotización en Configuración.');
   });
 });
