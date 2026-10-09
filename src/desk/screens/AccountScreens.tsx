@@ -18,7 +18,7 @@ const SECTION_LABEL: Record<NoticeSection, string> = {
 
 export function NotificationsScreen() {
   const { operationNotifications, notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead } = useAppContext();
-  const { go, toast, openRecord } = useDesk();
+  const { go, toast, openRecord, back } = useDesk();
   const [filter, setFilter] = useState('Todas');
   const unread = unreadBySection(operationNotifications);
   const visible = operationNotifications.filter((note) => {
@@ -52,6 +52,7 @@ export function NotificationsScreen() {
       <PageHead
         title="Notificaciones"
         subtitle={unread.total ? `Total: ${unread.total} sin leer` : 'Todo al d\u00eda'}
+        back={back}
         action={<div style={{ display: 'flex', gap: 14 }}>{unread.total > 0 ? <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>Leer todas</button> : null}<button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void refreshNotifications().catch(() => undefined)}>Actualizar</button></div>}
       />
       <div style={{ padding: '0 20px 12px', maxWidth: 860 }}>
@@ -115,7 +116,7 @@ function MRow({ icon, title, sub, right, onClick }: { icon: ReactNode; title: st
 
 export function SettingsScreen() {
   const { appSession, user } = useAppContext();
-  const { open, isStaff, toast } = useDesk();
+  const { open, isStaff, toast, back } = useDesk();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [selected, setSelected] = useState<TeamMember | null>(null);
@@ -149,7 +150,7 @@ export function SettingsScreen() {
 
   return (
     <div className="dscreen">
-      <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" />
+      <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" back={back} />
       <div className="settings-grid">
         {!isStaff && (
           <>

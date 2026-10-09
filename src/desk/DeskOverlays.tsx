@@ -40,6 +40,7 @@ import { RepairOrderDetail, RepairOrderForm } from './RepairForms';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
 import { ImanagerIcon } from './icons';
+import { usePhoneLayout } from './section-notices';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -136,10 +137,12 @@ function AuditLine({ action, by, at }: { action: string; by?: string | null; at?
 
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
   const { open, close, canManageSensitive = true } = useDesk();
+  const phone = usePhoneLayout();
   const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
-      <div className="ctx" style={{ top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="ctx" style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
+        {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="ctxh">{overlay.label}</div>
         <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button>
         {canManageSensitive ? <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />Eliminar</button> : null}

@@ -28,7 +28,7 @@ import {
   type SaleColumnFilters,
 } from '../sale-column-filters';
 import { canSeeFinancials } from '../sections';
-import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -36,8 +36,9 @@ export function SalesScreen() {
   const { sales, clients, inventory, operationDrafts = [], appSession } = useAppContext();
   const money = useMoney();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
-  const { open } = useDesk();
+  const { open, back } = useDesk();
   const phone = usePhoneLayout();
+  const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('sales');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
@@ -87,19 +88,23 @@ export function SalesScreen() {
   const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
 
   return (
-    <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <h1>Ventas</h1>
-          <div className="dsub">{subtitle}</div>
-        </div>
-        <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" />
-          <MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
-          <ImportButton onClick={() => open({ type: 'import', kind: 'sale' })} />
-          <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
-        </div>
-      </div>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title="Ventas"
+        subtitle={subtitle}
+        back={back}
+        tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
+        desktop={(
+          <div className="dright">
+            <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" />
+            <MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
+            <ImportButton onClick={() => open({ type: 'import', kind: 'sale' })} />
+            <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
+          </div>
+        )}
+      />
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" /></div> : null}
+      {phone ? <div className="dbar"><MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -228,6 +233,7 @@ export function SalesScreen() {
         {shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      {phone ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
     </div>
   );
 }

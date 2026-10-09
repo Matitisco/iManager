@@ -44,56 +44,60 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
             aria-labelledby="dolar-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <div className="dolar-head">
-              <h3 id="dolar-title">{title}</h3>
-              <button className="dolar-x" type="button" aria-label="Cerrar" onClick={() => setOpen(false)}>×</button>
-            </div>
-            <div className="dolar-stats">
-              <div className="dolar-stat"><span>Compra</span>{phase === 'loading' && !quote ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</div>
-              <div className="dolar-stat"><span>Venta</span>{phase === 'loading' && !quote ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</div>
-              <div className="dolar-stat"><span>Vs. ayer</span><b className={deltaView.tone === 'flat' ? undefined : deltaView.tone}>{deltaView.text}</b></div>
-            </div>
-            {quote && !manual ? (
-              <>
-                <p className="dolar-meta">Actualizado a las {clock} · se refresca cada {BLUE_REFRESH_LABEL}</p>
-                <p className="dolar-meta">{sourceLine}</p>
-              </>
-            ) : (
-              <p className="dolar-meta">{manual ? sourceLine : `Se refresca cada ${BLUE_REFRESH_LABEL}.`}</p>
-            )}
-            <div className="dolar-kicker">Calculadora rápida</div>
-            <div className="dolar-calc">
-              <label className="dolar-usd">
-                <span>US$</span>
-                <input
-                  aria-label="Dólares"
-                  data-testid="blue-usd"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="0"
-                  value={usd}
-                  onChange={(event) => setUsd(event.target.value.replace(/\D/g, '').slice(0, 7))}
-                />
-              </label>
-              <span className="dolar-eq">=</span>
-              <b className="dolar-out" data-testid="blue-result">{quote ? formatMoney(pesos) : '—'}</b>
-              <button className="dolar-side" type="button" data-testid="blue-rate-side" onClick={() => setSide((current) => current === 'sell' ? 'buy' : 'sell')}>
-                {side === 'sell' ? 'al precio de venta' : 'al precio de compra'}
-              </button>
-            </div>
-            {manual ? null : (
-              <div className="dolar-acts">
-                <button className="btn2 s" type="button" data-testid="blue-refresh-now" disabled={phase === 'loading'} onClick={() => refresh()}>
-                  <RefreshCw size={16} /> Actualizar ahora
+            <div className="sheet-grab" aria-hidden="true" />
+            <div className="sheet-scroll">
+              <div className="dolar-head">
+                <h3 id="dolar-title">{title}</h3>
+                <button className="dolar-x" type="button" aria-label="Cerrar" onClick={() => setOpen(false)}>×</button>
+              </div>
+              <div className="dolar-stats">
+                <div className="dolar-stat"><span>Compra</span>{phase === 'loading' && !quote ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</div>
+                <div className="dolar-stat"><span>Venta</span>{phase === 'loading' && !quote ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</div>
+                <div className="dolar-stat"><span>Vs. ayer</span><b className={deltaView.tone === 'flat' ? undefined : deltaView.tone}>{deltaView.text}</b></div>
+              </div>
+              {quote && !manual ? (
+                <>
+                  <p className="dolar-meta">Actualizado a las {clock} · se refresca cada {BLUE_REFRESH_LABEL}</p>
+                  <p className="dolar-meta">{sourceLine}</p>
+                </>
+              ) : (
+                <p className="dolar-meta">{manual ? sourceLine : `Se refresca cada ${BLUE_REFRESH_LABEL}.`}</p>
+              )}
+              <div className="dolar-kicker">Calculadora rápida</div>
+              <div className="dolar-calc">
+                <label className="dolar-usd">
+                  <span>US$</span>
+                  <input
+                    aria-label="Dólares"
+                    data-testid="blue-usd"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="0"
+                    value={usd}
+                    onChange={(event) => setUsd(event.target.value.replace(/\D/g, '').slice(0, 7))}
+                  />
+                </label>
+                <span className="dolar-eq">=</span>
+                <b className="dolar-out" data-testid="blue-result">{quote ? formatMoney(pesos) : '—'}</b>
+                <button className="dolar-side" type="button" data-testid="blue-rate-side" onClick={() => setSide((current) => current === 'sell' ? 'buy' : 'sell')}>
+                  {side === 'sell' ? 'al precio de venta' : 'al precio de compra'}
                 </button>
-                <button className="btn2 p" type="button" data-testid="blue-done" onClick={() => setOpen(false)}>Listo</button>
               </div>
-            )}
-            {manual ? (
-              <div className="dolar-acts">
-                <button className="btn2 p" type="button" data-testid="blue-done" onClick={() => setOpen(false)}>Listo</button>
-              </div>
-            ) : null}
+            </div>
+            <div className="sheet-foot">
+              {manual ? (
+                <div className="dolar-acts">
+                  <button className="btn2 p" type="button" data-testid="blue-done" onClick={() => setOpen(false)}>Listo</button>
+                </div>
+              ) : (
+                <div className="dolar-acts">
+                  <button className="btn2 s" type="button" data-testid="blue-refresh-now" disabled={phase === 'loading'} onClick={() => refresh()}>
+                    <RefreshCw size={16} /> Actualizar ahora
+                  </button>
+                  <button className="btn2 p" type="button" data-testid="blue-done" onClick={() => setOpen(false)}>Listo</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
   ) : null;

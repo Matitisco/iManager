@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
 import { DeskApp } from './DeskApp';
@@ -87,6 +87,23 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByText(/Tentativo/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/propuesta/i)).not.toBeInTheDocument();
     expect(screen.queryByText('iManager')).not.toBeInTheDocument();
+  });
+
+  it('shows a back arrow on sections that live in Más and a dock on the bar sections', () => {
+    usePhone();
+    window.location.hash = '#/servicio';
+    render(<DeskApp />);
+    expect(screen.getByRole('heading', { name: 'Servicio técnico' })).toBeInTheDocument();
+    expect(screen.getByTestId('page-back')).toBeInTheDocument();
+    expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' })).toBeInTheDocument();
+    expect(screen.queryByText(/Tentativo/i)).not.toBeInTheDocument();
+    cleanup();
+
+    window.location.hash = '#/inv';
+    render(<DeskApp />);
+    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.queryByTestId('page-back')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
   });
 
   it('slides Canjes into the bar when an employee cannot open Reportes', () => {

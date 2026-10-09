@@ -264,6 +264,7 @@ export function DeskApp() {
     go(target);
   };
 
+  const showBack = phone && tab !== 'more' && !(mobile.bar as readonly string[]).includes(tab);
   const ui = {
     tab,
     go,
@@ -273,6 +274,7 @@ export function DeskApp() {
     toast: (text: string) => { setMessage(text); setToastOn(true); },
     isStaff,
     canManageSensitive: memberCanManageSensitive(appSession?.membership),
+    back: showBack ? () => go('more') : undefined,
   };
 
   const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number; meta?: string }[] = [

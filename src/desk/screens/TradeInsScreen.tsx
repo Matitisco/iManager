@@ -7,7 +7,7 @@ import { useMoney } from '../exchange';
 import { formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
-import { ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { ChipRow, DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 const DEFAULT_STATUSES = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -22,8 +22,9 @@ export function TradeInsScreen() {
   const { tradeIns, clients, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
-  const { open } = useDesk();
+  const { open, back } = useDesk();
   const phone = usePhoneLayout();
+  const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('tradeins');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
@@ -61,18 +62,21 @@ export function TradeInsScreen() {
   }, [catalogs?.ready, catalogs?.options, tradeIns]);
 
   return (
-    <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <h1>Canjes</h1>
-          <div className="dsub">{tradeIns.length} canjes · {openCount} en curso</div>
-        </div>
-        <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" />
-          <ImportButton onClick={() => open({ type: 'import', kind: 'cj' })} />
-          <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
-        </div>
-      </div>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title="Canjes"
+        subtitle={`${tradeIns.length} canjes · ${openCount} en curso`}
+        back={back}
+        tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
+        desktop={(
+          <div className="dright">
+            <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" />
+            <ImportButton onClick={() => open({ type: 'import', kind: 'cj' })} />
+            <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
+          </div>
+        )}
+      />
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -144,6 +148,7 @@ export function TradeInsScreen() {
         )}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      {phone ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cj' })} /> : null}
     </div>
   );
 }

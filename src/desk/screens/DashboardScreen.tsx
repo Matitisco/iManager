@@ -16,7 +16,8 @@ import {
 } from '../format';
 import { ImanagerIcon } from '../icons';
 import { canSeeFinancials } from '../sections';
-import { DeskCta, DeskIcon, Pill, PressTarget, useDesk } from '../ui';
+import { usePhoneLayout } from '../section-notices';
+import { DeskCta, DeskIcon, MobileDock, Pill, PressTarget, RowMenu, ScreenTitle, useDesk } from '../ui';
 
 const TASKS = [
   { id: 'inv', label: 'Revisá ingresos o cambios en inventario' },
@@ -27,7 +28,8 @@ const TASKS = [
 export function DashboardScreen() {
   const { appSession, user, sales, inventory, tradeIns, clients } = useAppContext();
   const money = useMoney();
-  const { go, open, toast } = useDesk();
+  const { go, open, toast, back } = useDesk();
+  const phone = usePhoneLayout();
   const storeId = appSession?.store?.id ?? 'local';
   const storageKey = `imanager-desk-focus:${storeId}`;
   const [checks, setChecks] = useState<Record<string, boolean>>({});
@@ -116,23 +118,23 @@ export function DashboardScreen() {
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const stockPct = inventory.length ? Math.round((available / inventory.length) * 100) : 0;
 
+  const people = (
+    <div className="avatars">
+      {(members.length ? members.map((member) => member.user.displayName?.trim() || member.user.email || 'Usuario') : [name]).map((label, index) => (
+        <div key={`${label}-${index}`} className={`av ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
+      ))}
+      <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
+    </div>
+  );
+
   return (
-    <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <div className="greet">Hola, {name}</div>
-          <h1 className="hero-h">¿Qué hay para <span className="hl">hoy</span>?</h1>
-        </div>
-        <div className="dright">
-          <div className="avatars">
-            {(members.length ? members.map((member) => member.user.displayName?.trim() || member.user.email || 'Usuario') : [name]).map((label, index) => (
-              <div key={`${label}-${index}`} className={`av ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
-            ))}
-            <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
-          </div>
-          <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
-        </div>
-      </div>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title={<><div className="greet">Hola, {name}</div><h1 className="hero-h">¿Qué hay para <span className="hl">hoy</span>?</h1></>}
+        back={back}
+        tools={people}
+        desktop={<div className="dright">{people}<DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div>}
+      />
 
       <div className="dgrid dash">
         <div className="hero">
@@ -200,7 +202,7 @@ export function DashboardScreen() {
                 {recent.map((sale) => {
                   return (
                     <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
-                      <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
+                      <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small>{phone ? <RowMenu onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })} /> : null}</td>
                       <td>{saleBuyer(sale, clients)}</td>
                       <td>{saleEquipment(sale, inventory)}</td>
                       <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
@@ -226,6 +228,7 @@ export function DashboardScreen() {
           ))}
         </div>
       </div>
+      {phone ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} /> : null}
     </div>
   );
 }

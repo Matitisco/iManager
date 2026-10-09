@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { updateMemberSections, type TeamMember } from '../../services/members-api';
 import { DESK_SECTIONS, visibleSections } from '../sections';
+import { usePhoneLayout } from '../section-notices';
 import { Actions, PageHead } from '../ui';
 
 const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
@@ -12,6 +13,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
   onSaved: (member: TeamMember) => void;
 }) {
   const { user, appSession, reloadSession } = useAppContext();
+  const phone = usePhoneLayout();
   const locked = member.role === 'OWNER';
   const [sections, setSections] = useState(() => visibleSections(member.sections, member.role));
   const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
@@ -45,7 +47,8 @@ export function MemberPermissions({ member, onBack, onSaved }: {
       <PageHead
         title="Permisos"
         subtitle={`${name} · ${member.user.email || 'Sin email'} · ${ROLE_LABEL[member.role] ?? member.role}`}
-        action={<button className="dbtn s" type="button" onClick={onBack}>Volver</button>}
+        back={phone ? onBack : undefined}
+        action={phone ? undefined : <button className="dbtn s" type="button" onClick={onBack}>Volver</button>}
       />
       <div className="settings-grid">
         <div className="sec">Secciones</div>
