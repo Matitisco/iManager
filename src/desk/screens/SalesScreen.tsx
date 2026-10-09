@@ -3,7 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
-import { useMoney } from '../exchange';
+import { approxActive, approxUsd, useDisplayQuote, useMoney } from '../exchange';
 import {
   saleBuyer,
   formatInputMoney,
@@ -37,6 +37,7 @@ const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 export function SalesScreen() {
   const { sales, clients, inventory, operationDrafts = [], appSession } = useAppContext();
   const money = useMoney();
+  const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
@@ -132,6 +133,8 @@ export function SalesScreen() {
         <SalesHero
           seeFinancials={seeFinancials}
           total={total == null ? '—' : money.showActive(total)}
+          approx={approxActive(total, money.active, sell)}
+          staleClock={staleClock}
           count={periodSales.length}
           average={avg == null ? '—' : money.showActive(avg)}
           margin={hasCost && margin != null ? money.showActive(margin) : '—'}
@@ -173,7 +176,7 @@ export function SalesScreen() {
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, inventory)} amount={money.show(sale.amount, sale.amountCurrency)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, inventory)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
                   </div>
                 );
@@ -270,9 +273,11 @@ export function SalesScreen() {
   );
 }
 
-function SalesHero({ seeFinancials, total, count, average, margin, marginNote, delta }: {
+function SalesHero({ seeFinancials, total, approx, staleClock, count, average, margin, marginNote, delta }: {
   seeFinancials: boolean;
   total: string;
+  approx: string | null;
+  staleClock: string;
   count: number;
   average: string;
   margin: string;
@@ -285,6 +290,7 @@ function SalesHero({ seeFinancials, total, count, average, margin, marginNote, d
         <>
           <div className="eb">Facturación total</div>
           <div className="big">{total}</div>
+          {approx ? <small className="sale-fx" data-testid="sales-usd">{approx}{staleClock ? ` · con el dólar de las ${staleClock}` : ''}</small> : null}
           <span className="spill lime">{count === 1 ? '1 venta' : `${count} ventas`}</span>
           <small className="sale-delta">{delta == null ? '— vs período anterior' : <span className={delta >= 0 ? 'up' : 'down'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs período anterior</span>}</small>
         </>
@@ -307,7 +313,7 @@ function SalesHero({ seeFinancials, total, count, average, margin, marginNote, d
   );
 }
 
-function SaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: string; equipment: string; amount: string }) {
+function SaleCard({ sale, buyer, equipment, amount, approx }: { sale: Sale; buyer: string; equipment: string; amount: string; approx: string | null }) {
   return (
     <span className="sale-card">
       <span className="sale-top">
@@ -316,7 +322,7 @@ function SaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: strin
       </span>
       <b>{buyer}</b>
       <small>{equipment}</small>
-      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><b>{amount}</b></span>
+      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b>{amount}</b>{approx ? <small>{approx}</small> : null}</span></span>
     </span>
   );
 }

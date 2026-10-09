@@ -354,7 +354,13 @@ export async function createTradeInViaApi(
 export async function updateStoreViaApi(
   request: APIRequestContext,
   email: string,
-  data: { currency?: 'ARS' | 'USD' },
+  data: {
+    currency?: 'ARS' | 'USD';
+    exchangeMode?: 'auto' | 'manual';
+    exchangeSource?: 'blue' | 'oficial' | 'mep';
+    manualBuy?: number | null;
+    manualSell?: number | null;
+  },
 ) {
   const response = await request.patch(`${DEFAULT_API_BASE_URL}/api/stores/current`, {
     headers: {
