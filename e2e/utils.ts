@@ -241,6 +241,23 @@ export async function importInventoryViaApi(
   return JSON.parse(body) as { imported: number; updated: number; errors: Array<{ message: string }> };
 }
 
+export async function createInvitationViaApi(
+  request: APIRequestContext,
+  ownerEmail: string,
+  role: 'MANAGER' | 'STAFF',
+  email?: string,
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/invitations`, {
+    headers: {
+      ...authHeaders(ownerEmail),
+      'Content-Type': 'application/json',
+    },
+    data: email ? { role, email } : { role },
+  });
+  const body = await assertOk(response, 'Create invitation');
+  return JSON.parse(body) as { id: string; token: string; inviteUrl: string; role: string };
+}
+
 export async function createInventoryItemViaApi(
   request: APIRequestContext,
   email: string,

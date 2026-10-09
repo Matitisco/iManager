@@ -38,5 +38,7 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByLabelText(/en Clientes/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/en Canjes/)).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1');
+    expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('Servicio técnico');
+    expect(screen.queryByText('★')).not.toBeInTheDocument();
   });
 });

@@ -167,13 +167,13 @@ export function DeskApp() {
     canManageSensitive: memberCanManageSensitive(appSession?.membership),
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number; meta?: string; star?: boolean }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number; meta?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
-    { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18, star: true },
+    { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
   ];
   const items = nav.filter((item) => allowed(item.id));
@@ -194,7 +194,6 @@ export function DeskApp() {
                 <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                   <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                   <span>{item.label}</span>
-                  {item.star ? <span className="dstar" aria-hidden="true">★</span> : null}
                   <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
                 </button>
               ))}

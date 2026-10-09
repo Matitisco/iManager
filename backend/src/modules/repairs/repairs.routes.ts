@@ -121,7 +121,8 @@ export async function repairsRoutes(app: FastifyInstance) {
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = patchSchema.parse(request.body);
       const canChangePrice = canManageSensitive(member);
-      const actor = body.estimate !== undefined && canChangePrice ? await loadActor(member.userId) : null;
+      const touchesMoney = body.estimate !== undefined || body.deposit !== undefined;
+      const actor = touchesMoney && canChangePrice ? await loadActor(member.userId) : null;
       const result = await updateRepair(member.storeId, id, body, { canChangePrice, actor });
       if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
       return result;
