@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { SalesScreen } from './SalesScreen';
@@ -82,6 +82,9 @@ describe('Sales column filters', () => {
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();
     expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sales-hero')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Venta/ })).toBeInTheDocument();
   });
 
   it('shows billing and margin only to members who can open reports', () => {
@@ -112,5 +115,76 @@ describe('Sales column filters', () => {
     renderScreen();
     expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
     expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
+  });
+});
+
+describe('Sales on a phone', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    context.sales = [
+      sale(1, { clientName: 'Cliente Ejemplo', deviceLabel: 'iPhone 13', amount: 650000, paymentMethod: 'EFECTIVO', status: 'PENDIENTE', date: '2026-10-05' }),
+      sale(2, { clientName: 'Ana Pérez', deviceLabel: 'Pixel', amount: 480000, paymentMethod: 'TRANSFERENCIA', status: 'COMPLETADA', date: '2026-10-04' }),
+    ];
+    context.clients = [];
+    context.inventory = [];
+    context.appSession = { membership: { role: 'OWNER', sections: null } };
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('shows the hero, the timeline and the dock without the desktop table', () => {
+    renderScreen();
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Facturación total');
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Ticket promedio');
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Margen bruto est.');
+    const timeline = screen.getByTestId('sales-timeline');
+    expect(timeline).toHaveTextContent('#V-0002');
+    expect(timeline).toHaveTextContent('Ana Pérez');
+    expect(timeline).toHaveTextContent('Pixel');
+    expect(timeline).toHaveTextContent('Transferencia');
+    expect(timeline).toHaveTextContent('Completada');
+    expect(screen.getByTestId('mobile-dock')).toHaveTextContent('Registrar venta');
+    expect(screen.getAllByTestId('row-menu').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: /Venta/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('sales-period')).toHaveTextContent('Mes');
+    expect(screen.getByTestId('sales-status')).toHaveTextContent('Estado');
+  });
+
+  it('hides billing and margin when the member cannot open reports', () => {
+    context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
+    renderScreen();
+    expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
+    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
+    expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+  });
+
+  it('filters by status and shows the empty period', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const view = renderScreen();
+    await user.click(within(screen.getByTestId('sales-status')).getByRole('button', { name: 'Estado' }));
+    await user.click(screen.getByRole('button', { name: 'Pendiente' }));
+    expect(screen.getByText('Cliente Ejemplo')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    view.unmount();
+
+    context.sales = [];
+    renderScreen();
+    expect(screen.getByTestId('sales-empty')).toHaveTextContent('No hay ventas');
+    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
+import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import { useMoney } from '../exchange';
 import {
@@ -28,7 +28,9 @@ import {
   type SaleColumnFilters,
 } from '../sale-column-filters';
 import { canSeeFinancials } from '../sections';
+import { ImanagerIcon } from '../icons';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
+import type { Sale } from '../../types';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -43,6 +45,7 @@ export function SalesScreen() {
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('Mes');
+  const [statusPill, setStatusPill] = useState('Todos');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const draftError = useOperationDraftError('sales');
@@ -78,14 +81,18 @@ export function SalesScreen() {
     if (q && !`${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q)) return false;
     return matchesSaleColumns(sale, columns, labels);
   });
-  const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : rows;
-  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const statusOn = phone && statusPill !== 'Todos';
+  const narrowed = statusOn ? rows.filter((sale) => statusLabel(sale.status) === statusPill) : rows;
+  const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : narrowed;
+  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`);
   const visibleKey = page.visible.map((sale) => sale.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA'])].filter(Boolean);
 
   const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
+  const quiet = !query.trim() && !saleFiltersActive(columns) && !onlyNotices && !statusOn;
+  const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
@@ -104,10 +111,15 @@ export function SalesScreen() {
         )}
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" /></div> : null}
-      {phone ? <div className="dbar"><MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} /></div> : null}
+      {phone ? (
+        <div className="dbar sale-pills">
+          <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
+          <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Cancelada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
+        </div>
+      ) : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
-        <div className="dcard op-drafts">
+        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
           <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos aunque hayas recargado la página.</small></div>
           <div className="op-draft-list">{ownDrafts.map((trade) => (
             <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'sales' })}>
@@ -116,6 +128,17 @@ export function SalesScreen() {
           ))}</div>
         </div>
       ) : null}
+      {phone ? (
+        <SalesHero
+          seeFinancials={seeFinancials}
+          total={total == null ? '—' : money.showActive(total)}
+          count={periodSales.length}
+          average={avg == null ? '—' : money.showActive(avg)}
+          margin={hasCost && margin != null ? money.showActive(margin) : '—'}
+          marginNote={hasCost ? (marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`) : 'Cargá el costo en el equipo'}
+          delta={delta}
+        />
+      ) : (
       <div className="dstats">
         {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
         <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
@@ -132,27 +155,36 @@ export function SalesScreen() {
           <small className="mut">vs período anterior</small>
         </div>
       </div>
+      )}
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      {phone ? (
+        shown.length === 0 ? (
+          listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="wempty">No hay ventas con ese filtro.</div>
+        ) : (
+          <>
+            <div className="sale-sec"><span>Ventas del período</span><span>{shown.length} de {listed.length}</span></div>
+            <div className="sale-line" data-testid="sales-timeline">
+              {page.visible.map((sale) => {
+                const reason = notices.reasonFor(sale.id);
+                return (
+                  <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${sale.status === 'CANCELADA' ? ' cancelled' : ''}`}>
+                    <PhoneRecord
+                      reason={reason}
+                      onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
+                      onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
+                    >
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, inventory)} amount={money.show(sale.amount, sale.amountCurrency)} />
+                    </PhoneRecord>
+                  </div>
+                );
+              })}
+            </div>
+            <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
+          </>
+        )
+      ) : (
       <div className="dcard flush">
         <div className="dch pad"><h3>Ventas del período</h3><span className="mut">{shown.length} de {listed.length}</span>{saleFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_SALE_FILTERS)}>Limpiar filtros</button> : null}</div>
-        {phone ? (
-          <PhoneRecords>
-            {page.visible.map((sale) => {
-              const reason = notices.reasonFor(sale.id);
-              return (
-                <PhoneRecord
-                  key={sale.id}
-                  reason={reason}
-                  onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
-                >
-                  <b>#{saleCode(sale)} · {saleBuyer(sale, clients)}</b>
-                  <small>{saleEquipment(sale, inventory)} · {money.show(sale.amount, sale.amountCurrency)}</small>
-                </PhoneRecord>
-              );
-            })}
-          </PhoneRecords>
-        ) : (
         <table className="dtable">
             <thead>
               <tr>
@@ -229,11 +261,79 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        )}
         {shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      )}
       {phone ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
+    </div>
+  );
+}
+
+function SalesHero({ seeFinancials, total, count, average, margin, marginNote, delta }: {
+  seeFinancials: boolean;
+  total: string;
+  count: number;
+  average: string;
+  margin: string;
+  marginNote: string;
+  delta: number | null;
+}) {
+  return (
+    <section className="sale-hero" data-testid="sales-hero">
+      {seeFinancials ? (
+        <>
+          <div className="eb">Facturación total</div>
+          <div className="big">{total}</div>
+          <span className="spill lime">{count === 1 ? '1 venta' : `${count} ventas`}</span>
+          <small className="sale-delta">{delta == null ? '— vs período anterior' : <span className={delta >= 0 ? 'up' : 'down'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs período anterior</span>}</small>
+        </>
+      ) : <span className="spill lime">{count === 1 ? '1 venta' : `${count} ventas`}</span>}
+      <div className={`sale-hero-grid${seeFinancials ? '' : ' solo'}`}>
+        <div>
+          <div className="eb">Ticket promedio</div>
+          <div className="mid">{average}</div>
+          <small>Por venta</small>
+        </div>
+        {seeFinancials ? (
+          <div>
+            <div className="eb">Margen bruto est.</div>
+            <div className="mid">{margin}</div>
+            <small>{marginNote}</small>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function SaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: string; equipment: string; amount: string }) {
+  return (
+    <span className="sale-card">
+      <span className="sale-top">
+        <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
+        <Pill status={sale.status} kind="SALE_STATUS" />
+      </span>
+      <b>{buyer}</b>
+      <small>{equipment}</small>
+      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><b>{amount}</b></span>
+    </span>
+  );
+}
+
+function SalesEmpty({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="inv-empty" data-testid="sales-empty">
+      <div className="inv-empty-box">
+        <div className="inv-empty-mark"><ImanagerIcon name="vendido" size={24} /></div>
+        <b>No hay ventas</b>
+        <p>Todavía no registraste ventas en este período. Cargá la primera cuando cierres una operación.</p>
+        <button className="dbtn p" type="button" onClick={onCreate}>
+          <ImanagerIcon name="agregar" size={16} />
+          Registrar venta
+        </button>
+      </div>
+      <p className="inv-count">0 resultados</p>
     </div>
   );
 }
