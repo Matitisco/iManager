@@ -16,6 +16,7 @@ export function ServiceScreen() {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
+  const [statusId, setStatusId] = useState('ABIERTAS');
 
   const statuses = useMemo(() => {
     const known = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
@@ -38,6 +39,30 @@ export function ServiceScreen() {
 
   const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const readyCount = repairOrders.filter((order) => order.status === REPAIR_READY).length;
+  const chips = useMemo(() => {
+    const open = rows.filter((order) => order.status !== REPAIR_DELIVERED).length;
+    return [
+      { id: 'ABIERTAS', label: `Abiertas ${open}`, color: '' },
+      ...statuses.map((status) => ({
+        id: status.id,
+        label: `${status.label} ${rows.filter((order) => order.status === status.id).length}`,
+        color: status.color || '#9AA0AA',
+      })),
+    ];
+  }, [rows, statuses]);
+  const groups = useMemo(() => {
+    const selected = statusId === 'ABIERTAS'
+      ? statuses.filter((status) => status.id !== REPAIR_DELIVERED)
+      : statuses.filter((status) => status.id === statusId);
+    return selected
+      .map((status) => ({ status, cards: rows.filter((order) => order.status === status.id) }))
+      .filter((group) => statusId !== 'ABIERTAS' || group.cards.length > 0);
+  }, [rows, statusId, statuses]);
+  const emptyCopy = repairOrders.length === 0 && !query.trim()
+    ? 'No hay órdenes'
+    : statusId === 'ABIERTAS' && !query.trim()
+      ? 'No hay órdenes abiertas.'
+      : 'No encontré órdenes.';
 
   const views = (
     <div className="svc-views" role="group" aria-label="Vista">
@@ -66,9 +91,51 @@ export function ServiceScreen() {
         )}
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar orden o cliente" /></div> : null}
-      {phone ? <div className="mviews">{views}</div> : null}
+      {phone ? (
+        <div className="svc-chips" data-testid="service-chips" role="group" aria-label="Estado">
+          {chips.map((chip) => (
+            <button key={chip.id} type="button" className={`wchip${chip.id === statusId ? ' on' : ''}`} aria-pressed={chip.id === statusId} onClick={() => setStatusId(chip.id)}>
+              {chip.color ? <i className="svc-dot" style={{ background: chip.color }} /> : null}
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {repairOrdersError ? <div className="ferr">{repairOrdersError}</div> : null}
-      {view === 'board' ? (
+      {phone ? (
+        groups.length === 0 ? <div className="wempty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (
+          <div className="svc-groups" data-testid="service-groups">
+            {groups.map((group) => (
+              <section key={group.status.id} data-testid={`repair-group-${group.status.id}`}>
+                <div className="svc-gh">
+                  <span><i className="svc-dot" style={{ background: group.status.color || '#9AA0AA' }} />{group.status.label}</span>
+                  <b>{group.cards.length}</b>
+                </div>
+                {group.cards.map((order) => {
+                  const when = order.estimatedDelivery || order.receivedAt;
+                  const late = repairOverdue(order);
+                  const date = dayMonth(when);
+                  const dateText = !date ? '' : late ? `Atrasada · ${date}` : order.estimatedDelivery ? `Entrega ${date}` : date;
+                  return (
+                    <button key={order.id} className="ticket" type="button" data-testid={`repair-card-${order.id}`} onClick={() => open({ type: 'ot', id: order.id })}>
+                      <div className="wtop">
+                        <b>#{order.code}</b>
+                        {dateText ? <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dateText}</span> : null}
+                      </div>
+                      <div className="store">{order.device}</div>
+                      <div className="items">{repairFault(order)}</div>
+                      <div className="wbot">
+                        <span className="items">{order.clientName}</span>
+                        <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </section>
+            ))}
+          </div>
+        )
+      ) : view === 'board' ? (
         <div className="dkanban svc">
           {statuses.map((status) => {
             const cards = rows.filter((order) => order.status === status.id);

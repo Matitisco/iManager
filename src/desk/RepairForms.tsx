@@ -8,7 +8,8 @@ import { formatInputMoney, formatShortDate, parseMoney } from './format';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
-import { dayMonth, DEFAULT_REPAIR_STATUSES, REPAIR_FAULTS, REPAIR_READY, REPAIR_RECEIVED, repairFault, repairPrice, repairStatusMeta } from './repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, REPAIR_FAULTS, REPAIR_READY, REPAIR_RECEIVED, repairFault, repairOverdue, repairPrice, repairStatusMeta } from './repairs';
+import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
 
 function moneyInput(value: string) {
@@ -28,6 +29,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   const money = useMoney();
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
+  const isPhone = usePhoneLayout();
   const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState('');
@@ -87,7 +89,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   };
 
   return (
-    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" onClose={close}>
+    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" subtitle={isPhone ? 'Arranca en «Recibido».' : undefined} onClose={close}>
       {error || bad.form ? <div className="ferr">{error || bad.form}</div> : null}
       <div className="svc-grid">
         <div>
@@ -159,6 +161,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const money = useMoney();
   const { close, toast, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
+  const phone = usePhoneLayout();
   const order = repairOrders.find((item) => item.id === id);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -251,7 +254,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     }
   };
 
-  return (
+  if (!phone) return (
     <>
       <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
         <div className="svc-steps" aria-hidden="true">
@@ -311,6 +314,118 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           <div className="svc-wa">
             <span>Listo para avisar al cliente</span>
             <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+          </div>
+        ) : null}
+        {next ? (
+          <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
+        ) : (
+          <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
+        )}
+      </Sheet>
+      {confirmDelete ? (
+        <Dialog
+          title="Eliminar orden"
+          text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
+          ok="Eliminar"
+          danger
+          busy={saving}
+          error={error}
+          onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
+          onOk={() => { void remove(); }}
+        />
+      ) : null}
+    </>
+  );
+
+  const late = repairOverdue(order);
+  const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
+  const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
+  const step = index >= 0 ? index + 1 : 0;
+  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
+  const budgetFields = (
+    <div className="svc-edit">
+      <div className="frow">
+        <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
+          <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '' })); }} />
+        </Field>
+        <Field label="Seña" mark={money.active} error={bad.deposit}>
+          <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
+        </Field>
+      </div>
+      <div className="sacts">
+        <button type="button" className="btn2 s" disabled={saving} onClick={() => { setEditing(false); setError(''); }}>Cancelar</button>
+        <button type="button" className="btn2 p" data-testid="repair-save-budget" disabled={busy || saving} onClick={() => { void saveBudget(); }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+      </div>
+    </div>
+  );
+  const sensitive = (
+    <div className="svc-sensitive">
+      <button type="button" className="btn2 s" data-testid="repair-edit-budget" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={startEdit}>Editar presupuesto</button>
+      <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Eliminar orden</button>
+      {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
+    </div>
+  );
+
+  return (
+    <>
+      <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={`${order.device} · ${order.clientName}`} onClose={close}>
+        <div className="svc-steps" aria-hidden="true">
+          {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
+        </div>
+        <div className="svc-now">
+          <Pill status={order.status} kind="REPAIR_STATUS" />
+        </div>
+        {step > 0 ? (
+          <p className="svc-step" data-testid="repair-step">
+            Paso {step} de {statuses.length}
+            {next ? <> · sigue <b>{next.label}</b></> : null}
+          </p>
+        ) : null}
+        {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
+        <div className="svc-fault-card">
+          <span>Falla</span>
+          <b>{repairFault(order)}</b>
+        </div>
+        <div className="svc-pair">
+          <div><span>IMEI</span><b>{order.imei || '—'}</b></div>
+          <div><span>Entrega estimada</span><b className={late ? 'late' : ''}>{dueLabel}</b></div>
+        </div>
+        {editing ? budgetFields : (
+          <>
+            <div className="svc-pair">
+              <div><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
+              <div><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+            </div>
+            {sensitive}
+          </>
+        )}
+        <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
+        <div className="svc-log">
+          <span>Historial</span>
+          <ol>
+            {order.events.map((event) => {
+              const meta = repairStatusMeta(event.status, statuses);
+              const current = event.id === currentEventId;
+              return (
+                <li key={event.id} className={current ? 'now' : undefined}>
+                  <i className={current ? 'now' : undefined} style={current ? undefined : { background: meta.color }} />
+                  <b>{meta.label}</b>
+                  <small>{event.createdAt}</small>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        {order.whatsappUrl ? (
+          <div className="svc-wa">
+            <span>Listo para avisar al cliente</span>
+            <a className="svc-wa-icon" href={order.whatsappUrl} target="_blank" rel="noreferrer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 19l1.2-3.4A8 8 0 1 1 8.6 19.2L5 19z" />
+                <path d="M9 10.2c.2 1.6 1.8 3.2 3.4 3.6.4.1.8 0 1.1-.3l.8-.8c.2-.2.2-.5 0-.7l-1.2-1.2c-.2-.2-.5-.2-.7 0l-.4.4" />
+              </svg>
+              Abrir WhatsApp
+            </a>
           </div>
         ) : null}
         {next ? (

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepairOrder } from '../../types';
 import { ExchangeProvider, type StoreExchange } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -260,5 +260,137 @@ describe('servicio técnico', () => {
     expect(screen.getByText(FX_WARNING)).toBeInTheDocument();
     expect(updateRepairOrder).not.toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();
+  });
+});
+
+describe('servicio técnico en el celular', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    state.repairOrders = [
+      order('101', 'RECIBIDO', { estimatedDelivery: '01/01/2020' }),
+      order('95', 'ESPERANDO_REPUESTO', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: null, estimatedDelivery: '01/01/2099' }),
+    ];
+    state.clients = [{ id: 'c1', name: 'Ejemplo A', phone: '2614000000', dni: '', email: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 }];
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('groups open orders by status and keeps a single new-order button', async () => {
+    const user = userEvent.setup();
+    desk(<ServiceScreen />);
+    expect(screen.queryByTestId('repair-column-RECIBIDO')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tablero' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lista' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Propuesta tentativa/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('service-chips')).toHaveTextContent('Abiertas 2');
+    expect(screen.getByTestId('service-chips')).toHaveTextContent('Recibido 1');
+    expect(screen.getByTestId('repair-group-RECIBIDO')).toHaveTextContent('#OT-0101');
+    expect(screen.getByTestId('repair-card-101')).toHaveTextContent('Atrasada · 01/01');
+    expect(screen.getByTestId('repair-card-101')).toHaveTextContent('Pantalla rota');
+    expect(screen.getByTestId('repair-card-101')).toHaveTextContent('$ 145.000');
+    expect(screen.getByTestId('repair-group-ESPERANDO_REPUESTO')).toHaveTextContent('A cotizar');
+    expect(screen.getByTestId('repair-card-95')).toHaveTextContent('Entrega 01/01');
+    expect(screen.getAllByRole('button', { name: 'Nueva orden' })).toHaveLength(1);
+    expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Recibido 1' }));
+    expect(screen.getByTestId('repair-card-101')).toBeInTheDocument();
+    expect(screen.queryByTestId('repair-card-95')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Abiertas 2' }));
+    await user.click(screen.getByTestId('repair-card-95'));
+    expect(open).toHaveBeenCalledWith({ type: 'ot', id: '95' });
+    await user.click(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' }));
+    expect(open).toHaveBeenCalledWith({ type: 'new-ot' });
+  });
+
+  it('shows the phone detail with history, the next step and the sensitive actions', async () => {
+    const user = userEvent.setup();
+    const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
+    changeRepairStatus.mockImplementation(async (_id: string, status: string) => {
+      const next = order('95', status, {
+        device: 'iPhone 14',
+        clientName: 'Ejemplo C',
+        fault: 'Cámara trasera borrosa',
+        estimate: 120000,
+        estimatedDelivery: '01/01/2020',
+        events: [
+          { id: 'a', status: 'ESPERANDO_REPUESTO', createdAt: '01/10/2026' },
+          { id: 'b', status, createdAt: '08/10/2026' },
+        ],
+        whatsappUrl: status === 'LISTO_PARA_RETIRAR' ? 'https://wa.me/5492614000000?text=listo' : null,
+      });
+      state.repairOrders = [next];
+      return next;
+    });
+    state.repairOrders = [order('95', 'EN_REPARACION', {
+      device: 'iPhone 14',
+      clientName: 'Ejemplo C',
+      fault: 'Cámara trasera borrosa',
+      estimate: 120000,
+      estimatedDelivery: '01/01/2020',
+      events: [{ id: 'a', status: 'EN_REPARACION', createdAt: '02/10/2026' }],
+    })];
+    const view = desk(<RepairOrderDetail id="95" busy={false} />);
+    expect(screen.getByRole('dialog', { name: '#OT-0095' })).toBeInTheDocument();
+    expect(screen.getByText('iPhone 14 · Ejemplo C')).toBeInTheDocument();
+    expect(screen.getByTestId('repair-step')).toHaveTextContent('Paso 4 de 6');
+    expect(screen.getByTestId('repair-step')).toHaveTextContent('sigue');
+    expect(screen.getByTestId('repair-step')).toHaveTextContent('Listo para retirar');
+    expect(screen.getByText('Cámara trasera borrosa')).toBeInTheDocument();
+    expect(screen.getByText('01/01 · atrasada')).toBeInTheDocument();
+    expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.getAllByText('En reparación').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Pasar a Listo para retirar' }));
+    expect(changeRepairStatus).toHaveBeenCalledWith('95', 'LISTO_PARA_RETIRAR');
+    expect(opened).toHaveBeenCalledWith('https://wa.me/5492614000000?text=listo', '_blank', 'noopener,noreferrer');
+    view.rerender(
+      <DeskProvider value={{ tab: 'service', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false, canManageSensitive: true }}>
+        <RepairOrderDetail id="95" busy={false} />
+      </DeskProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', expect.stringContaining('wa.me'));
+    expect(screen.getAllByRole('link', { name: 'Abrir WhatsApp' })).toHaveLength(1);
+    opened.mockRestore();
+  });
+
+  it('says the order starts as Recibido and keeps the status choices', () => {
+    desk(<RepairOrderForm busy={false} error={null} />);
+    expect(screen.getByText('Arranca en «Recibido».')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
+    expect(screen.getByRole('checkbox', { name: /WhatsApp/ })).toBeChecked();
+    expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the budget editor and the delete confirmation on the phone sheet', async () => {
+    const user = userEvent.setup();
+    updateRepairOrder.mockImplementation(async () => {
+      const next = order('95', 'ESPERANDO_REPUESTO', { estimate: 150000, deposit: 20000 });
+      state.repairOrders = [next];
+      return next;
+    });
+    desk(<RepairOrderDetail id="95" busy={false} />);
+    await user.click(screen.getByTestId('repair-edit-budget'));
+    await user.clear(screen.getByLabelText('Presupuesto'));
+    await user.type(screen.getByLabelText('Presupuesto'), '150000');
+    await user.click(screen.getByTestId('repair-save-budget'));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', { estimate: 150000, deposit: 0, currency: null });
+    expect(screen.getByRole('button', { name: 'Eliminar orden' })).toBeEnabled();
   });
 });
