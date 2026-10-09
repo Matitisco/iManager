@@ -436,6 +436,9 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [optionError, setOptionError] = useState<string | null>(null);
   const [hasTrade, setHasTrade] = useState(startWithTrade || Boolean(tradeRef));
+  const phone = usePhoneLayout();
+  const foldTrade = phone && source === 'sales';
+  const [tradeOpen, setTradeOpen] = useState(startWithTrade || Boolean(tradeRef));
   const options = operationOptions[source];
   const productOptions = options?.products ?? [];
   const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
@@ -457,6 +460,10 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
   const [grade, setGrade] = useState(currentTrade?.grade ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (hasTrade) setTradeOpen(true);
+  }, [hasTrade]);
 
   useEffect(() => {
     let active = true;
@@ -627,8 +634,31 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const dueCopy = hasTrade ? `Diferencia a cobrar: ${money.show(difference, typedCurrency)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
+  const tradeBlock = (
+    <>
+      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
+      {hasTrade ? (
+        <>
+          <div className="frow">
+            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
+            <Field label="IMEI recibido"><input value={imei} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value); }} placeholder="Opcional" /></Field>
+          </div>
+          <div className="frow">
+            <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
+            <Field label="Diferencia"><input aria-label="Diferencia" value={money.show(difference, typedCurrency)} readOnly /></Field>
+          </div>
+          <Field label="Estado técnico"><span /></Field>
+          <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
+          <div className="frow">
+            <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
+            <Field label="Grado recibido"><input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Opcional" /></Field>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
   return (
-    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close}>
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={source === 'sales' ? 'sale-sheet' : undefined}>
       {error && <div className="ferr">{error}</div>}
       {optionError && <div className="ferr">{optionError}</div>}
       <ClientField
@@ -649,30 +679,18 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
-      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
-      {hasTrade ? (
-        <>
-          <div className="frow">
-            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
-            <Field label="IMEI recibido"><input value={imei} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value); }} placeholder="Opcional" /></Field>
-          </div>
-          <div className="frow">
-            <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
-            <Field label="Diferencia"><input aria-label="Diferencia" value={money.show(difference, typedCurrency)} readOnly /></Field>
-          </div>
-          <Field label="Estado técnico"><span /></Field>
-          <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
-          <div className="frow">
-            <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
-            <Field label="Grado recibido"><input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Opcional" /></Field>
-          </div>
-        </>
-      ) : null}
+      {foldTrade ? null : tradeBlock}
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
+      {foldTrade ? (
+        <details className="op-fold" data-testid="sale-trade-fold" open={tradeOpen} onToggle={(event) => setTradeOpen(event.currentTarget.open)}>
+          <summary>Canje como parte de pago</summary>
+          <div className="op-fold-body">{tradeBlock}</div>
+        </details>
+      ) : null}
       <Field label="Cobro"><span /></Field>
       <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -717,7 +735,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   }
   const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
   return (
-    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet">
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
@@ -1435,7 +1453,7 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={kind === 'inv' && phone} onClose={close} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={(kind === 'inv' || kind === 'sale') && phone} onClose={close} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);

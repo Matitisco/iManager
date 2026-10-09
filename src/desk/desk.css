@@ -85,6 +85,7 @@
 .dbtn:disabled { opacity: .55; cursor: default; }
 .dbtn svg { width: 16px; height: 16px; }
 .dsel { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); font-size: 13px; font-weight: 700; position: relative; }
+.dsel.on { background: var(--lime-soft); border-color: #F0D56B; }
 .dsel > button { display: inline-flex; align-items: center; gap: 6px; font: inherit; }
 .menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; background: #fff; border-radius: 18px; padding: 6px; box-shadow: 0 14px 40px rgba(0,0,0,.18); z-index: 20; border: 1px solid var(--border); animation: pop .16s ease-out; transform-origin: top right; }
 .menu button { display: flex; align-items: center; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 700; }
@@ -219,6 +220,44 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .htools { position: relative; }
 .menu button:disabled { opacity: .45; }
 .phone-row .pending-sale-label { max-width: 100%; flex-wrap: wrap; }
+.sale-hero { background: #fff; border: 1px solid var(--border); border-radius: 22px; padding: 16px; margin-bottom: 14px; max-width: 100%; }
+.sale-hero .eb { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
+.sale-hero .big { font-size: 32px; font-weight: 800; letter-spacing: -.03em; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.sale-hero .spill { margin-top: 2px; }
+.sale-delta { display: block; margin-top: 8px; color: var(--secondary); font-size: 12px; font-weight: 700; }
+.sale-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.sale-hero-grid.solo { grid-template-columns: minmax(0, 1fr); }
+.sale-hero-grid .mid { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.sale-hero-grid small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }
+.sale-pills .dsel { flex: none; }
+.sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }
+.sale-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
+.sale-sec span:last-child { letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 700; }
+.sale-line { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 0 8px; padding-left: 16px; max-width: 100%; }
+.sale-line::before { content: ""; position: absolute; left: 4px; top: 18px; bottom: 18px; width: 2px; background: #E4E6EA; }
+.sale-node { position: relative; min-width: 0; max-width: 100%; }
+.sale-node::before { content: ""; position: absolute; left: -15px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
+.sale-node.pending::before { background: var(--lime); border-color: #E2B100; }
+.sale-node.cancelled::before { background: #fff; border-color: #C4C8CE; }
+.phone-row:has(.sale-card) { align-items: stretch; }
+.sale-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-width: 0; max-width: 100%; }
+.sale-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; }
+.sale-id { min-width: 0; color: var(--secondary); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.sale-top .spill { flex: none; }
+.sale-card > b, .sale-card > small { max-width: 100%; overflow-wrap: anywhere; }
+.sale-bot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; margin-top: 6px; }
+.sale-bot span { min-width: 0; color: var(--secondary); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.sale-bot b { flex: none; font-size: 16px; letter-spacing: -.02em; }
+.op-drafts.compact { padding: 12px 14px; gap: 8px; }
+.op-drafts.compact .op-draft-list button { align-items: flex-start; }
+.op-fold { margin: 2px 0 14px; border: 1px solid var(--border); border-radius: 16px; background: #fff; }
+.op-fold summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; font-size: 14px; font-weight: 800; cursor: pointer; list-style: none; }
+.op-fold summary::-webkit-details-marker { display: none; }
+.op-fold summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-top: -4px; flex: none; }
+.op-fold[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.op-fold[open] summary { border-bottom: 1px solid var(--border); }
+.op-fold-body { padding: 4px 14px 8px; }
 .dtable .r { text-align: right; }
 .dtable b { font-weight: 700; }
 .dtable.compact th, .dtable.compact td { padding: 10px 12px; }
@@ -947,6 +986,22 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.eq-sheet .spill { max-width: 100%; }
   .sheet.eq-sheet .btn2,
   .sheet.inv-import .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 12px; text-align: center; }
+  .sheet.sale-sheet .frow { grid-template-columns: 1fr; }
+  .sheet.sale-sheet .kv { align-items: flex-start; }
+  .sheet.sale-sheet .kv b { max-width: 62%; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+  .sheet.sale-sheet .sgs,
+  .sheet.sale-sheet .spill,
+  .sheet.sale-sheet .op-summary,
+  .sheet.sale-sheet .eqs-note,
+  .sheet.sale-sheet .fl > span { max-width: 100%; overflow-wrap: anywhere; }
+  .sheet.sale-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 12px; text-align: center; min-width: 0; }
+  .sheet.sale-sheet .sacts:has(> .btn2:nth-child(3)) { grid-template-columns: 1fr; }
+  .toast {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    left: 50%;
+    z-index: 70;
+  }
   .sheet.inv-import .inv-drop { padding: 28px 12px !important; }
   .sheet.inv-import .overflow-x-auto { overflow-x: hidden; max-width: 100%; }
   .sheet.inv-import table,

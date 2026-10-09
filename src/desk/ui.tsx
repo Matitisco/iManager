@@ -75,7 +75,14 @@ export function signalDesk(name: 'desk-check' | 'desk-eq-saved', detail?: string
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
-export function MenuButton({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+export function MenuButton({ label, options, value, onChange, testId, active }: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  testId?: string;
+  active?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -94,7 +101,7 @@ export function MenuButton({ label, options, value, onChange }: { label: string;
     };
   }, [open]);
   return (
-    <div className="dsel" ref={box}>
+    <div className={`dsel${active ? ' on' : ''}`} ref={box} data-testid={testId}>
       <button type="button" onClick={() => setOpen((current) => !current)}>
         {label}
         <ChevronIcon />
