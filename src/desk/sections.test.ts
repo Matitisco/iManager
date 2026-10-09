@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canOpenSection, canSeeFinancials, visibleSections } from './sections';
+import { canOpenSection, canSeeFinancials, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
   it('keeps every section when access was never customized, and settings always', () => {
@@ -20,5 +20,25 @@ describe('desk sections', () => {
     expect(canSeeFinancials(['sales'], 'MANAGER')).toBe(false);
     expect(canSeeFinancials(null, 'STAFF')).toBe(false);
     expect(canSeeFinancials(['reports', 'sales'], 'STAFF')).toBe(false);
+  });
+
+  it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {
+    expect(mobileTabs(null, 'OWNER')).toEqual({
+      bar: ['dashboard', 'inventory', 'sales', 'reports'],
+      more: ['tradeins', 'clients', 'service', 'notifications'],
+    });
+    expect(mobileTabs(null, 'STAFF')).toEqual({
+      bar: ['dashboard', 'inventory', 'sales', 'tradeins'],
+      more: ['clients', 'service', 'notifications'],
+    });
+    expect(mobileTabs(['reports', 'sales'], 'STAFF').bar).not.toContain('reports');
+    expect(mobileTabs(['dashboard', 'sales', 'reports', 'service'], 'MANAGER')).toEqual({
+      bar: ['dashboard', 'sales', 'reports', 'service'],
+      more: [],
+    });
+    expect(mobileTabs(['clients'], 'MANAGER')).toEqual({
+      bar: ['clients'],
+      more: [],
+    });
   });
 });

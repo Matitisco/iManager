@@ -75,11 +75,16 @@ test.describe('phone', () => {
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Service phone ${testInfo.parallelIndex}`);
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
-    await page.getByTestId('blue-widget').scrollIntoViewIfNeeded();
-    const bar = await page.locator('.side').boundingBox();
-    expect(bar?.height ?? 0).toBeLessThan(90);
+    await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-variant', 'chip');
+    await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
+    await expect(page.locator('.side')).toHaveCount(0);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-dolar.png` });
-    await page.getByTestId('sidebar-tab-service').click();
+    const service = page.getByTestId('sidebar-tab-service');
+    if (!(await service.isVisible())) {
+      await page.getByTestId('sidebar-tab-more').click();
+      await expect(service).toBeVisible();
+    }
+    await service.click();
     await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-servicio.png` });
   });

@@ -7,7 +7,8 @@ export type DeskTab =
   | 'service'
   | 'reports'
   | 'notifications'
-  | 'settings';
+  | 'settings'
+  | 'more';
 
 export type Overlay =
   | { type: 'new-eq' }

@@ -28,3 +28,23 @@ export function canOpenSection(id: string, stored: string[] | null | undefined, 
 export function canSeeFinancials(stored: string[] | null | undefined, role?: string | null) {
   return canOpenSection('reports', stored, role);
 }
+
+/** Orden de la barra móvil: los 4 primeros permitidos quedan abajo; el resto va a Más. */
+export const MOBILE_BAR_CANDIDATES: DeskSectionId[] = [
+  'dashboard',
+  'inventory',
+  'sales',
+  'reports',
+  'tradeins',
+  'clients',
+  'service',
+  'notifications',
+];
+
+export function mobileTabs(stored: string[] | null | undefined, role?: string | null, limit = 4) {
+  const allowed = MOBILE_BAR_CANDIDATES.filter((id) => canOpenSection(id, stored, role));
+  return {
+    bar: allowed.slice(0, limit),
+    more: allowed.slice(limit),
+  };
+}

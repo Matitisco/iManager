@@ -6,10 +6,10 @@ import { ExchangeProvider } from './exchange';
 import { BLUE_REFRESH_MS, BLUE_STORAGE_KEY, argentinaDay, shiftDay } from './blue-rate';
 import { formatMoney } from './format';
 
-function renderWidget() {
+function renderWidget(variant?: 'chip') {
   return render(
     <ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'auto', exchangeSource: 'blue', manualBuy: null, manualSell: null }}>
-      <BlueDollar />
+      <BlueDollar variant={variant} />
     </ExchangeProvider>,
   );
 }
@@ -143,5 +143,21 @@ describe('blue dollar widget', () => {
     release?.();
     expect(await screen.findByText(/Act\. 21:40 · DolarApi/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the same sheet from the compact phone chip', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', mockRates());
+    renderWidget('chip');
+    const widget = screen.getByTestId('blue-widget');
+    expect(widget).toHaveAttribute('data-variant', 'chip');
+    expect(widget).toHaveAttribute('data-state', 'loading');
+    await waitFor(() => expect(widget).toHaveAttribute('data-state', 'ready'));
+    expect(screen.getByText('Blue')).toBeInTheDocument();
+    expect(widget).toHaveTextContent(formatMoney(1280));
+    expect(widget).toHaveTextContent(formatMoney(1300));
+    await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
+    expect(screen.getByRole('heading', { name: 'Dólar blue' })).toBeInTheDocument();
+    expect(screen.getByTestId('blue-overlay')).toBeInTheDocument();
   });
 });

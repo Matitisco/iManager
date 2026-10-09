@@ -40,7 +40,12 @@ async function expectInside(page: Page, selector: string) {
 }
 
 async function openService(page: Page) {
-  await page.getByTestId('sidebar-tab-service').click();
+  const tab = page.getByTestId('sidebar-tab-service');
+  if (!(await tab.isVisible())) {
+    await page.getByTestId('sidebar-tab-more').click();
+    await expect(tab).toBeVisible();
+  }
+  await tab.click();
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
   await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
   await expect(page.getByText(/propuesta exploratoria/)).toHaveCount(0);
