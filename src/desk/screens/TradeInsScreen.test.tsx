@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PointerEventsCheckLevel } from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TradeIn } from '../../types';
 import type { CatalogOption } from '../../services/catalogs-api';
 import { DeskProvider } from '../ui';
@@ -10,6 +11,7 @@ const state = vi.hoisted(() => ({
   tradeIns: [] as TradeIn[],
   clients: [{ id: 'client', name: 'Ana Pérez' }],
   catalog: { ready: true, options: [] as CatalogOption[] },
+  operationDrafts: [] as TradeIn[],
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => state }));
 vi.mock('../catalog', () => ({ useCatalogs: () => state.catalog }));
@@ -127,5 +129,92 @@ describe('Trade-ins table', () => {
     await user.clear(search); await user.type(search, 'No existe');
     expect(screen.getByText('No encontré canjes.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tradeins-timeline')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tradeins-empty')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
+  });
+});
+
+describe('Trade-ins on a phone', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    state.tradeIns = [
+      trade(1, { clientId: '', clientName: 'Cliente Ejemplo A', deviceReceived: 'iPhone 11 64GB', deviceGiven: 'iPhone 13 128GB', takeValue: 300000, differencePaid: 350000, status: 'APROBADO', confirmationStatus: 'CONFIRMED' }),
+      trade(2, { status: 'PENDIENTE', deviceReceived: 'iPhone 12', deviceGiven: 'iPhone 14', takeValue: 420000, differencePaid: 680000 }),
+    ];
+    state.operationDrafts = [];
+    state.catalog = { ready: true, options: [
+      { id: 'pending', kind: 'TRADE_IN_STATUS', value: 'PENDIENTE', label: 'Pendiente', color: '#E8A33D', isSystem: true, sortOrder: 0, count: 1 },
+      { id: 'approved', kind: 'TRADE_IN_STATUS', value: 'APROBADO', label: 'Aprobado', color: '#25A66A', isSystem: true, sortOrder: 1, count: 1 },
+    ] };
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('shows the timeline, the counter and the dock without the desktop table', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    render(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false, back: vi.fn() }}><TradeInsScreen /></DeskProvider>);
+    expect(screen.getByRole('heading', { name: 'Canjes' })).toBeInTheDocument();
+    expect(screen.getByText('2 canjes · 1 en curso')).toBeInTheDocument();
+    expect(screen.getByTestId('page-back')).toBeInTheDocument();
+    const timeline = screen.getByTestId('tradeins-timeline');
+    expect(timeline).toHaveTextContent('#C-0001');
+    expect(timeline).toHaveTextContent('Recibido: iPhone 11 64GB');
+    expect(timeline).toHaveTextContent('Cliente Ejemplo A');
+    expect(timeline).toHaveTextContent('Entrega: iPhone 13 128GB');
+    expect(timeline).toHaveTextContent('$ 300.000');
+    expect(timeline).toHaveTextContent('dif. $ 350.000');
+    expect(timeline).toHaveTextContent('Aprobado');
+    expect(timeline).toHaveTextContent('Canje confirmado');
+    expect(screen.getByTestId('mobile-dock')).toHaveTextContent('Nuevo canje');
+    expect(screen.getByTestId('mobile-dock')).toHaveTextContent('Importar');
+    expect(screen.getAllByTestId('row-menu').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: 'Canje' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recientes' })).toBeInTheDocument();
+
+    await user.click(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nuevo canje' }));
+    expect(open).toHaveBeenLastCalledWith({ type: 'new-cj' });
+    await user.click(within(timeline).getByText('Cliente Ejemplo A'));
+    expect(open).toHaveBeenLastCalledWith({ type: 'cj', id: '1' });
+  });
+
+  it('filters by a real status and shows the empty state', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const view = renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Pendiente' }));
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente Ejemplo A')).not.toBeInTheDocument();
+    view.unmount();
+
+    state.tradeIns = [];
+    renderScreen();
+    expect(screen.getByTestId('tradeins-empty')).toHaveTextContent('No hay canjes');
+    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(screen.getByText('0 canjes · 0 en curso')).toBeInTheDocument();
+    expect(within(screen.getByTestId('tradeins-empty')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
+  });
+
+  it('keeps pending trade-ins ready to resume', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    state.tradeIns = [];
+    state.operationDrafts = [trade(4, { confirmationStatus: 'PENDING', clientId: '', clientName: 'Mostrador', deviceReceived: 'Galaxy A' })];
+    renderScreen();
+    expect(screen.getByText('Canjes pendientes de confirmar')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Retomar/ }));
+    expect(open).toHaveBeenLastCalledWith({ type: 'edit-cj', id: '4', source: 'tradeins' });
   });
 });

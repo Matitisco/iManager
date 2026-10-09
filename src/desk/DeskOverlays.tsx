@@ -425,7 +425,6 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const context = useAppContext();
   const money = useMoney();
   const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
-  const { close } = useDesk();
   const catalogs = useCatalogs();
   const requestKey = useRef(`desk-${crypto.randomUUID()}`);
   const dirty = useRef(new Set<string>());
@@ -439,6 +438,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const phone = usePhoneLayout();
   const foldTrade = phone && source === 'sales';
   const [tradeOpen, setTradeOpen] = useState(startWithTrade || Boolean(tradeRef));
+  const { close, go } = useDesk();
   const options = operationOptions[source];
   const productOptions = options?.products ?? [];
   const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
@@ -532,6 +532,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   ].filter((item) => item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
   const difference = parseMoney(amount) - parseMoney(take);
   const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
+  const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
   const buildInput = (draft: boolean): OperationInput => ({
     date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
@@ -632,6 +633,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
+  const sheetClass = [source === 'sales' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const dueCopy = hasTrade ? `Diferencia a cobrar: ${money.show(difference, typedCurrency)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   const tradeBlock = (
@@ -658,7 +660,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
     </>
   );
   return (
-    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={source === 'sales' ? 'sale-sheet' : undefined}>
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={sheetClass || undefined}>
       {error && <div className="ferr">{error}</div>}
       {optionError && <div className="ferr">{optionError}</div>}
       <ClientField
@@ -678,6 +680,12 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
         onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
+      {noStock ? (
+        <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
+          <span>No hay equipos disponibles en el inventario.</span>
+          <button type="button" className="wlink" onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
+        </div>
+      ) : null}
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       {foldTrade ? null : tradeBlock}
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
@@ -799,7 +807,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   return (
-    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close}>
+    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} className="cj-sheet">
       {error && <div className="ferr">{error}</div>}
       <ClientField clients={clients} value={buyer} linked={Boolean(clientId)} error={bad.client}
         onValue={(value) => { setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
@@ -868,13 +876,13 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
   useEffect(() => {
     setTechnicalStatus(trade?.status || 'PENDIENTE');
   }, [trade?.id, trade?.status]);
-  if (!trade && !detailError) return <Sheet title="Cargando registro" onClose={close}><div className="wempty">Cargando detalle...</div></Sheet>;
-  if (!trade) return <Sheet title="Registro no disponible" onClose={close}><div className="ferr">{detailError}</div></Sheet>;
+  if (!trade && !detailError) return <Sheet title="Cargando registro" onClose={close} className="cj-sheet"><div className="wempty">Cargando detalle...</div></Sheet>;
+  if (!trade) return <Sheet title="Registro no disponible" onClose={close} className="cj-sheet"><div className="ferr">{detailError}</div></Sheet>;
   const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
   if (archivedReceivedLink) {
     const archivedReceived = loadedOperation?.inventory.find((item) => item.archivedAt);
     return (
-      <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close}>
+      <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close} className="cj-sheet">
         {detailError && <div className="ferr">{detailError}</div>}
         {archivedReceived ? <>
           <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
@@ -932,7 +940,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
       );
     }
     return (
-      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close}>
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close} className="cj-sheet">
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
         {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Cancelada" by={trade.cancelledBy} at={trade.cancelledAt} /> : null}
@@ -966,7 +974,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close}>
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} className="cj-sheet">
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
@@ -1453,7 +1461,7 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={(kind === 'inv' || kind === 'sale') && phone} onClose={close} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={(kind === 'inv' || kind === 'sale' || kind === 'cj') && phone} onClose={close} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
