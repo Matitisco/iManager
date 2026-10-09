@@ -32,6 +32,7 @@ export interface AppSessionResponse {
     role: "OWNER" | "MANAGER" | "STAFF";
     isDefault: boolean;
     sections: string[] | null;
+    sensitiveAccess: boolean | null;
   } | null;
   stores: UserStoreSummary[];
   onboardingRequired: boolean;
@@ -86,6 +87,7 @@ export async function buildAppSessionForUser(
       role: membership.role,
       isDefault: membership.isDefault,
       sections: membership.role === "OWNER" ? null : normalizeSections(membership.sections),
+      sensitiveAccess: membership.role === "OWNER" ? null : membership.sensitiveAccess ?? null,
     },
     stores,
     onboardingRequired: false,

@@ -86,9 +86,9 @@ describe("integrated operation API", () => {
     expect(sale.statusCode).toBe(201);
     const statusChange = await app.inject({ method: "PATCH", url: `/api/inventory/${fixture.inventoryItem.id}`, headers, payload: { status: "DISPONIBLE" } });
     expect(statusChange.statusCode).toBe(409);
-    const sameStatusEdit = await app.inject({ method: "PATCH", url: `/api/inventory/${fixture.inventoryItem.id}`, headers, payload: { status: "VENDIDO", price: 1250 } });
+    const sameStatusEdit = await app.inject({ method: "PATCH", url: `/api/inventory/${fixture.inventoryItem.id}`, headers, payload: { status: "VENDIDO" } });
     expect(sameStatusEdit.statusCode).toBe(200);
-    expect(sameStatusEdit.json().inventoryItem).toMatchObject({ status: "VENDIDO", pendingSaleRegistration: false, price: 1250 });
+    expect(sameStatusEdit.json().inventoryItem).toMatchObject({ status: "VENDIDO", pendingSaleRegistration: false, price: 1200 });
     const duplicate = await app.inject({ method: "POST", url: "/api/operations/inventory", headers, payload: {
       productId: fixture.inventoryItem.id, clientName: "Otra venta", amount: 1200, paymentMethod: "EFECTIVO", status: "COMPLETADA",
     } });
@@ -169,7 +169,7 @@ describe("integrated operation API", () => {
   it("updates a linked operation when its outgoing device changes and blocks access from unrelated sources", async () => {
     const app = getApp();
     const context = await seedStoreContext({ role: "STAFF" });
-    await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["sales", "inventory"] } });
+    await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["sales", "inventory"], sensitiveAccess: true } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const second = await prisma.inventoryItem.create({ data: { storeId: context.store!.id, model: "iPhone 13", capacity: "128GB", color: "Blue", condition: "NUEVO", grade: "A", batteryHealth: "100%", cost: 900, price: 1400, status: "DISPONIBLE" } });
     const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };

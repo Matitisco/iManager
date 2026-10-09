@@ -27,6 +27,7 @@ export interface AppMembershipSummary {
   role: AppMembershipRole;
   isDefault: boolean;
   sections?: string[] | null;
+  sensitiveAccess?: boolean | null;
 }
 
 export interface AppUserStore {

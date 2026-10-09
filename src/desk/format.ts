@@ -1,7 +1,7 @@
 import type { Client, Product, Sale, TradeIn } from '../types';
-import { formatArDate, parseArDate } from '../lib/ar-date';
+import { formatArDate, formatArDateTime, parseArDate } from '../lib/ar-date';
 
-export { formatArDate };
+export { formatArDate, formatArDateTime };
 
 export function parseAppDate(value: string | null | undefined): Date | null {
   return parseArDate(value);

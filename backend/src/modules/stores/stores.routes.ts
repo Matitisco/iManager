@@ -33,6 +33,7 @@ const memberRoleSchema = z.object({
 
 const memberSectionsSchema = z.object({
   sections: z.array(z.string().trim().min(1).max(40)).max(20),
+  sensitiveAccess: z.boolean().nullable().optional(),
 });
 
 const createStoreSchema = z.object({
@@ -199,8 +200,8 @@ export async function storesRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Forbidden" });
       }
       try {
-        const { sections } = memberSectionsSchema.parse(request.body);
-        const member = await updateMemberSections(storeId, memberId, sections, request.appUser.role, request.appUser.userId);
+        const { sections, sensitiveAccess } = memberSectionsSchema.parse(request.body);
+        const member = await updateMemberSections(storeId, memberId, sections, request.appUser.role, request.appUser.userId, sensitiveAccess);
         return { member };
       } catch (err: unknown) {
         if (err instanceof ZodError) {

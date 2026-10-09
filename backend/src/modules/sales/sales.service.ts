@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
+import { cancellationStamp, writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface SaleInput {
@@ -45,6 +46,8 @@ export interface SaleResponse {
   customFields: Record<string, unknown>;
   tradeInId: string | null;
   integratedOperation: boolean;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
 }
 
 type SaleRecord = {
@@ -63,6 +66,8 @@ type SaleRecord = {
   customFields: Prisma.JsonValue | null;
   tradeInId: string | null;
   integratedOperation: boolean;
+  cancelledBy?: string | null;
+  cancelledAt?: Date | null;
   inventoryItem?: { model: string; capacity: string } | null;
 };
 
@@ -157,6 +162,8 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     customFields: toCustomFields(sale.customFields),
     tradeInId: sale.tradeInId ?? null,
     integratedOperation: sale.integratedOperation,
+    cancelledBy: sale.cancelledBy ?? null,
+    cancelledAt: sale.cancelledAt ? sale.cancelledAt.toISOString() : null,
   };
 }
 
@@ -250,7 +257,8 @@ export async function createSale(storeId: string, input: SaleInput) {
 export async function updateSale(
   storeId: string,
   id: string,
-  input: SalePatchInput
+  input: SalePatchInput,
+  actor?: Actor | null,
 ) {
   const existing = await prisma.sale.findFirst({
     where: { id, storeId },
@@ -305,12 +313,14 @@ export async function updateSale(
     const newSoldAt = input.date ? resolveDate(input.date, existing.soldAt) : existing.soldAt;
     const newDateLabel = input.date ? formatArDate(newSoldAt) : existing.dateLabel;
     const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
+    const cancelling = input.status === "CANCELADA" && existing.status !== "CANCELADA";
 
     const updated = await tx.sale.update({
       where: { id },
       data: {
         paymentMethod: input.paymentMethod ?? existing.paymentMethod,
         status: input.status ?? existing.status,
+        ...(cancelling ? cancellationStamp(actor) : {}),
         dateLabel: newDateLabel,
         soldAt: newSoldAt,
         amount: newAmount,
@@ -325,6 +335,16 @@ export async function updateSale(
             : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
       },
     });
+
+    if (cancelling && actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "sale.cancelled",
+        entityType: "sale",
+        entityId: id,
+      });
+    }
 
     if (existing.inventoryItemId && existing.inventoryItemId !== nextInventoryItemId) {
       await tx.inventoryItem.updateMany({
@@ -370,7 +390,7 @@ export async function updateSale(
   });
 }
 
-export async function deleteSale(storeId: string, id: string) {
+export async function deleteSale(storeId: string, id: string, actor?: Actor | null) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.sale.findFirst({
       where: { id, storeId },
@@ -407,6 +427,17 @@ export async function deleteSale(storeId: string, id: string) {
           totalSpent: aggregate._sum.amount ?? new Decimal(0),
           lastPurchaseAt: aggregate._max.soldAt ?? null,
         },
+      });
+    }
+
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "sale.deleted",
+        entityType: "sale",
+        entityId: id,
+        detail: existing.deviceLabel || existing.clientName || null,
       });
     }
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
@@ -62,9 +62,9 @@ function sale(overrides: Partial<Sale> = {}): Sale {
   };
 }
 
-function renderOverlay(overlay: Overlay) {
+function renderOverlay(overlay: Overlay, canManageSensitive = true) {
   return render(
-    <DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}>
+    <DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false, canManageSensitive }}>
       <DeskOverlays overlay={overlay} />
     </DeskProvider>,
   );
@@ -153,5 +153,37 @@ describe('operation detail', () => {
     expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();
+  });
+
+  it('hides cancel and delete when the member cannot manage sensitive actions', () => {
+    renderOverlay({ type: 'cj', id: 't1' }, false);
+    expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
+    cleanup();
+
+    renderOverlay({ type: 'ctx', kind: 'sale', id: 's1', label: 'V-0004', x: 10, y: 10 }, false);
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+  });
+
+  it('shows who cancelled the sale on the record', () => {
+    ctx.sales = [sale({
+      status: 'CANCELADA',
+      tradeInId: null,
+      cancelledBy: 'Ana Pérez',
+      cancelledAt: '2026-10-09T15:04:00.000Z',
+    })];
+    renderOverlay({ type: 'sale', id: 's1' });
+    expect(screen.getByText('Cancelada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
+  });
+
+  it('shows who cancelled the trade on the record', () => {
+    ctx.tradeIns = [trade({
+      confirmationStatus: 'CANCELLED',
+      status: 'CANCELADO',
+      cancelledBy: 'Luis Socio',
+      cancelledAt: '2026-10-09T18:30:00.000Z',
+    })];
+    renderOverlay({ type: 'cj', id: 't1' });
+    expect(screen.getByText('Cancelada por Luis Socio el 09/10/2026 15:30')).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
+import { writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export interface TradeInInput {
@@ -48,6 +49,8 @@ export interface TradeInResponse {
   draftAmount: number | null;
   draftPaymentMethod: string | null;
   draftPaymentStatus: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
 }
 
 export interface TradeInCategoryResponse {
@@ -100,6 +103,8 @@ type TradeInRecord = {
   draftAmount: Decimal | null;
   draftPaymentMethod: string | null;
   draftPaymentStatus: string | null;
+  cancelledBy?: string | null;
+  cancelledAt?: Date | null;
   sale?: { id: string } | null;
 };
 
@@ -185,6 +190,8 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     draftAmount: tradeIn.draftAmount?.toNumber() ?? null,
     draftPaymentMethod: tradeIn.draftPaymentMethod,
     draftPaymentStatus: tradeIn.draftPaymentStatus,
+    cancelledBy: tradeIn.cancelledBy ?? null,
+    cancelledAt: tradeIn.cancelledAt ? tradeIn.cancelledAt.toISOString() : null,
   };
 }
 
@@ -344,7 +351,7 @@ export async function updateTradeIn(
   return serializeTradeIn(updated as TradeInRecord);
 }
 
-export async function deleteTradeIn(storeId: string, id: string) {
+export async function deleteTradeIn(storeId: string, id: string, actor?: Actor | null) {
   const existing = await prisma.tradeIn.findFirst({
     where: { id, storeId },
   });
@@ -359,6 +366,17 @@ export async function deleteTradeIn(storeId: string, id: string) {
   await prisma.tradeIn.delete({
     where: { id },
   });
+
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "trade.deleted",
+      entityType: "trade",
+      entityId: id,
+      detail: existing.deviceReceived,
+    });
+  }
 
   return true;
 }

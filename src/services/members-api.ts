@@ -11,6 +11,7 @@ export interface TeamMember {
   isDefault: boolean;
   createdAt: string;
   sections?: string[] | null;
+  sensitiveAccess?: boolean | null;
   user: {
     id: string;
     displayName: string | null;
@@ -67,11 +68,12 @@ export async function updateMemberSections(
   storeId: string,
   memberId: string,
   sections: string[],
+  sensitiveAccess?: boolean | null,
 ): Promise<TeamMember> {
   const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}/sections`, {
     method: 'PATCH',
     headers: await authHeaders(user),
-    body: JSON.stringify({ sections }),
+    body: JSON.stringify(sensitiveAccess === undefined ? { sections } : { sections, sensitiveAccess }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

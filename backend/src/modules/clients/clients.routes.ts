@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess } from "../../middleware/section-access.js";
+import { requireSensitiveActor } from "../stores/sensitive-access.js";
 import type { ClientInput } from "./clients.service.js";
 import {
   createClient,
@@ -182,7 +183,9 @@ export async function clientsRoutes(app: FastifyInstance) {
       }
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
-      const deleted = await deleteClient(request.appUser.storeId, params.id);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      const deleted = await deleteClient(request.appUser.storeId, params.id, actor);
 
       if (!deleted) {
         return reply.code(404).send({ error: "Client not found" });

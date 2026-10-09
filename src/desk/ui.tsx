@@ -15,6 +15,7 @@ type DeskUi = {
   close: () => void;
   toast: (message: string) => void;
   isStaff: boolean;
+  canManageSensitive?: boolean;
 };
 
 const DeskContext = createContext<DeskUi | null>(null);

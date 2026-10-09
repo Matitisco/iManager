@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatArDate, formatStoredDate, parseArDate } from './ar-date';
+import { formatArDate, formatArDateTime, formatStoredDate, parseArDate } from './ar-date';
 
 describe('Argentine dates', () => {
   it('formats a calendar day as DD/MM/YYYY', () => {
@@ -20,6 +20,10 @@ describe('Argentine dates', () => {
     expect(formatStoredDate('07 de oct de 2026', new Date(2020, 0, 1))).toBe('07/10/2026');
     expect(formatStoredDate('7 oct. 2026', new Date(2020, 0, 1))).toBe('07/10/2026');
     expect(formatStoredDate('7 de octubre de 2026', new Date(2020, 0, 1))).toBe('07/10/2026');
+  });
+
+  it('formats an instant as day/month/year and 24-hour time in Argentina', () => {
+    expect(formatArDateTime('2026-10-09T15:04:00.000Z')).toBe('09/10/2026 12:04');
   });
 
   it('rejects impossible days and falls back to the stored instant', () => {

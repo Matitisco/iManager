@@ -20,6 +20,7 @@ import {
   formatInputMoney,
   formatMoney,
   formatArDate,
+  formatArDateTime,
   formatShortDate,
   parseMoney,
   paymentLabel,
@@ -114,15 +115,20 @@ export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
   return <OverlayBody key={`${overlay.type}-${'id' in overlay ? overlay.id : ''}`} overlay={overlay} />;
 }
 
+function AuditLine({ action, by, at }: { action: string; by?: string | null; at?: string | null }) {
+  if (!by || !at) return null;
+  return <p className="eqs-note">{action} por {by} el {formatArDateTime(at)}</p>;
+}
+
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
-  const { open, close } = useDesk();
+  const { open, close, canManageSensitive = true } = useDesk();
   const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
       <div className="ctx" style={{ top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
         <div className="ctxh">{overlay.label}</div>
         <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button>
-        <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />Eliminar</button>
+        {canManageSensitive ? <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />Eliminar</button> : null}
       </div>
     </div>
   );
@@ -249,6 +255,8 @@ function EquipmentDetail({ id }: { id: string }) {
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close}>
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? formatMoney(item.price) : 'Sin precio'}</div></div>
+      <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
+      <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
@@ -271,10 +279,11 @@ function EquipmentDetail({ id }: { id: string }) {
 function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { inventory, addProduct, updateProduct, appSession } = useAppContext();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
-  const { close, open } = useDesk();
+  const { close, open, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = inventory.find((item) => item.id === id);
+  const lockPrice = Boolean(current) && !canManageSensitive;
   const caps = [...new Set([...BASE_CAPS, ...inventory.map((item) => item.capacity).filter(Boolean)])];
   const conditions = [
     ...BASE_CONDITIONS,
@@ -306,7 +315,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       <Field label="IMEI" error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
-      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
+      <Field label="Precio de venta" error={bad.price}><input value={price} inputMode="numeric" disabled={lockPrice} onChange={(event) => { setPrice(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'price'); }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -314,7 +323,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
         if (imei.trim() && imei.replace(/\D/g, '').length !== 15) next.imei = 'El IMEI tiene 15 dígitos';
-        if (!parseMoney(price)) next.price = 'Completá este dato';
+        if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
         if (Object.keys(next).length) return;
         void run(async () => {
@@ -327,7 +336,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           grade: !condition ? '' : condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
           batteryHealth: battery ? `${battery}%` : '',
           cost: seeCosts ? (current?.cost ?? 0) : 0,
-          price: parseMoney(price),
+          price: lockPrice && current ? current.price : parseMoney(price),
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
@@ -621,7 +630,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
 
 function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
   const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation } = useAppContext();
-  const { close, open, toast } = useDesk();
+  const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -646,6 +655,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{formatMoney(sale.amount)}</div></div>
+      {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
@@ -659,14 +669,14 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       </> : null}
       {sale.status === 'PENDIENTE' ? (
         <div className="sacts">
-          <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), `${saleCode(sale)} cancelada`)}>Cancelar venta</button>
+          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), `${saleCode(sale)} cancelada`)}>Cancelar venta</button> : null}
           <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
           {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
         </div>
       ) : (
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+          {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
             const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${formatMoney(sale.amount)} · ${paymentLabel(sale.paymentMethod)}`;
@@ -746,7 +756,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
 
 function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormProps & { id: string; source?: OperationSource; kind?: string }) {
   const { tradeIns, sales, clients, updateTradeIn, updateTradeOperation, cancelTradeOperation, fetchTradeOperation } = useAppContext();
-  const { close, open } = useDesk();
+  const { close, open, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
   const archivedReceivedLink = kind === 'ARCHIVED_TRADE_IN_RECEIVED';
   const [loadedOperation, setLoadedOperation] = useState<Awaited<ReturnType<typeof fetchTradeOperation>> | null>(null);
@@ -821,6 +831,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close}>
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
+        {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Cancelada" by={trade.cancelledBy} at={trade.cancelledAt} /> : null}
         {trade.confirmationStatus !== 'CANCELLED' ? (
           <>
             <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
@@ -840,7 +851,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
           {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 s" type="button" disabled={busy || technicalStatus === trade.status} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button> : null}
           {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button> : null}
           {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button> : null}
-          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 p" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+          {trade.confirmationStatus !== 'CANCELLED' && canManageSensitive ? <button className="btn2 p" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
         </div>
       </Sheet>
     );
