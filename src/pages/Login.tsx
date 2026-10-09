@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight, Info } from 'lucide-react';
 import { PasswordResetDialog } from '../components/PasswordResetDialog';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
+import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -29,6 +30,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [resetOpen, setResetOpen] = useState(false);
   const inviteState = useInvitationPreview(inviteToken);
   const googleAttempt = useRef(0);
+  const phone = usePhoneLayout();
+  const keyboardInset = useKeyboardInset(phone);
 
   useEffect(() => {
     // Firebase delays rejecting a closed popup. Restore the button when the
@@ -137,8 +140,21 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
     setConfirmPassword('');
   };
 
+  const keepFieldVisible = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (!phone) return;
+    const field = event.currentTarget;
+    requestAnimationFrame(() => field.scrollIntoView({ block: 'center' }));
+  };
+
+  const fieldClass =
+    'w-full bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all text-sm max-[760px]:text-base max-[760px]:max-w-full';
+
   return (
-    <div className="min-h-screen flex bg-white font-sans overflow-hidden">
+    <div
+      data-testid="auth-screen"
+      className="min-h-screen flex bg-white font-sans overflow-hidden max-[760px]:h-dvh max-[760px]:min-h-0 max-[760px]:overflow-x-clip max-[760px]:bg-[#F7F8FA]"
+      style={phone ? { height: `calc(100dvh - ${keyboardInset}px)` } : undefined}
+    >
       <div className="hidden lg:flex lg:w-1/2 bg-zinc-950 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none bg-zinc-950">
           <motion.div
@@ -252,10 +268,15 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative">
-        <motion.div layout className="w-full max-w-md">
-          <div className="lg:hidden flex items-center gap-3 mb-12">
-            <div className="bg-black text-white p-2.5 rounded-xl">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative max-[760px]:block max-[760px]:h-full max-[760px]:overflow-hidden max-[760px]:p-0">
+        <form
+          onSubmit={handleEmailSubmit}
+          className="w-full max-w-md max-[760px]:flex max-[760px]:h-full max-[760px]:max-w-none max-[760px]:flex-col"
+        >
+        <div data-testid="auth-scroll" className="max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:px-5 max-[760px]:pt-6 max-[760px]:pb-2">
+        <motion.div layout className="w-full max-w-md max-[760px]:max-w-none">
+          <div className="lg:hidden flex items-center gap-3 mb-12 max-[760px]:mb-8">
+            <div className="bg-black text-white p-2.5 rounded-xl max-[760px]:bg-[#FFD000] max-[760px]:text-[#16181D] max-[760px]:rounded-2xl">
               <Package size={24} />
             </div>
             <span className="text-2xl font-bold tracking-tight">iManager</span>
@@ -280,7 +301,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
+                  data-testid="login-invite-banner"
+                  className={`mb-6 rounded-2xl border px-4 py-4 text-left max-[760px]:border-[#E6E8EC] max-[760px]:border-l-4 max-[760px]:border-l-[#FFD000] max-[760px]:bg-white max-[760px]:text-[#16181D] max-[760px]:shadow-sm ${
                     inviteState.invalid
                       ? 'border-amber-200 bg-amber-50 text-amber-900'
                       : inviteState.error
@@ -288,46 +310,53 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                         : 'border-blue-200 bg-blue-50 text-blue-900'
                   }`}
                 >
+                  <div className="min-w-0 max-[760px]:flex max-[760px]:items-start max-[760px]:gap-3">
+                    {inviteState.isLoading && (
+                      <span className="mt-0.5 hidden h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#E6E8EC] border-t-[#16181D] max-[760px]:inline-block" />
+                    )}
+                    <div className="min-w-0">
                   {inviteState.isLoading ? (
                     <>
                       <p className="text-sm font-semibold">
                         {inviteState.isRetrying ? 'Reintentando verificación de invitación…' : 'Verificando invitación…'}
                       </p>
-                      <p className="mt-1 text-sm text-blue-800">
+                      <p className="mt-1 text-sm text-blue-800 max-[760px]:text-[#4B5160] max-[760px]:break-words">
                         {inviteState.isRetrying
-                          ? 'Railway está tardando en responder. Seguimos intentando cargar los datos de la tienda.'
+                          ? 'La tienda está tardando en responder. Seguimos intentando cargar los datos.'
                           : 'Estamos cargando los datos de la tienda antes de que inicies sesión.'}
                       </p>
                     </>
                   ) : inviteState.preview ? (
                     <>
                       <p className="text-sm font-semibold">Te invitaron a una tienda</p>
-                      <p className="mt-1 text-sm">
+                      <p className="mt-1 text-sm break-words">
                         Vas a unirte a <strong>{inviteState.preview.storeName}</strong>
                         {roleLabel ? <> como <strong>{roleLabel}</strong></> : null}.
                       </p>
-                      <p className="mt-2 text-xs text-blue-800">
+                      <p className="mt-2 text-xs text-blue-800 max-[760px]:text-[#4B5160]">
                         Iniciá sesión o creá tu cuenta para aceptar esta invitación después.
                       </p>
                     </>
                   ) : inviteState.error ? (
                     <>
                       <p className="text-sm font-semibold">No pudimos verificar la invitación todavía</p>
-                      <p className="mt-1 text-sm text-orange-800">
+                      <p className="mt-1 text-sm text-orange-800 max-[760px]:text-[#4B5160] max-[760px]:break-words">
                         {inviteState.error}
                       </p>
-                      <p className="mt-2 text-xs text-orange-800">
+                      <p className="mt-2 text-xs text-orange-800 max-[760px]:text-[#4B5160]">
                         El enlace puede seguir siendo válido. Probá iniciar sesión igual y te mostramos el estado después.
                       </p>
                     </>
                   ) : (
                     <>
                       <p className="text-sm font-semibold">Esta invitación ya no está disponible</p>
-                      <p className="mt-1 text-sm text-amber-800">
+                      <p className="mt-1 text-sm text-amber-800 max-[760px]:text-[#4B5160]">
                         El enlace expiró, ya fue usado o no es válido. Igual podés iniciar sesión normalmente.
                       </p>
                     </>
                   )}
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -340,7 +369,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
+                <h2 className="text-3xl font-bold text-gray-900 tracking-tight mb-2 max-[760px]:text-[28px] max-[760px]:leading-tight max-[760px]:break-words">
                   {isRegisterMode ? 'Crear cuenta' : 'Bienvenido a iManager'}
                 </h2>
                 <p className="text-gray-500">
@@ -358,14 +387,16 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm"
+                data-testid="login-error"
+                className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm max-[760px]:flex max-[760px]:items-start max-[760px]:gap-3 max-[760px]:rounded-2xl max-[760px]:border-[#E6E8EC] max-[760px]:bg-white max-[760px]:text-[#16181D]"
               >
-                {error}
+                <Info size={18} className="mt-0.5 hidden shrink-0 max-[760px]:block" />
+                <span className="min-w-0 break-words">{error}</span>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <motion.form layout onSubmit={handleEmailSubmit} className="space-y-4 mb-6">
+          <div className="space-y-4 mb-4 max-[760px]:mb-2">
             <div className="relative">
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -378,7 +409,10 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                   clearError();
                 }}
                 required
-                className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
+                autoComplete="email"
+                inputMode="email"
+                onFocus={keepFieldVisible}
+                className={`${fieldClass} pl-11 pr-4 py-3.5`}
               />
             </div>
 
@@ -395,7 +429,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 }}
                 required
                 minLength={6}
-                className="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
+                autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
+                onFocus={keepFieldVisible}
+                className={`${fieldClass} pl-11 pr-12 py-3.5`}
               />
               <button
                 type="button"
@@ -439,22 +475,33 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                     }}
                     required
                     minLength={6}
-                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all"
+                    autoComplete="new-password"
+                    onFocus={keepFieldVisible}
+                    className={`${fieldClass} pl-11 pr-4 py-3.5`}
                   />
                 </motion.div>
               )}
             </AnimatePresence>
 
+          </div>
+        </motion.div>
+        </div>
+
+        <div
+          data-testid="auth-footer"
+          className="max-[760px]:shrink-0 max-[760px]:border-t max-[760px]:border-[#E6E8EC] max-[760px]:bg-[#F7F8FA] max-[760px]:px-5 max-[760px]:pt-3"
+          style={phone ? { paddingBottom: keyboardInset > 0 ? 12 : 'calc(12px + env(safe-area-inset-bottom, 0px))' } : undefined}
+        >
             <motion.button
               data-testid="login-submit"
-              whileHover={{ scale: 1.01 }}
+              whileHover={{ scale: phone ? 1 : 1.01 }}
               whileTap={{ scale: 0.98 }}
               disabled={isLoading}
               type="submit"
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mb-6 w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:mb-3 max-[760px]:rounded-2xl max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400] max-[760px]:focus:ring-[#16181D]"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin max-[760px]:border-[#16181D]/30 max-[760px]:border-t-[#16181D]" />
               ) : (
                 <>
                   {isRegisterMode ? 'Crear cuenta' : 'Iniciar sesión'}
@@ -462,25 +509,24 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                 </>
               )}
             </motion.button>
-          </motion.form>
 
-          <div className="relative mb-6">
+          <div className="relative mb-6 max-[760px]:mb-3">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-4 text-gray-400">o</span>
+              <span className="bg-white px-4 text-gray-400 max-[760px]:bg-[#F7F8FA]">o</span>
             </div>
           </div>
 
           <motion.button
             data-testid="login-google"
-            whileHover={{ scale: 1.01 }}
+            whileHover={{ scale: phone ? 1 : 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleGoogleLogin}
             disabled={isGoogleLoading}
             type="button"
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:rounded-2xl"
           >
             {isGoogleLoading ? (
               <div className="w-5 h-5 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
@@ -507,7 +553,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
             Continuar con Google
           </motion.button>
 
-          <motion.p layout className="text-center text-sm text-gray-500 mt-8">
+          <motion.p layout className="text-center text-sm text-gray-500 mt-8 max-[760px]:mt-3 max-[760px]:pb-1">
             {isRegisterMode ? '¿Ya tenés cuenta?' : '¿No tenés cuenta?'}{' '}
             <button
               onClick={toggleMode}
@@ -517,7 +563,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               {isRegisterMode ? 'Iniciar sesión' : 'Crear cuenta'}
             </button>
           </motion.p>
-        </motion.div>
+        </div>
+        </form>
       </div>
       {resetOpen && (
         <PasswordResetDialog initialEmail={email.trim()} onClose={() => setResetOpen(false)} />
