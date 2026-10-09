@@ -234,6 +234,7 @@ test.describe('phone login, invite and onboarding', () => {
     await expectInViewport(page, 'onboarding-submit');
     await expectFits(page);
 
+    await clearSession(page);
     const owner = buildTestEmail(testInfo, 'auth-onb-owner');
     await bootstrapStoreViaApi(page, request, owner, 'Tienda Norte');
     const invitation = await createInvitationViaApi(request, owner, 'STAFF');
