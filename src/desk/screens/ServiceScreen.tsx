@@ -42,7 +42,6 @@ export function ServiceScreen() {
         <div>
           <div className="svc-title">
             <h1>Servicio técnico</h1>
-            <TentativeBadge />
           </div>
           <div className="dsub">{countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · {countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}</div>
         </div>
@@ -59,7 +58,6 @@ export function ServiceScreen() {
           <DeskCta onClick={() => open({ type: 'new-ot' })}>Nueva orden</DeskCta>
         </div>
       </div>
-      <TentativeNote />
       {repairOrdersError ? <div className="ferr">{repairOrdersError}</div> : null}
       {view === 'board' ? (
         <div className="dkanban svc">
@@ -129,24 +127,6 @@ export function ServiceScreen() {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-export function TentativeBadge() {
-  return (
-    <span className="svc-badge">
-      <DeskIcon name="alert" size={14} />
-      Propuesta tentativa — a validar con cliente
-    </span>
-  );
-}
-
-function TentativeNote() {
-  return (
-    <div className="svc-banner">
-      <DeskIcon name="alert" size={16} />
-      <p>Esto es una propuesta exploratoria, todavía no está definida. La idea es charlarla con un cliente que tenga servicio técnico: los estados, los campos y el flujo pueden cambiar. Los estados se editan con el lapicito, igual que en equipos.</p>
     </div>
   );
 }

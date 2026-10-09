@@ -116,6 +116,9 @@ describe("repair orders", () => {
     const staffBudget = await app.inject({ method: "PATCH", url: `/api/repairs/${orderId}`, headers: auth("rep-staff"), payload: { estimate: 2000 } });
     expect(staffBudget.statusCode).toBe(403);
     expect(staffBudget.json().error).toBe("No tenés permiso para esta acción");
+    const staffDeposit = await app.inject({ method: "PATCH", url: `/api/repairs/${orderId}`, headers: auth("rep-staff"), payload: { deposit: 50 } });
+    expect(staffDeposit.statusCode).toBe(403);
+    expect(staffDeposit.json().error).toBe("No tenés permiso para esta acción");
     const staffSameBudget = await app.inject({ method: "PATCH", url: `/api/repairs/${orderId}`, headers: auth("rep-staff"), payload: { estimate: 1000, technician: "Técnico" } });
     expect(staffSameBudget.statusCode).toBe(200);
     const staffMove = await app.inject({ method: "POST", url: `/api/repairs/${orderId}/status`, headers: auth("rep-staff"), payload: { status: "EN_DIAGNOSTICO" } });
@@ -123,9 +126,10 @@ describe("repair orders", () => {
     const staffDelete = await app.inject({ method: "DELETE", url: `/api/repairs/${orderId}`, headers: buildAuthHeaders({ uid: "rep-staff", email: "rep-staff@example.com", name: "Eva" }) });
     expect(staffDelete.statusCode).toBe(403);
 
-    const ownerBudget = await app.inject({ method: "PATCH", url: `/api/repairs/${orderId}`, headers: auth("rep-owner"), payload: { estimate: 2500 } });
+    const ownerBudget = await app.inject({ method: "PATCH", url: `/api/repairs/${orderId}`, headers: auth("rep-owner"), payload: { estimate: 2500, deposit: 500 } });
     expect(ownerBudget.statusCode).toBe(200);
     expect(ownerBudget.json().order.estimate).toBe(2500);
+    expect(ownerBudget.json().order.deposit).toBe(500);
     const ownerDelete = await app.inject({ method: "DELETE", url: `/api/repairs/${orderId}`, headers: buildAuthHeaders({ uid: "rep-owner", email: "rep-owner@example.com", name: "Dueña" }) });
     expect(ownerDelete.statusCode).toBe(204);
     const audit = await prisma.auditEvent.findMany({ where: { storeId, entityType: "repair" }, orderBy: { createdAt: "asc" } });

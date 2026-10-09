@@ -211,7 +211,12 @@ export async function updateRepair(
   const estimateChanged = input.estimate !== undefined && (
     input.estimate == null ? current.estimate != null : moneyChanged(current.estimate, input.estimate)
   );
-  if (estimateChanged && !options.canChangePrice) throw new RepairError(SENSITIVE_DENIED, 403);
+  const depositChanged = input.deposit !== undefined && moneyChanged(current.deposit, input.deposit);
+  const explicitCurrency = input.currency === "ARS" || input.currency === "USD" ? input.currency : null;
+  const currencyChanged = explicitCurrency != null && explicitCurrency !== current.currency;
+  if ((estimateChanged || depositChanged || currencyChanged) && !options.canChangePrice) {
+    throw new RepairError(SENSITIVE_DENIED, 403);
+  }
   const name = await storeName(storeId);
   const data: {
     clientId?: string | null;
@@ -245,7 +250,6 @@ export async function updateRepair(
   if (input.faultTags !== undefined) data.faultTags = joinTags(input.faultTags);
   if (input.estimate !== undefined) data.estimate = input.estimate == null ? null : new Decimal(input.estimate);
   if (input.deposit !== undefined) data.deposit = new Decimal(input.deposit);
-  const depositChanged = input.deposit !== undefined && moneyChanged(current.deposit, input.deposit);
   const nextCurrency = currencyOnWrite(input.currency, estimateChanged || depositChanged, estimateChanged || depositChanged ? await storeCurrency(storeId, prisma) : "ARS");
   if (nextCurrency) data.currency = nextCurrency;
   if (input.technician !== undefined) data.technician = input.technician.trim();
@@ -253,14 +257,16 @@ export async function updateRepair(
   if (input.notifyWhatsapp !== undefined) data.notifyWhatsapp = input.notifyWhatsapp;
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.repairOrder.update({ where: { id }, data, include });
-    if (estimateChanged && options.actor) {
+    if ((estimateChanged || depositChanged) && options.actor) {
       await writeAudit(tx, {
         storeId,
         actor: options.actor,
         action: "repair.estimate",
         entityType: "repair",
         entityId: id,
-        detail: `${current.estimate?.toString() ?? "—"} → ${input.estimate ?? "—"}`,
+        detail: estimateChanged
+          ? `${current.estimate?.toString() ?? "—"} → ${input.estimate ?? "—"}`
+          : `seña ${current.deposit.toString()} → ${input.deposit ?? "—"}`,
       });
     }
     return row;
