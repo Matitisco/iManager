@@ -1,5 +1,4 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { Decimal } from "@prisma/client/runtime/library";
 
 export const CURRENCIES = ["ARS", "USD"] as const;
 export const EXCHANGE_MODES = ["auto", "manual"] as const;
@@ -30,8 +29,9 @@ export function asExchangeSource(value: unknown): ExchangeSource {
 }
 
 export function positiveRate(value: unknown): number | null {
-  const amount = value instanceof Decimal
-    ? value.toNumber()
+  const decimal = value && typeof value === "object" && "toNumber" in value ? value.toNumber : null;
+  const amount = typeof decimal === "function"
+    ? decimal.call(value)
     : typeof value === "number"
       ? value
       : typeof value === "string" && value.trim()
