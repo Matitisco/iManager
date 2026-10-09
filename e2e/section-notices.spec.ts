@@ -50,7 +50,7 @@ test.describe('phone', () => {
     });
 
     await page.getByTestId('sidebar-tab-sales').click();
-    await page.getByRole('button', { name: 'Registrar venta' }).click();
+    await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' }).click();
     const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
     await dialog.getByLabel('Cliente').fill(clientName);
     await dialog.getByRole('combobox', { name: 'Equipo' }).fill(model);
