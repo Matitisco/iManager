@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { isTechnicalMessage, readApiErrorMessage } from "./api-message"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -54,37 +55,34 @@ export function trimToString(value: unknown): string {
 }
 
 export function getFriendlyErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error) {
-    try {
-      const parsed = JSON.parse(error.message) as { error?: string; message?: string };
-      if (parsed?.error) {
-        return parsed.error;
-      }
-
-      if (parsed?.message) {
-        return parsed.message;
-      }
-    } catch {
-      return error.message || fallback;
-    }
-
-    return error.message || fallback;
+  if (typeof error === 'string') {
+    return messageFromText(error, fallback);
   }
 
-  if (typeof error === 'string') {
-    try {
-      const parsed = JSON.parse(error) as { error?: string; message?: string };
-      if (parsed?.error) {
-        return parsed.error;
-      }
+  if (error instanceof Error) {
+    return messageFromText(error.message, fallback);
+  }
 
-      if (parsed?.message) {
-        return parsed.message;
-      }
-    } catch {
-      return error;
-    }
+  if (error && typeof error === 'object') {
+    return readApiErrorMessage(error, fallback);
   }
 
   return fallback;
+}
+
+function messageFromText(value: string, fallback: string): string {
+  const parsed = parseErrorPayload(value);
+  if (parsed !== undefined) return readApiErrorMessage(parsed, fallback);
+  if (!value.trim() || isTechnicalMessage(value)) return fallback;
+  return value;
+}
+
+function parseErrorPayload(value: string): unknown | undefined {
+  const text = value.trim();
+  if (!text.startsWith('{') && !text.startsWith('[')) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
 }

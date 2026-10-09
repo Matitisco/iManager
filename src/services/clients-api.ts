@@ -1,5 +1,6 @@
 import type { AuthUserLike } from '../types/auth-user';
 import type { Client } from '../types';
+import { readApiErrorMessage } from '../lib/api-message';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
@@ -69,7 +70,7 @@ export async function createBackendClient(user: AuthUserLike, client: Omit<Clien
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo crear el cliente (${response.status})`);
+    throw new Error(readApiErrorMessage(body, `No se pudo crear el cliente (${response.status})`));
   }
 
   const data = await parseJson<BackendClientResponse>(response);
@@ -90,7 +91,7 @@ export async function updateBackendClient(user: AuthUserLike, client: Client): P
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo actualizar el cliente (${response.status})`);
+    throw new Error(readApiErrorMessage(body, `No se pudo actualizar el cliente (${response.status})`));
   }
 
   const data = await parseJson<BackendClientResponse>(response);
@@ -133,7 +134,7 @@ export async function registerBackendClientPayment(
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || 'No se pudo registrar el pago');
+    throw new Error(readApiErrorMessage(body, 'No se pudo registrar el pago'));
   }
   const data = await parseJson<BackendClientResponse>(response);
   if (!data.client) throw new Error('Respuesta inválida al registrar el pago');

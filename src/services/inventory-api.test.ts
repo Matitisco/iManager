@@ -144,4 +144,21 @@ describe('inventory-api', () => {
     });
     await expect(bulkMoveCategoryApi(mockUser, ['item-1', 'item-2'], null)).resolves.toBe(2);
   });
+
+  it('shows the spanish validation message and never the raw zod payload', async () => {
+    vi.mocked(fetchWithTimeout)
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'El precio no puede ser negativo',
+        message: 'El precio no puede ser negativo',
+        fields: { price: 'El precio no puede ser negativo' },
+      }, 400))
+      .mockResolvedValueOnce(jsonResponse({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: '[{"code":"too_small"}]',
+      }, 500));
+
+    await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).rejects.toThrow('El precio no puede ser negativo');
+    await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).rejects.toThrow('No se pudo crear el equipo (500)');
+  });
 });

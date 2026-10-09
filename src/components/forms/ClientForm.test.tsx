@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientForm } from './ClientForm';
@@ -51,5 +51,17 @@ describe('ClientForm', () => {
       });
       expect(onClose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('blocks a client name of 300 characters before saving', async () => {
+    const user = userEvent.setup();
+    render(<ClientForm onClose={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('DNI / ID'), '12345678');
+    fireEvent.change(screen.getByLabelText('Nombre Completo'), { target: { value: 'a'.repeat(300) } });
+    await user.click(screen.getByRole('button', { name: 'Guardar Cliente' }));
+
+    expect(await screen.findByText('El nombre puede tener hasta 120 caracteres')).toBeInTheDocument();
+    expect(mockAppContext.addClient).not.toHaveBeenCalled();
   });
 });

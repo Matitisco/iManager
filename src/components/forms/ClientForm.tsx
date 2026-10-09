@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 
 export const ClientForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -24,6 +25,11 @@ export const ClientForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     if (!dni || !name) {
       setError('Completá DNI y nombre para crear el cliente.');
+      return;
+    }
+
+    if (name.length > INPUT_LIMITS.clientName) {
+      setError(`El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`);
       return;
     }
 

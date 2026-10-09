@@ -17,12 +17,13 @@ import { catalogsRoutes } from "./modules/catalogs/catalogs.routes.js";
 import { operationsRoutes } from "./modules/operations/operations.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { env } from "./config/env.js";
+import { registerApiErrorHandler } from "./lib/api-error.js";
 import { redactFinancials } from "./lib/redact-financials.js";
 import { canSeeFinancials } from "./modules/stores/sections.js";
 
 export function buildApp() {
   const app = Fastify({
-    logger: true,
+    logger: env.NODE_ENV === "test" ? false : true,
   });
 
   const allowedOrigins = env.CORS_ALLOWED_ORIGINS
@@ -63,6 +64,7 @@ export function buildApp() {
   app.register(catalogsRoutes, { prefix: "/api/catalogs" });
   app.register(operationsRoutes, { prefix: "/api/operations" });
   app.register(notificationsRoutes, { prefix: "/api/notifications" });
+  registerApiErrorHandler(app);
 
   return app;
 }
