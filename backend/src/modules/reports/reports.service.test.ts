@@ -146,6 +146,11 @@ describe("getReportsOverview", () => {
         status: "PENDIENTE",
         tradeAt: new Date("2026-04-12T12:00:00.000Z"),
       },
+      {
+        differencePaid: { toNumber: () => 500 },
+        status: "CANCELADO",
+        tradeAt: new Date("2026-04-11T12:00:00.000Z"),
+      },
     ]);
     clientCountMock.mockResolvedValue(8);
     clientAggregateMock.mockResolvedValue({

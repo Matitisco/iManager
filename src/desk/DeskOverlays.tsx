@@ -30,6 +30,7 @@ import {
   tradeClientLabel,
   tradeCode,
 } from './format';
+import { cancellationRefund } from './cancel-refund';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
 import { canSeeFinancials } from './sections';
 import type { CatalogKind } from '../services/catalogs-api';
@@ -87,17 +88,21 @@ const CJ_STATUS = [
   { id: 'RECHAZADO', label: 'Rechazado', color: '#DC4C4C' },
 ];
 
-function ConfirmOperationDialog({ label, busy, error, onClose, onOk }: {
+function ConfirmOperationDialog({ label, refund, busy, error, onClose, onOk }: {
   label: string;
+  refund: number;
   busy: boolean;
   error: string | null;
   onClose: () => void;
   onOk: () => void;
 }) {
+  const text = refund > 0
+    ? `${label} se cancelará y quedará en el historial. Se devolverán ${formatMoney(refund)}.`
+    : `${label} se cancelará y quedará en el historial.`;
   return (
     <Dialog
       title="Cancelar operación"
-      text={`${label} se cancelará y quedará en el historial.`}
+      text={text}
       ok="Cancelar operación"
       cancel="Volver"
       danger
@@ -638,10 +643,17 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
   if (!sale) return null;
+  const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
+  const buyer = clients.find((client) => client.id === sale.clientId);
+  const cash = linkedTrade ? linkedTrade.differencePaid : sale.amount;
+  const refund = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
+    ? cancellationRefund(sale.status, cash, buyer?.pendingBalance ?? 0)
+    : 0;
   if (confirmCancel) {
     return (
       <ConfirmOperationDialog
         label={saleCode(sale)}
+        refund={refund}
         busy={busy}
         error={error}
         onClose={() => { if (!busy) setConfirmCancel(false); }}
@@ -649,7 +661,6 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       />
     );
   }
-  const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
   const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close}>
@@ -669,7 +680,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       </> : null}
       {sale.status === 'PENDIENTE' ? (
         <div className="sacts">
-          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), `${saleCode(sale)} cancelada`)}>Cancelar venta</button> : null}
+          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
           <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
           {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
         </div>
@@ -816,10 +827,19 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         { keepOpen: true },
       );
     };
+    const linkedSaleForRefund = trade.saleId
+      ? sales.find((item) => item.id === trade.saleId) ?? loadedOperation?.sale
+      : loadedOperation?.sale;
+    const refundClient = clients.find((client) => client.id === trade.clientId)
+      ?? loadedOperation?.clients?.find((client) => client.id === trade.clientId);
+    const refund = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
+      ? cancellationRefund(linkedSaleForRefund.status, trade.differencePaid, refundClient?.pendingBalance ?? 0)
+      : 0;
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
           label={tradeCode(tradeIns, trade.id)}
+          refund={refund}
           busy={busy}
           error={error}
           onClose={() => { if (!busy) setConfirmCancel(false); }}
@@ -948,7 +968,7 @@ function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentLabel(payment.method)}</span><b>{formatMoney(payment.amount)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : paymentLabel(payment.method)}</span><b>{formatMoney(payment.amount)}</b></div>
           ))}
         </>
       ) : null}

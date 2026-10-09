@@ -101,7 +101,14 @@ export async function updateBackendClient(user: AuthUserLike, client: Client): P
   return data.client;
 }
 
-export type ClientPaymentRecord = { id: string; amount: number; method: string; paidAt: string };
+export type ClientPaymentRecord = {
+  id: string;
+  amount: number;
+  method: string;
+  paidAt: string;
+  kind?: string;
+  note?: string | null;
+};
 
 export async function fetchClientPayments(user: AuthUserLike, clientId: string): Promise<ClientPaymentRecord[]> {
   const baseUrl = getBaseUrlOrThrow();
