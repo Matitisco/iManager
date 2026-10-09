@@ -546,6 +546,7 @@ export async function getReportsOverview(
       cost: toNumber(sale.inventoryItem?.cost),
     }));
 
+  const activeTradeIns = tradeIns.filter((tradeIn) => tradeIn.status !== "CANCELADO");
   const pendingSaleRows = sales.filter((sale) => sale.status === "PENDIENTE");
   const pendingSales = pendingSaleRows.length;
   const pendingAmount = pendingSaleRows.reduce(
@@ -561,7 +562,7 @@ export async function getReportsOverview(
   );
   const { revenue, grossProfit, unitsSold, averageTicket } = currentMetrics;
   const marginRate = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-  const approvedTradeIns = tradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
+  const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
     completedSales
       .map((sale) => sale.clientId)
@@ -637,9 +638,9 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue || right.purchases - left.purchases)
     .slice(0, 5);
 
-  const approvedTradeInRows = tradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status));
-  const openTradeInRows = tradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status));
-  const otherTradeInRows = tradeIns.filter(
+  const approvedTradeInRows = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status));
+  const openTradeInRows = activeTradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status));
+  const otherTradeInRows = activeTradeIns.filter(
     (tradeIn) =>
       !APPROVED_TRADE_IN_STATUSES.has(tradeIn.status) && !OPEN_TRADE_IN_STATUSES.has(tradeIn.status)
   );
@@ -716,14 +717,14 @@ export async function getReportsOverview(
       pendingBalance: toNumber(pendingBalanceAggregate._sum.pendingBalance),
     },
     tradeIns: {
-      totalInRange: tradeIns.length,
+      totalInRange: activeTradeIns.length,
       approvedInRange: approvedTradeIns,
       openInRange: openTradeIns,
       cashGenerated: tradeInCash,
       openCash: openTradeInCash,
       otherCash: otherTradeInCash,
       series: buildActivitySeries(
-        tradeIns.map((tradeIn) => ({
+        activeTradeIns.map((tradeIn) => ({
           at: tradeIn.tradeAt,
           amount: toNumber(tradeIn.differencePaid),
         })),

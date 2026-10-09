@@ -9,7 +9,7 @@ import type { Overlay } from './types';
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
   tradeIns: [] as TradeIn[],
-  clients: [] as { id: string; name: string }[],
+  clients: [] as { id: string; name: string; pendingBalance?: number }[],
   inventory: [] as { id: string; model: string; capacity: string }[],
   updateSale: vi.fn(),
   updateTradeIn: vi.fn(),
@@ -98,7 +98,7 @@ describe('operation detail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('C-0003 se cancelará y quedará en el historial.');
+    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('C-0003 se cancelará y quedará en el historial. Se devolverán $ 500.');
 
     await user.click(screen.getByRole('button', { name: 'Volver' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
@@ -115,10 +115,53 @@ describe('operation detail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    expect(screen.getByText('V-0004 se cancelará y quedará en el historial.')).toBeInTheDocument();
+    expect(screen.getByText('V-0004 se cancelará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+  });
+
+  it('shows the cash to return before cancelling a partly paid sale', async () => {
+    const user = userEvent.setup();
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 900,
+      tradeInId: null,
+      clientId: 'c1',
+      integratedOperation: true,
+    })];
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 600 }];
+    renderOverlay({ type: 'sale', id: 's1' });
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
+    expect(ctx.updateSale).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
+    expect(dialog).toHaveTextContent('Se devolverán $ 300.');
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
+    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+  });
+
+  it('does not announce a refund when the pending sale was not paid', async () => {
+    const user = userEvent.setup();
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 900,
+      tradeInId: null,
+      clientId: 'c1',
+      integratedOperation: true,
+    })];
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 900 }];
+    renderOverlay({ type: 'sale', id: 's1' });
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
+    const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
+    expect(dialog).toHaveTextContent('V-0004 se cancelará y quedará en el historial.');
+    expect(dialog).not.toHaveTextContent('Se devolverán');
   });
 
   it('changes peritaje, revisión and aprobado from the trade card', async () => {

@@ -7,6 +7,7 @@ describe("section operation copy", () => {
     expect(sectionCopy("inventory", { action: "created", soldDevice: "iPhone 13" })).toEqual({ title: "Equipo vendido", message: "iPhone 13 vendido" });
     expect(sectionCopy("clients", { action: "created", clientName: "Juan Pérez", clientCreated: true, pendingBalance: 0 }).message).toBe("Nuevo cliente: Juan Pérez");
     expect(sectionCopy("clients", { action: "created", clientName: "Juan Pérez", pendingBalance: 50000 }).message).toBe("Juan Pérez debe $ 50.000");
+    expect(sectionCopy("clients", { action: "cancelled", clientName: "Juan Pérez", pendingBalance: 0, refund: 300 }).message).toBe("Juan Pérez quedó al día. Devolución $ 300");
     expect(sectionCopy("sales", { action: "created", deviceLabel: "iPhone 13", clientName: "Juan Pérez", amount: 50000 }).message).toBe("iPhone 13 · Juan Pérez · $ 50.000");
     expect(sectionCopy("tradeins", { action: "confirmed", receivedDevice: "iPhone 13", takeValue: 20000, difference: 30000 }).message).toBe("iPhone 13 · toma $ 20.000 · diferencia $ 30.000");
   });

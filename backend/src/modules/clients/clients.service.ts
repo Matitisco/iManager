@@ -245,7 +245,7 @@ export async function listClientPayments(storeId: string, clientId: string) {
 
   const rows = await prisma.clientPayment.findMany({
     where: { storeId, clientId },
-    orderBy: { paidAt: "desc" },
+    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
     take: 8,
   });
 
@@ -253,6 +253,8 @@ export async function listClientPayments(storeId: string, clientId: string) {
     id: row.id,
     amount: row.amount.toNumber(),
     method: row.method,
+    kind: row.kind,
+    note: row.note,
     paidAt: row.paidAt.toISOString(),
   }));
 }

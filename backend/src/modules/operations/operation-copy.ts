@@ -15,6 +15,7 @@ export type NoticeFacts = {
   soldDevice?: string | null;
   releasedDevice?: string | null;
   archivedDevice?: string | null;
+  refund?: number | null;
 };
 
 export type NoticeTarget = {
@@ -84,6 +85,7 @@ function clientReason(facts: NoticeFacts) {
   const balance = facts.pendingBalance ?? 0;
   if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance)}`;
   if (facts.clientCreated) return "Nuevo cliente";
+  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) return `Devolución ${money(facts.refund ?? 0)}`;
   if (balance > 0) return `Debe ${money(balance)}`;
   if (facts.action === "cancelled" || facts.action === "updated") return "Quedó al día";
   return "Cliente";
@@ -163,6 +165,11 @@ function clientCopy(facts: NoticeFacts): { title: string; message: string } {
   const balance = facts.pendingBalance ?? 0;
   if (facts.clientCreated && balance > 0) return { title: "Nuevo cliente", message: `Nuevo cliente: ${name}. Debe ${money(balance)}` };
   if (facts.clientCreated) return { title: "Nuevo cliente", message: `Nuevo cliente: ${name}` };
+  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) {
+    const refundText = `Devolución ${money(facts.refund ?? 0)}`;
+    if (balance > 0) return { title: "Devolución registrada", message: `${name} debe ${money(balance)}. ${refundText}` };
+    return { title: "Devolución registrada", message: `${name} quedó al día. ${refundText}` };
+  }
   if (balance > 0) return { title: "Saldo pendiente", message: `${name} debe ${money(balance)}` };
   if (facts.action === "cancelled" || facts.action === "updated") return { title: "Cliente actualizado", message: `${name} quedó al día` };
   if (facts.amount != null) return { title: "Cliente", message: `${name} compró por ${money(facts.amount)}` };

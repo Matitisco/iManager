@@ -338,6 +338,8 @@ model ClientPayment {
   clientId  String
   amount    Decimal  @db.Decimal(12, 2)
   method    String   @db.VarChar(50)
+  // PAGO keeps the collection. DEVOLUCION records cash given back when a sale or trade is cancelled.
+  kind      String   @default("PAGO") @db.VarChar(20)
   paidAt    DateTime @default(now())
   note      String?  @db.VarChar(200)
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
