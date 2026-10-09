@@ -4,14 +4,17 @@ import { catalogChoices, useCatalogs } from '../catalog';
 import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
 import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, repairFault, repairOverdue, repairPrice, repairStatusMeta, REPAIR_DELIVERED, REPAIR_READY } from '../repairs';
-import { DeskCta, DeskIcon, Pill, SearchBox, useDesk } from '../ui';
+import { usePhoneLayout } from '../section-notices';
+import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 export function ServiceScreen() {
   const { repairOrders = [], repairOrdersError = null } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
-  const { open } = useDesk();
+  const { open, back } = useDesk();
+  const phone = usePhoneLayout();
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
 
   const statuses = useMemo(() => {
@@ -36,28 +39,34 @@ export function ServiceScreen() {
   const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const readyCount = repairOrders.filter((order) => order.status === REPAIR_READY).length;
 
+  const views = (
+    <div className="svc-views" role="group" aria-label="Vista">
+      <button type="button" className={view === 'board' ? 'on' : ''} aria-pressed={view === 'board'} onClick={() => setView('board')}>
+        <DeskIcon name="board" size={15} /> Tablero
+      </button>
+      <button type="button" className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>
+        <DeskIcon name="list" size={15} /> Lista
+      </button>
+    </div>
+  );
+
   return (
-    <div className="dscreen svc-screen">
-      <div className="dtop">
-        <div>
-          <div className="svc-title">
-            <h1>Servicio técnico</h1>
+    <div className={`dscreen svc-screen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title={<div className="svc-title"><h1>Servicio técnico</h1></div>}
+        subtitle={`${countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · ${countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}`}
+        back={back}
+        tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
+        desktop={(
+          <div className="dright">
+            <SearchBox value={query} onChange={setQuery} placeholder="Buscar orden o cliente" />
+            {views}
+            <DeskCta onClick={() => open({ type: 'new-ot' })}>Nueva orden</DeskCta>
           </div>
-          <div className="dsub">{countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · {countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}</div>
-        </div>
-        <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar orden o cliente" />
-          <div className="svc-views" role="group" aria-label="Vista">
-            <button type="button" className={view === 'board' ? 'on' : ''} aria-pressed={view === 'board'} onClick={() => setView('board')}>
-              <DeskIcon name="board" size={15} /> Tablero
-            </button>
-            <button type="button" className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>
-              <DeskIcon name="list" size={15} /> Lista
-            </button>
-          </div>
-          <DeskCta onClick={() => open({ type: 'new-ot' })}>Nueva orden</DeskCta>
-        </div>
-      </div>
+        )}
+      />
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar orden o cliente" /></div> : null}
+      {phone ? <div className="mviews">{views}</div> : null}
       {repairOrdersError ? <div className="ferr">{repairOrdersError}</div> : null}
       {view === 'board' ? (
         <div className="dkanban svc">
@@ -127,6 +136,7 @@ export function ServiceScreen() {
           )}
         </div>
       )}
+      {phone ? <MobileDock primary="Nueva orden" onPrimary={() => open({ type: 'new-ot' })} /> : null}
     </div>
   );
 }

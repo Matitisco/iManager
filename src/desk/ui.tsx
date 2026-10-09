@@ -1,11 +1,12 @@
-import React, { cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { DeskTab, Overlay } from './types';
 import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
 import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
-import { ImanagerIcon, nearestIconSize, statusIcon } from './icons';
+import { ImanagerIcon, nearestIconSize, statusIcon, type ImanagerIconName } from './icons';
+import { usePhoneLayout } from './section-notices';
 
 type DeskUi = {
   tab: DeskTab;
@@ -16,6 +17,8 @@ type DeskUi = {
   toast: (message: string) => void;
   isStaff: boolean;
   canManageSensitive?: boolean;
+  /** En celular, vuelve a Más cuando la sección no está en la barra. */
+  back?: () => void;
 };
 
 const DeskContext = createContext<DeskUi | null>(null);
@@ -109,14 +112,76 @@ export function MenuButton({ label, options, value, onChange }: { label: string;
   );
 }
 
-export function PageHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+export function PageHead({ title, subtitle, action, back }: { title: string; subtitle?: string; action?: React.ReactNode; back?: () => void }) {
   return (
     <div className="whead">
-      <div>
+      {back ? <BackButton onClick={back} /> : null}
+      <div className="whead-copy">
         <h1>{title}</h1>
         {subtitle ? <div className="wsub">{subtitle}</div> : null}
       </div>
       {action}
+    </div>
+  );
+}
+
+export function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="wback" data-testid="page-back" aria-label="Volver" onClick={onClick}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M15 5l-7 7 7 7" />
+      </svg>
+    </button>
+  );
+}
+
+export function IconButton({ label, name, pressed, disabled, onClick }: {
+  label: string;
+  name: ImanagerIconName;
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={`rbtn${pressed ? ' on' : ''}`} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
+      <ImanagerIcon name={name} size={20} />
+    </button>
+  );
+}
+
+export function ScreenTitle({ title, subtitle, back, tools, desktop }: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  back?: () => void;
+  tools?: React.ReactNode;
+  desktop: React.ReactNode;
+}) {
+  const phone = usePhoneLayout();
+  return (
+    <div className="dtop">
+      {phone && back ? <BackButton onClick={back} /> : null}
+      <div className="dtitle">
+        {typeof title === 'string' ? <h1>{title}</h1> : title}
+        {subtitle == null ? null : typeof subtitle === 'string' ? <div className="dsub">{subtitle}</div> : subtitle}
+      </div>
+      {phone ? <div className="mtools">{tools}</div> : desktop}
+    </div>
+  );
+}
+
+export function MobileDock({ primary, onPrimary, secondary, onSecondary }: {
+  primary: string;
+  onPrimary: () => void;
+  secondary?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <div className="mdock" data-testid="mobile-dock">
+      <button className="dbtn p" type="button" onClick={onPrimary}>
+        <PlusIcon />
+        {primary}
+      </button>
+      {secondary && onSecondary ? <button className="dbtn s" type="button" onClick={onSecondary}>{secondary}</button> : null}
     </div>
   );
 }
@@ -200,6 +265,26 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   };
 }
 
+export function RowMenu({ onMenu }: { onMenu: (point: { x: number; y: number }) => void }) {
+  return (
+    <button
+      type="button"
+      className="row-more"
+      data-testid="row-menu"
+      aria-label="Más acciones"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        onMenu(menuPosition(rect.left, rect.bottom, rect));
+      }}
+    >
+      <span aria-hidden="true">⋯</span>
+    </button>
+  );
+}
+
 export function PressTarget({ as, className, testId, onActivate, onMenu, children }: {
   as: 'tr' | 'button';
   className?: string;
@@ -209,8 +294,15 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, childre
   children: React.ReactNode;
 }) {
   const bind = usePress(onMenu, onActivate);
-    if (as === 'button') return <button className={className} type="button" data-testid={testId} {...bind}>{children}</button>;
-    return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
+  if (as === 'button') {
+    return (
+      <div className="press-host">
+        <button className={className} type="button" data-testid={testId} {...bind}>{children}</button>
+        <RowMenu onMenu={onMenu} />
+      </div>
+    );
+  }
+  return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar' }: {
@@ -240,15 +332,33 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, ca
   );
 }
 
+function isSheetFooter(node: React.ReactNode) {
+  if (!isValidElement(node)) return false;
+  if (node.type === Actions) return true;
+  const className = (node.props as { className?: unknown }).className;
+  return typeof className === 'string' && className.split(/\s+/).includes('sacts');
+}
+
 export function Sheet({ title, subtitle, children, onClose, wide, className }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; wide?: boolean; className?: string }) {
   useEscape(onClose);
+  const phone = usePhoneLayout();
+  const nodes = Children.toArray(children);
+  const foot = nodes.filter(isSheetFooter);
+  const body = nodes.filter((node) => !isSheetFooter(node));
 
   return (
     <div className="ov" onMouseDown={onClose}>
       <div className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
-        <h3>{title}</h3>
-        {subtitle ? <p className="sub">{subtitle}</p> : null}
-        {children}
+        {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
+        <div className="sheet-scroll">
+          <div className="sheet-h">
+            <h3>{title}</h3>
+            {phone ? <button type="button" className="sheet-x" aria-label="Cerrar" onClick={onClose}><ImanagerIcon name="cerrar" size={16} /></button> : null}
+          </div>
+          {subtitle ? <p className="sub">{subtitle}</p> : null}
+          {body}
+        </div>
+        {foot.length > 0 ? <div className="sheet-foot">{foot}</div> : null}
       </div>
     </div>
   );

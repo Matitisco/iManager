@@ -17,7 +17,7 @@ import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
 import { priceListMessage } from '../price-list';
 import { ImanagerIcon } from '../icons';
-import { Actions, Battery, ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -37,8 +37,9 @@ export function InventoryScreen() {
   const { inventory, appSession, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
-  const { open, toast } = useDesk();
+  const { open, toast, back } = useDesk();
   const phone = usePhoneLayout();
+  const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('inventory');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
@@ -96,22 +97,30 @@ export function InventoryScreen() {
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
 
   return (
-    <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <h1>Inventario</h1>
-          <div className="dsub">{inventory.length} equipos · {available} disponibles</div>
-        </div>
-        <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
-          <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
-            <ImanagerIcon name="lista-de-precios" size={16} />
-            Lista de precios
-          </button>
-          <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
-          <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
-        </div>
-      </div>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title="Inventario"
+        subtitle={`${inventory.length} equipos · ${available} disponibles`}
+        back={back}
+        tools={(
+          <>
+            <IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />
+            <IconButton label="Lista de precios" name="lista-de-precios" disabled={rows.length === 0} onClick={() => setListOpen(true)} />
+          </>
+        )}
+        desktop={(
+          <div className="dright">
+            <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
+            <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
+              <ImanagerIcon name="lista-de-precios" size={16} />
+              Lista de precios
+            </button>
+            <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
+            <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
+          </div>
+        )}
+      />
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -250,7 +259,8 @@ export function InventoryScreen() {
         {listed.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
-      <div className="dhint">Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.</div>
+      <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>
+      {phone ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
       {listOpen ? (
         <Sheet
           title="Lista de precios"

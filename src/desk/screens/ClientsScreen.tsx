@@ -16,13 +16,14 @@ import { avatarTone, formatInputMoney, formatShortDate, initials, parseMoney } f
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
-import { ChipRow, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
+import { ChipRow, IconButton, ImportButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 export function ClientsScreen() {
   const { clients, operationDrafts = [] } = useAppContext();
   const money = useMoney();
-  const { open } = useDesk();
+  const { open, back } = useDesk();
   const phone = usePhoneLayout();
+  const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('clients');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
@@ -49,21 +50,24 @@ export function ClientsScreen() {
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
 
   return (
-    <div className="dscreen">
-      <div className="dtop">
-        <div>
-          <h1>Clientes</h1>
-          <div className="dsub">{clients.length} clientes · {withBalance} con saldo</div>
-        </div>
-        <div className="dright">
-          <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
-          <ImportButton onClick={() => open({ type: 'import', kind: 'cl' })} />
-          <button className="dbtn s" type="button" onClick={() => open({ type: 'new-cl' })}>
-            <ImanagerIcon name="agregar" size={16} />
-            Nuevo cliente
-          </button>
-        </div>
-      </div>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      <ScreenTitle
+        title="Clientes"
+        subtitle={`${clients.length} clientes · ${withBalance} con saldo`}
+        back={back}
+        tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
+        desktop={(
+          <div className="dright">
+            <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
+            <ImportButton onClick={() => open({ type: 'import', kind: 'cl' })} />
+            <button className="dbtn s" type="button" onClick={() => open({ type: 'new-cl' })}>
+              <ImanagerIcon name="agregar" size={16} />
+              Nuevo cliente
+            </button>
+          </div>
+        )}
+      />
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -179,6 +183,7 @@ export function ClientsScreen() {
         {listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      {phone ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
     </div>
   );
 }
