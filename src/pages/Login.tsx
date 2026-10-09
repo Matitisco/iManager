@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { PasswordResetDialog } from '../components/PasswordResetDialog';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 
@@ -25,6 +26,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const inviteState = useInvitationPreview(inviteToken);
   const googleAttempt = useRef(0);
 
@@ -408,6 +410,19 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               </button>
             </div>
 
+            {!isRegisterMode && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  data-testid="forgot-password"
+                  onClick={() => setResetOpen(true)}
+                  className="text-sm font-semibold text-gray-700 hover:text-black hover:underline underline-offset-2"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+            )}
+
             <AnimatePresence>
               {isRegisterMode && (
                 <motion.div
@@ -508,6 +523,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
           </motion.p>
         </motion.div>
       </div>
+      {resetOpen && (
+        <PasswordResetDialog initialEmail={email.trim()} onClose={() => setResetOpen(false)} />
+      )}
     </div>
   );
 };

@@ -3,6 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Login } from './Login';
 
+const sendPasswordResetEmail = vi.hoisted(() => vi.fn());
+
+vi.mock('firebase/auth', () => ({
+  sendPasswordResetEmail,
+}));
+
+vi.mock('../firebase', () => ({
+  auth: { currentUser: null },
+}));
+
 const mockAppContext = vi.hoisted(() => ({
   login: vi.fn(),
   loginWithEmail: vi.fn(),
@@ -47,6 +57,7 @@ describe('Login', () => {
     mockInvitationState.error = null;
     mockInvitationState.isLoading = false;
     mockInvitationState.isRetrying = false;
+    sendPasswordResetEmail.mockReset();
   });
 
   it('submits email login through the app context', async () => {
@@ -212,5 +223,85 @@ describe('Login', () => {
     removeWindowListener.mockRestore();
     addDocumentListener.mockRestore();
     removeDocumentListener.mockRestore();
+  });
+
+  it('hides password recovery while creating an account', () => {
+    render(<Login />);
+    expect(screen.getByTestId('forgot-password')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^crear cuenta$/i }));
+    expect(screen.queryByTestId('forgot-password')).not.toBeInTheDocument();
+  });
+
+  it('opens a desk reset form with the email already typed', () => {
+    render(<Login />);
+    fireEvent.change(screen.getByPlaceholderText(/correo/i), { target: { value: '  owner@imanager.test  ' } });
+    fireEvent.click(screen.getByTestId('forgot-password'));
+
+    const dialog = screen.getByRole('dialog', { name: /olvidaste tu contraseña/i });
+    expect(dialog).toHaveClass('sheet', 'compact');
+    expect(dialog.closest('.desk-app')).toHaveClass('reset-host');
+    expect(screen.getByTestId('password-reset-email')).toHaveValue('owner@imanager.test');
+  });
+
+  it('sends a reset email and shows a generic confirmation', async () => {
+    sendPasswordResetEmail.mockResolvedValue(undefined);
+    render(<Login />);
+    fireEvent.change(screen.getByPlaceholderText(/correo/i), { target: { value: 'owner@imanager.test' } });
+    fireEvent.click(screen.getByTestId('forgot-password'));
+    fireEvent.change(screen.getByTestId('password-reset-email'), { target: { value: '  other@imanager.test ' } });
+    fireEvent.submit(screen.getByTestId('password-reset-submit').closest('form')!);
+
+    expect(await screen.findByTestId('password-reset-success')).toHaveTextContent(
+      'Si el email está registrado, te mandamos un link para cambiar la contraseña',
+    );
+    expect(sendPasswordResetEmail).toHaveBeenCalledWith({ currentUser: null }, 'other@imanager.test');
+    expect(screen.queryByText(/no existe una cuenta/i)).not.toBeInTheDocument();
+  });
+
+  it('treats a missing account the same as a sent reset email', async () => {
+    sendPasswordResetEmail.mockRejectedValue({ code: 'auth/user-not-found' });
+    render(<Login />);
+    fireEvent.click(screen.getByTestId('forgot-password'));
+    fireEvent.change(screen.getByTestId('password-reset-email'), { target: { value: 'missing@imanager.test' } });
+    fireEvent.submit(screen.getByTestId('password-reset-submit').closest('form')!);
+
+    expect(await screen.findByTestId('password-reset-success')).toHaveTextContent(
+      'Si el email está registrado, te mandamos un link para cambiar la contraseña',
+    );
+    expect(screen.queryByText(/no existe|no está registrado/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['auth/network-request-failed', /revisá tu conexión/i],
+    ['auth/too-many-requests', /demasiados intentos/i],
+    ['auth/invalid-email', /no es válido/i],
+  ])('shows a spanish message for %s and keeps the form open', async (code, message) => {
+    sendPasswordResetEmail.mockRejectedValue({ code });
+    render(<Login />);
+    fireEvent.click(screen.getByTestId('forgot-password'));
+    fireEvent.change(screen.getByTestId('password-reset-email'), { target: { value: 'owner@imanager.test' } });
+    fireEvent.submit(screen.getByTestId('password-reset-submit').closest('form')!);
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByTestId('password-reset-success')).not.toBeInTheDocument();
+    expect(screen.getByTestId('password-reset-submit')).toBeEnabled();
+  });
+
+  it('disables the reset button while firebase is sending', async () => {
+    let resolveReset!: () => void;
+    sendPasswordResetEmail.mockReturnValue(new Promise<void>((resolve) => {
+      resolveReset = resolve;
+    }));
+    render(<Login />);
+    fireEvent.click(screen.getByTestId('forgot-password'));
+    fireEvent.change(screen.getByTestId('password-reset-email'), { target: { value: 'owner@imanager.test' } });
+    fireEvent.submit(screen.getByTestId('password-reset-submit').closest('form')!);
+
+    expect(screen.getByTestId('password-reset-submit')).toBeDisabled();
+    expect(screen.getByTestId('password-reset-submit')).toHaveTextContent('Enviando…');
+    expect(screen.getByTestId('password-reset-email')).toBeDisabled();
+
+    await act(async () => resolveReset());
+    expect(await screen.findByTestId('password-reset-success')).toBeInTheDocument();
   });
 });
