@@ -48,6 +48,11 @@ describe('Onboarding', () => {
     mockInvitationState.reload.mockReset();
   });
 
+  it('does not render placeholder hash links', () => {
+    const { container } = render(<Onboarding />);
+    expect(container.querySelector('a[href="#"]')).toBeNull();
+  });
+
   it('creates a store from the onboarding form', async () => {
     const user = userEvent.setup();
     render(<Onboarding />);
