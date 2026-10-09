@@ -58,7 +58,7 @@ interface AppState {
   deleteProduct: (id: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
-  registerClientPayment: (clientId: string, input: { amount: number; method: string }) => Promise<Client>;
+  registerClientPayment: (clientId: string, input: { amount: number; method: string; currency?: string | null }) => Promise<Client>;
   deleteClient: (id: string) => Promise<void>;
   addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<OperationResult>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<OperationResult | void>;
@@ -99,7 +99,7 @@ interface AppState {
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
-  completeOnboarding: (storeName: string) => Promise<void>;
+  completeOnboarding: (input: { storeName: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
   createOwnedStore: (storeName: string) => Promise<void>;
   activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
@@ -527,12 +527,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
-  const completeOnboarding = async (storeName: string) => {
+  const completeOnboarding = async (input: { storeName: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
     if (!user) {
       throw new Error('No authenticated user');
     }
 
-    const session = await completeBackendOnboarding(user, storeName);
+    const session = await completeBackendOnboarding(user, input);
     if (session.store?.id) markStoreContactOffer(session.store.id);
     setBackendStatus('ready');
     setBackendMessage(null);
@@ -1156,7 +1156,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
   };
 
-  const registerClientPayment = async (clientId: string, input: { amount: number; method: string }) => {
+  const registerClientPayment = async (clientId: string, input: { amount: number; method: string; currency?: string | null }) => {
     if (!user) throw new Error('No hay sesión');
     if (!backendClientsEnabled) {
       throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');

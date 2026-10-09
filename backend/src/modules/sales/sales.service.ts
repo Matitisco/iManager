@@ -2,8 +2,9 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
-import { cancellationStamp, writeAudit, type Actor } from "../audit/audit.js";
+import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface SaleInput {
   date: string;
@@ -12,6 +13,7 @@ export interface SaleInput {
   productId?: string | null;
   deviceLabel?: string | null;
   amount: number;
+  amountCurrency?: string | null;
   paymentMethod: string;
   status: string;
   categoryId?: string | null;
@@ -27,6 +29,7 @@ export interface SalePatchInput {
   status?: SaleInput["status"];
   date?: string;
   amount?: number;
+  amountCurrency?: string | null;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
 }
@@ -40,6 +43,7 @@ export interface SaleResponse {
   productId: string;
   deviceLabel: string;
   amount: number;
+  amountCurrency: string | null;
   paymentMethod: SaleInput["paymentMethod"];
   status: SaleInput["status"];
   categoryId: string | null;
@@ -59,6 +63,7 @@ type SaleRecord = {
   deviceLabel: string | null;
   dateLabel: string;
   amount: Decimal;
+  amountCurrency?: string | null;
   paymentMethod: string;
   status: string;
   categoryId: string | null;
@@ -156,6 +161,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(" "),
     amount: sale.amount.toNumber(),
+    amountCurrency: sale.amountCurrency ?? null,
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
     status: sale.status as SaleResponse["status"],
     categoryId: sale.categoryId ?? null,
@@ -214,6 +220,7 @@ export async function createSale(storeId: string, input: SaleInput) {
     const soldAt = resolveDate(input.date);
     const dateLabel = formatArDate(soldAt);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
+    const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
 
     const sale = await tx.sale.create({
       data: {
@@ -225,6 +232,7 @@ export async function createSale(storeId: string, input: SaleInput) {
         deviceLabel,
         dateLabel,
         amount: toDecimal(input.amount),
+        amountCurrency,
         paymentMethod: input.paymentMethod,
         status: input.status,
         categoryId: input.categoryId ?? null,
@@ -313,6 +321,8 @@ export async function updateSale(
     const newSoldAt = input.date ? resolveDate(input.date, existing.soldAt) : existing.soldAt;
     const newDateLabel = input.date ? formatArDate(newSoldAt) : existing.dateLabel;
     const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
+    const amountChanges = input.amount !== undefined && moneyChanged(existing.amount, input.amount);
+    const nextCurrency = currencyOnWrite(input.amountCurrency, amountChanges, amountChanges ? await storeCurrency(storeId, tx) : "ARS");
     const cancelling = input.status === "CANCELADA" && existing.status !== "CANCELADA";
 
     const updated = await tx.sale.update({
@@ -324,6 +334,7 @@ export async function updateSale(
         dateLabel: newDateLabel,
         soldAt: newSoldAt,
         amount: newAmount,
+        ...(nextCurrency ? { amountCurrency: nextCurrency } : {}),
         clientId: nextClientId,
         clientName: input.clientName !== undefined ? (input.clientName?.trim() ?? "") : existing.clientName,
         inventoryItemId: nextInventoryItemId,

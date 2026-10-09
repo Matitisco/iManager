@@ -2,6 +2,9 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  store: {
+    findUnique: vi.fn(),
+  },
   client: {
     findFirst: vi.fn(),
     create: vi.fn(),
@@ -31,6 +34,7 @@ import {
 describe("clients.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     prismaMock.client.create.mockResolvedValue({
       id: "client-1",
       dni: "30111222",

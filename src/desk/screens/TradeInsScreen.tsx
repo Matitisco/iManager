@@ -3,7 +3,8 @@ import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
-import { formatMoney, formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { useMoney } from '../exchange';
+import { formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
@@ -19,6 +20,7 @@ const DEFAULT_STATUSES = [
 
 export function TradeInsScreen() {
   const { tradeIns, clients, operationDrafts = [] } = useAppContext();
+  const money = useMoney();
   const catalogs = useCatalogs();
   const { open } = useDesk();
   const phone = usePhoneLayout();
@@ -104,7 +106,7 @@ export function TradeInsScreen() {
                   onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
                 >
                   <b>#{tradeCode(tradeIns, item.id)} · {tradeClientLabel(item, clients)}</b>
-                  <small>{item.deviceReceived || '—'} · {formatMoney(item.takeValue)}</small>
+                  <small>{item.deviceReceived || '—'} · {money.show(item.takeValue, item.currency)}</small>
                 </PhoneRecord>
               );
             })}
@@ -127,7 +129,7 @@ export function TradeInsScreen() {
                     <td>{tradeClientLabel(item, clients)}</td>
                     <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
                     <td className="trade-device">{item.deviceGiven || '—'}</td>
-                    <td className="r trade-nowrap"><b>{formatMoney(item.takeValue)}</b><small>Dif. {formatMoney(item.differencePaid)}</small></td>
+                    <td className="r trade-nowrap"><b>{money.show(item.takeValue, item.currency)}</b><small>Dif. {money.show(item.differencePaid, item.currency)}</small></td>
                     <td>
                       {item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : '—'}
                       {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}

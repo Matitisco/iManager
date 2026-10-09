@@ -4,7 +4,8 @@ import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
-import { conditionLabel, equipmentTitle, formatInputMoney, formatMoney, isInStock, parseMoney } from '../format';
+import { useMoney } from '../exchange';
+import { conditionLabel, equipmentTitle, formatInputMoney, isInStock, parseMoney } from '../format';
 import {
   EMPTY_COLUMN_FILTERS,
   columnFilterActive,
@@ -34,6 +35,7 @@ const BATTERY_FILTERS = [
 
 export function InventoryScreen() {
   const { inventory, appSession, operationDrafts = [] } = useAppContext();
+  const money = useMoney();
   const catalogs = useCatalogs();
   const { open, toast } = useDesk();
   const phone = usePhoneLayout();
@@ -64,15 +66,16 @@ export function InventoryScreen() {
       const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
       return matchesFilter && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
-    if (sort === 'Precio ↑') list = [...list].sort((a, b) => a.price - b.price);
-    if (sort === 'Precio ↓') list = [...list].sort((a, b) => b.price - a.price);
+    const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
+    if (sort === 'Precio ↑') list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
+    if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
     return list;
-  }, [inventory, query, filter, columns, sort]);
+  }, [inventory, query, filter, columns, sort, money]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
   const page = usePagedRows(listed, `${query}|${filter}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
-  const priceMessage = priceListMessage(rows, appSession?.store?.name);
+  const priceMessage = priceListMessage(rows, appSession?.store?.name, (item) => money.show(item.price, item.currency));
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const filters = useMemo(() => {
@@ -141,7 +144,7 @@ export function InventoryScreen() {
                     <ImanagerIcon name="equipo" size={20} />
                     <span>
                       <b>{equipmentTitle(item.model, item.capacity)}</b>
-                      <small>{[item.color, item.price > 0 ? formatMoney(item.price) : ''].filter(Boolean).join(' · ') || '—'}</small>
+                      <small>{[item.color, item.price > 0 ? money.show(item.price, item.currency) : ''].filter(Boolean).join(' · ') || '—'}</small>
                     </span>
                   </span>
                   {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}
@@ -234,7 +237,7 @@ export function InventoryScreen() {
                   </td>
                   <td>{conditionLabel(item.condition, item.grade)}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r"><b>{item.price > 0 ? formatMoney(item.price) : '-'}</b></td>
+                  <td className="r"><b>{item.price > 0 ? money.show(item.price, item.currency) : '-'}</b></td>
                   <td>
                     {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}

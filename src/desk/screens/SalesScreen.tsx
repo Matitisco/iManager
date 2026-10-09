@@ -3,10 +3,10 @@ import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
+import { useMoney } from '../exchange';
 import {
   saleBuyer,
   formatInputMoney,
-  formatMoney,
   formatShortDate,
   inPeriod,
   parseMoney,
@@ -34,6 +34,7 @@ const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
   const { sales, clients, inventory, operationDrafts = [], appSession } = useAppContext();
+  const money = useMoney();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { open } = useDesk();
   const phone = usePhoneLayout();
@@ -54,13 +55,16 @@ export function SalesScreen() {
   );
   const listed = useMemo(() => sales.filter((sale) => inWindow(sale)), [sales, bounds.start, bounds.end, period]);
   const previous = sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
-  const total = periodSales.reduce((sum, sale) => sum + sale.amount, 0);
-  const prevTotal = previous.reduce((sum, sale) => sum + sale.amount, 0);
-  const avg = periodSales.length ? Math.round(total / periodSales.length) : 0;
-  const cost = periodSales.reduce((sum, sale) => sum + (inventory.find((item) => item.id === sale.productId)?.cost ?? 0), 0);
+  const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const avg = total != null && periodSales.length ? Math.round(total / periodSales.length) : null;
+  const cost = money.sum(periodSales.map((sale) => {
+    const item = inventory.find((row) => row.id === sale.productId);
+    return { amount: item?.cost ?? 0, currency: item?.currency };
+  }));
   const hasCost = periodSales.some((sale) => (inventory.find((item) => item.id === sale.productId)?.cost ?? 0) > 0);
-  const margin = total - cost;
-  const delta = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
+  const margin = total != null && cost != null ? total - cost : null;
+  const delta = total != null && prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const toggleList = (key: 'payments' | 'statuses', value: string) => setColumns((current) => ({
@@ -108,12 +112,12 @@ export function SalesScreen() {
         </div>
       ) : null}
       <div className="dstats">
-        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{formatMoney(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
-        <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{formatMoney(avg)}</div></div>
+        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
+        <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
         {seeFinancials ? (
           <div className="dstat">
             <div className="eb">Margen bruto est.</div>
-            <div className="big">{hasCost ? formatMoney(margin) : '—'}</div>
+            <div className="big">{hasCost && margin != null ? money.showActive(margin) : '—'}</div>
             <small className="mut">{hasCost ? 'precio menos costo' : 'Cargá el costo en el equipo'}</small>
           </div>
         ) : null}
@@ -138,7 +142,7 @@ export function SalesScreen() {
                   onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                 >
                   <b>#{saleCode(sale)} · {saleBuyer(sale, clients)}</b>
-                  <small>{saleEquipment(sale, inventory)} · {formatMoney(sale.amount)}</small>
+                  <small>{saleEquipment(sale, inventory)} · {money.show(sale.amount, sale.amountCurrency)}</small>
                 </PhoneRecord>
               );
             })}
@@ -213,7 +217,7 @@ export function SalesScreen() {
                     <td>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
-                    <td className="r"><b>{formatMoney(sale.amount)}</b></td>
+                    <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
                   </PressTarget>
                 );

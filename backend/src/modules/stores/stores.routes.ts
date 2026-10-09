@@ -14,6 +14,7 @@ import {
   updateMemberSections,
   removeMember,
 } from "./stores.service.js";
+import { serializeStore } from "./store-settings.js";
 
 const storePatchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -23,7 +24,11 @@ const storePatchSchema = z.object({
   email: z.string().max(255).nullable().optional(),
   instagram: z.string().max(80).nullable().optional(),
   address: z.string().max(255).nullable().optional(),
-  currency: z.string().max(10).optional(),
+  currency: z.enum(["ARS", "USD"]).optional(),
+  exchangeMode: z.enum(["auto", "manual"]).optional(),
+  exchangeSource: z.enum(["blue", "oficial", "mep"]).optional(),
+  manualBuy: z.number().positive().nullable().optional(),
+  manualSell: z.number().positive().nullable().optional(),
   timezone: z.string().max(80).optional(),
 });
 
@@ -126,7 +131,7 @@ export async function storesRoutes(app: FastifyInstance) {
       try {
         const body = storePatchSchema.parse(request.body);
         const store = await updateStore(request.appUser.storeId, body);
-        return { store };
+        return { store: serializeStore(store) };
       } catch (error) {
         if (error instanceof ZodError) {
           return reply.code(400).send({ error: "Revisá los datos de la tienda" });

@@ -11,7 +11,8 @@ import {
   matchesClientColumns,
   type ClientColumnFilters,
 } from '../client-column-filters';
-import { avatarTone, formatInputMoney, formatMoney, formatMoneyCompact, formatShortDate, initials, parseMoney } from '../format';
+import { useMoney } from '../exchange';
+import { avatarTone, formatInputMoney, formatShortDate, initials, parseMoney } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
@@ -19,6 +20,7 @@ import { ChipRow, ImportButton, Pill, PressTarget, SearchBox, useDesk } from '..
 
 export function ClientsScreen() {
   const { clients, operationDrafts = [] } = useAppContext();
+  const money = useMoney();
   const { open } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('clients');
@@ -95,7 +97,7 @@ export function ClientsScreen() {
                   onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
                 >
                   <b>{client.name}</b>
-                  <small>{[client.phone, client.pendingBalance > 0 ? formatMoney(client.pendingBalance) : 'Sin saldo'].filter(Boolean).join(' · ')}</small>
+                  <small>{[client.phone, client.pendingBalance > 0 ? money.show(client.pendingBalance, client.balanceCurrency) : 'Sin saldo'].filter(Boolean).join(' · ')}</small>
                 </PhoneRecord>
               );
             })}
@@ -167,8 +169,8 @@ export function ClientsScreen() {
                   <td>{client.dni || '-'}</td>
                   <td>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
-                  <td className="r">{formatMoney(client.totalSpent)}</td>
-                  <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {formatMoneyCompact(client.pendingBalance)}</span> : <span className="spill mid">Sin saldo</span>}</td>
+                  <td className="r">{money.show(client.totalSpent, client.balanceCurrency)}</td>
+                  <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>
               ))}
             </tbody>

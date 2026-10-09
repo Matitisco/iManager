@@ -560,7 +560,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar-foot { display: block; margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--secondary); line-height: 1.35; }
 .dolar.error .dolar-foot { margin: 2px 0 0; padding: 0 12px 10px; color: var(--err); }
 .dolar-foot button { font: inherit; font-weight: 800; color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.dolar-sheet { width: min(440px, calc(100vw - 48px)); padding: 22px 22px 18px; }
+.dolar-sheet { width: min(440px, calc(100vw - 24px)); padding: 22px 22px 18px; }
 .dolar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .dolar-sheet h3 { margin: 0; font-size: 20px; }
 .dolar-x { width: 32px; height: 32px; border-radius: 50%; background: var(--row); font-size: 20px; line-height: 1; color: var(--primary); }
@@ -579,6 +579,8 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar-eq { font-weight: 800; color: var(--secondary); }
 .dolar-out { font-size: 18px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
 .dolar-side { margin-left: auto; height: 32px; padding: 0 10px; border-radius: 999px; background: var(--lime); color: var(--primary); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.fl-mark { font-style: normal; color: var(--secondary); font-weight: 700; }
+.fx-warn { margin: 16px 22px 0; padding: 12px 14px; border-radius: 14px; background: #FFF6E8; color: #8A5A12; font-size: 13px; font-weight: 700; line-height: 1.4; }
 .dolar-acts { display: flex; gap: 10px; margin-top: 18px; }
 .dolar-acts .btn2 { height: 46px; font-size: 14px; }
 .dolar-acts .btn2.s { flex: 1; }
@@ -677,6 +679,9 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   margin: 0 0 16px;
 }
 @media (max-width: 640px) {
+  .dolar-calc { flex-wrap: wrap; }
+  .dolar-out { min-width: 0; }
+  .dolar-side { flex: 1 1 100%; width: 100%; margin-left: 0; white-space: normal; text-align: center; height: auto; min-height: 32px; padding: 8px 10px; }
   .ov.reset { align-items: flex-end; padding: 12px; }
   .sheet.compact {
     width: 100%;

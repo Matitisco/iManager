@@ -1,9 +1,18 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlueDollar } from './BlueDollar';
+import { ExchangeProvider } from './exchange';
 import { BLUE_REFRESH_MS, BLUE_STORAGE_KEY, argentinaDay, shiftDay } from './blue-rate';
 import { formatMoney } from './format';
+
+function renderWidget() {
+  return render(
+    <ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'auto', exchangeSource: 'blue', manualBuy: null, manualSell: null }}>
+      <BlueDollar />
+    </ExchangeProvider>,
+  );
+}
 
 function json(body: unknown, ok = true) {
   return { ok, status: ok ? 200 : 503, json: async () => body };
@@ -48,7 +57,7 @@ afterEach(() => {
 describe('blue dollar widget', () => {
   it('shows a loading state and then the live quote', async () => {
     vi.stubGlobal('fetch', mockRates());
-    render(<BlueDollar />);
+    renderWidget();
     expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'loading');
     expect(screen.getByText('Actualizando...')).toBeInTheDocument();
     expect(await screen.findByText(/Act\. 21:40 · DolarApi/)).toBeInTheDocument();
@@ -61,7 +70,7 @@ describe('blue dollar widget', () => {
   it('opens the detail with the calculator, source switch and close actions', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', mockRates());
-    render(<BlueDollar />);
+    renderWidget();
     await screen.findByText(/Act\. 21:40/);
     await user.click(screen.getByRole('button', { name: /Dólar blue/ }));
 
@@ -69,19 +78,12 @@ describe('blue dollar widget', () => {
     expect(screen.getByText('Fuente: DolarApi (cotización blue).')).toBeInTheDocument();
     expect(screen.getByText(/se refresca cada 15 min/)).toBeInTheDocument();
     expect(screen.getByText(`▲ ${formatMoney(10)}`)).toBeInTheDocument();
-    const sources = screen.getByRole('group', { name: 'Fuente de la cotización' });
-    expect(within(sources).getAllByRole('button').map((button) => button.textContent)).toEqual(['DolarApi', 'Bluelytics']);
 
     await user.type(screen.getByLabelText('Dólares'), '500');
     expect(screen.getByTestId('blue-result')).toHaveTextContent(formatMoney(650000));
     await user.click(screen.getByTestId('blue-rate-side'));
     expect(screen.getByTestId('blue-rate-side')).toHaveTextContent('al precio de compra');
     expect(screen.getByTestId('blue-result')).toHaveTextContent(formatMoney(640000));
-
-    await user.click(screen.getByTestId('blue-source-bluelytics'));
-    expect(await screen.findByText('Fuente: Bluelytics (cotización blue).')).toBeInTheDocument();
-    expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1270));
-    expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1290));
 
     await user.click(screen.getByTestId('blue-done'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -109,7 +111,7 @@ describe('blue dollar widget', () => {
       throw new Error('offline');
     });
     vi.stubGlobal('fetch', fetchMock);
-    render(<BlueDollar />);
+    renderWidget();
 
     expect(await screen.findByTestId('blue-retry')).toBeInTheDocument();
     expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'error');
@@ -131,7 +133,7 @@ describe('blue dollar widget', () => {
       release = () => resolve(json(dolar));
     }));
     vi.stubGlobal('fetch', fetchMock);
-    render(<BlueDollar />);
+    renderWidget();
     expect(screen.getByText(/Act\. 21:40 · DolarApi/)).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
 

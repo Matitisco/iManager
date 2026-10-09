@@ -31,6 +31,7 @@ const clientCreateSchema = z.object({
   lastPurchaseDate: z.string().trim().optional().nullable(),
   totalSpent: z.number().nonnegative().optional(),
   pendingBalance: z.number().nonnegative().optional(),
+  balanceCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   tag: z.string().trim().max(30).nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
@@ -131,11 +132,13 @@ export async function clientsRoutes(app: FastifyInstance) {
       const body = z.object({
         amount: z.number().positive(),
         method: z.string().trim().min(1).max(50),
+        currency: z.enum(["ARS", "USD"]).nullable().optional(),
       }).parse(request.body);
       try {
         const client = await registerClientPayment(request.appUser.storeId, params.id, {
           amount: body.amount ?? 0,
           method: body.method ?? '',
+          currency: body.currency,
         });
         if (!client) return reply.code(404).send({ error: "Client not found" });
         return reply.code(201).send({ client });

@@ -13,6 +13,7 @@ export interface RepairOrderInput {
   faultTags?: string[];
   estimate?: number | null;
   deposit?: number;
+  currency?: 'ARS' | 'USD' | null;
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;

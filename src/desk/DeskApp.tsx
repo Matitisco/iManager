@@ -12,6 +12,7 @@ import { SalesScreen } from './screens/SalesScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
 import { BlueDollar } from './BlueDollar';
+import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
@@ -41,6 +42,12 @@ function SectionUnread({ label, count, meta }: { label: string; count: number; m
       {count > 0 ? <span className="dcount" aria-label={`${count} en ${label}`}>{count}</span> : null}
     </span>
   );
+}
+
+function FxBanner() {
+  const warning = useMoney().warning;
+  if (!warning) return null;
+  return <p className="fx-warn" data-testid="fx-warning" role="status">{warning}</p>;
 }
 
 function tabFromHash(hash: string): DeskTab {
@@ -173,6 +180,7 @@ export function DeskApp() {
 
   return (
     <CatalogProvider>
+    <ExchangeProvider settings={exchangeFromStore(appSession?.store)}>
     <DeskProvider value={ui}>
       <div className="desk-app">
         <aside className="side">
@@ -209,6 +217,7 @@ export function DeskApp() {
           </button>
         </aside>
         <main className="stage">
+          <FxBanner />
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
@@ -225,6 +234,7 @@ export function DeskApp() {
         <DeskOverlays overlay={overlay} />
       </div>
     </DeskProvider>
+    </ExchangeProvider>
     </CatalogProvider>
   );
 }

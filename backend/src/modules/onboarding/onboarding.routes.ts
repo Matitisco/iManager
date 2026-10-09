@@ -5,6 +5,11 @@ import { completeOnboarding, type CompleteOnboardingInput } from "./onboarding.s
 
 const onboardingSchema = z.object({
   storeName: z.string().trim().min(1).max(120),
+  currency: z.enum(["ARS", "USD"]).optional(),
+  exchangeMode: z.enum(["auto", "manual"]).optional(),
+  exchangeSource: z.enum(["blue", "oficial", "mep"]).optional(),
+  manualBuy: z.number().positive().nullable().optional(),
+  manualSell: z.number().positive().nullable().optional(),
 });
 
 export async function onboardingRoutes(app: FastifyInstance) {

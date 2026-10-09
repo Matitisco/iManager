@@ -54,6 +54,7 @@ const inputSchema = z.object({
   customFields: z.record(z.unknown()).nullable().optional(),
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
+  currency: z.enum(["ARS", "USD"]).nullable().optional(),
   tradeIn: tradeSchema,
 });
 

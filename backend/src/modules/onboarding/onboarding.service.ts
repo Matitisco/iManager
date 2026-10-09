@@ -2,9 +2,15 @@ import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser, type AppSessionResponse } from "../auth/session.service.js";
+import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
 
 export interface CompleteOnboardingInput {
   storeName: string;
+  currency?: string;
+  exchangeMode?: string;
+  exchangeSource?: string;
+  manualBuy?: number | null;
+  manualSell?: number | null;
 }
 
 export async function completeOnboarding(
@@ -28,6 +34,11 @@ export async function completeOnboarding(
       const store = await tx.store.create({
         data: {
           name: trimmedStoreName,
+          currency: asCurrency(input.currency),
+          exchangeMode: asExchangeMode(input.exchangeMode),
+          exchangeSource: asExchangeSource(input.exchangeSource),
+          manualBuy: positiveRate(input.manualBuy),
+          manualSell: positiveRate(input.manualSell),
         },
       });
 

@@ -109,6 +109,7 @@ export type ClientPaymentRecord = {
   paidAt: string;
   kind?: string;
   note?: string | null;
+  currency?: string | null;
 };
 
 export async function fetchClientPayments(user: AuthUserLike, clientId: string): Promise<ClientPaymentRecord[]> {
@@ -124,7 +125,7 @@ export async function fetchClientPayments(user: AuthUserLike, clientId: string):
 export async function registerBackendClientPayment(
   user: AuthUserLike,
   clientId: string,
-  input: { amount: number; method: string },
+  input: { amount: number; method: string; currency?: string | null },
 ): Promise<Client> {
   const baseUrl = getBaseUrlOrThrow();
   const response = await fetchWithTimeout(`${baseUrl}/api/clients/${clientId}/payments`, {

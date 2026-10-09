@@ -26,8 +26,7 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
   await page.getByRole('button', { name: /Dólar blue/ }).click();
   await page.getByLabel('Dólares').fill('100');
   await expect(page.getByTestId('blue-result')).toContainText('130.000');
-  await page.getByTestId('blue-source-bluelytics').click();
-  await expect(page.getByText('Fuente: Bluelytics (cotización blue).')).toBeVisible();
+  await expect(page.getByText('Fuente: DolarApi (cotización blue).')).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/dolar-detalle.png` });
   await page.getByTestId('blue-done').click();
 

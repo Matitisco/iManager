@@ -7,6 +7,7 @@ import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
 import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface RepairOrderInput {
   clientId?: string | null;
@@ -17,6 +18,7 @@ export interface RepairOrderInput {
   faultTags?: string[];
   estimate?: number | null;
   deposit?: number;
+  currency?: string | null;
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;
@@ -42,6 +44,7 @@ export interface RepairOrderResponse {
   faultTags: string[];
   estimate: number | null;
   deposit: number;
+  currency: string | null;
   technician: string;
   status: string;
   estimatedDelivery: string | null;
@@ -108,6 +111,7 @@ function serialize(record: RepairRecord, storeName: string | null): RepairOrderR
     faultTags: splitTags(record.faultTags),
     estimate: money(record.estimate),
     deposit: money(record.deposit) ?? 0,
+    currency: record.currency ?? null,
     technician: record.technician,
     status: record.status,
     estimatedDelivery: record.estimatedDelivery ? formatArDate(record.estimatedDelivery) : null,
@@ -169,6 +173,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
       clientId = client.id;
     }
     const orderNumber = await allocateDocumentNumber(tx, storeId, "repair");
+    const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     const order = await tx.repairOrder.create({
       data: {
         orderNumber,
@@ -181,6 +186,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
         faultTags: joinTags(input.faultTags),
         estimate: input.estimate == null ? null : new Decimal(input.estimate),
         deposit: new Decimal(input.deposit ?? 0),
+        currency,
         technician: (input.technician ?? "").trim(),
         status,
         estimatedDelivery: deliveryDate(input.estimatedDelivery),
@@ -216,6 +222,7 @@ export async function updateRepair(
     faultTags?: string;
     estimate?: Decimal | null;
     deposit?: Decimal;
+    currency?: string;
     technician?: string;
     estimatedDelivery?: Date | null;
     notifyWhatsapp?: boolean;
@@ -238,6 +245,9 @@ export async function updateRepair(
   if (input.faultTags !== undefined) data.faultTags = joinTags(input.faultTags);
   if (input.estimate !== undefined) data.estimate = input.estimate == null ? null : new Decimal(input.estimate);
   if (input.deposit !== undefined) data.deposit = new Decimal(input.deposit);
+  const depositChanged = input.deposit !== undefined && moneyChanged(current.deposit, input.deposit);
+  const nextCurrency = currencyOnWrite(input.currency, estimateChanged || depositChanged, estimateChanged || depositChanged ? await storeCurrency(storeId, prisma) : "ARS");
+  if (nextCurrency) data.currency = nextCurrency;
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
   if (input.notifyWhatsapp !== undefined) data.notifyWhatsapp = input.notifyWhatsapp;

@@ -1,8 +1,9 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
-import { writeAudit, type Actor } from "../audit/audit.js";
+import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
+import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface ClientInput {
   dni?: string | null;
@@ -13,6 +14,7 @@ export interface ClientInput {
   lastPurchaseDate?: string | null;
   totalSpent?: number;
   pendingBalance?: number;
+  balanceCurrency?: string | null;
   tag?: string | null;
   customFields?: Record<string, unknown> | null;
 }
@@ -26,6 +28,7 @@ export interface ClientResponse {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  balanceCurrency: string | null;
   categoryId: string | null;
   tag: string | null;
   customFields: Record<string, unknown>;
@@ -45,6 +48,7 @@ type ClientRecord = {
   lastPurchaseAt: Date | null;
   totalSpent: Decimal;
   pendingBalance: Decimal;
+  balanceCurrency?: string | null;
   categoryId: string | null;
   tag?: string | null;
   customFields: Prisma.JsonValue | null;
@@ -107,6 +111,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
+    balanceCurrency: client.balanceCurrency ?? null,
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
     customFields: toCustomFields(client.customFields),
@@ -149,6 +154,11 @@ export async function createClient(storeId: string, input: ClientInput) {
     }
   }
 
+  const balanceCurrency = currencyOnWrite(
+    input.balanceCurrency,
+    input.pendingBalance !== undefined || input.totalSpent !== undefined,
+    await storeCurrency(storeId, prisma),
+  );
   const client = await prisma.client.create({
     data: {
       storeId,
@@ -160,6 +170,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
       totalSpent: toDecimal(input.totalSpent),
       pendingBalance: toDecimal(input.pendingBalance),
+      ...(balanceCurrency ? { balanceCurrency } : {}),
       tag: input.tag || null,
       customFields: normalizeCustomFields(input.customFields),
     },
@@ -201,6 +212,9 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   }
 
   await assertCategoryBelongsToStore(storeId, input.categoryId);
+  const spentChanges = input.totalSpent !== undefined && moneyChanged(existing.totalSpent, input.totalSpent);
+  const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
+  const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, prisma) : "ARS");
 
   const updated = await prisma.$transaction(async (tx) => {
     const client = await tx.client.update({
@@ -219,6 +233,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
         input.totalSpent !== undefined ? toDecimal(input.totalSpent) : existing.totalSpent,
       pendingBalance:
         input.pendingBalance !== undefined ? toDecimal(input.pendingBalance) : existing.pendingBalance,
+      ...(nextCurrency ? { balanceCurrency: nextCurrency } : {}),
       tag: input.tag !== undefined ? input.tag || null : existing.tag,
       customFields:
         input.customFields !== undefined
@@ -256,13 +271,14 @@ export async function listClientPayments(storeId: string, clientId: string) {
     kind: row.kind,
     note: row.note,
     paidAt: row.paidAt.toISOString(),
+    currency: row.currency ?? null,
   }));
 }
 
 export async function registerClientPayment(
   storeId: string,
   clientId: string,
-  input: { amount: number; method: string }
+  input: { amount: number; method: string; currency?: string | null }
 ) {
   return prisma.$transaction(async (tx) => {
     const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
@@ -272,12 +288,14 @@ export async function registerClientPayment(
     const amount = new Decimal(input.amount);
     if (amount.lessThanOrEqualTo(0)) throw new ClientsError("El monto tiene que ser mayor a cero");
     if (amount.greaterThan(balance)) throw new ClientsError("El monto supera el saldo");
+    const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
 
     await tx.clientPayment.create({
       data: {
         storeId,
         clientId,
         amount,
+        currency,
         method: input.method.trim(),
         paidAt: new Date(),
       },

@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const allocateDocumentNumber = vi.hoisted(() => vi.fn());
 
 const prismaMock = vi.hoisted(() => ({
+  store: {
+    findUnique: vi.fn(),
+  },
   client: {
     findFirst: vi.fn(),
   },
@@ -35,6 +38,7 @@ import { createCategory, createSale, getSalesErrorStatus, importSales } from "./
 describe("sales.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     allocateDocumentNumber.mockResolvedValue(4);
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
