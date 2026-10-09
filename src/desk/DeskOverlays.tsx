@@ -633,7 +633,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
-  const sheetClass = [source === 'sales' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
+  const sheetClass = [source === 'sales' || source === 'clients' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const dueCopy = hasTrade ? `Diferencia a cobrar: ${money.show(difference, typedCurrency)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   const tradeBlock = (
@@ -998,6 +998,7 @@ function ClientDetail({ id }: { id: string }) {
   const { clients, user, registerClientPayment } = useAppContext();
   const money = useMoney();
   const { close, open, toast } = useDesk();
+  const phone = usePhoneLayout();
   const client = clients.find((item) => item.id === id);
   const [method, setMethod] = useState('TRANSFERENCIA');
   const [amount, setAmount] = useState('');
@@ -1053,14 +1054,15 @@ function ClientDetail({ id }: { id: string }) {
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   return (
-    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close}>
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{money.show(client.pendingBalance, client.balanceCurrency)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
+      {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
       {client.pendingBalance > 0 ? (
         <>
-          <Field label="Monto"><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+          <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
             const raw = event.target.value;
             if (raw.includes('-')) {
               setAmount(raw);
@@ -1086,6 +1088,7 @@ function ClientDetail({ id }: { id: string }) {
         {client.pendingBalance > 0
           ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
+        {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
         <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>
       </div>
     </Sheet>
@@ -1096,6 +1099,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const { clients, addClient, updateClient } = useAppContext();
   const money = useMoney();
   const { close } = useDesk();
+  const phoneLayout = usePhoneLayout();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = clients.find((item) => item.id === id);
@@ -1109,7 +1113,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close}>
+    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       {current ? (
@@ -1124,6 +1128,7 @@ function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
       {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
       <Field label="Etiqueta"><span /></Field>
       <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
+      {!current && phoneLayout ? <p className="eqs-note">Última compra, total y saldo se calculan desde Ventas.</p> : null}
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
@@ -1461,7 +1466,7 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={(kind === 'inv' || kind === 'sale' || kind === 'cj') && phone} onClose={close} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={(kind === 'inv' || kind === 'sale' || kind === 'cj' || kind === 'cl') && phone} onClose={close} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);

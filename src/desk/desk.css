@@ -240,7 +240,20 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sale-node::before { content: ""; position: absolute; left: -15px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
 .sale-node.pending::before { background: var(--lime); border-color: #E2B100; }
 .sale-node.cancelled::before { background: #fff; border-color: #C4C8CE; }
-.phone-row:has(.sale-card) { align-items: stretch; }
+.phone-row:has(.sale-card),
+.phone-row:has(.cl-card) { align-items: stretch; }
+.cl-card { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; min-width: 0; max-width: 100%; }
+.cl-top { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, max-content); column-gap: 10px; row-gap: 4px; align-items: start; width: 100%; min-width: 0; }
+.cl-top .av-c { grid-column: 1; grid-row: 1 / span 2; }
+.cl-id { grid-column: 2; grid-row: 1 / span 2; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.cl-id b, .cl-id small { max-width: 100%; overflow-wrap: anywhere; }
+.cl-balance { grid-column: 3; grid-row: 1; justify-self: end; min-width: 0; max-width: 100%; }
+.cl-balance .spill { max-width: 100%; white-space: normal; }
+.cl-bot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; width: 100%; padding-top: 8px; border-top: 1px solid var(--border); }
+.cl-bot span { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.cl-bot em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--section); }
+.cl-bot b { font-size: 13px; overflow-wrap: anywhere; }
+.cl-sec { margin: 10px 2px 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
 .sale-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-width: 0; max-width: 100%; }
 .sale-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; }
 .sale-id { min-width: 0; color: var(--secondary); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
@@ -1018,6 +1031,19 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.cj-sheet .sg { max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
   .sheet.cj-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 12px; text-align: center; min-width: 0; }
   .sheet.cj-sheet .sacts:has(> .btn2:nth-child(3)) { grid-template-columns: 1fr; }
+  .sheet.cl-sheet .frow { grid-template-columns: 1fr; }
+  .sheet.cl-sheet .kv { align-items: flex-start; }
+  .sheet.cl-sheet .kv b { max-width: 62%; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+  .sheet.cl-sheet .sgs,
+  .sheet.cl-sheet .spill,
+  .sheet.cl-sheet .eqs-note,
+  .sheet.cl-sheet .dhero,
+  .sheet.cl-sheet .dhero .big,
+  .sheet.cl-sheet .fl > span { max-width: 100%; overflow-wrap: anywhere; }
+  .sheet.cl-sheet .sg { max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
+  .sheet.cl-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 12px; text-align: center; min-width: 0; }
+  .sheet.cl-sheet .sacts,
+  .sheet.cl-sheet .sacts:has(> .btn2:nth-child(3)) { grid-template-columns: 1fr; }
   .toast {
     top: calc(8px + env(safe-area-inset-top, 0px));
     bottom: auto;
