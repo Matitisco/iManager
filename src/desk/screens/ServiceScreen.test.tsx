@@ -125,6 +125,7 @@ describe('servicio técnico', () => {
     await user.type(screen.getByRole('combobox'), 'Cliente nuevo');
     await user.type(screen.getByPlaceholderText('iPhone 13'), 'iPhone 13');
     await user.click(screen.getByRole('button', { name: 'Pantalla' }));
+    expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Crear orden' }));
     await waitFor(() => expect(addRepairOrder).toHaveBeenCalledWith(expect.objectContaining({
       clientName: 'Cliente nuevo',
@@ -132,8 +133,8 @@ describe('servicio técnico', () => {
       device: 'iPhone 13',
       faultTags: ['Pantalla'],
       status: 'RECIBIDO',
-      notifyWhatsapp: true,
     })));
+    expect(addRepairOrder.mock.calls[0]?.[0]).not.toHaveProperty('notifyWhatsapp');
     await waitFor(() => expect(close).toHaveBeenCalled());
   });
 
@@ -159,6 +160,7 @@ describe('servicio técnico', () => {
     })];
     const view = desk(<RepairOrderDetail id="95" busy={false} />);
     expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', expect.stringContaining('wa.me'));
     await user.click(screen.getByRole('button', { name: 'Pasar a Entregado' }));
     expect(changeRepairStatus).toHaveBeenCalledWith('95', 'ENTREGADO');
@@ -354,6 +356,7 @@ describe('servicio técnico en el celular', () => {
     expect(screen.getByText('Cámara trasera borrosa')).toBeInTheDocument();
     expect(screen.getByText('01/01 · atrasada')).toBeInTheDocument();
     expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('En reparación').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
 
@@ -374,7 +377,8 @@ describe('servicio técnico en el celular', () => {
     desk(<RepairOrderForm busy={false} error={null} />);
     expect(screen.getByText('Arranca en «Recibido».')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
-    expect(screen.getByRole('checkbox', { name: /WhatsApp/ })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Avisarle al cliente por WhatsApp/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
   });
 

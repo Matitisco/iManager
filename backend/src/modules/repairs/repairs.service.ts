@@ -22,7 +22,6 @@ export interface RepairOrderInput {
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;
-  notifyWhatsapp?: boolean;
 }
 
 export interface RepairStatusEventResponse {
@@ -190,7 +189,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
         technician: (input.technician ?? "").trim(),
         status,
         estimatedDelivery: deliveryDate(input.estimatedDelivery),
-        notifyWhatsapp: input.notifyWhatsapp ?? false,
+        notifyWhatsapp: true,
         events: { create: { storeId, status } },
       },
       include,
@@ -230,7 +229,6 @@ export async function updateRepair(
     currency?: string;
     technician?: string;
     estimatedDelivery?: Date | null;
-    notifyWhatsapp?: boolean;
   } = {};
   if (input.clientId !== undefined || input.clientName !== undefined) {
     const clientId = input.clientId?.trim() || null;
@@ -254,7 +252,6 @@ export async function updateRepair(
   if (nextCurrency) data.currency = nextCurrency;
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
-  if (input.notifyWhatsapp !== undefined) data.notifyWhatsapp = input.notifyWhatsapp;
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.repairOrder.update({ where: { id }, data, include });
     if ((estimateChanged || depositChanged) && options.actor) {

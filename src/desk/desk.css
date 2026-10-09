@@ -759,16 +759,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 14px; }
   .sheet.svc-sheet .svc-wa,
   .sheet.svc-sheet .svc-now { flex-wrap: wrap; }
-  .sheet.svc-sheet .op-check {
-    display: block;
-    margin: 8px 0 4px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: #fff;
-    overflow-wrap: anywhere;
-  }
-  .sheet.svc-sheet .op-check input { margin-right: 8px; }
   .sheet.svc-sheet .svc-log li {
     display: grid;
     grid-template-columns: 16px minmax(0, 1fr);
@@ -1170,8 +1160,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .frow { grid-template-columns: 1fr; }
   .sheet.svc-sheet .sgs, .sheet.svc-sheet .svc-faults, .sheet.svc-sheet .svc-pair { max-width: 100%; }
   .sheet.svc-sheet .sg { max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
-  .sheet.svc-sheet .op-check { display: block; margin: 8px 0 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 16px; background: #fff; overflow-wrap: anywhere; }
-  .sheet.svc-sheet .op-check input { margin-right: 8px; }
   .sheet.svc-sheet .svc-log li { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 2px 10px; border-top: 0; padding: 0 0 14px; position: relative; }
   .sheet.svc-sheet .svc-log li i { grid-row: 1 / span 2; width: 12px; height: 12px; margin-top: 3px; }
   .sheet.svc-sheet .svc-log li i.now { background: var(--lime); box-shadow: 0 0 0 4px var(--lime-soft); }

@@ -122,7 +122,6 @@ test.describe('service on a phone', () => {
       currency: 'USD',
       status: 'EN_REPARACION',
       estimatedDelivery: '01/01/2020',
-      notifyWhatsapp: true,
       technician: 'Técnico Ejemplo',
       imei: '350000000000095',
     });
@@ -191,7 +190,8 @@ test.describe('service on a phone', () => {
     await expect(form.getByText('Arranca en «Recibido».')).toBeVisible();
     await expect(form.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
     await expect(form.getByRole('button', { name: 'Recibido' })).toHaveClass(/on/);
-    await expect(form.getByRole('checkbox', { name: /WhatsApp/ })).toBeChecked();
+    await expect(form.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
+    await expect(form.getByText(/Avisarle al cliente por WhatsApp/)).toHaveCount(0);
     await expect(form.getByText(/Tentativo/)).toHaveCount(0);
     await form.getByRole('button', { name: 'Editar opciones' }).click();
     const catalog = page.getByRole('dialog', { name: 'Estados de servicio' });
@@ -220,6 +220,7 @@ test.describe('service on a phone', () => {
     await expect(detail.getByText('US$ 40')).toBeVisible();
     await expect(detail.getByText('Historial')).toBeVisible();
     await expect(detail.locator('.svc-log li')).toHaveCount(1);
+    await expect(detail.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
     await expect(detail.getByText(/Tentativo/)).toHaveCount(0);
     await settleMotion(page, '.sheet');
     await expectFits(page);
