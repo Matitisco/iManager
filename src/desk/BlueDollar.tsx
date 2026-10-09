@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { formatMoney } from './format';
 import { ImanagerIcon } from './icons';
-import { BLUE_REFRESH_LABEL, convertUsd, formatClock } from './blue-rate';
+import { BLUE_REFRESH_LABEL, convertUsd, exchangeHouseLabel, formatClock } from './blue-rate';
 import { useExchange } from './exchange';
 
 function deltaParts(delta: number | null): { text: string; tone: 'up' | 'down' | 'flat' } {
@@ -12,7 +12,7 @@ function deltaParts(delta: number | null): { text: string; tone: 'up' | 'down' |
   return { text: formatMoney(0), tone: 'flat' };
 }
 
-export function BlueDollar() {
+export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } = {}) {
   const exchange = useExchange();
   const { phase, quote, delta, title, refresh, settings } = exchange;
   const [open, setOpen] = useState(false);
@@ -35,47 +35,7 @@ export function BlueDollar() {
     ? 'Cotización cargada por la tienda.'
     : `Fuente: DolarApi (cotización ${settings.exchangeSource === 'mep' ? 'MEP' : settings.exchangeSource}).`;
 
-  return (
-    <>
-      <div className={`dolar ${phase}`} data-testid="blue-widget" data-state={phase}>
-        <button className="dolar-hit" type="button" onClick={() => setOpen(true)}>
-          <span className="dolar-top">
-            <i className="dolar-dot" aria-hidden="true" />
-            <ImanagerIcon name="dolar" size={16} />
-            <b>{title}</b>
-          </span>
-          <span className="dolar-cols">
-            <span><small>Compra</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</span>
-            <span><small>Venta</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</span>
-          </span>
-          {phase !== 'error' ? (
-            <span className="dolar-foot">{phase === 'loading' ? 'Actualizando...' : manual ? 'Cotización de la tienda' : `Act. ${clock} · DolarApi`}</span>
-          ) : null}
-        </button>
-        {manual ? null : (
-          <button
-            className="dolar-refresh"
-            type="button"
-            aria-label="Actualizar cotización"
-            data-testid="blue-refresh"
-            disabled={phase === 'loading'}
-            onClick={() => refresh()}
-          >
-            <RefreshCw size={15} />
-          </button>
-        )}
-        {phase === 'error' ? (
-          <p className="dolar-foot" onClick={() => setOpen(true)}>
-            {manual
-              ? 'Cargá la cotización en Configuración. '
-              : clock ? `No pudimos actualizar. Mostramos el dato de las ${clock} · ` : 'No pudimos actualizar. '}
-            {manual ? null : (
-              <button type="button" data-testid="blue-retry" onClick={(event) => { event.stopPropagation(); refresh(); }}>Reintentar</button>
-            )}
-          </p>
-        ) : null}
-      </div>
-      {open ? (
+  const detail = open ? (
         <div className="ov dolar-ov" data-testid="blue-overlay" onMouseDown={() => setOpen(false)}>
           <div
             className="sheet dolar-sheet"
@@ -136,7 +96,68 @@ export function BlueDollar() {
             ) : null}
           </div>
         </div>
-      ) : null}
+  ) : null;
+
+  if (variant === 'chip') {
+    const house = manual ? 'Dólar' : exchangeHouseLabel(settings.exchangeSource);
+    return (
+      <>
+        <div className={`dolar chip ${phase}`} data-testid="blue-widget" data-state={phase} data-variant="chip">
+          <button className="dolar-hit" type="button" aria-label={title} onClick={() => setOpen(true)}>
+            <i className="dolar-dot" aria-hidden="true" />
+            <b className="dolar-chip-name">{house}</b>
+            <span className="dolar-chip-px">{phase === 'loading' && !quote ? <i className="dolar-skel" /> : quote ? formatMoney(quote.buy) : '—'}</span>
+            <span className="dolar-chip-bar" aria-hidden="true" />
+            <span className="dolar-chip-px">{phase === 'loading' && !quote ? <i className="dolar-skel" /> : quote ? formatMoney(quote.sell) : '—'}</span>
+            <span className="dolar-chip-go" aria-hidden="true">›</span>
+          </button>
+        </div>
+        {detail}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className={`dolar ${phase}`} data-testid="blue-widget" data-state={phase}>
+        <button className="dolar-hit" type="button" onClick={() => setOpen(true)}>
+          <span className="dolar-top">
+            <i className="dolar-dot" aria-hidden="true" />
+            <ImanagerIcon name="dolar" size={16} />
+            <b>{title}</b>
+          </span>
+          <span className="dolar-cols">
+            <span><small>Compra</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</span>
+            <span><small>Venta</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</span>
+          </span>
+          {phase !== 'error' ? (
+            <span className="dolar-foot">{phase === 'loading' ? 'Actualizando...' : manual ? 'Cotización de la tienda' : `Act. ${clock} · DolarApi`}</span>
+          ) : null}
+        </button>
+        {manual ? null : (
+          <button
+            className="dolar-refresh"
+            type="button"
+            aria-label="Actualizar cotización"
+            data-testid="blue-refresh"
+            disabled={phase === 'loading'}
+            onClick={() => refresh()}
+          >
+            <RefreshCw size={15} />
+          </button>
+        )}
+        {phase === 'error' ? (
+          <p className="dolar-foot" onClick={() => setOpen(true)}>
+            {manual
+              ? 'Cargá la cotización en Configuración. '
+              : clock ? `No pudimos actualizar. Mostramos el dato de las ${clock} · ` : 'No pudimos actualizar. '}
+            {manual ? null : (
+              <button type="button" data-testid="blue-retry" onClick={(event) => { event.stopPropagation(); refresh(); }}>Reintentar</button>
+            )}
+          </p>
+        ) : null}
+      </div>
+      {detail}
     </>
   );
 }

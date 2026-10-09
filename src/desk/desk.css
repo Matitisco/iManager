@@ -649,24 +649,52 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .xsearch { width: 220px; }
   .svc-grid { grid-template-columns: 1fr; }
 }
+.mhead { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 100%; min-width: 0; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 8px; background: var(--bg); }
+.mstore { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.mstore-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); flex-shrink: 0; }
+.mstore b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; }
+.dolar.chip { margin: 0; width: auto; max-width: 100%; flex: 0 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 999px; }
+.dolar.chip .dolar-hit { display: flex; align-items: center; gap: 6px; width: auto; padding: 6px 10px 6px 8px; white-space: nowrap; font-size: 12px; font-weight: 800; }
+.dolar.chip .dolar-chip-name { font-size: 12px; font-weight: 800; }
+.dolar.chip .dolar-chip-px { font-size: 12px; font-weight: 800; letter-spacing: -.02em; }
+.dolar.chip .dolar-chip-bar { width: 1px; height: 12px; background: var(--border); flex-shrink: 0; }
+.dolar.chip .dolar-chip-go { color: var(--section); font-size: 16px; line-height: 1; font-weight: 700; }
+.dolar.chip .dolar-skel { display: inline-block; width: 42px; height: 8px; margin: 0; }
+.mtab { position: fixed; z-index: 40; left: 10px; right: 10px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 2px; height: 62px; padding: 6px; border-radius: 22px; background: #fff; box-shadow: 0 8px 28px rgba(22,24,29,.12); max-width: calc(100% - 20px); }
+.mtab button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; height: 46px; min-width: 44px; padding: 0 8px; border-radius: 999px; color: #8B909A; flex: 0 0 auto; }
+.mtab .dcount { position: absolute; top: 2px; right: 2px; margin-left: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+.mtab button.on { background: var(--lime); color: var(--primary); padding: 0 14px; font-size: 13px; font-weight: 800; }
+.mtab button:not(.on) .mtab-label { display: none; }
+.mtab svg { flex-shrink: 0; }
+.mlabel { margin: 18px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--section); }
+.mprofile { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 100%; padding: 12px 14px; border-radius: 18px; background: #fff; border: 1px solid var(--border); box-shadow: var(--sh); text-align: left; }
+.mprofile .info { min-width: 0; flex: 1; }
+.mprofile b, .mprofile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mprofile b { font-size: 15px; }
+.mprofile small { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--secondary); }
+.mmore .card { margin-top: 0; }
+.mmore .whead { padding-bottom: 14px; }
+.mmore .member .info { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.mmore .member .name, .mmore .member .role { display: block; text-align: left; }
+.mmore .member .name { overflow-wrap: anywhere; }
+.mmore .member .rtxt { flex-shrink: 0; }
+@media (max-width: 380px) {
+  .mhead { padding-left: 12px; padding-right: 12px; }
+  .mtab { left: 6px; right: 6px; max-width: calc(100% - 12px); }
+  .mtab button.on { padding: 0 10px; font-size: 12px; }
+  .dolar.chip .dolar-hit { gap: 4px; padding: 6px 8px; font-size: 11px; }
+  .dolar.chip .dolar-chip-name, .dolar.chip .dolar-chip-px { font-size: 11px; }
+}
 @media (max-width: 760px) {
-  .desk-app { flex-direction: column; }
-  .side { width: 100%; height: auto; flex-direction: row; align-items: center; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; gap: 8px; }
-  .dbrand, .dlabel, .duser { display: none; }
-  .dnav { display: contents; }
-  .dolar { flex: 0 0 auto; width: 196px; margin: 0; }
-  .dolar-hit { padding: 6px 34px 6px 10px; }
-  .dolar-cols { margin-top: 2px; }
-  .dolar-cols b { font-size: 14px; }
-  .dolar:not(.error) .dolar-foot { display: none; }
-  .dolar-refresh { top: 50%; transform: translateY(-50%); }
-  .dgroup { flex-direction: row; }
-  .ditem { width: auto; flex: 0 0 auto; }
-  .stage { min-height: 0; }
-  .dscreen { padding: 16px 14px 32px; }
+  html, body, #root { overflow-x: clip; max-width: 100%; }
+  .desk-app { display: block; height: auto; min-height: 100dvh; width: 100%; max-width: 100%; overflow: visible; }
+  .stage { overflow: visible; min-height: 0; width: 100%; max-width: 100%; }
+  .dscreen { padding: 8px 14px calc(108px + env(safe-area-inset-bottom, 0px)); max-width: 100%; }
+  .dtop, .whead { max-width: 100%; }
+  .dtop h1, .whead h1, .dsub, .wsub { overflow-wrap: anywhere; }
   .dtop { flex-direction: column; align-items: stretch; }
   .dtop h1 { font-size: 26px; }
-  .xsearch { width: 100%; }
+  .xsearch { width: 100%; max-width: 100%; }
   .dtable.stack thead { display: none; }
   .dtable.stack, .dtable.stack tbody, .dtable.stack tr, .dtable.stack td { display: block; width: 100%; }
   .dtable.stack tr { padding: 8px 0; border-bottom: 8px solid var(--bg); }
