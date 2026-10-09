@@ -68,13 +68,25 @@ async function expectFits(page: Page) {
     const extra = document.documentElement.scrollWidth - width;
     const outside: string[] = [];
     const roots = ['.mhead', '.mtab', '.stage', '.dolar-toast', '.dolar-sheet', '.mdock'].flatMap((selector) => [...document.querySelectorAll(selector)]);
+    const clippedByParent = (node: Element) => {
+      let parent = node.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const overflow = getComputedStyle(parent).overflowX;
+        if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden' || overflow === 'clip') {
+          const box = parent.getBoundingClientRect();
+          if (box.width > 0 && box.left >= -1 && box.right <= width + 1) return true;
+        }
+        parent = parent.parentElement;
+      }
+      return false;
+    };
     for (const root of roots) {
       if (!(root instanceof Element)) continue;
       const style = getComputedStyle(root);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
       const nodes = [root, ...root.querySelectorAll('*')];
       for (const node of nodes) {
-        if (!(node instanceof Element)) continue;
+        if (!(node instanceof Element) || clippedByParent(node)) continue;
         const box = node.getBoundingClientRect();
         if (box.width < 1 && box.height < 1) continue;
         if (box.left < -1 || box.right > width + 1) {
