@@ -292,7 +292,7 @@ export async function createInvitationViaApi(
 export async function createSaleViaApi(
   request: APIRequestContext,
   email: string,
-  input: { date: string; clientName: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD' },
+  input: { date: string; clientName: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD'; paymentMethod?: string },
 ) {
   const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales`, {
     headers: {
@@ -305,7 +305,7 @@ export async function createSaleViaApi(
       deviceLabel: input.deviceLabel,
       amount: input.amount,
       amountCurrency: input.amountCurrency,
-      paymentMethod: 'EFECTIVO',
+      paymentMethod: input.paymentMethod ?? 'EFECTIVO',
       status: 'COMPLETADA',
     },
   });

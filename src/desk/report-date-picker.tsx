@@ -18,25 +18,26 @@ interface Props {
   onChange: (value: string) => void;
   invalid?: boolean;
   describedBy?: string;
+  panel?: 'float' | 'inline';
 }
 
-export function ReportDatePicker({ label, value, onChange, invalid, describedBy }: Props) {
+export function ReportDatePicker({ label, value, onChange, invalid, describedBy, panel = 'float' }: Props) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
+  const calendar = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0, width: 296 });
   const reducedMotion = useReducedMotion();
   const close = () => { setOpen(false); field.current?.focus({ preventScroll: true }); };
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || panel === 'inline') return;
     const place = () => {
       const rect = field.current?.getBoundingClientRect();
       if (!rect) return;
       const width = Math.min(296, window.innerWidth - 24);
-      const height = panel.current?.offsetHeight || 364;
+      const height = calendar.current?.offsetHeight || 364;
       const below = rect.bottom + 8;
       setPosition({
         width,
@@ -48,7 +49,7 @@ export function ReportDatePicker({ label, value, onChange, invalid, describedBy 
     window.addEventListener('resize', place);
     document.addEventListener('scroll', place, true);
     return () => { window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true); };
-  }, [open]);
+  }, [open, panel]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +84,7 @@ export function ReportDatePicker({ label, value, onChange, invalid, describedBy 
         </button>
       </div>
       <AnimatePresence>
-        {open && <motion.div ref={panel} id={`${id}-calendar`} className="dp-calendar" style={position}
+        {open && <motion.div ref={calendar} id={`${id}-calendar`} className={`dp-calendar${panel === 'inline' ? ' inline' : ''}`} style={panel === 'inline' ? undefined : position}
           initial={{ opacity: 0, y: reducedMotion ? 0 : 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }} transition={{ duration: reducedMotion ? 0 : .15 }}>
           <Calendar label={label} value={value} onSelect={select} />
         </motion.div>}
