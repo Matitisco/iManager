@@ -1,5 +1,6 @@
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
+import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser, type AppSessionResponse } from "../auth/session.service.js";
 import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
@@ -31,6 +32,16 @@ export async function completeOnboarding(
 
   if (!existingMembership) {
     await prisma.$transaction(async (tx) => {
+      // Two first onboardings can both observe "no membership" and each create
+      // a store. The lock makes the second request see the row the first wrote.
+      await lockTransactionKey(tx, userMembershipLockKey(user.id));
+
+      const membershipNow = await tx.storeMember.findFirst({
+        where: { userId: user.id, isDefault: true },
+        select: { id: true },
+      });
+      if (membershipNow) return;
+
       const store = await tx.store.create({
         data: {
           name: trimmedStoreName,

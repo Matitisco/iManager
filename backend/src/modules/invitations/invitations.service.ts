@@ -1,5 +1,6 @@
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
+import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser } from "../auth/session.service.js";
 
@@ -119,6 +120,24 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockTransactionKey(tx, userMembershipLockKey(user.id));
+    await lockTransactionKey(tx, `invitation:${invitation.id}`);
+
+    const current = await tx.storeInvitation.findUnique({ where: { id: invitation.id } });
+    if (!current || current.status !== "PENDING" || current.expiresAt < now) {
+      throw Object.assign(new Error("La invitación expiró o ya fue utilizada"), { statusCode: 410 });
+    }
+
+    const memberNow = await tx.storeMember.findUnique({
+      where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
+    });
+    if (memberNow) {
+      throw Object.assign(
+        new Error("Ya formás parte de esta tienda. El creador o un miembro existente no puede usar este enlace."),
+        { statusCode: 409 }
+      );
+    }
+
     const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
 
     await tx.storeMember.create({

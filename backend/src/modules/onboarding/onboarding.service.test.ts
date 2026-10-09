@@ -13,6 +13,7 @@ const {
     store: {
       create: vi.fn(),
     },
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(),
   },
   findOrCreateUserFromFirebaseMock: vi.fn(),
@@ -74,5 +75,21 @@ describe("onboarding.service", () => {
         isDefault: true,
       },
     });
+    expect(prismaMock.storeMember.findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not create a second store when a concurrent onboarding already wrote the membership", async () => {
+    prismaMock.storeMember.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "member-1" });
+
+    await completeOnboarding(
+      { firebaseUid: "firebase-user", email: "owner@example.com" },
+      { storeName: "Mi Tienda" }
+    );
+
+    expect(prismaMock.store.create).not.toHaveBeenCalled();
+    expect(prismaMock.storeMember.create).not.toHaveBeenCalled();
+    expect(buildAppSessionForUserMock).toHaveBeenCalled();
   });
 });
