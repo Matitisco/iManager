@@ -617,6 +617,7 @@ export async function importInventoryItems(
       continue;
     }
 
+    const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
     const input = {
       imei: raw.imei?.trim() || `IMP-${Date.now()}-${rowNum}`,
       model: raw.model.trim(),
@@ -625,7 +626,7 @@ export async function importInventoryItems(
       condition,
       grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
       batteryHealth: normalizeBattery(raw.batteryHealth),
-      cost: Number(raw.cost) || 0,
+      cost: providedCost ?? 0,
       price: Number(raw.price),
       status,
     };
@@ -654,7 +655,7 @@ export async function importInventoryItems(
             condition: input.condition,
             grade: input.grade,
             batteryHealth: input.batteryHealth,
-            cost: toDecimal(input.cost),
+            ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
             price: toDecimal(input.price),
             status: input.status,
             customFields: mergedFields,

@@ -30,6 +30,7 @@ import {
   tradeCode,
 } from './format';
 import { CatalogEditor, catalogChoices, useCatalogs } from './catalog';
+import { canSeeFinancials } from './sections';
 import type { CatalogKind } from '../services/catalogs-api';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
@@ -268,7 +269,8 @@ function EquipmentDetail({ id }: { id: string }) {
 }
 
 function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
-  const { inventory, addProduct, updateProduct } = useAppContext();
+  const { inventory, addProduct, updateProduct, appSession } = useAppContext();
+  const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { close, open } = useDesk();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
@@ -324,13 +326,17 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           condition,
           grade: !condition ? '' : condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
           batteryHealth: battery ? `${battery}%` : '',
-          cost: current?.cost ?? 0,
+          cost: seeCosts ? (current?.cost ?? 0) : 0,
           price: parseMoney(price),
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
         };
-        if (current) await updateProduct({ ...current, ...payload });
+        if (current) {
+          const next = { ...current, ...payload };
+          if (!seeCosts) delete next.cost;
+          await updateProduct(next);
+        }
         else {
           const created = await addProduct(payload);
           createdProductId = created.id;

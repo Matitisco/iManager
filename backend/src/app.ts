@@ -17,6 +17,8 @@ import { catalogsRoutes } from "./modules/catalogs/catalogs.routes.js";
 import { operationsRoutes } from "./modules/operations/operations.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { env } from "./config/env.js";
+import { redactFinancials } from "./lib/redact-financials.js";
+import { canSeeFinancials } from "./modules/stores/sections.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -40,6 +42,11 @@ export function buildApp() {
   });
 
   app.register(sensible);
+
+  app.addHook("preSerialization", async (request, _reply, payload) => {
+    if (!request.appUser || canSeeFinancials(request.appUser)) return payload;
+    return redactFinancials(payload);
+  });
 
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });

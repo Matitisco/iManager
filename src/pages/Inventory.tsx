@@ -16,6 +16,7 @@ import { importBackendInventoryItems, type ImportRow } from '../services/invento
 import { extractMinBattery, formatBatteryDisplay, batteryColor } from '../utils/inventory';
 import { customFieldsFromRowForm, parseCellTags, withCustomField } from '../utils/cell-tags';
 import { motion } from 'motion/react';
+import { canSeeFinancials } from '../desk/sections';
 
 // ── Badge metadata ────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { bg: string; text: string; dot: string; label: string }> = {
@@ -131,6 +132,7 @@ interface InventoryProps {
 export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
   const {
     user,
+    appSession,
     inventoryCategories,
     createCategory,
     renameCategory,
@@ -145,6 +147,7 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     removeCustomColumn,
   } = useAppContext();
 
+  const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const inventoryCustomColumns = useMemo(
     () => customColumns.filter((column) => column.entity === 'inventory'),
     [customColumns],
@@ -523,10 +526,19 @@ export const Inventory: React.FC<InventoryProps> = ({ searchTerm = '' }) => {
     removeCustomColumn,
     reloadInventory,
   ]);
+  const visibleConfig = useMemo((): TableEngineConfig<Product> => {
+    if (seeCosts) return config;
+    return {
+      ...config,
+      columns: config.columns.filter((column) => column.id !== 'cost'),
+      sortOptions: config.sortOptions.filter((option) => option.key !== 'cost'),
+      editPanelFields: config.editPanelFields?.filter((field) => field.field !== 'cost'),
+    };
+  }, [config, seeCosts]);
 
   return (
     <div className="flex flex-col h-full">
-      <TableEngine config={config} user={user} searchTerm={searchTerm} />
+      <TableEngine config={visibleConfig} user={user} searchTerm={searchTerm} />
     </div>
   );
 };

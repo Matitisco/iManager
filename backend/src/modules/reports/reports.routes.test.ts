@@ -100,6 +100,27 @@ describe("reportsRoutes", () => {
     await app.close();
   });
 
+  it("rejects the overview for staff even when reports is listed or unset", async () => {
+    resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
+      request.appUser = { storeId: "store-1", role: "STAFF", sections: ["reports", "inventory"] };
+    });
+    const listed = Fastify();
+    await listed.register(reportsRoutes);
+    const listedResponse = await listed.inject({ method: "GET", url: "/overview" });
+    expect(listedResponse.statusCode).toBe(403);
+    await listed.close();
+
+    resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
+      request.appUser = { storeId: "store-1", role: "STAFF", sections: null };
+    });
+    const open = Fastify();
+    await open.register(reportsRoutes);
+    const openResponse = await open.inject({ method: "GET", url: "/overview" });
+    expect(openResponse.statusCode).toBe(403);
+    expect(getReportsOverviewMock).not.toHaveBeenCalled();
+    await open.close();
+  });
+
   it("rejects the overview when the member cannot open reports", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["inventory"] };

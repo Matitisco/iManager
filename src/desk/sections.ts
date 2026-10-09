@@ -22,3 +22,8 @@ export function canOpenSection(id: string, stored: string[] | null | undefined, 
   if (role === 'STAFF' && id === 'reports') return false;
   return visibleSections(stored, role).includes(id as DeskSectionId);
 }
+
+/** Facturación, margen y costo usan el mismo permiso que Reportes. */
+export function canSeeFinancials(stored: string[] | null | undefined, role?: string | null) {
+  return canOpenSection('reports', stored, role);
+}

@@ -12,7 +12,7 @@ vi.mock("../../plugins/prisma.js", () => ({
 }));
 
 import { updateMemberSections } from "./stores.service.js";
-import { assertSectionList, normalizeSections } from "./sections.js";
+import { assertSectionList, canSeeFinancials, normalizeSections } from "./sections.js";
 
 const staff = {
   id: "member-2",
@@ -23,6 +23,17 @@ const staff = {
   sections: null,
   user: { id: "user-2", displayName: "Luis", email: "luis@test.com", avatarUrl: null },
 };
+
+describe("financial visibility", () => {
+  it("follows the reports permission and never includes staff", () => {
+    expect(canSeeFinancials({ role: "OWNER", sections: null })).toBe(true);
+    expect(canSeeFinancials({ role: "MANAGER", sections: null })).toBe(true);
+    expect(canSeeFinancials({ role: "MANAGER", sections: ["sales", "reports"] })).toBe(true);
+    expect(canSeeFinancials({ role: "MANAGER", sections: ["sales"] })).toBe(false);
+    expect(canSeeFinancials({ role: "STAFF", sections: null })).toBe(false);
+    expect(canSeeFinancials({ role: "STAFF", sections: ["reports", "sales"] })).toBe(false);
+  });
+});
 
 describe("member sections", () => {
   beforeEach(() => {

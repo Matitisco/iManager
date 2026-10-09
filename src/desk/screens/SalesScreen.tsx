@@ -27,12 +27,14 @@ import {
   saleFiltersActive,
   type SaleColumnFilters,
 } from '../sale-column-filters';
+import { canSeeFinancials } from '../sections';
 import { DeskCta, ImportButton, MenuButton, Pill, PressTarget, SearchBox, useDesk } from '../ui';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, operationDrafts = [] } = useAppContext();
+  const { sales, clients, inventory, operationDrafts = [], appSession } = useAppContext();
+  const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { open } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('sales');
@@ -106,13 +108,15 @@ export function SalesScreen() {
         </div>
       ) : null}
       <div className="dstats">
-        <div className="dstat"><div className="eb">Facturación total</div><div className="big">{formatMoney(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div>
+        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{formatMoney(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
         <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{formatMoney(avg)}</div></div>
-        <div className="dstat">
-          <div className="eb">Margen bruto est.</div>
-          <div className="big">{hasCost ? formatMoney(margin) : '—'}</div>
-          <small className="mut">{hasCost ? 'precio menos costo' : 'Cargá el costo en el equipo'}</small>
-        </div>
+        {seeFinancials ? (
+          <div className="dstat">
+            <div className="eb">Margen bruto est.</div>
+            <div className="big">{hasCost ? formatMoney(margin) : '—'}</div>
+            <small className="mut">{hasCost ? 'precio menos costo' : 'Cargá el costo en el equipo'}</small>
+          </div>
+        ) : null}
         <div className="dstat">
           <div className="eb">Variación</div>
           <div className="big">{delta == null ? '—' : <span className={delta >= 0 ? 'up' : 'down'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%</span>}</div>

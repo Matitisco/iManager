@@ -16,6 +16,7 @@ import {
   tradeCode,
 } from '../format';
 import { ImanagerIcon } from '../icons';
+import { canSeeFinancials } from '../sections';
 import { DeskCta, DeskIcon, Pill, PressTarget, useDesk } from '../ui';
 
 const TASKS = [
@@ -111,6 +112,7 @@ export function DashboardScreen() {
     if (left !== right) return left - right;
     return (b.saleNumber ?? 0) - (a.saleNumber ?? 0);
   }).slice(0, 5), [sales]);
+  const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const stockPct = inventory.length ? Math.round((available / inventory.length) * 100) : 0;
 
@@ -163,8 +165,8 @@ export function DashboardScreen() {
           <button className="mini" type="button" onClick={() => go('sales')}>
             <div className="ico"><DeskIcon name="cart" size={22} /></div>
             <div className="eyebrow">Ventas del mes</div>
-            <div className="val">{formatMoneyCompact(monthTotal)}</div>
-            <div className="sub">{monthSales.length} ventas{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</div>
+            <div className="val">{seeFinancials ? formatMoneyCompact(monthTotal) : monthSales.length}</div>
+            <div className="sub">{seeFinancials ? <>{monthSales.length} ventas{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
           </button>
           <button className="mini" type="button" onClick={() => go('inventory')}>
             <div className="ico"><ImanagerIcon name="equipo" size={20} /></div>

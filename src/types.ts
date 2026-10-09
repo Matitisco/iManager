@@ -7,7 +7,7 @@ export interface Product {
   condition: string;
   grade: string;
   batteryHealth: string;
-  cost: number;
+  cost?: number;
   price: number;
   status: string;
   pendingSaleRegistration?: boolean;
