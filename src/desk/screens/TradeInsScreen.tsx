@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
+import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
 import { useMoney } from '../exchange';
 import { formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ChipRow, DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
+import type { TradeIn } from '../../types';
 
 const DEFAULT_STATUSES = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -49,6 +51,7 @@ export function TradeInsScreen() {
     });
   }, [tradeIns, clients, query, filter, sort]);
   const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
+  const quiet = !query.trim() && filter === 'Todos' && !onlyNotices;
   const page = usePagedRows(listed, `${query}|${filter}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
@@ -79,7 +82,7 @@ export function TradeInsScreen() {
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
-        <div className="dcard op-drafts">
+        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
           <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta y el equipo entregado.</small></div>
           <div className="op-draft-list">{ownDrafts.map((trade) => (
             <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'tradeins' })}>
@@ -97,25 +100,38 @@ export function TradeInsScreen() {
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <div className="dcard flush">
-        {listed.length === 0 ? <div className="wempty">No encontré canjes.</div> : phone ? (
-          <PhoneRecords>
-            {page.visible.map((item) => {
-              const reason = notices.reasonFor(item.id);
-              return (
-                <PhoneRecord
-                  key={item.id}
-                  reason={reason}
-                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
-                >
-                  <b>#{tradeCode(tradeIns, item.id)} · {tradeClientLabel(item, clients)}</b>
-                  <small>{item.deviceReceived || '—'} · {money.show(item.takeValue, item.currency)}</small>
-                </PhoneRecord>
-              );
-            })}
-          </PhoneRecords>
+      {phone ? (
+        listed.length === 0 ? (
+          quiet ? <TradeEmpty onCreate={() => open({ type: 'new-cj' })} /> : <div className="wempty">No encontré canjes.</div>
         ) : (
+          <>
+            <div className="sale-line" data-testid="tradeins-timeline">
+              {page.visible.map((item) => {
+                const reason = notices.reasonFor(item.id);
+                const tone = item.confirmationStatus === 'CANCELLED' || item.status === 'RECHAZADO'
+                  ? ' cancelled'
+                  : item.confirmationStatus === 'PENDING' || isInProgressTrade(item.status)
+                    ? ' pending'
+                    : '';
+                return (
+                  <div key={item.id} className={`sale-node${tone}`}>
+                    <PhoneRecord
+                      reason={reason}
+                      onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
+                      onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
+                    >
+                      <TradeCard item={item} code={tradeCode(tradeIns, item.id)} client={tradeClientLabel(item, clients)} take={money.show(item.takeValue, item.currency)} difference={money.show(item.differencePaid, item.currency)} />
+                    </PhoneRecord>
+                  </div>
+                );
+              })}
+            </div>
+            <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
+          </>
+        )
+      ) : (
+      <div className="dcard flush">
+        {listed.length === 0 ? <div className="wempty">No encontré canjes.</div> : (
           <div className="dtable-scroll">
             <table className="dtable trade-table" aria-label="Canjes">
               <thead><tr><th>Canje</th><th>Fecha</th><th>Cliente</th><th>Recibido</th><th>Entregado</th><th className="r">Valor / diferencia</th><th>Estado</th></tr></thead>
@@ -148,7 +164,49 @@ export function TradeInsScreen() {
         )}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
+      )}
       {phone ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cj' })} /> : null}
+    </div>
+  );
+}
+
+function TradeCard({ item, code, client, take, difference }: {
+  item: TradeIn;
+  code: string;
+  client: string;
+  take: string;
+  difference: string;
+}) {
+  return (
+    <span className="sale-card cj-card">
+      <span className="sale-top">
+        <span className="sale-id">#{code} · {formatShortDate(item.date)}</span>
+        {item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : null}
+      </span>
+      <b>Recibido: {item.deviceReceived || '—'}</b>
+      {item.deviceReceivedImei ? <small>IMEI {item.deviceReceivedImei}</small> : null}
+      <span className="sale-bot"><span>{client}</span><b>{take}</b></span>
+      <span className="sale-bot"><span>Entrega: {item.deviceGiven || '—'}</span><b>dif. {difference}</b></span>
+      {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
+      {item.confirmationStatus === 'CONFIRMED' ? <small className="trade-confirmation">Canje confirmado</small> : null}
+      {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">Operación cancelada</small> : null}
+    </span>
+  );
+}
+
+function TradeEmpty({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="inv-empty" data-testid="tradeins-empty">
+      <div className="inv-empty-box">
+        <div className="inv-empty-mark"><ImanagerIcon name="canje" size={24} /></div>
+        <b>No hay canjes</b>
+        <p>Todavía no registraste canjes. Cargá el primero cuando tomes un equipo como parte de pago.</p>
+        <button className="dbtn p" type="button" onClick={onCreate}>
+          <ImanagerIcon name="agregar" size={16} />
+          Nuevo canje
+        </button>
+      </div>
+      <p className="inv-count">0 resultados</p>
     </div>
   );
 }

@@ -198,6 +198,17 @@ describe('operation detail', () => {
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();
   });
 
+  it('advances a legacy trade along the technical steps', async () => {
+    const user = userEvent.setup();
+    ctx.tradeIns = [trade({ confirmationStatus: undefined, status: 'PENDIENTE' })];
+    renderOverlay({ type: 'cj', id: 't1' });
+
+    expect(screen.getByText('Diferencia a cobrar')).toBeInTheDocument();
+    expect(document.querySelectorAll('.steps i')).toHaveLength(5);
+    await user.click(screen.getByRole('button', { name: 'Enviar a peritaje' }));
+    await waitFor(() => expect(ctx.updateTradeIn).toHaveBeenCalledWith(expect.objectContaining({ id: 't1', status: 'PERITAJE TÉC.' })));
+  });
+
   it('hides cancel and delete when the member cannot manage sensitive actions', () => {
     renderOverlay({ type: 'cj', id: 't1' }, false);
     expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
@@ -217,6 +228,34 @@ describe('operation detail', () => {
     })];
     renderOverlay({ type: 'sale', id: 's1' });
     expect(screen.getByText('Cancelada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
+  });
+
+  it('keeps the trade sheet actions on a phone and hides cancel without permission', () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      renderOverlay({ type: 'cj', id: 't1' });
+      expect(screen.getByRole('dialog')).toHaveClass('cj-sheet');
+      expect(screen.getByRole('button', { name: 'Peritaje téc.' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
+      cleanup();
+      renderOverlay({ type: 'cj', id: 't1' }, false);
+      expect(screen.getByRole('dialog')).toHaveClass('cj-sheet');
+      expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Guardar estado' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it('shows who cancelled the trade on the record', () => {
