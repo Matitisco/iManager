@@ -561,3 +561,37 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .dtable.trade-table { min-width: 0; }
   .dtable-scroll { overflow: visible; }
 }
+
+.desk-app.reset-host {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  display: block;
+  overflow: visible;
+  background: transparent;
+}
+.sheet.compact { width: 420px; }
+.reset-ok {
+  background: var(--ok-soft);
+  color: #1C7F51;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0 0 16px;
+}
+@media (max-width: 640px) {
+  .ov.reset { align-items: flex-end; padding: 12px; }
+  .sheet.compact {
+    width: 100%;
+    max-width: none;
+    border-radius: 22px;
+    padding: 22px 16px 16px;
+  }
+  .sheet.compact .sacts { grid-template-columns: 1fr; }
+  .sheet.compact .fl input { font-size: 16px; }
+}
