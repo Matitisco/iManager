@@ -18,6 +18,7 @@ import {
   saleBuyer,
   equipmentTitle,
   isInStock,
+  formatImei,
   formatInputMoney,
   formatArDate,
   formatArDateTime,
@@ -253,6 +254,7 @@ function EquipmentDetail({ id }: { id: string }) {
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const phone = usePhoneLayout();
   const statuses = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS);
   if (!item) return null;
   const saveStatus = async () => {
@@ -272,7 +274,7 @@ function EquipmentDetail({ id }: { id: string }) {
     }
   };
   return (
-    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close}>
+    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
       <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
@@ -280,6 +282,7 @@ function EquipmentDetail({ id }: { id: string }) {
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
+      {phone ? <div className="kv"><span>IMEI</span><b>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
@@ -323,7 +326,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   let createdProductId = '';
 
   return (
-    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close}>
+    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
@@ -1416,6 +1419,7 @@ function InvitesList() {
 }
 
 function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
+  const phone = usePhoneLayout();
   const { user, reloadInventory, reloadSales, reloadClients, reloadTradeIns } = useAppContext();
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
@@ -1431,7 +1435,7 @@ function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} onClose={close} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={kind === 'inv' && phone} onClose={close} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);

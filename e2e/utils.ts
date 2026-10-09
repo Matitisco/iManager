@@ -8,6 +8,12 @@ type InventorySeedInput = {
   model: string;
   price?: number;
   cost?: number;
+  capacity?: string;
+  color?: string;
+  condition?: string;
+  grade?: string;
+  batteryHealth?: string;
+  status?: string;
 };
 
 type AppSessionResponse = {
@@ -271,14 +277,14 @@ export async function createInventoryItemViaApi(
     data: {
       imei: input.imei,
       model: input.model,
-      capacity: '128GB',
-      color: 'Black',
-      condition: 'NUEVO',
-      grade: 'A+',
-      batteryHealth: '100%',
+      capacity: input.capacity ?? '128GB',
+      color: input.color ?? 'Black',
+      condition: input.condition ?? 'NUEVO',
+      grade: input.grade ?? 'A+',
+      batteryHealth: input.batteryHealth ?? '100%',
       cost: input.cost ?? 900,
       price: input.price ?? 1500,
-      status: 'DISPONIBLE',
+      status: input.status ?? 'DISPONIBLE',
       categoryId: null,
       customFields: null,
     },

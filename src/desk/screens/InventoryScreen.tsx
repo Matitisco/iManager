@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
-import { useMoney } from '../exchange';
-import { conditionLabel, equipmentTitle, formatInputMoney, isInStock, parseMoney } from '../format';
+import { useMoney, type MoneyApi } from '../exchange';
+import { conditionLabel, equipmentTitle, formatImei, formatInputMoney, formatMoney, isInStock, parseMoney } from '../format';
 import {
   EMPTY_COLUMN_FILTERS,
   columnFilterActive,
@@ -17,7 +17,8 @@ import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
 import { priceListMessage } from '../price-list';
 import { ImanagerIcon } from '../icons';
-import { Actions, Battery, ChipRow, DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import type { Product } from '../../types';
 
 const FILTERS = [
   { id: 'Todos', label: 'Todos' },
@@ -33,6 +34,36 @@ const BATTERY_FILTERS = [
   { id: '70', label: '≥ 70%' },
 ] as const;
 
+function plainCondition(condition: string) {
+  if (!condition) return '';
+  return ({ NUEVO: 'Nuevo', USADO: 'Usado', 'PRE-OWNED': 'Pre-owned' } as Record<string, string>)[condition] ?? condition;
+}
+
+function gradeText(condition: string, grade: string) {
+  if (!grade || grade === 'N/A' || grade === '—' || condition === 'NUEVO') return '';
+  return `Grado ${grade}`;
+}
+
+function batteryLine(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '0' || trimmed === '0%') return '';
+  return `Bat. ${trimmed.includes('%') ? trimmed : `${trimmed}%`}`;
+}
+
+function activeColumnCount(filters: InventoryColumnFilters) {
+  return Number(filters.conditions.length > 0)
+    + Number(Boolean(filters.battery))
+    + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
+    + Number(Boolean(filters.equipo.trim()));
+}
+
+function approxUsd(money: MoneyApi, amount: number, currency?: string | null) {
+  if (!(amount > 0) || money.active !== 'ARS' || !(money.rate && money.rate > 0)) return null;
+  const pesos = money.number(amount, currency);
+  if (pesos == null) return null;
+  return `≈ ${formatMoney(Math.round(pesos / money.rate), 'USD')}`;
+}
+
 export function InventoryScreen() {
   const { inventory, appSession, operationDrafts = [] } = useAppContext();
   const money = useMoney();
@@ -40,6 +71,10 @@ export function InventoryScreen() {
   const { open, toast, back } = useDesk();
   const phone = usePhoneLayout();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const notices = useSectionNotices('inventory');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
@@ -60,18 +95,27 @@ export function InventoryScreen() {
     return () => window.removeEventListener('desk-eq-saved', reset);
   }, []);
 
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointer);
+    return () => window.removeEventListener('pointerdown', onPointer);
+  }, [moreOpen]);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = inventory.filter((item) => {
       const matchesFilter = filter === 'Todos' || (filter === 'DISPONIBLE' ? isInStock(item.status) : item.status === filter);
-      const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
+      const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
       return matchesFilter && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
     if (sort === 'Precio ↑') list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
     return list;
-  }, [inventory, query, filter, columns, sort, money]);
+  }, [inventory, query, filter, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
   const page = usePagedRows(listed, `${query}|${filter}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
   const visibleKey = page.visible.map((item) => item.id).join('|');
@@ -95,6 +139,13 @@ export function InventoryScreen() {
     });
   }, [inventory]);
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
+  const filterCount = activeColumnCount(columns);
+  const openFilters = () => {
+    setDraftFilters(columns);
+    setFiltersOpen(true);
+    setMoreOpen(false);
+  };
+  const showApprox = phone && money.active === 'ARS' && Boolean(money.rate) && page.visible.some((item) => item.price > 0);
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
@@ -105,7 +156,21 @@ export function InventoryScreen() {
         tools={(
           <>
             <IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />
-            <IconButton label="Lista de precios" name="lista-de-precios" disabled={rows.length === 0} onClick={() => setListOpen(true)} />
+            <span className="rslot">
+              <IconButton label="Filtros" name="filtrar" pressed={filterCount > 0} onClick={openFilters} />
+              {filterCount > 0 ? <span className="rbadge">{filterCount}</span> : null}
+            </span>
+            <div className="htools" ref={moreRef}>
+              <IconButton label="Más opciones" name="mas" pressed={moreOpen} onClick={() => setMoreOpen((current) => !current)} />
+              {moreOpen ? (
+                <div className="menu">
+                  <button type="button" disabled={rows.length === 0} onClick={() => { setMoreOpen(false); setListOpen(true); }}>
+                    <ImanagerIcon name="lista-de-precios" size={16} />
+                    Lista de precios
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </>
         )}
         desktop={(
@@ -120,7 +185,7 @@ export function InventoryScreen() {
           </div>
         )}
       />
-      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" /></div> : null}
+      {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       {ownDrafts.length > 0 ? (
         <div className="dcard op-drafts">
@@ -139,7 +204,7 @@ export function InventoryScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <div className="dcard flush">
         {phone ? (
-          <PhoneRecords>
+          page.visible.length === 0 ? null : <PhoneRecords>
             {page.visible.map((item) => {
               const reason = notices.reasonFor(item.id);
               return (
@@ -149,14 +214,7 @@ export function InventoryScreen() {
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
                 >
-                  <span className="phone-eq">
-                    <ImanagerIcon name="equipo" size={20} />
-                    <span>
-                      <b>{equipmentTitle(item.model, item.capacity)}</b>
-                      <small>{[item.color, item.price > 0 ? money.show(item.price, item.currency) : ''].filter(Boolean).join(' · ') || '—'}</small>
-                    </span>
-                  </span>
-                  {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}
+                  <InventoryCard item={item} money={money} />
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
               );
@@ -256,11 +314,63 @@ export function InventoryScreen() {
             </tbody>
           </table>
         )}
-        {listed.length === 0 ? <div className="wempty">No hay equipos con ese filtro.</div> : null}
+        {listed.length === 0 ? (
+          phone && inventory.length === 0
+            ? <InventoryEmpty onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
+            : <div className="wempty">No hay equipos con ese filtro.</div>
+        ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
-      <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>
+      {showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
+      {phone && inventory.length === 0 ? null : <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>}
       {phone ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
+      {filtersOpen ? (
+        <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
+          <div className="inv-filters">
+            <p className="sec">Condición</p>
+            {conditionOptions.length === 0 ? <p className="mut">Todavía no hay condiciones en el stock.</p> : (
+              <div className="inv-checks">
+                {conditionOptions.map((label) => (
+                  <label key={label} className="chk">
+                    <input
+                      type="checkbox"
+                      checked={draftFilters.conditions.includes(label)}
+                      onChange={(event) => setDraftFilters((current) => ({
+                        ...current,
+                        conditions: event.target.checked
+                          ? [...current.conditions, label]
+                          : current.conditions.filter((item) => item !== label),
+                      }))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="sec">Batería</p>
+            <div className="inv-opts">
+              {BATTERY_FILTERS.map((option) => (
+                <button key={option.label} className={`wchip${draftFilters.battery === option.id ? ' on' : ''}`} type="button" onClick={() => setDraftFilters((current) => ({ ...current, battery: option.id }))}>{option.label}</button>
+              ))}
+            </div>
+            <p className="sec">Precio</p>
+            <div className="inv-range">
+              <Field label={`Mínimo · ${money.active}`}>
+                <input aria-label="Mínimo" inputMode="numeric" value={draftFilters.priceMin ? formatInputMoney(parseMoney(draftFilters.priceMin)) : ''} onChange={(event) => setDraftFilters((current) => ({ ...current, priceMin: event.target.value.replace(/\D/g, '').slice(0, 12) }))} />
+              </Field>
+              <Field label={`Máximo · ${money.active}`}>
+                <input aria-label="Máximo" inputMode="numeric" value={draftFilters.priceMax ? formatInputMoney(parseMoney(draftFilters.priceMax)) : ''} onChange={(event) => setDraftFilters((current) => ({ ...current, priceMax: event.target.value.replace(/\D/g, '').slice(0, 12) }))} />
+              </Field>
+            </div>
+          </div>
+          <Actions
+            secondary="Limpiar filtros"
+            onSecondary={() => setDraftFilters(EMPTY_COLUMN_FILTERS)}
+            primary="Aplicar filtros"
+            onPrimary={() => { setColumns(draftFilters); setFiltersOpen(false); }}
+          />
+        </Sheet>
+      ) : null}
       {listOpen ? (
         <Sheet
           title="Lista de precios"
@@ -284,6 +394,48 @@ export function InventoryScreen() {
           />
         </Sheet>
       ) : null}
+    </div>
+  );
+}
+
+function InventoryCard({ item, money }: { item: Product; money: MoneyApi }) {
+  const condition = [plainCondition(item.condition), item.color].filter(Boolean).join(' · ');
+  const specs = [gradeText(item.condition, item.grade), batteryLine(item.batteryHealth)].filter(Boolean).join(' · ');
+  const approx = approxUsd(money, item.price, item.currency);
+  return (
+    <span className="inv-card">
+      <span className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
+      <span className="inv-status">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
+      <b className="inv-title">{equipmentTitle(item.model, item.capacity)}</b>
+      <span className="inv-meta">
+        <small>{condition || '—'}</small>
+        {specs ? <small>{specs}</small> : null}
+      </span>
+      <span className="inv-price">
+        <b>{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
+        {approx ? <small>{approx}</small> : null}
+      </span>
+    </span>
+  );
+}
+
+function InventoryEmpty({ onImport, onCreate }: { onImport: () => void; onCreate: () => void }) {
+  return (
+    <div className="inv-empty" data-testid="inventory-empty">
+      <div className="inv-empty-box">
+        <div className="inv-empty-mark"><ImanagerIcon name="equipo" size={24} /></div>
+        <b>Todavía no cargaste equipos</b>
+        <p>Ingresá tu primer equipo o importá tu stock desde una planilla.</p>
+        <button className="dbtn s" type="button" onClick={onImport}>
+          <ImanagerIcon name="importar" size={16} />
+          Importar
+        </button>
+        <button className="dbtn p" type="button" onClick={onCreate}>
+          <ImanagerIcon name="agregar" size={16} />
+          Registrar equipo
+        </button>
+      </div>
+      <p className="inv-count">0 resultados</p>
     </div>
   );
 }
