@@ -247,12 +247,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
           </div>
         </motion.div>
 
-        <div className="relative z-10 flex items-center justify-between text-sm text-zinc-500">
+        <div className="relative z-10 text-sm text-zinc-500">
           <span>&copy; {new Date().getFullYear()} iManager.</span>
-          <div className="flex gap-4">
-            <a href="#" className="hover:text-white transition-colors">Ayuda</a>
-            <a href="#" className="hover:text-white transition-colors">Privacidad</a>
-          </div>
         </div>
       </div>
 

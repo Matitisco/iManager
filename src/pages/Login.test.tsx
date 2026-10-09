@@ -225,6 +225,16 @@ describe('Login', () => {
     removeDocumentListener.mockRestore();
   });
 
+  it('omits dead help and privacy links and keeps password recovery', () => {
+    const { container } = render(<Login />);
+
+    expect(screen.queryByRole('link', { name: /^ayuda$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^privacidad$/i })).not.toBeInTheDocument();
+    expect(container.querySelector('a[href="#"]')).toBeNull();
+    expect(screen.getByText(new RegExp(`© ${new Date().getFullYear()} iManager`))).toBeInTheDocument();
+    expect(screen.getByTestId('forgot-password')).toHaveTextContent('¿Olvidaste tu contraseña?');
+  });
+
   it('hides password recovery while creating an account', () => {
     render(<Login />);
     expect(screen.getByTestId('forgot-password')).toBeInTheDocument();
