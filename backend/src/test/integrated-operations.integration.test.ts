@@ -592,5 +592,23 @@ describe("integrated operation API", () => {
     const listed = await app.inject({ method: "GET", url: "/api/inventory", headers });
     expect(listed.statusCode).toBe(200);
     expect(listed.json().inventory.find((item: { id: string }) => item.id === sold.id)).toMatchObject({ needsCompletion: true, status: "VENDIDO" });
+
+    const tradeId = created.json().tradeIn.id as string;
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode).toBe(200);
+    const inventoryNotice = cancelled.json().notifications.find((item: { section: string }) => item.section === "inventory");
+    expect(inventoryNotice).toMatchObject({
+      recordId: tradeId,
+      kind: "ARCHIVED_TRADE_IN_RECEIVED",
+      message: expect.stringContaining("iPhone 11 archivado"),
+      targets: [
+        { recordId: sold.id, reason: "Volvió al stock" },
+        { recordId: tradeId, reason: "Archivado" },
+      ],
+    });
+    const archived = await app.inject({ method: "GET", url: `/api/operations/inventory/trades/${tradeId}`, headers });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json().inventory.find((item: { model: string }) => item.model === "iPhone 11")).toMatchObject({ archivedAt: expect.any(String) });
+    expect(archived.json().inventory.find((item: { id: string }) => item.id === sold.id)).toMatchObject({ status: "DISPONIBLE", needsCompletion: true });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { operationSummary, sectionCopy, sectionReason, sectionRecords } from "./operation-copy.js";
+import { cancelledInventoryRecord, operationSummary, sectionCopy, sectionReason, sectionRecords } from "./operation-copy.js";
 
 describe("section operation copy", () => {
   it("describes the impact of each section with Argentine amounts", () => {
@@ -46,6 +46,9 @@ describe("section operation copy", () => {
     expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
     const [notice] = sectionRecords(["inventory"], { action: "cancelled", archivedDevice: "iPhone 11" }, { inventory: "trade-1", tradeins: "trade-1" }, { archiveReceived: true });
     expect(notice).toMatchObject({ message: "iPhone 11 archivado", kind: "ARCHIVED_TRADE_IN_RECEIVED" });
+    expect(cancelledInventoryRecord("trade-1", null)).toBe("trade-1");
+    expect(cancelledInventoryRecord("trade-1", { id: "sold-1", needsCompletion: true })).toBe("trade-1");
+    expect(cancelledInventoryRecord("trade-1", { id: "sold-1" })).toBe("sold-1");
   });
 
   it("stores a reason for every affected record, including both phones of a trade", () => {

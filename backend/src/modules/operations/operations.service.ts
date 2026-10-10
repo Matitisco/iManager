@@ -10,7 +10,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
-import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
+import { cancelledInventoryRecord, noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 import { MISSING_OUTGOING_PRICE, outgoingTradeDifference } from "./outgoing-difference.js";
 import { parseQuality } from "../inventory/quality.js";
 
@@ -1182,6 +1182,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       received ? tx.inventoryItem.findFirst({ where: { id: received.id, storeId } }) : null,
       sale?.inventoryItemId ? tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null,
     ]);
+    const openArchivedReceipt = Boolean(received) && (!output || output.needsCompletion);
     const notifications = await notify(tx, storeId, sectionRecords(
       ["tradeins", ...(sale ? ["sales"] : []), ...(received ? ["inventory"] : []), ...(client ? ["clients"] : [])],
       {
@@ -1197,8 +1198,14 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         archivedDevice: archivedReceived?.model ?? received?.model ?? null,
         releasedDevice: output ? fullDeviceLabel(output) : null,
       },
-      { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: output?.id ?? trade.id, clients: client?.id ?? trade.id },
-      { archiveReceived: true },
+      { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: cancelledInventoryRecord(trade.id, output), clients: client?.id ?? trade.id },
+      {
+        archiveReceived: true,
+        ...(openArchivedReceipt ? { targets: { inventory: noticeTargets([
+          { recordId: output?.id, reason: "Volvió al stock" },
+          { recordId: trade.id, reason: "Archivado" },
+        ]) } } : {}),
+      },
     ));
     return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund)}` };
   });

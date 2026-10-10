@@ -32,6 +32,12 @@ export type SectionNotice = {
   kind: string;
 };
 
+/** Record opened by the inventory notice of a cancelled trade. A device created only to complete the sale must not hide the archived receipt. */
+export function cancelledInventoryRecord(tradeId: string, restored?: { id: string; needsCompletion?: boolean } | null) {
+  if (restored && !restored.needsCompletion) return restored.id;
+  return tradeId;
+}
+
 export function noticeTargets(parts: Array<{ recordId?: string | null; reason: string }>): NoticeTarget[] {
   const seen = new Set<string>();
   const targets: NoticeTarget[] = [];
