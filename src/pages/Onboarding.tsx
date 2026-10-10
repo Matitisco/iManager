@@ -148,7 +148,7 @@ interface OnboardingProps {
 
 export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
   const { appSession, completeOnboarding, acceptStoreInvitation, logout } = useAppContext();
-  const [storeName, setStoreName] = useState(trimToString(appSession?.user.displayName));
+  const [storeName, setStoreName] = useState('');
   const [currency, setCurrency] = useState<StoreCurrency>('ARS');
   const [exchangeMode, setExchangeMode] = useState<ExchangeMode>('auto');
   const [exchangeSource, setExchangeSource] = useState<ExchangeSource>('blue');
@@ -190,7 +190,12 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
 
   const handleCreateStore = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nameError = limitedText('nombre', storeName, INPUT_LIMITS.storeName);
+    const trimmedStoreName = trimToString(storeName);
+    if (!trimmedStoreName) {
+      setError('Completá el nombre de la tienda');
+      return;
+    }
+    const nameError = limitedText('nombre', trimmedStoreName, INPUT_LIMITS.storeName);
     if (nameError) {
       setError(nameError);
       return;
@@ -205,7 +210,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
     setIsSubmitting(true);
     try {
       await completeOnboarding({
-        storeName: trimToString(storeName),
+        storeName: trimmedStoreName,
         currency,
         exchangeMode,
         exchangeSource,

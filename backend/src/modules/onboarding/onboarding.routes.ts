@@ -4,7 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { completeOnboarding, type CompleteOnboardingInput } from "./onboarding.service.js";
 
 const onboardingSchema = z.object({
-  storeName: z.string().trim().min(1).max(120),
+  storeName: z.string().trim().min(1, "Completá el nombre de la tienda").max(120),
   currency: z.enum(["ARS", "USD"]).optional(),
   exchangeMode: z.enum(["auto", "manual"]).optional(),
   exchangeSource: z.enum(["blue", "oficial", "mep"]).optional(),

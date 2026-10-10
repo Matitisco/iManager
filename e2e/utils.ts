@@ -162,6 +162,7 @@ export async function bootstrapStore(
 
   if (onboardingVisible) {
     const onboardingSubmit = page.getByTestId('onboarding-submit');
+    await expect(onboardingStoreName).toHaveValue('');
     await onboardingStoreName.fill(storeName);
     await expect(onboardingSubmit).toBeEnabled();
     const onboardingRequest = page.waitForResponse(

@@ -23,6 +23,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await mockDollar(page);
   await loginViaUi(page, email);
 
+  await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
   await page.getByTestId('onboarding-store-name').fill(storeName);
   await page.getByTestId('onboarding-currency').selectOption('USD');
   await page.getByTestId('onboarding-exchange-mode').selectOption('auto');
@@ -115,6 +116,7 @@ test.describe('phone', () => {
     const email = buildTestEmail(testInfo, 'currency-phone');
     await mockDollar(page);
     await loginViaUi(page, email);
+    await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     await page.getByTestId('onboarding-store-name').fill(`Celular ${testInfo.parallelIndex}`);
     await page.getByTestId('onboarding-submit').click();
     const skipContact = page.getByRole('button', { name: 'Ahora no' });

@@ -66,6 +66,7 @@ test.describe('desktop auth stays put', () => {
     await expect(page.getByTestId('onboarding-currency')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-mode')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
+    await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     const cardDisplay = await page.locator('.onb-card').evaluate((el) => getComputedStyle(el).display);
     expect(cardDisplay).toBe('block');
     const onboardingColor = await page.getByTestId('onboarding-submit').evaluate((el) => getComputedStyle(el).backgroundColor);
@@ -205,6 +206,7 @@ test.describe('phone login, invite and onboarding', () => {
     await expect(page.getByTestId('onboarding-currency')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-mode')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
+    await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     const yellow = await page.getByTestId('onboarding-submit').evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(yellow).toBe('rgb(255, 208, 0)');
 

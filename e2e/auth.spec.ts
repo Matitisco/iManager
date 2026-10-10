@@ -19,8 +19,13 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   const storeName = `Store ${testInfo.parallelIndex} ${Date.now()}`;
 
   await loginViaUi(page, email);
-  await expect(page.getByTestId('onboarding-store-name')).toBeVisible();
-  await page.getByTestId('onboarding-store-name').fill(storeName);
+  const storeNameInput = page.getByTestId('onboarding-store-name');
+  await expect(storeNameInput).toBeVisible();
+  await expect(storeNameInput).toHaveValue('');
+  await expect(storeNameInput).toHaveAttribute('placeholder', 'iManager Store');
+  await page.getByTestId('onboarding-submit').click();
+  await expect(page.getByText('Completá el nombre de la tienda')).toBeVisible();
+  await storeNameInput.fill(storeName);
 
   const onboardingResponse = page.waitForResponse(
     (response) =>

@@ -22,7 +22,7 @@ export async function completeOnboarding(
   const trimmedStoreName = input.storeName.trim();
 
   if (!trimmedStoreName) {
-    throw new Error("Store name is required");
+    throw new Error("Completá el nombre de la tienda");
   }
 
   const existingMembership = await prisma.storeMember.findFirst({
