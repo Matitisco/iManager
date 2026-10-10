@@ -12,6 +12,7 @@ export interface Product {
   currency?: string | null;
   status: string;
   pendingSaleRegistration?: boolean;
+  needsCompletion?: boolean;
   archivedAt?: string | null;
   priceChangedBy?: string | null;
   priceChangedAt?: string | null;

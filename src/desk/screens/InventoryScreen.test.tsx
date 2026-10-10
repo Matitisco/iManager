@@ -586,4 +586,64 @@ describe('Inventory phone list', () => {
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
     expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
   });
+
+  it('filters equipment marked for completion from the phone sheet', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Listo', needsCompletion: false }),
+      item('2', { model: 'Incompleto', needsCompletion: true, status: 'VENDIDO' }),
+    ];
+    renderScreen();
+
+    expect(screen.getByTestId('needs-completion')).toHaveTextContent('Para completar');
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('Incompleto · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Listo · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 2');
+  });
+});
+
+describe('Inventory para completar', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.inventory = [
+      item('1', { model: 'Listo' }),
+      item('2', { model: 'Incompleto', needsCompletion: true, status: 'VENDIDO', color: 'Rosa' }),
+    ];
+    context.operationNotifications = [];
+  });
+
+  it('shows the marker and filters it from the desktop chips and column filter', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+
+    const row = screen.getByText('Incompleto · 128 GB').closest('tr') as HTMLElement;
+    expect(within(row).getByTestId('needs-completion')).toHaveTextContent('Para completar');
+    expect(screen.getByText('Listo · 128 GB')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Para completar' }));
+    expect(screen.getByText('Incompleto · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Listo · 128 GB')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Todos' }));
+    expect(screen.getByText('Listo · 128 GB')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+    const status = screen.getByRole('dialog', { name: 'Filtrar estado' });
+    await user.click(within(status).getByRole('checkbox', { name: 'Para completar' }));
+    expect(screen.queryByText('Listo · 128 GB')).not.toBeInTheDocument();
+  });
 });

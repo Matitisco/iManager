@@ -63,6 +63,9 @@ describe('inventory column filters', () => {
     expect(matchesInventoryColumns(reserved, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(true);
     expect(matchesInventoryColumns(sold, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(false);
     expect(matchesInventoryColumns(review, filters({ statuses: ['EN_REVISION'] }))).toBe(true);
+    expect(matchesInventoryColumns(product({ needsCompletion: true }), filters({ needsCompletion: true }))).toBe(true);
+    expect(matchesInventoryColumns(product(), filters({ needsCompletion: true }))).toBe(false);
+    expect(columnFilterActive(filters({ needsCompletion: true }), 'statuses')).toBe(true);
     expect(matchesInventoryColumns(available, filters({ statuses: ['RESERVADO'], conditions: ['Usado'] }))).toBe(false);
     expect(columnFilterActive(filters({ statuses: ['RESERVADO'] }), 'statuses')).toBe(true);
     expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'statuses')).toBe(false);

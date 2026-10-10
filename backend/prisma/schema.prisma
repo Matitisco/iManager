@@ -150,6 +150,8 @@ model InventoryItem {
   status        String             @db.VarChar(20)
   archivedAt    DateTime?
   pendingSaleRegistration Boolean  @default(false)
+  // Sale of a device that was not in stock. Battery, cost and quality still need to be filled in.
+  needsCompletion Boolean          @default(false)
   previousSaleStatus String?       @db.VarChar(20)
   priceChangedBy String?          @db.VarChar(255)
   priceChangedAt DateTime?

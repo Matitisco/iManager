@@ -42,6 +42,7 @@ import type { CatalogKind } from '../services/catalogs-api';
 import { RepairOrderDetail, RepairOrderForm } from './RepairForms';
 import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
+import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from './sale-equipment';
 import { ImanagerIcon } from './icons';
 import { usePhoneLayout } from './section-notices';
 import { QualityField } from './QualityField';
@@ -282,6 +283,7 @@ function EquipmentDetail({ id }: { id: string }) {
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+      {item.needsCompletion ? <p className="needs-completion-label" data-testid="needs-completion">Para completar</p> : null}
       <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
       <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
@@ -468,6 +470,10 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
   const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
   const [grade, setGrade] = useState<string>(canonicalQuality(currentTrade?.grade));
+  const [outgoingCapacity, setOutgoingCapacity] = useState('');
+  const [outgoingColor, setOutgoingColor] = useState('');
+  const [outgoingCondition, setOutgoingCondition] = useState('');
+  const [outgoingImei, setOutgoingImei] = useState('');
   const [bad, setBad] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -539,7 +545,14 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
   ].filter((item) => item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
-  const difference = parseMoney(amount) - parseMoney(take);
+  const priceEntered = amount.trim() !== '';
+  const tradeGap = outgoingTradeDifference({
+    registered: Boolean(selectedProduct),
+    priceProvided: priceEntered,
+    saleAmount: parseMoney(amount),
+    takeValue: parseMoney(take),
+  });
+  const difference = tradeGap.difference;
   const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
   const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
@@ -549,6 +562,14 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
     clientName: buyer.trim() || null,
     productId: productId || null,
     deviceLabel: deviceLabel.trim() || undefined,
+    ...(!draft && source !== 'inventory' && !productId && deviceLabel.trim() ? { unlistedEquipment: {
+      model: deviceLabel.trim(),
+      capacity: outgoingCapacity.trim(),
+      color: outgoingColor.trim(),
+      condition: outgoingCondition,
+      imei: outgoingImei.trim() || null,
+      price: parseMoney(amount),
+    } } : {}),
     ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
     paymentMethod: payment,
     status: paymentStatus,
@@ -573,17 +594,22 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       if (!hasTrade || !received.trim()) next.received = 'Completá el modelo recibido';
       if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (!take.trim()) next.take = 'Completá el valor tomado';
-      if (amount.trim() && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
+      if (amount.trim() && hasTrade && tradeGap.warning) next.amount = tradeGap.warning;
     } else {
       if (hasTrade && !buyer.trim()) next.client = 'Completá el nombre del cliente';
       if (source === 'clients' && !clientId) next.client = 'Elegí un cliente existente de la lista';
       if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
+      else if (!selectedProduct && deviceLabel.trim().length > INPUT_LIMITS.model) next.equipment = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
       if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
-      if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) next.amount = 'Completá el precio de salida';
+      if (!selectedProduct && outgoingColor.trim().length > INPUT_LIMITS.color) next.outgoingColor = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
+      if (!selectedProduct && outgoingCapacity.trim().length > 50) next.outgoingCapacity = 'La capacidad puede tener hasta 50 caracteres';
+      if (!selectedProduct && imeiFormatError(outgoingImei)) next.outgoingImei = IMEI_FORMAT_MESSAGE;
+      if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) {
+        next.amount = hasTrade && !selectedProduct ? MISSING_OUTGOING_PRICE : 'Completá el precio de salida';
+      } else if (hasTrade && tradeGap.warning) next.amount = tradeGap.warning === NEGATIVE_TRADE_DIFFERENCE ? NEGATIVE_TRADE_DIFFERENCE : tradeGap.warning;
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
       if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
-      if (hasTrade && difference < 0) next.amount = 'El precio de salida no puede ser menor que el valor tomado';
     }
     setBad(next);
     return Object.keys(next).length === 0;
@@ -646,7 +672,9 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
   const sheetClass = [source === 'sales' || source === 'clients' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
-  const dueCopy = hasTrade ? `Diferencia a cobrar: ${money.show(difference, typedCurrency)}` : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
+  const dueCopy = hasTrade
+    ? (difference == null ? (tradeGap.warning ?? 'Completá el precio de salida para calcular la diferencia') : `Diferencia a cobrar: ${money.show(difference, typedCurrency)}`)
+    : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   const tradeBlock = (
     <>
       <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
@@ -658,7 +686,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
           </div>
           <div className="frow">
             <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
-            <Field label="Diferencia"><input aria-label="Diferencia" value={money.show(difference, typedCurrency)} readOnly /></Field>
+            <Field label="Diferencia"><input aria-label="Diferencia" value={difference == null ? '' : money.show(difference, typedCurrency)} readOnly placeholder={difference == null ? 'Completá el precio' : undefined} /></Field>
           </div>
           <Field label="Estado técnico"><span /></Field>
           <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
@@ -687,8 +715,20 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         linked={Boolean(selectedProduct)}
         error={bad.equipment}
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setOutgoingCapacity(''); setOutgoingColor(''); setOutgoingCondition(''); setOutgoingImei(''); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
+      {deviceLabel.trim() && !selectedProduct ? (
+        <div className="unlisted-eq" data-testid="unlisted-equipment">
+          <p className="eqs-note">Se crea en el inventario marcado para completar. El texto de arriba es el modelo.</p>
+          <div className="frow">
+            <Field label="Capacidad" error={bad.outgoingCapacity}><input value={outgoingCapacity} onChange={(event) => { dirty.current.add('outgoingCapacity'); setOutgoingCapacity(event.target.value); clearBad(setBad, 'outgoingCapacity'); }} placeholder="Ej. 128GB" /></Field>
+            <Field label="Color" error={bad.outgoingColor}><input value={outgoingColor} onChange={(event) => { dirty.current.add('outgoingColor'); setOutgoingColor(event.target.value); clearBad(setBad, 'outgoingColor'); }} placeholder="Ej. Azul" /></Field>
+          </div>
+          <Field label="Condición"><span /></Field>
+          <Segs options={BASE_CONDITIONS} value={outgoingCondition} onChange={(next) => { dirty.current.add('outgoingCondition'); setOutgoingCondition(next); }} allowClear />
+          <Field label="IMEI del vendido (opcional)" error={bad.outgoingImei}><input value={outgoingImei} inputMode="numeric" maxLength={15} onChange={(event) => { dirty.current.add('outgoingImei'); setOutgoingImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'outgoingImei'); }} placeholder="15 dígitos" /></Field>
+        </div>
+      ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">

@@ -14,6 +14,14 @@ export interface OperationInput {
   deviceLabel?: string;
   amount?: number;
   currency?: 'ARS' | 'USD' | null;
+  unlistedEquipment?: {
+    model: string;
+    capacity?: string;
+    color?: string;
+    condition?: string;
+    imei?: string | null;
+    price?: number;
+  };
   paymentMethod?: string;
   status?: OperationSaleStatus;
   categoryId?: string | null;

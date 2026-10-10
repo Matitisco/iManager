@@ -121,6 +121,7 @@ export type InventoryColumnFilters = {
   battery: '' | '90' | '80' | '70';
   priceMin: string;
   priceMax: string;
+  needsCompletion: boolean;
 };
 
 export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
@@ -132,6 +133,7 @@ export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
   battery: '',
   priceMin: '',
   priceMax: '',
+  needsCompletion: false,
 };
 
 export function columnFilterKey(filters: InventoryColumnFilters) {
@@ -144,6 +146,7 @@ export function columnFilterKey(filters: InventoryColumnFilters) {
     filters.battery,
     filters.priceMin.trim(),
     filters.priceMax.trim(),
+    filters.needsCompletion ? '1' : '0',
   ].join('~');
 }
 
@@ -155,7 +158,7 @@ export function columnFilterActive(filters: InventoryColumnFilters, column: keyo
   if (column === 'equipo') return filters.equipo.trim() !== '';
   if (column === 'conditions') return filters.conditions.length > 0;
   if (column === 'qualities') return filters.qualities.length > 0;
-  if (column === 'statuses') return filters.statuses.length > 0;
+  if (column === 'statuses') return filters.statuses.length > 0 || filters.needsCompletion;
   if (column === 'colors') return filters.colors.length > 0;
   if (column === 'battery') return filters.battery !== '';
   return filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
@@ -177,6 +180,7 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
   if (!matchesInventoryColor(item.color, filters.colors)) return false;
   if (filters.qualities.length > 0 && !filters.qualities.includes(displayQuality(item.condition, item.grade))) return false;
   if (!matchesInventoryStatuses(item.status, filters.statuses)) return false;
+  if (filters.needsCompletion && !item.needsCompletion) return false;
   if (filters.battery) {
     if (!item.batteryHealth?.trim()) return false;
     if (extractMinBattery(item.batteryHealth) < Number(filters.battery)) return false;
