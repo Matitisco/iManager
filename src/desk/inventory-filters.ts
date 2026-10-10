@@ -1,10 +1,11 @@
 import type { Product } from '../types';
 import { extractMinBattery } from '../utils/inventory';
-import { conditionLabel, parseMoney } from './format';
+import { conditionLabel, isInStock, parseMoney } from './format';
 
 export type InventoryColumnFilters = {
   equipo: string;
   conditions: string[];
+  statuses: string[];
   battery: '' | '90' | '80' | '70';
   priceMin: string;
   priceMax: string;
@@ -13,6 +14,7 @@ export type InventoryColumnFilters = {
 export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
   equipo: '',
   conditions: [],
+  statuses: [],
   battery: '',
   priceMin: '',
   priceMax: '',
@@ -22,17 +24,29 @@ export function columnFilterKey(filters: InventoryColumnFilters) {
   return [
     filters.equipo.trim().toLowerCase(),
     [...filters.conditions].sort().join('|'),
+    [...filters.statuses].sort().join('|'),
     filters.battery,
     filters.priceMin.trim(),
     filters.priceMax.trim(),
   ].join('~');
 }
 
+export function columnFiltersActive(filters: InventoryColumnFilters) {
+  return columnFilterKey(filters) !== columnFilterKey(EMPTY_COLUMN_FILTERS);
+}
+
 export function columnFilterActive(filters: InventoryColumnFilters, column: keyof InventoryColumnFilters) {
   if (column === 'equipo') return filters.equipo.trim() !== '';
   if (column === 'conditions') return filters.conditions.length > 0;
+  if (column === 'statuses') return filters.statuses.length > 0;
   if (column === 'battery') return filters.battery !== '';
   return filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
+}
+
+/** Empty selection means every status. «Disponible» also includes stock with a blank status. */
+export function matchesInventoryStatuses(status: string, selected: string[]) {
+  if (selected.length === 0) return true;
+  return selected.some((id) => (id === 'DISPONIBLE' ? isInStock(status) : status === id));
 }
 
 export function matchesInventoryColumns(item: Product, filters: InventoryColumnFilters) {
@@ -42,6 +56,7 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
     if (!haystack.includes(equipo)) return false;
   }
   if (filters.conditions.length > 0 && !filters.conditions.includes(conditionLabel(item.condition, item.grade))) return false;
+  if (!matchesInventoryStatuses(item.status, filters.statuses)) return false;
   if (filters.battery) {
     if (!item.batteryHealth?.trim()) return false;
     if (extractMinBattery(item.batteryHealth) < Number(filters.battery)) return false;

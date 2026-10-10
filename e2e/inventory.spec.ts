@@ -179,3 +179,40 @@ test('a device received in a trade-in can be sold after it is marked vendido', a
   const { sales } = await fetchSales(request, email);
   expect(sales.find((sale) => sale.productId === receivedItem?.id)).toMatchObject({ amount: 1100 });
 });
+
+test('filters several inventory statuses at once', async ({ page, request }, testInfo) => {
+  const email = buildTestEmail(testInfo, 'inventory-statuses');
+  await bootstrapStoreViaApi(page, request, email, `Status filter ${testInfo.parallelIndex}`);
+  await createInventoryItemViaApi(request, email, { imei: '350000000000111', model: 'Libre', status: 'DISPONIBLE' });
+  await createInventoryItemViaApi(request, email, { imei: '350000000000112', model: 'Apartado', status: 'RESERVADO' });
+  await createInventoryItemViaApi(request, email, { imei: '350000000000113', model: 'Salida', status: 'VENDIDO' });
+  await page.reload();
+  await page.getByTestId('sidebar-tab-inventory').click();
+  await expect(page.getByTestId('inventory-total')).toHaveText('3 de 3');
+
+  const chips = page.locator('.wchips');
+  await chips.getByRole('button', { name: 'Disponible' }).click();
+  await chips.getByRole('button', { name: 'Reservado' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Libre' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Apartado' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Salida' })).toHaveCount(0);
+  await expect(page.getByTestId('inventory-total')).toHaveText('2 de 3');
+  await expect(chips.getByRole('button', { name: 'Disponible' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(chips.getByRole('button', { name: 'Reservado' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(chips.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'false');
+
+  await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+  await expect(page.getByTestId('inventory-total')).toHaveText('3 de 3');
+  await expect(page.getByRole('row').filter({ hasText: 'Salida' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Filtrar estado' }).click();
+  const status = page.getByRole('dialog', { name: 'Filtrar estado' });
+  await status.getByRole('checkbox', { name: 'Disponible' }).check();
+  await status.getByRole('checkbox', { name: 'Reservado' }).check();
+  await expect(page.getByRole('row').filter({ hasText: 'Salida' })).toHaveCount(0);
+  await expect(page.getByTestId('inventory-total')).toHaveText('2 de 3');
+  await expect(chips.getByRole('button', { name: 'Disponible' })).toHaveAttribute('aria-pressed', 'true');
+  await status.getByRole('button', { name: 'Limpiar', exact: true }).click();
+  await expect(page.getByTestId('inventory-total')).toHaveText('3 de 3');
+  await expect(chips.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'true');
+});

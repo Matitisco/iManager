@@ -5,11 +5,12 @@ import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-not
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
-import { conditionLabel, equipmentTitle, formatImei, formatInputMoney, formatMoney, isInStock, parseMoney } from '../format';
+import { conditionLabel, equipmentTitle, formatImei, formatInputMoney, isInStock, parseMoney, statusLabel } from '../format';
 import {
   EMPTY_COLUMN_FILTERS,
   columnFilterActive,
   columnFilterKey,
+  columnFiltersActive,
   matchesInventoryColumns,
   type InventoryColumnFilters,
 } from '../inventory-filters';
@@ -20,10 +21,10 @@ import { ImanagerIcon } from '../icons';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
-const FILTERS = [
-  { id: 'Todos', label: 'Todos' },
+const STATUS_FILTERS = [
   { id: 'DISPONIBLE', label: 'Disponible' },
   { id: 'EN_REVISION', label: 'En revisión' },
+  { id: 'RESERVADO', label: 'Reservado' },
   { id: 'VENDIDO', label: 'Vendido' },
 ];
 
@@ -52,9 +53,15 @@ function batteryLine(value: string) {
 
 function activeColumnCount(filters: InventoryColumnFilters) {
   return Number(filters.conditions.length > 0)
+    + Number(filters.statuses.length > 0)
     + Number(Boolean(filters.battery))
     + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
     + Number(Boolean(filters.equipo.trim()));
+}
+
+function withStatus(statuses: string[], id: string, checked: boolean) {
+  if (checked) return statuses.includes(id) ? statuses : [...statuses, id];
+  return statuses.filter((item) => item !== id);
 }
 
 export function InventoryScreen() {
@@ -72,7 +79,6 @@ export function InventoryScreen() {
   const notices = useSectionNotices('inventory');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
   const [listOpen, setListOpen] = useState(false);
@@ -82,7 +88,6 @@ export function InventoryScreen() {
 
   useEffect(() => {
     const reset = () => {
-      setFilter('Todos');
       setColumns(EMPTY_COLUMN_FILTERS);
     };
     window.addEventListener('desk-eq-saved', reset);
@@ -101,27 +106,27 @@ export function InventoryScreen() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = inventory.filter((item) => {
-      const matchesFilter = filter === 'Todos' || (filter === 'DISPONIBLE' ? isInStock(item.status) : item.status === filter);
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
-      return matchesFilter && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
+      return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
     if (sort === 'Precio ↑') list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
     return list;
-  }, [inventory, query, filter, columns, sort, money, phone]);
+  }, [inventory, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
-  const page = usePagedRows(listed, `${query}|${filter}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
+  const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
   const priceMessage = priceListMessage(rows, appSession?.store?.name, (item) => money.show(item.price, item.currency));
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
-  const filters = useMemo(() => {
-    const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', FILTERS.filter((item) => item.id !== 'Todos'));
-    const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
-    return [{ id: 'Todos', label: 'Todos' }, ...known, ...extra.map((id) => ({ id, label: id }))];
+  const statusOptions = useMemo(() => {
+    const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', STATUS_FILTERS);
+    const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => status && !known.some((item) => item.id === status));
+    return [...known, ...extra.map((id) => ({ id, label: statusLabel(id) }))];
   }, [catalogs?.options, inventory]);
+  const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions], [statusOptions]);
   const conditionOptions = useMemo(() => {
     const labels = [...new Set(inventory.map((item) => conditionLabel(item.condition, item.grade)))].filter((label) => label !== '—');
     const preferred = ['Nuevo', 'Usado', 'Pre-owned'];
@@ -133,7 +138,13 @@ export function InventoryScreen() {
     });
   }, [inventory]);
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
+  const toggleStatus = (id: string) => setColumns((current) => ({
+    ...current,
+    statuses: id === 'Todos' ? [] : withStatus(current.statuses, id, !current.statuses.includes(id)),
+  }));
+  const statusPressed = (id: string) => (id === 'Todos' ? columns.statuses.length === 0 : columns.statuses.includes(id));
   const filterCount = activeColumnCount(columns);
+  const clearColumns = () => setColumns(EMPTY_COLUMN_FILTERS);
   const openFilters = () => {
     setDraftFilters(columns);
     setFiltersOpen(true);
@@ -192,10 +203,16 @@ export function InventoryScreen() {
         </div>
       ) : null}
       <div className="dbar">
-        <ChipRow options={filters} value={filter} onChange={setFilter} />
+        <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      {phone && inventory.length > 0 ? (
+        <>
+          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{listed.length} de {inventory.length}</span></div>
+          {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
+        </>
+      ) : null}
       <div className="dcard flush">
         {phone ? (
           page.visible.length === 0 ? null : <PhoneRecords>
@@ -215,6 +232,14 @@ export function InventoryScreen() {
             })}
           </PhoneRecords>
         ) : (
+        <>
+        {inventory.length > 0 ? (
+          <div className="dch pad">
+            <h3>Equipos</h3>
+            <span className="mut" data-testid="inventory-total">{listed.length} de {inventory.length}</span>
+            {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
+          </div>
+        ) : null}
         <table className="dtable">
             <thead>
               <tr>
@@ -270,10 +295,17 @@ export function InventoryScreen() {
                 </th>
                 <th>
                   <span className="thf">Estado
-                    <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={filter !== 'Todos'} onClear={() => setFilter('Todos')}>
+                    <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={columnFilterActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                       <div className="opts">
-                        {filters.map((option) => (
-                          <button key={option.id} className={`opt${filter === option.id ? ' on' : ''}`} type="button" onClick={() => setFilter(option.id)}>{option.label}</button>
+                        {statusOptions.map((option) => (
+                          <label key={option.id} className="chk">
+                            <input
+                              type="checkbox"
+                              checked={columns.statuses.includes(option.id)}
+                              onChange={(event) => setColumn({ statuses: withStatus(columns.statuses, option.id, event.target.checked) })}
+                            />
+                            {option.label}
+                          </label>
                         ))}
                       </div>
                     </ColumnFilter>
@@ -307,6 +339,7 @@ export function InventoryScreen() {
               ))}
             </tbody>
           </table>
+        </>
         )}
         {listed.length === 0 ? (
           phone && inventory.length === 0
@@ -321,6 +354,22 @@ export function InventoryScreen() {
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">
+            <p className="sec">Estado</p>
+            <div className="inv-checks">
+              {statusOptions.map((option) => (
+                <label key={option.id} className="chk">
+                  <input
+                    type="checkbox"
+                    checked={draftFilters.statuses.includes(option.id)}
+                    onChange={(event) => setDraftFilters((current) => ({
+                      ...current,
+                      statuses: withStatus(current.statuses, option.id, event.target.checked),
+                    }))}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
             <p className="sec">Condición</p>
             {conditionOptions.length === 0 ? <p className="mut">Todavía no hay condiciones en el stock.</p> : (
               <div className="inv-checks">

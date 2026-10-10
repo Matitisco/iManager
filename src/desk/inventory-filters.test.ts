@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { EMPTY_COLUMN_FILTERS, matchesInventoryColumns, type InventoryColumnFilters } from './inventory-filters';
+import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, matchesInventoryColumns, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -42,5 +42,25 @@ describe('inventory column filters', () => {
       battery: '80',
       priceMax: '150000',
     }))).toBe(true);
+  });
+
+  it('keeps every selected status and treats an empty selection as all statuses', () => {
+    const available = product({ status: 'DISPONIBLE' });
+    const blank = product({ status: '' });
+    const reserved = product({ status: 'RESERVADO' });
+    const sold = product({ status: 'VENDIDO' });
+    const review = product({ status: 'EN_REVISION' });
+
+    expect(matchesInventoryStatuses(available.status, [])).toBe(true);
+    expect(matchesInventoryStatuses(sold.status, [])).toBe(true);
+    expect(matchesInventoryColumns(available, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(true);
+    expect(matchesInventoryColumns(blank, filters({ statuses: ['DISPONIBLE'] }))).toBe(true);
+    expect(matchesInventoryColumns(reserved, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(true);
+    expect(matchesInventoryColumns(sold, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(false);
+    expect(matchesInventoryColumns(review, filters({ statuses: ['EN_REVISION'] }))).toBe(true);
+    expect(matchesInventoryColumns(available, filters({ statuses: ['RESERVADO'], conditions: ['Usado · Grado A'] }))).toBe(false);
+    expect(columnFilterActive(filters({ statuses: ['RESERVADO'] }), 'statuses')).toBe(true);
+    expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'statuses')).toBe(false);
+    expect(columnFilterKey(filters({ statuses: ['RESERVADO', 'DISPONIBLE'] }))).toBe(columnFilterKey(filters({ statuses: ['DISPONIBLE', 'RESERVADO'] })));
   });
 });
