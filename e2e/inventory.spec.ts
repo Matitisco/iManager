@@ -11,12 +11,13 @@ test('creates an inventory item from the UI and persists it', async ({ page, req
   await bootstrapStoreViaApi(page, request, email, storeName);
   await page.getByTestId('sidebar-tab-inventory').click();
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Registrar equipo' });
 
-  await page.getByLabel('Modelo').fill(model);
-  await page.getByLabel('Color').fill('Azul');
-  await page.getByLabel('IMEI').fill(imei);
-  await page.getByLabel('Precio de venta').fill('1400');
-  await page.getByRole('button', { name: 'Guardar equipo' }).click();
+  await dialog.getByLabel('Modelo').fill(model);
+  await dialog.getByLabel('Color').fill('Azul');
+  await dialog.getByLabel('IMEI').fill(imei);
+  await dialog.getByLabel('Precio de venta').fill('1400');
+  await dialog.getByRole('button', { name: 'Guardar equipo' }).click();
 
   await expect(page.getByRole('button', { name: 'Guardar equipo' })).toBeHidden();
   const row = page.getByRole('row').filter({ hasText: model });
@@ -40,11 +41,11 @@ test('creates an item as VENDIDO and registers its sale', async ({ page, request
   await bootstrapStoreViaApi(page, request, email, `Created Sold ${testInfo.parallelIndex}`);
   await page.getByTestId('sidebar-tab-inventory').click();
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
-  await page.getByLabel('Modelo').fill(model);
-  await page.getByLabel('Color').fill('Verde');
-  await page.getByLabel('IMEI').fill(imei);
-  await page.getByLabel('Precio de venta').fill('2100');
   const createDialog = page.getByRole('dialog', { name: 'Registrar equipo' });
+  await createDialog.getByLabel('Modelo').fill(model);
+  await createDialog.getByLabel('Color').fill('Verde');
+  await createDialog.getByLabel('IMEI').fill(imei);
+  await createDialog.getByLabel('Precio de venta').fill('2100');
   await createDialog.getByRole('button', { name: 'Vendido', exact: true }).click();
   await createDialog.getByRole('button', { name: 'Guardar equipo' }).click();
 

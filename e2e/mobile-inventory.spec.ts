@@ -238,7 +238,7 @@ test.describe('inventory on a phone', () => {
     const detail = page.getByRole('dialog', { name: /iPhone 13/ });
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Guardar estado' })).toBeVisible();
     await expect(detail.getByText('IMEI')).toBeVisible();
-    await expect(detail.getByText('Medianoche')).toBeVisible();
+    await expect(detail.locator('.kv').filter({ hasText: 'Color' })).toContainText('Medianoche');
     await expect(detail.getByText('$ 650.000')).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);
