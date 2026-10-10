@@ -57,7 +57,7 @@ test.describe('desktop inventory stays put', () => {
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Lista de precios' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Filtros' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toHaveCount(0);
     await expect(page.getByTestId('inventory-empty')).toHaveCount(0);
     await expect(page.getByText('No hay equipos con ese filtro.')).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByPlaceholder('Buscar por IMEI, modelo o color')).toBeVisible();
     await page.getByRole('button', { name: 'Buscar' }).click();
 
-    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('button', { name: 'Filtros', exact: true }).click();
     const filters = page.getByRole('dialog', { name: 'Filtros' });
     await expect(filters.locator('.sheet-grab')).toBeVisible();
     await expect(filters.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' })).toBeVisible();
@@ -185,7 +185,7 @@ test.describe('inventory on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-list.png`, fullPage: true });
 
-    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('button', { name: 'Filtros', exact: true }).click();
     const filled = page.getByRole('dialog', { name: 'Filtros' });
     await filled.getByRole('checkbox', { name: 'Usado · Grado A', exact: true }).check();
     await filled.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
@@ -193,7 +193,7 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByText('iPhone 15 · 128GB')).toHaveCount(0);
     await expectFits(page);
 
-    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('button', { name: 'Filtros', exact: true }).click();
     await page.getByRole('dialog', { name: 'Filtros' }).locator('.sheet-foot').getByRole('button', { name: 'Limpiar filtros' }).click();
     await page.getByRole('dialog', { name: 'Filtros' }).locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
     await expect(page.getByText('iPhone 15 · 128GB')).toBeVisible();
@@ -210,14 +210,14 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByText('iPhone 14 Pro · 256GB')).toBeVisible();
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
 
-    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('button', { name: 'Filtros', exact: true }).click();
     const statuses = page.getByRole('dialog', { name: 'Filtros' });
     await statuses.getByRole('checkbox', { name: 'Disponible' }).check();
     await statuses.getByRole('checkbox', { name: 'Reservado' }).check();
     await statuses.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
     await expect(page.getByText('iPhone 14 Pro · 256GB')).toHaveCount(0);
     await expect(page.getByTestId('inventory-total')).toHaveText('3 de 4');
-    await expect(page.getByRole('button', { name: 'Filtros' }).locator('xpath=..')).toContainText('1');
+    await expect(page.getByRole('button', { name: 'Filtros', exact: true }).locator('xpath=..')).toContainText('1');
     await page.getByRole('button', { name: 'Limpiar filtros' }).click();
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
     await expect(page.getByText('iPhone 14 Pro · 256GB')).toBeVisible();
