@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { markPasswordResetNotice } from '../lib/password-reset-notice';
 import { Login } from './Login';
 
 const sendPasswordResetEmail = vi.hoisted(() => vi.fn());
@@ -58,6 +59,15 @@ describe('Login', () => {
     mockInvitationState.isLoading = false;
     mockInvitationState.isRetrying = false;
     sendPasswordResetEmail.mockReset();
+  });
+
+  it('shows a success notice after the password was reset', () => {
+    markPasswordResetNotice();
+    render(<Login />);
+    expect(screen.getByTestId('login-password-reset-notice')).toHaveTextContent(
+      'Tu contraseña se actualizó. Ya podés iniciar sesión.',
+    );
+    expect(sessionStorage.getItem('imanager:password-reset-notice')).toBeNull();
   });
 
   it('submits email login through the app context', async () => {

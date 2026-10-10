@@ -6,10 +6,14 @@
 import { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Login } from './pages/Login';
+import { AuthActionPage } from './pages/AuthActionPage';
 import { Onboarding } from './pages/Onboarding';
 import { DeskApp } from './desk/DeskApp';
-import { SessionClosed, sessionClosedStore } from './desk/screens/SessionClosed';
+import { clearSessionClosed, SessionClosed, sessionClosedStore } from './desk/screens/SessionClosed';
 import { useInvitationPreview } from './hooks/useInvitationPreview';
+import { useAuthActionLink } from './lib/use-auth-action';
+import { markPasswordResetNotice } from './lib/password-reset-notice';
+import { getAuthAdapter } from './services/auth-adapter';
 
 const INVITE_TOKEN_KEY = 'pendingInviteToken';
 
@@ -53,7 +57,8 @@ function BlockingScreen({
 }
 
 function AppContent() {
-  const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation } = useAppContext();
+  const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation, logout } = useAppContext();
+  const authAction = useAuthActionLink();
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
   const [closedVersion, setClosedVersion] = useState(0);
   const [inviteAccepting, setInviteAccepting] = useState(false);
@@ -90,6 +95,25 @@ function AppContent() {
       setInviteAccepting(false);
     }
   };
+
+  const finishAuthAction = async (result: 'password' | null) => {
+    if (result === 'password') {
+      markPasswordResetNotice();
+      clearSessionClosed();
+      if (user || getAuthAdapter().getCurrentUser()) {
+        try {
+          await logout();
+        } catch {
+          // The login screen is still the next step if sign-out fails.
+        }
+      }
+    }
+    authAction.dismiss();
+  };
+
+  if (authAction.link) {
+    return <AuthActionPage link={authAction.link} onDone={finishAuthAction} />;
+  }
 
   if (loading) {
     return (
