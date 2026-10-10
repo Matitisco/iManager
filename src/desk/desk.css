@@ -481,7 +481,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sheet { width: 540px; max-width: calc(100vw - 48px); max-height: 88vh; overflow: auto; background: #fff; border-radius: 24px; padding: 26px 28px 24px; box-shadow: 0 30px 80px rgba(22,24,29,.25); animation: pop .2s cubic-bezier(.2,.8,.2,1); scrollbar-width: none; }
 .sheet-scroll, .sheet-foot, .sheet-h { display: contents; }
 .press-host { display: contents; }
-.sheet-grab, .sheet-x, .wback, .mtools, .mdock, .row-more, .msearch, .mviews { display: none; }
+.sheet-grab, .wback, .mtools, .mdock, .row-more, .msearch, .mviews { display: none; }
 .sheet::-webkit-scrollbar { display: none; }
 .sheet h3 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 6px; }
 .sheet .sub { font-size: 14px; color: var(--secondary); font-weight: 500; line-height: 1.4; margin: 0 0 16px; }
@@ -502,7 +502,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dialog.stx { width: 460px; max-width: 100%; max-height: calc(100vh - 56px); display: flex; flex-direction: column; text-align: left; padding: 22px 22px 18px; }
 .stx-h { display: flex; align-items: center; justify-content: space-between; }
 .dialog.stx h3 { font-size: 18px; letter-spacing: normal; margin: 0; text-align: left; }
-.stx .stx-x { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--row); font-size: 20px; line-height: 1; color: var(--primary); }
+.desk-app button.modal-x { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: var(--row); color: var(--primary); flex: none; }
 .stx .stx-sub { margin: 6px 0 20px; color: var(--secondary); font-size: 14px; text-align: left; }
 .stx-list { max-height: 360px; min-height: 0; overflow: auto; margin: 0 -4px; padding: 0 4px; }
 .stx-h, .stx-sub, .stx-add, .stx-err, .stx .row { flex-shrink: 0; }
@@ -1033,16 +1033,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet-scroll::-webkit-scrollbar { display: none; }
   .sheet-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .sheet-h h3 { flex: 1; min-width: 0; margin-bottom: 0; overflow-wrap: anywhere; }
-  .sheet-x {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--row);
-    flex: none;
-  }
   .sheet-foot {
     display: block;
     flex: none;

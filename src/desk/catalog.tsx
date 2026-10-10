@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
+import { ModalCloseButton } from './close-button';
 import { ImanagerIcon } from './icons';
 
 const PALETTE = [
@@ -168,7 +169,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
       <div className={`dialog stx${colored ? '' : ' nc'}`} role="dialog" aria-modal="true" aria-label={meta.title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="stx-h">
           <h3>{meta.title}</h3>
-          <button type="button" className="stx-x" aria-label="Cerrar" disabled={busy} onClick={close}><ImanagerIcon name="cerrar" size={16} /></button>
+          <ModalCloseButton disabled={busy} onClick={close} />
         </div>
         <p className="stx-sub">{colored ? 'Tocá el color para cambiarlo. ' : ''}Si renombrás, se actualizan los {meta.noun[1]} que {thing.startsWith('esta') ? 'la' : 'lo'} usan.</p>
         <div className="stx-list" ref={listRef}>

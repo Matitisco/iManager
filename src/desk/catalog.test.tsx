@@ -103,6 +103,16 @@ describe('Catalog editor drafts and persistence', () => {
     expect(mocks.save).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the same close icon and touch target as the other modals', async () => {
+    await setup();
+    const close = screen.getByRole('button', { name: 'Cerrar' });
+    const icon = close.querySelector('svg');
+    expect(close).toHaveClass('modal-x');
+    expect(icon).toHaveAttribute('data-icon', 'cerrar');
+    expect(icon).toHaveAttribute('width', '16');
+    expect(icon).toHaveAttribute('height', '16');
+  });
+
   it('handles Escape in the editor without closing the underlying sheet', async () => {
     const parentClose = vi.fn();
     window.addEventListener('keydown', parentClose);
