@@ -52,8 +52,9 @@ function activeColumnCount(filters: InventoryColumnFilters) {
     + Number(filters.statuses.length > 0)
     + Number(filters.colors.length > 0)
     + Number(Boolean(filters.battery))
-    + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
-    + Number(Boolean(filters.equipo.trim()));
+  + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
+  + Number(Boolean(filters.equipo.trim()))
+  + Number(filters.needsCompletion);
 }
 
 function withStatus(statuses: string[], id: string, checked: boolean) {
@@ -128,7 +129,7 @@ export function InventoryScreen() {
     const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => status && !known.some((item) => item.id === status));
     return [...known, ...extra.map((id) => ({ id, label: statusLabel(id) }))];
   }, [catalogs?.options, inventory]);
-  const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions], [statusOptions]);
+  const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions, { id: 'PARA_COMPLETAR', label: 'Para completar' }], [statusOptions]);
   const conditionOptions = useMemo(
     () => inventoryConditionOptions(
       catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', CONDITION_FILTERS),
@@ -141,11 +142,19 @@ export function InventoryScreen() {
     [inventory],
   );
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
-  const toggleStatus = (id: string) => setColumns((current) => ({
-    ...current,
-    statuses: id === 'Todos' ? [] : withStatus(current.statuses, id, !current.statuses.includes(id)),
-  }));
-  const statusPressed = (id: string) => (id === 'Todos' ? columns.statuses.length === 0 : columns.statuses.includes(id));
+  const toggleStatus = (id: string) => setColumns((current) => {
+    if (id === 'PARA_COMPLETAR') return { ...current, needsCompletion: !current.needsCompletion };
+    return {
+      ...current,
+      statuses: id === 'Todos' ? [] : withStatus(current.statuses, id, !current.statuses.includes(id)),
+      needsCompletion: id === 'Todos' ? false : current.needsCompletion,
+    };
+  });
+  const statusPressed = (id: string) => {
+    if (id === 'PARA_COMPLETAR') return columns.needsCompletion;
+    if (id === 'Todos') return columns.statuses.length === 0 && !columns.needsCompletion;
+    return columns.statuses.includes(id);
+  };
   const filterCount = activeColumnCount(columns);
   const clearColumns = () => setColumns(EMPTY_COLUMN_FILTERS);
   const openFilters = () => {
@@ -230,6 +239,7 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
+                  {item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
                 </PhoneRecord>
               );
             })}
@@ -342,7 +352,7 @@ export function InventoryScreen() {
                 </th>
                 <th>
                   <span className="thf">Estado
-                    <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={columnFilterActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
+                    <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={columnFilterActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [], needsCompletion: false })}>
                       <div className="opts">
                         {statusOptions.map((option) => (
                           <label key={option.id} className="chk">
@@ -354,6 +364,10 @@ export function InventoryScreen() {
                             {option.label}
                           </label>
                         ))}
+                        <label className="chk">
+                          <input type="checkbox" checked={columns.needsCompletion} onChange={(event) => setColumn({ needsCompletion: event.target.checked })} />
+                          Para completar
+                        </label>
                       </div>
                     </ColumnFilter>
                   </span>
@@ -372,7 +386,7 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}</div>
                     </div>
                   </td>
                   <td>{(item.color ?? '').trim() || '—'}</td>
@@ -403,6 +417,15 @@ export function InventoryScreen() {
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">
+            <p className="sec">Para completar</p>
+            <label className="chk">
+              <input
+                type="checkbox"
+                checked={draftFilters.needsCompletion}
+                onChange={(event) => setDraftFilters((current) => ({ ...current, needsCompletion: event.target.checked }))}
+              />
+              Solo equipos para completar
+            </label>
             <p className="sec">Estado</p>
             <div className="inv-checks">
               {statusOptions.map((option) => (

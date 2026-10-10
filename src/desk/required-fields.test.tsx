@@ -122,6 +122,10 @@ describe('desk required fields', () => {
       productId: null,
       deviceLabel: 'Equipo de salida',
       amount: 200,
+      unlistedEquipment: expect.objectContaining({
+        model: 'Equipo de salida',
+        price: 200,
+      }),
       draft: false,
       tradeIn: expect.objectContaining({
         deviceReceived: 'iPhone 11 64GB',
@@ -175,5 +179,70 @@ describe('desk required fields', () => {
       amount: 1800,
       draft: false,
     })));
+  });
+
+  it('asks for the sale price instead of a negative trade difference and creates the missing device', async () => {
+    const user = userEvent.setup();
+    renderOverlay('new-cj');
+
+    await user.type(screen.getByLabelText('Equipo recibido'), 'iPhone 11');
+    await user.type(screen.getByLabelText('Valor tomado'), '500');
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'Pixel libre');
+    expect(screen.getByTestId('unlisted-equipment')).toBeInTheDocument();
+    expect(screen.getByLabelText('Diferencia')).toHaveValue('');
+    expect(screen.getByText('Completá el precio de salida para calcular la diferencia')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
+    expect(ctx.createOperation).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Capacidad'), '128GB');
+    await user.type(screen.getByLabelText('Color'), 'Verde');
+    await user.click(screen.getByRole('button', { name: 'Usado' }));
+    await user.type(screen.getByLabelText('Precio completo de salida'), '900');
+    await user.type(screen.getByLabelText('Cliente'), 'Mostrador');
+    await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
+
+    await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('tradeins', expect.objectContaining({
+      productId: null,
+      deviceLabel: 'Pixel libre',
+      amount: 900,
+      draft: false,
+      unlistedEquipment: {
+        model: 'Pixel libre',
+        capacity: '128GB',
+        color: 'Verde',
+        condition: 'USADO',
+        imei: null,
+        price: 900,
+      },
+    })));
+    expect(screen.getByLabelText('Diferencia')).toHaveValue('$ 400');
+  });
+
+  it('keeps the basic device fields visible on a phone sale', async () => {
+    const user = userEvent.setup();
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    render(
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+        <DeskOverlays overlay={{ type: 'new-sale', source: 'sales' }} />
+      </DeskProvider>,
+    );
+
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'Equipo suelto');
+    const basics = screen.getByTestId('unlisted-equipment');
+    expect(basics).toBeVisible();
+    expect(basics).toHaveTextContent('Capacidad');
+    expect(screen.getByTestId('sale-trade-fold')).not.toContainElement(basics);
+    window.matchMedia = originalMatchMedia;
   });
 });

@@ -11,6 +11,7 @@ import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audi
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
+import { MISSING_OUTGOING_PRICE, outgoingTradeDifference } from "./outgoing-difference.js";
 import { parseQuality } from "../inventory/quality.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
@@ -33,6 +34,14 @@ export type OperationInput = {
   draft?: boolean;
   saleCategoryId?: string | null;
   currency?: string | null;
+  unlistedEquipment?: {
+    model: string;
+    capacity?: string;
+    color?: string;
+    condition?: string;
+    imei?: string | null;
+    price?: number;
+  };
   tradeIn?: {
     deviceReceived: string;
     deviceReceivedImei?: string | null;
@@ -164,6 +173,7 @@ function serializeProduct(product: InventoryItem) {
     createdAt: product.createdAt.toISOString(),
     archivedAt: product.archivedAt?.toISOString() ?? null,
     pendingSaleRegistration: product.pendingSaleRegistration,
+    needsCompletion: product.needsCompletion,
     priceChangedBy: product.priceChangedBy ?? null,
     priceChangedAt: product.priceChangedAt?.toISOString() ?? null,
     costChangedBy: product.costChangedBy ?? null,
@@ -275,6 +285,59 @@ async function getClient(tx: Prisma.TransactionClient, storeId: string, input: O
   return { client: await tx.client.create({ data: { storeId, name, totalSpent: dec(0), pendingBalance: dec(0) } }), created: true };
 }
 
+function clipText(value: string | undefined, max: number) {
+  return (value ?? "").trim().slice(0, max);
+}
+
+async function createUnlistedEquipment(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  spec: NonNullable<OperationInput["unlistedEquipment"]>,
+  amount: number,
+  currency?: string | null,
+) {
+  const model = clipText(spec.model, 100);
+  if (!model) throw new OperationError("Indicá el modelo del equipo");
+  const parsedImei = parseOptionalImei(spec.imei);
+  if (parsedImei.ok === false) throw new OperationError(parsedImei.message, 400);
+  if (parsedImei.imei) await assertIncomingImei(tx, storeId, parsedImei.imei);
+  const price = Number.isFinite(spec.price) ? Math.max(0, spec.price as number) : Math.max(0, amount);
+  return tx.inventoryItem.create({
+    data: {
+      storeId,
+      imei: parsedImei.imei,
+      model,
+      capacity: clipText(spec.capacity, 50),
+      color: clipText(spec.color, 50),
+      condition: clipText(spec.condition, 20),
+      grade: "",
+      batteryHealth: "",
+      cost: dec(0),
+      price: dec(price),
+      ...(currency ? { currency } : {}),
+      status: "DISPONIBLE",
+      needsCompletion: true,
+      customFields: {},
+    },
+  });
+}
+
+function assertTradeDifference(input: {
+  registered: boolean;
+  amount: number | undefined;
+  takeValue: number;
+  invalidMessage: string;
+}) {
+  if (input.amount !== undefined && input.amount >= input.takeValue) return input.amount - input.takeValue;
+  const gap = outgoingTradeDifference({
+    registered: input.registered,
+    priceProvided: input.amount !== undefined && input.amount > 0,
+    saleAmount: input.amount ?? 0,
+    takeValue: input.takeValue,
+  });
+  throw new OperationError(gap.warning === MISSING_OUTGOING_PRICE ? MISSING_OUTGOING_PRICE : input.invalidMessage);
+}
+
 function fullDeviceLabel(product: Pick<InventoryItem, "model" | "capacity">) {
   return [product.model, product.capacity].filter(Boolean).join(" ").slice(0, 120);
 }
@@ -360,7 +423,14 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (input.saleCategoryId !== undefined) await assertCategory(tx, storeId, "sales", input.saleCategoryId);
     if (input.tradeIn && input.draft) {
       if (!input.tradeIn.deviceReceived?.trim() || !Number.isFinite(input.tradeIn.takeValue) || input.tradeIn.takeValue < 0) throw new OperationError("Datos del equipo recibido invalidos");
-      if (input.amount !== undefined && input.amount < input.tradeIn.takeValue) throw new OperationError("La diferencia no puede ser negativa");
+      if (input.amount !== undefined && input.amount < input.tradeIn.takeValue) {
+        assertTradeDifference({
+          registered: Boolean(input.productId?.trim()),
+          amount: input.amount,
+          takeValue: input.tradeIn.takeValue,
+          invalidMessage: "La diferencia no puede ser negativa",
+        });
+      }
       const prior = input.requestKey ? await tx.tradeIn.findFirst({ where: { storeId, requestKey: input.requestKey } }) : null;
       if (prior) {
         const existingSale = await tx.sale.findFirst({ where: { storeId, tradeInId: prior.id } });
@@ -418,13 +488,24 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (prior) return replaySaleResult(tx, storeId, prior, "Operación recuperada");
     const tradeInput = input.tradeIn;
     if (!Number.isFinite(input.amount) || (input.amount ?? -1) < 0) throw new OperationError("Monto inválido");
-    if (tradeInput && (!tradeInput.deviceReceived?.trim() || !Number.isFinite(tradeInput.takeValue) || tradeInput.takeValue < 0 || tradeInput.takeValue > input.amount!)) throw new OperationError("Datos de canje invalidos o diferencia negativa");
+    if (tradeInput && (!tradeInput.deviceReceived?.trim() || !Number.isFinite(tradeInput.takeValue) || tradeInput.takeValue < 0)) throw new OperationError("Datos de canje invalidos o diferencia negativa");
+    if (tradeInput) {
+      assertTradeDifference({
+        registered: Boolean(input.productId?.trim()),
+        amount: input.amount,
+        takeValue: tradeInput.takeValue,
+        invalidMessage: "Datos de canje invalidos o diferencia negativa",
+      });
+    }
     const productId = input.productId?.trim() || null;
-    const product = productId ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } }) : null;
+    let product = productId ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } }) : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
     if (product && !canRegisterOutgoingSale(product)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
+    if (!product && input.unlistedEquipment) {
+      product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, input.amount ?? 0, currency);
+    }
     if (!product && !input.deviceLabel?.trim()) throw new OperationError("Indicá el equipo");
     const resolvedClient = await getClient(tx, storeId, input);
     const client = resolvedClient.client;
@@ -580,8 +661,8 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       ? trade.customFields
       : input.tradeIn.customFields;
 
-    if (!productId && !deviceLabel) throw new OperationError("Indica el equipo de salida");
-    const product = productId
+    if (!productId && !deviceLabel && !input.unlistedEquipment?.model?.trim()) throw new OperationError("Indica el equipo de salida");
+    let product = productId
       ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } })
       : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
@@ -601,8 +682,15 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const client = resolvedClient.client;
     const clientCreated = resolvedClient.created;
     if (!client) throw new OperationError("El canje confirmado requiere un cliente", 400);
-    if (!receivedDevice.trim() || takeValue < 0 || outgoingAmount === undefined || outgoingAmount < takeValue) {
-      throw new OperationError("La diferencia no puede ser negativa");
+    if (!receivedDevice.trim() || takeValue < 0 || outgoingAmount === undefined) throw new OperationError("La diferencia no puede ser negativa");
+    assertTradeDifference({
+      registered: Boolean(product),
+      amount: outgoingAmount,
+      takeValue,
+      invalidMessage: "La diferencia no puede ser negativa",
+    });
+    if (!product && input.unlistedEquipment) {
+      product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, outgoingAmount ?? 0, currency);
     }
 
     const date = at(input.date ?? trade.dateLabel);
@@ -725,12 +813,23 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const amountChanges = input.amount !== undefined && moneyChanged(sale.amount, input.amount);
     const takeChanges = Boolean(trade && nextTradeInput?.takeValue !== undefined && moneyChanged(trade.takeValue, nextTradeInput.takeValue));
     const nextCurrency = currencyOnWrite(input.currency, amountChanges || takeChanges, amountChanges || takeChanges ? await storeCurrency(storeId, tx) : "ARS");
-    if (trade && nextAmount < nextTakeValue) throw new OperationError("La diferencia no puede ser negativa");
+    if (trade && nextAmount < nextTakeValue) {
+      assertTradeDifference({
+        registered: Boolean(input.productId === undefined ? sale.inventoryItemId : input.productId?.trim()),
+        amount: nextAmount,
+        takeValue: nextTakeValue,
+        invalidMessage: "La diferencia no puede ser negativa",
+      });
+    }
     const nextDate = input.date ? at(input.date) : sale.soldAt;
-    const nextProductId = input.productId === undefined ? sale.inventoryItemId : input.productId?.trim() || null;
+    let nextProductId = input.productId === undefined ? sale.inventoryItemId : input.productId?.trim() || null;
     const nextDeviceLabel = input.deviceLabel === undefined ? sale.deviceLabel : input.deviceLabel?.trim() || null;
+    let nextProduct = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId, archivedAt: null } }) : null;
+    if (!nextProduct && input.unlistedEquipment) {
+      nextProduct = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, nextAmount, nextCurrency);
+      nextProductId = nextProduct.id;
+    }
     if (!nextProductId && !nextDeviceLabel) throw new OperationError("Indicá el equipo");
-    const nextProduct = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId, archivedAt: null } }) : null;
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
     if (nextProduct && nextProductId !== sale.inventoryItemId) {
       if (!canRegisterOutgoingSale(nextProduct)) throw new OperationError("El equipo no está disponible", 409);
@@ -879,7 +978,14 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       if (clientId && !client) throw new OperationError("Client not found", 404);
       const nextTakeValue = input.tradeIn?.takeValue ?? toNum(trade.takeValue);
       const nextDraftAmount = input.amount ?? (trade.draftAmount ? toNum(trade.draftAmount) : undefined);
-      if (nextDraftAmount !== undefined && nextDraftAmount < nextTakeValue) throw new OperationError("La diferencia no puede ser negativa");
+      if (nextDraftAmount !== undefined && nextDraftAmount < nextTakeValue) {
+        assertTradeDifference({
+          registered: Boolean(input.productId === undefined ? trade.draftProductId : input.productId),
+          amount: nextDraftAmount,
+          takeValue: nextTakeValue,
+          invalidMessage: "La diferencia no puede ser negativa",
+        });
+      }
       if (input.productId) {
         const product = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
         if (!product) throw new OperationError("Inventory item not found", 404);

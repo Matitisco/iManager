@@ -88,8 +88,9 @@ test('a trade-in saved as pending resumes after reload and confirms with zero di
   expect(sales.sales).toHaveLength(1);
   expect(sales.sales[0]?.amount).toBe(0);
   const inventory = await fetchInventory(request, email);
-  expect(inventory.inventory).toHaveLength(1);
-  expect(inventory.inventory[0]).toMatchObject({ model: received, status: 'EN_REVISION', capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '', price: 0, cost: 0, imei: '' });
+  expect(inventory.inventory).toHaveLength(2);
+  expect(inventory.inventory.find((item) => item.model === received)).toMatchObject({ status: 'EN_REVISION', capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '', price: 0, cost: 0, imei: '' });
+  expect(inventory.inventory.find((item) => item.model === 'Equipo libre recibido')).toMatchObject({ status: 'VENDIDO', needsCompletion: true, price: 0 });
 });
 
 test('a Ventas-origin draft is recoverable after reload', async ({ page, request }, testInfo) => {

@@ -90,7 +90,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           ))}
         </ul>
       ) : null}
-      {value.trim() && !linked ? <p className="eqs-note">Se guarda como texto. Elegí una sugerencia si está en el stock.</p> : null}
+      {value.trim() && !linked ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
     </div>
   );
 }

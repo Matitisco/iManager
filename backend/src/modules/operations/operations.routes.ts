@@ -56,6 +56,14 @@ const inputSchema = z.object({
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
+  unlistedEquipment: z.object({
+    model: z.string().trim().min(1).max(100),
+    capacity: z.string().trim().max(50).optional(),
+    color: z.string().trim().max(50).optional(),
+    condition: z.string().trim().max(20).optional(),
+    imei: zodOptionalImei().nullable().optional(),
+    price: z.number().nonnegative().optional(),
+  }).optional(),
   tradeIn: tradeSchema,
 });
 

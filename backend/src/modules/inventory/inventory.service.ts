@@ -43,6 +43,7 @@ export interface InventoryItemResponse {
   createdAt: string;
   archivedAt?: string | null;
   pendingSaleRegistration?: boolean;
+  needsCompletion?: boolean;
   priceChangedBy: string | null;
   priceChangedAt: string | null;
   costChangedBy: string | null;
@@ -73,6 +74,7 @@ type InventoryRecord = {
   createdAt?: Date;
   archivedAt?: Date | null;
   pendingSaleRegistration?: boolean;
+  needsCompletion?: boolean;
   priceChangedBy?: string | null;
   priceChangedAt?: Date | null;
   costChangedBy?: string | null;
@@ -135,6 +137,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
     archivedAt: item.archivedAt?.toISOString() ?? null,
     pendingSaleRegistration: item.pendingSaleRegistration ?? false,
+    needsCompletion: item.needsCompletion ?? false,
     priceChangedBy: item.priceChangedBy ?? null,
     priceChangedAt: item.priceChangedAt ? new Date(item.priceChangedAt).toISOString() : null,
     costChangedBy: item.costChangedBy ?? null,
@@ -233,6 +236,7 @@ type RawInventoryRow = {
   createdAt: Date | string | null;
   archivedAt: Date | string | null;
   pendingSaleRegistration: boolean;
+  needsCompletion: boolean;
   priceChangedBy: string | null;
   priceChangedAt: Date | string | null;
   costChangedBy: string | null;
@@ -259,6 +263,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
     archivedAt: row.archivedAt ? new Date(row.archivedAt).toISOString() : null,
     pendingSaleRegistration: row.pendingSaleRegistration,
+    needsCompletion: row.needsCompletion,
     priceChangedBy: row.priceChangedBy ?? null,
     priceChangedAt: row.priceChangedAt ? new Date(row.priceChangedAt).toISOString() : null,
     costChangedBy: row.costChangedBy ?? null,
@@ -276,7 +281,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration",
+             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
       FROM "InventoryItem"
       WHERE ${where}

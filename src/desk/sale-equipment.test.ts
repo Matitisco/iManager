@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { equipmentSuggestions, EQUIPMENT_SUGGESTION_LIMIT } from './sale-equipment';
+import { equipmentSuggestions, EQUIPMENT_SUGGESTION_LIMIT, MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from './sale-equipment';
 
 function product(id: string, model: string, extra: Partial<Product> = {}): Product {
   return {
@@ -44,5 +44,31 @@ describe('equipmentSuggestions', () => {
     expect(performance.now() - started).toBeLessThan(50);
     expect(matches).toHaveLength(EQUIPMENT_SUGGESTION_LIMIT);
     expect(matches.map((item) => item.id)).toEqual(['p0', 'p1', 'p2', 'p3', 'p4', 'p5']);
+  });
+});
+
+describe('outgoingTradeDifference', () => {
+  it('asks for the sale price instead of showing a negative gap when the device is not in stock', () => {
+    expect(outgoingTradeDifference({
+      registered: false,
+      priceProvided: false,
+      saleAmount: 0,
+      takeValue: 500,
+    })).toEqual({ difference: null, warning: MISSING_OUTGOING_PRICE });
+  });
+
+  it('warns only after a sale price was typed and it is below the trade-in', () => {
+    expect(outgoingTradeDifference({
+      registered: false,
+      priceProvided: true,
+      saleAmount: 100,
+      takeValue: 250,
+    })).toEqual({ difference: -150, warning: NEGATIVE_TRADE_DIFFERENCE });
+    expect(outgoingTradeDifference({
+      registered: true,
+      priceProvided: true,
+      saleAmount: 900,
+      takeValue: 400,
+    })).toEqual({ difference: 500, warning: null });
   });
 });

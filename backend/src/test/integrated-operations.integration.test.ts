@@ -531,4 +531,66 @@ describe("integrated operation API", () => {
     expect((await app.inject({ method: "PATCH", url: `/api/operations/inventory/trades/${ownId}`, headers, payload: { amount: 1400 } })).statusCode).toBe(403);
     expect((await app.inject({ method: "POST", url: `/api/operations/inventory/trades/${ownId}/cancel`, headers, payload: {} })).statusCode).toBe(403);
   });
+
+  it("creates an unlisted sold device marked for completion and refuses a negative trade gap without a price", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+    const missingPrice = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: {
+        clientName: "Mostrador",
+        deviceLabel: "Pixel libre",
+        amount: 0,
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+        unlistedEquipment: { model: "Pixel libre", capacity: "128GB", color: "Verde", condition: "USADO", price: 0 },
+        tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
+      },
+    });
+    expect(missingPrice.statusCode).toBe(400);
+    expect(missingPrice.json().error).toBe("Completá el precio de salida para calcular la diferencia");
+    expect(await prisma.inventoryItem.count({ where: { storeId: context.store!.id } })).toBe(0);
+    expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(0);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: {
+        clientName: "Mostrador",
+        deviceLabel: "Pixel libre",
+        amount: 900,
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+        unlistedEquipment: {
+          model: "Pixel libre",
+          capacity: "128GB",
+          color: "Verde",
+          condition: "USADO",
+          imei: "",
+          price: 900,
+        },
+        tradeIn: { deviceReceived: "iPhone 11", takeValue: 400 },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().tradeIn.differencePaid).toBe(500);
+    const sold = created.json().inventory.find((item: { model: string }) => item.model === "Pixel libre");
+    expect(sold).toMatchObject({
+      capacity: "128GB",
+      color: "Verde",
+      condition: "USADO",
+      status: "VENDIDO",
+      needsCompletion: true,
+      price: 900,
+      imei: "",
+    });
+    expect(created.json().sale).toMatchObject({ productId: sold.id, deviceLabel: "Pixel libre 128GB", amount: 900 });
+    const listed = await app.inject({ method: "GET", url: "/api/inventory", headers });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().inventory.find((item: { id: string }) => item.id === sold.id)).toMatchObject({ needsCompletion: true, status: "VENDIDO" });
+  });
 });
