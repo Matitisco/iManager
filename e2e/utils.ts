@@ -305,7 +305,7 @@ export async function createInvitationViaApi(
 export async function createSaleViaApi(
   request: APIRequestContext,
   email: string,
-  input: { date: string; clientName: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD'; paymentMethod?: string },
+  input: { date: string; clientName: string; clientId?: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD'; paymentMethod?: string },
 ) {
   const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales`, {
     headers: {
@@ -315,6 +315,7 @@ export async function createSaleViaApi(
     data: {
       date: input.date,
       clientName: input.clientName,
+      clientId: input.clientId,
       deviceLabel: input.deviceLabel,
       amount: input.amount,
       amountCurrency: input.amountCurrency,

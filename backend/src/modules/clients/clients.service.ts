@@ -32,6 +32,7 @@ export interface ClientResponse {
   categoryId: string | null;
   tag: string | null;
   customFields: Record<string, unknown>;
+  createdAt: string | null;
 }
 
 export interface ClientCategoryResponse {
@@ -52,6 +53,7 @@ type ClientRecord = {
   categoryId: string | null;
   tag?: string | null;
   customFields: Prisma.JsonValue | null;
+  createdAt?: Date | null;
 };
 
 class ClientsError extends Error {
@@ -115,6 +117,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
     customFields: toCustomFields(client.customFields),
+    createdAt: client.createdAt ? client.createdAt.toISOString() : null,
   };
 }
 

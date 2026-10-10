@@ -40,7 +40,7 @@ const MORE_SUB: Record<DeskSectionId, string> = {
   dashboard: 'Resumen de la tienda',
   inventory: 'Equipos y stock',
   sales: 'Registro de ventas',
-  reports: 'Ventas, stock y canjes',
+  reports: 'Ventas, stock, canjes, clientes y servicio',
   tradeins: 'Equipos dados y recibidos',
   clients: 'Agenda y saldos',
   service: 'Órdenes de reparación',
