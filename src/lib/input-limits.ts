@@ -1,6 +1,7 @@
 export const INPUT_LIMITS = {
   storeName: 120,
   model: 100,
+  color: 50,
   clientName: 120,
 } as const;
 

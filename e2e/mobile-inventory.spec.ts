@@ -199,6 +199,18 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByText('iPhone 15 · 128GB')).toBeVisible();
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
 
+    await page.getByRole('button', { name: 'Filtros', exact: true }).click();
+    const colors = page.getByRole('dialog', { name: 'Filtros' });
+    await colors.getByRole('checkbox', { name: 'Medianoche' }).check();
+    await colors.getByRole('checkbox', { name: 'Azul' }).check();
+    await colors.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
+    await expect(page.getByText('iPhone 13 · 128GB')).toBeVisible();
+    await expect(page.getByText('iPhone 15 · 128GB')).toBeVisible();
+    await expect(page.getByText('iPhone 14 Pro · 256GB')).toHaveCount(0);
+    await expect(page.getByTestId('inventory-total')).toHaveText('2 de 4');
+    await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+    await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
+
     await chips.getByRole('button', { name: 'Disponible' }).click();
     await chips.getByRole('button', { name: 'Reservado' }).click();
     await expect(page.getByText('iPhone 13 · 128GB')).toBeVisible();
@@ -226,6 +238,7 @@ test.describe('inventory on a phone', () => {
     const detail = page.getByRole('dialog', { name: /iPhone 13/ });
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Guardar estado' })).toBeVisible();
     await expect(detail.getByText('IMEI')).toBeVisible();
+    await expect(detail.locator('.kv').filter({ hasText: 'Color' })).toContainText('Medianoche');
     await expect(detail.getByText('$ 650.000')).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);

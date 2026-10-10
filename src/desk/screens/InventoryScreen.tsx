@@ -13,6 +13,8 @@ import {
   columnFilterActive,
   columnFilterKey,
   columnFiltersActive,
+  compareInventoryColor,
+  inventoryColorOptions,
   inventoryConditionOptions,
   matchesInventoryColumns,
   type InventoryColumnFilters,
@@ -48,6 +50,7 @@ function activeColumnCount(filters: InventoryColumnFilters) {
   return Number(filters.conditions.length > 0)
     + Number(filters.qualities.length > 0)
     + Number(filters.statuses.length > 0)
+    + Number(filters.colors.length > 0)
     + Number(Boolean(filters.battery))
     + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
     + Number(Boolean(filters.equipo.trim()));
@@ -109,6 +112,8 @@ export function InventoryScreen() {
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
     if (sort === 'Calidad ↑') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'best') || a.model.localeCompare(b.model, 'es'));
     if (sort === 'Calidad ↓') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'worst') || a.model.localeCompare(b.model, 'es'));
+    if (sort === 'Color ↑') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'asc') || a.model.localeCompare(b.model, 'es'));
+    if (sort === 'Color ↓') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'desc') || a.model.localeCompare(b.model, 'es'));
     return list;
   }, [inventory, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
@@ -130,6 +135,10 @@ export function InventoryScreen() {
       inventory.map((item) => item.condition),
     ),
     [catalogs?.options, inventory],
+  );
+  const colorOptions = useMemo(
+    () => inventoryColorOptions(inventory.map((item) => item.color)),
+    [inventory],
   );
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const toggleStatus = (id: string) => setColumns((current) => ({
@@ -198,7 +207,7 @@ export function InventoryScreen() {
       ) : null}
       <div className="dbar">
         <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
-        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓']} value={sort} onChange={setSort} />
+        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       {phone && inventory.length > 0 ? (
@@ -241,6 +250,27 @@ export function InventoryScreen() {
                   <span className="thf">Equipo
                     <ColumnFilter label="equipo" open={openColumn === 'equipo'} onToggle={() => setOpenColumn((current) => current === 'equipo' ? null : 'equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>
                       <input aria-label="Contiene" placeholder="Modelo, capacidad o color" value={columns.equipo} onChange={(event) => setColumn({ equipo: event.target.value })} />
+                    </ColumnFilter>
+                  </span>
+                </th>
+                <th>
+                  <span className="thf">
+                    <button type="button" className="thsort" aria-label="Ordenar por color" onClick={() => setSort((current) => current === 'Color ↑' ? 'Color ↓' : 'Color ↑')}>
+                      Color{sort === 'Color ↑' ? ' ↑' : sort === 'Color ↓' ? ' ↓' : ''}
+                    </button>
+                    <ColumnFilter label="color" open={openColumn === 'color'} onToggle={() => setOpenColumn((current) => current === 'color' ? null : 'color')} active={columnFilterActive(columns, 'colors')} onClear={() => setColumn({ colors: [] })}>
+                      <div className="opts">
+                        {colorOptions.map((label) => (
+                          <label key={label} className="chk">
+                            <input
+                              type="checkbox"
+                              checked={columns.colors.includes(label)}
+                              onChange={(event) => setColumn({ colors: withStatus(columns.colors, label, event.target.checked) })}
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
                     </ColumnFilter>
                   </span>
                 </th>
@@ -342,9 +372,10 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small><NoticeTag reason={notices.reasonFor(item.id)} /></div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></div>
                     </div>
                   </td>
+                  <td>{(item.color ?? '').trim() || '—'}</td>
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
@@ -404,6 +435,24 @@ export function InventoryScreen() {
                 </label>
               ))}
             </div>
+            <p className="sec">Color</p>
+            {colorOptions.length === 0 ? <p className="mut">Todavía no hay colores en el stock.</p> : (
+              <div className="inv-checks">
+                {colorOptions.map((label) => (
+                  <label key={label} className="chk">
+                    <input
+                      type="checkbox"
+                      checked={draftFilters.colors.includes(label)}
+                      onChange={(event) => setDraftFilters((current) => ({
+                        ...current,
+                        colors: withStatus(current.colors, label, event.target.checked),
+                      }))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
             <p className="sec">Calidad</p>
             <div className="inv-checks">
               {DEVICE_QUALITIES.map((item) => (

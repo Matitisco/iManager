@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, inventoryConditionOptions, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
+import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, compareInventoryColor, inventoryColorOptions, inventoryConditionOptions, matchesInventoryColor, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -93,5 +93,23 @@ describe('inventory column filters', () => {
     expect(matchesInventoryColumns(product({ condition: 'NUEVO' }), filters({ conditions: ['NUEVO', 'USADO'] }))).toBe(true);
     expect(matchesInventoryColumns(product({ condition: 'USADO' }), filters({ conditions: ['NUEVO'] }))).toBe(false);
     expect(matchesInventoryColumns(product({ condition: 'PRE-OWNED' }), filters({ conditions: ['USADO', 'PRE-OWNED'] }))).toBe(true);
+  });
+
+  it('lists stored colors and keeps every selected color', () => {
+    expect(inventoryColorOptions([' Negro ', '', 'Azul', 'Negro', 'ámbar'])).toEqual(['ámbar', 'Azul', 'Negro']);
+    expect(matchesInventoryColor('Azul', [])).toBe(true);
+    expect(matchesInventoryColor('  Azul ', ['Azul'])).toBe(true);
+    expect(matchesInventoryColor('', ['Azul'])).toBe(false);
+    expect(matchesInventoryColumns(product(), filters({ colors: ['Azul', 'Negro'] }))).toBe(true);
+    expect(matchesInventoryColumns(product({ color: 'Verde' }), filters({ colors: ['Azul', 'Negro'] }))).toBe(false);
+    expect(matchesInventoryColumns(product({ color: '' }), filters({ colors: ['Azul'] }))).toBe(false);
+    expect(matchesInventoryColumns(product({ color: '' }), EMPTY_COLUMN_FILTERS)).toBe(true);
+    expect(columnFilterActive(filters({ colors: ['Azul'] }), 'colors')).toBe(true);
+    expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'colors')).toBe(false);
+    expect(columnFilterKey(filters({ colors: ['Negro', 'Azul'] }))).toBe(columnFilterKey(filters({ colors: ['Azul', 'Negro'] })));
+    expect(compareInventoryColor('Negro', 'Azul', 'asc')).toBeGreaterThan(0);
+    expect(compareInventoryColor('Negro', 'Azul', 'desc')).toBeLessThan(0);
+    expect(compareInventoryColor('', 'Azul', 'asc')).toBeGreaterThan(0);
+    expect(compareInventoryColor('', 'Azul', 'desc')).toBeGreaterThan(0);
   });
 });

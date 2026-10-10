@@ -360,6 +360,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
+        if (color.trim().length > INPUT_LIMITS.color) next.color = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
         if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
         if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
         else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
@@ -1544,7 +1545,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      hints: { modelo: 'model', imei: 'imei', precio: 'price', capacidad: 'capacity', color: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
+      hints: { modelo: 'model', imei: 'imei', precio: 'price', capacidad: 'capacity', color: 'color', colour: 'color', colores: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
         const parseNum = (value?: string) => value ? Number(value.replace(/\./g, '').replace(',', '.')) || 0 : undefined;
         const payload: ImportRow[] = rows.map((row) => ({

@@ -236,6 +236,41 @@ describe('Inventory column filters', () => {
     expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
   });
 
+  it('shows the color column, sorts it and filters several colors', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Verde', color: 'Verde' }),
+      item('2', { model: 'Azul', color: 'Azul' }),
+      item('3', { model: 'Sin', color: '   ' }),
+      item('4', { model: 'Negro', color: 'Negro' }),
+    ];
+    renderScreen();
+
+    expect(screen.getByRole('columnheader', { name: /Color/ })).toBeInTheDocument();
+    const azul = screen.getByText('Azul · 128 GB').closest('tr') as HTMLElement;
+    expect(within(azul).getByRole('cell', { name: 'Azul' })).toBeInTheDocument();
+    const blank = screen.getByText('Sin · 128 GB').closest('tr') as HTMLElement;
+    expect(within(blank).getAllByRole('cell', { name: '—' }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Ordenar por color' }));
+    const ascending = screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+    expect(ascending.map((row) => row.includes('Azul') ? 'Azul' : row.includes('Negro') ? 'Negro' : row.includes('Verde') ? 'Verde' : 'Sin')).toEqual(['Azul', 'Negro', 'Verde', 'Sin']);
+
+    await user.click(screen.getByRole('button', { name: 'Ordenar por color' }));
+    const descending = screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+    expect(descending.map((row) => row.includes('Azul') ? 'Azul' : row.includes('Negro') ? 'Negro' : row.includes('Verde') ? 'Verde' : 'Sin')).toEqual(['Verde', 'Negro', 'Azul', 'Sin']);
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar color' }));
+    const dialog = screen.getByRole('dialog', { name: 'Filtrar color' });
+    expect(within(dialog).queryByRole('checkbox', { name: '—' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Azul' }));
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Negro' }));
+    expect(screen.getByText('Azul · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Negro · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Verde · 128 GB')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin · 128 GB')).not.toBeInTheDocument();
+  });
+
   it('offers Nuevo and Usado, plus any stock condition, even when the table is empty', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     context.inventory = [];
@@ -484,6 +519,39 @@ describe('Inventory phone list', () => {
     expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
   });
 
+  it('sorts the cards by color and filters several colors from the sheet', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Verde', color: 'Verde' }),
+      item('2', { model: 'Azul', color: 'Azul' }),
+      item('3', { model: 'Sin', color: '' }),
+      item('4', { model: 'Negro', color: 'Negro' }),
+    ];
+    renderScreen();
+
+    const azul = screen.getByText('Azul · 128 GB').closest('button') as HTMLElement;
+    expect(within(azul).getByText('Nuevo · Azul')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Recientes' }));
+    await user.click(screen.getByRole('button', { name: 'Color ↑' }));
+    const ascending = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
+    expect(ascending[0]).toContain('Azul');
+    expect(ascending[1]).toContain('Negro');
+    expect(ascending[2]).toContain('Verde');
+    expect(ascending[3]).toContain('Sin');
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Azul' }));
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Negro' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('Azul · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Negro · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Verde · 128 GB')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
+  });
+
   it('shows condition, quality and status choices in the sheet when there are no devices', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
@@ -494,6 +562,7 @@ describe('Inventory phone list', () => {
     expect(within(sheet).getByRole('checkbox', { name: 'A+ · Como nuevo' })).toBeInTheDocument();
     expect(within(sheet).getByRole('checkbox', { name: 'Disponible' })).toBeInTheDocument();
     expect(within(sheet).queryByText('Todavía no hay condiciones en el stock.')).not.toBeInTheDocument();
+    expect(within(sheet).getByText('Todavía no hay colores en el stock.')).toBeInTheDocument();
   });
 
   it('applies several conditions from the sheet and updates the filtered total', async () => {
