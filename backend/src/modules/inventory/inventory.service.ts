@@ -6,6 +6,7 @@ import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { inventoryGrade } from "./quality.js";
 
 export interface InventoryItemInput {
   imei?: string | null;
@@ -328,6 +329,12 @@ function storedImei(value: string | null | undefined) {
   return parsed.imei;
 }
 
+function storedGrade(condition: string, grade: string | null | undefined) {
+  const parsed = inventoryGrade(condition, grade);
+  if (parsed.ok === false) throw new InventoryError(parsed.message, 400);
+  return parsed.grade;
+}
+
 export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   const imei = storedImei(input.imei);
@@ -343,6 +350,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
   }
 
   const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, prisma));
+  const grade = storedGrade(input.condition, input.grade);
   const inventoryItem = await withSerializableRetry(async (tx) => {
     const created = await tx.inventoryItem.create({ data: {
       storeId,
@@ -351,7 +359,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       capacity: input.capacity.trim(),
       color: input.color.trim(),
       condition: input.condition,
-      grade: input.grade,
+      grade,
       batteryHealth: input.batteryHealth,
       cost: toDecimal(input.cost),
       price: toDecimal(input.price),
@@ -428,7 +436,11 @@ export async function updateInventoryItem(
     if (input.capacity !== undefined) data.capacity = input.capacity.trim();
     if (input.color !== undefined) data.color = input.color.trim();
     if (input.condition !== undefined) data.condition = input.condition;
-    if (input.grade !== undefined) data.grade = input.grade;
+    if (input.grade !== undefined || input.condition !== undefined) {
+      const nextCondition = input.condition !== undefined ? input.condition : existing.condition;
+      const nextGrade = input.grade !== undefined ? input.grade : existing.grade;
+      data.grade = storedGrade(nextCondition, nextGrade);
+    }
     if (input.batteryHealth !== undefined) data.batteryHealth = input.batteryHealth;
     const changedAt = new Date();
     if (input.cost !== undefined) data.cost = toDecimal(input.cost);
@@ -617,16 +629,6 @@ const CONDITION_MAP: Record<string, string> = {
   "pre owned": "PRE-OWNED",
 };
 
-const GRADE_MAP: Record<string, string> = {
-  "a+": "A+",
-  a: "A",
-  b: "B",
-  c: "C",
-  "n/a": "N/A",
-  na: "N/A",
-  "-": "N/A",
-};
-
 const STATUS_MAP: Record<string, string> = {
   disponible: "DISPONIBLE",
   available: "DISPONIBLE",
@@ -646,14 +648,6 @@ function foldKey(value: string) {
 function lookupEnum(value: string | undefined, map: Record<string, string>) {
   if (!value?.trim()) return undefined;
   return map[foldKey(value)];
-}
-
-function normalizeEnum<T extends string>(
-  value: string | undefined,
-  map: Record<string, string>,
-  fallback: T
-): T {
-  return (lookupEnum(value, map) as T) ?? fallback;
 }
 
 function normalizeBattery(raw: unknown): string {
@@ -707,13 +701,18 @@ export async function importInventoryItems(
       continue;
     }
     const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
+    const parsedGrade = inventoryGrade(condition, raw.grade);
+    if (parsedGrade.ok === false) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: parsedGrade.message });
+      continue;
+    }
     const input = {
       imei: parsedImei.imei,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color: raw.color?.trim() || "",
       condition,
-      grade: normalizeEnum(raw.grade, GRADE_MAP, "N/A" as const),
+      grade: parsedGrade.grade,
       batteryHealth: normalizeBattery(raw.batteryHealth),
       cost: providedCost ?? 0,
       price: Number(raw.price),

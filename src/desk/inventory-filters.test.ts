@@ -29,8 +29,12 @@ describe('inventory column filters', () => {
     expect(matchesInventoryColumns(item, EMPTY_COLUMN_FILTERS)).toBe(true);
     expect(matchesInventoryColumns(item, filters({ equipo: 'pix' }))).toBe(true);
     expect(matchesInventoryColumns(item, filters({ equipo: 'negro' }))).toBe(false);
-    expect(matchesInventoryColumns(item, filters({ conditions: ['Usado · Grado A'] }))).toBe(true);
+    expect(matchesInventoryColumns(item, filters({ conditions: ['Usado'] }))).toBe(true);
     expect(matchesInventoryColumns(item, filters({ conditions: ['Nuevo'] }))).toBe(false);
+    expect(matchesInventoryColumns(item, filters({ qualities: ['A'] }))).toBe(true);
+    expect(matchesInventoryColumns(item, filters({ qualities: ['A+'] }))).toBe(false);
+    expect(matchesInventoryColumns(item, filters({ qualities: ['A', 'B'] }))).toBe(true);
+    expect(matchesInventoryColumns(product({ condition: 'NUEVO', grade: 'A' }), filters({ qualities: ['A'] }))).toBe(false);
     expect(matchesInventoryColumns(item, filters({ battery: '80' }))).toBe(true);
     expect(matchesInventoryColumns(item, filters({ battery: '90' }))).toBe(false);
     expect(matchesInventoryColumns(item, filters({ priceMin: '100.000', priceMax: '200000' }))).toBe(true);
@@ -38,7 +42,8 @@ describe('inventory column filters', () => {
     expect(matchesInventoryColumns(product({ batteryHealth: '' }), filters({ battery: '70' }))).toBe(false);
     expect(matchesInventoryColumns(item, filters({
       equipo: 'azul',
-      conditions: ['Usado · Grado A'],
+      conditions: ['Usado'],
+      qualities: ['A'],
       battery: '80',
       priceMax: '150000',
     }))).toBe(true);
@@ -58,7 +63,7 @@ describe('inventory column filters', () => {
     expect(matchesInventoryColumns(reserved, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(true);
     expect(matchesInventoryColumns(sold, filters({ statuses: ['DISPONIBLE', 'RESERVADO'] }))).toBe(false);
     expect(matchesInventoryColumns(review, filters({ statuses: ['EN_REVISION'] }))).toBe(true);
-    expect(matchesInventoryColumns(available, filters({ statuses: ['RESERVADO'], conditions: ['Usado · Grado A'] }))).toBe(false);
+    expect(matchesInventoryColumns(available, filters({ statuses: ['RESERVADO'], conditions: ['Usado'] }))).toBe(false);
     expect(columnFilterActive(filters({ statuses: ['RESERVADO'] }), 'statuses')).toBe(true);
     expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'statuses')).toBe(false);
     expect(columnFilterKey(filters({ statuses: ['RESERVADO', 'DISPONIBLE'] }))).toBe(columnFilterKey(filters({ statuses: ['DISPONIBLE', 'RESERVADO'] })));

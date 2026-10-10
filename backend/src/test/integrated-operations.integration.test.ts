@@ -31,7 +31,7 @@ describe("integrated operation API", () => {
     expect(confirmed.json()).toMatchObject({ sale: { amount: 1500, status: "PENDIENTE", categoryId: null }, tradeIn: { categoryId: fixture.tradeInCategory.id, deviceReceived: "iPhone 11 Confirmed", takeValue: 600, differencePaid: 900, confirmationStatus: "CONFIRMED" } });
     expect(confirmed.json().inventory).toHaveLength(2);
     expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toBeTruthy();
-    expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toMatchObject({ model: "iPhone 11 Confirmed", cost: 600, condition: "", grade: "", batteryHealth: "", status: "EN_REVISION" });
+    expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toMatchObject({ model: "iPhone 11 Confirmed", cost: 600, condition: "USADO", grade: "", batteryHealth: "", status: "EN_REVISION" });
     expect(confirmed.json().notifications).toHaveLength(4);
     const client = await prisma.client.findFirstOrThrow({ where: { storeId: context.store!.id, name: "Draft Customer" } });
     const notice = (section: string) => confirmed.json().notifications.find((item: { section: string }) => item.section === section);

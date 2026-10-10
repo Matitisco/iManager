@@ -149,11 +149,15 @@ export function equipmentTitle(model: string, capacity?: string) {
   return [model, capacity].filter(Boolean).join(' · ');
 }
 
-export function conditionLabel(condition: string, grade?: string): string {
-  if (!condition) return '—';
-  const label = ({ NUEVO: 'Nuevo', USADO: 'Usado', 'PRE-OWNED': 'Pre-owned' } as Record<string, string>)[condition] ?? condition;
-  if (!grade || grade === 'N/A' || grade === '—' || condition === 'NUEVO') return label;
-  return `${label} · Grado ${grade}`;
+const CONDITION_NAMES: Record<string, string> = { NUEVO: 'Nuevo', USADO: 'Usado', 'PRE-OWNED': 'Pre-owned' };
+
+export function conditionName(condition: string): string {
+  if (!condition) return '';
+  return CONDITION_NAMES[condition] ?? condition;
+}
+
+export function conditionLabel(condition: string): string {
+  return conditionName(condition) || '—';
 }
 
 export function paymentLabel(method: string): string {

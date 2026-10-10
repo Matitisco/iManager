@@ -11,6 +11,7 @@ import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audi
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
+import { parseQuality } from "../inventory/quality.js";
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
 const toNum = (value: number | Decimal) => Number(value instanceof Decimal ? value.toString() : value);
@@ -46,6 +47,17 @@ export class OperationError extends Error {
   constructor(message: string, public statusCode = 400) {
     super(message);
   }
+}
+
+function strictTradeGrade(value: string | null | undefined): string | null {
+  const parsed = parseQuality(value);
+  if (parsed.ok === false) throw new OperationError(parsed.message);
+  return parsed.grade || null;
+}
+
+function coerceTradeGrade(value: string | null | undefined): string | null {
+  const parsed = parseQuality(value);
+  return parsed.ok ? parsed.grade || null : null;
 }
 
 function present<T>(value: T | null | undefined): value is T {
@@ -311,6 +323,8 @@ export async function getOperationOptions(storeId: string) {
         imei: true,
         price: true,
         currency: true,
+        condition: true,
+        grade: true,
         pendingSaleRegistration: true,
       },
       orderBy: { createdAt: "desc" },
@@ -382,7 +396,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         confirmationStatus: "PENDING",
         operationSource: source,
         batteryHealth: input.tradeIn.batteryHealth?.trim() || null,
-        grade: input.tradeIn.grade?.trim() || null,
+        grade: strictTradeGrade(input.tradeIn.grade),
         customFields: toJson(input.tradeIn.customFields),
         requestKey: input.requestKey ?? null,
         draftProductId: input.productId ?? null,
@@ -441,7 +455,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           confirmationStatus: "CONFIRMED",
           operationSource: source,
           batteryHealth: tradeInput.batteryHealth?.trim() || null,
-          grade: tradeInput.grade?.trim() || null,
+          grade: strictTradeGrade(tradeInput.grade),
           customFields: toJson(tradeInput.customFields),
           requestKey: input.requestKey ?? null,
         },
@@ -453,8 +467,8 @@ export async function createOperation(storeId: string, source: OperationSource, 
           model: tradeInput.deviceReceived.trim(),
           capacity: "",
           color: "",
-          condition: "",
-          grade: tradeInput.grade?.trim() || "",
+          condition: "USADO",
+          grade: strictTradeGrade(tradeInput.grade) || "",
           batteryHealth: tradeInput.batteryHealth?.trim() || "",
           cost: dec(tradeInput.takeValue),
           price: dec(0),
@@ -560,8 +574,8 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       ? trade.batteryHealth
       : input.tradeIn.batteryHealth?.trim() || null;
     const receivedGrade = input.tradeIn?.grade === undefined
-      ? trade.grade
-      : input.tradeIn.grade?.trim() || null;
+      ? coerceTradeGrade(trade.grade)
+      : strictTradeGrade(input.tradeIn.grade);
     const receivedCustomFields = input.tradeIn?.customFields === undefined
       ? trade.customFields
       : input.tradeIn.customFields;
@@ -599,7 +613,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       model: receivedDevice.trim(),
       capacity: "",
       color: "",
-      condition: "",
+      condition: "USADO",
       grade: receivedGrade || "",
       batteryHealth: receivedBattery || "",
       cost: dec(takeValue),
@@ -801,7 +815,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
           grade:
             nextTradeInput?.grade === undefined
               ? trade.grade
-              : nextTradeInput.grade?.trim() || null,
+              : strictTradeGrade(nextTradeInput.grade),
           customFields:
             nextTradeInput?.customFields === undefined
               ? trade.customFields ?? {}
@@ -812,7 +826,8 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         if (updatedTrade.deviceReceivedImei) await assertIncomingImei(tx, storeId, updatedTrade.deviceReceivedImei, trade.receivedInventoryItemId);
         incoming = await tx.inventoryItem.update({ where: { id: trade.receivedInventoryItemId }, data: {
           imei: updatedTrade.deviceReceivedImei, model: updatedTrade.deviceReceived, cost: updatedTrade.takeValue,
-          batteryHealth: updatedTrade.batteryHealth ?? "", grade: updatedTrade.grade ?? "",
+          condition: "USADO",
+          batteryHealth: updatedTrade.batteryHealth ?? "", grade: coerceTradeGrade(updatedTrade.grade) || "",
         } });
       }
     }
@@ -876,7 +891,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         deviceReceivedImei: input.tradeIn?.deviceReceivedImei === undefined ? trade.deviceReceivedImei : input.tradeIn.deviceReceivedImei?.trim() || null,
         takeValue: input.tradeIn?.takeValue === undefined ? trade.takeValue : dec(input.tradeIn.takeValue),
         status: input.tradeIn?.status ?? trade.status, batteryHealth: input.tradeIn?.batteryHealth === undefined ? trade.batteryHealth : input.tradeIn.batteryHealth,
-        grade: input.tradeIn?.grade === undefined ? trade.grade : input.tradeIn.grade,
+        grade: input.tradeIn?.grade === undefined ? trade.grade : strictTradeGrade(input.tradeIn.grade),
         draftProductId: input.productId === undefined ? trade.draftProductId : input.productId,
         draftDeviceLabel: input.deviceLabel === undefined ? trade.draftDeviceLabel : input.deviceLabel,
         draftAmount: input.amount === undefined ? trade.draftAmount : dec(input.amount),

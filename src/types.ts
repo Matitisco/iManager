@@ -96,6 +96,8 @@ export interface OperationProductOption {
   imei: string;
   price: number;
   currency?: string | null;
+  condition?: string;
+  grade?: string;
   pendingSaleRegistration: boolean;
 }
 

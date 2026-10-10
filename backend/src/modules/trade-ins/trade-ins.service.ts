@@ -6,6 +6,7 @@ import { writeAudit, type Actor } from "../audit/audit.js";
 import { prisma } from "../../plugins/prisma.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { parseQuality } from "../inventory/quality.js";
 import { moneyChanged } from "../audit/audit.js";
 
 export interface TradeInInput {
@@ -209,12 +210,10 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
 }
 
 function normalizeGrade(value?: string | null) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  if (value === undefined) return undefined;
+  const parsed = parseQuality(value);
+  if (parsed.ok === false) throw new TradeInsError(parsed.message, 400);
+  return parsed.grade || null;
 }
 
 function normalizeBatteryHealth(value?: string | null) {
@@ -286,7 +285,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
         differencePaid: toDecimal(input.differencePaid ?? 0),
         status: input.status?.trim() || "PENDIENTE",
         batteryHealth: input.batteryHealth ?? null,
-        grade: input.grade?.trim() ? input.grade.trim() : null,
+        grade: normalizeGrade(input.grade) ?? null,
         customFields: normalizeCustomFields(input.customFields),
         tradeAt,
       },

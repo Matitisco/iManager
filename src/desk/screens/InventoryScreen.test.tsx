@@ -133,7 +133,7 @@ describe('Inventory column filters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Limpiar' }));
     await user.click(screen.getByRole('button', { name: 'Filtrar condición' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Usado · Grado A' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Usado' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Modelo 1 · 128 GB')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
@@ -210,6 +210,30 @@ describe('Inventory column filters', () => {
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('11 de 11');
     expect(within(chips).getByRole('button', { name: 'Todos' })).toHaveClass('on');
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+
+  it('sorts the quality column from A+ to C and filters several grades', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Charlie', condition: 'USADO', grade: 'C', price: 300 }),
+      item('2', { model: 'Plus', condition: 'USADO', grade: 'A+', price: 100 }),
+      item('3', { model: 'Nuevo', condition: 'NUEVO', grade: 'A+', price: 200 }),
+    ];
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Ordenar por calidad' }));
+    const models = screen.getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+    expect(models[0]).toContain('Plus');
+    expect(models[1]).toContain('Charlie');
+    expect(models[2]).toContain('Nuevo');
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar calidad' }));
+    const quality = screen.getByRole('dialog', { name: 'Filtrar calidad' });
+    await user.click(within(quality).getByRole('checkbox', { name: 'A+' }));
+    await user.click(within(quality).getByRole('checkbox', { name: 'B' }));
+    expect(screen.getByText('Plus · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Charlie · 128 GB')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
   });
 });
 
@@ -322,7 +346,7 @@ describe('Inventory phone list', () => {
     const card = screen.getByText('iPhone 13 · 128GB').closest('button') as HTMLElement;
     expect(within(card).getByText('IMEI 49 015420 323751 8')).toBeInTheDocument();
     expect(within(card).getByText('Usado · Medianoche')).toBeInTheDocument();
-    expect(within(card).getByText('Grado A · Bat. 96%')).toBeInTheDocument();
+    expect(within(card).getByText('Calidad A · Bat. 96%')).toBeInTheDocument();
     expect(within(card).getByText('$ 650.000')).toBeInTheDocument();
     expect(within(card).getByText('Disponible')).toBeInTheDocument();
 
@@ -385,5 +409,32 @@ describe('Inventory phone list', () => {
     expect(screen.getByText('Salida · 128 GB')).toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+
+  it('sorts cards by quality and filters several grades from the sheet', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Charlie', condition: 'USADO', grade: 'C', price: 300 }),
+      item('2', { model: 'Plus', condition: 'USADO', grade: 'A+', price: 100 }),
+      item('3', { model: 'Nuevo', condition: 'NUEVO', grade: 'A+', price: 200 }),
+    ];
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Recientes' }));
+    await user.click(screen.getByRole('button', { name: 'Calidad ↑' }));
+    const cards = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
+    expect(cards[0]).toContain('Plus');
+    expect(cards[1]).toContain('Charlie');
+    expect(cards[2]).toContain('Nuevo');
+    expect(cards[2]).not.toContain('Calidad');
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('checkbox', { name: 'A+ · Como nuevo' }));
+    await user.click(within(sheet).getByRole('checkbox', { name: 'B · Bueno' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('Plus · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Charlie · 128 GB')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
   });
 });

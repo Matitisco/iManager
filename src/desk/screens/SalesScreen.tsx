@@ -17,6 +17,7 @@ import {
   statusLabel,
   type PeriodKey,
 } from '../format';
+import { displayQuality, qualityDetail } from '../quality';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
@@ -176,7 +177,7 @@ export function SalesScreen() {
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, inventory)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
                   </div>
                 );
@@ -255,7 +256,7 @@ export function SalesScreen() {
                     <td><b>#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
-                    <td>{saleEquipment(sale, inventory)}</td>
+                    <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
@@ -311,6 +312,12 @@ function SalesHero({ seeFinancials, total, approx, staleClock, count, average, m
       </div>
     </section>
   );
+}
+
+function soldQualityLabel(sale: Sale, inventory: { id: string; condition: string; grade: string }[]) {
+  const product = sale.productId ? inventory.find((item) => item.id === sale.productId) : undefined;
+  const value = product ? displayQuality(product.condition, product.grade) : '';
+  return value ? `Calidad ${qualityDetail(value)}` : '';
 }
 
 function SaleCard({ sale, buyer, equipment, amount, approx }: { sale: Sale; buyer: string; equipment: string; amount: string; approx: string | null }) {

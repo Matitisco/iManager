@@ -6,6 +6,7 @@ import { useCatalogs } from '../catalog';
 import { ColumnFilter } from '../ColumnFilter';
 import { useMoney } from '../exchange';
 import { formatInputMoney, formatShortDate, isInProgressTrade, parseAppDate, parseMoney, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
 import { TablePager, usePagedRows } from '../pager';
@@ -252,7 +253,7 @@ export function TradeInsScreen() {
                   <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
                   <td className="trade-nowrap">{formatShortDate(item.date)}</td>
                   <td>{tradeClientLabel(item, clients)}</td>
-                  <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
+                  <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
                   <td className="trade-device">{item.deviceGiven || '—'}</td>
                   <td className="r trade-nowrap"><b>{money.show(item.takeValue, item.currency)}</b><small>Dif. {money.show(item.differencePaid, item.currency)}</small></td>
                   <td>
@@ -340,6 +341,7 @@ function TradeCard({ item, code, client, take, difference }: {
         {item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : null}
       </span>
       <b>Recibido: {item.deviceReceived || '—'}</b>
+      {tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}
       {item.deviceReceivedImei ? <small>IMEI {item.deviceReceivedImei}</small> : null}
       <span className="sale-bot"><span>{client}</span><b>{take}</b></span>
       <span className="sale-bot"><span>Entrega: {item.deviceGiven || '—'}</span><b>dif. {difference}</b></span>
