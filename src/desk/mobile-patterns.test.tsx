@@ -3,6 +3,21 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Actions, PageHead, PressTarget, Sheet } from './ui';
 
+function usePhoneViewport() {
+  const original = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes('max-width'),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+  return () => { window.matchMedia = original; };
+}
+
 describe('mobile sheet patterns', () => {
   it('keeps the actions in a footer and the fields in the scrolling body', () => {
     render(
@@ -16,6 +31,21 @@ describe('mobile sheet patterns', () => {
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Guardar equipo' }));
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
+  });
+
+  it('shows the shared close button on a phone sheet', () => {
+    const restore = usePhoneViewport();
+    try {
+      render(<Sheet title="Editar canje" onClose={() => undefined}><p>Detalle</p></Sheet>);
+      const close = screen.getByRole('button', { name: 'Cerrar' });
+      const icon = close.querySelector('svg');
+      expect(close).toHaveClass('modal-x');
+      expect(icon).toHaveAttribute('data-icon', 'cerrar');
+      expect(icon).toHaveAttribute('width', '16');
+      expect(icon).toHaveAttribute('height', '16');
+    } finally {
+      restore();
+    }
   });
 
   it('shows the back arrow and a row menu that opens actions', async () => {

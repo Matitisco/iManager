@@ -5,6 +5,7 @@ import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
 import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
+import { ModalCloseButton } from './close-button';
 import { ImanagerIcon, nearestIconSize, statusIcon, type ImanagerIconName } from './icons';
 import { usePhoneLayout } from './section-notices';
 
@@ -374,7 +375,7 @@ export function Sheet({ title, subtitle, children, onClose, wide, className }: {
         <div className="sheet-scroll">
           <div className="sheet-h">
             <h3>{title}</h3>
-            {phone ? <button type="button" className="sheet-x" aria-label="Cerrar" onClick={onClose}><ImanagerIcon name="cerrar" size={16} /></button> : null}
+            {phone ? <ModalCloseButton onClick={onClose} /> : null}
           </div>
           {subtitle ? <p className="sub">{subtitle}</p> : null}
           {body}
