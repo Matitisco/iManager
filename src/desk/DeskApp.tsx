@@ -131,14 +131,9 @@ function sectionUnread(counts: Record<NoticeSection, number>, id: DeskTab) {
   return 0;
 }
 
-function SectionUnread({ label, count, meta }: { label: string; count: number; meta?: string }) {
-  if (!meta && count <= 0) return null;
-  return (
-    <span className="dnav-meta">
-      {meta ? <span className="dmeta">{meta}</span> : null}
-      {count > 0 ? <span className="dcount" aria-label={`${count} en ${label}`}>{count}</span> : null}
-    </span>
-  );
+function SectionUnread({ label, count }: { label: string; count: number }) {
+  if (count <= 0) return null;
+  return <span className="dcount" aria-label={`${count} en ${label}`}>{count}</span>;
 }
 
 function FxBanner() {
@@ -277,11 +272,11 @@ export function DeskApp() {
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number; meta?: string }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
-    { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18, meta: openTrades ? String(openTrades) : undefined },
+    { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
@@ -315,7 +310,7 @@ export function DeskApp() {
                 <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                   <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                   <span>{item.label}</span>
-                  <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} meta={item.meta} />
+                  <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} />
                 </button>
               ))}
             </div>
