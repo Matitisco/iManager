@@ -127,11 +127,68 @@ describe('Trade-ins table', () => {
       expect(rows()).toHaveLength(query === 'Ana Pérez' ? 2 : 1);
     }
     await user.clear(search); await user.type(search, 'No existe');
-    expect(screen.getByText('No encontré canjes.')).toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay canjes con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Canje/ })).toBeInTheDocument();
+    expect(screen.getByText('0 de 2')).toBeInTheDocument();
     expect(screen.queryByTestId('tradeins-timeline')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tradeins-empty')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filtros' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Trade-in column filters', () => {
+  beforeEach(() => {
+    state.tradeIns = [
+      ...Array.from({ length: 11 }, (_, index) => trade(index + 1)),
+      trade(12, { clientId: '', clientName: 'Mostrador', deviceReceived: 'Pixel 8', deviceGiven: 'Galaxy', takeValue: 900000, differencePaid: 120000, date: '2026-09-01', status: 'APROBADO' }),
+    ];
+    state.catalog = { ready: true, options: [
+      { id: 'pending', kind: 'TRADE_IN_STATUS', value: 'PENDIENTE', label: 'Pendiente', color: '#E8A33D', isSystem: true, sortOrder: 0, count: 11 },
+      { id: 'approved', kind: 'TRADE_IN_STATUS', value: 'APROBADO', label: 'Aprobado', color: '#25A66A', isSystem: true, sortOrder: 1, count: 1 },
+    ] };
+  });
+
+  it('combines the status chip with a column filter, keeps the header and clears without dropping the chip', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+
+    expect(screen.getByText('12 de 12')).toBeInTheDocument();
+    expect(screen.queryByText('Mostrador')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    await user.click(within(document.querySelector('.wchips') as HTMLElement).getByRole('button', { name: 'Aprobado' }));
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
+    const client = screen.getByRole('dialog', { name: 'Filtrar cliente' });
+    await user.type(within(client).getByRole('textbox', { name: 'Contiene' }), 'mostrador');
+    expect(screen.getByRole('button', { name: 'Filtrar cliente' })).toHaveClass('on');
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.getByText('1 de 12')).toBeInTheDocument();
+    expect(within(document.querySelector('.wchips') as HTMLElement).getByRole('button', { name: 'Aprobado' })).toHaveClass('on');
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar valor' }));
+    const value = screen.getByRole('dialog', { name: 'Filtrar valor' });
+    await user.type(within(value).getByRole('textbox', { name: 'Valor mínimo' }), '1000000');
+    expect(screen.getByText('No hay canjes con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Canje/ })).toBeInTheDocument();
+    expect(screen.getByText('0 de 12')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(within(document.querySelector('.wchips') as HTMLElement).getByRole('button', { name: 'Aprobado' })).toHaveClass('on');
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+    const status = screen.getByRole('dialog', { name: 'Filtrar estado' });
+    await user.click(within(status).getByRole('button', { name: 'Pendiente' }));
+    expect(within(document.querySelector('.wchips') as HTMLElement).getByRole('button', { name: 'Pendiente' })).toHaveClass('on');
+    expect(screen.getAllByText('Ana Pérez').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Mostrador')).not.toBeInTheDocument();
+    await user.click(within(status).getByRole('button', { name: 'Limpiar' }));
+    expect(screen.getByText('12 de 12')).toBeInTheDocument();
   });
 });
 
@@ -189,6 +246,33 @@ describe('Trade-ins on a phone', () => {
     expect(open).toHaveBeenLastCalledWith({ type: 'new-cj' });
     await user.click(within(timeline).getByText('Cliente Ejemplo A'));
     expect(open).toHaveBeenLastCalledWith({ type: 'cj', id: '1' });
+    expect(screen.queryByRole('columnheader', { name: /Canje/ })).not.toBeInTheDocument();
+  });
+
+  it('applies the same column filters from the sheet and keeps the status chips', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const filters = screen.getByRole('dialog', { name: 'Filtros' });
+    expect(filters.querySelector('.sheet-grab')).toBeInTheDocument();
+    expect(within(filters).getByText(/Valor tomado/)).toBeInTheDocument();
+    expect(filters.querySelector('.sheet-foot')).toContainElement(within(filters).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(filters.querySelector('.sheet-foot')).toContainElement(within(filters).getByRole('button', { name: 'Limpiar filtros' }));
+    await user.type(within(filters).getByRole('textbox', { name: 'Recibido' }), 'iphone 12');
+    expect(screen.getByText('Cliente Ejemplo A')).toBeInTheDocument();
+    await user.click(within(filters).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.queryByRole('dialog', { name: 'Filtros' })).not.toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente Ejemplo A')).not.toBeInTheDocument();
+    expect(screen.getByText('1 de 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('.rbadge')).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: 'Pendiente' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByText('Cliente Ejemplo A')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('filters by a real status and shows the empty state', async () => {

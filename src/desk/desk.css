@@ -165,6 +165,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .thpop .opt:hover { background: var(--row); }
 .thpop .opt.on { background: var(--primary); color: #fff; }
 .thpop .range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.thpop .range + .range { margin-top: 8px; }
 .thpop .range span { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--section); }
 .thpop .clear { display: block; margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--secondary); }
 .thpop .clear:hover { color: var(--primary); }
