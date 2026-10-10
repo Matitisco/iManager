@@ -8,10 +8,12 @@ import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange
 import { conditionLabel, conditionName, equipmentTitle, formatImei, formatInputMoney, isInStock, parseMoney, statusLabel } from '../format';
 import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from '../quality';
 import {
+  CONDITION_FILTERS,
   EMPTY_COLUMN_FILTERS,
   columnFilterActive,
   columnFilterKey,
   columnFiltersActive,
+  inventoryConditionOptions,
   matchesInventoryColumns,
   type InventoryColumnFilters,
 } from '../inventory-filters';
@@ -122,16 +124,13 @@ export function InventoryScreen() {
     return [...known, ...extra.map((id) => ({ id, label: statusLabel(id) }))];
   }, [catalogs?.options, inventory]);
   const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions], [statusOptions]);
-  const conditionOptions = useMemo(() => {
-    const labels = [...new Set(inventory.map((item) => conditionLabel(item.condition)))].filter((label) => label !== '—');
-    const preferred = ['Nuevo', 'Usado', 'Pre-owned'];
-    return labels.sort((left, right) => {
-      const leftRank = preferred.indexOf(left);
-      const rightRank = preferred.indexOf(right);
-      if (leftRank !== -1 || rightRank !== -1) return (leftRank === -1 ? 99 : leftRank) - (rightRank === -1 ? 99 : rightRank);
-      return left.localeCompare(right, 'es');
-    });
-  }, [inventory]);
+  const conditionOptions = useMemo(
+    () => inventoryConditionOptions(
+      catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', CONDITION_FILTERS),
+      inventory.map((item) => item.condition),
+    ),
+    [catalogs?.options, inventory],
+  );
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const toggleStatus = (id: string) => setColumns((current) => ({
     ...current,
@@ -249,18 +248,16 @@ export function InventoryScreen() {
                   <span className="thf">Condición
                     <ColumnFilter label="condición" open={openColumn === 'condición'} onToggle={() => setOpenColumn((current) => current === 'condición' ? null : 'condición')} active={columnFilterActive(columns, 'conditions')} onClear={() => setColumn({ conditions: [] })}>
                       <div className="opts">
-                        {conditionOptions.map((label) => (
-                          <label key={label} className="chk">
+                        {conditionOptions.map((option) => (
+                          <label key={option.id} className="chk">
                             <input
                               type="checkbox"
-                              checked={columns.conditions.includes(label)}
+                              checked={columns.conditions.includes(option.id)}
                               onChange={(event) => setColumn({
-                                conditions: event.target.checked
-                                  ? [...columns.conditions, label]
-                                  : columns.conditions.filter((item) => item !== label),
+                                conditions: withStatus(columns.conditions, option.id, event.target.checked),
                               })}
                             />
-                            {label}
+                            {option.label}
                           </label>
                         ))}
                       </div>
@@ -392,25 +389,21 @@ export function InventoryScreen() {
               ))}
             </div>
             <p className="sec">Condición</p>
-            {conditionOptions.length === 0 ? <p className="mut">Todavía no hay condiciones en el stock.</p> : (
-              <div className="inv-checks">
-                {conditionOptions.map((label) => (
-                  <label key={label} className="chk">
-                    <input
-                      type="checkbox"
-                      checked={draftFilters.conditions.includes(label)}
-                      onChange={(event) => setDraftFilters((current) => ({
-                        ...current,
-                        conditions: event.target.checked
-                          ? [...current.conditions, label]
-                          : current.conditions.filter((item) => item !== label),
-                      }))}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            )}
+            <div className="inv-checks">
+              {conditionOptions.map((option) => (
+                <label key={option.id} className="chk">
+                  <input
+                    type="checkbox"
+                    checked={draftFilters.conditions.includes(option.id)}
+                    onChange={(event) => setDraftFilters((current) => ({
+                      ...current,
+                      conditions: withStatus(current.conditions, option.id, event.target.checked),
+                    }))}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
             <p className="sec">Calidad</p>
             <div className="inv-checks">
               {DEVICE_QUALITIES.map((item) => (
