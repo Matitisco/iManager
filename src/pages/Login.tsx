@@ -5,6 +5,7 @@ import { PasswordResetDialog } from '../components/PasswordResetDialog';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
+import { consumePasswordResetNotice, PASSWORD_RESET_LOGIN_NOTICE } from '../lib/password-reset-notice';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -28,6 +29,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetNotice] = useState(() => consumePasswordResetNotice());
   const inviteState = useInvitationPreview(inviteToken);
   const googleAttempt = useRef(0);
   const phone = usePhoneLayout();
@@ -380,6 +382,16 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
               </motion.div>
             </AnimatePresence>
           </motion.div>
+
+          {resetNotice && (
+            <div
+              data-testid="login-password-reset-notice"
+              role="status"
+              className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium max-[760px]:rounded-2xl max-[760px]:border-[#E6E8EC] max-[760px]:border-l-4 max-[760px]:border-l-[#FFD000] max-[760px]:bg-white max-[760px]:text-[#16181D]"
+            >
+              {PASSWORD_RESET_LOGIN_NOTICE}
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             {error && (
