@@ -79,9 +79,9 @@ describe("validation errors", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({
-      error: "El nombre es obligatorio",
-      message: "El nombre es obligatorio",
-      fields: { storeName: "El nombre es obligatorio" },
+      error: "Completá el nombre de la tienda",
+      message: "Completá el nombre de la tienda",
+      fields: { storeName: "Completá el nombre de la tienda" },
     });
     expect(response.body).not.toContain("too_small");
     expect(completeOnboardingMock).not.toHaveBeenCalled();

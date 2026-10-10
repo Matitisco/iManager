@@ -53,16 +53,38 @@ describe('Onboarding', () => {
     expect(container.querySelector('a[href="#"]')).toBeNull();
   });
 
+  it('starts empty instead of suggesting the account name or email', () => {
+    render(<Onboarding />);
+
+    const input = screen.getByLabelText('Nombre de la tienda');
+    expect(input).toHaveValue('');
+    expect(input).toHaveAttribute('placeholder', 'iManager Store');
+  });
+
   it('asks for a store name before calling the backend', async () => {
     const user = userEvent.setup();
     render(<Onboarding />);
 
     const input = screen.getByLabelText('Nombre de la tienda');
-    await user.clear(input);
+    expect(input).toHaveValue('');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
-    expect(await screen.findByText('El nombre es obligatorio')).toBeInTheDocument();
+    expect(await screen.findByText('Completá el nombre de la tienda')).toBeInTheDocument();
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+
+    await user.type(input, '   ');
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText('Completá el nombre de la tienda')).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+  });
+
+  it('keeps the store name empty when the invitation is invalid', () => {
+    mockInvitationState.invalid = true;
+    render(<Onboarding inviteToken="expired" />);
+
+    expect(screen.getByLabelText('Nombre de la tienda')).toHaveValue('');
+    expect(screen.getByLabelText('Nombre de la tienda')).toHaveAttribute('placeholder', 'iManager Store');
   });
 
   it('blocks a store name longer than the backend allows', async () => {
@@ -70,7 +92,6 @@ describe('Onboarding', () => {
     render(<Onboarding />);
 
     const input = screen.getByLabelText('Nombre de la tienda');
-    await user.clear(input);
     await user.click(input);
     await user.paste('a'.repeat(121));
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
@@ -89,7 +110,6 @@ describe('Onboarding', () => {
     render(<Onboarding />);
 
     const input = screen.getByLabelText('Nombre de la tienda');
-    await user.clear(input);
     await user.type(input, 'Sucursal Norte');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
@@ -102,7 +122,6 @@ describe('Onboarding', () => {
     render(<Onboarding />);
 
     const input = screen.getByLabelText('Nombre de la tienda');
-    await user.clear(input);
     await user.type(input, 'Sucursal Norte');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 

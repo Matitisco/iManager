@@ -46,7 +46,7 @@ describe("onboarding.service", () => {
   it("rejects a blank store name", async () => {
     await expect(
       completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "   " })
-    ).rejects.toThrow("Store name is required");
+    ).rejects.toThrow("Completá el nombre de la tienda");
   });
 
   it("creates a store and owner membership when the user has none", async () => {
