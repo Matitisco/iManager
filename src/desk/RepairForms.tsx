@@ -9,7 +9,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../li
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
-import { dayMonth, DEFAULT_REPAIR_STATUSES, REPAIR_FAULTS, REPAIR_READY, REPAIR_RECEIVED, repairFault, repairOverdue, repairPrice, repairStatusMeta } from './repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
 
@@ -31,7 +31,8 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
   const isPhone = usePhoneLayout();
-  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
+  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES)
+    .filter((status) => !isRetiredRepairStatus(status.id, status.label));
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState('');
   const [device, setDevice] = useState('');
@@ -162,7 +163,8 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const [estimate, setEstimate] = useState('');
   const [deposit, setDeposit] = useState('');
   const [bad, setBad] = useState<Record<string, string>>({});
-  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
+  const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES)
+    .filter((status) => !isRetiredRepairStatus(status.id, status.label));
   if (!order) {
     return (
       <Sheet className="svc-sheet" title="Orden" onClose={close}>
@@ -171,7 +173,8 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       </Sheet>
     );
   }
-  const index = statuses.findIndex((status) => status.id === order.status);
+  const shownStatus = repairColumnStatus(order.status);
+  const index = statuses.findIndex((status) => status.id === shownStatus);
   const next = index >= 0 ? statuses[index + 1] : undefined;
   const show = (value: number) => money.show(value, order.currency);
   const startEdit = () => {
@@ -187,11 +190,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     setSaving(true);
     try {
       const saved = await changeRepairStatus(order.id, next.id);
-      if (order.status !== REPAIR_READY && saved.status === REPAIR_READY) {
-        if (saved.whatsappUrl) window.open(saved.whatsappUrl, '_blank', 'noopener,noreferrer');
-        else if (saved.notifyWhatsapp) toast('La orden está lista, pero el cliente no tiene teléfono para WhatsApp.');
-      }
-      toast(`Pasó a ${repairStatusMeta(saved.status, statuses).label}`);
+      presentRepairStatusChange(repairStatusChangeNotice(order.status, saved, statuses), toast);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo cambiar el estado'));
     } finally {
@@ -253,7 +252,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
         </div>
         <div className="svc-now">
-          <Pill status={order.status} kind="REPAIR_STATUS" />
+          <Pill status={shownStatus} kind="REPAIR_STATUS" />
           {next ? <span>Sigue: {next.label}</span> : null}
         </div>
         {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
@@ -365,7 +364,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
         </div>
         <div className="svc-now">
-          <Pill status={order.status} kind="REPAIR_STATUS" />
+          <Pill status={shownStatus} kind="REPAIR_STATUS" />
         </div>
         {step > 0 ? (
           <p className="svc-step" data-testid="repair-step">

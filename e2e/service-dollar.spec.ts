@@ -51,11 +51,11 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/servicio-tablero.png` });
   await card.click();
   const detail = page.getByRole('dialog', { name: /#OT-0001/ });
-  for (const next of ['En diagnóstico', 'Esperando repuesto', 'En reparación', 'Listo para retirar']) {
+  for (const next of ['En reparación', 'Listo para retirar']) {
     await detail.getByRole('button', { name: `Pasar a ${next}` }).click();
     await expect(detail.getByText(`Sigue: ${next}`)).toHaveCount(0);
   }
-  await expect(detail.locator('.svc-log li')).toHaveCount(5);
+  await expect(detail.locator('.svc-log li')).toHaveCount(3);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/servicio-detalle.png` });
   await detail.getByRole('button', { name: 'Cerrar' }).first().click();
 

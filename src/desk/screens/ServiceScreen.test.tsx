@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepairOrder } from '../../types';
@@ -59,6 +59,16 @@ function order(id: string, status: string, overrides: Partial<RepairOrder> = {})
   };
 }
 
+function dragData() {
+  const data = new Map<string, string>();
+  return {
+    effectAllowed: 'move',
+    dropEffect: 'move',
+    setData: (key: string, value: string) => { data.set(key, value); },
+    getData: (key: string) => data.get(key) ?? '',
+  };
+}
+
 function desk(children: ReactNode, canManageSensitive = true) {
   return render(
     <DeskProvider value={{ tab: 'service', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false, canManageSensitive }}>
@@ -90,7 +100,7 @@ describe('servicio técnico', () => {
     deleteRepairOrder.mockReset();
     state.repairOrders = [
       order('101', 'RECIBIDO'),
-      order('95', 'ESPERANDO_REPUESTO', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: 120000 }),
+      order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: 120000 }),
     ];
     state.clients = [{ id: 'c1', name: 'Ejemplo A', phone: '2614000000', dni: '', email: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 }];
   });
@@ -103,7 +113,13 @@ describe('servicio técnico', () => {
     expect(screen.queryByText(/propuesta exploratoria/)).not.toBeInTheDocument();
     expect(screen.getByText('2 órdenes abiertas · 0 listas para retirar')).toBeInTheDocument();
     expect(screen.getByTestId('repair-column-RECIBIDO')).toHaveTextContent('1');
-    expect(screen.getByTestId('repair-column-ESPERANDO_REPUESTO')).toHaveTextContent('#OT-0095');
+    expect(screen.getByTestId('repair-column-EN_REPARACION')).toHaveTextContent('#OT-0095');
+    expect(screen.queryByTestId('repair-column-EN_DIAGNOSTICO')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-column-ESPERANDO_REPUESTO')).not.toBeInTheDocument();
+    expect(screen.queryByText('En diagnóstico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando repuesto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando respuesta')).not.toBeInTheDocument();
+    expect(screen.getByTestId('repair-card-101')).toHaveAttribute('draggable', 'true');
     expect(screen.getByTestId('repair-card-101')).toHaveTextContent('$ 145.000');
     await user.click(screen.getByTestId('repair-card-95'));
     expect(open).toHaveBeenCalledWith({ type: 'ot', id: '95' });
@@ -116,6 +132,100 @@ describe('servicio técnico', () => {
 
     await user.click(screen.getByRole('button', { name: 'Nueva orden' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-ot' });
+  });
+
+  it('keeps retired orders inside Recibido and out of the board', () => {
+    state.repairOrders = [
+      order('101', 'EN_DIAGNOSTICO'),
+      order('95', 'ESPERANDO_REPUESTO'),
+      order('96', 'ESPERANDO_RESPUESTA', { clientName: 'Ejemplo B' }),
+    ];
+    desk(<ServiceScreen />);
+    expect(screen.queryByTestId('repair-column-EN_DIAGNOSTICO')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-column-ESPERANDO_REPUESTO')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-column-ESPERANDO_RESPUESTA')).not.toBeInTheDocument();
+    expect(screen.queryByText('En diagnóstico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando repuesto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando respuesta')).not.toBeInTheDocument();
+    const received = screen.getByTestId('repair-column-RECIBIDO');
+    expect(received).toHaveTextContent('#OT-0101');
+    expect(received).toHaveTextContent('#OT-0095');
+    expect(received).toHaveTextContent('#OT-0096');
+  });
+
+  it('drags an order between columns with the same notice and WhatsApp as the status button', async () => {
+    const user = userEvent.setup();
+    const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
+    changeRepairStatus.mockImplementation(async (id: string, status: string) => {
+      const next = order(id, status, {
+        whatsappUrl: status === 'LISTO_PARA_RETIRAR' ? 'https://wa.me/5492614000000?text=listo' : null,
+        events: [
+          { id: 'a', status: 'RECIBIDO', createdAt: '03/10/2026' },
+          { id: 'b', status, createdAt: '08/10/2026' },
+        ],
+      });
+      state.repairOrders = state.repairOrders.map((item) => item.id === id ? next : item);
+      return next;
+    });
+    desk(<ServiceScreen />);
+    const card = screen.getByTestId('repair-card-101');
+    card.focus();
+    await user.keyboard('{Enter}');
+    expect(open).toHaveBeenCalledWith({ type: 'ot', id: '101' });
+    expect(changeRepairStatus).not.toHaveBeenCalled();
+
+    const data = dragData();
+    fireEvent.dragStart(card, { dataTransfer: data });
+    fireEvent.dragOver(screen.getByTestId('repair-column-RECIBIDO'), { dataTransfer: data });
+    fireEvent.drop(screen.getByTestId('repair-column-RECIBIDO'), { dataTransfer: data });
+    expect(changeRepairStatus).not.toHaveBeenCalled();
+
+    fireEvent.dragStart(card, { dataTransfer: data });
+    fireEvent.dragOver(screen.getByTestId('repair-column-EN_REPARACION'), { dataTransfer: data });
+    await waitFor(() => expect(screen.getByTestId('repair-column-EN_REPARACION')).toHaveClass('over'));
+    fireEvent.drop(screen.getByTestId('repair-column-EN_REPARACION'), { dataTransfer: data });
+    fireEvent.click(card);
+    await waitFor(() => expect(changeRepairStatus).toHaveBeenCalledWith('101', 'EN_REPARACION'));
+    expect(toast).toHaveBeenCalledWith('Pasó a En reparación');
+    expect(opened).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledTimes(1);
+
+    const ready = dragData();
+    const readyCard = screen.getByTestId('repair-card-101');
+    fireEvent.dragStart(readyCard, { dataTransfer: ready });
+    fireEvent.drop(screen.getByTestId('repair-column-LISTO_PARA_RETIRAR'), { dataTransfer: ready });
+    await waitFor(() => expect(changeRepairStatus).toHaveBeenCalledWith('101', 'LISTO_PARA_RETIRAR'));
+    expect(opened).toHaveBeenCalledWith('https://wa.me/5492614000000?text=listo', '_blank', 'noopener,noreferrer');
+    expect(toast).toHaveBeenCalledWith('Pasó a Listo para retirar');
+    opened.mockRestore();
+  });
+
+  it('keeps the order in place and shows the error when a drop fails', async () => {
+    changeRepairStatus.mockRejectedValue(new Error('No se pudo cambiar el estado'));
+    desk(<ServiceScreen />);
+    const data = dragData();
+    fireEvent.dragStart(screen.getByTestId('repair-card-101'), { dataTransfer: data });
+    fireEvent.drop(screen.getByTestId('repair-column-EN_REPARACION'), { dataTransfer: data });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('No se pudo cambiar el estado'));
+    expect(toast).not.toHaveBeenCalledWith(expect.stringContaining('Pasó a'));
+    expect(screen.getByTestId('repair-column-RECIBIDO')).toHaveTextContent('#OT-0101');
+  });
+
+  it('keeps the previous status names in the history after they leave the board', () => {
+    state.repairOrders = [order('95', 'RECIBIDO', {
+      events: [
+        { id: 'a', status: 'RECIBIDO', createdAt: '01/10/2026' },
+        { id: 'b', status: 'EN_DIAGNOSTICO', createdAt: '02/10/2026' },
+        { id: 'c', status: 'ESPERANDO_REPUESTO', createdAt: '03/10/2026' },
+        { id: 'd', status: 'ESPERANDO_RESPUESTA', createdAt: '04/10/2026' },
+        { id: 'e', status: 'RECIBIDO', createdAt: '05/10/2026' },
+      ],
+    })];
+    desk(<RepairOrderDetail id="95" busy={false} />);
+    expect(screen.getByText('En diagnóstico')).toBeInTheDocument();
+    expect(screen.getByText('Esperando repuesto')).toBeInTheDocument();
+    expect(screen.getByText('Esperando respuesta')).toBeInTheDocument();
+    expect(screen.getByText('Sigue: En reparación')).toBeInTheDocument();
   });
 
   it('creates an order that starts as Recibido', async () => {
@@ -281,7 +391,7 @@ describe('servicio técnico en el celular', () => {
     }));
     state.repairOrders = [
       order('101', 'RECIBIDO', { estimatedDelivery: '01/01/2020' }),
-      order('95', 'ESPERANDO_REPUESTO', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: null, estimatedDelivery: '01/01/2099' }),
+      order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: null, estimatedDelivery: '01/01/2099' }),
     ];
     state.clients = [{ id: 'c1', name: 'Ejemplo A', phone: '2614000000', dni: '', email: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0 }];
   });
@@ -304,7 +414,12 @@ describe('servicio técnico en el celular', () => {
     expect(screen.getByTestId('repair-card-101')).toHaveTextContent('Atrasada · 01/01');
     expect(screen.getByTestId('repair-card-101')).toHaveTextContent('Pantalla rota');
     expect(screen.getByTestId('repair-card-101')).toHaveTextContent('$ 145.000');
-    expect(screen.getByTestId('repair-group-ESPERANDO_REPUESTO')).toHaveTextContent('A cotizar');
+    expect(screen.getByTestId('repair-group-EN_REPARACION')).toHaveTextContent('A cotizar');
+    expect(screen.queryByTestId('repair-group-EN_DIAGNOSTICO')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-group-ESPERANDO_REPUESTO')).not.toBeInTheDocument();
+    expect(screen.queryByText('En diagnóstico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando respuesta')).not.toBeInTheDocument();
+    expect(screen.getByTestId('repair-card-101')).not.toHaveAttribute('draggable');
     expect(screen.getByTestId('repair-card-95')).toHaveTextContent('Entrega 01/01');
     expect(screen.getAllByRole('button', { name: 'Nueva orden' })).toHaveLength(1);
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' })).toBeInTheDocument();
@@ -318,6 +433,23 @@ describe('servicio técnico en el celular', () => {
     expect(open).toHaveBeenCalledWith({ type: 'ot', id: '95' });
     await user.click(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-ot' });
+  });
+
+  it('folds retired statuses into Recibido on the phone list', () => {
+    state.repairOrders = [
+      order('101', 'EN_DIAGNOSTICO'),
+      order('95', 'ESPERANDO_RESPUESTA', { device: 'iPhone 14' }),
+    ];
+    desk(<ServiceScreen />);
+    const chips = screen.getByTestId('service-chips');
+    expect(chips).toHaveTextContent('Recibido 2');
+    expect(chips).not.toHaveTextContent('En diagnóstico');
+    expect(chips).not.toHaveTextContent('Esperando');
+    expect(screen.getByTestId('repair-group-RECIBIDO')).toHaveTextContent('#OT-0101');
+    expect(screen.getByTestId('repair-group-RECIBIDO')).toHaveTextContent('#OT-0095');
+    expect(screen.queryByTestId('repair-group-EN_DIAGNOSTICO')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-group-ESPERANDO_RESPUESTA')).not.toBeInTheDocument();
+    expect(screen.getByTestId('repair-card-95')).not.toHaveAttribute('draggable');
   });
 
   it('shows the phone detail with history, the next step and the sensitive actions', async () => {
@@ -350,7 +482,7 @@ describe('servicio técnico en el celular', () => {
     const view = desk(<RepairOrderDetail id="95" busy={false} />);
     expect(screen.getByRole('dialog', { name: '#OT-0095' })).toBeInTheDocument();
     expect(screen.getByText('iPhone 14 · Ejemplo C')).toBeInTheDocument();
-    expect(screen.getByTestId('repair-step')).toHaveTextContent('Paso 4 de 6');
+    expect(screen.getByTestId('repair-step')).toHaveTextContent('Paso 2 de 4');
     expect(screen.getByTestId('repair-step')).toHaveTextContent('sigue');
     expect(screen.getByTestId('repair-step')).toHaveTextContent('Listo para retirar');
     expect(screen.getByText('Cámara trasera borrosa')).toBeInTheDocument();
@@ -377,6 +509,9 @@ describe('servicio técnico en el celular', () => {
     desk(<RepairOrderForm busy={false} error={null} />);
     expect(screen.getByText('Arranca en «Recibido».')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
+    expect(screen.queryByRole('button', { name: 'En diagnóstico' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Esperando repuesto' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Esperando respuesta' })).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Avisarle al cliente por WhatsApp/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();

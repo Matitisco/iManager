@@ -76,6 +76,9 @@ test.describe('desktop service stays on the board', () => {
     await expect(page.getByRole('button', { name: 'Nueva orden' })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Tablero' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('repair-column-RECIBIDO')).toBeVisible();
+    await expect(page.getByTestId('repair-column-EN_DIAGNOSTICO')).toHaveCount(0);
+    await expect(page.getByTestId('repair-column-ESPERANDO_REPUESTO')).toHaveCount(0);
+    await expect(page.getByTestId('repair-column-ESPERANDO_RESPUESTA')).toHaveCount(0);
     await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
     await expect(page.locator('.dstar')).toHaveCount(0);
 
@@ -146,6 +149,9 @@ test.describe('service on a phone', () => {
     await expect(page.getByTestId('service-chips').getByRole('button', { name: 'Abiertas 2' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('service-chips').getByRole('button', { name: 'Recibido 1' })).toBeVisible();
     await expect(page.getByTestId('service-chips').getByRole('button', { name: 'En reparación 1' })).toBeVisible();
+    await expect(page.getByTestId('service-chips')).not.toContainText('En diagnóstico');
+    await expect(page.getByTestId('service-chips')).not.toContainText('Esperando');
+    await expect(page.locator('[data-testid^="repair-card-"]').first()).not.toHaveAttribute('draggable');
     await expect(page.getByTestId('repair-group-RECIBIDO')).toContainText('#OT-0002');
     await expect(page.getByTestId('repair-group-RECIBIDO')).toContainText('Entrega 01/01');
     await expect(page.getByTestId('repair-group-RECIBIDO')).toContainText('US$ 145');
@@ -212,7 +218,7 @@ test.describe('service on a phone', () => {
     const detail = page.getByRole('dialog', { name: /#OT-0001/ });
     await expect(detail.locator('.sheet-grab')).toBeVisible();
     await expect(detail.getByText('iPhone 14 · Cliente Celular')).toBeVisible();
-    await expect(detail.getByTestId('repair-step')).toContainText('Paso 4 de 6');
+    await expect(detail.getByTestId('repair-step')).toContainText('Paso 2 de 4');
     await expect(detail.getByTestId('repair-step')).toContainText('Listo para retirar');
     await expect(detail.getByText('Cámara trasera borrosa')).toBeVisible();
     await expect(detail.getByText('01/01 · atrasada')).toBeVisible();
