@@ -29,6 +29,7 @@ import {
   createClientCategory,
   getClientsErrorStatus,
   importClients,
+  serializeClient,
 } from "./clients.service.js";
 
 describe("clients.service", () => {
@@ -118,6 +119,25 @@ describe("clients.service", () => {
 
     expect(result.errors).toEqual([{ row: 2, message: "Nombre requerido" }]);
     expect(result.imported).toBe(1);
+  });
+
+  it("exposes the creation date without changing stored totals", () => {
+    const created = serializeClient({
+      id: "client-9",
+      dni: null,
+      name: "Ana",
+      email: null,
+      phone: null,
+      lastPurchaseAt: null,
+      totalSpent: new Decimal(0),
+      pendingBalance: new Decimal(0),
+      categoryId: null,
+      customFields: {},
+      createdAt: new Date("2026-04-02T15:00:00.000Z"),
+    });
+
+    expect(created.createdAt).toBe("2026-04-02T15:00:00.000Z");
+    expect(created.totalSpent).toBe(0);
   });
 
   it("maps domain errors into HTTP-friendly payloads", () => {

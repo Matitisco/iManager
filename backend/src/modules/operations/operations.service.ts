@@ -194,6 +194,7 @@ function serializeClient(client: Client) {
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
     customFields: client.customFields ?? {},
+    createdAt: client.createdAt ? client.createdAt.toISOString() : null,
   };
 }
 

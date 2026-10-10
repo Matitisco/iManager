@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
 import {
@@ -7,7 +8,6 @@ import {
   equipmentTitle,
   isInStock,
   isInProgressTrade,
-  paymentLabel,
   periodBounds,
   saleEquipment,
   saleCode,
@@ -17,6 +17,25 @@ import {
   type PeriodKey,
 } from '../format';
 import { qualityPhrase } from '../quality';
+import {
+  averageLeadDays,
+  breakdownCatalog,
+  breakdownTitle,
+  buildClientReport,
+  clientBreakdownLabel,
+  DEFAULT_DIMENSION,
+  dimensionsFor,
+  groupBreakdown,
+  leadTimeLabel,
+  matchesBreakdown,
+  repairLeadDays,
+  REPORT_TABS,
+  saleBreakdownLabel,
+  serviceBreakdownLabel,
+  stockBreakdownLabel,
+  tradeBreakdownLabel,
+  type ReportTab,
+} from '../report-breakdown';
 import {
   addToReportBucket,
   customReportBounds,
@@ -30,10 +49,10 @@ import {
   type ReportPeriod,
 } from '../report-period';
 import { usePhoneLayout } from '../section-notices';
+import { canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { ReportDatePicker } from '../report-date-picker';
 
-const TABS = ['Ventas', 'Stock', 'Canjes'] as const;
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
 const PERIOD_LABEL: Record<PeriodKey, string> = {
   Semana: 'últimos 7 días',
@@ -43,11 +62,28 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 };
 
 export function ReportsScreen() {
-  const { sales, inventory, tradeIns, clients } = useAppContext();
+  const {
+    sales,
+    inventory,
+    tradeIns,
+    clients,
+    repairOrders = [],
+    clientCategories = [],
+    customColumns = [],
+    appSession,
+  } = useAppContext();
   const money = useMoney();
   const phone = usePhoneLayout();
   const { open, toast } = useDesk();
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Ventas');
+  const sections = appSession?.membership?.sections;
+  const role = appSession?.membership?.role;
+  const tabs = useMemo(() => REPORT_TABS.filter((item) => {
+    if (item === 'Clientes') return canOpenSection('clients', sections, role);
+    if (item === 'Servicio') return canOpenSection('service', sections, role);
+    return true;
+  }), [sections, role]);
+  const [tab, setTab] = useState<ReportTab>('Ventas');
+  const activeTab = tabs.includes(tab) ? tab : 'Ventas';
   const [period, setPeriod] = useState<ReportPeriod>('Mes');
   const [customOpen, setCustomOpen] = useState(false);
   const [draftRange, setDraftRange] = useState(defaultReportRange);
@@ -55,12 +91,14 @@ export function ReportsScreen() {
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [cat, setCat] = useState<string | null>(null);
+  const [dimensionByTab, setDimensionByTab] = useState<Partial<Record<ReportTab, string>>>({});
   const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
   const periodData = useMemo(() => ({
     sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
     inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
-  }), [sales, inventory, tradeIns, bounds]);
+    repairs: repairOrders.filter((order) => inReportPeriod(order.receivedAt, bounds.start, bounds.end)),
+  }), [sales, inventory, tradeIns, repairOrders, bounds]);
 
   const salesValue = money.sum(periodData.sales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const projectedSales = periodData.sales.map((sale) => ({
@@ -71,15 +109,42 @@ export function ReportsScreen() {
     ...sale,
     amount: money.number(sale.amount, sale.amountCurrency) ?? 0,
   }));
-  const model = useMemo(
-    () => buildReport(tab, period, bounds, { ...periodData, sales: projectedSales }, projectedHistory),
-    [tab, period, bounds, periodData, projectedSales, projectedHistory],
-  );
+  const clientReport = buildClientReport({
+    clients,
+    categories: clientCategories,
+    sales,
+    bounds,
+    project: (amount, currency) => money.number(amount, currency),
+  });
+  const serviceBilling = money.sum(periodData.repairs.filter((order) => order.estimate != null).map((order) => ({ amount: order.estimate ?? 0, currency: order.currency })));
+  const dimensions = dimensionsFor(activeTab, customColumns);
+  const dimension = dimensions.some((item) => item.id === dimensionByTab[activeTab]) ? dimensionByTab[activeTab]! : DEFAULT_DIMENSION[activeTab];
+  const model = buildReport(activeTab, period, bounds, dimension, dimensions, {
+    sales: projectedSales,
+    inventory: periodData.inventory,
+    tradeIns: periodData.tradeIns,
+    clients,
+    repairs: periodData.repairs.map((order) => ({
+      ...order,
+      chartValue: serviceBilling == null ? 1 : (order.estimate == null ? 0 : (money.number(order.estimate, order.currency) ?? 0)),
+    })),
+    clientRows: clientReport.rows,
+    altas: clientReport.altas,
+    recurrentes: clientReport.recurrentes,
+    serviceBilling,
+    salesValue,
+    customColumns,
+  }, projectedHistory);
   const active = selected != null && selected < model.buckets.length ? selected : model.buckets.length - 1;
   const max = Math.max(...model.buckets.map((bucket) => bucket.value), 1);
-  const saleRows = periodData.sales.filter((sale) => !cat || paymentLabel(sale.paymentMethod || 'Otro') === cat);
-  const stockRows = periodData.inventory.filter((item) => !cat || statusLabel(item.status) === cat);
-  const tradeRows = periodData.tradeIns.filter((item) => !cat || statusLabel(item.status) === cat);
+  const saleLabel = (sale: Sale) => saleBreakdownLabel(sale, activeTab === 'Ventas' ? dimension : 'payment', inventory, customColumns);
+  const stockLabel = (item: Product) => stockBreakdownLabel(item, activeTab === 'Stock' ? dimension : 'status');
+  const tradeLabel = (item: TradeIn) => tradeBreakdownLabel(item, activeTab === 'Canjes' ? dimension : 'status', tradeClientLabel(item, clients));
+  const saleRows = periodData.sales.filter((sale) => activeTab !== 'Ventas' || matchesBreakdown(saleLabel(sale), cat, model.otherLabels));
+  const stockRows = periodData.inventory.filter((item) => activeTab !== 'Stock' || matchesBreakdown(stockLabel(item), cat, model.otherLabels));
+  const tradeRows = periodData.tradeIns.filter((item) => activeTab !== 'Canjes' || matchesBreakdown(tradeLabel(item), cat, model.otherLabels));
+  const clientRows = clientReport.rows.filter((row) => activeTab !== 'Clientes' || matchesBreakdown(clientBreakdownLabel(row, dimension), cat, model.otherLabels));
+  const repairRows = periodData.repairs.filter((order) => activeTab !== 'Servicio' || matchesBreakdown(serviceBreakdownLabel(order, dimension), cat, model.otherLabels));
   const undatedStock = inventory.filter((item) => !parseReportDate(item.createdAt)).length;
 
   const commitRange = () => {
@@ -108,15 +173,21 @@ export function ReportsScreen() {
 
   const exportReport = () => {
     const rows: string[][] = [['detalle', 'importe', 'estado']];
-    if (tab === 'Ventas') {
+    if (activeTab === 'Ventas') {
       saleRows.forEach((sale) => {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(money.number(sale.amount, sale.amountCurrency) ?? sale.amount), statusLabel(sale.status)]);
       });
-    } else if (tab === 'Stock') {
+    } else if (activeTab === 'Stock') {
       stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(money.number(item.price, item.currency) ?? item.price), statusLabel(item.status)]));
-    } else {
+    } else if (activeTab === 'Canjes') {
       tradeRows.forEach((item) => {
         rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, String(money.number(item.differencePaid, item.currency) ?? item.differencePaid), statusLabel(item.status)]);
+      });
+    } else if (activeTab === 'Clientes') {
+      clientRows.forEach((row) => rows.push([row.name, row.blocked ? '' : String(Math.round(row.revenue)), row.kind]));
+    } else {
+      repairRows.forEach((order) => {
+        rows.push([`${order.code} ${order.clientName}`, order.estimate == null ? '' : String(money.number(order.estimate, order.currency) ?? order.estimate), statusLabel(order.status)]);
       });
     }
     const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -124,14 +195,16 @@ export function ReportsScreen() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `reporte-${tab.toLowerCase()}.csv`;
+    link.download = `reporte-${activeTab.toLowerCase()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    toast(`Reporte de ${tab.toLowerCase()} exportado`);
+    toast(`Reporte de ${activeTab.toLowerCase()} exportado`);
   };
 
   const customPressed = phone ? period === 'Personalizado' || customOpen : customOpen;
   const activeBucket = active >= 0 ? model.buckets[active] : undefined;
+  const figure = (value: number) => (model.barMoney ? (model.unavailable ? '—' : money.compactActive(value)) : value);
+  const figureFull = (value: number) => (model.barMoney ? (model.unavailable ? 'sin cotización' : money.showActive(value)) : value);
   const exportButton = (
     <button className="circ" type="button" aria-label="Exportar" onClick={exportReport}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
@@ -143,12 +216,17 @@ export function ReportsScreen() {
       <ReportDatePicker label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
     </>
   );
+  const chooseTab = (item: ReportTab) => {
+    setTab(item);
+    setSelected(null);
+    setCat(null);
+  };
 
   return (
     <div className="dscreen">
       <ScreenTitle title="Reportes" tools={exportButton} desktop={exportButton} />
       <div className="gfilters">
-        <div role="group" aria-label="Tipo de reporte">{TABS.map((item) => <button key={item} className={`gchip${tab === item ? ' on' : ''}`} aria-pressed={tab === item} type="button" onClick={() => { setTab(item); setSelected(null); setCat(null); }}>{item}</button>)}</div>
+        <div role="group" aria-label="Tipo de reporte">{tabs.map((item) => <button key={item} className={`gchip${activeTab === item ? ' on' : ''}`} aria-pressed={activeTab === item} type="button" onClick={() => chooseTab(item)}>{item}</button>)}</div>
         <div className="gperiods" role="group" aria-label="Período">
           {PERIODS.map((item) => <button key={item} className={`gchip sm${period === item && !customOpen ? ' on' : ''}`} aria-pressed={period === item && !customOpen} type="button" onClick={() => { setPeriod(item); setCustomOpen(false); setRangeError(null); setSelected(null); setCat(null); }}>{item}</button>)}
           <button className={`gchip sm${customPressed ? ' on' : ''}`} aria-pressed={customPressed} aria-expanded={customOpen} aria-controls="report-custom-range" type="button" onClick={() => setCustomOpen(true)}>Personalizado</button>
@@ -172,16 +250,17 @@ export function ReportsScreen() {
       )}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
-        <div className="gamount">{model.money ? (salesValue == null ? '—' : money.showActive(salesValue)) : model.total}</div>
+        <div className="gamount">{model.unavailable ? '—' : model.barMoney ? money.showActive(model.headline) : model.total}</div>
         <span className="gdelta">{model.delta}</span>
       </div>
+      {model.note ? <p className="gnote">{model.note}</p> : null}
       <div className="repgrid">
         <div className="gcard">
           <div className="ghd"><h3>Evolución</h3><span>{model.bucketLabel}</span></div>
           {phone && activeBucket ? (
             <div className="gnow">
               <span>
-                <b>{model.money ? (salesValue == null ? '—' : money.compactActive(activeBucket.value)) : activeBucket.value}</b>
+                <b>{figure(activeBucket.value)}</b>
                 {` · ${activeBucket.label}`}
               </span>
             </div>
@@ -190,10 +269,10 @@ export function ReportsScreen() {
             {model.buckets.map((bucket, index) => {
               const height = Math.max(3, Math.round((bucket.value / max) * 96));
               return (
-                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${model.money ? (salesValue == null ? 'sin cotización' : money.showActive(bucket.value)) : bucket.value}`} type="button" onClick={() => setSelected(index)}>
+                <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${figureFull(bucket.value)}`} type="button" onClick={() => setSelected(index)}>
                   {index === active ? (
                     <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`}>
-                      <b>{model.money ? (salesValue == null ? '—' : money.compactActive(bucket.value)) : bucket.value}</b>
+                      <b>{figure(bucket.value)}</b>
                       {` · ${bucket.label}`}
                     </span>
                   ) : null}
@@ -207,11 +286,27 @@ export function ReportsScreen() {
           </div>
         </div>
         <div className="gcard">
-          <div className="ghd"><h3>{model.donutTitle}</h3><span>tocá para filtrar</span></div>
-          <Donut parts={model.parts} money={model.money && salesValue != null} total={model.money ? (salesValue ?? 0) : model.total} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
+          <div className="ghd">
+            <h3>{model.donutTitle}</h3>
+            <label className="gdim">
+              <span>Desglose</span>
+              <select
+                aria-label="Columna de desglose"
+                value={dimension}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setDimensionByTab((current) => ({ ...current, [activeTab]: value }));
+                  setCat(null);
+                }}
+              >
+                {dimensions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <Donut parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
-      {tab === 'Ventas' && (
+      {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
@@ -224,7 +319,7 @@ export function ReportsScreen() {
           ))}
         </>
       )}
-      {tab === 'Stock' && (
+      {activeTab === 'Stock' && (
         <>
           <div className="glh"><h3>Equipos ingresados</h3><span>{stockRows.length} en el período</span></div>
           <p className="gnote">Equipos ingresados en el período, con su estado actual.{undatedStock > 0 ? ` ${undatedStock} ${undatedStock === 1 ? 'equipo sin fecha de ingreso no se incluye' : 'equipos sin fecha de ingreso no se incluyen'}.` : ''}</p>
@@ -238,7 +333,7 @@ export function ReportsScreen() {
           ))}
         </>
       )}
-      {tab === 'Canjes' && (
+      {activeTab === 'Canjes' && (
         <>
           <div className="glh"><h3>Canjes</h3><span>{tradeRows.length} en total</span></div>
           {!tradeRows.length && <p className="gnote">No hay canjes para este período y filtro.</p>}
@@ -246,6 +341,32 @@ export function ReportsScreen() {
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
               <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{tradeClientLabel(item, clients)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
               <div className="gr"><div className="gamt">+{money.compact(item.differencePaid, item.currency)}</div></div>
+              <span className="gchev">›</span>
+            </button>
+          ))}
+        </>
+      )}
+      {activeTab === 'Clientes' && (
+        <>
+          <div className="glh"><h3>Top por compras</h3><span>{clientRows.length} en el período</span></div>
+          {!clientRows.length && <p className="gnote">No hay clientes para este período y filtro.</p>}
+          {clientRows.map((row) => (
+            <button key={row.id ?? row.name} className="gtk" type="button" onClick={() => { if (row.id) open({ type: 'cl', id: row.id }); }}>
+              <div className="gl"><div className="gdate">{row.kind}</div><div className="gstore">{row.name}</div><div className="gmeta">{row.purchases} {row.purchases === 1 ? 'compra' : 'compras'}{row.tag ? ` · ${row.tag}` : ''}</div></div>
+              <div className="gr"><div className="gamt">{row.blocked ? '—' : money.showActive(row.revenue)}</div></div>
+              <span className="gchev">›</span>
+            </button>
+          ))}
+        </>
+      )}
+      {activeTab === 'Servicio' && (
+        <>
+          <div className="glh"><h3>Órdenes del período</h3><span>{repairRows.length} en el período</span></div>
+          {!repairRows.length && <p className="gnote">No hay órdenes para este período y filtro.</p>}
+          {repairRows.map((order) => (
+            <button key={order.id} className="gtk" type="button" onClick={() => open({ type: 'ot', id: order.id })}>
+              <div className="gl"><div className="gdate">{formatReportDate(order.receivedAt)} · {order.code}</div><div className="gstore">{order.clientName}</div><div className="gmeta">{order.device} <Pill status={order.status} kind="REPAIR_STATUS" /></div></div>
+              <div className="gr"><div className="gamt">{order.estimate == null ? 'A cotizar' : money.compact(order.estimate, order.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -333,72 +454,153 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts
 }
 
 function buildReport(
-  tab: (typeof TABS)[number],
+  tab: ReportTab,
   period: ReportPeriod,
   bounds: ReportBounds,
-  data: { sales: { date: string; amount: number; status: string; paymentMethod: string }[]; inventory: { status: string; createdAt?: string }[]; tradeIns: { date: string; status: string }[] },
+  dimension: string,
+  dimensions: Array<{ id: string; label: string }>,
+  data: {
+    sales: Sale[];
+    inventory: Product[];
+    tradeIns: TradeIn[];
+    clients: Client[];
+    repairs: Array<RepairOrder & { chartValue: number }>;
+    clientRows: Array<{ kind: 'Alta' | 'Recurrente' | 'Primera compra'; tag: string; category: string; customFields?: Record<string, unknown>; createdAt: string | null }>;
+    altas: number;
+    recurrentes: number;
+    serviceBilling: number | null;
+    salesValue: number | null;
+    customColumns: CustomColumn[];
+  },
   allSales: { date: string; amount: number; status: string }[],
 ) {
   const { buckets, bucketLabel } = makeReportBuckets(period, bounds);
+  const catalog = breakdownCatalog(tab, dimension);
+  const title = breakdownTitle(tab, dimension, dimensions);
   if (tab === 'Ventas') {
     const current = data.sales;
     const previous = allSales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
     const total = current.reduce((sum, sale) => sum + sale.amount, 0);
     const prev = previous.reduce((sum, sale) => sum + sale.amount, 0);
     for (const sale of current) addToReportBucket(buckets, sale.date, sale.amount);
+    const grouped = groupBreakdown(current.map((sale) => ({
+      label: saleBreakdownLabel(sale, dimension, data.inventory, data.customColumns),
+      value: sale.amount,
+    })), catalog);
     return {
       eye: 'Facturación',
       total,
-      money: true,
+      headline: data.salesValue ?? 0,
+      barMoney: true,
+      unavailable: data.salesValue == null,
+      donutMoney: data.salesValue != null,
+      donutTotal: data.salesValue ?? 0,
       delta: deltaLabel(total, prev),
+      note: '',
       bucketLabel,
       buckets,
-      donutTitle: 'Por medio de pago',
-      parts: fixedParts(current, (sale) => paymentLabel(sale.paymentMethod || 'Otro'), (sale) => sale.amount, [
-        { label: 'Transferencia', color: '#397964' },
-        { label: 'Efectivo', color: '#5B8DEF' },
-        { label: 'Tarjeta', color: '#DF668B' },
-        { label: 'Cripto', color: 'var(--c-lime)' },
-      ]),
+      donutTitle: title,
+      parts: grouped.parts,
+      otherLabels: grouped.otherLabels,
     };
   }
   if (tab === 'Stock') {
     const available = data.inventory.filter((item) => isInStock(item.status)).length;
     for (const item of data.inventory) addToReportBucket(buckets, item.createdAt, 1);
+    const grouped = groupBreakdown(data.inventory.map((item) => ({
+      label: stockBreakdownLabel(item, dimension),
+      value: 1,
+    })), catalog);
     return {
       eye: 'Equipos ingresados',
       total: data.inventory.length,
-      money: false,
+      headline: data.inventory.length,
+      barMoney: false,
+      unavailable: false,
+      donutMoney: false,
+      donutTotal: data.inventory.length,
       delta: `${available} disponibles en este grupo`,
+      note: '',
       bucketLabel,
       buckets,
-      donutTitle: 'Estado actual',
-      parts: fixedParts(data.inventory, (item) => statusLabel(item.status), () => 1, [
-        { label: 'Disponible', color: 'var(--c-lime)' },
-        { label: 'En revisión', color: '#5B8DEF' },
-        { label: 'Vendido', color: '#397964' },
-        { label: 'Reservado', color: '#DF668B' },
-      ]),
+      donutTitle: title,
+      parts: grouped.parts,
+      otherLabels: grouped.otherLabels,
     };
   }
-  const current = data.tradeIns;
-  for (const item of current) addToReportBucket(buckets, item.date, 1);
-  const open = current.filter((item) => isInProgressTrade(item.status)).length;
+  if (tab === 'Canjes') {
+    const current = data.tradeIns;
+    for (const item of current) addToReportBucket(buckets, item.date, 1);
+    const open = current.filter((item) => isInProgressTrade(item.status)).length;
+    const grouped = groupBreakdown(current.map((item) => ({
+      label: tradeBreakdownLabel(item, dimension, tradeClientLabel(item, data.clients)),
+      value: 1,
+    })), catalog);
+    return {
+      eye: 'Canjes',
+      total: current.length,
+      headline: current.length,
+      barMoney: false,
+      unavailable: false,
+      donutMoney: false,
+      donutTotal: current.length,
+      delta: `${open} en curso`,
+      note: '',
+      bucketLabel,
+      buckets,
+      donutTitle: title,
+      parts: grouped.parts,
+      otherLabels: grouped.otherLabels,
+    };
+  }
+  if (tab === 'Clientes') {
+    for (const row of data.clientRows) {
+      if (row.kind === 'Alta') addToReportBucket(buckets, row.createdAt ?? undefined, 1);
+    }
+    const grouped = groupBreakdown(data.clientRows.map((row) => ({
+      label: clientBreakdownLabel(row, dimension),
+      value: 1,
+    })), catalog);
+    return {
+      eye: 'Altas',
+      total: data.altas,
+      headline: data.altas,
+      barMoney: false,
+      unavailable: false,
+      donutMoney: false,
+      donutTotal: data.clientRows.length,
+      delta: `${data.recurrentes} ${data.recurrentes === 1 ? 'recurrente' : 'recurrentes'}`,
+      note: 'Alta: se creó en el período. Recurrente: ya era cliente y volvió a comprar.',
+      bucketLabel,
+      buckets,
+      donutTitle: title,
+      parts: grouped.parts,
+      otherLabels: grouped.otherLabels,
+    };
+  }
+  const orders = data.repairs;
+  const unavailable = data.serviceBilling == null;
+  for (const order of orders) addToReportBucket(buckets, order.receivedAt, order.chartValue);
+  const average = averageLeadDays(orders.map((order) => repairLeadDays(order)));
+  const grouped = groupBreakdown(orders.map((order) => ({
+    label: serviceBreakdownLabel(order, dimension),
+    value: 1,
+  })), catalog);
   return {
-    eye: 'Canjes',
-    total: current.length,
-    money: false,
-    delta: `${open} en curso`,
+    eye: 'Facturación',
+    total: orders.length,
+    headline: data.serviceBilling ?? 0,
+    barMoney: !unavailable,
+    unavailable,
+    donutMoney: false,
+    donutTotal: orders.length,
+    delta: `${orders.length} ${orders.length === 1 ? 'orden' : 'órdenes'} · ${leadTimeLabel(average)}`,
+    note: unavailable ? 'No se puede sumar la facturación en la moneda de la tienda.' : 'La facturación suma los presupuestos. El tiempo medio va del ingreso hasta Entregado.',
     bucketLabel,
     buckets,
-    donutTitle: 'Por estado',
-    parts: fixedParts(current, (item) => statusLabel(item.status), () => 1, [
-      { label: 'Pendiente', color: '#5B8DEF' },
-      { label: 'Peritaje téc.', color: '#DF668B' },
-      { label: 'En revisión', color: 'var(--c-lime)' },
-      { label: 'Aprobado', color: '#397964' },
-      { label: 'Completado', color: '#16181D' },
-    ]),
+    donutTitle: title,
+    parts: grouped.parts,
+    otherLabels: grouped.otherLabels,
   };
 }
 
@@ -406,15 +608,4 @@ function deltaLabel(current: number, previous: number) {
   if (!previous) return current ? 'sin base anterior' : 'sin movimiento';
   const delta = Math.round(((current - previous) / previous) * 100);
   return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% vs período anterior`;
-}
-
-function fixedParts<T>(rows: T[], keyOf: (row: T) => string, valueOf: (row: T) => number, catalog: { label: string; color: string }[]) {
-  const map = new Map<string, number>();
-  for (const row of rows) map.set(keyOf(row), (map.get(keyOf(row)) ?? 0) + valueOf(row));
-  const known = new Set(catalog.map((item) => item.label));
-  const parts = catalog.map((item) => ({ ...item, value: map.get(item.label) ?? 0 }));
-  for (const [label, value] of map) {
-    if (!known.has(label)) parts.push({ label, value, color: '#737984' });
-  }
-  return parts;
 }

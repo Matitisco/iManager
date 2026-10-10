@@ -156,6 +156,7 @@ export interface Client {
   categoryId?: string | null;
   tag?: string | null;
   customFields?: Record<string, any>;
+  createdAt?: string | null;
 }
 
 export interface ClientCategory {

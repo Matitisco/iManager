@@ -1,10 +1,20 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Client, Product, Sale, TradeIn } from '../../types';
+import type { Client, ClientCategory, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
+import { ExchangeProvider } from '../exchange';
 import { ReportsScreen } from './ReportsScreen';
 
-const context = vi.hoisted(() => ({ sales: [] as Sale[], inventory: [] as Product[], tradeIns: [] as TradeIn[], clients: [] as Client[] }));
+const context = vi.hoisted(() => ({
+  sales: [] as Sale[],
+  inventory: [] as Product[],
+  tradeIns: [] as TradeIn[],
+  clients: [] as Client[],
+  repairOrders: [] as RepairOrder[],
+  clientCategories: [] as ClientCategory[],
+  customColumns: [] as CustomColumn[],
+  appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
+}));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('../ui', async () => {
@@ -64,6 +74,11 @@ beforeEach(() => {
   ];
   context.inventory = [product('1', '2026-04-01'), product('2', '2026-04-03T23:59:59-03:00', 'RESERVADO'), product('3', '2026-04-04'), product('4')];
   context.tradeIns = [trade('1', '2026-04-01'), trade('2', '2026-04-03T23:59:59-03:00', 'LISTO'), trade('3', '2026-04-04'), trade('4', '')];
+  context.clients = [];
+  context.repairOrders = [];
+  context.clientCategories = [];
+  context.customColumns = [];
+  context.appSession = null;
 });
 
 afterEach(() => {
@@ -273,5 +288,165 @@ describe('Reports on a phone', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Semana' }));
     expect(screen.getByRole('button', { name: 'Semana' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+const client = (id: string, name: string, createdAt: string | null, tag = ''): Client => ({
+  id, name, dni: id, email: '', phone: '', lastPurchaseDate: 'N/A', totalSpent: 0, pendingBalance: 0, createdAt, tag,
+});
+
+const repair = (id: string, status: string, receivedAt: string, estimate: number | null, extras: Partial<RepairOrder> = {}): RepairOrder => ({
+  id,
+  orderNumber: Number(id),
+  code: `OT-${id.padStart(4, '0')}`,
+  clientId: 'c1',
+  clientName: `Cliente ${id}`,
+  clientPhone: '',
+  device: `Equipo ${id}`,
+  imei: '',
+  fault: 'Pantalla',
+  faultTags: ['Pantalla'],
+  estimate,
+  deposit: 0,
+  technician: extras.technician ?? 'Ana',
+  status,
+  estimatedDelivery: null,
+  notifyWhatsapp: false,
+  receivedAt,
+  whatsappUrl: null,
+  events: extras.events ?? [{ id: `${id}-e`, status, createdAt: receivedAt }],
+  ...extras,
+});
+
+describe('Reports breakdown and new sections', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  it('breaks sales down by model, condition, color and seller', async () => {
+    context.sales[0] = { ...context.sales[0], productId: '1', customFields: { vendedor: 'Ana' } };
+    context.sales[1] = { ...context.sales[1], productId: '2' };
+    context.sales[2] = { ...context.sales[2], deviceLabel: 'iPhone 13' };
+    context.inventory[0] = { ...context.inventory[0], model: 'Pixel 8', color: 'Negro', condition: 'NUEVO' };
+    context.inventory[1] = { ...context.inventory[1], model: 'Pixel 8', color: 'Blanco', condition: 'USADO' };
+    render(<ReportsScreen />);
+    await applyRange();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'model' } });
+    expect(screen.getByRole('heading', { name: 'Por modelo' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pixel 8: 50%' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(2);
+    expect(screen.getByText('Venta 1')).toBeInTheDocument();
+    expect(screen.getByText('Venta 2')).toBeInTheDocument();
+    expect(screen.queryByText('Venta 3')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'condition' } });
+    expect(screen.getByRole('button', { name: 'Nuevo: 17%' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usado: 33%' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sin dato: 50%' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'color' } });
+    expect(screen.getByRole('button', { name: 'Negro: 17%' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Blanco: 33%' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'seller' } });
+    expect(screen.getByRole('heading', { name: 'Por vendedor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ana: 17%' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sin vendedor: 83%' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+  });
+
+  it('breaks stock and trade-ins down by the chosen column', async () => {
+    context.inventory[1] = { ...context.inventory[1], color: 'Blanco' };
+    render(<ReportsScreen />);
+    await applyRange();
+    await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'color' } });
+    expect(screen.getByRole('heading', { name: 'Por color' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Negro: 1' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Canjes' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'device' } });
+    expect(screen.getByRole('heading', { name: 'Por equipo recibido' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Canje 1: 1' })).toBeInTheDocument();
+  });
+
+  it('reports new clients, returning clients and top buyers in the store currency', async () => {
+    context.clients = [
+      client('c1', 'Ana Pérez', '2026-04-02T12:00:00-03:00', 'VIP'),
+      client('c2', 'Luis Gómez', '2026-01-15T12:00:00-03:00'),
+    ];
+    context.sales = [
+      { ...sale('1', '2026-04-01', 100_000), clientId: 'c2', clientName: 'Luis Gómez', amountCurrency: 'ARS' },
+      { ...sale('2', '2026-04-02', 250_000), clientId: 'c2', clientName: 'Luis Gómez', amountCurrency: 'ARS' },
+      { ...sale('3', '2026-04-03', 400_000), clientId: 'c1', clientName: 'Ana Pérez', amountCurrency: 'ARS' },
+      { ...sale('4', '2025-12-01', 90_000), clientId: 'c2', clientName: 'Luis Gómez', amountCurrency: 'ARS' },
+    ];
+    render(
+      <ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1000 }}>
+        <ReportsScreen />
+      </ExchangeProvider>,
+    );
+    await applyRange();
+    await userEvent.click(screen.getByRole('button', { name: 'Clientes' }));
+    expect(total()).toBe('1');
+    expect(screen.getByText('1 recurrente')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Por tipo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Alta: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recurrente: 1' })).toBeInTheDocument();
+    expect(screen.getByText('Top por compras')).toBeInTheDocument();
+    expect(screen.getByText('US$ 350')).toBeInTheDocument();
+    expect(screen.getByText('US$ 400')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Alta: 1' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(1);
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'tag' } });
+    expect(screen.getByRole('button', { name: 'VIP: 1' })).toBeInTheDocument();
+  });
+
+  it('reports repair orders by status, turnaround and billed amount', async () => {
+    context.repairOrders = [
+      repair('1', 'RECIBIDO', '01/04/2026', 1000, { currency: 'USD', technician: 'Ana' }),
+      repair('2', 'ENTREGADO', '01/04/2026', 500, {
+        currency: 'USD',
+        technician: 'Luis',
+        events: [{ id: 'e2', status: 'ENTREGADO', createdAt: '03/04/2026' }],
+      }),
+    ];
+    render(
+      <ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1000 }}>
+        <ReportsScreen />
+      </ExchangeProvider>,
+    );
+    await applyRange();
+    await userEvent.click(screen.getByRole('button', { name: 'Servicio' }));
+    expect(screen.getByText(/Facturación ·/)).toBeInTheDocument();
+    expect(total()).toBe('US$ 1.500');
+    expect(screen.getByText(/2 órdenes · tiempo medio: 2 días/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Por estado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recibido: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entregado: 1' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'technician' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Ana: 1' }));
+    expect(document.querySelectorAll('.gtk')).toHaveLength(1);
+    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente 2')).not.toBeInTheDocument();
+  });
+
+  it('hides client and service reports when those sections are not allowed', async () => {
+    context.appSession = { membership: { role: 'MANAGER', sections: ['reports', 'sales', 'inventory', 'tradeins'] } };
+    render(<ReportsScreen />);
+    expect(screen.queryByRole('button', { name: 'Clientes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Servicio' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Columna de desglose' })).toBeInTheDocument();
   });
 });

@@ -2,8 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   bootstrapStoreViaApi,
   buildTestEmail,
+  createClientViaApi,
   createInventoryItemViaApi,
   createInvitationViaApi,
+  createRepairViaApi,
   createSaleViaApi,
   createTradeInViaApi,
   loginViaUi,
@@ -288,5 +290,88 @@ test.describe('reports on a phone', () => {
     } finally {
       await staffContext.close();
     }
+  });
+});
+
+test.describe('reports breakdown for clients and service', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('chooses the pie column and reports clients and repairs on desktop and phone', async ({ page, request }, testInfo) => {
+    test.setTimeout(120_000);
+    const email = buildTestEmail(testInfo, 'reports-221');
+    const shots = process.env.REPORTS_SHOTS?.trim();
+    const ana = `Ana Alta ${testInfo.parallelIndex}`;
+    const luis = `Luis Vuelve ${testInfo.parallelIndex}`;
+    await mockDollar(page);
+    await bootstrapStoreViaApi(page, request, email, `Reportes 221 ${testInfo.parallelIndex}`);
+    const anaClient = await createClientViaApi(request, email, { name: ana, dni: `40${String(testInfo.parallelIndex).padStart(6, '0')}` });
+    const luisClient = await createClientViaApi(request, email, { name: luis, dni: `41${String(testInfo.parallelIndex).padStart(6, '0')}` });
+    const date = todayLabel();
+    await createSaleViaApi(request, email, { date, clientId: anaClient.client.id, clientName: ana, deviceLabel: 'Pixel 8', amount: 150000, paymentMethod: 'EFECTIVO' });
+    await createSaleViaApi(request, email, { date, clientId: anaClient.client.id, clientName: ana, deviceLabel: 'Pixel 8', amount: 50000, paymentMethod: 'TARJETA' });
+    await createSaleViaApi(request, email, { date, clientId: luisClient.client.id, clientName: luis, deviceLabel: 'iPhone 13', amount: 300000, paymentMethod: 'TRANSFERENCIA' });
+    await createRepairViaApi(request, email, { clientId: anaClient.client.id, clientName: ana, device: 'iPhone 12', estimate: 80000, technician: 'Mora', status: 'RECIBIDO', fault: 'Pantalla' });
+    await createRepairViaApi(request, email, { clientId: luisClient.client.id, clientName: luis, device: 'Pixel 7', estimate: 40000, technician: 'Teo', status: 'ENTREGADO', fault: 'Batería' });
+    await page.reload();
+    await openReports(page);
+
+    await expect(page.getByRole('combobox', { name: 'Columna de desglose' })).toBeVisible();
+    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Modelo' });
+    await expect(page.getByRole('heading', { name: 'Por modelo' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pixel 8: 40%' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'iPhone 13: 60%' })).toBeVisible();
+    await page.getByRole('button', { name: 'Pixel 8: 40%' }).click();
+    await expect(page.locator('.gtk')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Pixel 8: 40%' }).click();
+    await expect(page.locator('.gtk')).toHaveCount(3);
+    expect(await page.locator('.repgrid').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length)).toBe(2);
+    expect(await page.locator('.gcomp').evaluate((node) => getComputedStyle(node).flexDirection)).toBe('row');
+    await settleMotion(page, '.dscreen');
+    if (shots) await page.screenshot({ path: `${shots}/reports-1440-ventas.png`, fullPage: true });
+
+    await reportTabs(page).getByRole('button', { name: 'Clientes' }).click();
+    await expect(page.getByText(/Altas ·/)).toBeVisible();
+    await expect(page.locator('.gamount')).toHaveText('2');
+    await expect(page.getByText('0 recurrentes')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Top por compras' })).toBeVisible();
+    await expect(page.getByText(ana)).toBeVisible();
+    await expect(page.getByText(luis)).toBeVisible();
+    await expect(page.locator('.gamt').first()).toContainText('300.000');
+    if (shots) await page.screenshot({ path: `${shots}/reports-1440-clientes.png`, fullPage: true });
+
+    await reportTabs(page).getByRole('button', { name: 'Servicio' }).click();
+    await expect(page.locator('.gamount')).toContainText('120.000');
+    await expect(page.getByText(/2 órdenes · tiempo medio: mismo día/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Por estado' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Recibido: 1' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Entregado: 1' })).toBeVisible();
+    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Técnico' });
+    await expect(page.getByRole('button', { name: 'Mora: 1' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Teo: 1' })).toBeVisible();
+    if (shots) await page.screenshot({ path: `${shots}/reports-1440-servicio.png`, fullPage: true });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
+    await reportTabs(page).getByRole('button', { name: 'Ventas' }).click();
+    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Modelo' });
+    await expect(page.getByRole('heading', { name: 'Por modelo' })).toBeVisible();
+    expect(await page.locator('.repgrid').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length)).toBe(1);
+    expect(await page.locator('.gcomp').evaluate((node) => getComputedStyle(node).flexDirection)).toBe('column');
+    await page.locator('.gcomp').evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    await expect(page.locator('.gamount')).toContainText('500.000');
+    await expectFits(page);
+    if (shots) await page.screenshot({ path: `${shots}/reports-390-ventas.png`, fullPage: true });
+
+    await reportTabs(page).getByRole('button', { name: 'Clientes' }).click();
+    await expect(page.getByRole('heading', { name: 'Top por compras' })).toBeVisible();
+    await expect(page.getByText(ana)).toBeVisible();
+    await expectFits(page);
+    if (shots) await page.screenshot({ path: `${shots}/reports-390-clientes.png`, fullPage: true });
+
+    await reportTabs(page).getByRole('button', { name: 'Servicio' }).click();
+    await expect(page.locator('.gamount')).toContainText('120.000');
+    await page.locator('.gcomp').evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    await expectFits(page);
+    if (shots) await page.screenshot({ path: `${shots}/reports-390-servicio.png`, fullPage: true });
   });
 });
