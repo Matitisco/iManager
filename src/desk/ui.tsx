@@ -55,13 +55,26 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
   );
 }
 
-export function ChipRow({ options, value, onChange }: { options: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
+export function ChipRow({ options, value, onChange, pressed, onToggle }: {
+  options: { id: string; label: string }[];
+  value?: string;
+  onChange?: (id: string) => void;
+  pressed?: (id: string) => boolean;
+  onToggle?: (id: string) => void;
+}) {
   return (
     <div className="wchips">
       {options.map((option) => {
         const icon = statusIcon(option.id) ?? statusIcon(option.label);
+        const on = pressed ? pressed(option.id) : option.id === value;
         return (
-          <button key={option.id} className={`wchip${option.id === value ? ' on' : ''}`} onClick={() => onChange(option.id)} type="button">
+          <button
+            key={option.id}
+            className={`wchip${on ? ' on' : ''}`}
+            aria-pressed={on}
+            onClick={() => (onToggle ? onToggle(option.id) : onChange?.(option.id))}
+            type="button"
+          >
             {icon ? <ImanagerIcon name={icon} size={16} /> : null}
             {option.label}
           </button>

@@ -160,17 +160,56 @@ describe('Inventory column filters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
     const status = screen.getByRole('dialog', { name: 'Filtrar estado' });
-    await user.click(within(status).getByRole('button', { name: 'Vendido' }));
+    await user.click(within(status).getByRole('checkbox', { name: 'Vendido' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
-    expect(within(document.querySelector('.wchips') as HTMLElement).getByRole('button', { name: 'Vendido' })).toHaveClass('on');
-    await user.click(within(status).getByRole('button', { name: 'Disponible' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 12');
+    const chips = document.querySelector('.wchips') as HTMLElement;
+    expect(within(chips).getByRole('button', { name: 'Vendido' })).toHaveClass('on');
+    expect(within(chips).getByRole('button', { name: 'Disponible' })).not.toHaveClass('on');
+    await user.click(within(status).getByRole('checkbox', { name: 'Disponible' }));
+    expect(within(chips).getByRole('button', { name: 'Disponible' })).toHaveClass('on');
+    expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
+    await user.click(within(status).getByRole('checkbox', { name: 'Vendido' }));
     expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('0 de 12');
     await user.click(within(status).getByRole('button', { name: 'Limpiar' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
+    expect(within(chips).getByRole('button', { name: 'Todos' })).toHaveClass('on');
 
     window.dispatchEvent(new Event('desk-eq-saved'));
     await waitFor(() => expect(screen.getByText('Modelo 1 · 128 GB')).toBeInTheDocument());
     expect(screen.queryByText('Pixel · 128 GB')).not.toBeInTheDocument();
+  });
+
+  it('keeps Disponible and Reservado together and clears them from the filtered total', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      ...Array.from({ length: 9 }, (_, index) => item(String(index + 1), { status: 'DISPONIBLE' })),
+      item('10', { model: 'Apartado', status: 'RESERVADO' }),
+      item('11', { model: 'Salida', status: 'VENDIDO' }),
+    ];
+    renderScreen();
+
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('11 de 11');
+    expect(screen.getByText('1–8 de 11')).toBeInTheDocument();
+    const chips = document.querySelector('.wchips') as HTMLElement;
+    await user.click(within(chips).getByRole('button', { name: 'Disponible' }));
+    await user.click(within(chips).getByRole('button', { name: 'Reservado' }));
+    expect(within(chips).getByRole('button', { name: 'Disponible' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(chips).getByRole('button', { name: 'Reservado' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(chips).getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('1–8 de 10')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('10 de 11');
+    expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect(screen.getByText('Apartado · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('11 de 11');
+    expect(within(chips).getByRole('button', { name: 'Todos' })).toHaveClass('on');
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
   });
 });
 
@@ -304,5 +343,47 @@ describe('Inventory phone list', () => {
     await user.click(screen.getByRole('button', { name: 'Más opciones' }));
     await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
     expect(screen.getByRole('dialog', { name: 'Lista de precios' })).toBeInTheDocument();
+  });
+
+  it('selects several statuses from the sliding chips and the filter sheet', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Libre', status: 'DISPONIBLE' }),
+      item('2', { model: 'Apartado', status: 'RESERVADO' }),
+      item('3', { model: 'Salida', status: 'VENDIDO' }),
+    ];
+    renderScreen();
+
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
+    const chips = document.querySelector('.wchips') as HTMLElement;
+    await user.click(within(chips).getByRole('button', { name: 'Disponible' }));
+    await user.click(within(chips).getByRole('button', { name: 'Reservado' }));
+    expect(screen.getByText('Libre · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Apartado · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
+
+    await user.click(within(chips).getByRole('button', { name: 'Todos' }));
+    expect(screen.getByText('Salida · 128 GB')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Disponible' }));
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Reservado' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
+    expect(within(chips).getByRole('button', { name: 'Disponible' })).toHaveClass('on');
+    expect(within(chips).getByRole('button', { name: 'Reservado' })).toHaveClass('on');
+    expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const again = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(again).getByRole('button', { name: 'Limpiar filtros' }));
+    await user.click(within(again).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('Salida · 128 GB')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
   });
 });

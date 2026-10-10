@@ -159,10 +159,21 @@ test.describe('inventory on a phone', () => {
       price: 1300000,
       status: 'DISPONIBLE',
     });
+    await createInventoryItemViaApi(request, email, {
+      imei: '350000000000040',
+      model: 'Apartado',
+      capacity: '128GB',
+      color: 'Verde',
+      condition: 'NUEVO',
+      grade: 'N/A',
+      batteryHealth: '100%',
+      price: 900000,
+      status: 'RESERVADO',
+    });
     await page.reload();
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page.getByText('3 equipos · 2 disponibles')).toBeVisible();
+    await expect(page.getByText('4 equipos · 2 disponibles')).toBeVisible();
     const card = page.getByText('iPhone 13 · 128GB').locator('xpath=ancestor::button[1]');
     await expect(card.getByText('IMEI 35 000000 000001 0')).toBeVisible();
     await expect(card.getByText('Usado · Medianoche')).toBeVisible();
@@ -186,6 +197,30 @@ test.describe('inventory on a phone', () => {
     await page.getByRole('dialog', { name: 'Filtros' }).locator('.sheet-foot').getByRole('button', { name: 'Limpiar filtros' }).click();
     await page.getByRole('dialog', { name: 'Filtros' }).locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
     await expect(page.getByText('iPhone 15 · 128GB')).toBeVisible();
+    await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
+
+    await chips.getByRole('button', { name: 'Disponible' }).click();
+    await chips.getByRole('button', { name: 'Reservado' }).click();
+    await expect(page.getByText('iPhone 13 · 128GB')).toBeVisible();
+    await expect(page.getByText('Apartado · 128GB')).toBeVisible();
+    await expect(page.getByText('iPhone 14 Pro · 256GB')).toHaveCount(0);
+    await expect(page.getByTestId('inventory-total')).toHaveText('3 de 4');
+    await expectFits(page);
+    await chips.getByRole('button', { name: 'Todos' }).click();
+    await expect(page.getByText('iPhone 14 Pro · 256GB')).toBeVisible();
+    await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
+
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    const statuses = page.getByRole('dialog', { name: 'Filtros' });
+    await statuses.getByRole('checkbox', { name: 'Disponible' }).check();
+    await statuses.getByRole('checkbox', { name: 'Reservado' }).check();
+    await statuses.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
+    await expect(page.getByText('iPhone 14 Pro · 256GB')).toHaveCount(0);
+    await expect(page.getByTestId('inventory-total')).toHaveText('3 de 4');
+    await expect(page.getByRole('button', { name: 'Filtros' }).locator('xpath=..')).toContainText('1');
+    await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+    await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
+    await expect(page.getByText('iPhone 14 Pro · 256GB')).toBeVisible();
 
     await page.getByText('iPhone 13 · 128GB').click();
     const detail = page.getByRole('dialog', { name: /iPhone 13/ });
