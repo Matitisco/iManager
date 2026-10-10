@@ -706,11 +706,16 @@ export async function importInventoryItems(
       result.errors.push({ row: rowNum, imei: raw.imei, message: parsedGrade.message });
       continue;
     }
+    const color = raw.color?.trim() || "";
+    if (color.length > 50) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "El color puede tener hasta 50 caracteres" });
+      continue;
+    }
     const input = {
       imei: parsedImei.imei,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
-      color: raw.color?.trim() || "",
+      color,
       condition,
       grade: parsedGrade.grade,
       batteryHealth: normalizeBattery(raw.batteryHealth),

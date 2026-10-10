@@ -19,7 +19,11 @@ test('creates an inventory item from the UI and persists it', async ({ page, req
   await page.getByRole('button', { name: 'Guardar equipo' }).click();
 
   await expect(page.getByRole('button', { name: 'Guardar equipo' })).toBeHidden();
-  await expect(page.getByText(model)).toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: model });
+  await expect(row.getByRole('cell', { name: 'Azul', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Filtrar color' }).click();
+  await page.getByRole('dialog', { name: 'Filtrar color' }).getByRole('checkbox', { name: 'Azul' }).check();
+  await expect(row).toBeVisible();
 
   await page.reload();
   await page.getByTestId('sidebar-tab-inventory').click();

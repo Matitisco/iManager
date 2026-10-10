@@ -85,11 +85,39 @@ export function matchesInventoryCondition(condition: string, selected: string[])
   return selected.some((value) => conditionKey(value) === item);
 }
 
+/** Distinct non-empty colors already stored on equipment, in Spanish alphabetical order. */
+export function inventoryColorOptions(present: Iterable<string>): string[] {
+  const seen = new Set<string>();
+  for (const raw of present) {
+    const color = raw.trim();
+    if (color) seen.add(color);
+  }
+  return [...seen].sort((left, right) => left.localeCompare(right, 'es', { sensitivity: 'base' }));
+}
+
+/** Empty selection matches every color, including equipment saved without one. */
+export function matchesInventoryColor(color: string, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  return selected.includes(color.trim());
+}
+
+/** Blank colors stay at the end in both directions. */
+export function compareInventoryColor(left: string, right: string, direction: 'asc' | 'desc' = 'asc'): number {
+  const a = left.trim();
+  const b = right.trim();
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  const order = a.localeCompare(b, 'es', { sensitivity: 'base' });
+  return direction === 'asc' ? order : -order;
+}
+
 export type InventoryColumnFilters = {
   equipo: string;
   conditions: string[];
   qualities: string[];
   statuses: string[];
+  colors: string[];
   battery: '' | '90' | '80' | '70';
   priceMin: string;
   priceMax: string;
@@ -100,6 +128,7 @@ export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
   conditions: [],
   qualities: [],
   statuses: [],
+  colors: [],
   battery: '',
   priceMin: '',
   priceMax: '',
@@ -111,6 +140,7 @@ export function columnFilterKey(filters: InventoryColumnFilters) {
     [...filters.conditions].sort().join('|'),
     [...filters.qualities].sort().join('|'),
     [...filters.statuses].sort().join('|'),
+    [...filters.colors].sort((left, right) => left.localeCompare(right, 'es')).join('|'),
     filters.battery,
     filters.priceMin.trim(),
     filters.priceMax.trim(),
@@ -126,6 +156,7 @@ export function columnFilterActive(filters: InventoryColumnFilters, column: keyo
   if (column === 'conditions') return filters.conditions.length > 0;
   if (column === 'qualities') return filters.qualities.length > 0;
   if (column === 'statuses') return filters.statuses.length > 0;
+  if (column === 'colors') return filters.colors.length > 0;
   if (column === 'battery') return filters.battery !== '';
   return filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
 }
@@ -143,6 +174,7 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
     if (!haystack.includes(equipo)) return false;
   }
   if (!matchesInventoryCondition(item.condition, filters.conditions)) return false;
+  if (!matchesInventoryColor(item.color, filters.colors)) return false;
   if (filters.qualities.length > 0 && !filters.qualities.includes(displayQuality(item.condition, item.grade))) return false;
   if (!matchesInventoryStatuses(item.status, filters.statuses)) return false;
   if (filters.battery) {
