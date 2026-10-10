@@ -75,7 +75,10 @@ test.describe('desktop trade-ins stays put', () => {
     await expect(page.getByTestId('tradeins-empty')).toHaveCount(0);
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByText('No encontré canjes.')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Canje' })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: /Canje/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filtrar canje' })).toBeVisible();
+    await expect(page.getByText('0 de 0')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filtros' })).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar cliente, equipo, IMEI o número')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Nuevo canje' })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Importar' })).toHaveCount(1);
@@ -89,11 +92,61 @@ test.describe('desktop trade-ins stays put', () => {
     });
     await page.reload();
     await page.getByTestId('sidebar-tab-tradeins').click();
-    await expect(page.getByRole('columnheader', { name: 'Canje' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /Canje/ })).toBeVisible();
     await expect(page.getByRole('cell', { name: /Recibido escritorio/ })).toBeVisible();
     await expect(page.getByTestId('tradeins-timeline')).toHaveCount(0);
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('page-back')).toHaveCount(0);
+    await expect(page.getByText('1 de 1')).toBeVisible();
+  });
+
+  test('filters a column, shows the filtered total and clears it', async ({ page, request }, testInfo) => {
+    test.setTimeout(120_000);
+    const email = buildTestEmail(testInfo, 'tradeins-filters');
+    await mockDollar(page);
+    await bootstrapStoreViaApi(page, request, email, `Canjes filtros ${testInfo.parallelIndex}`);
+    await createTradeInViaApi(request, email, {
+      date: '08/10/2026',
+      clientName: 'Ana filtros',
+      deviceReceived: 'iPhone 11 filtros',
+      deviceGiven: 'iPhone 13 filtros',
+      takeValue: 300000,
+    });
+    await createTradeInViaApi(request, email, {
+      date: '09/10/2026',
+      clientName: 'Zoe filtros',
+      deviceReceived: 'Pixel filtros',
+      deviceGiven: 'Galaxy filtros',
+      takeValue: 800000,
+    });
+    await page.reload();
+    await page.getByTestId('sidebar-tab-tradeins').click();
+    await expect(page.getByText('2 de 2')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Filtrar cliente' }).click();
+    const client = page.getByRole('dialog', { name: 'Filtrar cliente' });
+    await client.getByRole('textbox', { name: 'Contiene' }).fill('zoe');
+    await expect(page.getByRole('cell', { name: /Pixel filtros/ })).toBeVisible();
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-desk-column-filter.png` });
+    await page.keyboard.press('Escape');
+    await expect(client).toBeHidden();
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-desk-filtered.png` });
+    await expect(page.getByRole('cell', { name: /iPhone 11 filtros/ })).toHaveCount(0);
+    await expect(page.getByText('1 de 2')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filtrar cliente' })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+    await expect(page.getByRole('cell', { name: /iPhone 11 filtros/ })).toBeVisible();
+    await expect(page.getByText('2 de 2')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Limpiar filtros' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Filtrar recibido' }).click();
+    await page.getByRole('dialog', { name: 'Filtrar recibido' }).getByRole('textbox', { name: 'Contiene' }).fill('nadie');
+    await expect(page.getByText('No hay canjes con ese filtro.')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /Recibido/ })).toBeVisible();
+    await expect(page.getByText('0 de 2')).toBeVisible();
+    await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+    await expect(page.getByText('2 de 2')).toBeVisible();
   });
 });
 
@@ -139,6 +192,19 @@ test.describe('trade-ins on a phone', () => {
     await page.getByTestId('page-back').click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
     await page.getByTestId('sidebar-tab-tradeins').click();
+
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    const filters = page.getByRole('dialog', { name: 'Filtros' });
+    await expect(filters.locator('.sheet-grab')).toBeVisible();
+    await expect(filters.getByText('Valor tomado · USD')).toBeVisible();
+    await expect(filters.getByText('Diferencia · USD')).toBeVisible();
+    await expect(filters.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' })).toBeVisible();
+    await expect(filters.locator('.sheet-foot').getByRole('button', { name: 'Limpiar filtros' })).toBeVisible();
+    await expect(page.locator('.wchips').getByRole('button', { name: 'Pendiente', exact: true })).toBeVisible();
+    await settleMotion(page, '.sheet');
+    await expectFits(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-filters.png` });
+    await filters.getByRole('button', { name: 'Cerrar' }).click();
 
     await page.getByRole('button', { name: 'Buscar' }).click();
     const search = page.getByPlaceholder('Buscar cliente, equipo, IMEI o número');
@@ -225,7 +291,8 @@ test.describe('trade-ins on a phone', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-list.png`, fullPage: true });
 
     await page.locator('.wchips').getByRole('button', { name: 'Rechazado', exact: true }).click();
-    await expect(page.getByText('No encontré canjes.')).toBeVisible();
+    await expect(page.getByText('No hay canjes con ese filtro.')).toBeVisible();
+    await expect(page.locator('.sale-sec')).toContainText(/0 de \d+/);
     await page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true }).click();
     await expect(page.getByText(clientName)).toBeVisible();
 
