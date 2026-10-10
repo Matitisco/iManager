@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -595,14 +597,62 @@ describe('Inventory phone list', () => {
     ];
     renderScreen();
 
-    expect(screen.getByTestId('needs-completion')).toHaveTextContent('Para completar');
+    const badge = screen.getByTestId('needs-completion');
+    expect(badge).toHaveTextContent('Para completar');
+    expect(badge.closest('.inv-card')).not.toBeNull();
+    expect(badge.tagName).toBe('SMALL');
     await user.click(screen.getByRole('button', { name: 'Filtros' }));
     const sheet = screen.getByRole('dialog', { name: 'Filtros' });
-    await user.click(within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' }));
+    const completion = within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' });
+    const disponible = within(sheet).getByRole('checkbox', { name: 'Disponible' });
+    expect(completion.closest('.inv-checks')).not.toBeNull();
+    expect(completion.closest('label')).toHaveClass('chk');
+    expect(disponible.closest('label')).toHaveClass('chk');
+    await user.click(completion);
     await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
     expect(screen.getByText('Incompleto · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Listo · 128 GB')).not.toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 2');
+  });
+
+  it('renders the completion tag as a chip and the filter checkbox like the others', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const style = document.createElement('style');
+    style.textContent = `${readFileSync(path.resolve(process.cwd(), 'src/desk/desk.css'), 'utf8')}\n.mtools { display: flex !important; }`;
+    document.head.appendChild(style);
+    context.inventory = [
+      item('2', { model: 'Incompleto', needsCompletion: true, status: 'VENDIDO' }),
+    ];
+    try {
+      renderScreen();
+      const badge = screen.getByTestId('needs-completion');
+      const badgeStyle = getComputedStyle(badge);
+      expect(badgeStyle.color).toBe('rgb(154, 52, 18)');
+      expect(badgeStyle.fontSize).toBe('11px');
+      expect(badgeStyle.fontWeight).toBe('700');
+      expect(badgeStyle.width).toBe('fit-content');
+      expect(badgeStyle.alignSelf).toBe('flex-start');
+      expect(badgeStyle.display).toBe('inline-flex');
+
+      await user.click(screen.getByRole('button', { name: 'Filtros' }));
+      const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+      const completion = within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' }).closest('label');
+      const disponible = within(sheet).getByRole('checkbox', { name: 'Disponible' }).closest('label');
+      expect(completion).not.toBeNull();
+      expect(disponible).not.toBeNull();
+      const completionStyle = getComputedStyle(completion!);
+      const statusStyle = getComputedStyle(disponible!);
+      expect(completionStyle.display).toBe('flex');
+      expect(completionStyle.gap).toBe('8px');
+      expect(completionStyle.fontSize).toBe('14px');
+      expect(completionStyle.fontWeight).toBe('700');
+      expect(completionStyle.gap).toBe(statusStyle.gap);
+      expect(completionStyle.fontSize).toBe(statusStyle.fontSize);
+      expect(completionStyle.fontWeight).toBe(statusStyle.fontWeight);
+      expect(getComputedStyle(completion!.querySelector('input')!).width).toBe(getComputedStyle(disponible!.querySelector('input')!).width);
+    } finally {
+      style.remove();
+    }
   });
 });
 

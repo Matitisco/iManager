@@ -57,13 +57,13 @@ describe('outgoingTradeDifference', () => {
     })).toEqual({ difference: null, warning: MISSING_OUTGOING_PRICE });
   });
 
-  it('warns only after a sale price was typed and it is below the trade-in', () => {
+  it('warns only after a sale price was typed and it is below the trade-in, without a negative amount', () => {
     expect(outgoingTradeDifference({
       registered: false,
       priceProvided: true,
       saleAmount: 100,
       takeValue: 250,
-    })).toEqual({ difference: -150, warning: NEGATIVE_TRADE_DIFFERENCE });
+    })).toEqual({ difference: null, warning: NEGATIVE_TRADE_DIFFERENCE });
     expect(outgoingTradeDifference({
       registered: true,
       priceProvided: true,

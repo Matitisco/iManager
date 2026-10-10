@@ -7,7 +7,8 @@ export const NEGATIVE_TRADE_DIFFERENCE = 'El precio de salida no puede ser menor
 
 /**
  * Sale price minus the trade-in value.
- * An unregistered device without a sale price must not look like a negative gap.
+ * A missing price or a price below the trade-in must not surface a negative amount:
+ * callers show the warning and leave the difference empty.
  */
 export function outgoingTradeDifference(input: {
   registered: boolean;
@@ -22,7 +23,7 @@ export function outgoingTradeDifference(input: {
     };
   }
   const difference = input.saleAmount - input.takeValue;
-  if (difference < 0) return { difference, warning: NEGATIVE_TRADE_DIFFERENCE };
+  if (difference < 0) return { difference: null, warning: NEGATIVE_TRADE_DIFFERENCE };
   return { difference, warning: null };
 }
 

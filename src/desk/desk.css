@@ -200,7 +200,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-imei { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); font-size: 12px; font-weight: 600; }
 .inv-status { grid-column: 2; grid-row: 1; justify-self: end; }
 .inv-status .spill { flex-shrink: 0; max-width: none; }
-.inv-title { grid-column: 1 / -1; grid-row: 2; min-width: 0; overflow-wrap: anywhere; }
+.inv-title { grid-column: 1 / -1; grid-row: 2; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .inv-meta { grid-column: 1; grid-row: 3; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .inv-meta small { overflow-wrap: anywhere; }
 .inv-price { grid-column: 2; grid-row: 3; text-align: right; align-self: end; white-space: nowrap; }
@@ -564,7 +564,9 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .pending-sale b, .pending-sale small { display: block; }
 .pending-sale b { font-size: 13px; }
 .pending-sale-label { display: inline-flex; align-items: center; gap: 4px; }
-.needs-completion-label { display: inline-flex; align-items: center; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+.needs-completion-label { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; max-width: 100%; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em; text-transform: uppercase; }
+.phone-row .needs-completion-label { color: #9a3412; font-size: 11px; font-weight: 700; }
+.inv-card .needs-completion-label { margin-top: 0; }
 .unlisted-eq { margin: -4px 0 12px; padding: 12px; border: 1px solid #f3e4c4; border-radius: 14px; background: #fffaf3; }
 .unlisted-eq .eqs-note { margin: 0 0 10px; }
 .money-row { display: flex; align-items: center; gap: 8px; }
