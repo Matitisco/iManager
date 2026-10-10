@@ -321,7 +321,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dcol { background: #EFF1F4; border-radius: 18px; padding: 12px; min-height: 240px; }
 .dcolh { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; padding: 2px 4px 10px; }
 .dcolh b { background: #fff; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
-.ticket { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 14px 16px; margin-bottom: 10px; text-align: left; width: 100%; box-shadow: var(--sh); font-size: 14px; transition: transform .12s; user-select: none; }
+.desk-app .ticket { background: #fff; color: #16181D; border: 1px solid #C5CAD3; border-radius: 20px; padding: 14px 16px; margin-bottom: 10px; text-align: left; width: 100%; box-shadow: 0 1px 2px rgba(22,24,29,.06), 0 8px 22px rgba(22,24,29,.08); font-size: 14px; transition: transform .12s, box-shadow .12s; user-select: none; }
+.desk-app .ticket.dragging { opacity: .55; }
+.desk-app .dkanban .ticket[draggable="true"] { cursor: grab; }
+.dcol.over { background: #E4E7ED; box-shadow: inset 0 0 0 2px #16181D; }
+.svc-drag-hint { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .dkanban .ticket:hover { box-shadow: 0 6px 20px rgba(22,24,29,.06); }
 .ticket:active, .ticket.holding { transform: scale(.98); }
 .ticket .meta { font-size: 12px; color: var(--secondary); font-weight: 500; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }

@@ -1,5 +1,6 @@
 import type { CatalogKind, Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
+import { retireRepairStatuses } from "../repairs/retire-repair-statuses.js";
 
 export const CATALOG_KINDS = [
   "INVENTORY_STATUS",
@@ -81,8 +82,6 @@ const DEFAULTS: Record<Kind, { value: string; label: string; color: string | nul
   ],
   REPAIR_STATUS: [
     { value: "RECIBIDO", label: "Recibido", color: "#9AA0AA", isSystem: true },
-    { value: "EN_DIAGNOSTICO", label: "En diagnóstico", color: "#8B5CF6", isSystem: false },
-    { value: "ESPERANDO_REPUESTO", label: "Esperando repuesto", color: "#E8A33D", isSystem: false },
     { value: "EN_REPARACION", label: "En reparación", color: "#5B8DEF", isSystem: false },
     { value: "LISTO_PARA_RETIRAR", label: "Listo para retirar", color: "#25A66A", isSystem: false },
     { value: "ENTREGADO", label: "Entregado", color: "#16181D", isSystem: true },
@@ -168,6 +167,7 @@ function countFor(kind: Kind, value: string, counts: Awaited<ReturnType<typeof u
 
 export async function listCatalogs(storeId: string) {
   await seedMissing(storeId);
+  await retireRepairStatuses(storeId);
   const [rows, counts] = await Promise.all([
     prisma.storeCatalogOption.findMany({
       where: { storeId },

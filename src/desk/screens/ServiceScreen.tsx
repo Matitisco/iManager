@@ -1,31 +1,33 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { getFriendlyErrorMessage } from '../../lib/utils';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
-import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, repairFault, repairOverdue, repairPrice, repairStatusMeta, REPAIR_DELIVERED, REPAIR_READY } from '../repairs';
+import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, presentRepairStatusChange, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, REPAIR_DELIVERED, REPAIR_READY, visibleRepairStatuses } from '../repairs';
 import { usePhoneLayout } from '../section-notices';
 import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 export function ServiceScreen() {
-  const { repairOrders = [], repairOrdersError = null } = useAppContext();
+  const { repairOrders = [], repairOrdersError = null, changeRepairStatus } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
-  const { open, back } = useDesk();
+  const { open, back, toast } = useDesk();
   const phone = usePhoneLayout();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
   const [statusId, setStatusId] = useState('ABIERTAS');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropStatus, setDropStatus] = useState<string | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
+  const suppressClick = useRef(false);
+  const moving = useRef(false);
 
-  const statuses = useMemo(() => {
-    const known = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES);
-    const extra = [...new Set(repairOrders.map((order) => order.status))].filter((status) => !known.some((item) => item.id === status));
-    return [
-      ...known,
-      ...extra.map((id) => ({ id, label: repairStatusMeta(id, []).label, color: repairStatusMeta(id, []).color })),
-    ];
-  }, [catalogs?.options, repairOrders]);
+  const statuses = useMemo(
+    () => visibleRepairStatuses(catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES), repairOrders),
+    [catalogs?.options, repairOrders],
+  );
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -34,7 +36,7 @@ export function ServiceScreen() {
       if (!needle) return true;
       const haystack = `${order.code} ${order.clientName} ${order.device} ${order.imei} ${repairFault(order)} ${order.technician}`.toLowerCase();
       return haystack.includes(needle);
-    }).sort((left, right) => (rank.get(left.status) ?? 99) - (rank.get(right.status) ?? 99) || right.orderNumber - left.orderNumber);
+    }).sort((left, right) => (rank.get(repairColumnStatus(left.status)) ?? 99) - (rank.get(repairColumnStatus(right.status)) ?? 99) || right.orderNumber - left.orderNumber);
   }, [repairOrders, query, statuses]);
 
   const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
@@ -45,7 +47,7 @@ export function ServiceScreen() {
       { id: 'ABIERTAS', label: `Abiertas ${open}`, color: '' },
       ...statuses.map((status) => ({
         id: status.id,
-        label: `${status.label} ${rows.filter((order) => order.status === status.id).length}`,
+        label: `${status.label} ${rows.filter((order) => repairColumnStatus(order.status) === status.id).length}`,
         color: status.color || '#9AA0AA',
       })),
     ];
@@ -55,7 +57,7 @@ export function ServiceScreen() {
       ? statuses.filter((status) => status.id !== REPAIR_DELIVERED)
       : statuses.filter((status) => status.id === statusId);
     return selected
-      .map((status) => ({ status, cards: rows.filter((order) => order.status === status.id) }))
+      .map((status) => ({ status, cards: rows.filter((order) => repairColumnStatus(order.status) === status.id) }))
       .filter((group) => statusId !== 'ABIERTAS' || group.cards.length > 0);
   }, [rows, statusId, statuses]);
   const emptyCopy = repairOrders.length === 0 && !query.trim()
@@ -63,6 +65,38 @@ export function ServiceScreen() {
     : statusId === 'ABIERTAS' && !query.trim()
       ? 'No hay órdenes abiertas.'
       : 'No encontré órdenes.';
+
+  const moveOrder = async (id: string, statusId: string) => {
+    const current = repairOrders.find((order) => order.id === id);
+    if (!current || !changeRepairStatus || moving.current) return;
+    if (current.status === statusId || repairColumnStatus(current.status) === statusId) return;
+    moving.current = true;
+    try {
+      const saved = await changeRepairStatus(id, statusId);
+      presentRepairStatusChange(repairStatusChangeNotice(current.status, saved, statuses), toast);
+    } catch (err) {
+      toast(getFriendlyErrorMessage(err, 'No se pudo cambiar el estado'));
+    } finally {
+      moving.current = false;
+    }
+  };
+
+  const dragProps = (orderId: string) => ({
+    draggable: true,
+    onDragStart: (event: DragEvent<HTMLButtonElement>) => {
+      suppressClick.current = true;
+      draggingIdRef.current = orderId;
+      setDraggingId(orderId);
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', orderId);
+    },
+    onDragEnd: () => {
+      draggingIdRef.current = null;
+      setDraggingId(null);
+      setDropStatus(null);
+      window.setTimeout(() => { suppressClick.current = false; }, 0);
+    },
+  });
 
   const views = (
     <div className="svc-views" role="group" aria-label="Vista">
@@ -136,11 +170,30 @@ export function ServiceScreen() {
           </div>
         )
       ) : view === 'board' ? (
-        <div className="dkanban svc">
+        <div className="dkanban svc" data-testid="repair-board">
+          <p className="svc-drag-hint">Arrastrá una orden a otra columna para cambiar el estado. Con el teclado, abrí la orden y usá Pasar a.</p>
           {statuses.map((status) => {
-            const cards = rows.filter((order) => order.status === status.id);
+            const cards = rows.filter((order) => repairColumnStatus(order.status) === status.id);
             return (
-              <section key={status.id} className="dcol" data-testid={`repair-column-${status.id}`}>
+              <section
+                key={status.id}
+                className={`dcol${dropStatus === status.id ? ' over' : ''}`}
+                data-testid={`repair-column-${status.id}`}
+                aria-label={status.label}
+                onDragOver={(event) => {
+                  if (!draggingIdRef.current) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropStatus(status.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const id = event.dataTransfer.getData('text/plain') || draggingIdRef.current || '';
+                  setDropStatus(null);
+                  setDraggingId(null);
+                  if (id) void moveOrder(id, status.id);
+                }}
+              >
                 <div className="dcolh">
                   <span><i className="svc-dot" style={{ background: status.color || '#9AA0AA' }} />{status.label}</span>
                   <b>{cards.length}</b>
@@ -149,7 +202,21 @@ export function ServiceScreen() {
                   const when = order.estimatedDelivery || order.receivedAt;
                   const late = repairOverdue(order);
                   return (
-                    <button key={order.id} className="ticket" type="button" data-testid={`repair-card-${order.id}`} onClick={() => open({ type: 'ot', id: order.id })}>
+                    <button
+                      key={order.id}
+                      className={`ticket${draggingId === order.id ? ' dragging' : ''}`}
+                      type="button"
+                      data-testid={`repair-card-${order.id}`}
+                      aria-grabbed={draggingId === order.id}
+                      {...dragProps(order.id)}
+                      onClick={() => {
+                        if (suppressClick.current) {
+                          suppressClick.current = false;
+                          return;
+                        }
+                        open({ type: 'ot', id: order.id });
+                      }}
+                    >
                       <div className="wtop">
                         <b>#{order.code}</b>
                         <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dayMonth(when)}</span>
@@ -194,7 +261,7 @@ export function ServiceScreen() {
                       <td>{repairFault(order)}</td>
                       <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>
-                      <td><Pill status={order.status} kind="REPAIR_STATUS" /></td>
+                      <td><Pill status={repairColumnStatus(order.status)} kind="REPAIR_STATUS" /></td>
                     </tr>
                   ))}
                 </tbody>

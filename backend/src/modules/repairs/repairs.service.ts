@@ -6,6 +6,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
 import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
+import { isRetiredRepairStatus, retireRepairStatuses } from "./retire-repair-statuses.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
@@ -135,6 +136,7 @@ async function load(storeId: string, id: string) {
 }
 
 export async function listRepairs(storeId: string): Promise<RepairOrderResponse[]> {
+  await retireRepairStatuses(storeId);
   const [rows, name] = await Promise.all([
     prisma.repairOrder.findMany({
       where: { storeId },
@@ -147,6 +149,7 @@ export async function listRepairs(storeId: string): Promise<RepairOrderResponse[
 }
 
 export async function getRepair(storeId: string, id: string): Promise<RepairOrderResponse | null> {
+  await retireRepairStatuses(storeId);
   const row = await load(storeId, id);
   if (!row) return null;
   return serialize(row, await storeName(storeId));
@@ -160,6 +163,7 @@ function clientPayload(record: RepairRecord["client"]): ClientResponse | null {
 export async function createRepair(storeId: string, input: RepairOrderInput) {
   const name = await storeName(storeId);
   const status = input.status?.trim() || REPAIR_RECEIVED;
+  if (isRetiredRepairStatus(status)) throw new RepairError("Ese estado ya no está en el flujo");
   const created = await prisma.$transaction(async (tx) => {
     let clientId = input.clientId?.trim() || null;
     let clientName = input.clientName.trim();
@@ -275,6 +279,7 @@ export async function changeRepairStatus(storeId: string, id: string, status: st
   const name = await storeName(storeId);
   const next = status.trim();
   if (!next) throw new RepairError("Elegí un estado");
+  if (isRetiredRepairStatus(next)) throw new RepairError("Ese estado ya no está en el flujo");
   const updated = await prisma.$transaction(async (tx) => {
     const current = await tx.repairOrder.findFirst({ where: { id, storeId } });
     if (!current) return null;
