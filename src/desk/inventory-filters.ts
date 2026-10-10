@@ -3,6 +3,88 @@ import { extractMinBattery } from '../utils/inventory';
 import { conditionLabel, isInStock, parseMoney } from './format';
 import { displayQuality } from './quality';
 
+/** Catalog fallback. These stay available even when the stock is empty. */
+export const CONDITION_FILTERS = [
+  { id: 'NUEVO', label: 'Nuevo' },
+  { id: 'USADO', label: 'Usado' },
+];
+
+const CONDITION_ALIASES: Record<string, string> = {
+  nuevo: 'NUEVO',
+  new: 'NUEVO',
+  usado: 'USADO',
+  used: 'USADO',
+  'pre-owned': 'PRE-OWNED',
+  preowned: 'PRE-OWNED',
+  'pre owned': 'PRE-OWNED',
+};
+
+export type ConditionFilterOption = { id: string; label: string };
+
+function foldCondition(value: string) {
+  return value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Enum id when the value is a known condition, otherwise the trimmed text. */
+function canonicalCondition(value: string | null | undefined): string {
+  const trimmed = (value ?? '').trim();
+  const folded = foldCondition(trimmed);
+  if (!folded || folded === '—') return '';
+  return CONDITION_ALIASES[folded] ?? trimmed;
+}
+
+function conditionKey(value: string): string {
+  const canonical = canonicalCondition(value);
+  if (!canonical) return '';
+  return CONDITION_ALIASES[foldCondition(canonical)] ?? foldCondition(canonical);
+}
+
+/**
+ * Nuevo and Usado always come from the catalog.
+ * Store catalog entries rename or extend that list, and stock values missing
+ * from the catalog are appended so a custom condition can still be filtered.
+ */
+export function inventoryConditionOptions(
+  catalog: ConditionFilterOption[],
+  present: Iterable<string>,
+): ConditionFilterOption[] {
+  const byKey = new Map<string, ConditionFilterOption>();
+  const order: string[] = [];
+
+  const add = (id: string, label: string, rename: boolean) => {
+    const canonical = canonicalCondition(id) || canonicalCondition(label);
+    const key = conditionKey(canonical);
+    if (!key) return;
+    const current = byKey.get(key);
+    const nextLabel = label.trim() && label.trim() !== '—' ? label.trim() : conditionLabel(canonical);
+    if (!current) {
+      order.push(key);
+      byKey.set(key, { id: canonical, label: nextLabel });
+      return;
+    }
+    if (rename && label.trim() && label.trim() !== '—') {
+      byKey.set(key, { id: current.id, label: label.trim() });
+    }
+  };
+
+  for (const option of CONDITION_FILTERS) add(option.id, option.label, false);
+  for (const option of catalog) add(option.id, option.label, true);
+  for (const raw of present) {
+    const canonical = canonicalCondition(raw);
+    if (!canonical) continue;
+    add(canonical, conditionLabel(canonical), false);
+  }
+  return order.map((key) => byKey.get(key)!);
+}
+
+/** Empty selection matches every condition. Ids and visible labels compare as the same value. */
+export function matchesInventoryCondition(condition: string, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  const item = conditionKey(condition);
+  if (!item) return false;
+  return selected.some((value) => conditionKey(value) === item);
+}
+
 export type InventoryColumnFilters = {
   equipo: string;
   conditions: string[];
@@ -60,7 +142,7 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
     const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
     if (!haystack.includes(equipo)) return false;
   }
-  if (filters.conditions.length > 0 && !filters.conditions.includes(conditionLabel(item.condition))) return false;
+  if (!matchesInventoryCondition(item.condition, filters.conditions)) return false;
   if (filters.qualities.length > 0 && !filters.qualities.includes(displayQuality(item.condition, item.grade))) return false;
   if (!matchesInventoryStatuses(item.status, filters.statuses)) return false;
   if (filters.battery) {

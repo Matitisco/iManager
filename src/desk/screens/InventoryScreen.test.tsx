@@ -235,6 +235,52 @@ describe('Inventory column filters', () => {
     expect(screen.queryByText('Charlie · 128 GB')).not.toBeInTheDocument();
     expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
   });
+
+  it('offers Nuevo and Usado, plus any stock condition, even when the table is empty', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [];
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar condición' }));
+    const condition = screen.getByRole('dialog', { name: 'Filtrar condición' });
+    expect(within(condition).getByRole('checkbox', { name: 'Nuevo' })).toBeInTheDocument();
+    expect(within(condition).getByRole('checkbox', { name: 'Usado' })).toBeInTheDocument();
+    expect(within(condition).queryByText('Todavía no hay condiciones en el stock.')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar calidad' }));
+    const quality = screen.getByRole('dialog', { name: 'Filtrar calidad' });
+    for (const name of ['A+', 'A', 'B', 'C']) {
+      expect(within(quality).getByRole('checkbox', { name: (value) => value === name })).toBeInTheDocument();
+    }
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+    const status = screen.getByRole('dialog', { name: 'Filtrar estado' });
+    for (const name of ['Disponible', 'En revisión', 'Reservado', 'Vendido']) {
+      expect(within(status).getByRole('checkbox', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('filters several conditions at once and counts stock outside the base catalog', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Sellado', condition: 'NUEVO' }),
+      item('2', { model: 'Recambio', condition: 'USADO', grade: 'B' }),
+      item('3', { model: 'Heredado', condition: 'PRE-OWNED' }),
+    ];
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar condición' }));
+    const condition = screen.getByRole('dialog', { name: 'Filtrar condición' });
+    expect(within(condition).getByRole('checkbox', { name: 'Pre-owned' })).toBeInTheDocument();
+    await user.click(within(condition).getByRole('checkbox', { name: 'Nuevo' }));
+    await user.click(within(condition).getByRole('checkbox', { name: 'Pre-owned' }));
+    expect(screen.getByText('Sellado · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Heredado · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Recambio · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
+  });
 });
 
 describe('Inventory novedades', () => {
@@ -436,5 +482,39 @@ describe('Inventory phone list', () => {
     expect(screen.getByText('Plus · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Charlie · 128 GB')).not.toBeInTheDocument();
     expect(screen.queryByText('Nuevo · 128 GB')).not.toBeInTheDocument();
+  });
+
+  it('shows condition, quality and status choices in the sheet when there are no devices', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    expect(within(sheet).getByRole('checkbox', { name: 'Nuevo' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: 'Usado' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: 'A+ · Como nuevo' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: 'Disponible' })).toBeInTheDocument();
+    expect(within(sheet).queryByText('Todavía no hay condiciones en el stock.')).not.toBeInTheDocument();
+  });
+
+  it('applies several conditions from the sheet and updates the filtered total', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = [
+      item('1', { model: 'Sellado', condition: 'NUEVO' }),
+      item('2', { model: 'Recambio', condition: 'USADO' }),
+      item('3', { model: 'Heredado', condition: 'PRE-OWNED' }),
+    ];
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    expect(within(sheet).getByRole('checkbox', { name: 'Pre-owned' })).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Nuevo' }));
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Usado' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByText('Sellado · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Recambio · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Heredado · 128 GB')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
+    expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
   });
 });

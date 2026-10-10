@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, matchesInventoryColumns, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
+import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, inventoryConditionOptions, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -67,5 +67,31 @@ describe('inventory column filters', () => {
     expect(columnFilterActive(filters({ statuses: ['RESERVADO'] }), 'statuses')).toBe(true);
     expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'statuses')).toBe(false);
     expect(columnFilterKey(filters({ statuses: ['RESERVADO', 'DISPONIBLE'] }))).toBe(columnFilterKey(filters({ statuses: ['DISPONIBLE', 'RESERVADO'] })));
+  });
+
+  it('keeps the condition catalog when nothing is in stock and appends values that exist', () => {
+    expect(inventoryConditionOptions([], []).map((option) => option.label)).toEqual(['Nuevo', 'Usado']);
+    expect(inventoryConditionOptions(
+      [{ id: 'NUEVO', label: 'Sellado' }, { id: 'OUTLET', label: 'Outlet' }],
+      ['PRE-OWNED', 'NUEVO', '', 'Outlet'],
+    )).toEqual([
+      { id: 'NUEVO', label: 'Sellado' },
+      { id: 'USADO', label: 'Usado' },
+      { id: 'OUTLET', label: 'Outlet' },
+      { id: 'PRE-OWNED', label: 'Pre-owned' },
+    ]);
+  });
+
+  it('matches a condition by enum or label and keeps several selections', () => {
+    expect(matchesInventoryCondition('USADO', [])).toBe(true);
+    expect(matchesInventoryCondition('USADO', ['Usado'])).toBe(true);
+    expect(matchesInventoryCondition('USADO', ['NUEVO'])).toBe(false);
+    expect(matchesInventoryCondition('Nuevo', ['NUEVO', 'USADO'])).toBe(true);
+    expect(matchesInventoryCondition('PRE-OWNED', ['Pre-owned'])).toBe(true);
+    expect(matchesInventoryCondition('Outlet', ['OUTLET'])).toBe(true);
+    expect(matchesInventoryCondition('', ['NUEVO'])).toBe(false);
+    expect(matchesInventoryColumns(product({ condition: 'NUEVO' }), filters({ conditions: ['NUEVO', 'USADO'] }))).toBe(true);
+    expect(matchesInventoryColumns(product({ condition: 'USADO' }), filters({ conditions: ['NUEVO'] }))).toBe(false);
+    expect(matchesInventoryColumns(product({ condition: 'PRE-OWNED' }), filters({ conditions: ['USADO', 'PRE-OWNED'] }))).toBe(true);
   });
 });
