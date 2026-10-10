@@ -239,7 +239,6 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
-                  {item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
                 </PhoneRecord>
               );
             })}
@@ -418,14 +417,16 @@ export function InventoryScreen() {
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">
             <p className="sec">Para completar</p>
-            <label className="chk">
-              <input
-                type="checkbox"
-                checked={draftFilters.needsCompletion}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, needsCompletion: event.target.checked }))}
-              />
-              Solo equipos para completar
-            </label>
+            <div className="inv-checks">
+              <label className="chk">
+                <input
+                  type="checkbox"
+                  checked={draftFilters.needsCompletion}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, needsCompletion: event.target.checked }))}
+                />
+                Solo equipos para completar
+              </label>
+            </div>
             <p className="sec">Estado</p>
             <div className="inv-checks">
               {statusOptions.map((option) => (
@@ -553,7 +554,10 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
     <span className="inv-card">
       <span className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
       <span className="inv-status">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
-      <b className="inv-title">{equipmentTitle(item.model, item.capacity)}</b>
+      <span className="inv-title">
+        <b>{equipmentTitle(item.model, item.capacity)}</b>
+        {item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
+      </span>
       <span className="inv-meta">
         <small>{condition || '—'}</small>
         {specs ? <small>{specs}</small> : null}

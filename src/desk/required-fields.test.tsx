@@ -108,8 +108,12 @@ describe('desk required fields', () => {
     await user.type(fields[1], 'Equipo de salida');
     const salePrice = screen.getByLabelText('Precio completo de salida');
     await user.type(salePrice, '50');
-    await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
+    expect(screen.getByLabelText('Diferencia')).toHaveValue('');
     expect(screen.getByText('El precio de salida no puede ser menor que el valor tomado')).toBeInTheDocument();
+    expect(screen.queryByText(/Diferencia a cobrar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\s*-/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
+    expect(screen.getAllByText('El precio de salida no puede ser menor que el valor tomado').length).toBeGreaterThan(0);
     expect(ctx.createOperation).not.toHaveBeenCalled();
 
     await user.clear(salePrice);

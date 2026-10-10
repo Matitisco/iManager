@@ -20,13 +20,13 @@ describe("outgoingTradeDifference", () => {
     })).toEqual({ difference: null, warning: null });
   });
 
-  it("warns when a typed sale price is below the trade-in", () => {
+  it("warns when a typed sale price is below the trade-in and withholds the negative amount", () => {
     expect(outgoingTradeDifference({
       registered: false,
       priceProvided: true,
       saleAmount: 100,
       takeValue: 250,
-    })).toEqual({ difference: -150, warning: NEGATIVE_TRADE_DIFFERENCE });
+    })).toEqual({ difference: null, warning: NEGATIVE_TRADE_DIFFERENCE });
   });
 
   it("uses the registered sale price even when that price is zero", () => {
@@ -35,7 +35,7 @@ describe("outgoingTradeDifference", () => {
       priceProvided: false,
       saleAmount: 0,
       takeValue: 80,
-    })).toEqual({ difference: -80, warning: NEGATIVE_TRADE_DIFFERENCE });
+    })).toEqual({ difference: null, warning: NEGATIVE_TRADE_DIFFERENCE });
   });
 
   it("returns the cash the buyer still owes", () => {
