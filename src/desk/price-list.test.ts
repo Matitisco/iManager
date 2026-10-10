@@ -40,7 +40,7 @@ describe('priceListMessage', () => {
       'Lista de precios — Tienda Centro',
       '',
       '• iPhone 15 · 128 GB — Negro · Nuevo — $ 1.250.000',
-      '• iPhone 13 · 128 GB — Azul · Usado · Grado A · Batería 87% — $ 690.000',
+      '• iPhone 13 · 128 GB — Azul · Usado · Calidad A · Batería 87% — $ 690.000',
     ].join('\n'));
     expect(message).not.toContain('800');
     expect(message).not.toContain('999');

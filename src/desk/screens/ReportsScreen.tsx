@@ -16,6 +16,7 @@ import {
   tradeCode,
   type PeriodKey,
 } from '../format';
+import { qualityPhrase } from '../quality';
 import {
   addToReportBucket,
   customReportBounds,
@@ -230,7 +231,7 @@ export function ReportsScreen() {
           {!stockRows.length && <p className="gnote">No hay equipos para este período y filtro.</p>}
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
-              <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition, item.grade) : ''].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
+              <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition) : '', qualityPhrase(item.condition, item.grade)].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
               <div className="gr"><div className="gamt">{money.compact(item.price, item.currency)}</div></div>
               <span className="gchev">›</span>
             </button>

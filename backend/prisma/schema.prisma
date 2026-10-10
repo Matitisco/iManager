@@ -137,6 +137,8 @@ model InventoryItem {
   capacity      String             @db.VarChar(50)
   color         String             @db.VarChar(50)
   condition     String             @db.VarChar(20)
+  // Cosmetic quality of a used device: A+, A, B or C. Empty when the device is not used or quality was not set.
+  // This is the only quality column; the desk calls it «Calidad» and does not add a second field.
   grade         String             @db.VarChar(20)
   batteryHealth String             @db.VarChar(50)
   cost          Decimal            @db.Decimal(12, 2)
@@ -229,6 +231,7 @@ model TradeIn {
   differencePaid     Decimal          @db.Decimal(12, 2)
   status             String           @db.VarChar(30)
   batteryHealth      String?          @db.VarChar(50)
+  // Cosmetic quality of the received used device (A+, A, B or C). Null when unset. Same concept as InventoryItem.grade.
   grade              String?          @db.VarChar(20)
   confirmationStatus TradeInConfirmationStatus?
   receivedInventoryItemId String?

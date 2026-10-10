@@ -177,7 +177,7 @@ test.describe('inventory on a phone', () => {
     const card = page.getByText('iPhone 13 · 128GB').locator('xpath=ancestor::button[1]');
     await expect(card.getByText('IMEI 35 000000 000001 0')).toBeVisible();
     await expect(card.getByText('Usado · Medianoche')).toBeVisible();
-    await expect(card.getByText('Grado A · Bat. 89%')).toBeVisible();
+    await expect(card.getByText('Calidad A · Bat. 89%')).toBeVisible();
     await expect(card.getByText('$ 650.000')).toBeVisible();
     await expect(card.getByText('Disponible')).toBeVisible();
     await expect(card.getByText('≈ US$ 500')).toBeVisible();
@@ -187,7 +187,7 @@ test.describe('inventory on a phone', () => {
 
     await page.getByRole('button', { name: 'Filtros', exact: true }).click();
     const filled = page.getByRole('dialog', { name: 'Filtros' });
-    await filled.getByRole('checkbox', { name: 'Usado · Grado A', exact: true }).check();
+    await filled.getByRole('checkbox', { name: 'Usado', exact: true }).check();
     await filled.locator('.sheet-foot').getByRole('button', { name: 'Aplicar filtros' }).click();
     await expect(page.getByText('iPhone 13 · 128GB')).toBeVisible();
     await expect(page.getByText('iPhone 15 · 128GB')).toHaveCount(0);

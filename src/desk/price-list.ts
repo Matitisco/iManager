@@ -1,13 +1,15 @@
 import type { Product } from '../types';
 import { formatBatteryDisplay } from '../utils/inventory';
 import { conditionLabel, equipmentTitle, formatMoney } from './format';
+import { qualityPhrase } from './quality';
 
 function detail(item: Product): string {
-  const condition = conditionLabel(item.condition, item.grade);
+  const condition = conditionLabel(item.condition);
   const battery = item.batteryHealth?.trim();
   const parts = [
     item.color?.trim(),
     condition === '—' ? '' : condition,
+    qualityPhrase(item.condition, item.grade),
     battery && item.condition !== 'NUEVO' ? `Batería ${formatBatteryDisplay(battery)}` : '',
   ].filter(Boolean);
   return parts.join(' · ');

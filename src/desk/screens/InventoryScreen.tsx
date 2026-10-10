@@ -5,7 +5,8 @@ import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-not
 import { ColumnFilter } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
-import { conditionLabel, equipmentTitle, formatImei, formatInputMoney, isInStock, parseMoney, statusLabel } from '../format';
+import { conditionLabel, conditionName, equipmentTitle, formatImei, formatInputMoney, isInStock, parseMoney, statusLabel } from '../format';
+import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from '../quality';
 import {
   EMPTY_COLUMN_FILTERS,
   columnFilterActive,
@@ -35,16 +36,6 @@ const BATTERY_FILTERS = [
   { id: '70', label: '≥ 70%' },
 ] as const;
 
-function plainCondition(condition: string) {
-  if (!condition) return '';
-  return ({ NUEVO: 'Nuevo', USADO: 'Usado', 'PRE-OWNED': 'Pre-owned' } as Record<string, string>)[condition] ?? condition;
-}
-
-function gradeText(condition: string, grade: string) {
-  if (!grade || grade === 'N/A' || grade === '—' || condition === 'NUEVO') return '';
-  return `Grado ${grade}`;
-}
-
 function batteryLine(value: string) {
   const trimmed = value.trim();
   if (!trimmed || trimmed === '0' || trimmed === '0%') return '';
@@ -53,6 +44,7 @@ function batteryLine(value: string) {
 
 function activeColumnCount(filters: InventoryColumnFilters) {
   return Number(filters.conditions.length > 0)
+    + Number(filters.qualities.length > 0)
     + Number(filters.statuses.length > 0)
     + Number(Boolean(filters.battery))
     + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
@@ -110,8 +102,11 @@ export function InventoryScreen() {
       return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
+    const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);
     if (sort === 'Precio ↑') list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
     if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
+    if (sort === 'Calidad ↑') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'best') || a.model.localeCompare(b.model, 'es'));
+    if (sort === 'Calidad ↓') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'worst') || a.model.localeCompare(b.model, 'es'));
     return list;
   }, [inventory, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
@@ -128,7 +123,7 @@ export function InventoryScreen() {
   }, [catalogs?.options, inventory]);
   const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions], [statusOptions]);
   const conditionOptions = useMemo(() => {
-    const labels = [...new Set(inventory.map((item) => conditionLabel(item.condition, item.grade)))].filter((label) => label !== '—');
+    const labels = [...new Set(inventory.map((item) => conditionLabel(item.condition)))].filter((label) => label !== '—');
     const preferred = ['Nuevo', 'Usado', 'Pre-owned'];
     return labels.sort((left, right) => {
       const leftRank = preferred.indexOf(left);
@@ -204,7 +199,7 @@ export function InventoryScreen() {
       ) : null}
       <div className="dbar">
         <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
-        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓']} value={sort} onChange={setSort} />
+        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       {phone && inventory.length > 0 ? (
@@ -273,6 +268,31 @@ export function InventoryScreen() {
                   </span>
                 </th>
                 <th>
+                  <span className="thf">
+                    <button type="button" className="thsort" aria-label="Ordenar por calidad" onClick={() => setSort((current) => current === 'Calidad ↑' ? 'Calidad ↓' : 'Calidad ↑')}>
+                      Calidad{sort === 'Calidad ↑' ? ' ↑' : sort === 'Calidad ↓' ? ' ↓' : ''}
+                    </button>
+                    <ColumnFilter label="calidad" open={openColumn === 'calidad'} onToggle={() => setOpenColumn((current) => current === 'calidad' ? null : 'calidad')} active={columnFilterActive(columns, 'qualities')} onClear={() => setColumn({ qualities: [] })}>
+                      <div className="opts">
+                        {DEVICE_QUALITIES.map((item) => (
+                          <label key={item.value} className="chk" title={`${item.name}: ${item.description}`}>
+                            <input
+                              type="checkbox"
+                              checked={columns.qualities.includes(item.value)}
+                              onChange={(event) => setColumn({
+                                qualities: event.target.checked
+                                  ? [...columns.qualities, item.value]
+                                  : columns.qualities.filter((grade) => grade !== item.value),
+                              })}
+                            />
+                            {item.value}
+                          </label>
+                        ))}
+                      </div>
+                    </ColumnFilter>
+                  </span>
+                </th>
+                <th>
                   <span className="thf">Batería
                     <ColumnFilter label="batería" open={openColumn === 'batería'} onToggle={() => setOpenColumn((current) => current === 'batería' ? null : 'batería')} active={columnFilterActive(columns, 'battery')} onClear={() => setColumn({ battery: '' })}>
                       <div className="opts">
@@ -328,7 +348,8 @@ export function InventoryScreen() {
                       <div><b>{equipmentTitle(item.model, item.capacity)}</b><small>{item.color || '—'}</small><NoticeTag reason={notices.reasonFor(item.id)} /></div>
                     </div>
                   </td>
-                  <td>{conditionLabel(item.condition, item.grade)}</td>
+                  <td>{conditionLabel(item.condition)}</td>
+                  <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
                   <td className="r"><b>{item.price > 0 ? money.show(item.price, item.currency) : '-'}</b></td>
                   <td>
@@ -390,6 +411,24 @@ export function InventoryScreen() {
                 ))}
               </div>
             )}
+            <p className="sec">Calidad</p>
+            <div className="inv-checks">
+              {DEVICE_QUALITIES.map((item) => (
+                <label key={item.value} className="chk" title={`${item.name}: ${item.description}`}>
+                  <input
+                    type="checkbox"
+                    checked={draftFilters.qualities.includes(item.value)}
+                    onChange={(event) => setDraftFilters((current) => ({
+                      ...current,
+                      qualities: event.target.checked
+                        ? [...current.qualities, item.value]
+                        : current.qualities.filter((grade) => grade !== item.value),
+                    }))}
+                  />
+                  {item.value} · {item.name}
+                </label>
+              ))}
+            </div>
             <p className="sec">Batería</p>
             <div className="inv-opts">
               {BATTERY_FILTERS.map((option) => (
@@ -442,8 +481,8 @@ export function InventoryScreen() {
 }
 
 function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; sell: number | null }) {
-  const condition = [plainCondition(item.condition), item.color].filter(Boolean).join(' · ');
-  const specs = [gradeText(item.condition, item.grade), batteryLine(item.batteryHealth)].filter(Boolean).join(' · ');
+  const condition = [conditionName(item.condition), item.color].filter(Boolean).join(' · ');
+  const specs = [qualityPhrase(item.condition, item.grade), batteryLine(item.batteryHealth)].filter(Boolean).join(' · ');
   const approx = approxUsd(item.price, item.currency, money.active, sell);
   return (
     <span className="inv-card">

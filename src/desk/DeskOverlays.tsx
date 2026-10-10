@@ -44,6 +44,8 @@ import { ClientField } from './ClientField';
 import { EquipmentField } from './EquipmentField';
 import { ImanagerIcon } from './icons';
 import { usePhoneLayout } from './section-notices';
+import { QualityField } from './QualityField';
+import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from './quality';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
 import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
@@ -287,7 +289,8 @@ function EquipmentDetail({ id }: { id: string }) {
       ) : null}
       {phone ? <div className="kv"><span>IMEI</span><b>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
-      <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition, item.grade)}</b></div>
+      <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
+      <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
@@ -323,6 +326,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
   const [battery, setBattery] = useState(current?.batteryHealth && current.batteryHealth !== '0%' ? String(batteryPercent(current.batteryHealth)) : '');
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
+  const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
   const [price, setPrice] = useState(current ? money.inputValue(current.price, current.currency) : '');
   const [status, setStatus] = useState(current?.status ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
@@ -341,7 +345,8 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
       </div>
       <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
       <Field label="Condición"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={setCondition} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
+      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={(next) => { setCondition(next); if (!isUsedCondition(next)) setGrade(''); }} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
+      {isUsedCondition(condition) ? <QualityField value={grade} onChange={setGrade} /> : null}
       <Field label="Precio de venta" mark={money.active} error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
         const raw = event.target.value;
         if (raw.includes('-')) { setPrice(raw); return; }
@@ -374,7 +379,7 @@ function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
           capacity,
           color: color.trim(),
           condition,
-          grade: !condition ? '' : condition === 'NUEVO' ? 'N/A' : (current?.grade && current.grade !== 'N/A' ? current.grade : 'A'),
+          grade: isUsedCondition(condition) ? grade : '',
           batteryHealth: battery ? `${battery}%` : '',
           cost: seeCosts ? (current?.cost ?? 0) : 0,
           price: priced.amounts[0]?.amount ?? parseMoney(price),
@@ -461,7 +466,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
   const [take, setTake] = useState(currentTrade ? (money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0') : '');
   const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
   const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
-  const [grade, setGrade] = useState(currentTrade?.grade ?? '');
+  const [grade, setGrade] = useState<string>(canonicalQuality(currentTrade?.grade));
   const [bad, setBad] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -515,7 +520,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
       update('take', () => setTake(money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0'));
       update('technicalStatus', () => setTechnicalStatus(currentTrade.status || 'PENDIENTE'));
       update('battery', () => setBattery(currentTrade.batteryHealth || ''));
-      update('grade', () => setGrade(currentTrade.grade || ''));
+      update('grade', () => setGrade(canonicalQuality(currentTrade.grade)));
     }
     if (linkedProduct) {
       update('productId', () => setProductId(linkedProduct.id));
@@ -656,10 +661,8 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
           </div>
           <Field label="Estado técnico"><span /></Field>
           <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
-          <div className="frow">
-            <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
-            <Field label="Grado recibido"><input value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Opcional" /></Field>
-          </div>
+          <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
+          <QualityField label="Calidad del recibido" value={grade} onChange={(next) => { dirty.current.add('grade'); setGrade(next); }} />
         </>
       ) : null}
     </>
@@ -685,6 +688,7 @@ function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
         onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
+      {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
           <span>No hay equipos disponibles en el inventario.</span>
@@ -747,6 +751,8 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
     );
   }
   const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
+  const sold = inventory.find((item) => item.id === sale.productId);
+  const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet">
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
@@ -754,10 +760,12 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
+      <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       {linkedTrade ? <>
         <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
+        <div className="kv"><span>Calidad recibida</span><b>{tradeQuality(linkedTrade.grade) ? qualityDetail(tradeQuality(linkedTrade.grade)) : '—'}</b></div>
         <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
         <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
         <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
@@ -775,7 +783,7 @@ function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
           {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)}${soldQuality ? ` · Calidad ${soldQuality}` : ''} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             if (!navigator.share) { void copy(); return; }
             navigator.share({ title: saleCode(sale), text }).catch((err: unknown) => {
@@ -808,6 +816,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const [take, setTake] = useState(money.inputValue(trade.takeValue, trade.currency) || '0');
   const [difference, setDifference] = useState(money.inputValue(trade.differencePaid, trade.currency) || '0');
   const [status, setStatus] = useState(trade.status || 'PENDIENTE');
+  const [grade, setGrade] = useState<string>(canonicalQuality(trade.grade));
   const [bad, setBad] = useState<Record<string, string>>({});
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
@@ -828,6 +837,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
       </div>
       <Field label="Estado técnico"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
+      <QualityField label="Calidad del recibido" value={grade} onChange={setGrade} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
@@ -855,6 +865,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
           differencePaid: priced.amounts[1]?.amount ?? trade.differencePaid,
           currency: stampedCurrency(priced.amounts[0]?.currency),
           status,
+          grade,
         }), 'Canje actualizado');
       }} />
     </Sheet>
@@ -892,6 +903,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
         {detailError && <div className="ferr">{detailError}</div>}
         {archivedReceived ? <>
           <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
+          <div className="kv"><span>Calidad</span><b>{displayQuality(archivedReceived.condition, archivedReceived.grade) || tradeQuality(trade.grade) || '—'}</b></div>
           <div className="kv"><span>Capacidad</span><b>{archivedReceived.capacity || '—'}</b></div>
           <div className="kv"><span>Estado técnico</span><b><Pill status={archivedReceived.status} kind="TRADE_IN_STATUS" /></b></div>
           <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
@@ -956,6 +968,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
           </>
         ) : null}
         <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
+        <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
         {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
         <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
         <div className="kv"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
@@ -985,6 +998,7 @@ function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormPr
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
+      <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
       <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
@@ -1525,7 +1539,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'capacity', label: 'Capacidad', required: false },
         { key: 'color', label: 'Color', required: false },
         { key: 'condition', label: 'Condición', required: false },
-        { key: 'grade', label: 'Grado', required: false },
+        { key: 'grade', label: 'Calidad', required: false, hint: 'A+ / A / B / C. Solo aplica si la condición es USADO' },
         { key: 'batteryHealth', label: 'Batería', required: false },
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
