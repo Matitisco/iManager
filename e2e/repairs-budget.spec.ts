@@ -76,14 +76,15 @@ test('the owner edits the budget and deletes the order, and an employee without 
 
   await page.locator('[data-testid^="repair-card-"]').first().click();
   const detail = page.getByRole('dialog', { name: /#OT-0001/ });
-  await detail.getByTestId('repair-edit-budget').click();
-  await detail.getByLabel('Presupuesto').fill('80000');
-  await detail.getByLabel('Seña').fill('15000');
-  await detail.getByTestId('repair-save-budget').click();
-  await expect(detail.getByText('$ 80.000')).toBeVisible();
-  await expect(detail.getByText('$ 15.000')).toBeVisible();
-  await expect(page.getByText('Presupuesto actualizado')).toBeVisible();
-  await detail.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: 'Eliminar orden' })).toHaveCount(0);
+  await detail.getByTestId('repair-open-edit').click();
+  const editor = page.getByRole('dialog', { name: 'Editar orden' });
+  await editor.getByLabel('Presupuesto').fill('80000');
+  await editor.getByLabel('Seña').fill('15000');
+  await editor.getByRole('button', { name: 'Guardar' }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.getByText('Orden actualizada')).toBeVisible();
   await expect(page.getByTestId('repair-column-RECIBIDO')).toContainText('$ 80.000');
 
   const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
@@ -100,21 +101,24 @@ test('the owner edits the budget and deletes the order, and an employee without 
     const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });
     await expect(staffDetail.getByText('$ 80.000')).toBeVisible();
     await expect(staffDetail.getByText('$ 15.000')).toBeVisible();
-    await expect(staffDetail.getByTestId('repair-edit-budget')).toBeDisabled();
-    await expect(staffDetail.getByTestId('repair-delete')).toBeDisabled();
-    await expect(staffDetail.getByText(/Acciones sensibles/)).toBeVisible();
     await expect(staffDetail.getByLabel('Presupuesto')).toHaveCount(0);
+    await staffDetail.getByTestId('repair-open-edit').click();
+    const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
+    await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
+    await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();
+    await expect(staffEditor.getByText(/Acciones sensibles/)).toBeVisible();
   } finally {
     await staffContext.close();
   }
 
-  await page.locator('[data-testid^="repair-card-"]').first().click();
-  await detail.getByTestId('repair-delete').click();
+  await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });
+  await page.getByRole('button', { name: 'Eliminar' }).click();
   const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
   await expect(confirm).toContainText('no se puede deshacer');
   await confirm.getByRole('button', { name: 'Cancelar' }).click();
   await expect(confirm).toBeHidden();
-  await detail.getByTestId('repair-delete').click();
+  await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });
+  await page.getByRole('button', { name: 'Eliminar' }).click();
   await page.getByRole('dialog', { name: 'Eliminar orden' }).getByRole('button', { name: 'Eliminar' }).click();
   await expect(page.getByText('Orden eliminada')).toBeVisible();
   await expect(page.locator('[data-testid^="repair-card-"]')).toHaveCount(0);
@@ -157,13 +161,17 @@ test.describe('phone', () => {
       await page.setViewportSize({ width, height: 844 });
       await expectInside(page, '.sheet.svc-sheet');
     }
-    await detail.getByTestId('repair-edit-budget').click();
+    await detail.getByTestId('repair-open-edit').click();
+    const editor = page.getByRole('dialog', { name: 'Editar orden' });
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectInside(page, '.sheet.svc-sheet');
     }
-    await detail.getByRole('button', { name: 'Cancelar' }).click();
-    await detail.getByTestId('repair-delete').click();
+    await editor.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(editor).toBeHidden();
+    await page.locator('[data-testid^="repair-card-"]').first().click();
+    await page.getByRole('dialog', { name: /#OT-0001/ }).getByTestId('repair-open-edit').click();
+    await page.getByRole('dialog', { name: 'Editar orden' }).getByTestId('repair-delete').click();
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectInside(page, '.dialog');

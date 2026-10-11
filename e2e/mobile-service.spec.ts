@@ -237,24 +237,28 @@ test.describe('service on a phone', () => {
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', /wa\.me/);
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveCount(1);
     await expect(detail.locator('.svc-log li')).toHaveCount(2);
+    await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
 
-    await detail.getByTestId('repair-edit-budget').click();
-    await detail.getByLabel('Presupuesto').fill('200');
-    await detail.getByLabel('Seña').fill('50');
+    await detail.getByTestId('repair-open-edit').click();
+    const editor = page.getByRole('dialog', { name: 'Editar orden' });
+    await editor.getByLabel('Presupuesto').fill('200');
+    await editor.getByLabel('Seña').fill('50');
     await expectFits(page);
-    await detail.getByTestId('repair-save-budget').click();
-    await expect(detail.getByText('US$ 200')).toBeVisible();
-    await expect(detail.getByText('US$ 50')).toBeVisible();
-
-    await detail.getByTestId('repair-delete').click();
+    await editor.getByTestId('repair-delete').click();
     const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
     await expect(confirm).toContainText('no se puede deshacer');
     await page.setViewportSize({ width: 360, height: 800 });
     await expectFits(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await confirm.getByRole('button', { name: 'Cancelar' }).click();
-    await detail.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
-    await expect(detail).toBeHidden();
+    await editor.getByRole('button', { name: 'Guardar' }).click();
+    await expect(editor).toBeHidden();
+    await expect(page.getByText('Orden actualizada')).toBeVisible();
+    await readyCard.click();
+    await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 200')).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 50')).toBeVisible();
+    await page.getByRole('dialog', { name: /#OT-0001/ }).locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await expect(page.getByRole('dialog', { name: /#OT-0001/ })).toBeHidden();
 
     const staffEmail = buildTestEmail(testInfo, 'service-staff');
     const invitation = await createInvitationViaApi(request, email, 'STAFF', staffEmail);
@@ -269,9 +273,11 @@ test.describe('service on a phone', () => {
       await staff.locator('[data-testid^="repair-card-"]').filter({ hasText: 'iPhone 14' }).click();
       const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });
       await expect(staffDetail.getByText('US$ 200')).toBeVisible();
-      await expect(staffDetail.getByTestId('repair-edit-budget')).toBeDisabled();
-      await expect(staffDetail.getByTestId('repair-delete')).toBeDisabled();
-      await expect(staffDetail.getByText(/Acciones sensibles/)).toBeVisible();
+      await staffDetail.getByTestId('repair-open-edit').click();
+      const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
+      await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
+      await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();
+      await expect(staffEditor.getByText(/Acciones sensibles/)).toBeVisible();
     } finally {
       await staffContext.close();
     }

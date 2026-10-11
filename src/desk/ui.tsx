@@ -216,7 +216,7 @@ export function DeskCta({ children, onClick }: { children: React.ReactNode; onCl
   );
 }
 
-function useEscape(onClose: () => void) {
+export function useEscape(onClose: () => void) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -275,6 +275,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
       firedAt.current = Date.now();
       onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
     },
+    onDragStart() { stop(); },
     onClick(event: React.MouseEvent) {
       if (Date.now() - firedAt.current < 700) {
         event.preventDefault();
@@ -306,24 +307,37 @@ export function RowMenu({ onMenu }: { onMenu: (point: { x: number; y: number }) 
   );
 }
 
-export function PressTarget({ as, className, testId, onActivate, onMenu, children }: {
+export function PressTarget({ as, className, testId, onActivate, onMenu, draggable, grabbed, onDragStart, onDragEnd, children }: {
   as: 'tr' | 'button';
   className?: string;
   testId?: string;
   onActivate: () => void;
   onMenu: (point: { x: number; y: number }) => void;
+  draggable?: boolean;
+  grabbed?: boolean;
+  onDragStart?: (event: React.DragEvent<HTMLElement>) => void;
+  onDragEnd?: (event: React.DragEvent<HTMLElement>) => void;
   children: React.ReactNode;
 }) {
   const bind = usePress(onMenu, onActivate);
+  const drag = draggable ? {
+    draggable: true as const,
+    'aria-grabbed': Boolean(grabbed),
+    onDragStart: (event: React.DragEvent<HTMLElement>) => {
+      bind.onDragStart();
+      onDragStart?.(event);
+    },
+    onDragEnd,
+  } : {};
   if (as === 'button') {
     return (
       <div className="press-host">
-        <button className={className} type="button" data-testid={testId} {...bind}>{children}</button>
+        <button className={className} type="button" data-testid={testId} {...bind} {...drag}>{children}</button>
         <RowMenu onMenu={onMenu} />
       </div>
     );
   }
-  return <tr className={className} data-testid={testId} {...bind}>{children}</tr>;
+  return <tr className={className} data-testid={testId} {...bind} {...drag}>{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className }: {

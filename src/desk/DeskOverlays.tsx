@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
-import { RepairOrderDetail, RepairOrderForm } from './RepairForms';
+import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
-import { DeskIcon, Dialog, useDesk } from './ui';
+import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
 import { EquipmentDetail, EquipmentForm } from './overlays/equipment';
@@ -23,7 +23,8 @@ export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
   const { open, close, canManageSensitive = true } = useDesk();
   const phone = usePhoneLayout();
-  const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : 'edit-cl';
+  useEscape(close);
+  const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'ot' ? 'edit-ot' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
       <div className="ctx" style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
@@ -81,10 +82,11 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
       sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],
       cj: ['este canje', 'Canje eliminado'],
       cl: ['este cliente', 'Cliente eliminado'],
+      ot: ['esta orden', 'Orden eliminada'],
     }[overlay.kind];
     return (
       <Dialog
-        title={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar registro'}
+        title={integratedSale ? 'Cancelar operaci\u00f3n' : overlay.kind === 'ot' ? 'Eliminar orden' : 'Eliminar registro'}
         text={integratedSale ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
         ok={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
         cancel={integratedSale ? 'Volver' : 'Cancelar'}
@@ -97,6 +99,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
           if (overlay.kind === 'sale') await ctx.deleteSale(overlay.id);
           if (overlay.kind === 'cj') await ctx.deleteTradeIn(overlay.id);
           if (overlay.kind === 'cl') await ctx.deleteClient(overlay.id);
+          if (overlay.kind === 'ot') await ctx.deleteRepairOrder(overlay.id);
         }, copy[1])}
       />
     );
@@ -112,6 +115,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} source={overlay.type === 'edit-cj' ? overlay.source : 'tradeins'} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-ot') return <RepairOrderForm busy={busy} error={error} />;
   if (overlay.type === 'ot') return <RepairOrderDetail id={overlay.id} busy={busy} />;
+  if (overlay.type === 'edit-ot') return <RepairOrderEditor id={overlay.id} busy={busy} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;

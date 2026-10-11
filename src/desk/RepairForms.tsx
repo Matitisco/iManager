@@ -25,6 +25,12 @@ function isoDate(value: string) {
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
+function arToIso(value: string | null | undefined) {
+  const match = value?.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return '';
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 export function RepairOrderForm({ busy, error }: { busy: boolean; error: string | null }) {
   const { clients, addRepairOrder } = useAppContext();
   const money = useMoney();
@@ -154,23 +160,14 @@ function storedCurrency(value: string | null | undefined): 'ARS' | 'USD' | null 
 }
 
 export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
-  const { repairOrders = [], clients = [], changeRepairStatus, updateRepairOrder, deleteRepairOrder } = useAppContext();
+  const { repairOrders = [], changeRepairStatus } = useAppContext();
   const money = useMoney();
-  const { close, toast, canManageSensitive = true } = useDesk();
+  const { close, open, toast } = useDesk();
   const catalogs = useCatalogs();
   const phone = usePhoneLayout();
   const order = repairOrders.find((item) => item.id === id);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editingIdentity, setEditingIdentity] = useState(false);
-  const [deviceDraft, setDeviceDraft] = useState('');
-  const [clientNameDraft, setClientNameDraft] = useState('');
-  const [clientIdDraft, setClientIdDraft] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [estimate, setEstimate] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [bad, setBad] = useState<Record<string, string>>({});
   const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES)
     .filter((status) => !isRetiredRepairStatus(status.id, status.label));
   if (!order) {
@@ -185,44 +182,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const index = statuses.findIndex((status) => status.id === shownStatus);
   const next = index >= 0 ? statuses[index + 1] : undefined;
   const show = (value: number) => money.show(value, order.currency);
-  const startEdit = () => {
-    setEstimate(order.estimate == null ? '' : money.inputValue(order.estimate, order.currency));
-    setDeposit(money.inputValue(order.deposit, order.currency));
-    setBad({});
-    setError('');
-    setEditingIdentity(false);
-    setEditing(true);
-  };
-  const startIdentity = () => {
-    setDeviceDraft(order.device);
-    setClientNameDraft(order.clientName);
-    setClientIdDraft(order.clientId ?? '');
-    setBad({});
-    setError('');
-    setEditing(false);
-    setEditingIdentity(true);
-  };
-  const saveIdentity = async () => {
-    const nextBad: Record<string, string> = {};
-    if (!deviceDraft.trim()) nextBad.device = 'Completá este dato';
-    setBad(nextBad);
-    if (Object.keys(nextBad).length || !updateRepairOrder) return;
-    setError('');
-    setSaving(true);
-    try {
-      await updateRepairOrder(order.id, {
-        device: deviceDraft.trim(),
-        clientId: clientIdDraft || null,
-        clientName: clientNameDraft.trim() || null,
-      });
-      setEditingIdentity(false);
-      toast('Orden actualizada');
-    } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'No se pudo guardar la orden'));
-    } finally {
-      setSaving(false);
-    }
-  };
   const advance = async () => {
     if (!next || !changeRepairStatus) return;
     setError('');
@@ -236,19 +195,178 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       setSaving(false);
     }
   };
-  const saveBudget = async () => {
+
+  const clientRow = order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b>{order.clientName}</b></div> : null;
+  const received = dayMonth(order.receivedAt) || formatShortDate(order.receivedAt);
+  const footer = (
+    <div className={`sacts${next ? ' svc-acts' : ''}`}>
+      <button type="button" className="btn2 s" onClick={close}>Cerrar</button>
+      <button type="button" className="btn2 s" data-testid="repair-open-edit" onClick={() => open({ type: 'edit-ot', id: order.id })}>Editar</button>
+      {next ? <button type="button" className="btn2 p" disabled={busy || saving} onClick={() => { void advance(); }}>{saving ? 'Guardando…' : `Pasar a ${next.label}`}</button> : null}
+    </div>
+  );
+
+  if (!phone) return (
+    <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${received}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
+      <div className="svc-steps" aria-hidden="true">
+        {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
+      </div>
+      <div className="svc-now">
+        <Pill status={shownStatus} kind="REPAIR_STATUS" />
+        {next ? <span>Sigue: {next.label}</span> : null}
+      </div>
+      {error ? <div className="ferr">{error}</div> : null}
+      {clientRow}
+      <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
+      <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
+      <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
+      <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
+      <div className="svc-log">
+        <span>Historial</span>
+        <ol>
+          {order.events.map((event) => {
+            const meta = repairStatusMeta(event.status, statuses);
+            return (
+              <li key={event.id}>
+                <i style={{ background: meta.color }} />
+                <b>{meta.label}</b>
+                <small>{event.createdAt}</small>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {order.whatsappUrl ? (
+        <div className="svc-wa">
+          <span>Listo para avisar al cliente</span>
+          <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+        </div>
+      ) : null}
+      {footer}
+    </Sheet>
+  );
+
+  const late = repairOverdue(order);
+  const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
+  const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
+  const step = index >= 0 ? index + 1 : 0;
+  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
+  return (
+    <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close}>
+      <div className="svc-steps" aria-hidden="true">
+        {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
+      </div>
+      <div className="svc-now">
+        <Pill status={shownStatus} kind="REPAIR_STATUS" />
+      </div>
+      {step > 0 ? (
+        <p className="svc-step" data-testid="repair-step">
+          Paso {step} de {statuses.length}
+          {next ? <> · sigue <b>{next.label}</b></> : null}
+        </p>
+      ) : null}
+      {error ? <div className="ferr">{error}</div> : null}
+      {clientRow}
+      <div className="kv"><span>Ingreso</span><b>{received}</b></div>
+      <div className="svc-fault-card">
+        <span>Falla</span>
+        <b>{repairFault(order)}</b>
+      </div>
+      <div className="svc-pair">
+        <div><span>IMEI</span><b>{order.imei || '—'}</b></div>
+        <div><span>Entrega estimada</span><b className={late ? 'late' : ''}>{dueLabel}</b></div>
+      </div>
+      <div className="svc-pair">
+        <div><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
+        <div><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      </div>
+      <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
+      <div className="svc-log">
+        <span>Historial</span>
+        <ol>
+          {order.events.map((event) => {
+            const meta = repairStatusMeta(event.status, statuses);
+            const current = event.id === currentEventId;
+            return (
+              <li key={event.id} className={current ? 'now' : undefined}>
+                <i className={current ? 'now' : undefined} style={current ? undefined : { background: meta.color }} />
+                <b>{meta.label}</b>
+                <small>{event.createdAt}</small>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {order.whatsappUrl ? (
+        <div className="svc-wa">
+          <span>Listo para avisar al cliente</span>
+          <a className="svc-wa-icon" href={order.whatsappUrl} target="_blank" rel="noreferrer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 19l1.2-3.4A8 8 0 1 1 8.6 19.2L5 19z" />
+              <path d="M9 10.2c.2 1.6 1.8 3.2 3.4 3.6.4.1.8 0 1.1-.3l.8-.8c.2-.2.2-.5 0-.7l-1.2-1.2c-.2-.2-.5-.2-.7 0l-.4.4" />
+            </svg>
+            Abrir WhatsApp
+          </a>
+        </div>
+      ) : null}
+      {footer}
+    </Sheet>
+  );
+}
+
+export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
+  const { repairOrders = [], clients = [], updateRepairOrder, deleteRepairOrder } = useAppContext();
+  const money = useMoney();
+  const { close, toast, canManageSensitive = true } = useDesk();
+  const phone = usePhoneLayout();
+  const order = repairOrders.find((item) => item.id === id);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [device, setDevice] = useState(order?.device ?? '');
+  const [clientName, setClientName] = useState(order?.clientName ?? '');
+  const [clientId, setClientId] = useState(order?.clientId ?? '');
+  const [imei, setImei] = useState(order?.imei ?? '');
+  const [tags, setTags] = useState<string[]>(order?.faultTags ?? []);
+  const [fault, setFault] = useState(order?.fault ?? '');
+  const [estimate, setEstimate] = useState(order?.estimate == null ? '' : money.inputValue(order.estimate, order.currency));
+  const [deposit, setDeposit] = useState(order ? money.inputValue(order.deposit, order.currency) : '');
+  const [delivery, setDelivery] = useState(arToIso(order?.estimatedDelivery));
+  const [technician, setTechnician] = useState(order?.technician ?? '');
+  const [bad, setBad] = useState<Record<string, string>>({});
+
+  if (!order) {
+    return (
+      <Sheet className="svc-sheet" title="Editar orden" onClose={close}>
+        <p className="sub">No encontré esta orden.</p>
+        <Actions busy={busy} primary="Cerrar" secondary="Volver" onSecondary={close} onPrimary={close} />
+      </Sheet>
+    );
+  }
+
+  const toggleTag = (tag: string) => {
+    setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+    setBad((current) => ({ ...current, fault: '' }));
+  };
+  const save = async () => {
+    const nextBad: Record<string, string> = {};
+    if (!device.trim()) nextBad.device = 'Completá este dato';
+    if (imeiFormatError(imei)) nextBad.imei = IMEI_FORMAT_MESSAGE;
+    if (!fault.trim() && tags.length === 0) nextBad.fault = 'Contá la falla';
     const typedEstimate = estimate.trim() ? parseMoney(estimate) : null;
     const typedDeposit = parseMoney(deposit);
-    const nextBad: Record<string, string> = {};
-    if (typedEstimate != null && typedEstimate > MONEY_CAP) nextBad.estimate = 'El presupuesto es demasiado alto';
-    if (typedDeposit > MONEY_CAP) nextBad.deposit = 'La seña es demasiado alta';
+    if (canManageSensitive) {
+      if (typedEstimate != null && typedEstimate > MONEY_CAP) nextBad.estimate = 'El presupuesto es demasiado alto';
+      if (typedDeposit > MONEY_CAP) nextBad.deposit = 'La seña es demasiado alta';
+    }
     setBad(nextBad);
     if (Object.keys(nextBad).length || !updateRepairOrder) return;
-    const group = money.commitGroup([
+    const group = canManageSensitive ? money.commitGroup([
       { typed: typedEstimate ?? 0, original: order.estimate ?? 0, currency: order.currency },
       { typed: typedDeposit, original: order.deposit, currency: order.currency },
-    ]);
-    if (group.blocked) {
+    ]) : null;
+    if (group?.blocked) {
       setError(FX_WARNING);
       return;
     }
@@ -256,14 +374,24 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     setSaving(true);
     try {
       await updateRepairOrder(order.id, {
-        estimate: typedEstimate == null ? null : group.amounts[0]?.amount ?? typedEstimate,
-        deposit: group.amounts[1]?.amount ?? typedDeposit,
-        currency: storedCurrency(group.amounts[0]?.currency ?? group.amounts[1]?.currency ?? order.currency),
+        device: device.trim(),
+        clientId: clientId || null,
+        clientName: clientName.trim() || null,
+        imei,
+        fault: fault.trim(),
+        faultTags: tags,
+        technician: technician.trim(),
+        estimatedDelivery: delivery ? isoDate(delivery) : null,
+        ...(group ? {
+          estimate: typedEstimate == null ? null : group.amounts[0]?.amount ?? typedEstimate,
+          deposit: group.amounts[1]?.amount ?? typedDeposit,
+          currency: storedCurrency(group.amounts[0]?.currency ?? group.amounts[1]?.currency ?? order.currency),
+        } : {}),
       });
-      setEditing(false);
-      toast('Presupuesto actualizado');
+      close();
+      toast('Orden actualizada');
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'No se pudo guardar el presupuesto'));
+      setError(getFriendlyErrorMessage(err, 'No se pudo guardar la orden'));
     } finally {
       setSaving(false);
     }
@@ -284,193 +412,78 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     }
   };
 
-  const identityBlock = editingIdentity ? (
-    <div className="svc-edit" data-testid="repair-identity-edit">
-      <Field label="Equipo" error={bad.device}>
-        <input id="repair-device" data-testid="repair-device-input" value={deviceDraft} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDeviceDraft(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
-      </Field>
-      <ClientField
-        clients={clients}
-        label="Cliente (opcional)"
-        value={clientNameDraft}
-        linked={Boolean(clientIdDraft)}
-        onValue={(value) => { setClientNameDraft(value); setClientIdDraft(''); }}
-        onPick={(client) => { setClientNameDraft(client.name); setClientIdDraft(client.id); }}
-      />
-      <div className="sacts">
-        <button type="button" className="btn2 s" disabled={saving} onClick={() => { setEditingIdentity(false); setError(''); }}>Cancelar</button>
-        <button type="button" className="btn2 p" data-testid="repair-save-identity" disabled={busy || saving} onClick={() => { void saveIdentity(); }}>{saving ? 'Guardando…' : 'Guardar'}</button>
-      </div>
-    </div>
-  ) : (
-    <div className="svc-identity-actions">
-      {order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b>{order.clientName}</b></div> : null}
-      <button type="button" className="btn2 s" data-testid="repair-edit-identity" disabled={busy || saving} onClick={startIdentity}>Editar equipo</button>
-    </div>
-  );
-
-  const budgetFields = (
-    <div className="svc-edit">
-      <div className="frow">
-        <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
-          <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '' })); }} />
-        </Field>
-        <Field label="Seña" mark={money.active} error={bad.deposit}>
-          <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
-        </Field>
-      </div>
-      <div className="sacts">
-        <button type="button" className="btn2 s" disabled={saving} onClick={() => { setEditing(false); setError(''); }}>Cancelar</button>
-        <button type="button" className="btn2 p" data-testid="repair-save-budget" disabled={busy || saving} onClick={() => { void saveBudget(); }}>{saving ? 'Guardando…' : 'Guardar'}</button>
-      </div>
-    </div>
-  );
-  const sensitive = (
-    <div className="svc-sensitive">
-      <button type="button" className="btn2 s" data-testid="repair-edit-budget" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={startEdit}>Editar presupuesto</button>
-      <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Eliminar orden</button>
-      {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
-    </div>
-  );
-
-  const footer = next ? (
-    <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
-  ) : (
-    <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
-  );
-  const deleteDialog = confirmDelete ? (
-    <Dialog
-      title="Eliminar orden"
-      text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
-      ok="Eliminar"
-      danger
-      busy={saving}
-      error={error}
-      onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
-      onOk={() => { void remove(); }}
-    />
-  ) : null;
-
-  if (!phone) return (
-    <>
-      <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
-        <div className="svc-steps" aria-hidden="true">
-          {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
-        </div>
-        <div className="svc-now">
-          <Pill status={shownStatus} kind="REPAIR_STATUS" />
-          {next ? <span>Sigue: {next.label}</span> : null}
-        </div>
-        {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
-        {identityBlock}
-        <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
-        <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
-        {editing ? budgetFields : (
-          <>
-            <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
-            <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
-            {sensitive}
-          </>
-        )}
-        <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
-        <div className="svc-log">
-          <span>Historial</span>
-          <ol>
-            {order.events.map((event) => {
-              const meta = repairStatusMeta(event.status, statuses);
-              return (
-                <li key={event.id}>
-                  <i style={{ background: meta.color }} />
-                  <b>{meta.label}</b>
-                  <small>{event.createdAt}</small>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-        {order.whatsappUrl ? (
-          <div className="svc-wa">
-            <span>Listo para avisar al cliente</span>
-            <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
-          </div>
-        ) : null}
-        {footer}
-      </Sheet>
-      {deleteDialog}
-    </>
-  );
-
-  const late = repairOverdue(order);
-  const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
-  const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
-  const step = index >= 0 ? index + 1 : 0;
-  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
   return (
     <>
-      <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close}>
-        <div className="svc-steps" aria-hidden="true">
-          {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
-        </div>
-        <div className="svc-now">
-          <Pill status={shownStatus} kind="REPAIR_STATUS" />
-        </div>
-        {step > 0 ? (
-          <p className="svc-step" data-testid="repair-step">
-            Paso {step} de {statuses.length}
-            {next ? <> · sigue <b>{next.label}</b></> : null}
-          </p>
-        ) : null}
+      <Sheet wide className="svc-sheet" title="Editar orden" subtitle={phone ? `#${order.code} · ${order.device}` : `#${order.code}`} onClose={close}>
         {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
-        {identityBlock}
-        <div className="svc-fault-card">
-          <span>Falla</span>
-          <b>{repairFault(order)}</b>
-        </div>
-        <div className="svc-pair">
-          <div><span>IMEI</span><b>{order.imei || '—'}</b></div>
-          <div><span>Entrega estimada</span><b className={late ? 'late' : ''}>{dueLabel}</b></div>
-        </div>
-        {editing ? budgetFields : (
-          <>
-            <div className="svc-pair">
-              <div><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
-              <div><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+        <div className="svc-grid">
+          <div>
+            <div className="svc-lead">
+              <div className="svc-lead-device">
+                <Field label="Equipo" error={bad.device}>
+                  <input id="repair-device" data-testid="repair-device-input" value={device} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDevice(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
+                </Field>
+              </div>
+              <ClientField
+                className="svc-lead-client"
+                label="Cliente (opcional)"
+                clients={clients}
+                value={clientName}
+                linked={Boolean(clientId)}
+                onValue={(value) => { setClientName(value); setClientId(''); }}
+                onPick={(client) => { setClientName(client.name); setClientId(client.id); }}
+              />
+              <div className="svc-lead-imei">
+                <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
+                  <input value={imei} inputMode="numeric" maxLength={15} placeholder="15 dígitos" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); setBad((current) => ({ ...current, imei: '' })); }} />
+                </Field>
+              </div>
             </div>
-            {sensitive}
-          </>
-        )}
-        <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
-        <div className="svc-log">
-          <span>Historial</span>
-          <ol>
-            {order.events.map((event) => {
-              const meta = repairStatusMeta(event.status, statuses);
-              const current = event.id === currentEventId;
-              return (
-                <li key={event.id} className={current ? 'now' : undefined}>
-                  <i className={current ? 'now' : undefined} style={current ? undefined : { background: meta.color }} />
-                  <b>{meta.label}</b>
-                  <small>{event.createdAt}</small>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-        {order.whatsappUrl ? (
-          <div className="svc-wa">
-            <span>Listo para avisar al cliente</span>
-            <a className="svc-wa-icon" href={order.whatsappUrl} target="_blank" rel="noreferrer">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 19l1.2-3.4A8 8 0 1 1 8.6 19.2L5 19z" />
-                <path d="M9 10.2c.2 1.6 1.8 3.2 3.4 3.6.4.1.8 0 1.1-.3l.8-.8c.2-.2.2-.5 0-.7l-1.2-1.2c-.2-.2-.5-.2-.7 0l-.4.4" />
-              </svg>
-              Abrir WhatsApp
-            </a>
+            <Field label="Falla reportada" error={bad.fault}><span /></Field>
+            <div className="svc-faults">
+              {REPAIR_FAULTS.map((tag) => (
+                <button key={tag} type="button" className={tags.includes(tag) ? 'on' : ''} aria-pressed={tags.includes(tag)} onClick={() => toggleTag(tag)}>{tag}</button>
+              ))}
+            </div>
+            <label className={`fl${bad.fault ? ' bad' : ''}`}>
+              <textarea className="svc-note" value={fault} maxLength={2000} placeholder="Contá qué le pasa al equipo" onChange={(event) => { setFault(event.target.value); setBad((current) => ({ ...current, fault: '' })); }} />
+            </label>
           </div>
-        ) : null}
-        {footer}
+          <div>
+            <div className="frow">
+              <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
+                <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '' })); }} />
+              </Field>
+              <Field label="Seña" mark={money.active} error={bad.deposit}>
+                <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
+              </Field>
+            </div>
+            {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
+            <div className="frow">
+              <ReportDatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
+              <Field label="Técnico">
+                <input value={technician} maxLength={120} placeholder="Técnico Ejemplo" onChange={(event) => setTechnician(event.target.value)} />
+              </Field>
+            </div>
+            <div className="svc-sensitive">
+              <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Eliminar orden</button>
+            </div>
+          </div>
+        </div>
+        <Actions busy={busy || saving} primary="Guardar" onSecondary={close} onPrimary={() => { void save(); }} />
       </Sheet>
-      {deleteDialog}
+      {confirmDelete ? (
+        <Dialog
+          title="Eliminar orden"
+          text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
+          ok="Eliminar"
+          danger
+          busy={saving}
+          error={error}
+          onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
+          onOk={() => { void remove(); }}
+        />
+      ) : null}
     </>
   );
 }

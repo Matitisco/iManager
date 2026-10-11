@@ -22,11 +22,12 @@ export type Overlay =
   | { type: 'edit-cj'; id: string; source?: 'sales' | 'tradeins' | 'inventory' | 'clients' }
   | { type: 'new-ot' }
   | { type: 'ot'; id: string }
+  | { type: 'edit-ot'; id: string }
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
-  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl'; id: string; label: string }
-  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl'; id: string; label: string; x: number; y: number }
+  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string }
+  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' | 'cj' }
   | { type: 'store' }
   | { type: 'contact' }
