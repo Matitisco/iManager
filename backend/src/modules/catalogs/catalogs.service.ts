@@ -1,4 +1,5 @@
 import type { CatalogKind, Prisma } from "@prisma/client";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { retireRepairStatuses } from "../repairs/retire-repair-statuses.js";
 
@@ -36,14 +37,7 @@ export interface CatalogOptionResponse {
   count: number;
 }
 
-class CatalogError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode = 400) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
+class CatalogError extends DomainError {}
 
 const DEFAULTS: Record<Kind, { value: string; label: string; color: string | null; isSystem: boolean }[]> = {
   INVENTORY_STATUS: [

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
@@ -82,14 +83,7 @@ export interface SaleCategoryResponse {
   name: string;
 }
 
-class SalesError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode = 400) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
+class SalesError extends DomainError {}
 
 const toDecimal = (value: number) => new Decimal(value);
 
