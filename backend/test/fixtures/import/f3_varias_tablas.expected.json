@@ -1,0 +1,210 @@
+{
+ "currency": "USD",
+ "rows": [
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 910,
+   "color": "Purple",
+   "imei": "356347861221387"
+  },
+  {
+   "model": "13",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1100,
+   "color": "Natural",
+   "imei": "357628331258153"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 300,
+   "color": "Blue",
+   "imei": "356668364507495"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 480,
+   "color": "Red",
+   "imei": "354366764020679"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "condition": "NUEVO",
+   "price": 1250,
+   "color": "Black",
+   "imei": "358773132281718"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "condition": "NUEVO",
+   "price": 840,
+   "color": "Midnight",
+   "imei": "359042486111489"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 820,
+   "color": "Midnight",
+   "imei": "359008474537838"
+  },
+  {
+   "model": "11",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1030,
+   "color": "Natural",
+   "imei": "350037614365370"
+  },
+  {
+   "model": "16 Pro",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1170,
+   "color": "Midnight",
+   "imei": "356304813734337"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 520,
+   "color": "Black",
+   "imei": "359792376092603"
+  },
+  {
+   "model": "15 Pro Max",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1310,
+   "color": "Red",
+   "imei": "350026751125328"
+  },
+  {
+   "model": "11",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1210,
+   "color": "Midnight",
+   "imei": "355572101415618"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1350,
+   "color": "Midnight",
+   "imei": "351073587355706",
+   "batteryHealth": "87%"
+  },
+  {
+   "model": "17 Pro Max",
+   "capacity": "512 GB",
+   "condition": "USADO",
+   "price": 1210,
+   "color": "Black",
+   "imei": "350710431955459",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1010,
+   "color": "Red",
+   "imei": "350910317764672",
+   "batteryHealth": "86%"
+  },
+  {
+   "model": "12 Pro",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 630,
+   "color": "Desert",
+   "imei": "359355759183623",
+   "batteryHealth": "87%"
+  },
+  {
+   "model": "12",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 1660,
+   "color": "Red",
+   "imei": "358526114913167",
+   "batteryHealth": "93%"
+  },
+  {
+   "model": "12 Pro",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1310,
+   "color": "Midnight",
+   "imei": "357938144494544",
+   "batteryHealth": "82%"
+  },
+  {
+   "model": "14 Pro",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 870,
+   "color": "White",
+   "imei": "353249351643883",
+   "batteryHealth": "83%"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 510,
+   "color": "Midnight",
+   "imei": "350737504310399",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "12",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 700,
+   "color": "Black",
+   "imei": "357940199530552",
+   "batteryHealth": "94%"
+  },
+  {
+   "model": "13",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1780,
+   "color": "Red",
+   "imei": "353056529413078",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "12",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1260,
+   "color": "Natural",
+   "imei": "358281264644604",
+   "batteryHealth": "81%"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1180,
+   "color": "Red",
+   "imei": "353663062611695",
+   "batteryHealth": "78%"
+  }
+ ],
+ "notes": "dos tablas (nuevos y usados) en la misma hoja con encabezado repetido; condición solo en el título de cada tabla; capacidad como número"
+}

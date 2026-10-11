@@ -1,0 +1,371 @@
+{
+ "currency": "USD",
+ "rows": [
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "batteryHealth": "100%",
+   "color": "Black",
+   "price": 240.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "11 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "100%",
+   "color": "Gold",
+   "price": 340.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Midnight",
+   "price": 420.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13 Mini",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Midnight",
+   "price": 350.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Grafito - Gold",
+   "price": 520.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13 Pro Max",
+   "capacity": "128 GB",
+   "batteryHealth": "84%",
+   "color": "Green",
+   "price": 500.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13 Pro Max",
+   "capacity": "128 GB",
+   "batteryHealth": "85%",
+   "color": "Starlight",
+   "price": 600.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "13 Pro Max",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": " Blue",
+   "price": 600.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "batteryHealth": "83-84%",
+   "color": "Midnight - Blue- Yellow- Lila",
+   "price": 390.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "batteryHealth": "85-86%",
+   "color": "Midnight",
+   "price": 410.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "14 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Purple - Black",
+   "price": 570.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "batteryHealth": "85%",
+   "color": "Black",
+   "price": 520.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "batteryHealth": "88-89%",
+   "color": "Black",
+   "price": 570.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "batteryHealth": "90%",
+   "color": "Black",
+   "price": 580.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Black",
+   "price": 600.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "86-87%",
+   "color": "Blue- White - Black",
+   "price": 620.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "88-89%",
+   "color": "Blue - Natural",
+   "price": 630.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Blue",
+   "price": 670.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro",
+   "capacity": "256 GB",
+   "batteryHealth": "88%",
+   "color": "Natural",
+   "price": 680.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "83-84%",
+   "color": "Natural - Blue",
+   "price": 700.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "85-86%",
+   "color": "Natural - Blue",
+   "price": 710.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "88%",
+   "color": "Blue - Black",
+   "price": 720.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "batteryHealth": "92-93%",
+   "color": "Black",
+   "price": 650.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "batteryHealth": "96%",
+   "color": "Black",
+   "price": 690.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "batteryHealth": "97%",
+   "color": "Ultramarino",
+   "price": 700.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Plus",
+   "capacity": "128 GB",
+   "batteryHealth": "100%",
+   "color": "Ultramarine",
+   "price": 750.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro",
+   "capacity": "128 GB",
+   "batteryHealth": "90%",
+   "color": "Natural - Desert",
+   "price": 780.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro",
+   "capacity": "256 GB",
+   "batteryHealth": "92%",
+   "color": "Black",
+   "price": 850.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "89%",
+   "color": "Black",
+   "price": 950.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "91%",
+   "color": "Black",
+   "price": 970.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "92%",
+   "color": "Black",
+   "price": 940.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "16 Pro Max",
+   "capacity": "256 GB",
+   "batteryHealth": "96%",
+   "color": "Desert",
+   "price": 960.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "color": "Blue",
+   "price": 730.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "color": "Teal - White - Black",
+   "price": 850.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "16",
+   "capacity": "256 GB",
+   "color": "Ultramarine",
+   "price": 950.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "17e",
+   "capacity": "256 GB",
+   "color": "White",
+   "price": 740.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "17",
+   "capacity": "256 GB",
+   "color": "Black - Sage - White",
+   "price": 990.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "17 Pro Max",
+   "capacity": "256 GB",
+   "color": "Blue",
+   "price": 1520.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "17 Pro Max",
+   "capacity": "512 GB",
+   "color": "Silver",
+   "price": 1790.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "S26 Ultra",
+   "capacity": "256 GB",
+   "color": "Black",
+   "price": 1290.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "17 Pro",
+   "capacity": "256 GB",
+   "batteryHealth": "100%",
+   "color": "Blue",
+   "price": 1270.0,
+   "condition": "USADO"
+  },
+  {
+   "model": "MacBook Neo",
+   "capacity": "256 GB",
+   "color": "Blue",
+   "price": 940.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "iPad A16",
+   "capacity": "128 GB",
+   "color": "Blue",
+   "price": 510.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "iPad A16",
+   "capacity": "256 GB",
+   "color": "Silver",
+   "price": 650.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "S11 46MM Jet black Al back GPS",
+   "capacity": "",
+   "price": 530.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "AirPods Pro 3",
+   "capacity": "",
+   "price": 330.0,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "Adaptador 20 W",
+   "capacity": "",
+   "price": 51.25,
+   "condition": "NUEVO"
+  },
+  {
+   "model": "AirTag Pack x4",
+   "capacity": "",
+   "price": 194.31,
+   "condition": "NUEVO"
+  }
+ ],
+ "notes": "Excel real de Matias; accesorios en ARS (cotización 1405); fila '17 Pro 256GB 100%' es un seminuevo dentro de la hoja de nuevos"
+}

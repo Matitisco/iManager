@@ -151,7 +151,9 @@ export function acceptModelPlan(
     const model = byName.get(sheet.name);
     if (!model) return fallback();
     const rows = sheet.rows;
-    if (!headerLooksValid(rows, model.headerRow, catalog)) return fallback();
+    const headerCells = rows[model.headerRow - 1] ?? [];
+    const hasCore = ["model", "price"].every((field) => model.mapping.some((column) => column.field === field && headerCells.some((cell) => cell.trim() && cell.trim().toLowerCase() === column.header.trim().toLowerCase())));
+    if (!headerLooksValid(rows, model.headerRow, catalog) && !hasCore) return fallback();
     const headers = rows[model.headerRow - 1] ?? [];
     const seen = new Set<string>();
     const mapping = model.mapping.flatMap((column) => {
@@ -166,7 +168,8 @@ export function acceptModelPlan(
     const priceHeader = mapping.find((column) => column.field === "price")?.header ?? "";
     const detectedCurrency = priceCurrencyOf(priceHeader);
     const dataStartRow = clamp(model.dataStartRow, model.headerRow + 1, rows.length + 1);
-    const dataEndRow = clamp(model.dataEndRow, dataStartRow - 1, rows.length);
+    // The model only sees a sample; the range always runs to the last row and footers/blank rows are filtered later.
+    const dataEndRow = rows.length;
     return {
       name: sheet.name,
       include: model.include,
