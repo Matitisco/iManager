@@ -278,7 +278,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         >
         <div data-testid="auth-scroll" className="max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:px-5 max-[760px]:pt-6 max-[760px]:pb-2">
         <motion.div layout className="w-full max-w-md max-[760px]:max-w-none">
-          <div className="lg:hidden mb-12 max-[760px]:mb-8">
+          <div className="lg:hidden mb-12 max-[760px]:mb-8" data-testid="login-brand">
             <BrandLockup variant="tagline" className="h-12 w-auto max-w-full" />
           </div>
 
