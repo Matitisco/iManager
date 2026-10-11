@@ -32,6 +32,7 @@ vi.mock("../auth/session.service.js", () => ({
   buildAppSessionForUser: buildAppSessionForUserMock,
 }));
 
+import { MANUAL_QUOTE_ORDER_ERROR } from "../../lib/manual-quote.js";
 import { completeOnboarding } from "./onboarding.service.js";
 
 describe("onboarding.service", () => {
@@ -50,6 +51,17 @@ describe("onboarding.service", () => {
     await expect(
       completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "Mi Tienda", instagram: "mi tienda" })
     ).rejects.toThrow(/perfil/);
+    expect(prismaMock.store.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a manual buy rate above the sell rate", async () => {
+    await expect(completeOnboarding(
+      { firebaseUid: "firebase-user" },
+      { storeName: "Mi Tienda", instagram: "@tienda", exchangeMode: "manual", manualBuy: 1400, manualSell: 1300 },
+    )).rejects.toMatchObject({
+      statusCode: 400,
+      message: MANUAL_QUOTE_ORDER_ERROR,
+    });
     expect(prismaMock.store.create).not.toHaveBeenCalled();
   });
 

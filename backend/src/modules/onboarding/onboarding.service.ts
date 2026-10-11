@@ -4,6 +4,7 @@ import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lo
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser, type AppSessionResponse } from "../auth/session.service.js";
 import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
+import { assertManualQuoteOrder } from "../../lib/manual-quote.js";
 import { requireInstagram } from "../stores/store-contact.js";
 
 export interface CompleteOnboardingInput {
@@ -28,6 +29,10 @@ export async function completeOnboarding(
   }
 
   const instagram = requireInstagram(input.instagram);
+  const exchangeMode = asExchangeMode(input.exchangeMode);
+  const manualBuy = positiveRate(input.manualBuy);
+  const manualSell = positiveRate(input.manualSell);
+  if (exchangeMode === "manual") assertManualQuoteOrder(manualBuy, manualSell);
 
   const existingMembership = await prisma.storeMember.findFirst({
     where: { userId: user.id, isDefault: true },
@@ -51,10 +56,10 @@ export async function completeOnboarding(
           name: trimmedStoreName,
           instagram,
           currency: asCurrency(input.currency),
-          exchangeMode: asExchangeMode(input.exchangeMode),
+          exchangeMode,
           exchangeSource: asExchangeSource(input.exchangeSource),
-          manualBuy: positiveRate(input.manualBuy),
-          manualSell: positiveRate(input.manualSell),
+          manualBuy,
+          manualSell,
         },
       });
 
