@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail } from './utils';
 
 const ORDER_ERROR = 'La compra no puede ser mayor que la venta';
+const SHOTS = process.env.MANUAL_QUOTE_SHOTS?.trim();
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({
@@ -27,7 +28,6 @@ async function rejectInvertedQuote(page: Page, dialogName: string) {
   await error.scrollIntoViewIfNeeded();
   await expect(error).toBeVisible();
   await expect(editor).toBeVisible();
-  return editor;
 }
 
 test.describe('desktop manual quote', () => {
@@ -41,6 +41,7 @@ test.describe('desktop manual quote', () => {
     await page.getByTestId('sidebar-tab-settings').click();
     await page.getByRole('button', { name: store }).click();
     await rejectInvertedQuote(page, 'Datos de la tienda');
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/manual-quote-1440x900.png` });
   });
 });
 
@@ -57,5 +58,6 @@ test.describe('phone manual quote', () => {
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
     await page.getByRole('button', { name: store }).click();
     await rejectInvertedQuote(page, 'Tienda');
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/manual-quote-390x844.png` });
   });
 });
