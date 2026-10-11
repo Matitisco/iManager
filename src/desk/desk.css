@@ -788,6 +788,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .sacts,
   .sheet.svc-sheet .frow,
   .sheet.svc-sheet .svc-lead { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .fl .err { overflow-wrap: anywhere; }
   .sheet.svc-sheet .svc-lead-device,
   .sheet.svc-sheet .svc-lead-imei,
   .sheet.svc-sheet .svc-lead-client { grid-column: 1; }

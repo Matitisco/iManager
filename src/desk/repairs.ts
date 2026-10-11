@@ -107,3 +107,9 @@ export function presentRepairStatusChange(
 export function countPhrase(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
+
+export const DEPOSIT_OVER_ESTIMATE = 'La seña no puede superar el presupuesto';
+
+export function depositExceedsEstimate(estimate: number | null | undefined, deposit: number) {
+  return estimate != null && deposit > estimate;
+}

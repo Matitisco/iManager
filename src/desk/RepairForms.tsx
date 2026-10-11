@@ -9,7 +9,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../li
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
-import { dayMonth, DEFAULT_REPAIR_STATUSES, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
 
@@ -61,9 +61,12 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
 
   const save = async () => {
     const next: Record<string, string> = {};
+    const typedEstimate = estimate.trim() ? parseMoney(estimate) : null;
+    const typedDeposit = parseMoney(deposit);
     if (!device.trim()) next.device = 'Completá este dato';
     if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
+    if (depositExceedsEstimate(typedEstimate, typedDeposit)) next.deposit = DEPOSIT_OVER_ESTIMATE;
     setBad(next);
     if (Object.keys(next).length || !addRepairOrder) return;
     setSaving(true);
@@ -75,8 +78,8 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         imei,
         fault: fault.trim(),
         faultTags: tags,
-        estimate: estimate.trim() ? parseMoney(estimate) : null,
-        deposit: parseMoney(deposit),
+        estimate: typedEstimate,
+        deposit: typedDeposit,
         currency: money.active,
         technician: technician.trim(),
         status: status || REPAIR_RECEIVED,
@@ -129,11 +132,11 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         </div>
         <div>
           <div className="frow">
-            <Field label="Presupuesto estimado" mark={money.active}>
-              <input value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => setEstimate(moneyInput(event.target.value))} />
+            <Field label="Presupuesto estimado" mark={money.active} error={bad.estimate}>
+              <input id="repair-new-estimate" data-testid="repair-new-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '', deposit: '' })); }} />
             </Field>
-            <Field label="Seña" mark={money.active}>
-              <input value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => setDeposit(moneyInput(event.target.value))} />
+            <Field label="Seña" mark={money.active} error={bad.deposit}>
+              <input id="repair-new-deposit" data-testid="repair-new-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
             </Field>
           </div>
           <div className="frow">
@@ -359,6 +362,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
     if (canManageSensitive) {
       if (typedEstimate != null && typedEstimate > MONEY_CAP) nextBad.estimate = 'El presupuesto es demasiado alto';
       if (typedDeposit > MONEY_CAP) nextBad.deposit = 'La seña es demasiado alta';
+      else if (depositExceedsEstimate(typedEstimate, typedDeposit)) nextBad.deposit = DEPOSIT_OVER_ESTIMATE;
     }
     setBad(nextBad);
     if (Object.keys(nextBad).length || !updateRepairOrder) return;
@@ -452,7 +456,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
           <div>
             <div className="frow">
               <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
-                <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '' })); }} />
+                <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '', deposit: '' })); }} />
               </Field>
               <Field label="Seña" mark={money.active} error={bad.deposit}>
                 <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />

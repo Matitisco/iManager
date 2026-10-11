@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { dayMonth, isRetiredRepairStatus, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, visibleRepairStatuses } from './repairs';
+import { dayMonth, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, visibleRepairStatuses } from './repairs';
 
 describe('repair desk helpers', () => {
+  it('rejects a deposit above the budget and allows one within it or without a budget', () => {
+    expect(DEPOSIT_OVER_ESTIMATE).toBe('La seña no puede superar el presupuesto');
+    expect(depositExceedsEstimate(85000, 100000)).toBe(true);
+    expect(depositExceedsEstimate(85000, 85000)).toBe(false);
+    expect(depositExceedsEstimate(null, 100000)).toBe(false);
+  });
+
   it('shows the fault text, a quote when there is no budget, and overdue dates', () => {
     expect(repairFault({ fault: 'Pantalla rota', faultTags: ['Pantalla'] })).toBe('Pantalla rota');
     expect(repairFault({ fault: '  ', faultTags: ['Batería'] })).toBe('Batería');
