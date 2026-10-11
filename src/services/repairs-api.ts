@@ -6,7 +6,7 @@ import { fetchWithTimeout } from './fetch-with-timeout';
 
 export interface RepairOrderInput {
   clientId?: string | null;
-  clientName: string;
+  clientName?: string | null;
   device: string;
   imei?: string;
   fault?: string;
@@ -66,7 +66,7 @@ export async function createBackendRepair(user: AuthUserLike, input: RepairOrder
 export async function updateBackendRepair(user: AuthUserLike, id: string, input: Partial<RepairOrderInput>) {
   const body = await request(user, `/api/repairs/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
   if (!body.order) throw new Error('Respuesta inválida al actualizar la orden');
-  return body.order;
+  return { order: body.order, client: body.client ?? null };
 }
 
 export async function changeBackendRepairStatus(user: AuthUserLike, id: string, status: string) {

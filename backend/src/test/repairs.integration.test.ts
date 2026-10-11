@@ -218,4 +218,77 @@ describe("repair orders", () => {
     expect(blockedCreate.statusCode).toBe(400);
     expect(blockedCreate.json().error).toBe("Ese estado ya no está en el flujo");
   });
+
+  it("creates an order without a client and can attach or clear one later", async () => {
+    const app = ctx.getApp();
+    const owner = await seedStoreContext({ firebaseUid: "rep-noclient", email: "rep-noclient@example.com", displayName: "Dueña" });
+    const storeId = owner.store!.id;
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: "rep-noclient", email: "rep-noclient@example.com", name: "Dueña" }) };
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { device: "iPhone 13", faultTags: ["Batería"] },
+    });
+    expect(created.statusCode).toBe(201);
+    const createdBody = created.json();
+    expect(createdBody.order.clientId).toBeNull();
+    expect(createdBody.order.clientName).toBe("");
+    expect(createdBody.order.device).toBe("iPhone 13");
+    expect(createdBody.client).toBeNull();
+    expect(await prisma.client.count({ where: { storeId } })).toBe(0);
+    expect(await prisma.repairOrder.findUniqueOrThrow({ where: { id: createdBody.order.id as string } })).toMatchObject({
+      clientId: null,
+      clientName: null,
+      device: "iPhone 13",
+    });
+
+    const missingDevice = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { device: "", fault: "Pantalla" },
+    });
+    expect(missingDevice.statusCode).toBe(400);
+    expect(missingDevice.json().error).toBe("Completá el equipo");
+    expect(missingDevice.json().fields.clientName).toBeUndefined();
+
+    const orderId = createdBody.order.id as string;
+    const named = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { clientName: "Ana Taller" },
+    });
+    expect(named.statusCode).toBe(200);
+    expect(named.json().order.clientName).toBe("Ana Taller");
+    expect(named.json().order.clientId).toEqual(expect.any(String));
+    expect(named.json().client.name).toBe("Ana Taller");
+    expect(named.json().order.device).toBe("iPhone 13");
+
+    const cleared = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { clientId: null, clientName: null, device: "Pixel 8" },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().order).toMatchObject({ clientId: null, clientName: "", device: "Pixel 8" });
+    expect(cleared.json().client).toBeNull();
+    const stored = await prisma.repairOrder.findUniqueOrThrow({ where: { id: orderId } });
+    expect(stored.clientId).toBeNull();
+    expect(stored.clientName).toBeNull();
+    expect(stored.device).toBe("Pixel 8");
+    expect(await prisma.client.count({ where: { storeId, name: "Ana Taller" } })).toBe(1);
+
+    const blankDevice = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { device: "   " },
+    });
+    expect(blankDevice.statusCode).toBe(400);
+    expect(blankDevice.json().fields.device).toBe("Completá el equipo");
+  });
 });

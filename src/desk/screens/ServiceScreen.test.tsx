@@ -125,6 +125,8 @@ describe('servicio técnico', () => {
     expect(open).toHaveBeenCalledWith({ type: 'ot', id: '95' });
 
     await user.click(screen.getByRole('button', { name: 'Lista' }));
+    const headers = screen.getAllByRole('columnheader').map((cell) => cell.textContent);
+    expect(headers.indexOf('Equipo')).toBeLessThan(headers.indexOf('Cliente'));
     expect(screen.getByTestId('repair-row-95')).toHaveTextContent('Ejemplo C');
     expect(screen.getByTestId('repair-row-95')).toHaveTextContent('Cámara trasera borrosa');
     await user.click(screen.getByTestId('repair-row-95'));
@@ -226,6 +228,81 @@ describe('servicio técnico', () => {
     expect(screen.getByText('Esperando repuesto')).toBeInTheDocument();
     expect(screen.getByText('Esperando respuesta')).toBeInTheDocument();
     expect(screen.getByText('Sigue: En reparación')).toBeInTheDocument();
+  });
+
+  it('shows the device as the card title and the client only when the order has one', () => {
+    state.repairOrders = [
+      order('101', 'RECIBIDO', { device: 'Pixel suelto', clientName: '', clientId: null }),
+      order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C' }),
+    ];
+    desk(<ServiceScreen />);
+    const loose = screen.getByTestId('repair-card-101');
+    expect(within(loose).getByTestId('repair-device-101')).toHaveTextContent('Pixel suelto');
+    expect(within(loose).queryByTestId('repair-client-101')).not.toBeInTheDocument();
+    const linked = screen.getByTestId('repair-card-95');
+    const device = within(linked).getByTestId('repair-device-95');
+    const client = within(linked).getByTestId('repair-client-95');
+    expect(device).toHaveTextContent('iPhone 14');
+    expect(client).toHaveTextContent('Ejemplo C');
+    expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('puts the device above the optional client and creates an order without one', async () => {
+    const user = userEvent.setup();
+    addRepairOrder.mockResolvedValue(order('110', 'RECIBIDO', { clientName: '', clientId: null, device: 'iPhone 13' }));
+    desk(<RepairOrderForm busy={false} error={null} />);
+    const device = screen.getByLabelText('Equipo');
+    const client = screen.getByRole('combobox', { name: 'Cliente (opcional)' });
+    const imei = screen.getByLabelText('IMEI (opcional)');
+    expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(client.compareDocumentPosition(imei) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Crear orden' }));
+    expect(screen.getAllByText('Completá este dato')).toHaveLength(1);
+    expect(addRepairOrder).not.toHaveBeenCalled();
+    await user.type(device, 'iPhone 13');
+    await user.click(screen.getByRole('button', { name: 'Batería' }));
+    await user.click(screen.getByRole('button', { name: 'Crear orden' }));
+    await waitFor(() => expect(addRepairOrder).toHaveBeenCalledWith(expect.objectContaining({
+      device: 'iPhone 13',
+      clientId: null,
+      clientName: null,
+      faultTags: ['Batería'],
+    })));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('edits the device as required and lets the client stay empty', async () => {
+    const user = userEvent.setup();
+    updateRepairOrder.mockImplementation(async (_id: string, input: { device?: string; clientName?: string | null; clientId?: string | null }) => {
+      const next = order('95', 'EN_REPARACION', {
+        device: input.device ?? 'iPhone 14',
+        clientName: input.clientName ?? '',
+        clientId: input.clientId ?? null,
+      });
+      state.repairOrders = [next];
+      return next;
+    });
+    state.repairOrders = [order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C' })];
+    desk(<RepairOrderDetail id="95" busy={false} />);
+    expect(screen.getByTestId('repair-client')).toHaveTextContent('Ejemplo C');
+    await user.click(screen.getByTestId('repair-edit-identity'));
+    const device = screen.getByLabelText('Equipo');
+    const client = screen.getByRole('combobox', { name: 'Cliente (opcional)' });
+    expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.clear(device);
+    await user.click(screen.getByTestId('repair-save-identity'));
+    expect(screen.getByText('Completá este dato')).toBeInTheDocument();
+    expect(updateRepairOrder).not.toHaveBeenCalled();
+    await user.type(device, 'Pixel 8');
+    await user.clear(client);
+    await user.click(screen.getByTestId('repair-save-identity'));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', {
+      device: 'Pixel 8',
+      clientId: null,
+      clientName: null,
+    });
+    expect(screen.queryByTestId('repair-client')).not.toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith('Orden actualizada');
   });
 
   it('creates an order that starts as Recibido', async () => {
@@ -481,7 +558,9 @@ describe('servicio técnico en el celular', () => {
     })];
     const view = desk(<RepairOrderDetail id="95" busy={false} />);
     expect(screen.getByRole('dialog', { name: '#OT-0095' })).toBeInTheDocument();
-    expect(screen.getByText('iPhone 14 · Ejemplo C')).toBeInTheDocument();
+    expect(screen.getByText('iPhone 14')).toBeInTheDocument();
+    expect(screen.getByTestId('repair-client')).toHaveTextContent('Ejemplo C');
+    expect(screen.queryByText('iPhone 14 · Ejemplo C')).not.toBeInTheDocument();
     expect(screen.getByTestId('repair-step')).toHaveTextContent('Paso 2 de 4');
     expect(screen.getByTestId('repair-step')).toHaveTextContent('sigue');
     expect(screen.getByTestId('repair-step')).toHaveTextContent('Listo para retirar');
@@ -512,6 +591,9 @@ describe('servicio técnico en el celular', () => {
     expect(screen.queryByRole('button', { name: 'En diagnóstico' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Esperando repuesto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Esperando respuesta' })).not.toBeInTheDocument();
+    const device = screen.getByLabelText('Equipo');
+    const client = screen.getByRole('combobox', { name: 'Cliente (opcional)' });
+    expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Avisarle al cliente por WhatsApp/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();

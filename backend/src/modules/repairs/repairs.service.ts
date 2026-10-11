@@ -12,7 +12,7 @@ import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface RepairOrderInput {
   clientId?: string | null;
-  clientName: string;
+  clientName?: string | null;
   device: string;
   imei?: string;
   fault?: string;
@@ -96,14 +96,14 @@ function serialize(record: RepairRecord, storeName: string | null): RepairOrderR
   const code = repairCode(record.orderNumber);
   const phone = record.client?.phone ?? "";
   const whatsappUrl = record.notifyWhatsapp && record.status === REPAIR_READY
-    ? repairWhatsappUrl(phone, repairReadyMessage({ clientName: record.clientName, device: record.device, code, storeName }))
+    ? repairWhatsappUrl(phone, repairReadyMessage({ clientName: record.clientName ?? "", device: record.device, code, storeName }))
     : null;
   return {
     id: record.id,
     orderNumber: record.orderNumber,
     code,
     clientId: record.clientId,
-    clientName: record.clientName,
+    clientName: record.clientName ?? "",
     clientPhone: phone,
     device: record.device,
     imei: record.imei,
@@ -160,21 +160,33 @@ function clientPayload(record: RepairRecord["client"]): ClientResponse | null {
   return serializeClient(record);
 }
 
+async function resolveRepairClient(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  input: { clientId?: string | null; clientName?: string | null },
+) {
+  const linkedId = input.clientId?.trim() || null;
+  const typedName = input.clientName?.trim() ?? "";
+  if (linkedId) {
+    const client = await tx.client.findFirst({ where: { id: linkedId, storeId } });
+    if (!client) throw new RepairError("Cliente no encontrado", 404);
+    return { clientId: client.id, clientName: client.name };
+  }
+  if (typedName) {
+    const client = await tx.client.create({ data: { storeId, name: typedName } });
+    return { clientId: client.id, clientName: client.name };
+  }
+  return { clientId: null, clientName: null };
+}
+
 export async function createRepair(storeId: string, input: RepairOrderInput) {
   const name = await storeName(storeId);
   const status = input.status?.trim() || REPAIR_RECEIVED;
   if (isRetiredRepairStatus(status)) throw new RepairError("Ese estado ya no está en el flujo");
   const created = await prisma.$transaction(async (tx) => {
-    let clientId = input.clientId?.trim() || null;
-    let clientName = input.clientName.trim();
-    if (clientId) {
-      const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
-      if (!client) throw new RepairError("Cliente no encontrado", 404);
-      clientName = client.name;
-    } else {
-      const client = await tx.client.create({ data: { storeId, name: clientName } });
-      clientId = client.id;
-    }
+    const client = await resolveRepairClient(tx, storeId, input);
+    const clientId = client.clientId;
+    const clientName = client.clientName;
     const orderNumber = await allocateDocumentNumber(tx, storeId, "repair");
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     const order = await tx.repairOrder.create({
@@ -223,7 +235,7 @@ export async function updateRepair(
   const name = await storeName(storeId);
   const data: {
     clientId?: string | null;
-    clientName?: string;
+    clientName?: string | null;
     device?: string;
     imei?: string;
     fault?: string;
@@ -234,18 +246,7 @@ export async function updateRepair(
     technician?: string;
     estimatedDelivery?: Date | null;
   } = {};
-  if (input.clientId !== undefined || input.clientName !== undefined) {
-    const clientId = input.clientId?.trim() || null;
-    if (clientId) {
-      const client = await prisma.client.findFirst({ where: { id: clientId, storeId } });
-      if (!client) throw new RepairError("Cliente no encontrado", 404);
-      data.clientId = client.id;
-      data.clientName = client.name;
-    } else if (input.clientName !== undefined) {
-      data.clientName = input.clientName.trim();
-      data.clientId = null;
-    }
-  }
+  const touchesClient = input.clientId !== undefined || input.clientName !== undefined;
   if (input.device !== undefined) data.device = input.device.trim();
   if (input.imei !== undefined) data.imei = input.imei.replace(/\D/g, "").slice(0, 15);
   if (input.fault !== undefined) data.fault = input.fault.trim();
@@ -257,6 +258,11 @@ export async function updateRepair(
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
   const updated = await prisma.$transaction(async (tx) => {
+    if (touchesClient) {
+      const client = await resolveRepairClient(tx, storeId, input);
+      data.clientId = client.clientId;
+      data.clientName = client.clientName;
+    }
     const row = await tx.repairOrder.update({ where: { id }, data, include });
     if ((estimateChanged || depositChanged) && options.actor) {
       await writeAudit(tx, {
@@ -272,7 +278,7 @@ export async function updateRepair(
     }
     return row;
   });
-  return { order: serialize(updated, name) };
+  return { order: serialize(updated, name), client: clientPayload(updated.client) };
 }
 
 export async function changeRepairStatus(storeId: string, id: string, status: string) {
