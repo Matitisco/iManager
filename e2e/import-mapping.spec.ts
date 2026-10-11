@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
@@ -27,9 +26,8 @@ for (const viewport of viewports) {
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test('importa el excel de ejemplo sin elegir hoja, encabezado ni columnas', async ({ page }, testInfo) => {
+    test('importa el excel de ejemplo sin configurar columnas', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
-      fs.mkdirSync(OUT, { recursive: true });
       const phone = viewport.width < 700;
       const email = buildTestEmail(testInfo, viewport.name);
       page.on('request', (request) => {
@@ -69,33 +67,34 @@ for (const viewport of viewports) {
       await expect(dialog).toBeVisible();
       await dialog.locator('input[type="file"]').setInputFiles(WORKBOOK);
 
-      await expect(dialog.getByTestId('import-summary-count')).toContainText('Detectamos 3 hojas, 37 equipos');
-      await expect(dialog.getByTestId('import-sheet')).toHaveCount(3);
-      await expect(dialog.getByTestId('import-preview')).toContainText('13 mini');
-      await expect(dialog.getByTestId('import-preview')).toContainText('Midnight');
-      await expect(dialog.getByRole('button', { name: 'Confirmar encabezado' })).toHaveCount(0);
-      await expect(dialog.getByTestId('import-mapping-notice')).toHaveCount(0);
+      await expect(dialog.getByTestId('import-summary-count')).toHaveText('Detectamos 3 hojas, 37 equipos');
+      await expect(dialog.getByTestId('import-sheet-summary')).toHaveCount(3);
+      await expect(dialog.getByText('iPhones Usados')).toBeVisible();
+      await expect(dialog.getByText('iPhones Nuevos')).toBeVisible();
+      await expect(dialog.getByText('OUTLET')).toBeVisible();
+      await expect(dialog.getByText('20 equipos usados')).toBeVisible();
+      await expect(dialog.getByText('10 equipos nuevos')).toBeVisible();
+      await expect(dialog.getByText('Revisá las columnas')).toHaveCount(0);
       await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
 
-      await dialog.getByRole('button', { name: 'Ajustar importación' }).click();
+      await dialog.getByTestId('import-adjust-open').click();
       await expect(dialog.getByTestId('import-adjust')).toBeVisible();
-      await expect(dialog.getByTestId('import-sheet-toggle-iPhones Usados')).toBeChecked();
-      await expect(dialog.getByTestId('import-sheet-toggle-iPhones Nuevos')).toBeChecked();
-      await expect(dialog.getByTestId('import-sheet-toggle-OUTLET')).toBeChecked();
       await expect(dialog.getByTestId('import-field-model')).toHaveValue('Modelo');
       await expect(dialog.getByTestId('import-field-price')).toHaveValue('PRECIO ARS');
+      await expect(dialog.getByTestId('import-field-batteryHealth')).toHaveValue('Batería');
       await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ajuste.png`) });
+      await expect(dialog.getByText('%', { exact: true })).toHaveCount(0);
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ajustar.png`) });
 
-      await dialog.getByRole('button', { name: 'Volver' }).click();
+      await dialog.getByRole('button', { name: 'Listo' }).click();
       const importResponse = page.waitForResponse(
         (response) => response.url().includes('/api/inventory/import') && response.request().method() === 'POST',
       );
-      await dialog.getByRole('button', { name: 'Importar 37 equipos' }).click();
-      const imported = await importResponse;
-      expect(imported.ok()).toBe(true);
-      const body = await imported.json() as { imported: number; errors: unknown[] };
+      await dialog.getByTestId('import-confirm').click();
+      const response = await importResponse;
+      expect(response.ok()).toBe(true);
+      const body = await response.json() as { imported: number; errors: unknown[] };
       expect(body.imported).toBe(37);
       expect(body.errors).toEqual([]);
       await expect(dialog.getByText('37 creados')).toBeVisible();

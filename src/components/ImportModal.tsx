@@ -2,9 +2,9 @@ import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
 import { Sheet } from '../desk/ui';
-import { assignColumn } from '../lib/import-mapping';
-import type { DetectImportResponse } from '../services/import-api';
-import { parseWorkbook, trimGrid } from '../utils/parse-workbook';
+import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
+import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
+import { parseWorkbook } from '../utils/parse-workbook';
 
 export interface ImportFieldDef {
   key: string;
@@ -19,23 +19,7 @@ export interface GenericImportResult {
   errors: { row: number; message: string; [key: string]: unknown }[];
 }
 
-type Step = 'upload' | 'detecting' | 'summary' | 'adjust' | 'result';
-
-type Grid = { name: string; rows: string[][] };
-
-type AdjustSheet = {
-  name: string;
-  include: boolean;
-  headerRow: number;
-  mapping: Record<string, string>;
-};
-
-const CONDITION_LABEL: Record<string, string> = {
-  NUEVO: 'Nuevo',
-  USADO: 'Usado',
-  OUTLET: 'Outlet',
-  'PRE-OWNED': 'Pre-owned',
-};
+type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
 
 interface Props {
   fields: ImportFieldDef[];
@@ -43,63 +27,46 @@ interface Props {
   onClose: () => void;
   title?: string;
   sheet?: boolean;
-  itemLabel?: { one: string; many: string };
-  onDetect: (input: {
-    sheets: Grid[];
-    overrides?: { name: string; include: boolean; headerRow: number; mapping?: Record<string, string> }[];
-  }) => Promise<DetectImportResponse>;
+  nouns?: { one: string; many: string };
+  onAnalyze: (sheets: ImportSheetPayload[]) => Promise<ImportAnalysis>;
+  onApply: (sheets: ImportSheetPayload[], plan: ImportSheetPlan[], refreshMapping: boolean) => Promise<ImportAnalysis>;
+}
+
+function countLabel(count: number, nouns: { one: string; many: string }) {
+  return `${count} ${count === 1 ? nouns.one : nouns.many}`;
+}
+
+function sheetLine(count: number, nouns: { one: string; many: string }, condition: string) {
+  const noun = count === 1 ? nouns.one : nouns.many;
+  if (condition === 'NUEVO') return `${count} ${noun} ${count === 1 ? 'nuevo' : 'nuevos'}`;
+  if (condition === 'USADO') return `${count} ${noun} ${count === 1 ? 'usado' : 'usados'}`;
+  if (condition === 'PRE-OWNED') return `${count} ${noun} pre-owned`;
+  return `${count} ${noun}`;
 }
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, title = 'Importar', sheet = false, itemLabel = { one: 'fila', many: 'filas' }, onDetect,
+  fields, onImport, onClose, title = 'Importar', sheet = false,
+  nouns = { one: 'fila', many: 'filas' }, onAnalyze, onApply,
 }) => {
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [grids, setGrids] = useState<Grid[]>([]);
-  const [plan, setPlan] = useState<DetectImportResponse | null>(null);
-  const [adjust, setAdjust] = useState<AdjustSheet[]>([]);
+  const [sheets, setSheets] = useState<ImportSheetPayload[]>([]);
+  const [plan, setPlan] = useState<ImportSheetPlan[]>([]);
+  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [summary, setSummary] = useState<ImportAnalysis['summary'] | null>(null);
   const [activeSheet, setActiveSheet] = useState('');
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<GenericImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const requestId = useRef(0);
+  const requestRef = useRef(0);
 
-  const noun = (count: number) => (count === 1 ? itemLabel.one : itemLabel.many);
-  const included = plan?.sheets.filter((item) => item.include) ?? [];
-  const rowCount = plan?.totals.rows ?? included.reduce((sum, item) => sum + item.rows.length, 0);
-  const sheetCount = plan?.totals.sheets ?? included.length;
-
-  const runDetect = async (
-    nextGrids: Grid[],
-    overrides?: { name: string; include: boolean; headerRow: number; mapping?: Record<string, string> }[],
-  ) => {
-    const id = requestId.current + 1;
-    requestId.current = id;
-    setApplying(true);
-    setFileError(null);
-    try {
-      const detected = await onDetect({ sheets: nextGrids, overrides });
-      if (requestId.current !== id) return null;
-      setPlan(detected);
-      setAdjust(detected.sheets.map((item) => ({
-        name: item.name,
-        include: item.include,
-        headerRow: item.headerRow,
-        mapping: item.mapping,
-      })));
-      setActiveSheet((current) => detected.sheets.some((item) => item.name === current) ? current : (detected.sheets.find((item) => item.include)?.name ?? detected.sheets[0]?.name ?? ''));
-      setTouched({});
-      return detected;
-    } catch (error: unknown) {
-      if (requestId.current !== id) return null;
-      setFileError(error instanceof Error ? error.message : 'No se pudo leer el archivo. Probá de nuevo.');
-      return null;
-    } finally {
-      if (requestId.current === id) setApplying(false);
-    }
+  const applyResult = (analysis: ImportAnalysis) => {
+    setPlan(analysis.plan);
+    setRows(analysis.rows);
+    setSummary(analysis.summary);
+    setActiveSheet((current) => analysis.plan.some((item) => item.name === current) ? current : analysis.plan[0]?.name ?? '');
   };
 
   const handleFile = async (file: File) => {
@@ -109,63 +76,67 @@ export const ImportModal: React.FC<Props> = ({
       setFileError('Formato no soportado. Usá .csv o .xlsx');
       return;
     }
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     try {
       const workbook = await parseWorkbook(file);
-      const next = workbook.sheetNames
-        .map((name) => ({ name, rows: trimGrid(workbook.getSheet(name)).slice(0, 2000) }))
-        .filter((item) => item.rows.length > 0);
-      if (next.length === 0) {
+      const nextSheets = workbook.sheetNames
+        .map((name) => ({ name, rows: workbook.getSheet(name) }))
+        .filter((item) => item.rows.some((row) => row.some(Boolean)));
+      if (nextSheets.length === 0) {
         setFileError('El archivo está vacío');
         return;
       }
-      setGrids(next);
-      setStep('detecting');
-      const detected = await runDetect(next);
-      setStep(detected ? 'summary' : 'upload');
+      if (nextSheets.reduce((total, item) => total + item.rows.length, 0) > 2000) {
+        setFileError('El archivo supera las 2000 filas.');
+        return;
+      }
+      setSheets(nextSheets);
+      setStep('reading');
+      const analysis = await onAnalyze(nextSheets);
+      if (requestRef.current !== requestId) return;
+      applyResult(analysis);
+      setStep('summary');
     } catch (error: unknown) {
+      if (requestRef.current !== requestId) return;
       setFileError(error instanceof Error ? error.message : 'Error al leer el archivo');
       setStep('upload');
     }
   };
 
-  const onDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    setDragging(false);
-    const file = event.dataTransfer.files[0];
-    if (file) void handleFile(file);
+  const reapply = async (nextPlan: ImportSheetPlan[], refreshMapping: boolean) => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    setPlan(nextPlan);
+    setApplying(true);
+    setFileError(null);
+    try {
+      const analysis = await onApply(sheets, nextPlan, refreshMapping);
+      if (requestRef.current !== requestId) return;
+      applyResult(analysis);
+    } catch (error: unknown) {
+      if (requestRef.current !== requestId) return;
+      setFileError(error instanceof Error ? error.message : 'No se pudo actualizar la importación.');
+    } finally {
+      if (requestRef.current === requestId) setApplying(false);
+    }
   };
 
-  const applyAdjust = async () => {
-    const detected = await runDetect(grids, adjust.map((item) => ({
-      name: item.name,
-      include: item.include,
-      headerRow: item.headerRow,
-      ...(touched[item.name] ? { mapping: item.mapping } : {}),
-    })));
-    if (detected) setStep('summary');
-  };
-
-  const changeHeader = async (name: string, headerRow: number) => {
-    const next = adjust.map((item) => (item.name === name ? { ...item, headerRow } : item));
-    setAdjust(next);
-    setTouched((current) => ({ ...current, [name]: false }));
-    const detected = await runDetect(grids, next.map((item) => ({
-      name: item.name,
-      include: item.include,
-      headerRow: item.headerRow,
-      ...(item.name !== name && touched[item.name] ? { mapping: item.mapping } : {}),
-    })));
-    if (!detected) setStep('adjust');
-  };
+  const included = plan.filter((item) => item.include);
+  const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
+  const canImport = !applying && rows.length > 0 && requiredMissing.length === 0 && included.length > 0;
+  const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
+  const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
+  const headerIndex = Math.max(0, (active?.headerRow ?? 1) - 1);
+  const headers = (activeRows[headerIndex] ?? []).filter((header) => header.trim());
+  const selected = active ? fieldToColumn(active.mapping) : {};
 
   const handleImport = async () => {
-    if (!plan) return;
     setImporting(true);
     setFileError(null);
     try {
-      const rows = plan.sheets.filter((item) => item.include).flatMap((item) => item.rows);
-      const imported = await onImport(rows);
-      setResult(imported);
+      const response = await onImport(rows);
+      setResult(response);
       setStep('result');
     } catch (error: unknown) {
       setFileError(error instanceof Error ? error.message : 'Error al importar');
@@ -174,32 +145,31 @@ export const ImportModal: React.FC<Props> = ({
     }
   };
 
-  const active = adjust.find((item) => item.name === activeSheet) ?? adjust[0];
-  const activeGrid = grids.find((item) => item.name === active?.name);
-  const headerChoices = (activeGrid?.rows ?? []).slice(0, 20);
-  const columnHeaders = active ? (plan?.sheets.find((item) => item.name === active.name)?.headers ?? headerChoices[active.headerRow] ?? []) : [];
+  const headline = summary
+    ? `Detectamos ${summary.sheetCount} ${summary.sheetCount === 1 ? 'hoja' : 'hojas'}, ${countLabel(summary.rowCount, nouns)}`
+    : '';
 
-  const detected = rowCount > 0
-    ? `Detectamos ${sheetCount} ${sheetCount === 1 ? 'hoja' : 'hojas'}, ${rowCount} ${noun(rowCount)}`
-    : 'No encontramos filas para importar';
   const subtitle = {
     upload: 'Subí un archivo CSV o XLSX',
-    detecting: 'Leyendo el archivo…',
-    summary: rowCount > 0 ? 'Listo para importar' : detected,
+    reading: 'Leyendo la planilla…',
+    summary: 'Listo para importar',
     adjust: 'Ajustá hojas, encabezado o columnas',
     result: 'Importación completada',
   }[step];
 
-  const preview = included.flatMap((item) => item.rows.slice(0, 2).map((row) => ({ sheet: item.name, row }))).slice(0, 4);
-
-  const importSteps = (
+  const body = (
     <div className={sheet ? 'inv-import-body' : 'overflow-y-auto flex-1 p-5'}>
       {step === 'upload' && (
         <div>
           <div
             onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              const file = event.dataTransfer.files[0];
+              if (file) void handleFile(file);
+            }}
             onClick={() => fileInputRef.current?.click()}
             className={`inv-drop border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-black bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}
           >
@@ -214,79 +184,84 @@ export const ImportModal: React.FC<Props> = ({
             type="file"
             accept=".csv,.xlsx"
             className="hidden"
-            onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFile(file);
+            }}
           />
         </div>
       )}
 
-      {step === 'detecting' && (
-        <p data-testid="import-detect-status" className="text-sm text-gray-500">Leyendo el archivo…</p>
+      {step === 'reading' && (
+        <p className="text-sm text-gray-500" data-testid="import-reading">Leyendo la planilla…</p>
       )}
 
-      {step === 'summary' && plan && (
-        <div data-testid="import-summary" className="space-y-4">
-          <p data-testid="import-summary-count" className="text-sm text-gray-700">
-            {detected}
-          </p>
-          <div className="space-y-2">
-            {plan.sheets.filter((item) => item.include).map((item) => (
-              <div key={item.name} data-testid="import-sheet" className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{item.name}</p>
-                  {item.condition ? <p className="text-xs text-gray-500">{CONDITION_LABEL[item.condition] ?? item.condition}</p> : null}
-                </div>
-                <p className="text-sm text-gray-600 shrink-0">{item.rows.length} {noun(item.rows.length)}</p>
-              </div>
+      {step === 'summary' && summary && (
+        <div data-testid="import-summary" className="space-y-3">
+          <p className="text-lg font-bold text-gray-900" data-testid="import-summary-count">{headline}</p>
+          <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100">
+            {summary.sheets.filter((item) => item.included).map((item) => (
+              <li key={item.name} data-testid="import-sheet-summary" className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span className="font-medium text-gray-800">{item.name}</span>
+                <span className="text-gray-500">{sheetLine(item.rows, nouns, item.condition)}</span>
+              </li>
             ))}
-          </div>
-          {preview.length > 0 && (
-            <ul data-testid="import-preview" className="text-sm text-gray-600 space-y-1">
-              {preview.map((item, index) => (
-                <li key={`${item.sheet}-${index}`} className="truncate">
-                  {[item.row.model, item.row.capacity, item.row.color, item.row.batteryHealth].filter(Boolean).join(' · ')}
-                </li>
-              ))}
-            </ul>
+          </ul>
+          {summary.rowCount === 0 && (
+            <p className="text-sm text-gray-600">No encontramos filas para importar. Podés ajustar el encabezado.</p>
           )}
         </div>
       )}
 
       {step === 'adjust' && active && (
-        <div data-testid="import-adjust" className="space-y-5">
+        <div className="space-y-5" data-testid="import-adjust">
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hojas</p>
-            {adjust.map((item) => (
-              <label key={item.name} className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 text-sm">
+            {plan.map((item) => (
+              <label key={item.name} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm cursor-pointer ${active.name === item.name ? 'border-gray-900' : 'border-gray-200'}`}>
                 <input
                   type="checkbox"
-                  data-testid={`import-sheet-toggle-${item.name}`}
+                  className="accent-black"
+                  style={{ accentColor: '#16181D' }}
+                  data-testid={`import-sheet-${item.name}`}
                   checked={item.include}
-                  onChange={(event) => {
-                    const include = event.target.checked;
-                    setAdjust((current) => current.map((sheetItem) => sheetItem.name === item.name ? { ...sheetItem, include } : sheetItem));
-                    setActiveSheet(item.name);
+                  onChange={() => {
+                    void reapply(plan.map((sheetPlan) => sheetPlan.name === item.name ? { ...sheetPlan, include: !sheetPlan.include } : sheetPlan), false);
                   }}
                 />
-                <span className="flex-1 font-medium text-gray-800">{item.name}</span>
+                <button type="button" className="flex-1 text-left font-medium text-gray-800" onClick={() => setActiveSheet(item.name)}>
+                  {item.name}
+                </button>
               </label>
             ))}
           </div>
 
-          <label className="block space-y-2">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Encabezado · {active.name}</span>
-            <select
-              aria-label="Fila de encabezado"
-              data-testid="import-header-row"
-              value={active.headerRow}
-              disabled={applying}
-              onChange={(event) => { void changeHeader(active.name, Number(event.target.value)); }}
-              className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
-            >
-              {headerChoices.map((row, index) => (
-                <option key={index} value={index}>{index + 1}. {row.filter(Boolean).slice(0, 6).join(' · ') || 'fila vacía'}</option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Encabezado</p>
+            {activeRows.slice(0, 12).map((row, index) => {
+              const selectedRow = index + 1 === active.headerRow;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  data-testid={selectedRow ? 'import-header-current' : undefined}
+                  onClick={() => {
+                    if (selectedRow) return;
+                    void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name
+                      ? { ...sheetPlan, headerRow: index + 1, dataStartRow: index + 2 }
+                      : sheetPlan), true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm"
+                  style={selectedRow
+                    ? { background: '#16181D', color: '#fff', border: '1px solid #16181D' }
+                    : { background: '#fff', color: '#374151', border: '1px solid #e5e7eb' }}
+                >
+                  <span className="w-6 shrink-0 font-mono text-xs opacity-70">{index + 1}</span>
+                  <span className="truncate">{row.filter(Boolean).slice(0, 5).join(' · ') || 'fila vacía'}</span>
+                </button>
+              );
+            })}
+          </div>
 
           <div className="border border-gray-200 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
@@ -298,31 +273,28 @@ export const ImportModal: React.FC<Props> = ({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {fields.map((field) => {
-                  const taken = new Set(Object.entries(active.mapping).filter(([key, value]) => key !== field.key && value).map(([, value]) => value));
+                  const taken = new Set(Object.entries(selected).filter(([key, value]) => key !== field.key && value).map(([, value]) => value));
                   return (
                     <tr key={field.key}>
                       <td className="px-4 py-3 font-medium text-gray-800">
                         {field.label}
-                        {field.required ? <span className="text-red-500 text-xs"> *</span> : null}
+                        {field.required && <span className="text-red-500 text-xs"> *</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
                           <select
                             aria-label={field.label}
                             data-testid={`import-field-${field.key}`}
-                            value={active.mapping[field.key] ?? ''}
+                            value={selected[field.key] ?? ''}
                             onChange={(event) => {
-                              const column = event.target.value;
-                              setTouched((current) => ({ ...current, [active.name]: true }));
-                              setAdjust((current) => current.map((sheetItem) => sheetItem.name === active.name
-                                ? { ...sheetItem, mapping: assignColumn(sheetItem.mapping, field.key, column) }
-                                : sheetItem));
+                              const mapping = mappingFromFields(headers, assignColumn(selected, field.key, event.target.value));
+                              void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name ? { ...sheetPlan, mapping } : sheetPlan), false);
                             }}
-                            className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
+                            className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                           >
                             <option value="">— Sin mapear —</option>
-                            {columnHeaders.map((header) => (
-                              <option key={header} value={header} disabled={active.mapping[field.key] !== header && taken.has(header)}>{header}</option>
+                            {headers.map((header) => (
+                              <option key={header} value={header} disabled={selected[field.key] !== header && taken.has(header)}>{header}</option>
                             ))}
                           </select>
                           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -371,57 +343,58 @@ export const ImportModal: React.FC<Props> = ({
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
+      {step === 'summary' && requiredMissing.length > 0 && (
+        <p className="mt-3 text-sm text-red-700">Falta mapear {requiredMissing.map((field) => field.label).join(', ')}.</p>
+      )}
     </div>
   );
 
-  const summaryLabel = importing ? 'Importando…' : `Importar ${rowCount} ${noun(rowCount)}`;
+  const importLabel = importing ? 'Importando…' : `Importar ${countLabel(rows.length, nouns)}`;
+  const backUpload = () => {
+    requestRef.current += 1;
+    setStep('upload');
+    setFileError(null);
+  };
+
   const modalFooter = (
     <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
-      {(step === 'upload' || step === 'detecting') && (
-        <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-      )}
+      {step === 'upload' && <button type="button" onClick={onClose} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Cancelar</button>}
       {step === 'summary' && (
         <>
-          <button onClick={() => { setFileError(null); setStep('adjust'); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Ajustar importación</button>
-          <button onClick={() => { void handleImport(); }} disabled={rowCount === 0 || importing} className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg hover:bg-gray-900 disabled:opacity-40 flex items-center gap-2">
-            {summaryLabel} <ArrowRight size={15} />
+          <button type="button" onClick={backUpload} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
+          <button type="button" data-testid="import-adjust-open" onClick={() => setStep('adjust')} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Ajustar importación</button>
+          <button type="button" data-testid="import-confirm" onClick={() => void handleImport()} disabled={!canImport || importing} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>
+            {importLabel} <ArrowRight size={15} />
           </button>
         </>
       )}
       {step === 'adjust' && (
         <>
-          <button onClick={() => { setFileError(null); setStep('summary'); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Volver</button>
-          <button onClick={() => { void applyAdjust(); }} disabled={applying} className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg hover:bg-gray-900 disabled:opacity-40">
-            {applying ? 'Leyendo…' : 'Listo'}
-          </button>
+          <button type="button" onClick={() => setStep('summary')} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
+          <button type="button" onClick={() => setStep('summary')} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>Listo</button>
         </>
       )}
-      {step === 'result' && (
-        <button onClick={onClose} className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg">Cerrar</button>
-      )}
+      {step === 'result' && <button type="button" onClick={onClose} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>Cerrar</button>}
     </div>
   );
 
-  const sheetFooter = step === 'upload' || step === 'detecting' ? (
+  const sheetFooter = step === 'upload' ? (
     <div className="sacts one"><button type="button" className="btn2 s" onClick={onClose}>Cancelar</button></div>
   ) : step === 'summary' ? (
     <div className="sacts">
-      <button type="button" className="btn2 s" onClick={() => { setFileError(null); setStep('adjust'); }}>Ajustar importación</button>
-      <button type="button" className="btn2 p" disabled={rowCount === 0 || importing} onClick={() => { void handleImport(); }}>{summaryLabel}</button>
+      <button type="button" className="btn2 s" data-testid="import-adjust-open" onClick={() => setStep('adjust')}>Ajustar importación</button>
+      <button type="button" className="btn2 p" data-testid="import-confirm" disabled={!canImport || importing} onClick={() => void handleImport()}>{importLabel}</button>
     </div>
   ) : step === 'adjust' ? (
-    <div className="sacts">
-      <button type="button" className="btn2 s" onClick={() => { setFileError(null); setStep('summary'); }}>Volver</button>
-      <button type="button" className="btn2 p" disabled={applying} onClick={() => { void applyAdjust(); }}>{applying ? 'Leyendo…' : 'Listo'}</button>
-    </div>
-  ) : (
+    <div className="sacts one"><button type="button" className="btn2 p" onClick={() => setStep('summary')}>Listo</button></div>
+  ) : step === 'result' ? (
     <div className="sacts one"><button type="button" className="btn2 p" onClick={onClose}>Cerrar</button></div>
-  );
+  ) : null;
 
   if (sheet) {
     return (
       <Sheet title={title} subtitle={subtitle} onClose={onClose} className="inv-import">
-        {importSteps}
+        {body}
         {sheetFooter}
       </Sheet>
     );
@@ -449,11 +422,11 @@ export const ImportModal: React.FC<Props> = ({
             <h2 className="text-lg font-bold text-gray-900">{title}</h2>
             <p className="text-sm text-gray-500">{subtitle}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
             <X size={18} className="text-gray-500" />
           </button>
         </div>
-        {importSteps}
+        {body}
         {modalFooter}
       </motion.div>
     </motion.div>

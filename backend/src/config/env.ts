@@ -24,10 +24,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
-  // OpenAI queda solo en el backend (Railway: hifi-desk-api).
-  // Decisions: gpt-6-luna. Responses (importación): gpt-6.1-sol.
+  // Responses API. La clave queda solo en el backend (Railway: hifi-desk-api).
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_DECISIONS_MODEL: z.string().optional(),
   OPENAI_IMPORT_MODEL: z.string().optional(),
 }).superRefine((value, ctx) => {
   const firebaseRequired = !(value.NODE_ENV === "test" && value.ENABLE_TEST_AUTH_BYPASS);

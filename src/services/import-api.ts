@@ -1,71 +1,71 @@
 import type { AuthUserLike } from '../types/auth-user';
-import type { ColumnSuggestion } from '../lib/import-mapping';
 import { apiRequest } from './api-client';
 
 export type ImportSection = 'inventory' | 'sales' | 'clients' | 'trade-ins';
 
-export type SuggestMappingResponse = {
-  source: 'decisions' | 'heuristic';
-  notice: string | null;
-  suggestions: ColumnSuggestion[];
+export type ImportSheetPayload = {
+  name: string;
+  rows: string[][];
 };
 
-export type DetectedSheet = {
+export type ImportColumnMapping = {
+  header: string;
+  field: string;
+};
+
+export type ImportSheetPlan = {
   name: string;
   include: boolean;
+  condition: '' | 'NUEVO' | 'USADO' | 'PRE-OWNED';
   headerRow: number;
-  condition: string | null;
-  headers: string[];
-  mapping: Record<string, string>;
-  rows: Record<string, string>[];
+  dataStartRow: number;
+  dataEndRow: number;
+  mapping: ImportColumnMapping[];
+  splitModelCapacity: boolean;
+  batteryAsPercent: boolean;
+  priceCurrency: '' | 'ARS' | 'USD';
 };
 
-export type DetectImportResponse = {
-  source: 'responses' | 'heuristic';
+export type ImportAnalysis = {
+  source: 'model' | 'heuristic' | 'manual';
   notice: string | null;
-  sheets: DetectedSheet[];
-  totals: { sheets: number; rows: number };
+  currency: 'ARS' | 'USD';
+  plan: ImportSheetPlan[];
+  rows: Record<string, string>[];
+  summary: {
+    sheetCount: number;
+    rowCount: number;
+    sheets: { name: string; rows: number; condition: string; included: boolean }[];
+  };
 };
 
-export type DetectImportRequest = {
-  currency?: 'ARS' | 'USD';
-  sellRate?: number | null;
-  sheets: { name: string; rows: string[][] }[];
-  overrides?: {
-    name: string;
-    include: boolean;
-    headerRow: number;
-    mapping?: Record<string, string>;
-  }[];
-};
+const ANALYZE_TIMEOUT_MS = 45_000;
 
-const SUGGEST_TIMEOUT_MS = 60_000;
-
-const DETECT_TIMEOUT_MS = 60_000;
-
-export async function detectImport(
+export async function analyzeImport(
   user: AuthUserLike,
   section: ImportSection,
-  input: DetectImportRequest,
-): Promise<DetectImportResponse> {
-  return apiRequest<DetectImportResponse>(user, '/api/import/detect', {
+  sheets: ImportSheetPayload[],
+): Promise<ImportAnalysis> {
+  return apiRequest<ImportAnalysis>(user, '/api/import/analyze', {
     method: 'POST',
-    body: { section, ...input },
-    fallback: 'No se pudo leer el archivo. Probá de nuevo.',
-    timeoutMs: DETECT_TIMEOUT_MS,
+    body: { section, sheets },
+    fallback: 'No se pudo leer la planilla.',
+    timeoutMs: ANALYZE_TIMEOUT_MS,
   });
 }
 
-export async function suggestImportMapping(
+export async function applyImportPlan(
   user: AuthUserLike,
   section: ImportSection,
-  columns: { header: string; samples: string[] }[],
-): Promise<SuggestMappingResponse> {
-  return apiRequest<SuggestMappingResponse>(user, '/api/import/suggest-mapping', {
+  sheets: ImportSheetPayload[],
+  plan: ImportSheetPlan[],
+  refreshMapping = false,
+): Promise<ImportAnalysis> {
+  return apiRequest<ImportAnalysis>(user, '/api/import/apply', {
     method: 'POST',
-    body: { section, columns },
-    fallback: 'No se pudo consultar el mapeo inteligente. Usamos el mapeo por nombre de columna.',
-    timeoutMs: SUGGEST_TIMEOUT_MS,
+    body: { section, sheets, plan, refreshMapping },
+    fallback: 'No se pudo actualizar la importación.',
+    timeoutMs: ANALYZE_TIMEOUT_MS,
   });
 }
 

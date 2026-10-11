@@ -80,12 +80,10 @@ FIREBASE_CLIENT_EMAIL=...
 FIREBASE_PRIVATE_KEY=...
 FIRESTORE_DATABASE_ID=...
 OPENAI_API_KEY=...
-OPENAI_DECISIONS_MODEL=gpt-6-luna
-OPENAI_IMPORT_MODEL=gpt-6.1-sol
+OPENAI_IMPORT_MODEL=gpt-6-astra
 ```
 
-`OPENAI_API_KEY` solo vive en el backend. Al importar, `POST /v1/responses` (`gpt-6.1-sol`, structured outputs) detecta hojas, encabezado y columnas. `POST /v1/decisions` (`gpt-6-luna`, el único modelo de ese endpoint) sigue disponible para clasificar una columna. Si falta la clave o la API falla, la importación usa la lectura automática.
-```
+`OPENAI_API_KEY` solo vive en el backend. Al importar, el backend manda una muestra de cada hoja a la Responses API (`POST /v1/responses`) con structured outputs y el modelo `gpt-6-astra` (configurable con `OPENAI_IMPORT_MODEL`). Si falta la clave o la llamada falla, la importación sigue con la detección heurística.
 
 ---
 
