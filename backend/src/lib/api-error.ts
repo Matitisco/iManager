@@ -1,5 +1,6 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ZodError, type ZodIssue } from "zod";
+import { domainErrorFrom } from "./domain-error.js";
 
 const GENERIC_INTERNAL_MESSAGE = "Ocurrió un error interno. Probá de nuevo.";
 
@@ -114,6 +115,12 @@ export function registerApiErrorHandler(app: FastifyInstance) {
     if (validation) {
       request.log.warn({ err: error }, "validation failed");
       return reply.code(400).send(validation);
+    }
+
+    const domain = domainErrorFrom(error);
+    if (domain) {
+      request.log.info({ err: domain, statusCode: domain.statusCode }, "domain error");
+      return reply.code(domain.statusCode).send({ error: domain.message });
     }
 
     const statusCode = statusCodeOf(error);

@@ -1,3 +1,5 @@
+import { DomainError } from "../../lib/domain-error.js";
+
 export const SECTION_IDS = [
   "dashboard",
   "inventory",
@@ -41,7 +43,7 @@ export function normalizeSections(value: unknown): string[] | null {
 export function assertSectionList(value: string[]) {
   const unknown = value.find((item) => !KNOWN.has(item));
   if (unknown) {
-    throw Object.assign(new Error("Hay una sección que no existe"), { statusCode: 400 });
+    throw new DomainError("Hay una sección que no existe", 400);
   }
   return normalizeSections(value) ?? [];
 }

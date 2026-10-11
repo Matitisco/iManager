@@ -6,6 +6,7 @@ import { formatArMoney } from "../../lib/ar-money.js";
 import { cancellationRefund } from "../../lib/cancel-refund.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { parseOptionalImei } from "../../lib/imei.js";
@@ -52,11 +53,7 @@ export type OperationInput = {
     customFields?: Record<string, unknown> | null;
   };
 };
-export class OperationError extends Error {
-  constructor(message: string, public statusCode = 400) {
-    super(message);
-  }
-}
+export class OperationError extends DomainError {}
 
 function strictTradeGrade(value: string | null | undefined): string | null {
   const parsed = parseQuality(value);

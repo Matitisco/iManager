@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
@@ -61,11 +62,7 @@ const include = {
 
 type RepairRecord = Prisma.RepairOrderGetPayload<{ include: typeof include }>;
 
-export class RepairError extends Error {
-  constructor(message: string, public statusCode = 400) {
-    super(message);
-  }
-}
+export class RepairError extends DomainError {}
 
 export function getRepairErrorStatus(error: unknown) {
   if (error instanceof RepairError) return { statusCode: error.statusCode, message: error.message };

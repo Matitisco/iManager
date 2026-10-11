@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { toValidationBody } from "./api-error.js";
 import { registerApiErrorHandler } from "./api-error.js";
+import { DomainError } from "./domain-error.js";
 
 describe("toValidationBody", () => {
   it("translates an empty name, a negative price and a long model", () => {
@@ -91,6 +92,19 @@ describe("registerApiErrorHandler", () => {
     });
     expect(crashed.body).not.toContain("super-secret-db-password");
 
+    await app.close();
+  });
+
+  it("returns the domain message and status without wrapping a 500", async () => {
+    const app = Fastify({ logger: false });
+    registerApiErrorHandler(app);
+    app.get("/conflict", async () => {
+      throw new DomainError("Client already exists", 409);
+    });
+
+    const response = await app.inject({ method: "GET", url: "/conflict" });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: "Client already exists" });
     await app.close();
   });
 

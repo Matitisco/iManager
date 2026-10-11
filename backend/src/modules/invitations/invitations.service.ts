@@ -1,3 +1,4 @@
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
@@ -8,7 +9,7 @@ const INVITATION_TTL_DAYS = 7;
 
 export async function createInvitation(storeId: string, actorRole: string, email: string | undefined, role: "MANAGER" | "STAFF") {
   if (actorRole !== "OWNER") {
-    throw Object.assign(new Error("Solo el Propietario puede crear invitaciones"), { statusCode: 403 });
+    throw new DomainError("Solo el Propietario puede crear invitaciones", 403);
   }
 
   const frontendUrl = process.env.FRONTEND_URL?.trim();
@@ -26,7 +27,7 @@ export async function createInvitation(storeId: string, actorRole: string, email
       include: { memberships: { where: { storeId } } },
     });
     if (existing && existing.memberships.length > 0) {
-      throw Object.assign(new Error("Este email ya es miembro de la tienda"), { statusCode: 409 });
+      throw new DomainError("Este email ya es miembro de la tienda", 409);
     }
   }
 
@@ -58,18 +59,18 @@ export async function listInvitations(storeId: string) {
 
 export async function revokeInvitation(storeId: string, invitationId: string, actorRole: string) {
   if (actorRole !== "OWNER") {
-    throw Object.assign(new Error("Solo el Propietario puede revocar invitaciones"), { statusCode: 403 });
+    throw new DomainError("Solo el Propietario puede revocar invitaciones", 403);
   }
 
   const invitation = await prisma.storeInvitation.findFirst({
     where: { id: invitationId, storeId },
   });
   if (!invitation) {
-    throw Object.assign(new Error("Invitación no encontrada"), { statusCode: 404 });
+    throw new DomainError("Invitación no encontrada", 404);
   }
   if (invitation.status === "REVOKED") return; // already revoked — idempotent
   if (invitation.status !== "PENDING") {
-    throw Object.assign(new Error("Solo se pueden revocar invitaciones pendientes"), { statusCode: 400 });
+    throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
   }
 
   await prisma.storeInvitation.update({
@@ -102,7 +103,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
   });
 
   if (!invitation || invitation.status !== "PENDING" || invitation.expiresAt < now) {
-    throw Object.assign(new Error("La invitación expiró o ya fue utilizada"), { statusCode: 410 });
+    throw new DomainError("La invitación expiró o ya fue utilizada", 410);
   }
 
   // Find or create the User in PG
@@ -125,7 +126,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
 
     const current = await tx.storeInvitation.findUnique({ where: { id: invitation.id } });
     if (!current || current.status !== "PENDING" || current.expiresAt < now) {
-      throw Object.assign(new Error("La invitación expiró o ya fue utilizada"), { statusCode: 410 });
+      throw new DomainError("La invitación expiró o ya fue utilizada", 410);
     }
 
     const memberNow = await tx.storeMember.findUnique({
