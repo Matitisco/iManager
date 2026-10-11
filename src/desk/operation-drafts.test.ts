@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from '../services/fetch-with-timeout';
-import { fetchOperationDrafts, OperationRequestError } from '../services/operations-api';
+import { ApiError } from '../services/api-client';
+import { fetchOperationDrafts } from '../services/operations-api';
 import { DRAFT_LOAD_ERROR_MESSAGE, draftLoadNotice } from './operation-drafts';
 
 vi.mock('../services/fetch-with-timeout', () => ({
@@ -45,11 +46,11 @@ describe('draftLoadNotice', () => {
 
     const error = await fetchOperationDrafts(mockUser, 'inventory').then(() => null, (caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(OperationRequestError);
+    expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 404, message: 'Not Found' });
     expect(draftLoadNotice(error)).toBeNull();
     expect(draftLoadNotice(new Error('Not Found'))).toBeNull();
-    expect(draftLoadNotice(new OperationRequestError(404, 'No se pudo guardar la operación (404)'))).toBeNull();
+    expect(draftLoadNotice(new ApiError(404, 'No se pudo guardar la operación (404)'))).toBeNull();
     expect(draftLoadNotice('Not Found')).toBeNull();
   });
 
@@ -65,9 +66,9 @@ describe('draftLoadNotice', () => {
     expect(notice).toBe(DRAFT_LOAD_ERROR_MESSAGE);
     expect(notice).not.toContain('Internal Server Error');
     expect(notice).not.toContain('Not Found');
-    expect(draftLoadNotice(new OperationRequestError(500, 'Not Found'))).toBe(DRAFT_LOAD_ERROR_MESSAGE);
+    expect(draftLoadNotice(new ApiError(500, 'Not Found'))).toBe(DRAFT_LOAD_ERROR_MESSAGE);
     expect(draftLoadNotice(new Error('Cannot read properties of undefined'))).toBe(DRAFT_LOAD_ERROR_MESSAGE);
-    expect(draftLoadNotice(new OperationRequestError(403, 'Forbidden'))).toBe(DRAFT_LOAD_ERROR_MESSAGE);
+    expect(draftLoadNotice(new ApiError(403, 'Forbidden'))).toBe(DRAFT_LOAD_ERROR_MESSAGE);
     expect(draftLoadNotice('ECONNRESET')).toBe(DRAFT_LOAD_ERROR_MESSAGE);
   });
 });

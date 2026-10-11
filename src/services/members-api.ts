@@ -1,5 +1,4 @@
-import { getBackendBaseUrl } from './backend-session';
-import { fetchWithTimeout } from './fetch-with-timeout';
+import { apiRequest } from './api-client';
 import type { AuthUserLike } from '../types/auth-user';
 
 export type MemberRole = 'OWNER' | 'MANAGER' | 'STAFF';
@@ -20,27 +19,11 @@ export interface TeamMember {
   };
 }
 
-function getBaseUrl(): string {
-  const url = getBackendBaseUrl();
-  if (!url) throw new Error('Backend no configurado');
-  return url.replace(/\/+$/, '');
-}
-
-async function authHeaders(user: AuthUserLike) {
-  const token = await user.getIdToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  };
-}
-
 export async function listMembers(user: AuthUserLike, storeId: string): Promise<TeamMember[]> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members`, {
-    headers: await authHeaders(user),
+  const data = await apiRequest<{ members: TeamMember[] }>(user, `/api/stores/${storeId}/members`, {
+    fallback: 'Error al cargar miembros',
+    errorFrom: 'fallback',
   });
-  if (!res.ok) throw new Error('Error al cargar miembros');
-  const data = await res.json();
   return data.members;
 }
 
@@ -51,16 +34,10 @@ export async function updateMemberSections(
   sections: string[],
   sensitiveAccess?: boolean | null,
 ): Promise<TeamMember> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}/sections`, {
+  const data = await apiRequest<{ member: TeamMember }>(user, `/api/stores/${storeId}/members/${memberId}/sections`, {
     method: 'PATCH',
-    headers: await authHeaders(user),
-    body: JSON.stringify(sensitiveAccess === undefined ? { sections } : { sections, sensitiveAccess }),
+    body: sensitiveAccess === undefined ? { sections } : { sections, sensitiveAccess },
+    fallback: 'Error al guardar los permisos',
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al guardar los permisos');
-  }
-  const data = await res.json();
   return data.member;
 }
-
