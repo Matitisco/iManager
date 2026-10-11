@@ -21,6 +21,7 @@ import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
+import { MobileTabBar } from './mobile-tab-bar';
 import { canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
@@ -365,23 +366,31 @@ export function DeskApp() {
           </div>
         </main>
         {phone ? (
-          <nav className="mtab" data-testid="mobile-tab-bar" aria-label="Secciones">
-            {mobile.bar.map((id) => {
-              const active = tab === id;
-              const pending = sectionUnread(unread.bySection, id);
-              return (
-                <button key={id} className={active ? 'on' : ''} type="button" data-testid={`sidebar-tab-${id}`} aria-label={sectionLabel(id)} aria-current={active ? 'page' : undefined} onClick={() => go(id)}>
-                  <DeskIcon name={NAV_ICON[id]} size={22} />
-                  <span className="mtab-label">{sectionLabel(id)}</span>
-                  {pending > 0 ? <span className="dcount" aria-label={`${pending} en ${sectionLabel(id)}`}>{pending}</span> : null}
-                </button>
-              );
-            })}
-            <button className={moreActive ? 'on' : ''} type="button" data-testid="sidebar-tab-more" aria-label="Más" aria-current={moreActive ? 'page' : undefined} onClick={() => go('more')}>
-              <ImanagerIcon name="mas" size={20} />
-              <span className="mtab-label">Más</span>
-            </button>
-          </nav>
+          <MobileTabBar
+            buttons={[
+              ...mobile.bar.map((id) => {
+                const pending = sectionUnread(unread.bySection, id);
+                return {
+                  id,
+                  label: sectionLabel(id),
+                  active: tab === id,
+                  pending,
+                  testId: `sidebar-tab-${id}`,
+                  icon: <DeskIcon name={NAV_ICON[id]} size={22} />,
+                  onClick: () => go(id),
+                };
+              }),
+              {
+                id: 'more',
+                label: 'Más',
+                active: moreActive,
+                pending: 0,
+                testId: 'sidebar-tab-more',
+                icon: <ImanagerIcon name="mas" size={20} />,
+                onClick: () => go('more'),
+              },
+            ]}
+          />
         ) : null}
         <DeskToast message={message} show={toastOn} />
         <DeskOverlays overlay={overlay} />

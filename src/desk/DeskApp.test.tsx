@@ -1,7 +1,8 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
 import { DeskApp } from './DeskApp';
+import { MOBILE_TAB_INDICATOR_TRANSITION, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
 
 const context = vi.hoisted(() => ({
   appSession: {
@@ -31,9 +32,9 @@ describe('sidebar unread counts', () => {
     window.location.hash = '#/dash';
   });
 
-  function usePhone() {
+  function usePhone(reducedMotion = false) {
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: String(query).includes('760'),
+      matches: String(query).includes('760') || (reducedMotion && String(query).includes('prefers-reduced-motion')),
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -42,6 +43,28 @@ describe('sidebar unread counts', () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }));
+  }
+
+  function installTabRects() {
+    const rects: Record<string, DOMRect> = {
+      'mobile-tab-bar': new DOMRect(0, 780, 370, 62),
+      'sidebar-tab-dashboard': new DOMRect(8, 788, 132, 46),
+      'sidebar-tab-inventory': new DOMRect(148, 788, 118, 46),
+      'sidebar-tab-sales': new DOMRect(220, 788, 96, 46),
+      'sidebar-tab-reports': new DOMRect(268, 788, 40, 46),
+      'sidebar-tab-more': new DOMRect(316, 788, 46, 46),
+    };
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return rects[this.dataset.testid ?? ''] ?? new DOMRect(0, 0, 0, 0);
+    });
+    return () => spy.mockRestore();
+  }
+
+  function goHash(hash: string) {
+    act(() => {
+      window.location.hash = hash;
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
   }
 
   it('shows the unread total and a badge on each section that has unread notes', () => {
@@ -62,6 +85,7 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('Servicio técnico');
     expect(screen.queryByText('★')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
   });
 
   it('lists the overflow sections on Más without commissions or a tentative label', () => {
@@ -118,5 +142,60 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('sidebar-tab-tradeins')).toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-tab-reports')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-tab-service')).not.toBeInTheDocument();
+  });
+
+  it('slides the yellow indicator with translateX when the section changes from the bar or the hash', () => {
+    usePhone();
+    const restore = installTabRects();
+    window.location.hash = '#/dash';
+    render(<DeskApp />);
+    const indicator = screen.getByTestId('mobile-tab-indicator');
+    expect(indicator).toHaveStyle({
+      transform: 'translateX(8px)',
+      width: '132px',
+      transition: MOBILE_TAB_INDICATOR_TRANSITION,
+    });
+    expect(indicator.className).not.toContain('instant');
+
+    fireEvent.click(screen.getByTestId('sidebar-tab-inventory'));
+    act(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    expect(screen.getByTestId('sidebar-tab-inventory')).toHaveClass('on');
+    expect(indicator).toHaveStyle({ transform: 'translateX(148px)', width: '118px', transition: MOBILE_TAB_INDICATOR_TRANSITION });
+
+    goHash('#/ven');
+    expect(screen.getByTestId('sidebar-tab-sales')).toHaveClass('on');
+    expect(indicator).toHaveStyle({ transform: 'translateX(220px)', width: '96px' });
+
+    goHash('#/mas');
+    expect(screen.getByTestId('sidebar-tab-more')).toHaveClass('on');
+    expect(indicator).toHaveStyle({ transform: 'translateX(316px)', width: '46px' });
+    restore();
+  });
+
+  it('keeps the indicator still when reduced motion is requested', () => {
+    usePhone(true);
+    const restore = installTabRects();
+    window.location.hash = '#/dash';
+    render(<DeskApp />);
+    const indicator = screen.getByTestId('mobile-tab-indicator');
+    expect(indicator).toHaveClass('instant');
+    expect(indicator).toHaveStyle({ transform: 'translateX(8px)', transition: 'none' });
+
+    goHash('#/inv');
+    expect(indicator).toHaveStyle({ transform: 'translateX(148px)', transition: 'none' });
+    expect(indicator).toHaveClass('instant');
+    restore();
+  });
+});
+
+describe('mobile tab indicator geometry', () => {
+  it('places the pill on the active button using translate offsets', () => {
+    const frame = mobileTabIndicatorFrame(
+      { left: 10, top: 700 } as DOMRect,
+      { left: 84, top: 708, width: 120, height: 46 } as DOMRect,
+    );
+    expect(frame).toEqual({ x: 74, y: 8, width: 120, height: 46 });
+    expect(sameIndicatorFrame(frame, { ...frame })).toBe(true);
+    expect(sameIndicatorFrame(frame, { ...frame, x: frame.x + 2 })).toBe(false);
   });
 });
