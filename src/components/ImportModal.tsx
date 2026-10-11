@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
-import { Sheet } from '../desk/ui';
+import { Sheet, useEscape } from '../desk/ui';
 import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
@@ -35,6 +35,8 @@ interface Props {
   onAnalyze: (sheets: ImportSheetPayload[]) => Promise<ImportAnalysis>;
   onApply: (sheets: ImportSheetPayload[], plan: ImportSheetPlan[], refreshMapping: boolean) => Promise<ImportAnalysis>;
 }
+
+function ignoreEscape() {}
 
 function formatCount(count: number) {
   return new Intl.NumberFormat('es-AR').format(count);
@@ -72,6 +74,7 @@ export const ImportModal: React.FC<Props> = ({
   const [result, setResult] = useState<GenericImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
+  useEscape(sheet ? ignoreEscape : onClose);
 
   const applyResult = (analysis: ImportAnalysis) => {
     setPlan(analysis.plan);
