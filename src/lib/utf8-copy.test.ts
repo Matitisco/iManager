@@ -24,8 +24,8 @@ describe('utf-8 spanish copy', () => {
     expect(app).toContain('No hay sesión');
     expect(app).toContain('No tenés permiso para ver notificaciones.');
     expect(app).toContain('No tenés acceso a esta notificación.');
-    expect(readFileSync('src/pages/Sales.tsx', 'utf8')).toContain("{ value: 'T. Crédito', label: 'T. Crédito' }");
-    expect(readFileSync('src/components/ConfirmModal.test.tsx', 'utf8')).toContain('Esta acción no se puede deshacer.');
+    expect(readFileSync('src/desk/format.ts', 'utf8')).toContain("TRANSFERENCIA: 'Transferencia'");
+    expect(readFileSync('src/desk/DeskOverlays.tsx', 'utf8')).toContain('no se puede deshacer.');
     expect(readFileSync('src/pages/Onboarding.test.tsx', 'utf8')).toContain('El backend tardó en responder');
   });
 });
