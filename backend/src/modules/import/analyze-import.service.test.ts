@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ANALYSIS_NOTICES, analyzeImport, type AnalysisLogEntry } from "./analyze-import.service.js";
-import { DEFAULT_IMPORT_MODEL, RESPONSES_URL } from "./responses-client.js";
+import { scriptDecisionAnswers } from "../../../test/script-decisions.js";
+import { DECISIONS_MODEL, DECISIONS_URL, DEFAULT_IMPORT_MODEL, RESPONSES_URL, estimateDecisionsUsd } from "./responses-client.js";
 import { normalizeBattery, splitModelCapacity, type ImportSheet } from "./sheet-plan.js";
 
 const RATE = 1540;
@@ -291,13 +292,13 @@ describe("analyzeImport model", () => {
       model: DEFAULT_IMPORT_MODEL,
       inputTokens: 4000,
       outputTokens: 900,
-      estimatedUsd: 0.085,
+      estimatedUsd: 0.00085,
     });
   });
 
   it("reads the model id from OPENAI_IMPORT_MODEL", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    process.env.OPENAI_IMPORT_MODEL = "gpt-6-astra-test";
+    process.env.OPENAI_IMPORT_MODEL = "gpt-6-custom";
     const fetchImpl = vi.fn().mockResolvedValue(modelResponse({ sheets: [] }));
     await analyzeImport({
       section: "clients",
@@ -305,7 +306,7 @@ describe("analyzeImport model", () => {
       sheets: [{ name: "Hoja 1", rows: [["Nombre"], ["Ana"]] }],
     }, { fetchImpl });
     const body = JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body)) as { model: string; reasoning?: unknown };
-    expect(body.model).toBe("gpt-6-astra-test");
+    expect(body.model).toBe("gpt-6-custom");
     expect(body.reasoning).toEqual({ effort: "low" });
   });
 
@@ -344,5 +345,112 @@ describe("analyzeImport model", () => {
     }, { fetchImpl });
     expect(quota.notice).toBe(ANALYSIS_NOTICES.quota);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("asks Decisions once and prices input tokens only", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    delete process.env.OPENAI_IMPORT_MODEL;
+    const logs: AnalysisLogEntry[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(DECISIONS_URL);
+      const body = JSON.parse(String(init?.body)) as { model: string; questions: { name: string }[] };
+      expect(body.model).toBe(DECISIONS_MODEL);
+      expect(body.questions.length).toBeGreaterThan(0);
+      return new Response(JSON.stringify({
+        answers: scriptDecisionAnswers(body as never),
+        usage: { input_tokens: 2_700, output_tokens: 400 },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    const result = await analyzeImport({
+      section: "inventory",
+      currency: "USD",
+      sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
+    }, { fetchImpl, log: (entry) => logs.push(entry) });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.source).toBe("model");
+    expect(result.notice).toBeNull();
+    expect(result.rows).toEqual([expect.objectContaining({ model: "13", capacity: "128 GB", color: "Black", price: "500", condition: "USADO" })]);
+    expect(logs[0]).toMatchObject({
+      source: "model",
+      model: DECISIONS_MODEL,
+      inputTokens: 2700,
+      outputTokens: 400,
+      estimatedUsd: estimateDecisionsUsd(2700),
+    });
+    expect(logs[0]?.estimatedUsd).toBe(0.00027);
+  });
+
+  it("falls back to Luna when Decisions fails or the plan has no model and price", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    const plan = {
+      sheets: [{
+        name: "Usados",
+        include: true,
+        condition: "USADO",
+        headerRow: 1,
+        dataStartRow: 2,
+        dataEndRow: 2,
+        mapping: [
+          { header: "Modelo", field: "model" },
+          { header: "Precio USD", field: "price" },
+        ],
+        splitModelCapacity: true,
+        batteryAsPercent: false,
+        priceCurrency: "USD",
+      }],
+    };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response("no", { status: 500 }))
+      .mockResolvedValueOnce(modelResponse(plan, 1000, 200));
+    const failed = await analyzeImport({
+      section: "inventory",
+      currency: "USD",
+      sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
+    }, { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect((fetchImpl.mock.calls[0] as [string])[0]).toBe(DECISIONS_URL);
+    expect((fetchImpl.mock.calls[1] as [string])[0]).toBe(RESPONSES_URL);
+    expect(failed.source).toBe("model");
+    expect(failed.rows[0]).toMatchObject({ model: "13", price: "500" });
+
+    const blank = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === DECISIONS_URL) {
+        const body = JSON.parse(String(init?.body)) as { questions: { name: string; type: string }[] };
+        return new Response(JSON.stringify({
+          answers: body.questions.map((question) => question.type === "predicate"
+            ? { name: question.name, type: "predicate", probability: 0.99 }
+            : { name: question.name, type: "choice", choice: "ignore", confidence: 0.9 }),
+          usage: { input_tokens: 10, output_tokens: 4 },
+        }), { status: 200 });
+      }
+      return modelResponse(plan, 10, 4);
+    });
+    const missingPrice = await analyzeImport({
+      section: "inventory",
+      currency: "USD",
+      sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
+    }, { fetchImpl: blank });
+    expect(blank).toHaveBeenCalledTimes(2);
+    expect(missingPrice.rows[0]).toMatchObject({ model: "13", price: "500" });
+  });
+
+  it("does not call Luna when Decisions has no balance", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { message: "You exceeded your current quota", code: "insufficient_quota" },
+    }), { status: 429 }));
+    const result = await analyzeImport({
+      section: "inventory",
+      currency: "USD",
+      sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
+    }, { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect((fetchImpl.mock.calls[0] as [string])[0]).toBe(DECISIONS_URL);
+    expect(result.source).toBe("heuristic");
+    expect(result.notice).toBe(ANALYSIS_NOTICES.quota);
+    expect(result.rows[0]).toMatchObject({ model: "13", price: "500" });
   });
 });

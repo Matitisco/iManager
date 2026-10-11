@@ -5,6 +5,7 @@ import { Sheet } from '../desk/ui';
 import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
+import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 
 export interface ImportFieldDef {
   key: string;
@@ -32,16 +33,21 @@ interface Props {
   onApply: (sheets: ImportSheetPayload[], plan: ImportSheetPlan[], refreshMapping: boolean) => Promise<ImportAnalysis>;
 }
 
+function formatCount(count: number) {
+  return new Intl.NumberFormat('es-AR').format(count);
+}
+
 function countLabel(count: number, nouns: { one: string; many: string }) {
-  return `${count} ${count === 1 ? nouns.one : nouns.many}`;
+  return `${formatCount(count)} ${count === 1 ? nouns.one : nouns.many}`;
 }
 
 function sheetLine(count: number, nouns: { one: string; many: string }, condition: string) {
   const noun = count === 1 ? nouns.one : nouns.many;
-  if (condition === 'NUEVO') return `${count} ${noun} ${count === 1 ? 'nuevo' : 'nuevos'}`;
-  if (condition === 'USADO') return `${count} ${noun} ${count === 1 ? 'usado' : 'usados'}`;
-  if (condition === 'PRE-OWNED') return `${count} ${noun} pre-owned`;
-  return `${count} ${noun}`;
+  const total = formatCount(count);
+  if (condition === 'NUEVO') return `${total} ${noun} ${count === 1 ? 'nuevo' : 'nuevos'}`;
+  if (condition === 'USADO') return `${total} ${noun} ${count === 1 ? 'usado' : 'usados'}`;
+  if (condition === 'PRE-OWNED') return `${total} ${noun} pre-owned`;
+  return `${total} ${noun}`;
 }
 
 export const ImportModal: React.FC<Props> = ({
@@ -55,6 +61,7 @@ export const ImportModal: React.FC<Props> = ({
   const [plan, setPlan] = useState<ImportSheetPlan[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [summary, setSummary] = useState<ImportAnalysis['summary'] | null>(null);
+  const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
   const [activeSheet, setActiveSheet] = useState('');
   const [applying, setApplying] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -66,6 +73,7 @@ export const ImportModal: React.FC<Props> = ({
     setPlan(analysis.plan);
     setRows(analysis.rows);
     setSummary(analysis.summary);
+    setCurrency(analysis.currency);
     setActiveSheet((current) => analysis.plan.some((item) => item.name === current) ? current : analysis.plan[0]?.name ?? '');
   };
 
@@ -87,8 +95,8 @@ export const ImportModal: React.FC<Props> = ({
         setFileError('El archivo está vacío');
         return;
       }
-      if (nextSheets.reduce((total, item) => total + item.rows.length, 0) > 2000) {
-        setFileError('El archivo supera las 2000 filas.');
+      if (nextSheets.reduce((total, item) => total + item.rows.length, 0) > 5000) {
+        setFileError('El archivo supera las 5000 filas.');
         return;
       }
       setSheets(nextSheets);
@@ -176,7 +184,7 @@ export const ImportModal: React.FC<Props> = ({
             <Upload size={32} className="text-gray-400" />
             <div className="text-center">
               <p className="font-medium text-gray-700">Arrastrá un archivo o hacé click para elegir</p>
-              <p className="text-sm text-gray-400 mt-1">.csv, .xlsx — máx. 2000 filas</p>
+              <p className="text-sm text-gray-400 mt-1">.csv, .xlsx — máx. 5000 filas</p>
             </div>
           </div>
           <input
@@ -209,6 +217,15 @@ export const ImportModal: React.FC<Props> = ({
           </ul>
           {summary.rowCount === 0 && (
             <p className="text-sm text-gray-600">No encontramos filas para importar. Podés ajustar el encabezado.</p>
+          )}
+          {rows.length > 0 && (
+            <ImportPreviewList
+              rows={rows}
+              columns={previewColumns(fields)}
+              currency={currency}
+              layout={sheet ? 'cards' : 'table'}
+              nouns={nouns}
+            />
           )}
         </div>
       )}
@@ -411,7 +428,7 @@ export const ImportModal: React.FC<Props> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={title}

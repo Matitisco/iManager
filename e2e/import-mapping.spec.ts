@@ -76,7 +76,16 @@ for (const viewport of viewports) {
       await expect(dialog.getByText('10 equipos nuevos')).toBeVisible();
       await expect(dialog.getByText('Revisá las columnas')).toHaveCount(0);
       await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
+      await expect(dialog.getByTestId('import-preview-count')).toHaveText('37 equipos');
+      const preview = dialog.getByTestId('import-preview');
+      await preview.scrollIntoViewIfNeeded();
+      await expect(preview.getByTestId('import-preview-row').first()).toBeVisible();
+      await expect(dialog.getByText('Moneda')).toHaveCount(phone ? 0 : 1);
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
+      await preview.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+      await expect(preview).toHaveAttribute('aria-rowcount', '37');
+      await expect(preview.locator('[data-testid="import-preview-row"]').last()).toHaveAttribute('data-index', '36');
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-preview.png`) });
 
       await dialog.getByTestId('import-adjust-open').click();
       await expect(dialog.getByTestId('import-adjust')).toBeVisible();

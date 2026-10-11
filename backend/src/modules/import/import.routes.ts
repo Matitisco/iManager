@@ -11,9 +11,11 @@ import { analyzeImport, applyImportPlan } from "./analyze-import.service.js";
 import { IMPORT_CATALOGS, IMPORT_SECTIONS } from "./import-catalog.js";
 import { CONDITIONS, type ImportSheet, type SheetPlan } from "./sheet-plan.js";
 
+const MAX_IMPORT_ROWS = 5000;
+
 const sheetSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  rows: z.array(z.array(z.string().max(2000)).max(40)).max(2000),
+  rows: z.array(z.array(z.string().max(2000)).max(40)).max(MAX_IMPORT_ROWS),
 });
 
 const sheetsSchema = z.object({
@@ -25,9 +27,9 @@ const planSchema = z.object({
   name: z.string().trim().min(1).max(80),
   include: z.boolean(),
   condition: z.enum(CONDITIONS),
-  headerRow: z.number().int().min(1).max(2000),
-  dataStartRow: z.number().int().min(1).max(2001),
-  dataEndRow: z.number().int().min(0).max(2000),
+  headerRow: z.number().int().min(1).max(MAX_IMPORT_ROWS),
+  dataStartRow: z.number().int().min(1).max(MAX_IMPORT_ROWS + 1),
+  dataEndRow: z.number().int().min(0).max(MAX_IMPORT_ROWS),
   mapping: z.array(z.object({
     header: z.string().max(200),
     field: z.string().max(40),

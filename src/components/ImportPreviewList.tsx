@@ -1,0 +1,177 @@
+import { useEffect, useRef, useState } from 'react';
+
+export type PreviewColumn = { key: string; label: string };
+
+const EQUIPMENT_COLUMNS: PreviewColumn[] = [
+  { key: 'model', label: 'Modelo' },
+  { key: 'capacity', label: 'Capacidad' },
+  { key: 'color', label: 'Color' },
+  { key: 'condition', label: 'Condición' },
+  { key: 'batteryHealth', label: 'Batería' },
+  { key: 'price', label: 'Precio' },
+  { key: 'currency', label: 'Moneda' },
+];
+
+const TABLE_ROW = 44;
+const CARD_ROW = 72;
+const OVERSCAN = 6;
+
+export function previewColumns(fields: { key: string; label: string }[]): PreviewColumn[] {
+  if (fields.some((field) => field.key === 'model')) return EQUIPMENT_COLUMNS;
+  return fields.map((field) => ({ key: field.key, label: field.label }));
+}
+
+export function ImportPreviewList({
+  rows,
+  columns,
+  currency,
+  layout,
+  nouns,
+}: {
+  rows: Record<string, string>[];
+  columns: PreviewColumn[];
+  currency: string;
+  layout: 'table' | 'cards';
+  nouns: { one: string; many: string };
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewport, setViewport] = useState(layout === 'cards' ? 280 : 320);
+  const rowHeight = layout === 'cards' ? CARD_ROW : TABLE_ROW;
+  const headerHeight = layout === 'table' ? 36 : 0;
+  const equipment = columns.some((column) => column.key === 'model');
+  const total = new Intl.NumberFormat('es-AR').format(rows.length);
+  const noun = rows.length === 1 ? nouns.one : nouns.many;
+  const label = `${total} ${noun}`;
+
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return undefined;
+    const measure = () => setViewport(element.clientHeight || (layout === 'cards' ? 280 : 320));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [layout]);
+
+  const start = Math.max(0, Math.min(rows.length, Math.floor(Math.max(0, scrollTop - headerHeight) / rowHeight) - OVERSCAN));
+  const end = Math.min(rows.length, start + Math.ceil(viewport / rowHeight) + OVERSCAN * 2);
+  const visible = rows.slice(start, end);
+
+  return (
+    <div className="space-y-2" data-layout={layout}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-bold text-gray-900">{equipment ? 'Equipos a importar' : 'Para importar'}</h3>
+        <p className="text-sm font-medium text-gray-600" data-testid="import-preview-count">{label}</p>
+      </div>
+      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+        <div
+          ref={scroller}
+          data-testid="import-preview"
+          tabIndex={0}
+          role="region"
+          aria-label={label}
+          aria-rowcount={rows.length}
+          className="overflow-auto"
+          style={{ maxHeight: layout === 'cards' ? 280 : 360 }}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        >
+          {layout === 'table' && (
+            <div
+              className="sticky top-0 z-[1] grid gap-2 border-b border-gray-200 bg-gray-50 px-3 text-xs font-bold uppercase tracking-wide text-gray-500"
+              style={{ height: headerHeight, gridTemplateColumns: template(columns), minWidth: equipment ? 720 : undefined, alignItems: 'center' }}
+            >
+              {columns.map((column) => <span key={column.key} className="truncate">{column.label}</span>)}
+            </div>
+          )}
+          <div style={{ height: rows.length * rowHeight, position: 'relative', minWidth: layout === 'table' && equipment ? 720 : undefined }}>
+            {visible.map((row, offset) => {
+              const index = start + offset;
+              return (
+                <div
+                  key={index}
+                  data-testid="import-preview-row"
+                  data-index={index}
+                  className="absolute left-0 right-0 border-b border-gray-100"
+                  style={{ top: index * rowHeight, height: rowHeight, boxSizing: 'border-box' }}
+                >
+                  {layout === 'table'
+                    ? <TableRow row={row} columns={columns} currency={currency} />
+                    : <CardRow row={row} columns={columns} currency={currency} equipment={equipment} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TableRow({ row, columns, currency }: { row: Record<string, string>; columns: PreviewColumn[]; currency: string }) {
+  return (
+    <div className="grid gap-2 h-full items-center px-3 text-sm" style={{ gridTemplateColumns: template(columns) }}>
+      {columns.map((column) => (
+        <span key={column.key} className={`truncate ${column.key === 'model' || column.key === 'price' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+          {display(row, column.key, currency) || '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CardRow({
+  row, columns, currency, equipment,
+}: {
+  row: Record<string, string>;
+  columns: PreviewColumn[];
+  currency: string;
+  equipment: boolean;
+}) {
+  if (equipment) {
+    const meta = ['capacity', 'color', 'condition', 'batteryHealth']
+      .map((key) => row[key]?.trim())
+      .filter(Boolean)
+      .join(' · ');
+    const price = display(row, 'price', currency);
+    return (
+      <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
+          <p className="text-sm font-medium text-gray-900 shrink-0">{[price, currency].filter(Boolean).join(' ')}</p>
+        </div>
+        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+      </div>
+    );
+  }
+  const [primary, ...rest] = columns;
+  return (
+    <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
+      <p className="text-sm font-medium text-gray-900 truncate">{primary ? display(row, primary.key, currency) || '—' : '—'}</p>
+      <p className="text-xs text-gray-500 truncate">
+        {rest.map((column) => display(row, column.key, currency)).filter(Boolean).join(' · ') || '—'}
+      </p>
+    </div>
+  );
+}
+
+function template(columns: PreviewColumn[]): string {
+  if (columns.some((column) => column.key === 'model') && columns.length === EQUIPMENT_COLUMNS.length) {
+    return 'minmax(140px, 1.6fr) minmax(72px, 0.8fr) minmax(72px, 0.9fr) minmax(88px, 0.8fr) minmax(64px, 0.7fr) minmax(72px, 0.8fr) minmax(56px, 0.5fr)';
+  }
+  return `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`;
+}
+
+function display(row: Record<string, string>, key: string, currency: string): string {
+  if (key === 'currency') return currency;
+  if (key === 'price') return formatAmount(row.price);
+  return row[key]?.trim() ?? '';
+}
+
+function formatAmount(value: string | undefined): string {
+  if (!value?.trim()) return '';
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return value;
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(amount);
+}
