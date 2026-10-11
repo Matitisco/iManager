@@ -22,7 +22,7 @@ const money = z.number().nonnegative().max(100_000_000);
 
 const repairSchema = z.object({
   clientId: z.string().trim().min(1).nullable().optional(),
-  clientName: z.string().trim().min(1, "Completá el cliente").max(120),
+  clientName: z.string().trim().max(120).nullable().optional(),
   device: z.string().trim().min(1, "Completá el equipo").max(120),
   imei: z.string().trim().max(20).optional().default(""),
   fault: z.string().trim().max(2000).optional().default(""),
@@ -45,8 +45,8 @@ const repairSchema = z.object({
 
 const patchSchema = z.object({
   clientId: z.string().trim().min(1).nullable().optional(),
-  clientName: z.string().trim().min(1).max(120).optional(),
-  device: z.string().trim().min(1).max(120).optional(),
+  clientName: z.string().trim().max(120).nullable().optional(),
+  device: z.string().trim().min(1, "Completá el equipo").max(120).optional(),
   imei: z.string().trim().max(20).optional(),
   fault: z.string().trim().max(2000).optional(),
   faultTags: tags.optional(),

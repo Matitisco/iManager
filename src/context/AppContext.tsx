@@ -865,9 +865,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateRepairOrder = async (id: string, input: Partial<RepairOrderInput>) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
-    const order = await updateBackendRepair(user, id, input);
-    setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
-    return order;
+    const result = await updateBackendRepair(user, id, input);
+    setRepairOrders((current) => current.map((item) => item.id === id ? result.order : item));
+    rememberClient(result.client);
+    return result.order;
   };
 
   const changeRepairStatus = async (id: string, status: string) => {

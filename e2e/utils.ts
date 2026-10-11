@@ -391,7 +391,7 @@ export async function createRepairViaApi(
   request: APIRequestContext,
   email: string,
   input: {
-    clientName: string;
+    clientName?: string | null;
     clientId?: string | null;
     device: string;
     fault?: string;

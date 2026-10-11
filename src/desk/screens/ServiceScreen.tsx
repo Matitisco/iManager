@@ -156,10 +156,10 @@ export function ServiceScreen() {
                         <b>#{order.code}</b>
                         {dateText ? <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dateText}</span> : null}
                       </div>
-                      <div className="store">{order.device}</div>
+                      <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
+                      {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
                       <div className="items">{repairFault(order)}</div>
                       <div className="wbot">
-                        <span className="items">{order.clientName}</span>
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
                     </button>
@@ -221,10 +221,10 @@ export function ServiceScreen() {
                         <b>#{order.code}</b>
                         <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dayMonth(when)}</span>
                       </div>
-                      <div className="store">{order.device}</div>
+                      <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
+                      {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
                       <div className="items">{repairFault(order)}</div>
                       <div className="wbot">
-                        <span className="items">{order.clientName}</span>
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
                     </button>
@@ -243,8 +243,8 @@ export function ServiceScreen() {
                   <tr>
                     <th>Orden</th>
                     <th>Ingreso</th>
-                    <th>Cliente</th>
                     <th>Equipo</th>
+                    <th>Cliente</th>
                     <th>Falla</th>
                     <th>Presupuesto</th>
                     <th>Entrega est.</th>
@@ -256,8 +256,8 @@ export function ServiceScreen() {
                     <tr key={order.id} data-testid={`repair-row-${order.id}`} onClick={() => open({ type: 'ot', id: order.id })}>
                       <td><b>#{order.code}</b></td>
                       <td>{dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}</td>
-                      <td>{order.clientName}</td>
                       <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>
+                      <td>{order.clientName || '—'}</td>
                       <td>{repairFault(order)}</td>
                       <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>

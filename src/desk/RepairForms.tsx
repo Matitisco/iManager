@@ -55,7 +55,6 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
 
   const save = async () => {
     const next: Record<string, string> = {};
-    if (!clientName.trim()) next.client = 'Completá este dato';
     if (!device.trim()) next.device = 'Completá este dato';
     if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
@@ -65,7 +64,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
     try {
       await addRepairOrder({
         clientId: clientId || null,
-        clientName: clientName.trim(),
+        clientName: clientName.trim() || null,
         device: device.trim(),
         imei,
         fault: fault.trim(),
@@ -91,21 +90,26 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
       {error || bad.form ? <div className="ferr">{error || bad.form}</div> : null}
       <div className="svc-grid">
         <div>
-          <ClientField
-            clients={clients}
-            value={clientName}
-            linked={Boolean(clientId)}
-            error={bad.client}
-            onValue={(value) => { setClientName(value); setClientId(''); setBad((current) => ({ ...current, client: '' })); }}
-            onPick={(client) => { setClientName(client.name); setClientId(client.id); setBad((current) => ({ ...current, client: '' })); }}
-          />
-          <div className="frow">
-            <Field label="Equipo" error={bad.device}>
-              <input value={device} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDevice(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
-            </Field>
-            <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
-              <input value={imei} inputMode="numeric" maxLength={15} placeholder="15 dígitos" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); setBad((current) => ({ ...current, imei: '' })); }} />
-            </Field>
+          <div className="svc-lead">
+            <div className="svc-lead-device">
+              <Field label="Equipo" error={bad.device}>
+                <input value={device} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDevice(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
+              </Field>
+            </div>
+            <ClientField
+              className="svc-lead-client"
+              label="Cliente (opcional)"
+              clients={clients}
+              value={clientName}
+              linked={Boolean(clientId)}
+              onValue={(value) => { setClientName(value); setClientId(''); }}
+              onPick={(client) => { setClientName(client.name); setClientId(client.id); }}
+            />
+            <div className="svc-lead-imei">
+              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
+                <input value={imei} inputMode="numeric" maxLength={15} placeholder="15 dígitos" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); setBad((current) => ({ ...current, imei: '' })); }} />
+              </Field>
+            </div>
           </div>
           <Field label="Falla reportada" error={bad.fault}><span /></Field>
           <div className="svc-faults">
@@ -150,7 +154,7 @@ function storedCurrency(value: string | null | undefined): 'ARS' | 'USD' | null 
 }
 
 export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
-  const { repairOrders = [], changeRepairStatus, updateRepairOrder, deleteRepairOrder } = useAppContext();
+  const { repairOrders = [], clients = [], changeRepairStatus, updateRepairOrder, deleteRepairOrder } = useAppContext();
   const money = useMoney();
   const { close, toast, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
@@ -159,6 +163,10 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [deviceDraft, setDeviceDraft] = useState('');
+  const [clientNameDraft, setClientNameDraft] = useState('');
+  const [clientIdDraft, setClientIdDraft] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [estimate, setEstimate] = useState('');
   const [deposit, setDeposit] = useState('');
@@ -182,7 +190,38 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     setDeposit(money.inputValue(order.deposit, order.currency));
     setBad({});
     setError('');
+    setEditingIdentity(false);
     setEditing(true);
+  };
+  const startIdentity = () => {
+    setDeviceDraft(order.device);
+    setClientNameDraft(order.clientName);
+    setClientIdDraft(order.clientId ?? '');
+    setBad({});
+    setError('');
+    setEditing(false);
+    setEditingIdentity(true);
+  };
+  const saveIdentity = async () => {
+    const nextBad: Record<string, string> = {};
+    if (!deviceDraft.trim()) nextBad.device = 'Completá este dato';
+    setBad(nextBad);
+    if (Object.keys(nextBad).length || !updateRepairOrder) return;
+    setError('');
+    setSaving(true);
+    try {
+      await updateRepairOrder(order.id, {
+        device: deviceDraft.trim(),
+        clientId: clientIdDraft || null,
+        clientName: clientNameDraft.trim() || null,
+      });
+      setEditingIdentity(false);
+      toast('Orden actualizada');
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, 'No se pudo guardar la orden'));
+    } finally {
+      setSaving(false);
+    }
   };
   const advance = async () => {
     if (!next || !changeRepairStatus) return;
@@ -245,6 +284,31 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     }
   };
 
+  const identityBlock = editingIdentity ? (
+    <div className="svc-edit" data-testid="repair-identity-edit">
+      <Field label="Equipo" error={bad.device}>
+        <input id="repair-device" data-testid="repair-device-input" value={deviceDraft} maxLength={120} placeholder="iPhone 13" onChange={(event) => { setDeviceDraft(event.target.value); setBad((current) => ({ ...current, device: '' })); }} />
+      </Field>
+      <ClientField
+        clients={clients}
+        label="Cliente (opcional)"
+        value={clientNameDraft}
+        linked={Boolean(clientIdDraft)}
+        onValue={(value) => { setClientNameDraft(value); setClientIdDraft(''); }}
+        onPick={(client) => { setClientNameDraft(client.name); setClientIdDraft(client.id); }}
+      />
+      <div className="sacts">
+        <button type="button" className="btn2 s" disabled={saving} onClick={() => { setEditingIdentity(false); setError(''); }}>Cancelar</button>
+        <button type="button" className="btn2 p" data-testid="repair-save-identity" disabled={busy || saving} onClick={() => { void saveIdentity(); }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+      </div>
+    </div>
+  ) : (
+    <div className="svc-identity-actions">
+      {order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b>{order.clientName}</b></div> : null}
+      <button type="button" className="btn2 s" data-testid="repair-edit-identity" disabled={busy || saving} onClick={startIdentity}>Editar equipo</button>
+    </div>
+  );
+
   if (!phone) return (
     <>
       <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
@@ -256,7 +320,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           {next ? <span>Sigue: {next.label}</span> : null}
         </div>
         {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
-        <div className="kv"><span>Cliente</span><b>{order.clientName}</b></div>
+        {identityBlock}
         <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
         <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
         {editing ? (
@@ -359,7 +423,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
 
   return (
     <>
-      <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={`${order.device} · ${order.clientName}`} onClose={close}>
+      <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close}>
         <div className="svc-steps" aria-hidden="true">
           {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
         </div>
@@ -373,6 +437,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           </p>
         ) : null}
         {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
+        {identityBlock}
         <div className="svc-fault-card">
           <span>Falla</span>
           <b>{repairFault(order)}</b>

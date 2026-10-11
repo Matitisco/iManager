@@ -9,6 +9,8 @@ export function ClientField<T extends Client | OperationClientOption>({
   linked,
   error,
   readOnly = false,
+  label = 'Cliente',
+  className,
   onValue,
   onPick,
 }: {
@@ -17,6 +19,8 @@ export function ClientField<T extends Client | OperationClientOption>({
   linked: boolean;
   error?: string;
   readOnly?: boolean;
+  label?: string;
+  className?: string;
   onValue: (value: string) => void;
   onPick: (client: T) => void;
 }) {
@@ -31,8 +35,8 @@ export function ClientField<T extends Client | OperationClientOption>({
   }
 
   return (
-    <div className="eqs">
-      <Field label="Cliente" error={error}>
+    <div className={className ? `eqs ${className}` : 'eqs'}>
+      <Field label={label} error={error}>
         <input
           role="combobox"
           aria-expanded={visible}

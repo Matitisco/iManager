@@ -217,7 +217,8 @@ test.describe('service on a phone', () => {
     await readyCard.click();
     const detail = page.getByRole('dialog', { name: /#OT-0001/ });
     await expect(detail.locator('.sheet-grab')).toBeVisible();
-    await expect(detail.getByText('iPhone 14 · Cliente Celular')).toBeVisible();
+    await expect(detail.getByText('iPhone 14', { exact: true })).toBeVisible();
+    await expect(detail.getByTestId('repair-client')).toContainText('Cliente Celular');
     await expect(detail.getByTestId('repair-step')).toContainText('Paso 2 de 4');
     await expect(detail.getByTestId('repair-step')).toContainText('Listo para retirar');
     await expect(detail.getByText('Cámara trasera borrosa')).toBeVisible();

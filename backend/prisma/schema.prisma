@@ -356,7 +356,8 @@ model RepairOrder {
   orderNumber       Int                 @default(autoincrement())
   storeId           String
   clientId          String?
-  clientName        String              @db.VarChar(120)
+  // Null when the order has no client. Dropping NOT NULL keeps every existing name.
+  clientName        String?             @db.VarChar(120)
   device            String              @db.VarChar(120)
   imei              String              @default("") @db.VarChar(20)
   fault             String              @default("") @db.Text

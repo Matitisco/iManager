@@ -719,6 +719,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .ticket .date.late, .dtable td.late { color: var(--err); font-weight: 800; }
 .sheet.wide { width: min(980px, calc(100vw - 48px)); }
 .svc-grid { display: grid; grid-template-columns: 1.15fr .9fr; gap: 8px 22px; align-items: start; }
+.svc-lead { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; align-items: start; }
+.svc-lead-device { grid-column: 1; grid-row: 1; }
+.svc-lead-imei { grid-column: 2; grid-row: 1; }
+.svc-lead-client { grid-column: 1 / -1; grid-row: 2; }
+.svc-card-client { margin: 0 0 6px; color: var(--secondary); font-size: 13px; font-weight: 600; line-height: 1.35; }
+.ticket .store:has(+ .svc-card-client) { margin-bottom: 2px; }
+.ticket .wbot .wamt { margin-left: auto; }
+.svc-identity-actions .btn2 { width: auto; min-width: 148px; margin-bottom: 8px; }
 .svc-faults { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 10px; }
 .svc-faults button { height: 34px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff; font-size: 13px; font-weight: 700; }
 .svc-faults button.on { background: var(--lime); border-color: var(--lime); }
@@ -775,7 +783,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .svc-now span,
   .sheet.svc-sheet .svc-wa { overflow-wrap: anywhere; }
   .sheet.svc-sheet .sacts,
-  .sheet.svc-sheet .frow { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .frow,
+  .sheet.svc-sheet .svc-lead { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .svc-lead-device,
+  .sheet.svc-sheet .svc-lead-imei,
+  .sheet.svc-sheet .svc-lead-client { grid-column: 1; }
+  .sheet.svc-sheet .svc-lead-device { grid-row: 1; }
+  .sheet.svc-sheet .svc-lead-client { grid-row: 2; }
+  .sheet.svc-sheet .svc-lead-imei { grid-row: 3; }
   .sheet.svc-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 14px; }
   .sheet.svc-sheet .svc-wa,
   .sheet.svc-sheet .svc-now { flex-wrap: wrap; }
@@ -1167,7 +1182,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.cl-sheet .sacts,
   .sheet.cl-sheet .sacts:has(> .btn2:nth-child(3)) { grid-template-columns: 1fr; }
   .svc-chips { flex-wrap: wrap; overflow: visible; }
-  .sheet.svc-sheet .frow { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .frow,
+  .sheet.svc-sheet .svc-lead { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .svc-lead-device,
+  .sheet.svc-sheet .svc-lead-imei,
+  .sheet.svc-sheet .svc-lead-client { grid-column: 1; }
+  .sheet.svc-sheet .svc-lead-device { grid-row: 1; }
+  .sheet.svc-sheet .svc-lead-client { grid-row: 2; }
+  .sheet.svc-sheet .svc-lead-imei { grid-row: 3; }
   .sheet.svc-sheet .sgs, .sheet.svc-sheet .svc-faults, .sheet.svc-sheet .svc-pair { max-width: 100%; }
   .sheet.svc-sheet .sg { max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
   .sheet.svc-sheet .svc-log li { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 2px 10px; border-top: 0; padding: 0 0 14px; position: relative; }
