@@ -24,11 +24,6 @@ export interface Product {
   customFields?: Record<string, any>;
 }
 
-export interface InventoryCategory {
-  id: string;
-  name: string;
-}
-
 export type CustomColumnEntity = 'inventory' | 'clients' | 'sales' | 'trade-ins';
 
 export interface CustomColumn {
@@ -136,11 +131,6 @@ export interface TradeIn {
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
-}
-
-export interface TradeInCategory {
-  id: string;
-  name: string;
 }
 
 export interface Client {

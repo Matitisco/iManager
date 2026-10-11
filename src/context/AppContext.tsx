@@ -1,22 +1,20 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, TradeInCategory, ClientCategory, RepairOrder } from '../types';
+import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
-import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
-import { deleteBackendSale, fetchBackendSales, updateBackendSale, type Category as SaleCategory } from '../services/sales-api';
-import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment } from '../services/clients-api';
+import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
+import { deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
+import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
-import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
 import { markStoreContactOffer } from '../lib/store-contact';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
-import { normalizeDropdownOptions } from '../utils/dropdown-options';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
-import { generateColumnId, readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost, writeLocalCustomColumns } from './store-records';
+import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
 
 interface AppState {
   inventory: Product[];
@@ -27,7 +25,6 @@ interface AppState {
   changeRepairStatus: (id: string, status: string) => Promise<RepairOrder>;
   deleteRepairOrder: (id: string) => Promise<void>;
   sales: Sale[];
-  salesCategories: SaleCategory[];
   tradeIns: TradeIn[];
   clients: Client[];
   customColumns: CustomColumn[];
@@ -45,12 +42,9 @@ interface AppState {
   updateSaleOperation: (id: string, input: OperationInput) => Promise<OperationResult>;
   updateTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
   confirmTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
-  cancelSaleOperation: (id: string) => Promise<OperationResult>;
   cancelTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
   fetchSaleOperation: (id: string) => Promise<OperationResult>;
   fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
-  applyOperationResult: (result: OperationResult) => void;
-  addSale: (sale: Omit<Sale, 'id'>) => Promise<OperationResult>;
   updateSale: (sale: Sale) => Promise<OperationResult | void>;
   deleteSale: (id: string) => Promise<OperationResult | void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
@@ -60,38 +54,13 @@ interface AppState {
   updateClient: (client: Client) => Promise<void>;
   registerClientPayment: (clientId: string, input: { amount: number; method: string; currency?: string | null }) => Promise<Client>;
   deleteClient: (id: string) => Promise<void>;
-  addTradeIn: (tradeIn: Omit<TradeIn, 'id'>) => Promise<OperationResult>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<OperationResult | void>;
   deleteTradeIn: (id: string) => Promise<OperationResult | void>;
-  addCustomColumn: (column: Omit<CustomColumn, 'id'>) => Promise<string | undefined>;
-  removeCustomColumn: (id: string) => Promise<void>;
   reloadInventory: () => Promise<void>;
   reloadSales: () => Promise<void>;
   reloadClients: () => Promise<void>;
   reloadTradeIns: () => Promise<void>;
-  inventoryCategories: InventoryCategory[];
-  createCategory: (name: string) => Promise<InventoryCategory>;
-  renameCategory: (id: string, name: string) => Promise<void>;
-  deleteCategory: (id: string) => Promise<void>;
-  bulkMoveCategory: (ids: string[], categoryId: string | null) => Promise<void>;
-  reorderCategories: (ids: string[]) => Promise<void>;
-  createSaleCategory: (name: string) => Promise<SaleCategory>;
-  renameSaleCategory: (id: string, name: string) => Promise<void>;
-  deleteSaleCategory: (id: string) => Promise<void>;
-  bulkMoveSaleCategory: (ids: string[], categoryId: string | null) => Promise<void>;
-  reorderSaleCategories: (ids: string[]) => Promise<void>;
-  tradeInCategories: TradeInCategory[];
-  createTradeInCategory: (name: string) => Promise<TradeInCategory>;
-  renameTradeInCategory: (id: string, name: string) => Promise<void>;
-  deleteTradeInCategory: (id: string) => Promise<void>;
-  bulkMoveTradeInCategory: (ids: string[], categoryId: string | null) => Promise<void>;
-  reorderTradeInCategories: (ids: string[]) => Promise<void>;
   clientCategories: ClientCategory[];
-  createClientCategory: (name: string) => Promise<ClientCategory>;
-  renameClientCategory: (id: string, name: string) => Promise<void>;
-  deleteClientCategory: (id: string) => Promise<void>;
-  bulkMoveClientCategory: (ids: string[], categoryId: string | null) => Promise<void>;
-  reorderClientCategories: (ids: string[]) => Promise<void>;
   user: AuthUserLike | null;
   loading: boolean;
   appSession: AppSession | null;
@@ -100,8 +69,6 @@ interface AppState {
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
   completeOnboarding: (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
-  createOwnedStore: (storeName: string) => Promise<void>;
-  activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   reloadSession: () => Promise<void>;
   login: () => Promise<void>;
@@ -121,14 +88,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
     inventory, setInventory,
-    repairOrders, setRepairOrders, repairOrdersError, setRepairOrdersError,
-    sales, setSales, salesCategories, setSalesCategories,
-    tradeIns, setTradeIns, tradeInCategories, setTradeInCategories,
+    repairOrders, setRepairOrders, repairOrdersError,
+    sales, setSales,
+    tradeIns, setTradeIns,
     clients, setClients, clientCategories, setClientCategories,
     operationOptions, setOperationOptions, operationDrafts, setOperationDrafts,
     operationNotifications, setOperationNotifications,
     notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
-    customColumns, setCustomColumns, inventoryCategories, setInventoryCategories,
+    customColumns, setCustomColumns,
     scopeRef, currentScope, canAccess, backendReady,
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
@@ -154,9 +121,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user) {
       setInventory([]);
       setSales([]);
-      setSalesCategories([]);
       setTradeIns([]);
-      setTradeInCategories([]);
       setClients([]);
       setOperationOptions({});
       setOperationDrafts([]);
@@ -267,29 +232,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const session = await completeBackendOnboarding(user, input);
     if (session.store?.id) markStoreContactOffer(session.store.id);
-    setBackendStatus('ready');
-    setBackendMessage(null);
-    setAppSession(session);
-  };
-
-  const createOwnedStore = async (storeName: string) => {
-    if (!user) {
-      throw new Error('No authenticated user');
-    }
-
-    const session = await createOwnedStoreApi(user, storeName);
-    if (session.store?.id) markStoreContactOffer(session.store.id);
-    setBackendStatus('ready');
-    setBackendMessage(null);
-    setAppSession(session);
-  };
-
-  const activateStore = async (storeId: string) => {
-    if (!user) {
-      throw new Error('No authenticated user');
-    }
-
-    const session = await activateStoreApi(user, storeId);
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -425,84 +367,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return drafts;
   };
 
-  const runCreateOperation = async (source: OperationSource, input: OperationInput) => {
+  const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
-    const result = await createOperation(currentUser, source, input);
+    const result = await call(currentUser);
     if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
     return result;
   };
 
-  const runUpdateSaleOperation = async (id: string, input: OperationInput) => {
-    const currentUser = requireOperationSource('sales');
-    const requestScope = currentScope;
-    const result = await updateSaleOperation(currentUser, id, input);
-    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runUpdateTradeOperation = async (source: OperationSource, id: string, input: OperationInput) => {
-    const currentUser = requireOperationSource(source);
-    const requestScope = currentScope;
-    const result = await updateTradeOperation(currentUser, source, id, input);
-    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runConfirmTradeOperation = async (source: OperationSource, id: string, input: OperationInput) => {
-    const currentUser = requireOperationSource(source);
-    const requestScope = currentScope;
-    const result = await confirmTradeOperation(currentUser, source, id, input);
-    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runCancelSaleOperation = async (id: string) => {
-    const currentUser = requireOperationSource('sales');
-    const requestScope = currentScope;
-    const result = await cancelSaleOperation(currentUser, id);
-    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runCancelTradeOperation = async (source: OperationSource, id: string) => {
-    const currentUser = requireOperationSource(source);
-    const requestScope = currentScope;
-    const result = await cancelTradeOperation(currentUser, source, id);
-    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runFetchSaleOperation = async (id: string) => {
-    const currentUser = requireOperationSource('sales');
-    const requestScope = currentScope;
-    const result = await fetchSaleOperation(currentUser, id);
-    if (scopeRef.current === requestScope && canAccess('sales')) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const runFetchTradeOperation = async (source: OperationSource, id: string) => {
-    const currentUser = requireOperationSource(source);
-    const requestScope = currentScope;
-    const result = await fetchTradeOperation(currentUser, source, id);
-    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
-    return result;
-  };
-
-  const addSale = async (saleData: Omit<Sale, 'id'>) => {
-    if (!backendSalesEnabled) {
-      throw new Error(
-        backendMessage || 'El backend todavia no esta listo para guardar ventas. Reintenta en unos segundos.'
-      );
-    }
-
-    return await runCreateOperation('sales', {
-      ...saleData,
-      status: saleData.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA',
-      draft: false,
-      requestKey: saleData.requestKey || `legacy-sale-${crypto.randomUUID()}`,
-    });
-  };
+  const runCreateOperation = (source: OperationSource, input: OperationInput) =>
+    runOperation(source, (currentUser) => createOperation(currentUser, source, input));
+  const runUpdateSaleOperation = (id: string, input: OperationInput) =>
+    runOperation('sales', (currentUser) => updateSaleOperation(currentUser, id, input));
+  const runUpdateTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
+    runOperation(source, (currentUser) => updateTradeOperation(currentUser, source, id, input));
+  const runConfirmTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
+    runOperation(source, (currentUser) => confirmTradeOperation(currentUser, source, id, input));
+  const runCancelSaleOperation = (id: string) =>
+    runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id));
+  const runCancelTradeOperation = (source: OperationSource, id: string) =>
+    runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id));
+  const runFetchSaleOperation = (id: string) =>
+    runOperation('sales', (currentUser) => fetchSaleOperation(currentUser, id));
+  const runFetchTradeOperation = (source: OperationSource, id: string) =>
+    runOperation(source, (currentUser) => fetchTradeOperation(currentUser, source, id));
 
   const updateSale = async (updatedSale: Sale) => {
     if (!user) return;
@@ -694,177 +582,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTradeIns(items);
   };
 
-  const reloadCategories = async () => {
-    if (!user) return;
-    try {
-      const cats = await fetchCategories(user);
-      setInventoryCategories(cats);
-    } catch { /* ignore */ }
-  };
-
-  const createCategory = async (name: string): Promise<InventoryCategory> => {
-    if (!user) throw new Error('No authenticated user');
-    const cat = await createCategoryApi(user, name);
-    setInventoryCategories(prev => [...prev, cat]);
-    return cat;
-  };
-
-  const renameCategory = async (id: string, name: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const updated = await renameCategoryApi(user, id, name);
-    setInventoryCategories(prev => prev.map(c => c.id === id ? updated : c));
-  };
-
-  const deleteCategory = async (id: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await deleteCategoryApi(user, id);
-    setInventoryCategories(prev => prev.filter(c => c.id !== id));
-    setInventory(prev => prev.map(item => item.categoryId === id ? { ...item, categoryId: null } : item));
-  };
-
-  const bulkMoveCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await bulkMoveCategoryApi(user, ids, categoryId);
-    setInventory(prev => prev.map(item => ids.includes(item.id) ? { ...item, categoryId } : item));
-  };
-
-  const reorderCategories = async (ids: string[]): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const prev = inventoryCategories;
-    const map = new Map(prev.map(c => [c.id, c]));
-    setInventoryCategories(ids.map(id => map.get(id)!).filter(Boolean));
-    try {
-      await reorderCategoriesApi(user, ids);
-    } catch {
-      setInventoryCategories(prev);
-    }
-  };
-
-  // ── Sales Categories ───────────────────────────────────────────────────────
-
-  const createSaleCategory = async (name: string): Promise<SaleCategory> => {
-    if (!user) throw new Error('No authenticated user');
-    const { createSaleCategoryApi } = await import('../services/sales-api');
-    const cat = await createSaleCategoryApi(user, name);
-    setSalesCategories(prev => [...prev, cat]);
-    return cat;
-  };
-
-  const renameSaleCategory = async (id: string, name: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const { renameSaleCategoryApi } = await import('../services/sales-api');
-    const updated = await renameSaleCategoryApi(user, id, name);
-    setSalesCategories(prev => prev.map(c => c.id === id ? updated : c));
-  };
-
-  const deleteSaleCategory = async (id: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const { deleteSaleCategoryApi } = await import('../services/sales-api');
-    await deleteSaleCategoryApi(user, id);
-    setSalesCategories(prev => prev.filter(c => c.id !== id));
-    setSales(prev => prev.map(item => item.categoryId === id ? { ...item, categoryId: null } : item));
-  };
-
-  const bulkMoveSaleCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const { bulkMoveSalesCategoryApi } = await import('../services/sales-api');
-    await bulkMoveSalesCategoryApi(user, ids, categoryId);
-    setSales(prev => prev.map(item => ids.includes(item.id) ? { ...item, categoryId } : item));
-  };
-
-  const reorderSaleCategories = async (ids: string[]): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const prev = salesCategories;
-    const map = new Map(prev.map(c => [c.id, c]));
-    setSalesCategories(ids.map(id => map.get(id)!).filter(Boolean));
-    try {
-      const { reorderSalesCategoriesApi } = await import('../services/sales-api');
-      await reorderSalesCategoriesApi(user, ids);
-    } catch {
-      setSalesCategories(prev);
-    }
-  };
-
-  // ── TradeIn Categories ────────────────────────────────────────────────────
-
-  const createTradeInCategory = async (name: string): Promise<TradeInCategory> => {
-    if (!user) throw new Error('No authenticated user');
-    const cat = await createTradeInCategoryApi(user, name);
-    setTradeInCategories(prev => [...prev, cat]);
-    return cat;
-  };
-
-  const renameTradeInCategory = async (id: string, name: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const updated = await renameTradeInCategoryApi(user, id, name);
-    setTradeInCategories(prev => prev.map(c => c.id === id ? updated : c));
-  };
-
-  const deleteTradeInCategory = async (id: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await deleteTradeInCategoryApi(user, id);
-    setTradeInCategories(prev => prev.filter(c => c.id !== id));
-    setTradeIns(prev => prev.map(t => t.categoryId === id ? { ...t, categoryId: null } : t));
-  };
-
-  const bulkMoveTradeInCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await bulkMoveTradeInCategoryApi(user, ids, categoryId);
-    setTradeIns(prev => prev.map(t => ids.includes(t.id) ? { ...t, categoryId } : t));
-  };
-
-  const reorderTradeInCategories = async (ids: string[]): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const prev = tradeInCategories;
-    const map = new Map(prev.map(c => [c.id, c]));
-    setTradeInCategories(ids.map(id => map.get(id)!).filter(Boolean));
-    try {
-      await reorderTradeInCategoriesApi(user, ids);
-    } catch {
-      setTradeInCategories(prev);
-    }
-  };
-
-  // ── Client Categories ─────────────────────────────────────────────────────
-
-  const createClientCategory = async (name: string): Promise<ClientCategory> => {
-    if (!user) throw new Error('No authenticated user');
-    const cat = await createClientCategoryApi(user, name);
-    setClientCategories(prev => [...prev, cat]);
-    return cat;
-  };
-
-  const renameClientCategory = async (id: string, name: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const updated = await renameClientCategoryApi(user, id, name);
-    setClientCategories(prev => prev.map(c => c.id === id ? updated : c));
-  };
-
-  const deleteClientCategory = async (id: string): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await deleteClientCategoryApi(user, id);
-    setClientCategories(prev => prev.filter(c => c.id !== id));
-    setClients(prev => prev.map(c => c.categoryId === id ? { ...c, categoryId: null } : c));
-  };
-
-  const bulkMoveClientCategory = async (ids: string[], categoryId: string | null): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    await bulkMoveClientCategoryApi(user, ids, categoryId);
-    setClients(prev => prev.map(c => ids.includes(c.id) ? { ...c, categoryId } : c));
-  };
-
-  const reorderClientCategories = async (ids: string[]): Promise<void> => {
-    if (!user) throw new Error('No authenticated user');
-    const prev = clientCategories;
-    const map = new Map(prev.map(c => [c.id, c]));
-    setClientCategories(ids.map(id => map.get(id)!).filter(Boolean));
-    try {
-      await reorderClientCategoriesApi(user, ids);
-    } catch {
-      setClientCategories(prev);
-    }
-  };
-
   const addClient = async (clientData: Omit<Client, 'id'>) => {
     if (!user) {
       throw new Error('No authenticated user');
@@ -911,37 +628,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(prev => prev.filter(client => client.id !== id));
   };
 
-  const addTradeIn = async (tradeInData: Omit<TradeIn, 'id'>) => {
-    if (!user) return;
-    if (!backendTradeInsEnabled) {
-      throw new Error(
-        backendMessage || 'El backend todavia no esta listo para guardar canjes. Reintenta en unos segundos.'
-      );
-    }
-    return await runCreateOperation('tradeins', {
-      date: tradeInData.date,
-      clientId: null,
-      clientName: null,
-      productId: null,
-      deviceLabel: tradeInData.deviceGiven,
-      amount: tradeInData.takeValue + tradeInData.differencePaid,
-      paymentMethod: 'TRANSFERENCIA',
-      status: 'COMPLETADA',
-      categoryId: tradeInData.categoryId ?? null,
-      draft: true,
-      requestKey: `legacy-trade-${crypto.randomUUID()}`,
-      tradeIn: {
-        deviceReceived: tradeInData.deviceReceived,
-        deviceReceivedImei: tradeInData.deviceReceivedImei || undefined,
-        takeValue: tradeInData.takeValue,
-        status: tradeInData.status,
-        batteryHealth: tradeInData.batteryHealth,
-        grade: tradeInData.grade,
-        customFields: tradeInData.customFields,
-      },
-    });
-  };
-
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
     if (!user) return;
     if (!backendTradeInsEnabled) {
@@ -970,7 +656,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           customFields: updatedTradeIn.customFields,
         },
       });
-      if (!result.tradeIn) return result;
       return result;
     }
     const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
@@ -992,46 +677,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTradeIns(prev => prev.filter(t => t.id !== id));
   };
 
-  const addCustomColumn = async (columnData: Omit<CustomColumn, 'id'>): Promise<string | undefined> => {
-    if (!user) return undefined;
-    const existingColumn = customColumns.find((column) =>
-      column.entity === columnData.entity &&
-      column.type === columnData.type &&
-      column.label.trim().toLowerCase() === columnData.label.trim().toLowerCase()
-    );
-    if (existingColumn) {
-      return existingColumn.id;
-    }
-    const options = columnData.type === 'enum' ? normalizeDropdownOptions(columnData.options ?? []) : undefined;
-    if (columnData.type === 'enum' && options.length < 2) {
-      throw new Error('Agregá al menos dos opciones distintas.');
-    }
-    const id = generateColumnId('COL');
-    const createdColumn: CustomColumn = {
-      id,
-      ...columnData,
-      label: columnData.label.trim(),
-      options,
-    };
-    const nextColumns = (
-      customColumns.some((column) => column.id === id)
-        ? customColumns
-        : [...customColumns, createdColumn]
-    );
-    writeLocalCustomColumns(user.uid, nextColumns);
-    setCustomColumns(nextColumns);
-    return id;
-  };
-
-  const removeCustomColumn = async (id: string) => {
-    if (!user) return;
-    setCustomColumns(prev => {
-      const next = prev.filter(column => column.id !== id);
-      writeLocalCustomColumns(user.uid, next);
-      return next;
-    });
-  };
-
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-pulse flex flex-col items-center"><div className="w-12 h-12 bg-black rounded-full mb-4"></div><div className="text-gray-500 font-medium tracking-wide">Cargando...</div></div></div>;
   }
@@ -1050,23 +695,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateSaleOperation: runUpdateSaleOperation,
       updateTradeOperation: runUpdateTradeOperation,
       confirmTradeOperation: runConfirmTradeOperation,
-      cancelSaleOperation: runCancelSaleOperation,
       cancelTradeOperation: runCancelTradeOperation,
       fetchSaleOperation: runFetchSaleOperation,
       fetchTradeOperation: runFetchTradeOperation,
-      applyOperationResult,
-      addSale, updateSale, deleteSale,
+      updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
       addClient, updateClient, registerClientPayment, deleteClient,
-      addTradeIn, updateTradeIn, deleteTradeIn,
-      addCustomColumn, removeCustomColumn,
+      updateTradeIn, deleteTradeIn,
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
-      inventoryCategories, createCategory, renameCategory, deleteCategory, bulkMoveCategory, reorderCategories,
-      salesCategories, createSaleCategory, renameSaleCategory, deleteSaleCategory, bulkMoveSaleCategory, reorderSaleCategories,
-      tradeInCategories, createTradeInCategory, renameTradeInCategory, deleteTradeInCategory, bulkMoveTradeInCategory, reorderTradeInCategories,
-      clientCategories, createClientCategory, renameClientCategory, deleteClientCategory, bulkMoveClientCategory, reorderClientCategories,
+      clientCategories,
       updateStore, updateUserProfile, reloadSession,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, createOwnedStore, activateStore, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>
