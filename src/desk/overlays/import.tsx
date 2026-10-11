@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
 import { ImportModal } from '../../components/ImportModal';
-import { importBackendRows, type InventoryImportRow } from '../../services/import-api';
+import { importBackendRows, suggestImportMapping, type ImportSection, type InventoryImportRow } from '../../services/import-api';
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
@@ -23,7 +23,7 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={phone} onClose={close} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={phone} onClose={close} onSuggest={(columns) => suggestImportMapping(user, sectionFor(kind), columns)} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -31,6 +31,13 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     if (kind === 'sale') signalDesk('desk-check', 'ven');
     return result;
   }} />;
+}
+
+function sectionFor(kind: 'inv' | 'sale' | 'cl' | 'cj'): ImportSection {
+  if (kind === 'inv') return 'inventory';
+  if (kind === 'sale') return 'sales';
+  if (kind === 'cl') return 'clients';
+  return 'trade-ins';
 }
 
 function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<void>) {
