@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, CustomColumnEntity, TradeInCategory, ClientCategory, RepairOrder } from '../types';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Product, Sale, TradeIn, Client, CustomColumn, InventoryCategory, TradeInCategory, ClientCategory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, fetchClientCategoriesApi, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, createClientCategoryApi, renameClientCategoryApi, deleteClientCategoryApi, reorderClientCategoriesApi, bulkMoveClientCategoryApi } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem, fetchCategories, createCategoryApi, renameCategoryApi, deleteCategoryApi, bulkMoveCategoryApi, reorderCategoriesApi } from '../services/inventory-api';
-import { deleteBackendSale, fetchBackendSales, updateBackendSale, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
-import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, fetchTradeInCategoriesApi, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
+import { deleteBackendSale, fetchBackendSales, updateBackendSale, type Category as SaleCategory } from '../services/sales-api';
+import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn, createTradeInCategoryApi, renameTradeInCategoryApi, deleteTradeInCategoryApi, reorderTradeInCategoriesApi, bulkMoveTradeInCategoryApi } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { activateStore as activateStoreApi, createOwnedStore as createOwnedStoreApi } from '../services/stores-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
@@ -14,9 +14,9 @@ import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
-import { canOpenSection } from '../desk/sections';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
-import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, fetchBackendRepairs, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
+import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
+import { generateColumnId, readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost, writeLocalCustomColumns } from './store-records';
 
 interface AppState {
   inventory: Product[];
@@ -110,93 +110,29 @@ interface AppState {
   logout: () => Promise<void>;
 }
 
-const generateId = (prefix: string) => `${prefix}-${Math.floor(Math.random() * 1000000)}`;
-
-const CUSTOM_COLUMN_ENTITIES: CustomColumnEntity[] = ['inventory', 'clients', 'sales', 'trade-ins'];
-
-function normalizeCustomColumn(id: string, raw: Record<string, unknown>): CustomColumn {
-  const type = raw.type === 'number' || raw.type === 'enum' || raw.type === 'tags' ? raw.type : 'text';
-  const entity = CUSTOM_COLUMN_ENTITIES.includes(raw.entity as CustomColumnEntity)
-    ? (raw.entity as CustomColumnEntity)
-    : 'inventory';
-
-  return {
-    id,
-    label: String(raw.label ?? ''),
-    type,
-    options: type === 'enum'
-      ? normalizeDropdownOptions(Array.isArray(raw.options) ? raw.options : [])
-      : undefined,
-    entity,
-  };
-}
-
-function withoutStoredCost(item: Product): Product {
-  if (!Object.prototype.hasOwnProperty.call(item, 'cost')) return item;
-  const next = { ...item };
-  delete next.cost;
-  return next;
-}
-
-function visibleInventory(items: Product[], seeCosts: boolean) {
-  return seeCosts ? items : items.map(withoutStoredCost);
-}
-
-function getCustomColumnsStorageKey(uid: string) {
-  return `customColumns:${uid}`;
-}
-
-function readLocalCustomColumns(uid: string): CustomColumn[] {
-  try {
-    const raw = window.localStorage.getItem(getCustomColumnsStorageKey(uid));
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter((value): value is Record<string, unknown> => !!value && typeof value === 'object')
-      .map((value) => normalizeCustomColumn(String(value.id ?? ''), value))
-      .filter((column) => column.id);
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
-  try {
-    window.localStorage.setItem(getCustomColumnsStorageKey(uid), JSON.stringify(columns));
-  } catch {
-    // Ignore storage write failures and keep runtime state.
-  }
-}
-
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
-  const [inventory, setInventory] = useState<Product[]>([]);
-  const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
-  const [repairOrdersError, setRepairOrdersError] = useState<string | null>(null);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
-  const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
-  const [tradeInCategories, setTradeInCategories] = useState<TradeInCategory[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [operationOptions, setOperationOptions] = useState<Partial<Record<OperationSource, OperationOptions>>>({});
-  const [operationDrafts, setOperationDrafts] = useState<TradeIn[]>([]);
-  const [operationNotifications, setOperationNotifications] = useState<OperationNotification[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [notificationsError, setNotificationsError] = useState<string | null>(null);
-  const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
-  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
-  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [user, setUser] = useState<AuthUserLike | null>(null);
   const [loading, setLoading] = useState(true);
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
-  const scopeRef = useRef('');
+  const {
+    inventory, setInventory,
+    repairOrders, setRepairOrders, repairOrdersError, setRepairOrdersError,
+    sales, setSales, salesCategories, setSalesCategories,
+    tradeIns, setTradeIns, tradeInCategories, setTradeInCategories,
+    clients, setClients, clientCategories, setClientCategories,
+    operationOptions, setOperationOptions, operationDrafts, setOperationDrafts,
+    operationNotifications, setOperationNotifications,
+    notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
+    customColumns, setCustomColumns, inventoryCategories, setInventoryCategories,
+    scopeRef, currentScope, canAccess, backendReady,
+    backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
+    backendTradeInsEnabled, loadRepairsEnabled,
+  } = useStoreRecords({ user, appSession, backendStatus });
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -276,209 +212,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
   }, [user]);
-
-  const activeStoreId = appSession?.store?.id ?? null;
-  const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
-  const canAccess = (section: OperationSource | 'reports' | 'notifications' | 'service') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
-  const backendInventoryEnabled = backendReady && canAccess('inventory');
-  const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
-  const backendClientsEnabled = backendReady && canAccess('clients');
-  const backendSalesEnabled = backendReady && canAccess('sales');
-  const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
-  const backendTradeInsEnabled = backendReady && canAccess('tradeins');
-  const loadTradeInsEnabled = backendReady && (canAccess('tradeins') || canAccess('reports'));
-  const loadRepairsEnabled = backendReady && canAccess('service');
-  const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('service'), canAccess('reports'), canAccess('notifications')].map(Number).join('')}`;
-  scopeRef.current = currentScope;
-
-  useEffect(() => {
-    setOperationOptions({});
-    setOperationDrafts([]);
-    setOperationNotifications([]);
-    setNotificationsError(null);
-    setNotificationsLoading(false);
-    if (!backendInventoryEnabled && !loadInventoryEnabled) setInventory([]);
-    if (!backendClientsEnabled) setClients([]);
-    if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
-    if (!backendTradeInsEnabled && !loadTradeInsEnabled) { setTradeIns([]); setTradeInCategories([]); }
-    if (!loadRepairsEnabled) { setRepairOrders([]); setRepairOrdersError(null); }
-  }, [currentScope]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadBackendInventory = async () => {
-      try {
-        const [backendInventory, cats] = await Promise.all([fetchBackendInventory(user), fetchCategories(user).catch(() => [])]);
-        if (cancelled) return;
-        setInventory(visibleInventory(backendInventory, canAccess('reports')));
-        setInventoryCategories(cats);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Backend inventory load failed.', error);
-      }
-    };
-
-    if (loadInventoryEnabled) {
-      setInventory([]);
-      setInventoryCategories([]);
-      void loadBackendInventory();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeStoreId, loadInventoryEnabled, user]);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const rows = await fetchBackendRepairs(user);
-        if (cancelled) return;
-        setRepairOrders(rows);
-        setRepairOrdersError(null);
-      } catch (error) {
-        if (cancelled) return;
-        setRepairOrdersError(error instanceof Error ? error.message : 'No se pudieron cargar las órdenes de servicio.');
-      }
-    };
-    if (loadRepairsEnabled) {
-      setRepairOrders([]);
-      setRepairOrdersError(null);
-      void load();
-    }
-    return () => { cancelled = true; };
-  }, [activeStoreId, loadRepairsEnabled, user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadBackendClients = async () => {
-      try {
-        const [backendClients, fetchedClientCategories] = await Promise.all([
-          fetchBackendClients(user),
-          fetchClientCategoriesApi(user).catch(() => []),
-        ]);
-        if (cancelled) return;
-        setClients(backendClients);
-        setClientCategories(fetchedClientCategories);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Backend clients load failed.', error);
-      }
-    };
-
-    if (backendClientsEnabled) {
-      setClients([]);
-      setClientCategories([]);
-      void loadBackendClients();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeStoreId, backendClientsEnabled, user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadBackendSalesAndCategories = async () => {
-      try {
-        const [backendSales, fetchedSalesCategories] = await Promise.all([
-          fetchBackendSales(user),
-          fetchSalesCategoriesApi(user).catch(() => [])
-        ]);
-        if (cancelled) return;
-        setSales(backendSales);
-        setSalesCategories(fetchedSalesCategories);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Backend sales load failed.', error);
-      }
-    };
-
-    if (loadSalesEnabled) {
-      setSales([]);
-      setSalesCategories([]);
-      void loadBackendSalesAndCategories();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeStoreId, loadSalesEnabled, user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadBackendTradeIns = async () => {
-      try {
-        const [backendTradeIns, fetchedTradeInCategories] = await Promise.all([
-          fetchBackendTradeIns(user),
-          fetchTradeInCategoriesApi(user).catch(() => []),
-        ]);
-        if (cancelled) return;
-        setTradeIns(backendTradeIns);
-        setTradeInCategories(fetchedTradeInCategories);
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Backend trade-ins load failed.', error);
-      }
-    };
-
-    if (loadTradeInsEnabled) {
-      setTradeIns([]);
-      setTradeInCategories([]);
-      void loadBackendTradeIns();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeStoreId, loadTradeInsEnabled, user]);
-
-  useEffect(() => {
-    if (!user || !backendReady || !canAccess('notifications')) {
-      setOperationNotifications([]);
-      setNotificationsError(null);
-      setNotificationsLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setNotificationsLoading(true);
-    setNotificationsError(null);
-    fetchNotifications(user).then(({ notifications }) => {
-      if (cancelled || !canAccess('notifications')) return;
-      setOperationNotifications(notifications.filter((notification) => {
-        return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
-          && canAccess(notification.section as OperationSource);
-      }));
-    }).catch((error: unknown) => {
-      if (cancelled) return;
-      setNotificationsError(error instanceof Error ? error.message : String(error));
-    }).finally(() => {
-      if (!cancelled) setNotificationsLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [currentScope, user]);
 
   const login = async () => {
     try {
@@ -1273,7 +1006,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (columnData.type === 'enum' && options.length < 2) {
       throw new Error('Agregá al menos dos opciones distintas.');
     }
-    const id = generateId('COL');
+    const id = generateColumnId('COL');
     const createdColumn: CustomColumn = {
       id,
       ...columnData,
