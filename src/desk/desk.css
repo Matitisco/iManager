@@ -1018,7 +1018,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .desk-app:has(.ov) .mdock,
   .desk-app:has(.ov) .dolar-toast { visibility: hidden; }
   .desk-app:has(.mdock) .dolar-toast { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-  .ov.ctxov { background: rgba(17,17,17,.45); }
+  .ov.ctxov {
+    bottom: 0;
+    z-index: 90;
+    background: rgba(17,17,17,.45);
+  }
   .ov.ctxov .ctx {
     position: relative;
     top: auto !important;
@@ -1026,7 +1030,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
     width: 100%;
     max-width: 100%;
     border-radius: 24px 24px 0 0;
-    padding: 0 8px 12px;
+    padding: 0 8px calc(12px + env(safe-area-inset-bottom, 0px));
     transform-origin: bottom center;
   }
   .sheet,
