@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canOpenSection, canSeeFinancials, grantedSections, mobileTabs, visibleSections } from './sections';
+import { canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
   it('keeps every section when access was never customized, and settings always', () => {
@@ -26,6 +26,14 @@ describe('desk sections', () => {
     expect(canSeeFinancials(null, 'STAFF')).toBe(false);
     expect(canSeeFinancials(['sales'], 'STAFF')).toBe(false);
     expect(canSeeFinancials(['reports', 'sales'], 'STAFF')).toBe(true);
+  });
+
+  it('lets only the owner and the manager load the team', () => {
+    expect(canViewTeam('OWNER')).toBe(true);
+    expect(canViewTeam('MANAGER')).toBe(true);
+    expect(canViewTeam('STAFF')).toBe(false);
+    expect(canViewTeam(null)).toBe(false);
+    expect(canViewTeam(undefined)).toBe(false);
   });
 
   it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {

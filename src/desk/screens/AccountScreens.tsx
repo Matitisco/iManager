@@ -10,6 +10,7 @@ import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ImanagerIcon, notificationIcon } from '../icons';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
+import { canViewTeam } from '../sections';
 
 const SECTION_LABEL: Record<NoticeSection, string> = {
   inventory: 'Inventario',
@@ -256,18 +257,19 @@ export function SettingsScreen() {
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [selected, setSelected] = useState<TeamMember | null>(null);
 
+  const seeTeam = canViewTeam(appSession?.membership?.role);
   const load = () => {
-    if (!user || !appSession?.store?.id) return;
+    if (!user || !appSession?.store?.id || !seeTeam) return;
     listMembers(user, appSession.store.id).then(setMembers).catch(() => setMembers([]));
-    if (!isStaff) listInvitations(user).then(setInvites).catch(() => setInvites([]));
+    listInvitations(user).then(setInvites).catch(() => setInvites([]));
   };
 
-  useEffect(() => { load(); }, [user, appSession?.store?.id, isStaff]);
+  useEffect(() => { load(); }, [user, appSession?.store?.id, seeTeam]);
   useEffect(() => {
     const refresh = () => load();
     window.addEventListener('desk-invites', refresh);
     return () => window.removeEventListener('desk-invites', refresh);
-  }, [user, appSession?.store?.id, isStaff]);
+  }, [user, appSession?.store?.id, seeTeam]);
 
   const me = appSession?.user;
   const store = appSession?.store;

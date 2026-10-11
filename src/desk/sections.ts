@@ -35,6 +35,11 @@ export function canSeeFinancials(stored: string[] | null | undefined, role?: str
   return canOpenSection('reports', stored, role);
 }
 
+/** El listado de miembros responde 403 para un empleado. */
+export function canViewTeam(role?: string | null) {
+  return role === 'OWNER' || role === 'MANAGER';
+}
+
 /** Orden de la barra móvil: los 4 primeros permitidos quedan abajo; el resto va a Más. */
 export const MOBILE_BAR_CANDIDATES: DeskSectionId[] = [
   'dashboard',
