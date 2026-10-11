@@ -1,15 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../types';
 import {
-  bulkMoveCategoryApi,
   createBackendInventoryItem,
-  createCategoryApi,
   deleteBackendInventoryItem,
   fetchBackendInventory,
-  fetchCategories,
-  fetchInventoryFilteredIds,
-  fetchInventoryPage,
-  renameCategoryApi,
   updateBackendInventoryItem,
 } from './inventory-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -60,54 +54,20 @@ describe('inventory-api', () => {
     setApiBaseUrl('https://api.imanager.test/');
   });
 
-  it('loads paged inventory with the expected query string and auth headers', async () => {
-    vi.mocked(fetchWithTimeout).mockResolvedValue(
-      jsonResponse({ items: [inventoryItem], total: 1 }),
-    );
-
-    await expect(
-      fetchInventoryPage(mockUser, {
-        skip: 10,
-        take: 20,
-        search: 'iphone',
-        categoryId: null,
-        sortKey: 'price',
-        sortDir: 'desc',
-        condition: 'NUEVO',
-        status: 'DISPONIBLE',
-        capacity: '256GB',
-        model: 'iPhone 15',
-        grade: 'A+',
-        battery: '100%',
-      }),
-    ).resolves.toEqual({ items: [inventoryItem], total: 1 });
-
-    expect(fetchWithTimeout).toHaveBeenCalledWith(
-      'https://api.imanager.test/api/inventory?skip=10&take=20&search=iphone&categoryId=null&sortKey=price&sortDir=desc&condition=NUEVO&status=DISPONIBLE&capacity=256GB&model=iPhone+15&grade=A%2B&battery=100%25',
-      {
-        headers: {
-          Authorization: 'Bearer token-123',
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-  });
-
-  it('loads filtered ids and falls back to backend error messages', async () => {
+  it('loads inventory with the auth headers and falls back to backend error messages', async () => {
     vi.mocked(fetchWithTimeout)
-      .mockResolvedValueOnce(jsonResponse({ ids: ['item-2', 'item-1'] }))
+      .mockResolvedValueOnce(jsonResponse({ inventory: [inventoryItem] }))
       .mockResolvedValueOnce(jsonResponse({ error: 'Filtro invalido' }, 400));
 
-    await expect(
-      fetchInventoryFilteredIds(mockUser, {
-        search: 'iphone',
-        categoryId: 'cat-1',
-        status: 'DISPONIBLE',
-      }),
-    ).resolves.toEqual(['item-2', 'item-1']);
-
-    await expect(fetchInventoryFilteredIds(mockUser, { status: 'BAD' })).rejects.toThrow('Filtro invalido');
+    await expect(fetchBackendInventory(mockUser)).resolves.toEqual([inventoryItem]);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/inventory', {
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    await expect(fetchBackendInventory(mockUser)).rejects.toThrow('Filtro invalido');
   });
 
   it('covers inventory list/create/update/delete CRUD flows', async () => {
@@ -127,22 +87,6 @@ describe('inventory-api', () => {
     await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).resolves.toEqual(inventoryItem);
     await expect(updateBackendInventoryItem(mockUser, updatedItem)).resolves.toEqual(updatedItem);
     await expect(deleteBackendInventoryItem(mockUser, updatedItem.id)).resolves.toBeUndefined();
-  });
-
-  it('covers category fetch, create, rename and bulk move flows', async () => {
-    vi.mocked(fetchWithTimeout)
-      .mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Apple' }] }))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'Android' } }, 201))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'Android Premium' } }))
-      .mockResolvedValueOnce(jsonResponse({ count: 2 }));
-
-    await expect(fetchCategories(mockUser)).resolves.toEqual([{ id: 'cat-1', name: 'Apple' }]);
-    await expect(createCategoryApi(mockUser, 'Android')).resolves.toEqual({ id: 'cat-2', name: 'Android' });
-    await expect(renameCategoryApi(mockUser, 'cat-2', 'Android Premium')).resolves.toEqual({
-      id: 'cat-2',
-      name: 'Android Premium',
-    });
-    await expect(bulkMoveCategoryApi(mockUser, ['item-1', 'item-2'], null)).resolves.toBe(2);
   });
 
   it('shows the spanish validation message and never the raw zod payload', async () => {

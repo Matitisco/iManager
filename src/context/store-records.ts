@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Client, ClientCategory, CustomColumn, CustomColumnEntity, InventoryCategory, Product, RepairOrder, Sale, TradeIn, TradeInCategory } from '../types';
+import type { Client, ClientCategory, CustomColumn, CustomColumnEntity, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
-import { fetchCategories, fetchBackendInventory } from '../services/inventory-api';
+import { fetchBackendInventory } from '../services/inventory-api';
 import { fetchBackendClients, fetchClientCategoriesApi } from '../services/clients-api';
-import { fetchBackendSales, fetchSalesCategoriesApi, type Category as SaleCategory } from '../services/sales-api';
-import { fetchBackendTradeIns, fetchTradeInCategoriesApi } from '../services/trade-ins-api';
+import { fetchBackendSales } from '../services/sales-api';
+import { fetchBackendTradeIns } from '../services/trade-ins-api';
 import { fetchBackendRepairs } from '../services/repairs-api';
 import { fetchNotifications, type OperationNotification, type OperationOptions, type OperationSource } from '../services/operations-api';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
@@ -13,9 +13,7 @@ import { canOpenSection } from '../desk/sections';
 
 const CUSTOM_COLUMN_ENTITIES: CustomColumnEntity[] = ['inventory', 'clients', 'sales', 'trade-ins'];
 
-export const generateColumnId = (prefix: string) => `${prefix}-${Math.floor(Math.random() * 1000000)}`;
-
-export function normalizeCustomColumn(id: string, raw: Record<string, unknown>): CustomColumn {
+function normalizeCustomColumn(id: string, raw: Record<string, unknown>): CustomColumn {
   const type = raw.type === 'number' || raw.type === 'enum' || raw.type === 'tags' ? raw.type : 'text';
   const entity = CUSTOM_COLUMN_ENTITIES.includes(raw.entity as CustomColumnEntity)
     ? (raw.entity as CustomColumnEntity)
@@ -64,14 +62,6 @@ export function readLocalCustomColumns(uid: string): CustomColumn[] {
   }
 }
 
-export function writeLocalCustomColumns(uid: string, columns: CustomColumn[]) {
-  try {
-    window.localStorage.setItem(customColumnsStorageKey(uid), JSON.stringify(columns));
-  } catch {
-    // Ignore storage write failures and keep runtime state.
-  }
-}
-
 type StoreRecordsInput = {
   user: AuthUserLike | null;
   appSession: AppSession | null;
@@ -83,9 +73,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
   const [repairOrdersError, setRepairOrdersError] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [salesCategories, setSalesCategories] = useState<SaleCategory[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
-  const [tradeInCategories, setTradeInCategories] = useState<TradeInCategory[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [operationOptions, setOperationOptions] = useState<Partial<Record<OperationSource, OperationOptions>>>({});
   const [operationDrafts, setOperationDrafts] = useState<TradeIn[]>([]);
@@ -94,7 +82,6 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
-  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const scopeRef = useRef('');
 
   const activeStoreId = appSession?.store?.id ?? null;
@@ -119,8 +106,8 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     setNotificationsLoading(false);
     if (!backendInventoryEnabled && !loadInventoryEnabled) setInventory([]);
     if (!backendClientsEnabled) setClients([]);
-    if (!backendSalesEnabled && !loadSalesEnabled) { setSales([]); setSalesCategories([]); }
-    if (!backendTradeInsEnabled && !loadTradeInsEnabled) { setTradeIns([]); setTradeInCategories([]); }
+    if (!backendSalesEnabled && !loadSalesEnabled) setSales([]);
+    if (!backendTradeInsEnabled && !loadTradeInsEnabled) setTradeIns([]);
     if (!loadRepairsEnabled) { setRepairOrders([]); setRepairOrdersError(null); }
   }, [currentScope]);
 
@@ -133,10 +120,9 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     const loadBackendInventory = async () => {
       try {
-        const [backendInventory, cats] = await Promise.all([fetchBackendInventory(user), fetchCategories(user).catch(() => [])]);
+        const backendInventory = await fetchBackendInventory(user);
         if (cancelled) return;
         setInventory(visibleInventory(backendInventory, canAccess('reports')));
-        setInventoryCategories(cats);
       } catch (error) {
         if (cancelled) return;
         console.error('Backend inventory load failed.', error);
@@ -145,7 +131,6 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     if (loadInventoryEnabled) {
       setInventory([]);
-      setInventoryCategories([]);
       void loadBackendInventory();
     }
 
@@ -216,15 +201,11 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     let cancelled = false;
 
-    const loadBackendSalesAndCategories = async () => {
+    const loadBackendSales = async () => {
       try {
-        const [backendSales, fetchedSalesCategories] = await Promise.all([
-          fetchBackendSales(user),
-          fetchSalesCategoriesApi(user).catch(() => [])
-        ]);
+        const backendSales = await fetchBackendSales(user);
         if (cancelled) return;
         setSales(backendSales);
-        setSalesCategories(fetchedSalesCategories);
       } catch (error) {
         if (cancelled) return;
         console.error('Backend sales load failed.', error);
@@ -233,8 +214,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     if (loadSalesEnabled) {
       setSales([]);
-      setSalesCategories([]);
-      void loadBackendSalesAndCategories();
+      void loadBackendSales();
     }
 
     return () => {
@@ -251,13 +231,9 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     const loadBackendTradeIns = async () => {
       try {
-        const [backendTradeIns, fetchedTradeInCategories] = await Promise.all([
-          fetchBackendTradeIns(user),
-          fetchTradeInCategoriesApi(user).catch(() => []),
-        ]);
+        const backendTradeIns = await fetchBackendTradeIns(user);
         if (cancelled) return;
         setTradeIns(backendTradeIns);
-        setTradeInCategories(fetchedTradeInCategories);
       } catch (error) {
         if (cancelled) return;
         console.error('Backend trade-ins load failed.', error);
@@ -266,7 +242,6 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
     if (loadTradeInsEnabled) {
       setTradeIns([]);
-      setTradeInCategories([]);
       void loadBackendTradeIns();
     }
 
@@ -303,13 +278,13 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   return {
     inventory, setInventory,
     repairOrders, setRepairOrders, repairOrdersError, setRepairOrdersError,
-    sales, setSales, salesCategories, setSalesCategories,
-    tradeIns, setTradeIns, tradeInCategories, setTradeInCategories,
+    sales, setSales,
+    tradeIns, setTradeIns,
     clients, setClients, clientCategories, setClientCategories,
     operationOptions, setOperationOptions, operationDrafts, setOperationDrafts,
     operationNotifications, setOperationNotifications,
     notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
-    customColumns, setCustomColumns, inventoryCategories, setInventoryCategories,
+    customColumns, setCustomColumns,
     scopeRef, currentScope, canAccess, backendReady,
     backendInventoryEnabled, loadInventoryEnabled, backendClientsEnabled,
     backendSalesEnabled, loadSalesEnabled, backendTradeInsEnabled, loadTradeInsEnabled, loadRepairsEnabled,

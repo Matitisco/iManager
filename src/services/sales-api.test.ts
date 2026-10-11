@@ -1,13 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale } from '../types';
 import {
-  bulkMoveSalesCategoryApi,
-  createBackendSale,
-  createSaleCategoryApi,
   deleteBackendSale,
   fetchBackendSales,
-  fetchSalesCategoriesApi,
-  renameSaleCategoryApi,
   updateBackendSale,
 } from './sales-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -35,8 +30,6 @@ const saleFixture: Sale = {
   categoryId: 'cat-1',
   customFields: { channel: 'web' },
 };
-
-const { id: _saleId, saleNumber: _saleNumber, ...createSalePayload } = saleFixture;
 
 function setApiBaseUrl(value: string) {
   (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__ = value;
@@ -79,7 +72,7 @@ describe('sales-api', () => {
     });
   });
 
-  it('surfaces create failures and validates update payloads', async () => {
+  it('validates update payloads and surfaces update failures', async () => {
     const updatedSale: Sale = {
       ...saleFixture,
       amount: 1900,
@@ -92,7 +85,7 @@ describe('sales-api', () => {
       .mockResolvedValueOnce(jsonResponse({ error: 'Stock insuficiente' }, 409))
       .mockResolvedValueOnce(jsonResponse({ sale: updatedSale }));
 
-    await expect(createBackendSale(mockUser, createSalePayload)).rejects.toThrow('Stock insuficiente');
+    await expect(updateBackendSale(mockUser, updatedSale)).rejects.toThrow('Stock insuficiente');
     await expect(updateBackendSale(mockUser, updatedSale)).resolves.toEqual(updatedSale);
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(2, `https://api.imanager.test/api/sales/${updatedSale.id}`, {
       method: 'PATCH',
@@ -114,13 +107,8 @@ describe('sales-api', () => {
     });
   });
 
-  it('accepts 204 deletes and covers category fetch/create/rename/move', async () => {
+  it('accepts 204 deletes', async () => {
     vi.mocked(fetchWithTimeout).mockResolvedValueOnce(new Response(null, { status: 204 }));
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Web' }] }))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'Mostrador' } }, 201))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'Mostrador Norte' } }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(deleteBackendSale(mockUser, 'sale-1')).resolves.toBeUndefined();
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/sales/sale-1', {
@@ -130,12 +118,5 @@ describe('sales-api', () => {
         Accept: 'application/json',
       },
     });
-    await expect(fetchSalesCategoriesApi(mockUser)).resolves.toEqual([{ id: 'cat-1', name: 'Web' }]);
-    await expect(createSaleCategoryApi(mockUser, 'Mostrador')).resolves.toEqual({ id: 'cat-2', name: 'Mostrador' });
-    await expect(renameSaleCategoryApi(mockUser, 'cat-2', 'Mostrador Norte')).resolves.toEqual({
-      id: 'cat-2',
-      name: 'Mostrador Norte',
-    });
-    await expect(bulkMoveSalesCategoryApi(mockUser, ['sale-1'], null)).resolves.toBeUndefined();
   });
 });
