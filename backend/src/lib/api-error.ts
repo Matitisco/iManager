@@ -18,6 +18,7 @@ const FIELD_LABELS: Record<string, string> = {
   batteryHealth: "batería",
   status: "estado",
   email: "email",
+  instagram: "Instagram",
   phone: "teléfono",
   dni: "DNI",
   paymentMethod: "forma de pago",

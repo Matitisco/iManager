@@ -107,6 +107,7 @@ describe("auth and onboarding integration", () => {
       },
       payload: {
         storeName: "Sucursal Centro",
+        instagram: "https://instagram.com/@sucursal.centro/",
       },
     });
 
@@ -116,6 +117,7 @@ describe("auth and onboarding integration", () => {
         onboardingRequired: false,
         store: {
           name: "Sucursal Centro",
+          instagram: "sucursal.centro",
         },
         membership: {
           role: "OWNER",
@@ -134,5 +136,42 @@ describe("auth and onboarding integration", () => {
     expect(membership.role).toBe("OWNER");
     expect(membership.isDefault).toBe(true);
     expect(membership.store.name).toBe("Sucursal Centro");
+    expect(membership.store.instagram).toBe("sucursal.centro");
+  });
+
+  it("rejects onboarding without a valid instagram", async () => {
+    const app = getApp();
+    const newUser = await seedStoreContext({
+      firebaseUid: "new-owner-no-ig",
+      email: "new-owner-no-ig@imanager.test",
+      displayName: "New Owner",
+      createStore: false,
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({
+        uid: newUser.user.firebaseUid,
+        email: newUser.user.email ?? undefined,
+        name: newUser.user.displayName ?? undefined,
+      }),
+    };
+
+    const missing = await app.inject({
+      method: "POST",
+      url: "/api/onboarding",
+      headers,
+      payload: { storeName: "Sin Instagram" },
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().error).toMatch(/Instagram/);
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/api/onboarding",
+      headers,
+      payload: { storeName: "Sin Instagram", instagram: "mi tienda" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().error).toMatch(/perfil/);
   });
 });

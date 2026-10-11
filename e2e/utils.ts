@@ -118,6 +118,17 @@ async function waitForSessionReady(request: APIRequestContext, email: string) {
   throw new Error(`Timed out waiting for store membership for ${email}`);
 }
 
+export async function createStoreViaApi(request: APIRequestContext, email: string, storeName: string) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/stores`, {
+    headers: {
+      ...authHeaders(email),
+      'Content-Type': 'application/json',
+    },
+    data: { name: storeName },
+  });
+  await assertOk(response, 'Create store');
+}
+
 export async function bootstrapStoreViaApi(
   page: Page,
   request: APIRequestContext,
@@ -133,7 +144,7 @@ export async function bootstrapStoreViaApi(
         ...authHeaders(email),
         'Content-Type': 'application/json',
       },
-      data: { storeName },
+      data: { storeName, instagram: 'e2etienda' },
     });
     await assertOk(response, 'Complete onboarding');
   }
@@ -164,6 +175,7 @@ export async function bootstrapStore(
     const onboardingSubmit = page.getByTestId('onboarding-submit');
     await expect(onboardingStoreName).toHaveValue('');
     await onboardingStoreName.fill(storeName);
+    await page.getByTestId('onboarding-instagram').fill('@e2etienda');
     await expect(onboardingSubmit).toBeEnabled();
     const onboardingRequest = page.waitForResponse(
       (response) =>

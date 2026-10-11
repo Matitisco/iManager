@@ -294,6 +294,11 @@ export function SettingsScreen() {
         {!isStaff && (
           <>
             <div className="sec" data-testid="settings-store">Tienda</div>
+            {!store?.instagram?.trim() ? (
+              <p className="ig-notice" data-testid="settings-instagram-notice" role="status">
+                Falta el Instagram de la tienda. Podés seguir usando la app y cargarlo en los datos de la tienda.
+              </p>
+            ) : null}
             <div className="card">
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
             </div>

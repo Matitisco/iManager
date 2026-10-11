@@ -4,9 +4,11 @@ import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lo
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser, type AppSessionResponse } from "../auth/session.service.js";
 import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
+import { requireInstagram } from "../stores/store-contact.js";
 
 export interface CompleteOnboardingInput {
   storeName: string;
+  instagram: string;
   currency?: string;
   exchangeMode?: string;
   exchangeSource?: string;
@@ -24,6 +26,8 @@ export async function completeOnboarding(
   if (!trimmedStoreName) {
     throw new Error("Completá el nombre de la tienda");
   }
+
+  const instagram = requireInstagram(input.instagram);
 
   const existingMembership = await prisma.storeMember.findFirst({
     where: { userId: user.id, isDefault: true },
@@ -45,6 +49,7 @@ export async function completeOnboarding(
       const store = await tx.store.create({
         data: {
           name: trimmedStoreName,
+          instagram,
           currency: asCurrency(input.currency),
           exchangeMode: asExchangeMode(input.exchangeMode),
           exchangeSource: asExchangeSource(input.exchangeSource),

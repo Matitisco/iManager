@@ -43,9 +43,19 @@ describe("onboarding.service", () => {
     prismaMock.store.create.mockResolvedValue({ id: "store-1" });
   });
 
+  it("rejects a missing or invalid instagram", async () => {
+    await expect(
+      completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "Mi Tienda", instagram: "  " })
+    ).rejects.toThrow(/Instagram/);
+    await expect(
+      completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "Mi Tienda", instagram: "mi tienda" })
+    ).rejects.toThrow(/perfil/);
+    expect(prismaMock.store.create).not.toHaveBeenCalled();
+  });
+
   it("rejects a blank store name", async () => {
     await expect(
-      completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "   " })
+      completeOnboarding({ firebaseUid: "firebase-user" }, { storeName: "   ", instagram: "@tienda" })
     ).rejects.toThrow("Completá el nombre de la tienda");
   });
 
@@ -54,12 +64,13 @@ describe("onboarding.service", () => {
 
     await completeOnboarding(
       { firebaseUid: "firebase-user", email: "owner@example.com" },
-      { storeName: " Mi Tienda " }
+      { storeName: " Mi Tienda ", instagram: "https://www.instagram.com/mi.tienda/" }
     );
 
     expect(prismaMock.store.create).toHaveBeenCalledWith({
       data: {
         name: "Mi Tienda",
+        instagram: "mi.tienda",
         currency: "ARS",
         exchangeMode: "auto",
         exchangeSource: "blue",
@@ -85,7 +96,7 @@ describe("onboarding.service", () => {
 
     await completeOnboarding(
       { firebaseUid: "firebase-user", email: "owner@example.com" },
-      { storeName: "Mi Tienda" }
+      { storeName: "Mi Tienda", instagram: "@tienda" }
     );
 
     expect(prismaMock.store.create).not.toHaveBeenCalled();

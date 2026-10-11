@@ -48,6 +48,15 @@ describe("management and collaboration integrations", () => {
       },
     });
 
+    const missingInstagram = await app.inject({
+      method: "PATCH",
+      url: "/api/stores/current",
+      headers: ownerHeaders,
+      payload: { instagram: "" },
+    });
+    expect(missingInstagram.statusCode).toBe(400);
+    expect(missingInstagram.json().error).toMatch(/Instagram/);
+
     const invalidContact = await app.inject({
       method: "PATCH",
       url: "/api/stores/current",
@@ -64,7 +73,7 @@ describe("management and collaboration integrations", () => {
         name: "Flagship",
         phone: "2614999999",
         email: "hola@flagship.test",
-        instagram: "@flagship",
+        instagram: "https://www.instagram.com/flagship/?hl=es",
       },
     });
     expect(storeResponse.statusCode).toBe(200);

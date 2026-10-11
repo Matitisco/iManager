@@ -176,7 +176,7 @@ describe("validation errors", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/onboarding",
-      payload: { storeName: "Sucursal Norte" },
+      payload: { storeName: "Sucursal Norte", instagram: "@norte" },
     });
 
     expect(response.statusCode).toBe(500);
