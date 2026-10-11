@@ -14,7 +14,7 @@ AppContext es el archivo más sensible del proyecto. Errores aquí afectan toda 
 
 ```
 AppContext.tsx
-  ├── Estado por módulo: inventory, sales, tradeIns, clients, customColumns, inventoryCategories
+  ├── Estado por módulo: inventory, sales, tradeIns, clients, repairOrders, customColumns, clientCategories
   ├── Source flags: inventorySource, clientsSource, salesSource, tradeInsSource
   ├── Backend flags: backendInventoryEnabled, backendClientsEnabled, ...
   ├── Sesión: appSession, backendStatus, backendMessage, user (Firebase)

@@ -5,6 +5,8 @@ description: Skill específica para el módulo Inventory — el más complejo de
 
 # iManager Inventory Skill
 
+> **Desactualizada (2026-10-11).** `src/pages/Inventory.tsx` y su CRUD de categorías ya no existen. Inventario vive en `src/desk/screens/InventoryScreen.tsx`; el alta y el detalle del equipo, en `src/desk/overlays/equipment.tsx`; la importación, en `src/components/ImportModal.tsx` con `importBackendRows` de `src/services/import-api.ts`. `AppContext` ya no expone categorías de inventario. Las secciones de abajo sirven solo como referencia de reglas de negocio (batería, IMEI, estados).
+
 Aplicar esta skill **siempre que se toque `src/pages/Inventory.tsx`** o cualquier código de inventario.
 
 Inventory es el módulo más grande del proyecto (~57KB). Antes de cualquier cambio, entender la estructura interna.
