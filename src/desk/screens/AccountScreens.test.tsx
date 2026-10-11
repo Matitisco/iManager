@@ -124,6 +124,38 @@ describe('Member permissions', () => {
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked());
   });
 
+  it('keeps reportes off for an employee until the owner turns it on', async () => {
+    const user = userEvent.setup();
+    membersApi.listMembers.mockResolvedValue([member({ sections: null })]);
+    membersApi.updateMemberSections.mockResolvedValue(member({ sections: ['dashboard', 'reports'] }));
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: /Luis/ }));
+    expect(screen.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Reportes' })).toBeEnabled();
+    expect(screen.getByRole('switch', { name: 'Ventas' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Reportes' }).closest('.perm')).toHaveTextContent('Sin acceso');
+
+    await user.click(screen.getByRole('switch', { name: 'Reportes' }));
+    expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Reportes' }).closest('.perm')).toHaveTextContent('Puede ver esta sección');
+    await user.click(screen.getByRole('button', { name: 'Guardar permisos' }));
+
+    await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalled());
+    const saved = membersApi.updateMemberSections.mock.calls[0]?.[3] as string[];
+    expect(saved).toContain('reports');
+    expect(saved).toContain('sales');
+  });
+
+  it('shows reportes on when the employee already has that section', async () => {
+    membersApi.listMembers.mockResolvedValue([member({ sections: ['sales', 'reports'] })]);
+    renderSettings();
+    await userEvent.click(await screen.findByRole('button', { name: /Luis/ }));
+    expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Ventas' })).toBeChecked();
+  });
+
   it('saves an explicit sensitive-action grant for a manager', async () => {
     const user = userEvent.setup();
     membersApi.listMembers.mockResolvedValue([member({
@@ -197,5 +229,29 @@ describe('settings on a phone', () => {
     expect(within(bar).getByRole('button', { name: 'Guardar permisos' })).toBeInTheDocument();
     expect(within(bar).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked();
+  });
+
+  it('shows reportes off for an employee and keeps Guardar permisos pinned', async () => {
+    const user = userEvent.setup();
+    membersApi.updateMemberSections.mockReset();
+    membersApi.listMembers.mockResolvedValue([member({ sections: null })]);
+    membersApi.updateMemberSections.mockResolvedValue(member({ sections: ['reports'] }));
+    render(
+      <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false, back: vi.fn() }}>
+        <SettingsScreen />
+      </DeskProvider>,
+    );
+
+    await user.click(await screen.findByRole('button', { name: /Luis/ }));
+    const reports = screen.getByRole('switch', { name: 'Reportes' });
+    expect(reports).not.toBeChecked();
+    expect(reports).toBeEnabled();
+    const bar = screen.getByTestId('permissions-save');
+    expect(within(bar).getByRole('button', { name: 'Guardar permisos' })).toBeInTheDocument();
+    await user.click(reports);
+    await user.click(within(bar).getByRole('button', { name: 'Guardar permisos' }));
+    await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalled());
+    expect(membersApi.updateMemberSections.mock.calls.at(-1)?.[3]).toEqual(expect.arrayContaining(['reports']));
   });
 });

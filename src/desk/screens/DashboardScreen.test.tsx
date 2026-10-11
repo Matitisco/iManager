@@ -70,7 +70,7 @@ describe('Dashboard billing', () => {
       ...context.appSession,
       membership: { role: 'STAFF', sections: null },
     };
-    renderScreen();
+    const denied = renderScreen();
     const card = screen.getByRole('button', { name: /Ventas del mes/ });
     expect(card).toHaveTextContent('operaciones');
     expect(card).not.toHaveTextContent('$');
@@ -79,6 +79,14 @@ describe('Dashboard billing', () => {
     expect(screen.queryByTestId('dashboard-bell')).not.toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-register-sale')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
+    denied.unmount();
+
+    context.appSession = {
+      ...context.appSession,
+      membership: { role: 'STAFF', sections: ['dashboard', 'reports'] },
+    };
+    renderScreen();
+    expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('$ 250.000');
   });
 });
 

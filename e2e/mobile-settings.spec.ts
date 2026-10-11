@@ -233,6 +233,7 @@ test.describe('settings on a phone', () => {
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
     await expect(page.getByRole('heading', { name: 'Permisos' })).toBeVisible();
     await expect(page.getByRole('switch', { name: 'Inventario' })).toBeChecked();
+    await expect(page.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
     await page.getByRole('switch', { name: 'Inventario' }).click();
     await page.getByRole('switch', { name: 'Acciones sensibles' }).click();
@@ -250,6 +251,7 @@ test.describe('settings on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
     await expect(page.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
+    await expect(page.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
     await page.getByTestId('page-back').click();
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();

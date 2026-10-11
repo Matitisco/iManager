@@ -107,16 +107,19 @@ describe("reportsRoutes", () => {
     await app.close();
   });
 
-  it("rejects the overview for staff even when reports is listed or unset", async () => {
+  it("accepts the overview when the employee has reports listed", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["reports", "inventory"] };
     });
     const listed = buildApp();
     await listed.register(reportsRoutes);
     const listedResponse = await listed.inject({ method: "GET", url: "/overview" });
-    expect(listedResponse.statusCode).toBe(403);
+    expect(listedResponse.statusCode).toBe(200);
+    expect(getReportsOverviewMock).toHaveBeenCalledWith("store-1", expect.objectContaining({ rangeKey: "this_month" }));
     await listed.close();
+  });
 
+  it("rejects the overview when the employee has no saved sections", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: null };
     });
