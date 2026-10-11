@@ -2,6 +2,14 @@ import React, { useRef, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
 import { Sheet } from '../desk/ui';
+import {
+  applyColumnSuggestions,
+  assignColumn,
+  autoMap,
+  columnSamples,
+  type ColumnNote,
+} from '../lib/import-mapping';
+import type { SuggestMappingResponse } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
 
 export interface ImportFieldDef {
@@ -30,58 +38,6 @@ function autoDetectHeaderRow(rawRows: string[][]): number {
     if (textCells.length >= 2) return i;
   }
   return 0;
-}
-
-function normalize(s: string) {
-  return s.toLowerCase()
-    .replace(/[\s_\-\.]/g, '')
-    .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e')
-    .replace(/[íìïî]/g, 'i').replace(/[óòöôõ]/g, 'o')
-    .replace(/[úùüû]/g, 'u').replace(/[ñ]/g, 'n');
-}
-
-function autoMap(
-  headers: string[],
-  fields: ImportFieldDef[],
-  hints: Record<string, string> = {},
-): Record<string, string> {
-  const mapping: Record<string, string> = {};
-
-  for (const field of fields) {
-    const nKey   = normalize(field.key);
-    const nLabel = normalize(field.label);
-
-    // Pass 1: hints (custom alias map)
-    for (const h of headers) {
-      const nh = normalize(h);
-      if (hints[nh] === field.key && !mapping[field.key]) {
-        mapping[field.key] = h;
-        break;
-      }
-    }
-    if (mapping[field.key]) continue;
-
-    // Pass 2: exact key or label match
-    for (const h of headers) {
-      const nh = normalize(h);
-      if ((nh === nKey || nh === nLabel) && !mapping[field.key]) {
-        mapping[field.key] = h;
-        break;
-      }
-    }
-    if (mapping[field.key]) continue;
-
-    // Pass 3: substring match
-    for (const h of headers) {
-      const nh = normalize(h);
-      if ((nh.includes(nKey) || (nLabel.length >= 4 && nh.includes(nLabel))) && !mapping[field.key]) {
-        mapping[field.key] = h;
-        break;
-      }
-    }
-  }
-
-  return mapping;
 }
 
 function buildDataRows(rawRows: string[][], headerRowIndex: number): {
@@ -136,12 +92,13 @@ interface Props {
   };
   mapHints?: Record<string, string>;
   sheet?: boolean;
+  onSuggest?: (columns: { header: string; samples: string[] }[]) => Promise<SuggestMappingResponse>;
 }
 
 const PREVIEW_ROWS = 12;
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, title = 'Importar', extraColumns, mapHints = {}, sheet = false,
+  fields, onImport, onClose, title = 'Importar', extraColumns, mapHints = {}, sheet = false, onSuggest,
 }) => {
   const [step, setStep]       = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
@@ -161,6 +118,15 @@ export const ImportModal: React.FC<Props> = ({
   const [fileRows, setFileRows]       = useState<Record<string, string>[]>([]);
   const [fieldToColumn, setFieldToColumn] = useState<Record<string, string>>({});
   const [extraEnabled, setExtraEnabled]   = useState<Record<string, boolean>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [confidenceByField, setConfidenceByField] = useState<Record<string, number | null>>({});
+  const [reviewByField, setReviewByField] = useState<Record<string, boolean>>({});
+  const [columnNotes, setColumnNotes] = useState<ColumnNote[]>([]);
+  const suggestRequest = useRef(0);
+  const touchedRef = useRef(false);
+  const stepRef = useRef<Step>('upload');
+  stepRef.current = step;
 
   const [importing, setImporting] = useState(false);
   const [result, setResult]       = useState<GenericImportResult | null>(null);
@@ -227,12 +193,52 @@ export const ImportModal: React.FC<Props> = ({
     for (const col of h) {
       if (!mappedCols.has(col)) extra[col] = true;
     }
+    const requestId = suggestRequest.current + 1;
+    suggestRequest.current = requestId;
+    touchedRef.current = false;
+    stepRef.current = 'mapping';
     setHeaders(h);
     setFileRows(rows);
     setFieldToColumn(mapped);
     setExtraEnabled(extra);
+    setConfidenceByField({});
+    setReviewByField({});
+    setColumnNotes([]);
+    setNotice(null);
     setFileError(null);
     setStep('mapping');
+    if (!onSuggest) return;
+
+    setSuggesting(true);
+    void onSuggest(h.map((header) => ({ header, samples: columnSamples(rows, header) }))).then((suggestion) => {
+      if (suggestRequest.current !== requestId || touchedRef.current || stepRef.current !== 'mapping') return;
+      const applied = applyColumnSuggestions(fields, suggestion.suggestions);
+      const taken = new Set(Object.values(applied.fieldToColumn).filter(Boolean));
+      const nextExtra: Record<string, boolean> = {};
+      for (const col of h) {
+        if (!taken.has(col)) nextExtra[col] = true;
+      }
+      setFieldToColumn(applied.fieldToColumn);
+      setExtraEnabled(nextExtra);
+      setConfidenceByField(applied.confidenceByField);
+      setReviewByField(applied.reviewByField);
+      setColumnNotes(applied.notes);
+      setNotice(suggestion.notice);
+    }).catch((error: unknown) => {
+      if (suggestRequest.current !== requestId || stepRef.current !== 'mapping') return;
+      setNotice(error instanceof Error ? error.message : 'No se pudo consultar el mapeo inteligente. Usamos el mapeo por nombre de columna.');
+    }).finally(() => {
+      if (suggestRequest.current === requestId) setSuggesting(false);
+    });
+  };
+
+  const backToHeaders = () => {
+    suggestRequest.current += 1;
+    stepRef.current = 'header-select';
+    setSuggesting(false);
+    setNotice(null);
+    setStep('header-select');
+    setFileError(null);
   };
 
   // ── Step 4: Import ──────────────────────────────────────────────────────────
@@ -279,7 +285,9 @@ export const ImportModal: React.FC<Props> = ({
     'upload':        'Subí un archivo CSV o XLSX',
     'sheet-select':  `${sheetNames.length} hojas encontradas — elegí cuál importar`,
     'header-select': 'Indicá cuál fila tiene los nombres de columna',
-    'mapping':       `${fileRows.length} filas detectadas — mapeá las columnas`,
+    'mapping':       suggesting
+      ? 'Sugiriendo columnas…'
+      : `${fileRows.length} filas detectadas — revisá el mapeo`,
     'result':        'Importación completada',
   }[step];
 
@@ -404,6 +412,29 @@ export const ImportModal: React.FC<Props> = ({
           {/* ── Mapping ── */}
           {step === 'mapping' && (
             <div className="space-y-5">
+              {(suggesting || notice || columnNotes.length > 0 || Object.values(reviewByField).some(Boolean)) && (
+                <div data-testid="import-mapping-notice" className="flex items-start gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    {suggesting && <p data-testid="import-suggest-status">Sugiriendo columnas…</p>}
+                    {notice && <p>{notice}</p>}
+                    {!notice && (columnNotes.length > 0 || Object.values(reviewByField).some(Boolean)) && (
+                      <p>Revisá las columnas marcadas antes de importar.</p>
+                    )}
+                    {columnNotes.map((note) => {
+                      const label = fields.find((field) => field.key === note.suggestedField)?.label;
+                      const percent = note.confidence != null ? ` (${Math.round(note.confidence * 100)}%)` : '';
+                      return (
+                        <p key={note.header} data-testid="import-column-review">
+                          {label
+                            ? `La columna «${note.header}» coincidía con ${label}${percent}, pero ese campo ya estaba asignado. Quedó sin mapear para que la revises.`
+                            : `La columna «${note.header}» quedó sin mapear. Revisala si corresponde importarla.`}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -413,7 +444,14 @@ export const ImportModal: React.FC<Props> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {fields.map((field) => (
+                    {fields.map((field) => {
+                      const confidence = confidenceByField[field.key];
+                      const taken = new Set(
+                        Object.entries(fieldToColumn)
+                          .filter(([key, value]) => key !== field.key && value)
+                          .map(([, value]) => value),
+                      );
+                      return (
                       <tr key={field.key} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
@@ -423,24 +461,55 @@ export const ImportModal: React.FC<Props> = ({
                           {field.hint && <span className="text-xs text-gray-400">{field.hint}</span>}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="relative">
-                            <select
-                              value={fieldToColumn[field.key] ?? ''}
-                              onChange={(e) =>
-                                setFieldToColumn(prev => ({ ...prev, [field.key]: e.target.value }))
-                              }
-                              className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                            >
-                              <option value="">— Sin mapear —</option>
-                              {headers.map((h) => (
-                                <option key={h} value={h}>{h}</option>
-                              ))}
-                            </select>
-                            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <div className="flex items-center gap-2">
+                            <div className="relative min-w-0 flex-1">
+                              <select
+                                aria-label={field.label}
+                                data-testid={`import-field-${field.key}`}
+                                value={fieldToColumn[field.key] ?? ''}
+                                onChange={(e) => {
+                                  const column = e.target.value;
+                                  touchedRef.current = true;
+                                  const next = assignColumn(fieldToColumn, field.key, column);
+                                  setFieldToColumn(next);
+                                  setConfidenceByField((current) => {
+                                    const copy = { ...current, [field.key]: null };
+                                    for (const key of Object.keys(fieldToColumn)) {
+                                      if (next[key] !== fieldToColumn[key]) copy[key] = null;
+                                    }
+                                    return copy;
+                                  });
+                                  setReviewByField((current) => {
+                                    const copy = { ...current, [field.key]: false };
+                                    for (const key of Object.keys(fieldToColumn)) {
+                                      if (next[key] !== fieldToColumn[key]) copy[key] = false;
+                                    }
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                              >
+                                <option value="">— Sin mapear —</option>
+                                {headers.map((h) => (
+                                  <option key={h} value={h} disabled={fieldToColumn[field.key] !== h && taken.has(h)}>{h}</option>
+                                ))}
+                              </select>
+                              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            </div>
+                            {reviewByField[field.key] ? (
+                              <span data-testid={`import-confidence-${field.key}`} className="shrink-0 text-[10px] font-semibold text-amber-900 bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5">
+                                Revisar{confidence != null ? ` ${Math.round(confidence * 100)}%` : ''}
+                              </span>
+                            ) : confidence != null ? (
+                              <span data-testid={`import-confidence-${field.key}`} className="shrink-0 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-md px-1.5 py-0.5">
+                                {Math.round(confidence * 100)}%
+                              </span>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -623,7 +692,7 @@ export const ImportModal: React.FC<Props> = ({
           {step === 'mapping' && (
             <>
               <button
-                onClick={() => { setStep('header-select'); setFileError(null); }}
+                onClick={backToHeaders}
                 className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Volver
@@ -674,7 +743,7 @@ export const ImportModal: React.FC<Props> = ({
     </div>
   ) : step === 'mapping' ? (
     <div className="sacts">
-      <button type="button" className="btn2 s" onClick={() => { setStep('header-select'); setFileError(null); }}>Volver</button>
+      <button type="button" className="btn2 s" onClick={backToHeaders}>Volver</button>
       <button type="button" className="btn2 p" disabled={!requiredMapped || importing} onClick={handleImport}>{importing ? 'Importando…' : `Importar ${fileRows.length} ${noun}`}</button>
     </div>
   ) : (
@@ -702,6 +771,9 @@ export const ImportModal: React.FC<Props> = ({
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-gray-200">

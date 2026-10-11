@@ -10,6 +10,7 @@ export type ApiRequestOptions = {
   // 'error' shows the backend `error` field, 'friendly' also reads `message`/`fields`
   // and hides technical text, 'fallback' never shows the backend text.
   errorFrom?: 'error' | 'friendly' | 'fallback';
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -23,13 +24,13 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(user: AuthUserLike, path: string, options: ApiRequestOptions): Promise<T> {
-  const { method = 'GET', body, fallback, errorFrom = 'error' } = options;
+  const { method = 'GET', body, fallback, errorFrom = 'error', timeoutMs } = options;
   const baseUrl = getBackendBaseUrl();
   if (!baseUrl) throw new Error('Backend no configurado');
 
   const token = await user.getIdToken();
   const hasBody = body !== undefined;
-  const response = await fetchWithTimeout(`${baseUrl}${path}`, {
+  const init: RequestInit = {
     method,
     // Fastify rejects an empty body sent with Content-Type: application/json.
     headers: {
@@ -38,7 +39,10 @@ export async function apiRequest<T>(user: AuthUserLike, path: string, options: A
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
-  });
+  };
+  const response = timeoutMs === undefined
+    ? await fetchWithTimeout(`${baseUrl}${path}`, init)
+    : await fetchWithTimeout(`${baseUrl}${path}`, init, timeoutMs);
 
   if (!response.ok) {
     const message = typeof fallback === 'function' ? fallback(response.status) : fallback;

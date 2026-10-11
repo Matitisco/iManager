@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { importBackendRows, type ImportSection } from './import-api';
+import { importBackendRows, suggestImportMapping, type ImportSection } from './import-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 vi.mock('./fetch-with-timeout', () => ({
@@ -59,5 +59,26 @@ describe('import-api', () => {
 
     await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('Producto inexistente');
     await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow(/Error al importar \(500\)/);
+  });
+
+  it('asks the backend for a column mapping and keeps the OpenAI key off the client', async () => {
+    const suggestion = {
+      source: 'decisions' as const,
+      notice: null,
+      suggestions: [{ header: 'Equipo', field: 'model', confidence: 0.9, review: false, suggestedField: 'model' }],
+    };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(suggestion));
+
+    await expect(suggestImportMapping(mockUser, 'inventory', [{ header: 'Equipo', samples: ['iPhone 14'] }])).resolves.toEqual(suggestion);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/suggest-mapping', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ section: 'inventory', columns: [{ header: 'Equipo', samples: ['iPhone 14'] }] }),
+    }, 60_000);
+    expect(JSON.stringify(vi.mocked(fetchWithTimeout).mock.calls)).not.toContain('OPENAI');
   });
 });
