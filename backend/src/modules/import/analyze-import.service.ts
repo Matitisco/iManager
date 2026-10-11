@@ -20,8 +20,8 @@ import {
   headerLooksValid,
   heuristicPlan,
   heuristicSheet,
-  inventoryHasEquipmentColumns,
   priceCurrencyOf,
+  sectionHasRelevantColumns,
   trimSheet,
   type ImportSheet,
   type ImportSummary,
@@ -34,7 +34,16 @@ export const ANALYSIS_NOTICES = {
   refusal: "OpenAI se negó a leer la planilla. Usamos las reglas internas.",
   error: "No se pudo consultar el análisis inteligente. Usamos las reglas internas.",
   unrelated: "Este archivo no parece tener equipos para importar.",
+  unrelatedSales: "Este archivo no parece tener ventas para importar.",
+  unrelatedClients: "Este archivo no parece tener clientes para importar.",
 } as const;
+
+export function unrelatedNotice(section: ImportSection): string | null {
+  if (section === "inventory") return ANALYSIS_NOTICES.unrelated;
+  if (section === "sales") return ANALYSIS_NOTICES.unrelatedSales;
+  if (section === "clients") return ANALYSIS_NOTICES.unrelatedClients;
+  return null;
+}
 
 const modelSheetSchema = z.object({
   name: z.string(),
@@ -90,9 +99,10 @@ export async function analyzeImport(
 ): Promise<AnalysisResult> {
   const sheets = prepareSheets(input.sheets);
   const heuristic = () => heuristicPlan(sheets, input.section, input.currency);
-  if (input.section === "inventory" && !inventoryHasEquipmentColumns(sheets)) {
+  const unrelated = unrelatedNotice(input.section);
+  if (unrelated && !sectionHasRelevantColumns(sheets, input.section)) {
     const plan = heuristic().map((sheet) => ({ ...sheet, include: false }));
-    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.unrelated, plan, null, 0, 0, "none");
+    return finish(input, sheets, deps, "heuristic", unrelated, plan, null, 0, 0, "none");
   }
   const key = openAiApiKey();
   if (!key) return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.missingKey, heuristic(), null, 0, 0, "none");
@@ -180,10 +190,18 @@ async function decideImport(
 function importPlanUsable(plans: SheetPlan[], section: ImportSection): boolean {
   const included = plans.filter((plan) => plan.include);
   if (included.length === 0) return false;
-  if (section !== "inventory") return true;
-  return included.every((plan) =>
-    plan.mapping.some((column) => column.field === "model")
-    && plan.mapping.some((column) => column.field === "price"));
+  if (section === "inventory") {
+    return included.every((plan) =>
+      plan.mapping.some((column) => column.field === "model")
+      && plan.mapping.some((column) => column.field === "price"));
+  }
+  if (section === "sales") {
+    return included.every((plan) =>
+      plan.mapping.some((column) => column.field === "amount")
+      && plan.mapping.some((column) => column.field === "clientName" || column.field === "device" || column.field === "productImei"));
+  }
+  if (section === "clients") return included.every((plan) => plan.mapping.some((column) => column.field === "name"));
+  return true;
 }
 
 function prepareSheets(sheets: ImportSheet[]): ImportSheet[] {

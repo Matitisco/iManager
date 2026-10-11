@@ -1,0 +1,61 @@
+{
+ "section": "sales",
+ "currency": "ARS",
+ "rows": [
+  {
+   "date": "12/10/2026",
+   "clientName": "Nina Ferreyra",
+   "device": "iPhone 14 Pro Max 256 GB",
+   "productImei": "351010203040506",
+   "amount": "1850000",
+   "currency": "ARS",
+   "paymentMethod": "EFECTIVO",
+   "tradeIn": "",
+   "seller": "Luis"
+  },
+  {
+   "date": "07/10/2026",
+   "clientName": "Omar Vidal",
+   "device": "iPhone 13 128 GB",
+   "productImei": "359191929393949",
+   "amount": "720",
+   "currency": "USD",
+   "paymentMethod": "TRANSFERENCIA",
+   "tradeIn": "iPhone 7",
+   "seller": "Mica"
+  },
+  {
+   "date": "03/10/2026",
+   "clientName": "Paula Ibáñez",
+   "device": "iPhone 12 64 GB",
+   "productImei": "354545656767878",
+   "amount": "900",
+   "currency": "USD",
+   "paymentMethod": "TARJETA",
+   "tradeIn": "",
+   "seller": "Sofía"
+  },
+  {
+   "date": "03/10/2026",
+   "clientName": "Ramiro Costa",
+   "device": "iPhone 15 256 GB",
+   "productImei": "357070808090901",
+   "amount": "2200000",
+   "currency": "ARS",
+   "paymentMethod": "TRANSFERENCIA",
+   "tradeIn": "",
+   "seller": "Luis"
+  },
+  {
+   "date": "01/10/2026",
+   "clientName": "Sara Molina",
+   "device": "iPhone 11 Pro 64 GB",
+   "productImei": "353232424252626",
+   "amount": "480000",
+   "currency": "ARS",
+   "paymentMethod": "TARJETA",
+   "tradeIn": "",
+   "seller": "Mica"
+  }
+ ]
+}

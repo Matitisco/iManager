@@ -12,7 +12,11 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
     if (kind === 'inv') await reloadInventory();
-    if (kind === 'sale') await reloadSales();
+    if (kind === 'sale') {
+      await reloadSales();
+      await reloadClients();
+      await reloadInventory();
+    }
     if (kind === 'cl') await reloadClients();
   }), [kind, reloadInventory, reloadSales, reloadClients]);
   if (!user) return null;
@@ -22,7 +26,7 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
     cl: ['cliente importado', 'clientes importados'],
   };
   const section = sectionFor(kind);
-  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} onClose={close} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -43,6 +47,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
     return {
       title: 'Importar equipos',
       nouns: { one: 'equipo', many: 'equipos' },
+      unrelatedNotice: 'Este archivo no parece tener equipos para importar.',
       fields: [
         { key: 'model', label: 'Modelo', required: true },
         { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
@@ -89,12 +94,17 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
     return {
       title: 'Importar ventas',
       nouns: { one: 'venta', many: 'ventas' },
+      unrelatedNotice: 'Este archivo no parece tener ventas para importar.',
       fields: [
-        { key: 'clientName', label: 'Cliente', required: false },
-        { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
-        { key: 'amount', label: 'Total', required: false },
         { key: 'date', label: 'Fecha', required: false },
+        { key: 'clientName', label: 'Cliente', required: false },
+        { key: 'device', label: 'Equipo', required: false },
+        { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
+        { key: 'amount', label: 'Precio', required: false },
+        { key: 'currency', label: 'Moneda', required: false },
         { key: 'paymentMethod', label: 'Pago', required: false },
+        { key: 'tradeIn', label: 'Canje', required: false },
+        { key: 'seller', label: 'Vendedor', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
@@ -107,11 +117,13 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
   return {
     title: 'Importar clientes',
     nouns: { one: 'cliente', many: 'clientes' },
+    unrelatedNotice: 'Este archivo no parece tener clientes para importar.',
     fields: [
       { key: 'name', label: 'Nombre', required: true },
-      { key: 'dni', label: 'DNI', required: false },
       { key: 'phone', label: 'Teléfono', required: false },
+      { key: 'instagram', label: 'Instagram', required: false },
       { key: 'email', label: 'Email', required: false },
+      { key: 'dni', label: 'DNI', required: false },
     ],
     onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
       const result = await importBackendRows(user, 'clients', rows);

@@ -231,7 +231,7 @@ describe("analyzeImport model", () => {
     const result = await analyzeImport({
       section: "clients",
       currency: "ARS",
-      sheets: [{ name: "Hoja 1", rows: [["Nombre"], ["Ana"]] }],
+      sheets: [{ name: "Hoja 1", rows: [["Nombre", "Email"], ["Ana", "ana@test.com"]] }],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.source).toBe("heuristic");
@@ -303,7 +303,7 @@ describe("analyzeImport model", () => {
     await analyzeImport({
       section: "clients",
       currency: "ARS",
-      sheets: [{ name: "Hoja 1", rows: [["Nombre"], ["Ana"]] }],
+      sheets: [{ name: "Hoja 1", rows: [["Nombre", "Email"], ["Ana", "ana@test.com"]] }],
     }, { fetchImpl });
     const body = JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body)) as { model: string; reasoning?: unknown };
     expect(body.model).toBe("gpt-6-custom");

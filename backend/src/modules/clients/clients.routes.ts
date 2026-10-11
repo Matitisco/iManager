@@ -27,6 +27,7 @@ const clientCreateSchema = z.object({
   categoryId: z.string().nullable().optional(),
   email: z.string().trim().max(255).optional().nullable(),
   phone: z.string().trim().max(50).optional().nullable(),
+  instagram: z.string().trim().max(80).optional().nullable(),
   lastPurchaseDate: z.string().trim().optional().nullable(),
   totalSpent: z.number().nonnegative().optional(),
   pendingBalance: z.number().nonnegative().optional(),
@@ -132,6 +133,7 @@ export async function clientsRoutes(app: FastifyInstance) {
             dni:   z.string().trim().optional(),
             email: z.string().trim().optional(),
             phone: z.string().trim().optional(),
+            instagram: z.string().trim().optional(),
           })
         ),
       });

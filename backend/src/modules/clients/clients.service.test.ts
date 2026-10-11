@@ -7,6 +7,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   client: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
@@ -35,6 +36,7 @@ describe("clients.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
+    prismaMock.client.findMany.mockResolvedValue([]);
     prismaMock.client.create.mockResolvedValue({
       id: "client-1",
       dni: "30111222",

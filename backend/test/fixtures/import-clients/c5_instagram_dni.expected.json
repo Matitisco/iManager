@@ -1,0 +1,27 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Sara Molina",
+   "phone": "+5491122223344",
+   "instagram": "sara.molina",
+   "email": "sara.molina@gmail.com",
+   "dni": "30555666"
+  },
+  {
+   "name": "Tomás Alegre",
+   "phone": "+5491122223345",
+   "instagram": "tomas.alegre",
+   "email": "tomas@alegre.com",
+   "dni": "30555667"
+  },
+  {
+   "name": "Uma Brest",
+   "phone": "+5491155556677",
+   "instagram": "uma.brest",
+   "email": "uma@brest.com",
+   "dni": "30555668"
+  }
+ ]
+}

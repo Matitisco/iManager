@@ -1,0 +1,20 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Fabián Luna",
+   "phone": "+5491160001010",
+   "instagram": "fabian.luna",
+   "email": "fabian@luna.com",
+   "dni": "20111222"
+  },
+  {
+   "name": "Gonzalo Pérez",
+   "phone": "+5491160002020",
+   "instagram": "gonza.perez",
+   "email": "gonza@perez.com",
+   "dni": "31222333"
+  }
+ ]
+}

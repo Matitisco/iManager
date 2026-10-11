@@ -1,0 +1,39 @@
+{
+ "section": "sales",
+ "currency": "ARS",
+ "rows": [
+  {
+   "date": "06/10/2026",
+   "clientName": "Gonzalo Pérez",
+   "device": "iPhone 14 128 GB",
+   "productImei": "353111222333444",
+   "amount": "1050000",
+   "currency": "ARS",
+   "paymentMethod": "EFECTIVO",
+   "tradeIn": "",
+   "seller": "Luis"
+  },
+  {
+   "date": "05/10/2026",
+   "clientName": "Helena Quiroga",
+   "device": "iPhone 13 mini 128 GB",
+   "productImei": "359000111222333",
+   "amount": "640",
+   "currency": "USD",
+   "paymentMethod": "TRANSFERENCIA",
+   "tradeIn": "iPhone 8",
+   "seller": "Mica"
+  },
+  {
+   "date": "04/10/2026",
+   "clientName": "Iván Rojas",
+   "device": "iPhone 12 Pro 128 GB",
+   "productImei": "351234567890123",
+   "amount": "780000",
+   "currency": "ARS",
+   "paymentMethod": "TARJETA",
+   "tradeIn": "",
+   "seller": "Sofía"
+  }
+ ]
+}

@@ -1,6 +1,7 @@
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
+import { normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
 export type SheetCondition = (typeof CONDITIONS)[number];
@@ -188,17 +189,26 @@ function choosePrice(headers: string[], storeCurrency: MoneyCurrency): { header:
   return usd ? { header: usd, kind: "usd" } : ars ? { header: ars, kind: "ars" } : null;
 }
 
+function catalogMoneyField(catalog: ImportCatalog): string | null {
+  if (catalog.fields.some((field) => field.key === "price")) return "price";
+  if (catalog.fields.some((field) => field.key === "amount")) return "amount";
+  if (catalog.fields.some((field) => field.key === "takeValue")) return "takeValue";
+  return null;
+}
+
 function columnMapping(headers: string[], priceHeader: string | null, rejected: Set<string>, catalog: ImportCatalog): ColumnMapping[] {
+  const moneyField = catalogMoneyField(catalog);
   const available = headers.filter((header) => header.trim() && header !== priceHeader && !rejected.has(header));
   const mapped = autoMap(available, fieldLabels(catalog), catalog.hints);
-  if (priceHeader) delete mapped.price;
+  if (priceHeader && moneyField) delete mapped[moneyField];
   const fieldByHeader = new Map<string, string>();
   for (const [field, header] of Object.entries(mapped)) fieldByHeader.set(header, field);
-  if (priceHeader) fieldByHeader.set(priceHeader, "price");
-  return headers.filter((header) => header.trim()).map((header) => ({
+  if (priceHeader && moneyField) fieldByHeader.set(priceHeader, moneyField);
+  const mapping = headers.filter((header) => header.trim()).map((header) => ({
     header,
     field: fieldByHeader.get(header) ?? "",
   }));
+  return catalog.section === "clients" ? preferWhatsappPhone(headers, mapping) : mapping;
 }
 
 function samples(rows: string[][], headerRow: number, header: string, headers: string[]): string[] {
@@ -275,6 +285,30 @@ export function heuristicPlan(
 ): SheetPlan[] {
   const catalog = IMPORT_CATALOGS[section];
   return sheets.map((sheet) => heuristicSheet(sheet, catalog, storeCurrency));
+}
+
+const SALE_IDENTITY_FIELDS = new Set(["clientName", "device", "productImei", "paymentMethod", "tradeIn", "seller"]);
+const CLIENT_CONTACT_FIELDS = new Set(["phone", "email", "dni", "instagram"]);
+
+function sheetMapsFields(sheet: ImportSheet, section: ImportSection, fields: Set<string>, also?: string): boolean {
+  const catalog = IMPORT_CATALOGS[section];
+  const rows = trimSheet(sheet.rows);
+  const limit = Math.min(rows.length, 40);
+  for (let index = 0; index < limit; index += 1) {
+    const cells = (rows[index] ?? []).map((cell) => cell.trim()).filter((cell) => cell.length > 0 && cell.length <= 40);
+    if (cells.length < 2) continue;
+    const mapped = Object.keys(autoMap(cells, catalog.fields, catalog.hints));
+    if (also && !mapped.includes(also)) continue;
+    if (mapped.some((field) => fields.has(field))) return true;
+  }
+  return false;
+}
+
+export function sectionHasRelevantColumns(sheets: ImportSheet[], section: ImportSection): boolean {
+  if (section === "inventory") return inventoryHasEquipmentColumns(sheets);
+  if (section === "sales") return sheets.some((sheet) => sheetMapsFields(sheet, "sales", SALE_IDENTITY_FIELDS));
+  if (section === "clients") return sheets.some((sheet) => sheetMapsFields(sheet, "clients", CLIENT_CONTACT_FIELDS, "name"));
+  return true;
 }
 
 const EQUIPMENT_COLUMN_FIELDS = new Set(["model", "imei", "capacity", "color", "condition", "batteryHealth", "grade"]);
@@ -401,6 +435,7 @@ export function applyPlans(
         const line = grid[rowIndex - 1] ?? [];
         if (line.every((cell) => !cell.trim()) || isFooter(line)) continue;
         const filledCells = line.filter((cell) => cell.trim());
+        if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) continue;
         if (section === "inventory" && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
           sectionCondition = conditionFromName(filledCells[0]) || plan.condition;
           continue;
@@ -417,6 +452,7 @@ export function applyPlans(
           if (split.capacity && !record.capacity) record.capacity = split.capacity;
         }
         if (plan.batteryAsPercent && record.batteryHealth) record.batteryHealth = normalizeBattery(record.batteryHealth);
+        const rawAmount = record.amount ?? "";
         if (record.price != null) {
           record.price = resolvePrice({
             direct: record.price,
@@ -431,13 +467,14 @@ export function applyPlans(
           const amount = parseMoney(record[field]);
           if (amount != null) record[field] = moneyString(amount);
         }
-        if (section === "inventory" && (!record.model?.trim() || !record.price)) continue;
-        if (section === "clients" && !record.name?.trim()) continue;
-        if (section === "trade-ins" && (!record.clientName?.trim() || !record.deviceReceived?.trim())) continue;
-        const filled = Object.values(record).some((value) => value.trim());
+        const normalized = normalizeSectionRow(section, record, plan.priceCurrency, rawAmount, storeCurrency);
+        if (!normalized) continue;
+        if (section === "inventory" && (!normalized.model?.trim() || !normalized.price)) continue;
+        if (section === "trade-ins" && (!normalized.clientName?.trim() || !normalized.deviceReceived?.trim())) continue;
+        const filled = Object.values(normalized).some((value) => value.trim());
         if (!filled) continue;
         count += 1;
-        rows.push(record);
+        rows.push(normalized);
       }
     }
 

@@ -166,3 +166,145 @@ describe('previsualización de importación', () => {
     expect(onImport).not.toHaveBeenCalled();
   });
 });
+
+const saleFields = [
+  { key: 'date', label: 'Fecha', required: false },
+  { key: 'clientName', label: 'Cliente', required: false },
+  { key: 'device', label: 'Equipo', required: false },
+  { key: 'amount', label: 'Precio', required: false },
+  { key: 'currency', label: 'Moneda', required: false },
+  { key: 'paymentMethod', label: 'Pago', required: false },
+  { key: 'tradeIn', label: 'Canje', required: false },
+  { key: 'seller', label: 'Vendedor', required: false },
+];
+
+const clientFields = [
+  { key: 'name', label: 'Nombre', required: true },
+  { key: 'phone', label: 'Teléfono', required: false },
+  { key: 'instagram', label: 'Instagram', required: false },
+  { key: 'email', label: 'Email', required: false },
+  { key: 'dni', label: 'DNI', required: false },
+];
+
+function sectionAnalysis(kind: 'sales' | 'clients', count: number): ImportAnalysis {
+  const rows = Array.from({ length: count }, (_, index) => kind === 'sales'
+    ? {
+      date: '03/10/2026',
+      clientName: index === count - 1 ? 'ZZ-ULTIMO' : `Cliente ${index + 1}`,
+      device: 'iPhone 13 128 GB',
+      productImei: '350000000000101',
+      amount: '850000',
+      currency: 'ARS',
+      paymentMethod: 'TRANSFERENCIA',
+      tradeIn: 'iPhone 11',
+      seller: 'Martín',
+    }
+    : {
+      name: index === count - 1 ? 'ZZ-ULTIMO' : `Cliente ${index + 1}`,
+      phone: '+5491155551234',
+      instagram: 'lucia.iphone',
+      email: 'lucia@gmail.com',
+      dni: '30111222',
+    });
+  return {
+    source: 'model',
+    notice: null,
+    currency: 'ARS',
+    plan: [{
+      name: 'Hoja 1',
+      include: true,
+      condition: '',
+      headerRow: 1,
+      dataStartRow: 2,
+      dataEndRow: count + 1,
+      mapping: [],
+      splitModelCapacity: false,
+      batteryAsPercent: false,
+      priceCurrency: '',
+    }],
+    rows,
+    summary: {
+      sheetCount: 1,
+      rowCount: count,
+      sheets: [{ name: 'Hoja 1', rows: count, condition: '', included: true }],
+    },
+  };
+}
+
+describe('previsualización de ventas y clientes', () => {
+  it.each([
+    ['ventas', 'sales', saleFields, { one: 'venta', many: 'ventas' }, 'Ventas a importar', 'Cliente 1'],
+    ['clientes', 'clients', clientFields, { one: 'cliente', many: 'clientes' }, 'Clientes a importar', 'Cliente 1'],
+  ] as const)('lista %s en tabla virtualizada y en tarjetas', async (_label, kind, fieldsForKind, nouns, heading, first) => {
+    const onAnalyze = vi.fn(async () => sectionAnalysis(kind, 80));
+    const { unmount } = render(
+      <ImportModal
+        title={kind === 'sales' ? 'Importar ventas' : 'Importar clientes'}
+        fields={[...fieldsForKind]}
+        nouns={nouns}
+        onClose={vi.fn()}
+        onAnalyze={onAnalyze}
+        onApply={vi.fn()}
+        onImport={vi.fn()}
+      />,
+    );
+    const input = document.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('falta el input');
+    await userEvent.upload(input, new File(['a,b\n1,2\n'], 'planilla.csv', { type: 'text/csv' }));
+    expect(await screen.findByTestId('import-preview-count')).toHaveTextContent(`80 ${nouns.many}`);
+    expect(screen.getByText(heading)).toBeInTheDocument();
+    expect(screen.getByText(first)).toBeInTheDocument();
+    const preview = screen.getByTestId('import-preview');
+    expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(40);
+    preview.scrollTop = (kind === 'sales' ? 44 : 44) * 79;
+    fireEvent.scroll(preview);
+    expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
+    unmount();
+
+    render(
+      <ImportModal
+        title={kind === 'sales' ? 'Importar ventas' : 'Importar clientes'}
+        fields={[...fieldsForKind]}
+        nouns={nouns}
+        sheet
+        onClose={vi.fn()}
+        onAnalyze={onAnalyze}
+        onApply={vi.fn()}
+        onImport={vi.fn()}
+      />,
+    );
+    const phoneInput = document.querySelector('input[type="file"]');
+    if (!(phoneInput instanceof HTMLInputElement)) throw new Error('falta el input');
+    await userEvent.upload(phoneInput, new File(['a,b\n1,2\n'], 'planilla.csv', { type: 'text/csv' }));
+    expect(await screen.findByText(heading)).toBeInTheDocument();
+    expect(screen.getByTestId('import-preview').parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
+  });
+
+  it.each([
+    ['ventas', 'Este archivo no parece tener ventas para importar.', saleFields, { one: 'venta', many: 'ventas' }],
+    ['clientes', 'Este archivo no parece tener clientes para importar.', clientFields, { one: 'cliente', many: 'clientes' }],
+  ] as const)('dice cuando el archivo no tiene %s', async (_label, notice, fieldsForKind, nouns) => {
+    render(
+      <ImportModal
+        title="Importar"
+        fields={[...fieldsForKind]}
+        nouns={nouns}
+        unrelatedNotice={notice}
+        onClose={vi.fn()}
+        onAnalyze={vi.fn(async () => ({
+          ...sectionAnalysis('clients', 0),
+          notice,
+          rows: [],
+          summary: { sheetCount: 0, rowCount: 0, sheets: [] },
+        }))}
+        onApply={vi.fn()}
+        onImport={vi.fn()}
+      />,
+    );
+    const input = document.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('falta el input');
+    await userEvent.upload(input, new File(['Alumno,Nota\nAna,8\n'], 'otro.csv', { type: 'text/csv' }));
+    expect(await screen.findByTestId('import-unrelated')).toHaveTextContent(notice);
+    expect(screen.queryByTestId('import-confirm')).not.toBeInTheDocument();
+  });
+});

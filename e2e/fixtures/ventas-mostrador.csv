@@ -1,0 +1,11 @@
+Fecha,Cliente,Equipo,IMEI,Precio,Moneda,Pago,Canje,Vendedor
+03/10/2026,Lucía Fernández,iPhone 13 128 GB,350000000000101,850000,ARS,Transferencia,iPhone 11 64 GB,Martín
+04/10/2026,Joaquín Pereyra,iPhone 14 Pro 256 GB,350000000000102,1190,USD,Efectivo,,Sofía
+05/10/2026,Camila Rossi,iPhone 15 128 GB,350000000000103,1450000,ARS,Mercado Pago,,Martín
+06/10/2026,Tomás Aguilar,iPhone 12 64 GB,350000000000104,420000,ARS,Tarjeta,iPhone 8,Sofía
+07/10/2026,Valentina Ruiz,iPhone 16 Pro 256 GB,350000000000105,1890,USD,Transferencia,,Martín
+08/10/2026,Nicolás Benítez,iPhone 13 Pro 128 GB,350000000000106,980000,ARS,Efectivo,,Sofía
+09/10/2026,Martina López,iPhone 11 128 GB,350000000000107,310000,ARS,Débito,,Martín
+10/10/2026,Facundo Díaz,iPhone 15 Pro 128 GB,350000000000108,1650,USD,Tarjeta de crédito,,Sofía
+11/10/2026,Sofía Méndez,iPhone SE 64 GB,350000000000109,280000,ARS,Efectivo,sin canje,Martín
+12/10/2026,Pedro Álvarez,iPhone 14 128 GB,350000000000110,1100000,ARS,Transferencia,,Sofía

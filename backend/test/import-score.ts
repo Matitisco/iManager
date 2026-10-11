@@ -1,5 +1,23 @@
 import { splitModelCapacity } from "../src/modules/import/sheet-plan.js";
 
+export function scoreLabeledRows(expected: Record<string, string>[], got: Record<string, string>[]) {
+  const used = new Array(got.length).fill(false);
+  let matched = 0;
+  for (const row of expected) {
+    const index = got.findIndex((item, itemIndex) => !used[itemIndex] && Object.entries(row).every(([key, value]) => (item[key] ?? "") === value));
+    if (index < 0) continue;
+    used[index] = true;
+    matched += 1;
+  }
+  return {
+    expected: expected.length,
+    imported: got.length,
+    matched,
+    missing: expected.length - matched,
+    extra: used.filter((item) => !item).length,
+  };
+}
+
 const normalizeModel = (value = "") => value.toLowerCase().replace(/iphone|iph/g, "").replace(/\s+/g, " ").trim();
 const normalizeCapacity = (value = "") => {
   const match = value.match(/(\d+)\s*(gb|tb)?/i);

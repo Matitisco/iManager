@@ -1,0 +1,34 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Helena Quiroga",
+   "phone": "+5491143210001",
+   "instagram": "helena.q",
+   "email": "helena@mail.com",
+   "dni": "30101010"
+  },
+  {
+   "name": "Iván Rojas",
+   "phone": "+5491143210002",
+   "instagram": "ivan.rojas",
+   "email": "ivan@mail.com",
+   "dni": "30101011"
+  },
+  {
+   "name": "Julia Méndez",
+   "phone": "+5491170003000",
+   "instagram": "julia.mayor",
+   "email": "julia@mayor.com",
+   "dni": "27000111"
+  },
+  {
+   "name": "Kevin Acosta",
+   "phone": "+5491170003001",
+   "instagram": "kevin.acosta",
+   "email": "kevin@mayor.com",
+   "dni": "27000222"
+  }
+ ]
+}

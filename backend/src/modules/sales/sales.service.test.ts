@@ -9,9 +9,19 @@ const prismaMock = vi.hoisted(() => ({
   },
   client: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
   },
   inventoryItem: {
     findFirst: vi.fn(),
+    update: vi.fn(),
+  },
+  storeMember: {
+    findMany: vi.fn(),
+  },
+  tradeIn: {
+    findMany: vi.fn(),
   },
   saleCategory: {
     findFirst: vi.fn(),
@@ -40,6 +50,21 @@ describe("sales.service", () => {
     vi.clearAllMocks();
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     allocateDocumentNumber.mockResolvedValue(4);
+    prismaMock.client.findMany.mockResolvedValue([]);
+    prismaMock.client.create.mockResolvedValue({
+      id: "client-new",
+      name: "Alguien",
+      dni: null,
+      phone: null,
+      email: null,
+      totalSpent: new Decimal(0),
+      lastPurchaseAt: null,
+    });
+    prismaMock.client.update.mockResolvedValue({});
+    prismaMock.storeMember.findMany.mockResolvedValue([]);
+    prismaMock.tradeIn.findMany.mockResolvedValue([]);
+    prismaMock.sale.findFirst.mockResolvedValue(null);
+    prismaMock.sale.create.mockResolvedValue({ id: "sale-1" });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
 
@@ -144,18 +169,85 @@ describe("sales.service", () => {
     });
   });
 
-  it("stores the client name without requiring a client row", async () => {
+  it("keeps a sale when the IMEI is not in stock and does not create an item", async () => {
     prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
+
+    const result = await importSales("store-1", [{
+      clientName: "Alguien",
+      device: "iPhone 13 128 GB",
+      productImei: "350000000000095",
+      amount: "1000",
+      seller: "Luis",
+    }]);
+
+    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        clientName: "Alguien",
+        inventoryItemId: null,
+        deviceLabel: "iPhone 13 128 GB · 350000000000095",
+        customFields: expect.objectContaining({ vendedor: "Luis", imei: "350000000000095" }),
+      }),
+    });
+  });
+
+  it("links a disponible item and marks only that item as sold", async () => {
+    prismaMock.inventoryItem.findFirst.mockResolvedValue({ id: "item-1", status: "DISPONIBLE", archivedAt: null });
 
     const result = await importSales("store-1", [{ clientName: "Alguien", productImei: "350000000000095", amount: "1000" }]);
 
-    expect(result.errors).toEqual([{ row: 2, message: 'Producto no encontrado (IMEI): "350000000000095"' }]);
-    expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
+    expect(result.imported).toBe(1);
+    expect(prismaMock.inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: { status: "VENDIDO" },
+    });
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ inventoryItemId: "item-1" }),
+    });
+  });
+
+  it("does not relink or change an item that already has a sale", async () => {
+    prismaMock.inventoryItem.findFirst.mockResolvedValue({ id: "item-1", status: "VENDIDO", archivedAt: null });
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-old" });
+
+    const result = await importSales("store-1", [{ clientName: "Alguien", device: "iPhone 13", productImei: "350000000000095", amount: "1000" }]);
+
+    expect(result.imported).toBe(1);
+    expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        inventoryItemId: null,
+        deviceLabel: "iPhone 13 · 350000000000095",
+      }),
+    });
+  });
+
+  it("reuses a client with the same name and does not create another", async () => {
+    prismaMock.client.findMany.mockResolvedValue([{
+      id: "client-1",
+      name: "Ana Gómez",
+      dni: null,
+      phone: null,
+      email: null,
+      totalSpent: new Decimal(10),
+      lastPurchaseAt: null,
+    }]);
+
+    const result = await importSales("store-1", [{ clientName: "ana gómez", device: "iPhone 13", amount: "1000" }]);
+
+    expect(result.imported).toBe(1);
+    expect(prismaMock.client.create).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ clientId: "client-1", clientName: "ana gómez" }),
+    });
+    expect(prismaMock.client.update).toHaveBeenCalledWith({
+      where: { id: "client-1" },
+      data: expect.objectContaining({ totalSpent: new Decimal(1010) }),
+    });
   });
 
   it("imports a sale without an IMEI and without linking stock", async () => {
-    prismaMock.sale.create.mockResolvedValue({ id: "sale-1" });
-
     const result = await importSales("store-1", [{ clientName: "Alguien", amount: "1000" }]);
 
     expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
@@ -165,10 +257,13 @@ describe("sales.service", () => {
     });
   });
 
-  it("rejects a sale import IMEI that is not 15 digits", async () => {
-    const result = await importSales("store-1", [{ productImei: "12345", amount: "1000" }]);
+  it("keeps a sale when the IMEI is not 15 digits and does not link stock", async () => {
+    const result = await importSales("store-1", [{ clientName: "Alguien", device: "iPhone 11", productImei: "12345", amount: "1000" }]);
 
-    expect(result.errors).toEqual([{ row: 2, message: "El IMEI tiene 15 dígitos" }]);
-    expect(prismaMock.sale.create).not.toHaveBeenCalled();
+    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.sale.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ inventoryItemId: null, deviceLabel: "iPhone 11" }),
+    });
   });
 });
