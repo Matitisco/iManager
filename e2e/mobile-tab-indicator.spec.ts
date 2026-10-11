@@ -49,44 +49,53 @@ test.describe('mobile tab indicator', () => {
 
     const bar = page.getByTestId('mobile-tab-bar');
     const indicator = page.getByTestId('mobile-tab-indicator');
-    await expect(indicator).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-dashboard')).toHaveClass(/on/);
-
-    const before = await indicatorState(page);
-    expect(before?.transition).toContain('transform 220ms ease-out');
-    expect(before?.transition).toContain('width 220ms ease-out');
-    expect(before?.transform.startsWith('translateX(')).toBe(true);
-    expect(Math.abs(before?.dx ?? 99)).toBeLessThanOrEqual(1);
-    expect(Math.abs(before?.dw ?? 99)).toBeLessThanOrEqual(1);
+    await expect(indicator).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const origin = await bar.getByTestId('sidebar-tab-dashboard').boundingBox();
+    expect(origin).not.toBeNull();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-before.png` });
 
     await page.addStyleTag({ content: '.mtab-indicator { transition-duration: 1200ms !important; }' });
-    const origin = before?.x ?? 0;
     await bar.getByTestId('sidebar-tab-sales').click();
     await expect(page).toHaveURL(/#\/ven/);
-    await page.waitForTimeout(450);
+    await expect(indicator).toBeVisible();
+    const started = await indicatorState(page);
+    expect(started?.transition).toContain('transform 220ms ease-out');
+    expect(started?.transform.startsWith('translateX(')).toBe(true);
+    await page.waitForTimeout(280);
     const during = await indicatorState(page);
     expect(during).not.toBeNull();
-    expect(during!.x).toBeGreaterThan(origin + 8);
+    expect(during!.x).toBeGreaterThan((origin?.x ?? 0) + 8);
     const salesBox = await bar.getByTestId('sidebar-tab-sales').boundingBox();
     expect(salesBox).not.toBeNull();
     expect(during!.x).toBeLessThan(salesBox!.x - 4);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-during.png` });
 
-    await expect.poll(async () => Math.abs((await indicatorState(page))?.dx ?? 99)).toBeLessThanOrEqual(1);
-    await expect.poll(async () => Math.abs((await indicatorState(page))?.dw ?? 99)).toBeLessThanOrEqual(1);
+    await expect(indicator).toHaveCount(0);
     await expect(bar.getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-after.png` });
 
     await page.evaluate(() => { window.location.hash = '#/inv'; });
     await expect(page).toHaveURL(/#\/inv/);
+    await expect(indicator).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
-    await expect.poll(async () => Math.abs((await indicatorState(page))?.dx ?? 99)).toBeLessThanOrEqual(1);
+    await expect(indicator).toHaveCount(0);
 
     await page.goBack();
     await expect(page).toHaveURL(/#\/ven/);
+    await expect(indicator).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
-    await expect.poll(async () => Math.abs((await indicatorState(page))?.dx ?? 99)).toBeLessThanOrEqual(1);
+    await expect(indicator).toHaveCount(0);
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    await expect(indicator).toHaveCount(0);
+    const inside = await page.evaluate(() => {
+      const width = document.documentElement.clientWidth;
+      const barBox = document.querySelector('[data-testid="mobile-tab-bar"]')!.getBoundingClientRect();
+      return barBox.left >= -1 && barBox.right <= width + 1;
+    });
+    expect(inside).toBe(true);
   });
 
   test('does not animate the indicator when reduced motion is requested', async ({ page, request }, testInfo) => {
@@ -95,19 +104,13 @@ test.describe('mobile tab indicator', () => {
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Indicador quieto ${testInfo.parallelIndex}`);
 
-    const indicator = page.getByTestId('mobile-tab-indicator');
-    await expect(indicator).toBeVisible();
-    const state = await indicatorState(page);
-    expect(state?.transition).toBe('none');
-    expect(state?.duration).toBe('0s');
-    expect(Math.abs(state?.dx ?? 99)).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
+    await expect(page.getByTestId('sidebar-tab-dashboard')).toHaveClass(/on/);
 
     await page.getByTestId('sidebar-tab-inventory').click();
     await expect(page).toHaveURL(/#\/inv/);
-    const next = await indicatorState(page);
-    expect(next?.transition).toBe('none');
-    expect(next?.duration).toBe('0s');
-    expect(Math.abs(next?.dx ?? 99)).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
+    await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
   });
 });
 

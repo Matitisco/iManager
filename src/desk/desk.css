@@ -886,11 +886,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dolar-toast button { flex: none; color: var(--lime); font: inherit; font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
 .mtab { position: fixed; z-index: 40; left: 10px; right: 10px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 2px; height: 62px; padding: 6px; border-radius: 22px; background: #fff; box-shadow: 0 8px 28px rgba(22,24,29,.12); max-width: calc(100% - 20px); }
 .mtab-indicator { position: absolute; z-index: 0; left: 0; border-radius: 999px; background: var(--lime); pointer-events: none; transition: transform 220ms ease-out, width 220ms ease-out; }
-.mtab-indicator.instant { transition: none; }
 .mtab button { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 46px; min-width: 44px; padding: 0 8px; border-radius: 999px; color: #8B909A; flex: 0 0 auto; }
 .mtab .dcount { position: absolute; top: 2px; right: 2px; margin-left: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
 .mtab button.on { background: var(--lime); color: var(--primary); padding: 0 14px; font-size: 13px; font-weight: 800; }
-.mtab:has(.mtab-indicator) button.on { background: transparent; }
+.mtab.sliding button.on { background: transparent; }
 .mtab button:not(.on) .mtab-label { display: none; }
 .mtab svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) {

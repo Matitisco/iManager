@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
 import { DeskApp } from './DeskApp';
-import { MOBILE_TAB_INDICATOR_TRANSITION, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
+import { MOBILE_TAB_INDICATOR_TRANSITION, clampIndicatorFrame, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
 
 const context = vi.hoisted(() => ({
   appSession: {
@@ -144,31 +144,34 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByTestId('sidebar-tab-service')).not.toBeInTheDocument();
   });
 
-  it('slides the yellow indicator with translateX when the section changes from the bar or the hash', () => {
+  it('slides the yellow indicator with translateX when the section changes from the bar or the hash', async () => {
     usePhone();
     const restore = installTabRects();
     window.location.hash = '#/dash';
     render(<DeskApp />);
-    const indicator = screen.getByTestId('mobile-tab-indicator');
-    expect(indicator).toHaveStyle({
-      transform: 'translateX(8px)',
-      width: '132px',
-      transition: MOBILE_TAB_INDICATOR_TRANSITION,
-    });
-    expect(indicator.className).not.toContain('instant');
+    expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-tab-dashboard')).toHaveClass('on');
 
     fireEvent.click(screen.getByTestId('sidebar-tab-inventory'));
     act(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(screen.getByTestId('sidebar-tab-inventory')).toHaveClass('on');
-    expect(indicator).toHaveStyle({ transform: 'translateX(148px)', width: '118px', transition: MOBILE_TAB_INDICATOR_TRANSITION });
+    expect(screen.getByTestId('mobile-tab-indicator')).toHaveStyle({ transform: 'translateX(8px)', width: '132px' });
+
+    await act(async () => {
+      await new Promise<void>((resolve) => { requestAnimationFrame(() => resolve()); });
+    });
+    expect(screen.getByTestId('mobile-tab-indicator')).toHaveStyle({
+      transform: 'translateX(148px)',
+      width: '118px',
+      transition: MOBILE_TAB_INDICATOR_TRANSITION,
+    });
 
     goHash('#/ven');
+    await act(async () => {
+      await new Promise<void>((resolve) => { requestAnimationFrame(() => resolve()); });
+    });
     expect(screen.getByTestId('sidebar-tab-sales')).toHaveClass('on');
-    expect(indicator).toHaveStyle({ transform: 'translateX(220px)', width: '96px' });
-
-    goHash('#/mas');
-    expect(screen.getByTestId('sidebar-tab-more')).toHaveClass('on');
-    expect(indicator).toHaveStyle({ transform: 'translateX(316px)', width: '46px' });
+    expect(screen.getByTestId('mobile-tab-indicator')).toHaveStyle({ transform: 'translateX(220px)', width: '96px' });
     restore();
   });
 
@@ -177,13 +180,11 @@ describe('sidebar unread counts', () => {
     const restore = installTabRects();
     window.location.hash = '#/dash';
     render(<DeskApp />);
-    const indicator = screen.getByTestId('mobile-tab-indicator');
-    expect(indicator).toHaveClass('instant');
-    expect(indicator).toHaveStyle({ transform: 'translateX(8px)', transition: 'none' });
+    expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
 
     goHash('#/inv');
-    expect(indicator).toHaveStyle({ transform: 'translateX(148px)', transition: 'none' });
-    expect(indicator).toHaveClass('instant');
+    expect(screen.getByTestId('sidebar-tab-inventory')).toHaveClass('on');
+    expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
     restore();
   });
 });
@@ -197,5 +198,6 @@ describe('mobile tab indicator geometry', () => {
     expect(frame).toEqual({ x: 74, y: 8, width: 120, height: 46 });
     expect(sameIndicatorFrame(frame, { ...frame })).toBe(true);
     expect(sameIndicatorFrame(frame, { ...frame, x: frame.x + 2 })).toBe(false);
+    expect(clampIndicatorFrame({ x: 300, y: 8, width: 90, height: 46 }, 340, 62)).toEqual({ x: 250, y: 8, width: 90, height: 46 });
   });
 });

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TransitionEvent } from 'react';
 
 export const MOBILE_TAB_INDICATOR_MS = 220;
 export const MOBILE_TAB_INDICATOR_TRANSITION = `transform ${MOBILE_TAB_INDICATOR_MS}ms ease-out, width ${MOBILE_TAB_INDICATOR_MS}ms ease-out`;
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+const SLIDE_FALLBACK_MS = 1500;
 
 export type IndicatorFrame = {
   x: number;
@@ -26,6 +27,24 @@ export function sameIndicatorFrame(current: IndicatorFrame, next: IndicatorFrame
     && Math.abs(current.y - next.y) < 0.5
     && Math.abs(current.width - next.width) < 0.5
     && Math.abs(current.height - next.height) < 0.5;
+}
+
+export function clampIndicatorFrame(frame: IndicatorFrame, navWidth: number, navHeight: number): IndicatorFrame {
+  const width = Math.max(0, Math.min(frame.width, navWidth));
+  const height = Math.max(0, Math.min(frame.height, navHeight));
+  return {
+    x: Math.min(Math.max(0, frame.x), Math.max(0, navWidth - width)),
+    y: Math.min(Math.max(0, frame.y), Math.max(0, navHeight - height)),
+    width,
+    height,
+  };
+}
+
+function readIndicatorFrame(nav: HTMLElement) {
+  const active = nav.querySelector<HTMLElement>('button.on');
+  if (!active) return null;
+  const navBox = nav.getBoundingClientRect();
+  return clampIndicatorFrame(mobileTabIndicatorFrame(navBox, active.getBoundingClientRect()), navBox.width, navBox.height);
 }
 
 function usePrefersReducedMotion() {
@@ -52,56 +71,79 @@ export type MobileTabButton = {
 
 export function MobileTabBar({ buttons }: { buttons: MobileTabButton[] }) {
   const navRef = useRef<HTMLElement>(null);
-  const [frame, setFrame] = useState<IndicatorFrame | null>(null);
-  const [motionReady, setMotionReady] = useState(false);
+  const lastFrame = useRef<IndicatorFrame | null>(null);
   const reduceMotion = usePrefersReducedMotion();
-  const layoutKey = buttons.map((button) => `${button.id}:${button.active ? 1 : 0}:${button.pending}`).join('|');
+  const activeId = buttons.find((button) => button.active)?.id ?? '';
+  const [trackedId, setTrackedId] = useState(activeId);
+  const [sliding, setSliding] = useState(false);
+  const [frame, setFrame] = useState<IndicatorFrame | null>(null);
 
-  const measure = useCallback(() => {
-    const nav = navRef.current;
-    const active = nav?.querySelector<HTMLElement>('button.on');
-    if (!nav || !active) return;
-    const next = mobileTabIndicatorFrame(nav.getBoundingClientRect(), active.getBoundingClientRect());
-    setFrame((current) => (current && sameIndicatorFrame(current, next) ? current : next));
-  }, []);
+  if (trackedId !== activeId) {
+    const from = !reduceMotion ? lastFrame.current : null;
+    setTrackedId(activeId);
+    setSliding(Boolean(from));
+    setFrame(from);
+  }
 
   useLayoutEffect(() => {
-    measure();
-  }, [measure, layoutKey]);
+    const nav = navRef.current;
+    if (!nav) return undefined;
+    const to = readIndicatorFrame(nav);
+    if (to) lastFrame.current = to;
+    if (!sliding || !frame || !to || sameIndicatorFrame(frame, to)) {
+      if (sliding) setSliding(false);
+      return undefined;
+    }
+    const animation = window.requestAnimationFrame(() => setFrame(to));
+    const timer = window.setTimeout(() => setSliding(false), SLIDE_FALLBACK_MS);
+    return () => {
+      window.cancelAnimationFrame(animation);
+      window.clearTimeout(timer);
+    };
+    // `frame` is the origin captured for this section change. Updating it to the
+    // destination must not re-run the effect, or the pill unmounts before it moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackedId, sliding]);
 
   useEffect(() => {
     const nav = navRef.current;
-    if (!nav || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => measure());
-    observer.observe(nav);
-    for (const button of nav.querySelectorAll('button')) observer.observe(button);
-    return () => observer.disconnect();
-  }, [measure, layoutKey]);
+    if (!nav) return undefined;
+    const remember = () => {
+      if (sliding) return;
+      const next = readIndicatorFrame(nav);
+      if (next) lastFrame.current = next;
+    };
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(remember);
+      observer.observe(nav);
+    }
+    window.addEventListener('resize', remember);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', remember);
+    };
+  }, [sliding, trackedId]);
 
-  useEffect(() => {
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [measure]);
-
-  useEffect(() => {
-    setMotionReady(!reduceMotion);
-  }, [reduceMotion]);
-
-  const animate = motionReady && !reduceMotion;
+  const finishSlide = (event: TransitionEvent<HTMLSpanElement>) => {
+    if (event.propertyName !== 'transform') return;
+    setSliding(false);
+  };
 
   return (
-    <nav ref={navRef} className="mtab" data-testid="mobile-tab-bar" aria-label="Secciones">
-      {frame ? (
+    <nav ref={navRef} className={sliding ? 'mtab sliding' : 'mtab'} data-testid="mobile-tab-bar" aria-label="Secciones">
+      {sliding && frame ? (
         <span
-          className={animate ? 'mtab-indicator' : 'mtab-indicator instant'}
+          className="mtab-indicator"
           data-testid="mobile-tab-indicator"
           aria-hidden="true"
+          onTransitionEnd={finishSlide}
           style={{
             transform: `translateX(${frame.x}px)`,
             width: frame.width,
             top: frame.y,
             height: frame.height,
-            transition: animate ? MOBILE_TAB_INDICATOR_TRANSITION : 'none',
+            transition: MOBILE_TAB_INDICATOR_TRANSITION,
           }}
         />
       ) : null}
