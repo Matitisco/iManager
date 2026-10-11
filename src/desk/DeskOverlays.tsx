@@ -4,7 +4,7 @@ import { useAppContext } from '../context/AppContext';
 import { INPUT_LIMITS } from '../lib/input-limits';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../lib/imei';
 import { getFriendlyErrorMessage } from '../lib/utils';
-import { ImportModal } from '../components/table-engine/components/ImportModal';
+import { ImportModal } from '../components/ImportModal';
 import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
 import { importBackendSales } from '../services/sales-import-api';
 import { importBackendClients } from '../services/clients-import-api';

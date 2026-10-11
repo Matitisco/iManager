@@ -1,37 +1,28 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
-import { useAppContext } from '../context/AppContext';
-import { importBackendInventoryItems, type ImportRow, type ImportResult } from '../services/inventory-import-api';
+import { Sheet } from '../desk/ui';
 import { parseWorkbook } from '../utils/parse-workbook';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Step = 'upload' | 'sheet-select' | 'header-select' | 'mapping' | 'result';
-
-interface FieldDef {
-  key: keyof ImportRow;
+export interface ImportFieldDef {
+  key: string;
   label: string;
   required: boolean;
   hint?: string;
 }
 
-const INVENTORY_FIELDS: FieldDef[] = [
-  { key: 'model',         label: 'Modelo',       required: true },
-  { key: 'imei',          label: 'IMEI (opcional)', required: false },
-  { key: 'price',         label: 'Precio',       required: false },
-  { key: 'capacity',      label: 'Capacidad',    required: false, hint: 'ej: 128GB' },
-  { key: 'color',         label: 'Color',        required: false },
-  { key: 'condition',     label: 'Condición',    required: false, hint: 'NUEVO / USADO / PRE-OWNED' },
-  { key: 'grade',         label: 'Estética',     required: false, hint: 'A+ / A / B / C / N/A' },
-  { key: 'batteryHealth', label: 'Batería %',    required: false, hint: '0–100' },
-  { key: 'cost',          label: 'Costo',        required: false },
-  { key: 'status',        label: 'Estado',       required: false, hint: 'DISPONIBLE / VENDIDO / EN_REVISION' },
-];
+export interface GenericImportResult {
+  imported: number;
+  updated: number;
+  errors: { row: number; message: string; [key: string]: unknown }[];
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Step = 'upload' | 'sheet-select' | 'header-select' | 'mapping' | 'result';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Find the most likely header row index: first row with ≥2 non-empty, non-numeric cells */
 function autoDetectHeaderRow(rawRows: string[][]): number {
   for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
     const row = rawRows[i];
@@ -41,55 +32,50 @@ function autoDetectHeaderRow(rawRows: string[][]): number {
   return 0;
 }
 
-function autoMap(headers: string[]): Record<string, string> {
-  const n = (s: string) => s.toLowerCase().replace(/[\s_\-\.áéíóúàèìòùäëïöü]/g, (c) => {
-    const acc: Record<string, string> = { á:'a',é:'e',í:'i',ó:'o',ú:'u',à:'a',è:'e',ì:'i',ò:'o',ù:'u',ä:'a',ë:'e',ï:'i',ö:'o',ü:'u' };
-    return acc[c] ?? '';
-  });
+function normalize(s: string) {
+  return s.toLowerCase()
+    .replace(/[\s_\-\.]/g, '')
+    .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i').replace(/[óòöôõ]/g, 'o')
+    .replace(/[úùüû]/g, 'u').replace(/[ñ]/g, 'n');
+}
 
-  // Alias map: normalized string → field key
-  const aliases: Record<string, keyof ImportRow> = {
-    imei:'imei', serial:'imei', numeroserie:'imei', ns:'imei', sn:'imei',
-    modelo:'model', model:'model', equipo:'model', dispositivo:'model', nombre:'model', producto:'model',
-    precio:'price', price:'price', pvp:'price', precioventa:'price', venta:'price', preciofinal:'price',
-    capacidad:'capacity', capacity:'capacity', almacenamiento:'capacity', storage:'capacity', rom:'capacity', memoria:'capacity',
-    color:'color', colour:'color', colores:'color',
-    condicion:'condition', condition:'condition', tipo:'condition',
-    estetica:'grade', grade:'grade', grado:'grade', calidad:'grade', cosmetica:'grade', estado2:'grade',
-    bateria:'batteryHealth', battery:'batteryHealth', batt:'batteryHealth', saludbateria:'batteryHealth',
-    salud:'batteryHealth', health:'batteryHealth', bateriasalud:'batteryHealth',
-    costo:'cost', cost:'cost', costounitario:'cost', preciocompra:'cost', compra:'cost',
-    estado:'status', status:'status', disponibilidad:'status', disponible:'status',
-  };
-
-  // Substring keywords for fallback matching
-  const substrings: [string, keyof ImportRow][] = [
-    ['imei','imei'], ['serial','imei'],
-    ['model','model'], ['equipo','model'],
-    ['preci','price'], ['venta','price'],
-    ['capac','capacity'], ['almac','capacity'], ['memor','capacity'],
-    ['color','color'],
-    ['condic','condition'],
-    ['estetica','grade'], ['grado','grade'], ['grade','grade'],
-    ['bater','batteryHealth'], ['battery','batteryHealth'], ['salud','batteryHealth'],
-    ['costo','cost'], ['compra','cost'],
-    ['estado','status'], ['dispon','status'],
-  ];
-
+function autoMap(
+  headers: string[],
+  fields: ImportFieldDef[],
+  hints: Record<string, string> = {},
+): Record<string, string> {
   const mapping: Record<string, string> = {};
 
-  // Pass 1: exact alias match
-  for (const h of headers) {
-    const key = aliases[n(h)];
-    if (key && !mapping[key]) mapping[key] = h;
-  }
+  for (const field of fields) {
+    const nKey   = normalize(field.key);
+    const nLabel = normalize(field.label);
 
-  // Pass 2: substring fallback for unmatched fields
-  for (const h of headers) {
-    const nh = n(h);
-    for (const [substr, key] of substrings) {
-      if (!mapping[key] && nh.includes(substr)) {
-        mapping[key] = h;
+    // Pass 1: hints (custom alias map)
+    for (const h of headers) {
+      const nh = normalize(h);
+      if (hints[nh] === field.key && !mapping[field.key]) {
+        mapping[field.key] = h;
+        break;
+      }
+    }
+    if (mapping[field.key]) continue;
+
+    // Pass 2: exact key or label match
+    for (const h of headers) {
+      const nh = normalize(h);
+      if ((nh === nKey || nh === nLabel) && !mapping[field.key]) {
+        mapping[field.key] = h;
+        break;
+      }
+    }
+    if (mapping[field.key]) continue;
+
+    // Pass 3: substring match
+    for (const h of headers) {
+      const nh = normalize(h);
+      if ((nh.includes(nKey) || (nLabel.length >= 4 && nh.includes(nLabel))) && !mapping[field.key]) {
+        mapping[field.key] = h;
         break;
       }
     }
@@ -110,7 +96,6 @@ function buildDataRows(rawRows: string[][], headerRowIndex: number): {
   return { headers, fileRows };
 }
 
-/** Detect if a column is mostly numeric (>50% of non-empty values parse as numbers) */
 function detectColumnType(fileRows: Record<string, string>[], colName: string): 'text' | 'number' {
   const values = fileRows.map(r => String(r[colName] ?? '').trim()).filter(Boolean);
   if (values.length === 0) return 'text';
@@ -118,86 +103,70 @@ function detectColumnType(fileRows: Record<string, string>[], colName: string): 
   return numCount / values.length > 0.5 ? 'number' : 'text';
 }
 
-function buildRows(
+function buildMappedRows(
   fileRows: Record<string, string>[],
   fieldToColumn: Record<string, string>,
-  extraCols: { fileColumn: string; colId: string }[]
-): ImportRow[] {
-  return fileRows.map((row) => {
-    const get = (field: string) => {
-      const col = fieldToColumn[field];
-      return col ? String(row[col] ?? '').trim() : '';
-    };
-    const num = (field: string) => {
-      const v = get(field).replace(',', '.');
-      const n = parseFloat(v);
-      return isNaN(n) ? undefined : n;
-    };
-
-    const customFields: Record<string, unknown> = {};
-    for (const { fileColumn, colId } of extraCols) {
-      const val = String(row[fileColumn] ?? '').trim();
-      if (val) customFields[colId] = val;
+  fields: ImportFieldDef[],
+  extraCols: { fileColumn: string; colId: string }[],
+): Record<string, string>[] {
+  return fileRows.map(fileRow => {
+    const row: Record<string, string> = {};
+    for (const field of fields) {
+      const col = fieldToColumn[field.key];
+      if (col) row[field.key] = String(fileRow[col] ?? '').trim();
     }
-
-    return {
-      imei: get('imei'),
-      model: get('model'),
-      price: num('price') ?? 0,
-      capacity: get('capacity') || undefined,
-      color: get('color') || undefined,
-      condition: get('condition') || undefined,
-      grade: get('grade') || undefined,
-      batteryHealth: get('batteryHealth') || undefined,
-      cost: num('cost'),
-      status: get('status') || undefined,
-      customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
-    };
+    for (const { fileColumn, colId } of extraCols) {
+      const val = String(fileRow[fileColumn] ?? '').trim();
+      if (val) row[colId] = val;
+    }
+    return row;
   });
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
+  fields: ImportFieldDef[];
+  onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
   onClose: () => void;
+  title?: string;
+  extraColumns?: {
+    existing: { id: string; label: string }[];
+    onCreate: (label: string, type: 'text' | 'number') => Promise<string | null>;
+  };
+  mapHints?: Record<string, string>;
+  sheet?: boolean;
 }
 
-const PREVIEW_ROWS = 12; // how many raw rows to show in header-select step
+const PREVIEW_ROWS = 12;
 
-export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
-  const { user, reloadInventory, customColumns, addCustomColumn } = useAppContext();
-  const inventoryCustomColumns = useMemo(
-    () => customColumns.filter((column) => column.entity === 'inventory'),
-    [customColumns],
-  );
-
-  const [step, setStep] = useState<Step>('upload');
+export const ImportModal: React.FC<Props> = ({
+  fields, onImport, onClose, title = 'Importar', extraColumns, mapHints = {}, sheet = false,
+}) => {
+  const [step, setStep]       = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
 
   // Sheet selection
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
-  const [getSheet, setGetSheet] = useState<((name: string) => string[][]) | null>(null);
+  const [sheetNames, setSheetNames]   = useState<string[]>([]);
+  const [getSheet, setGetSheet]       = useState<((name: string) => string[][]) | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<string>('');
 
   // Raw parsed state
-  const [rawRows, setRawRows] = useState<string[][]>([]);
+  const [rawRows, setRawRows]             = useState<string[][]>([]);
   const [headerRowIndex, setHeaderRowIndex] = useState(0);
 
   // Derived after confirming header row
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [fileRows, setFileRows] = useState<Record<string, string>[]>([]);
+  const [headers, setHeaders]         = useState<string[]>([]);
+  const [fileRows, setFileRows]       = useState<Record<string, string>[]>([]);
   const [fieldToColumn, setFieldToColumn] = useState<Record<string, string>>({});
-
-  // Extra columns: file columns not mapped to any standard field
-  // key = fileColumn, value = enabled (true = will be imported as custom column)
-  const [extraEnabled, setExtraEnabled] = useState<Record<string, boolean>>({});
+  const [extraEnabled, setExtraEnabled]   = useState<Record<string, boolean>>({});
 
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [result, setResult]       = useState<GenericImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // File columns that are NOT mapped to any standard inventory field
+  // File columns NOT mapped to any standard field
   const unmappedColumns = useMemo(() => {
     const mapped = new Set(Object.values(fieldToColumn).filter(Boolean));
     return headers.filter(h => !mapped.has(h));
@@ -244,7 +213,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
     if (file) handleFile(file);
   };
 
-  // ── Step 2: Confirm header row → go to mapping ──────────────────────────────
+  // ── Step 2: Confirm header row ──────────────────────────────────────────────
 
   const confirmHeaderRow = () => {
     const { headers: h, fileRows: rows } = buildDataRows(rawRows, headerRowIndex);
@@ -252,53 +221,49 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
       setFileError('La fila seleccionada parece estar vacía. Elegí la fila con los nombres de columna.');
       return;
     }
-    const mapped = new Set(Object.values(autoMap(h)).filter(Boolean));
+    const mapped = autoMap(h, fields, mapHints);
+    const mappedCols = new Set(Object.values(mapped).filter(Boolean));
     const extra: Record<string, boolean> = {};
     for (const col of h) {
-      if (!mapped.has(col)) extra[col] = true;
+      if (!mappedCols.has(col)) extra[col] = true;
     }
     setHeaders(h);
     setFileRows(rows);
-    setFieldToColumn(autoMap(h));
+    setFieldToColumn(mapped);
     setExtraEnabled(extra);
     setFileError(null);
     setStep('mapping');
   };
 
-  // ── Step 3: Mapping helpers ─────────────────────────────────────────────────
+  // ── Step 4: Import ──────────────────────────────────────────────────────────
 
-  const requiredMapped = INVENTORY_FIELDS
+  const requiredMapped = fields
     .filter(f => f.required)
     .every(f => !!fieldToColumn[f.key]);
 
-  const previewRows = fileRows.slice(0, 3);
-
-  // ── Step 4: Import ──────────────────────────────────────────────────────────
-
   const handleImport = async () => {
-    if (!user) return;
     setImporting(true);
     try {
-      // Resolve extra columns: find or create custom columns, get their IDs
+      // Resolve extra columns if feature is enabled
       const extraCols: { fileColumn: string; colId: string }[] = [];
-      for (const fileColumn of unmappedColumns) {
-        if (!extraEnabled[fileColumn]) continue;
-        // Check if a custom column with this label already exists
-        const existing = inventoryCustomColumns.find(
-          c => c.label.toLowerCase() === fileColumn.toLowerCase()
-        );
-        if (existing) {
-          extraCols.push({ fileColumn, colId: existing.id });
-        } else {
-          const type = detectColumnType(fileRows, fileColumn);
-          const id = await addCustomColumn({ label: fileColumn, type, entity: 'inventory' });
-          if (id) extraCols.push({ fileColumn, colId: id });
+      if (extraColumns) {
+        for (const fileColumn of unmappedColumns) {
+          if (!extraEnabled[fileColumn]) continue;
+          const existing = extraColumns.existing.find(
+            c => c.label.toLowerCase() === fileColumn.toLowerCase()
+          );
+          if (existing) {
+            extraCols.push({ fileColumn, colId: existing.id });
+          } else {
+            const type = detectColumnType(fileRows, fileColumn);
+            const id = await extraColumns.onCreate(fileColumn, type);
+            if (id) extraCols.push({ fileColumn, colId: id });
+          }
         }
       }
 
-      const rows = buildRows(fileRows, fieldToColumn, extraCols);
-      const res = await importBackendInventoryItems(user, rows);
-      await reloadInventory();
+      const rows = buildMappedRows(fileRows, fieldToColumn, fields, extraCols);
+      const res = await onImport(rows);
       setResult(res);
       setStep('result');
     } catch (e: unknown) {
@@ -311,38 +276,23 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
   // ── Subtitle per step ───────────────────────────────────────────────────────
 
   const subtitle = {
-    'upload': 'Subí un archivo CSV o XLSX',
-    'sheet-select': `${sheetNames.length} hojas encontradas — elegí cuál importar`,
+    'upload':        'Subí un archivo CSV o XLSX',
+    'sheet-select':  `${sheetNames.length} hojas encontradas — elegí cuál importar`,
     'header-select': 'Indicá cuál fila tiene los nombres de columna',
-    'mapping': `${fileRows.length} filas detectadas — mapeá las columnas`,
-    'result': 'Importación completada',
+    'mapping':       `${fileRows.length} filas detectadas — mapeá las columnas`,
+    'result':        'Importación completada',
   }[step];
+
+  const displayRawRows = rawRows.slice(0, PREVIEW_ROWS);
+  const maxCols        = Math.min(8, Math.max(0, ...displayRawRows.map(r => r.length)));
+  const previewRows    = fileRows.slice(0, 3);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  // Slice of raw rows to display in header-select
-  const displayRawRows = rawRows.slice(0, PREVIEW_ROWS);
-  const maxCols = Math.min(8, Math.max(...displayRawRows.map(r => r.length)));
+  const importSteps = (
+        <div className={sheet ? 'inv-import-body' : 'overflow-y-auto flex-1 p-5'}>
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Importar inventario</h2>
-            <p className="text-sm text-gray-500">{subtitle}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <X size={18} className="text-gray-500" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5">
-
-          {/* ── Step: Upload ── */}
+          {/* ── Upload ── */}
           {step === 'upload' && (
             <div>
               <div
@@ -350,7 +300,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors
+                className={`inv-drop border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors
                   ${dragging ? 'border-black bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}
               >
                 <Upload size={32} className="text-gray-400" />
@@ -374,14 +324,17 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ── Step: Sheet selection ── */}
+          {/* ── Sheet selection ── */}
           {step === 'sheet-select' && (
             <div className="space-y-3">
               {sheetNames.map(name => (
                 <button
                   key={name}
                   onClick={() => setSelectedSheet(name)}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-sm font-medium transition-colors ${selectedSheet === name ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-sm font-medium transition-colors
+                    ${selectedSheet === name
+                      ? 'border-gray-900 bg-gray-900 text-white'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'}`}
                 >
                   <span>{name}</span>
                   {selectedSheet === name && <CheckCircle2 size={16} />}
@@ -390,7 +343,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ── Step: Header row selection ── */}
+          {/* ── Header row selection ── */}
           {step === 'header-select' && (
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
@@ -404,24 +357,17 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                     <tbody>
                       {displayRawRows.map((row, i) => {
                         const isHeader = i === headerRowIndex;
-                        const isAbove = i < headerRowIndex;
+                        const isAbove  = i < headerRowIndex;
                         return (
                           <tr
                             key={i}
                             onClick={() => { setHeaderRowIndex(i); setFileError(null); }}
                             className={`cursor-pointer transition-colors border-b border-gray-100 last:border-b-0
-                              ${isHeader
-                                ? 'bg-black text-white'
-                                : isAbove
-                                  ? 'bg-gray-50 text-gray-300 hover:bg-gray-100 hover:text-gray-500'
-                                  : 'text-gray-600 hover:bg-blue-50'
-                              }`}
+                              ${isHeader ? 'bg-black text-white'
+                                : isAbove ? 'bg-gray-50 text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+                                : 'text-gray-600 hover:bg-blue-50'}`}
                           >
-                            {/* Row number */}
-                            <td className={`px-3 py-2.5 font-mono text-right w-10 select-none ${isHeader ? 'text-gray-300' : 'text-gray-300'}`}>
-                              {i + 1}
-                            </td>
-                            {/* Tag for selected header row */}
+                            <td className="px-3 py-2.5 font-mono text-right w-10 select-none text-gray-300">{i + 1}</td>
                             <td className="px-2 py-2.5 w-20 select-none">
                               {isHeader && (
                                 <span className="text-[10px] font-bold tracking-wider bg-white/20 rounded px-1.5 py-0.5 uppercase whitespace-nowrap">
@@ -429,7 +375,6 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                                 </span>
                               )}
                             </td>
-                            {/* Cell values */}
                             {Array.from({ length: maxCols }).map((_, j) => (
                               <td key={j} className={`px-3 py-2.5 max-w-[120px] truncate ${isHeader ? 'font-semibold' : ''}`}>
                                 {row[j] ?? ''}
@@ -456,42 +401,33 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ── Step: Mapping ── */}
+          {/* ── Mapping ── */}
           {step === 'mapping' && (
             <div className="space-y-5">
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">
-                        Campo de inventario
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">
-                        Columna del archivo
-                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">Campo</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">Columna del archivo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {INVENTORY_FIELDS.map((field) => (
+                    {fields.map((field) => (
                       <tr key={field.key} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <span className="font-medium text-gray-800">{field.label}</span>
                             {field.required && <span className="text-red-500 text-xs">*</span>}
                           </div>
-                          {field.hint && (
-                            <span className="text-xs text-gray-400">{field.hint}</span>
-                          )}
+                          {field.hint && <span className="text-xs text-gray-400">{field.hint}</span>}
                         </td>
                         <td className="px-4 py-3">
                           <div className="relative">
                             <select
                               value={fieldToColumn[field.key] ?? ''}
                               onChange={(e) =>
-                                setFieldToColumn((prev) => ({
-                                  ...prev,
-                                  [field.key]: e.target.value,
-                                }))
+                                setFieldToColumn(prev => ({ ...prev, [field.key]: e.target.value }))
                               }
                               className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                             >
@@ -509,8 +445,8 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                 </table>
               </div>
 
-              {/* Extra columns → custom columns */}
-              {unmappedColumns.length > 0 && (
+              {/* Extra columns (only if feature enabled) */}
+              {extraColumns && unmappedColumns.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                     <div>
@@ -531,7 +467,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                   </div>
                   <div className="divide-y divide-gray-100">
                     {unmappedColumns.map(col => {
-                      const alreadyExists = inventoryCustomColumns.some(
+                      const alreadyExists = extraColumns.existing.some(
                         c => c.label.toLowerCase() === col.toLowerCase()
                       );
                       return (
@@ -564,7 +500,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                     <table className="text-xs w-full">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                          {INVENTORY_FIELDS.filter(f => fieldToColumn[f.key]).map(f => (
+                          {fields.filter(f => fieldToColumn[f.key]).map(f => (
                             <th key={f.key} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">
                               {f.label}
                             </th>
@@ -574,7 +510,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                       <tbody className="divide-y divide-gray-50">
                         {previewRows.map((row, i) => (
                           <tr key={i}>
-                            {INVENTORY_FIELDS.filter(f => fieldToColumn[f.key]).map(f => (
+                            {fields.filter(f => fieldToColumn[f.key]).map(f => (
                               <td key={f.key} className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[140px] truncate">
                                 {String(row[fieldToColumn[f.key]] ?? '')}
                               </td>
@@ -590,7 +526,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
               {!requiredMapped && (
                 <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 rounded-lg px-3 py-2">
                   <AlertCircle size={15} />
-                  El campo <strong>Modelo</strong> es obligatorio para continuar.
+                  Los campos marcados con <strong className="mx-1">*</strong> son obligatorios para continuar.
                 </div>
               )}
 
@@ -602,7 +538,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ── Step: Result ── */}
+          {/* ── Result ── */}
           {step === 'result' && result && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
@@ -624,7 +560,6 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                       <thead className="bg-red-50 border-b border-red-100">
                         <tr>
                           <th className="px-3 py-2 text-left text-red-600 font-semibold">Fila</th>
-                          <th className="px-3 py-2 text-left text-red-600 font-semibold">IMEI</th>
                           <th className="px-3 py-2 text-left text-red-600 font-semibold">Error</th>
                         </tr>
                       </thead>
@@ -632,7 +567,6 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                         {result.errors.map((err, i) => (
                           <tr key={i}>
                             <td className="px-3 py-2 text-gray-500">{err.row}</td>
-                            <td className="px-3 py-2 font-mono text-gray-600">{err.imei || '—'}</td>
                             <td className="px-3 py-2 text-red-600">{err.message}</td>
                           </tr>
                         ))}
@@ -644,8 +578,9 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </div>
           )}
         </div>
+  );
 
-        {/* Footer */}
+  const modalFooter = (
         <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
           {step === 'upload' && (
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
@@ -680,8 +615,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                 onClick={confirmHeaderRow}
                 className="px-5 py-2 text-sm font-semibold bg-black text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center gap-2"
               >
-                Confirmar encabezado
-                <ArrowRight size={15} />
+                Confirmar encabezado <ArrowRight size={15} />
               </button>
             </>
           )}
@@ -708,10 +642,7 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
                     Importando…
                   </>
                 ) : (
-                  <>
-                    Importar {fileRows.length} filas
-                    <ArrowRight size={15} />
-                  </>
+                  <>Importar {fileRows.length} filas <ArrowRight size={15} /></>
                 )}
               </button>
             </>
@@ -726,6 +657,64 @@ export const ImportInventoryModal: React.FC<Props> = ({ onClose }) => {
             </button>
           )}
         </div>
+  );
+
+  const noun = fileRows.length === 1 ? 'equipo' : 'equipos';
+  const sheetFooter = step === 'upload' ? (
+    <div className="sacts one"><button type="button" className="btn2 s" onClick={onClose}>Cancelar</button></div>
+  ) : step === 'sheet-select' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => setStep('upload')}>Volver</button>
+      <button type="button" className="btn2 p" disabled={!selectedSheet} onClick={() => getSheet && loadSheet(getSheet, selectedSheet)}>Continuar</button>
+    </div>
+  ) : step === 'header-select' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => { setStep(sheetNames.length > 1 ? 'sheet-select' : 'upload'); setFileError(null); }}>Volver</button>
+      <button type="button" className="btn2 p" onClick={confirmHeaderRow}>Continuar</button>
+    </div>
+  ) : step === 'mapping' ? (
+    <div className="sacts">
+      <button type="button" className="btn2 s" onClick={() => { setStep('header-select'); setFileError(null); }}>Volver</button>
+      <button type="button" className="btn2 p" disabled={!requiredMapped || importing} onClick={handleImport}>{importing ? 'Importando…' : `Importar ${fileRows.length} ${noun}`}</button>
+    </div>
+  ) : (
+    <div className="sacts one"><button type="button" className="btn2 p" onClick={onClose}>Cerrar</button></div>
+  );
+
+  if (sheet) {
+    return (
+      <Sheet title={title} subtitle={subtitle} onClose={onClose} className="inv-import">
+        {importSteps}
+        {sheetFooter}
+      </Sheet>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <p className="text-sm text-gray-500">{subtitle}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <X size={18} className="text-gray-500" />
+          </button>
+        </div>
+        {importSteps}
+        {modalFooter}
       </motion.div>
     </motion.div>
   );
