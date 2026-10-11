@@ -9,6 +9,7 @@ import { formatInputMoney, formatShortDate, isInProgressTrade, parseAppDate, par
 import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
   EMPTY_TRADE_FILTERS,
@@ -129,16 +130,7 @@ export function TradeInsScreen() {
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta y el equipo entregado.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'tradeins' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta y el equipo entregado." onOpen={(id) => open({ type: 'edit-cj', id, source: 'tradeins' })} />
       <div className="dbar">
         <ChipRow
           options={statusOptions}

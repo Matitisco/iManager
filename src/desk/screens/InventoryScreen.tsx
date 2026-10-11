@@ -21,6 +21,7 @@ import {
 } from '../inventory-filters';
 import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { priceListMessage } from '../price-list';
 import { ImanagerIcon } from '../icons';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
@@ -204,16 +205,7 @@ export function InventoryScreen() {
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className="dcard op-drafts">
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar el cliente y la venta.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'inventory' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
         <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
