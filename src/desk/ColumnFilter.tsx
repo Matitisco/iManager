@@ -1,6 +1,47 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ImanagerIcon } from './icons';
+import { formatInputMoney, parseMoney } from './format';
+
+export function useColumnMenu() {
+  const [openColumn, setOpenColumn] = useState<string | null>(null);
+  return (id: string) => ({
+    open: openColumn === id,
+    onToggle: () => setOpenColumn((current) => (current === id ? null : id)),
+  });
+}
+
+export function MoneyFilterInput({ label, value, onChange }: { label: string; value: string; onChange: (digits: string) => void }) {
+  return <input aria-label={label} inputMode="numeric" value={value ? formatInputMoney(parseMoney(value)) : ''} onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 12))} />;
+}
+
+export function MoneyRange({ min, max, onMin, onMax, labels = ['Mínimo', 'Máximo'], ariaLabels = labels }: {
+  min: string;
+  max: string;
+  onMin: (digits: string) => void;
+  onMax: (digits: string) => void;
+  labels?: [string, string];
+  ariaLabels?: [string, string];
+}) {
+  return (
+    <div className="range">
+      <label><span>{labels[0]}</span><MoneyFilterInput label={ariaLabels[0]} value={min} onChange={onMin} /></label>
+      <label><span>{labels[1]}</span><MoneyFilterInput label={ariaLabels[1]} value={max} onChange={onMax} /></label>
+    </div>
+  );
+}
+
+export function DateRange({ value, onChange }: {
+  value: { dateFrom: string; dateTo: string };
+  onChange: (patch: { dateFrom?: string; dateTo?: string }) => void;
+}) {
+  return (
+    <div className="range">
+      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={value.dateFrom} onChange={(event) => onChange({ dateFrom: event.target.value })} /></label>
+      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={value.dateTo} onChange={(event) => onChange({ dateTo: event.target.value })} /></label>
+    </div>
+  );
+}
 
 export function ColumnFilter({ label, open, onToggle, active, align = 'left', onClear, children }: {
   label: string;
