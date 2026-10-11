@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Gastos",
+    "rows": [
+      ["Fecha", "Concepto", "Monto", "Categoría"],
+      ["2026-03-01", "Alquiler", "150000", "Fijo"],
+      ["2026-03-04", "Luz", "42000", "Servicios"],
+      ["2026-03-09", "Internet", "28000", "Servicios"],
+      ["2026-03-15", "Sueldos", "980000", "Personal"]
+    ]
+  }
+]

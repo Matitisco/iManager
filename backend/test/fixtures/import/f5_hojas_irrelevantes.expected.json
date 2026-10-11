@@ -1,0 +1,231 @@
+{
+ "currency": "USD",
+ "rows": [
+  {
+   "model": "iPhone 14 Pro",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 720,
+   "color": "White",
+   "imei": "357958492433721",
+   "batteryHealth": "93%"
+  },
+  {
+   "model": "iPhone 17 Pro Max",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1080,
+   "color": "Purple",
+   "imei": "355166160534468",
+   "batteryHealth": "98%"
+  },
+  {
+   "model": "iPhone 14",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 570,
+   "color": "Red",
+   "imei": "358990595827852",
+   "batteryHealth": "92%"
+  },
+  {
+   "model": "iPhone 16 Pro",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 840,
+   "color": "Purple",
+   "imei": "352573834492235",
+   "batteryHealth": "96%"
+  },
+  {
+   "model": "iPhone 12 Pro",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 730,
+   "color": "White",
+   "imei": "354121362244643",
+   "batteryHealth": "88%"
+  },
+  {
+   "model": "iPhone 12",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1240,
+   "color": "Desert",
+   "imei": "357006638470249",
+   "batteryHealth": "84%"
+  },
+  {
+   "model": "iPhone 16 Pro",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1710,
+   "color": "Midnight",
+   "imei": "359639321765416",
+   "batteryHealth": "91%"
+  },
+  {
+   "model": "iPhone 16 Pro",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1330,
+   "color": "Starlight",
+   "imei": "357709682506710",
+   "batteryHealth": "86%"
+  },
+  {
+   "model": "iPhone 13",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 760,
+   "color": "Desert",
+   "imei": "358519783780585",
+   "batteryHealth": "100%"
+  },
+  {
+   "model": "iPhone 13",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1560,
+   "color": "Natural",
+   "imei": "351950446600166",
+   "batteryHealth": "90%"
+  },
+  {
+   "model": "iPhone 13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1020,
+   "color": "Blue",
+   "imei": "356836732213783",
+   "batteryHealth": "85%"
+  },
+  {
+   "model": "iPhone 16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1000,
+   "color": "Natural",
+   "imei": "358275346462704",
+   "batteryHealth": "92%"
+  },
+  {
+   "model": "iPhone 16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1470,
+   "color": "Purple",
+   "imei": "357691524601952",
+   "batteryHealth": "88%"
+  },
+  {
+   "model": "iPhone 16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 270,
+   "color": "Midnight",
+   "imei": "353144919232752",
+   "batteryHealth": "99%"
+  },
+  {
+   "model": "iPhone 17 Pro Max",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 480,
+   "color": "Midnight",
+   "imei": "358437381718146",
+   "batteryHealth": "97%"
+  },
+  {
+   "model": "iPhone 14 Pro",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 390,
+   "color": "Red",
+   "imei": "357727372890257",
+   "batteryHealth": "95%"
+  },
+  {
+   "model": "iPhone 13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1340,
+   "color": "Blue",
+   "imei": "356125009051877",
+   "batteryHealth": "89%"
+  },
+  {
+   "model": "iPhone 13",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 570,
+   "color": "Purple",
+   "imei": "355155788346564",
+   "batteryHealth": "98%"
+  },
+  {
+   "model": "iPhone 13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1510,
+   "color": "Blue",
+   "imei": "356584853715354",
+   "batteryHealth": "89%"
+  },
+  {
+   "model": "iPhone 16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1270,
+   "color": "Black",
+   "imei": "358689064100379",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "iPhone 15",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 620,
+   "color": "Blue",
+   "imei": "359130721206105",
+   "batteryHealth": "97%"
+  },
+  {
+   "model": "iPhone 15",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 720,
+   "color": "Desert",
+   "imei": "356050699079801",
+   "batteryHealth": "87%"
+  },
+  {
+   "model": "iPhone 16 Pro",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 420,
+   "color": "Black",
+   "imei": "350699276811732",
+   "batteryHealth": "92%"
+  },
+  {
+   "model": "iPhone 11",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 560,
+   "color": "Blue",
+   "imei": "351312704937205",
+   "batteryHealth": "99%"
+  },
+  {
+   "model": "iPhone 13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 900,
+   "color": "Black",
+   "imei": "350000091644927",
+   "batteryHealth": "92%"
+  }
+ ],
+ "notes": "hojas Resumen/Gráficos/Proveedores irrelevantes; columnas reordenadas, costo antes del modelo; batería 0.87"
+}

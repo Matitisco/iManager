@@ -1,0 +1,126 @@
+{
+ "currency": "ARS",
+ "rows": [
+  {
+   "model": "17 Pro Max",
+   "capacity": "256 GB",
+   "price": 392000,
+   "batteryHealth": "82%"
+  },
+  {
+   "model": "12",
+   "capacity": "64 GB",
+   "price": 2100000,
+   "batteryHealth": "90%"
+  },
+  {
+   "model": "14 Pro",
+   "capacity": "128 GB",
+   "price": 1120000,
+   "batteryHealth": "96%"
+  },
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "price": 1442000,
+   "batteryHealth": "95%"
+  },
+  {
+   "model": "13",
+   "capacity": "256 GB",
+   "price": 1988000,
+   "batteryHealth": "97%"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "price": 1470000,
+   "batteryHealth": "80%"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "price": 1596000,
+   "batteryHealth": "80%"
+  },
+  {
+   "model": "13 Pro Max",
+   "capacity": "256 GB",
+   "price": 1050000,
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "price": 1288000,
+   "batteryHealth": "89%"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "price": 462000,
+   "batteryHealth": "78%"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "price": 1610000,
+   "batteryHealth": "96%"
+  },
+  {
+   "model": "12 Pro",
+   "capacity": "128 GB",
+   "price": 882000,
+   "batteryHealth": "85%"
+  },
+  {
+   "model": "13",
+   "capacity": "128 GB",
+   "price": 504000,
+   "batteryHealth": "78%"
+  },
+  {
+   "model": "13",
+   "capacity": "256 GB",
+   "price": 966000,
+   "batteryHealth": "97%"
+  },
+  {
+   "model": "12",
+   "capacity": "128 GB",
+   "price": 476000,
+   "batteryHealth": "85%"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "price": 910000,
+   "batteryHealth": "84%"
+  },
+  {
+   "model": "15 Pro Max",
+   "capacity": "512 GB",
+   "price": 1750000,
+   "batteryHealth": "84%"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "price": 490000,
+   "batteryHealth": "82%"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "price": 1372000,
+   "batteryHealth": "98%"
+  },
+  {
+   "model": "16 Pro",
+   "capacity": "256 GB",
+   "price": 2506000,
+   "batteryHealth": "88%"
+  }
+ ],
+ "notes": "precio en una sola columna con '$ 1.200.000', 'u$s 850', '850 dls'; tienda en ARS, cotización en E1; capacidad pegada '128GB'; batería 'Bat 87%'; la planilla no dice si es nuevo o usado, así que la condición no se evalúa"
+}

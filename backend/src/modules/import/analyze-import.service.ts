@@ -1,7 +1,14 @@
 import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
+import {
+  buildDecisionContext,
+  plansFromAnswers,
+  postDecisions,
+} from "./decisions-plan.js";
 import { IMPORT_CATALOGS, type ImportSection } from "./import-catalog.js";
 import {
+  DECISIONS_MODEL,
+  estimateDecisionsUsd,
   estimateImportUsd,
   importModel,
   openAiApiKey,
@@ -13,6 +20,7 @@ import {
   headerLooksValid,
   heuristicPlan,
   heuristicSheet,
+  inventoryHasEquipmentColumns,
   priceCurrencyOf,
   trimSheet,
   type ImportSheet,
@@ -25,6 +33,7 @@ export const ANALYSIS_NOTICES = {
   quota: "OpenAI no tiene saldo disponible. Leímos la planilla con las reglas internas.",
   refusal: "OpenAI se negó a leer la planilla. Usamos las reglas internas.",
   error: "No se pudo consultar el análisis inteligente. Usamos las reglas internas.",
+  unrelated: "Este archivo no parece tener equipos para importar.",
 } as const;
 
 const modelSheetSchema = z.object({
@@ -81,26 +90,39 @@ export async function analyzeImport(
 ): Promise<AnalysisResult> {
   const sheets = prepareSheets(input.sheets);
   const heuristic = () => heuristicPlan(sheets, input.section, input.currency);
+  if (input.section === "inventory" && !inventoryHasEquipmentColumns(sheets)) {
+    const plan = heuristic().map((sheet) => ({ ...sheet, include: false }));
+    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.unrelated, plan, null, 0, 0, "none");
+  }
   const key = openAiApiKey();
-  if (!key) return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.missingKey, heuristic(), null, 0, 0);
+  if (!key) return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.missingKey, heuristic(), null, 0, 0, "none");
 
+  const decisions = await decideImport(input, sheets, key, deps.fetchImpl);
+  if (decisions.outcome === "ready") {
+    return finish(input, sheets, deps, "model", null, decisions.plan, DECISIONS_MODEL, decisions.inputTokens, decisions.outputTokens, "decisions");
+  }
+  if (decisions.outcome === "quota") {
+    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.quota, heuristic(), DECISIONS_MODEL, decisions.inputTokens, decisions.outputTokens, "decisions");
+  }
+
+  const model = importModel();
   const catalog = IMPORT_CATALOGS[input.section];
   const call = await readSpreadsheetPlan({
     apiKey: key,
-    model: importModel(),
+    model,
     catalog,
     storeCurrency: input.currency,
     sheets,
     fetchImpl: deps.fetchImpl,
   });
   if (call.ok === false) {
-    return finish(input, sheets, deps, "heuristic", noticeFor(call.kind), heuristic(), importModel(), call.inputTokens, call.outputTokens);
+    return finish(input, sheets, deps, "heuristic", noticeFor(call.kind), heuristic(), model, call.inputTokens, call.outputTokens, "responses");
   }
   const accepted = acceptModelPlan(sheets, call.plan, input.section, input.currency);
   if (!accepted) {
-    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.error, heuristic(), importModel(), call.inputTokens, call.outputTokens);
+    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.error, heuristic(), model, call.inputTokens, call.outputTokens, "responses");
   }
-  return finish(input, sheets, deps, "model", null, accepted, importModel(), call.inputTokens, call.outputTokens);
+  return finish(input, sheets, deps, "model", null, accepted, model, call.inputTokens, call.outputTokens, "responses");
 }
 
 export function applyImportPlan(
@@ -121,7 +143,47 @@ export function applyImportPlan(
       return { ...next, include: current?.include ?? next.include };
     })
     : alignPlan(sheets, input.plan, input.section, input.currency);
-  return finish(input, sheets, deps, "manual", null, plan, null, 0, 0);
+  return finish(input, sheets, deps, "manual", null, plan, null, 0, 0, "none");
+}
+
+async function decideImport(
+  input: { section: ImportSection; currency: MoneyCurrency },
+  sheets: ImportSheet[],
+  apiKey: string,
+  fetchImpl: AnalyzeDeps["fetchImpl"],
+): Promise<
+  | { outcome: "ready"; plan: SheetPlan[]; inputTokens: number; outputTokens: number }
+  | { outcome: "quota" | "skip"; inputTokens: number; outputTokens: number }
+> {
+  const context = buildDecisionContext(sheets, input.section, input.currency);
+  if (!context) return { outcome: "skip", inputTokens: 0, outputTokens: 0 };
+  const call = await postDecisions({ apiKey, request: context.request, fetchImpl });
+  if (call.ok === false) {
+    return { outcome: call.kind === "quota" ? "quota" : "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
+  }
+  const raw = plansFromAnswers(context, call.answers, input.section, input.currency);
+  if (!importPlanUsable(raw, input.section)) {
+    return { outcome: "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
+  }
+  const accepted = acceptModelPlan(sheets, { sheets: raw }, input.section, input.currency);
+  if (!accepted) return { outcome: "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
+  const plan = accepted.map((item) => ({
+    ...item,
+    include: raw.find((sheet) => sheet.name === item.name)?.include ?? false,
+  }));
+  if (!importPlanUsable(plan, input.section)) {
+    return { outcome: "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
+  }
+  return { outcome: "ready", plan, inputTokens: call.inputTokens, outputTokens: call.outputTokens };
+}
+
+function importPlanUsable(plans: SheetPlan[], section: ImportSection): boolean {
+  const included = plans.filter((plan) => plan.include);
+  if (included.length === 0) return false;
+  if (section !== "inventory") return true;
+  return included.every((plan) =>
+    plan.mapping.some((column) => column.field === "model")
+    && plan.mapping.some((column) => column.field === "price"));
 }
 
 function prepareSheets(sheets: ImportSheet[]): ImportSheet[] {
@@ -151,7 +213,9 @@ export function acceptModelPlan(
     const model = byName.get(sheet.name);
     if (!model) return fallback();
     const rows = sheet.rows;
-    if (!headerLooksValid(rows, model.headerRow, catalog)) return fallback();
+    const headerCells = rows[model.headerRow - 1] ?? [];
+    const hasCore = ["model", "price"].every((field) => model.mapping.some((column) => column.field === field && headerCells.some((cell) => cell.trim() && cell.trim().toLowerCase() === column.header.trim().toLowerCase())));
+    if (!headerLooksValid(rows, model.headerRow, catalog) && !hasCore) return fallback();
     const headers = rows[model.headerRow - 1] ?? [];
     const seen = new Set<string>();
     const mapping = model.mapping.flatMap((column) => {
@@ -166,7 +230,8 @@ export function acceptModelPlan(
     const priceHeader = mapping.find((column) => column.field === "price")?.header ?? "";
     const detectedCurrency = priceCurrencyOf(priceHeader);
     const dataStartRow = clamp(model.dataStartRow, model.headerRow + 1, rows.length + 1);
-    const dataEndRow = clamp(model.dataEndRow, dataStartRow - 1, rows.length);
+    // The model only sees a sample; the range always runs to the last row and footers/blank rows are filtered later.
+    const dataEndRow = rows.length;
     return {
       name: sheet.name,
       include: model.include,
@@ -220,6 +285,7 @@ function finish(
   model: string | null,
   inputTokens: number,
   outputTokens: number,
+  billing: "decisions" | "responses" | "none",
 ): AnalysisResult {
   const applied = applyPlans(sheets, plan, input.section, input.currency);
   const result: AnalysisResult = {
@@ -230,6 +296,11 @@ function finish(
     rows: applied.rows,
     summary: applied.summary,
   };
+  const estimatedUsd = billing === "decisions"
+    ? estimateDecisionsUsd(inputTokens)
+    : billing === "responses" && model
+      ? estimateImportUsd(model, inputTokens, outputTokens)
+      : 0;
   try {
     deps.log?.({
       section: input.section,
@@ -237,7 +308,7 @@ function finish(
       model,
       inputTokens,
       outputTokens,
-      estimatedUsd: model ? estimateImportUsd(model, inputTokens, outputTokens) : 0,
+      estimatedUsd,
       sheets: result.summary.sheetCount,
       rows: result.summary.rowCount,
       notice,

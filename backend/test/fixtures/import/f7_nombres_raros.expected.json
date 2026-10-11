@@ -1,0 +1,174 @@
+{
+ "currency": "USD",
+ "rows": [
+  {
+   "model": "IPH 16 PRO",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 460,
+   "color": "Black",
+   "imei": "356963375265274",
+   "batteryHealth": "87%"
+  },
+  {
+   "model": "IPH 12 PRO",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 890,
+   "color": "Natural",
+   "imei": "351520981814250",
+   "batteryHealth": "100%"
+  },
+  {
+   "model": "IPH 15 PRO MAX",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1390,
+   "color": "Red",
+   "imei": "352383977529741"
+  },
+  {
+   "model": "IPH 11",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 1270,
+   "color": "Starlight",
+   "imei": "355368427129604",
+   "batteryHealth": "81%"
+  },
+  {
+   "model": "IPH 12 PRO",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 930,
+   "color": "Midnight",
+   "imei": "359147363696139"
+  },
+  {
+   "model": "IPH 15",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1730,
+   "color": "Midnight",
+   "imei": "352256999294901"
+  },
+  {
+   "model": "IPH 16 PRO",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 270,
+   "color": "Natural",
+   "imei": "355345692864313"
+  },
+  {
+   "model": "IPH 11",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1630,
+   "color": "Red",
+   "imei": "358308243110147",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "IPH 13",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1180,
+   "color": "Midnight",
+   "imei": "351168322977847"
+  },
+  {
+   "model": "IPH 12 PRO",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1160,
+   "color": "Starlight",
+   "imei": "351060201985941"
+  },
+  {
+   "model": "IPH 13",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 640,
+   "color": "Black",
+   "imei": "354430397723969",
+   "batteryHealth": "99%"
+  },
+  {
+   "model": "IPH 13",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 890,
+   "color": "Purple",
+   "imei": "357956104622802"
+  },
+  {
+   "model": "IPH 13 MINI",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 750,
+   "color": "White",
+   "imei": "359824883212608"
+  },
+  {
+   "model": "IPH 15 PRO MAX",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 840,
+   "color": "Black",
+   "imei": "353942268465363"
+  },
+  {
+   "model": "IPH 12 PRO",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1370,
+   "color": "Natural",
+   "imei": "356281192650326",
+   "batteryHealth": "87%"
+  },
+  {
+   "model": "IPH 11",
+   "capacity": "64 GB",
+   "condition": "NUEVO",
+   "price": 1460,
+   "color": "Black",
+   "imei": "359076667587151"
+  },
+  {
+   "model": "IPH 14 PRO",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 460,
+   "color": "Purple",
+   "imei": "354445732398553"
+  },
+  {
+   "model": "IPH 14 PRO",
+   "capacity": "256 GB",
+   "condition": "USADO",
+   "price": 1670,
+   "color": "Desert",
+   "imei": "355901920431662",
+   "batteryHealth": "79%"
+  },
+  {
+   "model": "IPH 13 PRO MAX",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 740,
+   "color": "Midnight",
+   "imei": "358902265225042"
+  },
+  {
+   "model": "IPH 17 PRO MAX",
+   "capacity": "512 GB",
+   "condition": "USADO",
+   "price": 550,
+   "color": "Natural",
+   "imei": "354441546663810",
+   "batteryHealth": "89%"
+  }
+ ],
+ "notes": "encabezados abreviados (Pila, Tono, U$D, Cond), fila TOTAL al final"
+}

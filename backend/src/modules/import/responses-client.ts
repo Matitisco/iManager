@@ -2,15 +2,20 @@ import type { ImportCatalog } from "./import-catalog.js";
 import type { ImportSheet } from "./sheet-plan.js";
 
 export const RESPONSES_URL = "https://api.openai.com/v1/responses";
-export const DEFAULT_IMPORT_MODEL = "gpt-6-astra";
+export const DECISIONS_URL = "https://api.openai.com/v1/decisions";
+export const DECISIONS_MODEL = "gpt-6-luna";
+export const DEFAULT_IMPORT_MODEL = "gpt-6-luna";
 export const SAMPLE_ROWS = 30;
 export const SAMPLE_CELL_CHARS = 80;
 export const REQUEST_TIMEOUT_MS = 20_000;
 
-// Official text-token rates for gpt-6-astra (Responses API): $10 / 1M input, $50 / 1M output.
+// gpt-6-luna text tokens (Responses API): $0.10 / 1M input, $0.50 / 1M output.
+// Decisions (POST /v1/decisions) bills input only, at the same $0.10 / 1M. See estimateDecisionsUsd.
 const TOKEN_USD_PER_MILLION: Record<string, { input: number; output: number }> = {
-  "gpt-6-astra": { input: 10, output: 50 },
+  "gpt-6-luna": { input: 0.1, output: 0.5 },
 };
+
+const DECISIONS_INPUT_USD_PER_MILLION = 0.1;
 
 const INSTRUCTIONS = [
   "Leé la muestra de una planilla y describí cómo importarla a iManager.",
@@ -48,6 +53,15 @@ export function estimateImportUsd(model: string, inputTokens: number, outputToke
   const input = Number.isFinite(inputTokens) && inputTokens > 0 ? inputTokens : 0;
   const output = Number.isFinite(outputTokens) && outputTokens > 0 ? outputTokens : 0;
   const usd = (input / 1_000_000) * rates.input + (output / 1_000_000) * rates.output;
+  return roundUsd(usd);
+}
+
+export function estimateDecisionsUsd(inputTokens: number): number {
+  const input = Number.isFinite(inputTokens) && inputTokens > 0 ? inputTokens : 0;
+  return roundUsd((input / 1_000_000) * DECISIONS_INPUT_USD_PER_MILLION);
+}
+
+function roundUsd(usd: number): number {
   return Math.round(usd * 1e8) / 1e8;
 }
 
@@ -175,9 +189,9 @@ export async function readSpreadsheetPlan(options: {
   }
 
   const payload = await response.json().catch(() => null);
-  const tokens = readTokens(payload);
+  const tokens = usageOf(payload);
   if (!response.ok) {
-    return { ok: false, kind: isQuota(response.status, payload) ? "quota" : "error", ...tokens };
+    return { ok: false, kind: modelFailureKind(response.status, payload), ...tokens };
   }
   if (payload && typeof payload === "object" && (payload as { status?: unknown }).status === "incomplete") {
     return { ok: false, kind: "error", ...tokens };
@@ -192,13 +206,17 @@ export async function readSpreadsheetPlan(options: {
   }
 }
 
-function readTokens(payload: unknown): { inputTokens: number; outputTokens: number } {
+export function usageOf(payload: unknown): { inputTokens: number; outputTokens: number } {
   if (!payload || typeof payload !== "object") return { inputTokens: 0, outputTokens: 0 };
   const usage = (payload as { usage?: { input_tokens?: unknown; output_tokens?: unknown } }).usage;
   return {
     inputTokens: positive(usage?.input_tokens),
     outputTokens: positive(usage?.output_tokens),
   };
+}
+
+export function modelFailureKind(status: number, payload: unknown): ModelFailure {
+  return isQuota(status, payload) ? "quota" : "error";
 }
 
 function positive(value: unknown): number {

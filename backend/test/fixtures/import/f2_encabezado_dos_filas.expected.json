@@ -1,0 +1,132 @@
+{
+ "currency": "USD",
+ "rows": [
+  {
+   "model": "14",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1570,
+   "color": "Blue"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 630,
+   "color": "White"
+  },
+  {
+   "model": "12",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 920,
+   "color": "Blue"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 1040,
+   "color": "Black"
+  },
+  {
+   "model": "15",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 870,
+   "color": "Desert"
+  },
+  {
+   "model": "11",
+   "capacity": "64 GB",
+   "condition": "USADO",
+   "price": 430,
+   "color": "Blue"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 250,
+   "color": "Desert"
+  },
+  {
+   "model": "14 Pro",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1530,
+   "color": "Starlight"
+  },
+  {
+   "model": "16",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1740,
+   "color": "Purple"
+  },
+  {
+   "model": "15",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 1740,
+   "color": "Midnight"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 420,
+   "color": "Red"
+  },
+  {
+   "model": "12",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 980,
+   "color": "Red"
+  },
+  {
+   "model": "14 Pro",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 500,
+   "color": "Red"
+  },
+  {
+   "model": "13 mini",
+   "capacity": "128 GB",
+   "condition": "NUEVO",
+   "price": 440,
+   "color": "Blue"
+  },
+  {
+   "model": "12",
+   "capacity": "128 GB",
+   "condition": "USADO",
+   "price": 1520,
+   "color": "Natural"
+  },
+  {
+   "model": "13 Pro Max",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 1080,
+   "color": "Natural"
+  },
+  {
+   "model": "17 Pro Max",
+   "capacity": "512 GB",
+   "condition": "USADO",
+   "price": 960,
+   "color": "Desert"
+  },
+  {
+   "model": "16 Pro",
+   "capacity": "256 GB",
+   "condition": "NUEVO",
+   "price": 370,
+   "color": "Starlight"
+  }
+ ],
+ "notes": "encabezado en dos filas con celdas combinadas (Precio sobre USD|ARS), estado en columna"
+}

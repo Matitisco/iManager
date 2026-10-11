@@ -63,7 +63,7 @@ export function trimSheet(rows: string[][]): string[][] {
 export function parseMoney(raw: string): number | null {
   let value = raw.trim();
   if (!value || value.startsWith("=")) return null;
-  value = value.replace(/[$\s]/g, "");
+  value = value.replace(/u\$s|us\$|u\$d|usd|dls|d[oó]lares|ars|pesos/gi, "").replace(/[$\s]/g, "");
   if (!value) return null;
   if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(value)) value = value.replace(/\./g, "").replace(",", ".");
   else if (/^-?\d+,\d+$/.test(value)) value = value.replace(",", ".");
@@ -100,8 +100,8 @@ export function splitModelCapacity(model: string): { model: string; capacity: st
 
 export function conditionFromName(name: string): SheetCondition {
   const normalized = normalizeHeader(name);
-  if (/nuevo|new|sellad/.test(normalized)) return "NUEVO";
   if (/usado|used|outlet|seminuevo/.test(normalized)) return "USADO";
+  if (/nuevo|new|sellad/.test(normalized)) return "NUEVO";
   return "";
 }
 
@@ -169,7 +169,7 @@ function findRate(rows: string[][]): number | null {
     const blob = row.join(" ").toLowerCase();
     if (!/cotiz|dolar|dólar|blue/.test(blob)) continue;
     for (const cell of row) {
-      const amount = parseMoney(cell);
+      const amount = parseMoney(cell) ?? parseMoney(cell.match(/\$?\s*\d[\d.,]*/)?.[0] ?? "");
       if (amount != null && amount >= 50 && amount <= 20_000) return amount;
     }
   }
@@ -277,6 +277,39 @@ export function heuristicPlan(
   return sheets.map((sheet) => heuristicSheet(sheet, catalog, storeCurrency));
 }
 
+const EQUIPMENT_COLUMN_FIELDS = new Set(["model", "imei", "capacity", "color", "condition", "batteryHealth", "grade"]);
+const EQUIPMENT_HEADER = /^(mod|modelo|equipo|equipos|imei|serie|capacidad|almacenamiento|alm|gb|color|colour|colores|tono|condicion|cond|bateria|pila|bat|calidad|grado)$/;
+
+function namesEquipment(cell: string): boolean {
+  const normalized = normalizeHeader(cell);
+  if (!normalized || normalized.length > 40) return false;
+  if (EQUIPMENT_HEADER.test(normalized)) return true;
+  return normalized.includes("imei")
+    || normalized.includes("modelo")
+    || normalized.includes("bateria")
+    || normalized.includes("capacidad")
+    || normalized.startsWith("salud");
+}
+
+// Price, cost and status show up in gastos and other lists. A sheet counts as
+// inventory only when a header row names an equipment column (including the
+// short names Mod, Alm, Bat, Pila, Tono).
+export function inventoryHasEquipmentColumns(sheets: ImportSheet[]): boolean {
+  const catalog = IMPORT_CATALOGS.inventory;
+  return sheets.some((sheet) => {
+    const rows = trimSheet(sheet.rows);
+    const limit = Math.min(rows.length, 40);
+    for (let index = 0; index < limit; index += 1) {
+      const cells = (rows[index] ?? []).map((cell) => cell.trim()).filter((cell) => cell.length > 0 && cell.length <= 40);
+      if (cells.length < 2) continue;
+      if (cells.some((cell) => namesEquipment(cell))) return true;
+      const mapped = autoMap(cells, catalog.fields, catalog.hints);
+      if (Object.keys(mapped).some((field) => EQUIPMENT_COLUMN_FIELDS.has(field))) return true;
+    }
+    return false;
+  });
+}
+
 function roundPart(value: string | undefined): string {
   const amount = Number((value ?? "").replace(",", "."));
   return Number.isFinite(amount) ? String(Math.round(amount)) : "0";
@@ -286,7 +319,14 @@ function isFooter(cells: string[]): boolean {
   const filled = cells.map((cell) => cell.trim()).filter(Boolean);
   if (filled.length === 0 || filled.length > 2) return false;
   const blob = normalizeHeader(filled.join(" "));
-  return /precionoincluye|noincluyeiva|subtotal|^total$|cotizacion/.test(blob);
+  return /precionoincluye|noincluyeiva|subtotal|^total|cotizacion/.test(blob);
+}
+
+export function cellCurrency(raw: string): "" | "ARS" | "USD" {
+  const value = raw.toLowerCase();
+  if (/u\$s|us\$|u\$d|usd|dls|d[oó]lar/.test(value)) return "USD";
+  if (/\$|ars|peso/.test(value)) return "ARS";
+  return "";
 }
 
 function resolvePrice(options: {
@@ -298,7 +338,8 @@ function resolvePrice(options: {
 }): string {
   const direct = parseMoney(options.direct);
   const usd = parseMoney(options.usd);
-  const { columnKind, storeCurrency, rate } = options;
+  const { storeCurrency, rate } = options;
+  const columnKind = cellCurrency(options.direct) || options.columnKind;
 
   if (columnKind === "ARS" && storeCurrency === "ARS") {
     if (usd != null && rate != null && (direct == null || (usd >= 10 && direct < usd * 10))) {
@@ -348,15 +389,28 @@ export function applyPlans(
     const end = Math.min(grid.length, Math.max(start - 1, plan.dataEndRow));
 
     if (plan.include) {
+      let sectionCondition: SheetCondition = plan.condition;
+      for (let above = plan.headerRow - 1; above >= 1 && above >= plan.headerRow - 3; above -= 1) {
+        const filledAbove = (grid[above - 1] ?? []).filter((cell) => cell.trim());
+        if (filledAbove.length === 1 && filledAbove[0].length <= 40) {
+          sectionCondition = conditionFromName(filledAbove[0]) || plan.condition;
+          break;
+        }
+      }
       for (let rowIndex = start; rowIndex <= end; rowIndex += 1) {
         const line = grid[rowIndex - 1] ?? [];
         if (line.every((cell) => !cell.trim()) || isFooter(line)) continue;
+        const filledCells = line.filter((cell) => cell.trim());
+        if (section === "inventory" && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
+          sectionCondition = conditionFromName(filledCells[0]) || plan.condition;
+          continue;
+        }
         const record: Record<string, string> = {};
         for (const column of mapping) {
           const index = indexByHeader(headers, column.header);
           record[column.field] = (line[index] ?? "").trim();
         }
-        if (plan.condition && !record.condition) record.condition = plan.condition;
+        if (sectionCondition && !record.condition) record.condition = sectionCondition;
         if (plan.splitModelCapacity && record.model) {
           const split = splitModelCapacity(record.model);
           record.model = split.model;
