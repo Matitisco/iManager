@@ -14,6 +14,7 @@ import {
 import { useMoney, type MoneyApi } from '../exchange';
 import { avatarTone, formatInputMoney, formatShortDate, initials, parseAppDate, parseMoney } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
 import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
@@ -119,16 +120,7 @@ export function ClientsScreen() {
       />
       {phone ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'clients' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar">
         <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}

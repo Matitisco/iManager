@@ -19,6 +19,7 @@ import {
 } from '../format';
 import { displayQuality, qualityDetail } from '../quality';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
   EMPTY_SALE_FILTERS,
@@ -120,16 +121,7 @@ export function SalesScreen() {
         </div>
       ) : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos aunque hayas recargado la página.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'sales' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos aunque hayas recargado la página." onOpen={(id) => open({ type: 'edit-cj', id, source: 'sales' })} />
       {phone ? (
         <SalesHero
           seeFinancials={seeFinancials}

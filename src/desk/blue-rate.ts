@@ -118,25 +118,37 @@ function requireTimestamp(value: unknown): string {
   return value;
 }
 
-export function parseBlueQuote(source: BlueSourceId, body: unknown): BlueQuote {
+type ParsedQuote = Pick<BlueQuote, 'buy' | 'sell' | 'updatedAt'>;
+
+function parseDolarApiQuote(body: unknown): ParsedQuote {
   if (!body || typeof body !== 'object') throw new Error('Cotización inválida');
   const record = body as Record<string, unknown>;
-  if (source === 'dolarapi') {
-    return {
-      source,
-      buy: requireAmount(record.compra),
-      sell: requireAmount(record.venta),
-      updatedAt: requireTimestamp(record.fechaActualizacion),
-    };
-  }
+  return {
+    buy: requireAmount(record.compra),
+    sell: requireAmount(record.venta),
+    updatedAt: requireTimestamp(record.fechaActualizacion),
+  };
+}
+
+function parseBluelyticsQuote(body: unknown): ParsedQuote {
+  if (!body || typeof body !== 'object') throw new Error('Cotización inválida');
+  const record = body as Record<string, unknown>;
   if (!record.blue || typeof record.blue !== 'object') throw new Error('Cotización inválida');
   const blue = record.blue as Record<string, unknown>;
   return {
-    source,
     buy: requireAmount(blue.value_buy),
     sell: requireAmount(blue.value_sell),
     updatedAt: requireTimestamp(record.last_update),
   };
+}
+
+const QUOTE_PARSERS: Record<BlueSourceId, (body: unknown) => ParsedQuote> = {
+  dolarapi: parseDolarApiQuote,
+  bluelytics: parseBluelyticsQuote,
+};
+
+export function parseBlueQuote(source: BlueSourceId, body: unknown): BlueQuote {
+  return { source, ...QUOTE_PARSERS[source](body) };
 }
 
 // Ámbito publishes the previous informal close. Use it only when its live sell
