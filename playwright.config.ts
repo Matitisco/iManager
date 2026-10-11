@@ -47,6 +47,7 @@ export default defineConfig({
         FRONTEND_URL: DEFAULT_FRONTEND_URL,
         OPENAI_API_KEY: '',
         OPENAI_DECISIONS_MODEL: '',
+        OPENAI_IMPORT_MODEL: '',
       },
     },
     {

@@ -10,7 +10,51 @@ export type SuggestMappingResponse = {
   suggestions: ColumnSuggestion[];
 };
 
+export type DetectedSheet = {
+  name: string;
+  include: boolean;
+  headerRow: number;
+  condition: string | null;
+  headers: string[];
+  mapping: Record<string, string>;
+  rows: Record<string, string>[];
+};
+
+export type DetectImportResponse = {
+  source: 'responses' | 'heuristic';
+  notice: string | null;
+  sheets: DetectedSheet[];
+  totals: { sheets: number; rows: number };
+};
+
+export type DetectImportRequest = {
+  currency?: 'ARS' | 'USD';
+  sellRate?: number | null;
+  sheets: { name: string; rows: string[][] }[];
+  overrides?: {
+    name: string;
+    include: boolean;
+    headerRow: number;
+    mapping?: Record<string, string>;
+  }[];
+};
+
 const SUGGEST_TIMEOUT_MS = 60_000;
+
+const DETECT_TIMEOUT_MS = 60_000;
+
+export async function detectImport(
+  user: AuthUserLike,
+  section: ImportSection,
+  input: DetectImportRequest,
+): Promise<DetectImportResponse> {
+  return apiRequest<DetectImportResponse>(user, '/api/import/detect', {
+    method: 'POST',
+    body: { section, ...input },
+    fallback: 'No se pudo leer el archivo. Probá de nuevo.',
+    timeoutMs: DETECT_TIMEOUT_MS,
+  });
+}
 
 export async function suggestImportMapping(
   user: AuthUserLike,

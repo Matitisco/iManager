@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { importBackendRows, suggestImportMapping, type ImportSection } from './import-api';
+import { detectImport, importBackendRows, suggestImportMapping, type ImportSection } from './import-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 vi.mock('./fetch-with-timeout', () => ({
@@ -80,5 +80,44 @@ describe('import-api', () => {
       body: JSON.stringify({ section: 'inventory', columns: [{ header: 'Equipo', samples: ['iPhone 14'] }] }),
     }, 60_000);
     expect(JSON.stringify(vi.mocked(fetchWithTimeout).mock.calls)).not.toContain('OPENAI');
+  });
+
+  it('sends the sheet grids to the backend and keeps the OpenAI key off the client', async () => {
+    const detected = {
+      source: 'heuristic' as const,
+      notice: null,
+      totals: { sheets: 1, rows: 1 },
+      sheets: [{
+        name: 'Usados',
+        include: true,
+        headerRow: 0,
+        condition: 'USADO',
+        headers: ['Modelo'],
+        mapping: { model: 'Modelo' },
+        rows: [{ model: '13 mini', capacity: '128 GB', price: '477400' }],
+      }],
+    };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(detected));
+
+    await expect(detectImport(mockUser, 'inventory', {
+      currency: 'ARS',
+      sellRate: 1540,
+      sheets: [{ name: 'Usados', rows: [['Modelo'], ['13 mini 128 GB']] }],
+    })).resolves.toEqual(detected);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/detect', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token-123',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        section: 'inventory',
+        currency: 'ARS',
+        sellRate: 1540,
+        sheets: [{ name: 'Usados', rows: [['Modelo'], ['13 mini 128 GB']] }],
+      }),
+    }, 60_000);
+    expect(JSON.stringify(vi.mocked(fetchWithTimeout).mock.calls)).not.toContain('sk-');
   });
 });

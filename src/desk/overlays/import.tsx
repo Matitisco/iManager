@@ -2,12 +2,14 @@ import { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
 import { ImportModal } from '../../components/ImportModal';
-import { importBackendRows, suggestImportMapping, type ImportSection, type InventoryImportRow } from '../../services/import-api';
+import { detectImport, importBackendRows, type ImportSection, type InventoryImportRow } from '../../services/import-api';
+import { useExchange } from '../exchange';
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
 export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
   const phone = usePhoneLayout();
+  const exchange = useExchange();
   const { user, reloadInventory, reloadSales, reloadClients, reloadTradeIns } = useAppContext();
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
@@ -23,7 +25,9 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={phone} onClose={close} onSuggest={(columns) => suggestImportMapping(user, sectionFor(kind), columns)} onImport={async (rows) => {
+  const currency = exchange.settings.currency === 'USD' ? 'USD' : 'ARS';
+  const sellRate = exchange.quote && exchange.quote.sell > 0 ? exchange.quote.sell : null;
+  return <ImportModal title={config.title} fields={config.fields} sheet={phone} itemLabel={config.itemLabel} onClose={close} onDetect={(input) => detectImport(user, sectionFor(kind), { ...input, currency, sellRate })} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -44,6 +48,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'inv') {
     return {
       title: 'Importar equipos',
+      itemLabel: { one: 'equipo', many: 'equipos' },
       fields: [
         { key: 'model', label: 'Modelo', required: true },
         { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
@@ -80,6 +85,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'sale') {
     return {
       title: 'Importar ventas',
+      itemLabel: { one: 'venta', many: 'ventas' },
       fields: [
         { key: 'clientName', label: 'Cliente', required: false },
         { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
@@ -99,6 +105,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'cl') {
     return {
       title: 'Importar clientes',
+      itemLabel: { one: 'cliente', many: 'clientes' },
       fields: [
         { key: 'name', label: 'Nombre', required: true },
         { key: 'dni', label: 'DNI', required: false },
@@ -115,6 +122,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   }
   return {
     title: 'Importar canjes',
+    itemLabel: { one: 'canje', many: 'canjes' },
     fields: [
       { key: 'clientName', label: 'Cliente', required: true },
       { key: 'deviceReceived', label: 'Equipo recibido', required: true },
