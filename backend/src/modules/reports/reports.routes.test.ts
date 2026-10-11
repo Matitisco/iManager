@@ -28,7 +28,14 @@ vi.mock("./reports.service.js", async () => {
   };
 });
 
+import { registerApiErrorHandler } from "../../lib/api-error.js";
 import { reportsRoutes } from "./reports.routes.js";
+
+function buildApp() {
+  const app = Fastify();
+  registerApiErrorHandler(app);
+  return app;
+}
 
 describe("reportsRoutes", () => {
   beforeEach(() => {
@@ -82,7 +89,7 @@ describe("reportsRoutes", () => {
   });
 
   it("accepts a custom range and forwards normalized dates to the service", async () => {
-    const app = Fastify();
+    const app = buildApp();
     await app.register(reportsRoutes);
 
     const response = await app.inject({
@@ -104,7 +111,7 @@ describe("reportsRoutes", () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["reports", "inventory"] };
     });
-    const listed = Fastify();
+    const listed = buildApp();
     await listed.register(reportsRoutes);
     const listedResponse = await listed.inject({ method: "GET", url: "/overview" });
     expect(listedResponse.statusCode).toBe(403);
@@ -113,7 +120,7 @@ describe("reportsRoutes", () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: null };
     });
-    const open = Fastify();
+    const open = buildApp();
     await open.register(reportsRoutes);
     const openResponse = await open.inject({ method: "GET", url: "/overview" });
     expect(openResponse.statusCode).toBe(403);
@@ -125,7 +132,7 @@ describe("reportsRoutes", () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["inventory"] };
     });
-    const app = Fastify();
+    const app = buildApp();
     await app.register(reportsRoutes);
 
     const response = await app.inject({ method: "GET", url: "/overview" });
@@ -137,7 +144,7 @@ describe("reportsRoutes", () => {
   });
 
   it("rejects custom ranges that omit one of the dates", async () => {
-    const app = Fastify();
+    const app = buildApp();
     await app.register(reportsRoutes);
 
     const response = await app.inject({
@@ -155,7 +162,7 @@ describe("reportsRoutes", () => {
   });
 
   it("rejects invalid custom ranges where the start date is after the end date", async () => {
-    const app = Fastify();
+    const app = buildApp();
     await app.register(reportsRoutes);
 
     const response = await app.inject({

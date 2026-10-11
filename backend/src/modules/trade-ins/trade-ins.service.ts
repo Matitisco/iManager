@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
-import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { normalizeCustomFields } from "../../lib/custom-fields.js";
+import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -158,18 +159,6 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
   return value as Record<string, unknown>;
 };
 
-function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
-  if (!customFields) {
-    return {} as Prisma.InputJsonValue;
-  }
-
-  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
-}
-
-function resolveDate(value: string | null | undefined, fallback = new Date()) {
-  return parseArDate(value) ?? fallback;
-}
-
 function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
   return {
     id: tradeIn.id,
@@ -257,7 +246,7 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
     throw new TradeInsError("Nombre de cliente requerido", 400);
   }
 
-  const tradeAt = resolveDate(input.date);
+  const tradeAt = parseArDateOr(input.date);
   const dateLabel = formatArDate(tradeAt);
 
   return prisma.$transaction(async (tx) => {
@@ -317,7 +306,7 @@ export async function updateTradeIn(
 
   await assertCategoryBelongsToStore(storeId, input.categoryId);
 
-  const nextDate = input.date !== undefined ? resolveDate(input.date, existing.tradeAt) : existing.tradeAt;
+  const nextDate = input.date !== undefined ? parseArDateOr(input.date, existing.tradeAt) : existing.tradeAt;
   const nextDateLabel = input.date !== undefined ? formatArDate(nextDate) : existing.dateLabel;
 
   const valueChanges = (input.takeValue !== undefined && moneyChanged(existing.takeValue, input.takeValue))
@@ -391,17 +380,6 @@ export async function deleteTradeIn(storeId: string, id: string, actor?: Actor |
   }
 
   return true;
-}
-
-export function getTradeInsErrorStatus(error: unknown) {
-  if (error instanceof TradeInsError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
 }
 
 function parseImportAmount(raw: string | undefined): number | null {
@@ -481,7 +459,7 @@ export async function importTradeIns(
         : "PENDIENTE";
 
       const dateInput = row.date?.trim() || "";
-      const tradeAt = resolveDate(dateInput);
+      const tradeAt = parseArDateOr(dateInput);
       const dateLabel = formatArDate(tradeAt);
 
       const batteryHealth = normalizeBatteryHealth(row.batteryHealth);

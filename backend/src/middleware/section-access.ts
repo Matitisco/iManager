@@ -1,5 +1,8 @@
 ﻿import type { FastifyReply, FastifyRequest } from "fastify";
+import { DomainError } from "../lib/domain-error.js";
 import { canAccessSection, type SectionId } from "../modules/stores/sections.js";
+import type { AppUserContext } from "../types/auth.js";
+
 const LABELS: Record<SectionId, string> = { dashboard: "Dashboard", inventory: "Inventario", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", reports: "Reportes", notifications: "Notificaciones" };
 
 export function requireSectionAccess(section: SectionId) {
@@ -16,4 +19,8 @@ export function requireSectionAccess(section: SectionId) {
     if (reportRead && section !== "reports" && canAccessSection("reports", member)) return;
     return reply.code(403).send({ error: `No tenés acceso a ${LABELS[section]}` });
   };
+}
+
+export function requireMember<T extends FastifyRequest>(request: T): asserts request is T & { appUser: AppUserContext } {
+  if (!request.appUser) throw new DomainError("Store membership required", 403);
 }

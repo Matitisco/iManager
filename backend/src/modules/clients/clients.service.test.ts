@@ -27,7 +27,6 @@ import {
   bulkMoveClientCategory,
   createClient,
   createClientCategory,
-  getClientsErrorStatus,
   importClients,
   serializeClient,
 } from "./clients.service.js";
@@ -138,10 +137,5 @@ describe("clients.service", () => {
 
     expect(created.createdAt).toBe("2026-04-02T15:00:00.000Z");
     expect(created.totalSpent).toBe(0);
-  });
-
-  it("maps domain errors into HTTP-friendly payloads", () => {
-    const mapped = getClientsErrorStatus(Object.assign(new Error("Client already exists"), { statusCode: 409 }));
-    expect(mapped).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -81,14 +82,6 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
 
   return value as Record<string, unknown>;
 };
-
-function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
-  if (!customFields) {
-    return {} as Prisma.InputJsonValue;
-  }
-
-  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
-}
 
 const formatDate = (value: Date | null) => {
   if (!value) return "N/A";
@@ -374,17 +367,6 @@ export async function importClients(
   }
 
   return { imported, updated, errors };
-}
-
-export function getClientsErrorStatus(error: unknown) {
-  if (error instanceof ClientsError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
 }
 
 // ── Client Categories ─────────────────────────────────────────────────────────
