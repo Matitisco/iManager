@@ -49,7 +49,7 @@ async function expectFits(page: Page) {
 }
 
 test.describe('desktop inventory stays put', () => {
-  test('keeps the table, the price list button and the old empty copy', async ({ page, request }, testInfo) => {
+  test('shows the empty store state, the table and the price list button', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'inv-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Inventario desk ${testInfo.parallelIndex}`);
@@ -58,9 +58,13 @@ test.describe('desktop inventory stays put', () => {
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Lista de precios' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toHaveCount(0);
-    await expect(page.getByTestId('inventory-empty')).toHaveCount(0);
-    await expect(page.getByText('No hay equipos con ese filtro.')).toBeVisible();
+    const empty = page.getByTestId('inventory-empty');
+    await expect(empty).toContainText('Todavía no cargaste equipos');
+    await expect(empty.getByRole('button', { name: 'Importar' })).toBeVisible();
+    await expect(empty.getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
+    await expect(page.getByText('No hay equipos con ese filtro.')).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar modelo o color')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /Equipo/ })).toBeVisible();
   });
 });
 

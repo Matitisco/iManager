@@ -212,7 +212,13 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-empty-mark { width: 56px; height: 56px; margin: 0 auto; border-radius: 16px; border: 1.5px dashed #D6D9DE; display: flex; align-items: center; justify-content: center; color: var(--primary); }
 .inv-empty-box b { display: block; margin-top: 12px; font-size: 16px; }
 .inv-empty-box p { margin: 6px auto 14px; max-width: 280px; color: var(--secondary); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.inv-empty-actions { display: flex; flex-direction: column; align-items: stretch; }
 .inv-empty-box .dbtn { width: 100%; justify-content: center; margin-top: 8px; }
+@media (min-width: 761px) {
+  .dcard.flush > .inv-empty { max-width: 420px; margin: 28px auto 32px; }
+  .dcard.flush > .inv-empty .inv-empty-actions { flex-direction: row; gap: 8px; }
+  .dcard.flush > .inv-empty .inv-empty-actions .dbtn { width: auto; flex: 1 1 0; margin-top: 0; }
+}
 .inv-count { margin: 12px 4px 0; color: var(--secondary); font-size: 13px; font-weight: 700; text-align: left; }
 .inv-fx { margin: 12px 4px 0; color: var(--secondary); font-size: 12px; font-weight: 600; line-height: 1.4; }
 .inv-filters .sec { margin-top: 4px; }

@@ -158,6 +158,7 @@ export function InventoryScreen() {
   };
   const filterCount = activeColumnCount(columns);
   const clearColumns = () => setColumns(EMPTY_COLUMN_FILTERS);
+  const quietEmpty = inventory.length === 0 && !query.trim() && !columnFiltersActive(columns) && !onlyNotices;
   const openFilters = () => {
     setDraftFilters(columns);
     setFiltersOpen(true);
@@ -393,14 +394,14 @@ export function InventoryScreen() {
         </>
         )}
         {listed.length === 0 ? (
-          phone && inventory.length === 0
+          quietEmpty
             ? <InventoryEmpty onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
             : <div className="wempty">No hay equipos con ese filtro.</div>
         ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       {showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
-      {phone && inventory.length === 0 ? null : <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>}
+      {inventory.length === 0 ? null : <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>}
       {phone ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
@@ -566,14 +567,16 @@ function InventoryEmpty({ onImport, onCreate }: { onImport: () => void; onCreate
         <div className="inv-empty-mark"><ImanagerIcon name="equipo" size={24} /></div>
         <b>Todavía no cargaste equipos</b>
         <p>Ingresá tu primer equipo o importá tu stock desde una planilla.</p>
-        <button className="dbtn s" type="button" onClick={onImport}>
-          <ImanagerIcon name="importar" size={16} />
-          Importar
-        </button>
-        <button className="dbtn p" type="button" onClick={onCreate}>
-          <ImanagerIcon name="agregar" size={16} />
-          Registrar equipo
-        </button>
+        <div className="inv-empty-actions">
+          <button className="dbtn s" type="button" onClick={onImport}>
+            <ImanagerIcon name="importar" size={16} />
+            Importar
+          </button>
+          <button className="dbtn p" type="button" onClick={onCreate}>
+            <ImanagerIcon name="agregar" size={16} />
+            Registrar equipo
+          </button>
+        </div>
       </div>
       <p className="inv-count">0 resultados</p>
     </div>
