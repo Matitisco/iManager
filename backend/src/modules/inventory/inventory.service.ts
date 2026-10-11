@@ -1,5 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { normalizeCustomFields } from "../../lib/custom-fields.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
@@ -81,14 +83,7 @@ type InventoryRecord = {
   costChangedAt?: Date | null;
 };
 
-class InventoryError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode = 400) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
+class InventoryError extends DomainError {}
 
 const inventoryPrisma = prisma as any;
 
@@ -143,14 +138,6 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     costChangedBy: item.costChangedBy ?? null,
     costChangedAt: item.costChangedAt ? new Date(item.costChangedAt).toISOString() : null,
   };
-}
-
-function normalizeCustomFields(customFields?: Record<string, unknown> | null): Prisma.InputJsonValue {
-  if (!customFields) {
-    return {};
-  }
-
-  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
 }
 
 // ─── Paged listing ────────────────────────────────────────────────────────────
@@ -813,13 +800,3 @@ export async function importInventoryItems(
   return result;
 }
 
-export function getInventoryErrorStatus(error: unknown) {
-  if (error instanceof InventoryError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
-}

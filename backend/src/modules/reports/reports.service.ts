@@ -1,4 +1,5 @@
 import { formatArDate } from "../../lib/ar-date.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 
 export type ReportsRangeKey =
@@ -124,14 +125,7 @@ export interface ReportsOverviewResponse {
   tradeIns: ReportsTradeInSnapshot;
 }
 
-class ReportsError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode = 400) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
+class ReportsError extends DomainError {}
 
 const APPROVED_TRADE_IN_STATUSES = new Set(["APROBADO", "LISTO"]);
 const OPEN_TRADE_IN_STATUSES = new Set(["PENDIENTE", "EN REVISIÓN", "PERITAJE TÉC."]);
@@ -767,13 +761,3 @@ export function normalizeReportsOverviewInput(input: ReportsQueryInput): Reports
   };
 }
 
-export function getReportsErrorStatus(error: unknown) {
-  if (error instanceof ReportsError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
-}

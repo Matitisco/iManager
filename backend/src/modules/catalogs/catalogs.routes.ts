@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { getCatalogErrorStatus, isCatalogKind, listCatalogs, saveCatalog } from "./catalogs.service.js";
+import { requireMember } from "../../middleware/section-access.js";
 
 const saveSchema = z.object({
   options: z.array(z.object({
@@ -18,13 +19,13 @@ const saveSchema = z.object({
 
 export async function catalogsRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const data = await listCatalogs(request.appUser.storeId);
     return reply.send(data);
   });
 
   app.put("/:kind", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     if (request.appUser.role === "STAFF") return reply.code(403).send({ error: "No podés editar los catálogos" });
     const kind = (request.params as { kind: string }).kind;
     if (!isCatalogKind(kind)) return reply.code(400).send({ error: "Catálogo desconocido" });

@@ -99,7 +99,7 @@ npx prisma studio                               # UI de PG
 | Archivo                              | Módulo       |
 |--------------------------------------|--------------|
 | `src/services/inventory-api.ts`      | Inventario   |
-| `src/services/inventory-import-api.ts` | Import XLSX |
+| `src/services/import-api.ts` | Import XLSX (inventario, ventas, clientes, canjes) |
 | `src/services/clients-api.ts`        | Clientes     |
 | `src/services/sales-api.ts`          | Ventas       |
 | `src/services/trade-ins-api.ts`      | Canjes       |
@@ -107,7 +107,7 @@ npx prisma studio                               # UI de PG
 | `src/services/backend-session.ts`    | `/api/me`    |
 | `src/services/operations-api.ts`     | Operaciones integradas y notificaciones |
 
-Todos usan `fetch-with-timeout.ts` (timeout 15s).
+Todos llaman al backend con `apiRequest` de `src/services/api-client.ts` (token, `Content-Type` solo con body, `ApiError` con status), que usa `fetch-with-timeout.ts` (timeout 15s).
 
 ---
 

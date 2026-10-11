@@ -3,12 +3,13 @@ import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
-import { ColumnFilter } from '../ColumnFilter';
+import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { useMoney } from '../exchange';
-import { formatInputMoney, formatShortDate, isInProgressTrade, parseAppDate, parseMoney, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
 import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
   EMPTY_TRADE_FILTERS,
@@ -39,10 +40,6 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
     + Number(tradeColumnActive(filters, 'value'));
 }
 
-function moneyDraft(value: string) {
-  return value ? formatInputMoney(parseMoney(value)) : '';
-}
-
 export function TradeInsScreen() {
   const { tradeIns, clients, operationDrafts = [] } = useAppContext();
   const money = useMoney();
@@ -58,7 +55,7 @@ export function TradeInsScreen() {
   const [columns, setColumns] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [draftFilters, setDraftFilters] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const menu = useColumnMenu();
   const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
   const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
@@ -129,16 +126,7 @@ export function TradeInsScreen() {
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar la venta y el equipo entregado.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'tradeins' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta y el equipo entregado." onOpen={(id) => open({ type: 'edit-cj', id, source: 'tradeins' })} />
       <div className="dbar">
         <ChipRow
           options={statusOptions}
@@ -191,47 +179,38 @@ export function TradeInsScreen() {
             <thead>
               <tr>
                 <th><span className="thf">Canje
-                  <ColumnFilter label="canje" open={openColumn === 'canje'} onToggle={() => setOpenColumn((current) => current === 'canje' ? null : 'canje')} active={tradeColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
+                  <ColumnFilter label="canje" {...menu('canje')} active={tradeColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Fecha
-                  <ColumnFilter label="fecha" open={openColumn === 'fecha'} onToggle={() => setOpenColumn((current) => current === 'fecha' ? null : 'fecha')} active={tradeColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
-                    <div className="range">
-                      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={columns.dateFrom} onChange={(event) => setColumn({ dateFrom: event.target.value })} /></label>
-                      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={columns.dateTo} onChange={(event) => setColumn({ dateTo: event.target.value })} /></label>
-                    </div>
+                  <ColumnFilter label="fecha" {...menu('fecha')} active={tradeColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
+                    <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Cliente
-                  <ColumnFilter label="cliente" open={openColumn === 'cliente'} onToggle={() => setOpenColumn((current) => current === 'cliente' ? null : 'cliente')} active={tradeColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
+                  <ColumnFilter label="cliente" {...menu('cliente')} active={tradeColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.client} onChange={(event) => setColumn({ client: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Recibido
-                  <ColumnFilter label="recibido" open={openColumn === 'recibido'} onToggle={() => setOpenColumn((current) => current === 'recibido' ? null : 'recibido')} active={tradeColumnActive(columns, 'received')} onClear={() => setColumn({ received: '' })}>
+                  <ColumnFilter label="recibido" {...menu('recibido')} active={tradeColumnActive(columns, 'received')} onClear={() => setColumn({ received: '' })}>
                     <input aria-label="Contiene" placeholder="Equipo o IMEI" value={columns.received} onChange={(event) => setColumn({ received: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Entregado
-                  <ColumnFilter label="entregado" open={openColumn === 'entregado'} onToggle={() => setOpenColumn((current) => current === 'entregado' ? null : 'entregado')} active={tradeColumnActive(columns, 'given')} onClear={() => setColumn({ given: '' })}>
+                  <ColumnFilter label="entregado" {...menu('entregado')} active={tradeColumnActive(columns, 'given')} onClear={() => setColumn({ given: '' })}>
                     <input aria-label="Contiene" placeholder="Equipo" value={columns.given} onChange={(event) => setColumn({ given: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th className="r"><span className="thf">Valor / diferencia
-                  <ColumnFilter label="valor" align="right" open={openColumn === 'valor'} onToggle={() => setOpenColumn((current) => current === 'valor' ? null : 'valor')} active={tradeColumnActive(columns, 'value')} onClear={() => setColumn({ valueMin: '', valueMax: '', differenceMin: '', differenceMax: '' })}>
-                    <div className="range">
-                      <label><span>Valor mín.</span><input aria-label="Valor mínimo" inputMode="numeric" value={moneyDraft(columns.valueMin)} onChange={(event) => setColumn({ valueMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      <label><span>Valor máx.</span><input aria-label="Valor máximo" inputMode="numeric" value={moneyDraft(columns.valueMax)} onChange={(event) => setColumn({ valueMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                    </div>
-                    <div className="range">
-                      <label><span>Dif. mín.</span><input aria-label="Diferencia mínima" inputMode="numeric" value={moneyDraft(columns.differenceMin)} onChange={(event) => setColumn({ differenceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      <label><span>Dif. máx.</span><input aria-label="Diferencia máxima" inputMode="numeric" value={moneyDraft(columns.differenceMax)} onChange={(event) => setColumn({ differenceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                    </div>
+                  <ColumnFilter label="valor" align="right" {...menu('valor')} active={tradeColumnActive(columns, 'value')} onClear={() => setColumn({ valueMin: '', valueMax: '', differenceMin: '', differenceMax: '' })}>
+                    <MoneyRange min={columns.valueMin} max={columns.valueMax} onMin={(valueMin) => setColumn({ valueMin })} onMax={(valueMax) => setColumn({ valueMax })} labels={['Valor mín.', 'Valor máx.']} ariaLabels={['Valor mínimo', 'Valor máximo']} />
+                    <MoneyRange min={columns.differenceMin} max={columns.differenceMax} onMin={(differenceMin) => setColumn({ differenceMin })} onMax={(differenceMax) => setColumn({ differenceMax })} labels={['Dif. mín.', 'Dif. máx.']} ariaLabels={['Diferencia mínima', 'Diferencia máxima']} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Estado
-                  <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={filter !== 'Todos'} onClear={() => setFilter('Todos')}>
+                  <ColumnFilter label="estado" align="right" {...menu('estado')} active={filter !== 'Todos'} onClear={() => setFilter('Todos')}>
                     <div className="opts">
                       {statusOptions.map((option) => (
                         <button key={option.id} className={`opt${filter === option.id ? ' on' : ''}`} type="button" onClick={() => setFilter(option.id)}>{option.label}</button>
@@ -299,19 +278,19 @@ export function TradeInsScreen() {
             <p className="sec">Valor tomado · {money.active}</p>
             <div className="inv-range">
               <Field label="Valor mínimo">
-                <input aria-label="Valor mínimo" inputMode="numeric" value={moneyDraft(draftFilters.valueMin)} onChange={(event) => setDraft({ valueMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Valor mínimo" value={draftFilters.valueMin} onChange={(digits) => setDraft({ valueMin: digits })} />
               </Field>
               <Field label="Valor máximo">
-                <input aria-label="Valor máximo" inputMode="numeric" value={moneyDraft(draftFilters.valueMax)} onChange={(event) => setDraft({ valueMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Valor máximo" value={draftFilters.valueMax} onChange={(digits) => setDraft({ valueMax: digits })} />
               </Field>
             </div>
             <p className="sec">Diferencia · {money.active}</p>
             <div className="inv-range">
               <Field label="Diferencia mínima">
-                <input aria-label="Diferencia mínima" inputMode="numeric" value={moneyDraft(draftFilters.differenceMin)} onChange={(event) => setDraft({ differenceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Diferencia mínima" value={draftFilters.differenceMin} onChange={(digits) => setDraft({ differenceMin: digits })} />
               </Field>
               <Field label="Diferencia máxima">
-                <input aria-label="Diferencia máxima" inputMode="numeric" value={moneyDraft(draftFilters.differenceMax)} onChange={(event) => setDraft({ differenceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Diferencia máxima" value={draftFilters.differenceMax} onChange={(digits) => setDraft({ differenceMax: digits })} />
               </Field>
             </div>
           </div>

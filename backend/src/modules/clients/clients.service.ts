@@ -1,8 +1,11 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
+import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
+import { clientsRepository } from "./clients.repository.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 export interface ClientInput {
@@ -56,14 +59,7 @@ type ClientRecord = {
   createdAt?: Date | null;
 };
 
-class ClientsError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode = 400) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
+class ClientsError extends DomainError {}
 
 const toDecimal = (value?: number) => new Decimal(value ?? 0);
 
@@ -72,10 +68,7 @@ async function assertCategoryBelongsToStore(storeId: string, categoryId?: string
     return;
   }
 
-  const category = await prisma.clientCategory.findFirst({
-    where: { id: categoryId, storeId },
-    select: { id: true },
-  });
+  const category = await clientsRepository.findCategory(storeId, categoryId);
 
   if (!category) {
     throw new ClientsError("Category not found", 404);
@@ -89,14 +82,6 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
 
   return value as Record<string, unknown>;
 };
-
-function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
-  if (!customFields) {
-    return {} as Prisma.InputJsonValue;
-  }
-
-  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
-}
 
 const formatDate = (value: Date | null) => {
   if (!value) return "N/A";
@@ -130,10 +115,7 @@ function parseLastPurchaseDate(value?: string | null) {
 }
 
 export async function listClients(storeId: string) {
-  const clients = await prisma.client.findMany({
-    where: { storeId },
-    orderBy: { createdAt: "desc" },
-  });
+  const clients = await clientsRepository.list(storeId);
 
   return clients.map(serializeClient);
 }
@@ -147,10 +129,7 @@ export async function createClient(storeId: string, input: ClientInput) {
   const dni = normalizeDni(input.dni);
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   if (dni) {
-    const existing = await prisma.client.findFirst({
-      where: { storeId, dni },
-      select: { id: true },
-    });
+    const existing = await clientsRepository.findIdByDni(storeId, dni);
 
     if (existing) {
       throw new ClientsError("Client already exists", 409);
@@ -162,8 +141,7 @@ export async function createClient(storeId: string, input: ClientInput) {
     input.pendingBalance !== undefined || input.totalSpent !== undefined,
     await storeCurrency(storeId, prisma),
   );
-  const client = await prisma.client.create({
-    data: {
+  const client = await clientsRepository.create({
       storeId,
       dni,
       name: input.name.trim(),
@@ -176,37 +154,27 @@ export async function createClient(storeId: string, input: ClientInput) {
       ...(balanceCurrency ? { balanceCurrency } : {}),
       tag: input.tag || null,
       customFields: normalizeCustomFields(input.customFields),
-    },
   });
 
   return serializeClient(client);
 }
 
 export async function updateClient(storeId: string, id: string, input: Partial<ClientInput>) {
-  const existing = await prisma.client.findFirst({
-    where: { id, storeId },
-  });
+  const existing = await clientsRepository.findInStore(storeId, id);
 
   if (!existing) {
     return null;
   }
 
   if (input.totalSpent !== undefined || input.pendingBalance !== undefined) {
-    const activeIntegratedSale = await prisma.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
+    const activeIntegratedSale = await clientsRepository.findActiveIntegratedSale(storeId, id);
     if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
   }
 
   if (input.dni !== undefined) {
     const nextDni = normalizeDni(input.dni);
     if (nextDni) {
-      const duplicate = await prisma.client.findFirst({
-        where: {
-          storeId,
-          dni: nextDni,
-          id: { not: id },
-        },
-        select: { id: true },
-      });
+      const duplicate = await clientsRepository.findDniDuplicate(storeId, nextDni, id);
 
       if (duplicate) {
         throw new ClientsError("Client already exists", 409);
@@ -219,7 +187,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
   const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, prisma) : "ARS");
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await clientsRepository.transaction(async (tx) => {
     const client = await tx.client.update({
       where: { id },
       data: {
@@ -255,17 +223,10 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
 }
 
 export async function listClientPayments(storeId: string, clientId: string) {
-  const client = await prisma.client.findFirst({
-    where: { id: clientId, storeId },
-    select: { id: true },
-  });
+  const client = await clientsRepository.findForDelete(storeId, clientId);
   if (!client) return null;
 
-  const rows = await prisma.clientPayment.findMany({
-    where: { storeId, clientId },
-    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-    take: 8,
-  });
+  const rows = await clientsRepository.listPayments(storeId, clientId);
 
   return rows.map((row) => ({
     id: row.id,
@@ -283,7 +244,7 @@ export async function registerClientPayment(
   clientId: string,
   input: { amount: number; method: string; currency?: string | null }
 ) {
-  return prisma.$transaction(async (tx) => {
+  return clientsRepository.transaction(async (tx) => {
     const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
     if (!client) return null;
 
@@ -314,22 +275,17 @@ export async function registerClientPayment(
 }
 
 export async function deleteClient(storeId: string, id: string, actor?: Actor | null) {
-  const existing = await prisma.client.findFirst({
-    where: { id, storeId },
-    select: { id: true, name: true },
-  });
+  const existing = await clientsRepository.findForDelete(storeId, id);
 
   if (!existing) {
     return false;
   }
 
-  const activeOperation = await prisma.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
-  const activeTrade = await prisma.tradeIn.findFirst({ where: { storeId, clientId: id, confirmationStatus: { not: "CANCELLED" } }, select: { id: true } });
+  const activeOperation = await clientsRepository.findActiveIntegratedSale(storeId, id);
+  const activeTrade = await clientsRepository.findActiveTrade(storeId, id);
   if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
 
-  await prisma.client.delete({
-    where: { id },
-  });
+  await clientsRepository.deleteById(id);
 
   if (actor) {
     await writeAudit(prisma, {
@@ -381,34 +337,27 @@ export async function importClients(
       // Match existing: by DNI first, then by name
       let existing = null;
       if (dni) {
-        existing = await prisma.client.findFirst({ where: { storeId, dni } });
+        existing = await clientsRepository.findByDni(storeId, dni);
       }
       if (!existing) {
-        existing = await prisma.client.findFirst({
-          where: { storeId, name: { equals: name, mode: "insensitive" } },
-        });
+        existing = await clientsRepository.findByName(storeId, name);
       }
 
       if (existing) {
-        await prisma.client.update({
-          where: { id: existing.id },
-          data: {
-            name,
-            ...(dni && { dni }),
-            ...(r.email?.trim() && { email: r.email.trim() }),
-            ...(r.phone?.trim() && { phone: r.phone.trim() }),
-          },
+        await clientsRepository.update(existing.id, {
+          name,
+          ...(dni && { dni }),
+          ...(r.email?.trim() && { email: r.email.trim() }),
+          ...(r.phone?.trim() && { phone: r.phone.trim() }),
         });
         updated++;
       } else {
-        await prisma.client.create({
-          data: {
-            storeId,
-            name,
-            dni: dni || null,
-            email: r.email?.trim() || null,
-            phone: r.phone?.trim() || null,
-          },
+        await clientsRepository.create({
+          storeId,
+          name,
+          dni: dni || null,
+          email: r.email?.trim() || null,
+          phone: r.phone?.trim() || null,
         });
         imported++;
       }
@@ -420,67 +369,45 @@ export async function importClients(
   return { imported, updated, errors };
 }
 
-export function getClientsErrorStatus(error: unknown) {
-  if (error instanceof ClientsError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
-}
-
 // ── Client Categories ─────────────────────────────────────────────────────────
 
 export async function listClientCategories(storeId: string): Promise<ClientCategoryResponse[]> {
-  return prisma.clientCategory.findMany({
-    where: { storeId },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true },
-  });
+  return clientsRepository.listCategories(storeId);
 }
 
 export async function createClientCategory(storeId: string, name: string): Promise<ClientCategoryResponse> {
   const trimmed = name.trim();
   if (!trimmed) throw new ClientsError("Category name required", 400);
-  const existing = await prisma.clientCategory.findFirst({ where: { storeId, name: trimmed } });
+  const existing = await clientsRepository.findCategoryByName(storeId, trimmed);
   if (existing) throw new ClientsError("Category already exists", 409);
-  const count = await prisma.clientCategory.count({ where: { storeId } });
-  return prisma.clientCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
+  const count = await clientsRepository.countCategories(storeId);
+  return clientsRepository.createCategory(storeId, trimmed, count);
 }
 
 export async function renameClientCategory(storeId: string, id: string, name: string): Promise<ClientCategoryResponse | null> {
   const trimmed = name.trim();
   if (!trimmed) throw new ClientsError("Category name required", 400);
-  const existing = await prisma.clientCategory.findFirst({ where: { id, storeId } });
+  const existing = await clientsRepository.findCategoryInStore(storeId, id);
   if (!existing) return null;
-  return prisma.clientCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
+  return clientsRepository.renameCategory(id, trimmed);
 }
 
 export async function deleteClientCategory(storeId: string, id: string): Promise<boolean> {
-  const existing = await prisma.clientCategory.findFirst({ where: { id, storeId } });
+  const existing = await clientsRepository.findCategoryInStore(storeId, id);
   if (!existing) return false;
-  await prisma.$transaction([
-    prisma.client.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } }),
-    prisma.clientCategory.delete({ where: { id } }),
-  ]);
+  await clientsRepository.clearCategoryAndDelete(storeId, id);
   return true;
 }
 
 export async function reorderClientCategories(storeId: string, categoryIds: string[]): Promise<void> {
-  await prisma.$transaction(
-    categoryIds.map((id, idx) =>
-      prisma.clientCategory.updateMany({ where: { id, storeId }, data: { sortOrder: idx } })
-    )
-  );
+  await clientsRepository.reorderCategories(storeId, categoryIds);
 }
 
 export async function bulkMoveClientCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
   if (categoryId !== null) {
-    const cat = await prisma.clientCategory.findFirst({ where: { id: categoryId, storeId } });
+    const cat = await clientsRepository.findCategoryInStore(storeId, categoryId);
     if (!cat) throw new ClientsError("Category not found", 404);
   }
-  const result = await prisma.client.updateMany({ where: { storeId, id: { in: ids } }, data: { categoryId } });
+  const result = await clientsRepository.moveToCategory(storeId, ids, categoryId);
   return result.count;
 }

@@ -4,8 +4,8 @@ import { updateMemberSections, type TeamMember } from '../../services/members-ap
 import { DESK_SECTIONS, visibleSections } from '../sections';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, PageHead } from '../ui';
+import { ROLE_LABEL } from '../../lib/roles';
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 
 export function MemberPermissions({ member, onBack, onSaved }: {
   member: TeamMember;

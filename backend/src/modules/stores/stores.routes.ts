@@ -15,6 +15,7 @@ import {
   removeMember,
 } from "./stores.service.js";
 import { serializeStore } from "./store-settings.js";
+import { requireMember } from "../../middleware/section-access.js";
 
 const storePatchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -121,9 +122,7 @@ export async function storesRoutes(app: FastifyInstance) {
     "/current",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
         return reply.code(403).send({ error: "No tenés permisos para editar la tienda" });
       }
@@ -146,9 +145,7 @@ export async function storesRoutes(app: FastifyInstance) {
     "/:storeId/members",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
         return reply.code(403).send({ error: "No tenés permisos para ver el equipo" });
       }
@@ -166,9 +163,7 @@ export async function storesRoutes(app: FastifyInstance) {
     "/:storeId/members/:memberId",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
         return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
       }
@@ -194,9 +189,7 @@ export async function storesRoutes(app: FastifyInstance) {
     "/:storeId/members/:memberId/sections",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
         return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
       }
@@ -226,9 +219,7 @@ export async function storesRoutes(app: FastifyInstance) {
     "/:storeId/members/:memberId",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
         return reply.code(403).send({ error: "No tenés permisos para gestionar el equipo" });
       }

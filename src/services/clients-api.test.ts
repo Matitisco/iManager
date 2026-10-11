@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client } from '../types';
 import {
-  bulkMoveClientCategoryApi,
   createBackendClient,
-  createClientCategoryApi,
   deleteBackendClient,
   fetchBackendClients,
   fetchClientCategoriesApi,
-  renameClientCategoryApi,
   registerBackendClientPayment,
   updateBackendClient,
 } from './clients-api';
@@ -63,10 +60,10 @@ describe('clients-api', () => {
 
     await expect(fetchBackendClients(mockUser)).resolves.toEqual([clientFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
   });
@@ -107,13 +104,13 @@ describe('clients-api', () => {
     });
   });
 
-  it('accepts 204 deletes and rejects failing category bulk moves', async () => {
+  it('accepts 204 deletes and surfaces failing deletes', async () => {
     vi.mocked(fetchWithTimeout)
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(jsonResponse({ error: 'boom' }, 500));
 
     await expect(deleteBackendClient(mockUser, 'client-1')).resolves.toBeUndefined();
-    await expect(bulkMoveClientCategoryApi(mockUser, ['client-1'], null)).rejects.toThrow(/Error moviendo clientes/i);
+    await expect(deleteBackendClient(mockUser, 'client-1')).rejects.toThrow('boom');
   });
 
   it('deletes without a JSON content type so Fastify accepts the empty body', async () => {
@@ -129,18 +126,10 @@ describe('clients-api', () => {
     });
   });
 
-  it('covers client category fetch, create and rename flows', async () => {
-    vi.mocked(fetchWithTimeout)
-      .mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Mayoristas' }] }))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'VIP' } }, 201))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'VIP Norte' } }));
+  it('loads client categories', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Mayoristas' }] }));
 
     await expect(fetchClientCategoriesApi(mockUser)).resolves.toEqual([{ id: 'cat-1', name: 'Mayoristas' }]);
-    await expect(createClientCategoryApi(mockUser, 'VIP')).resolves.toEqual({ id: 'cat-2', name: 'VIP' });
-    await expect(renameClientCategoryApi(mockUser, 'cat-2', 'VIP Norte')).resolves.toEqual({
-      id: 'cat-2',
-      name: 'VIP Norte',
-    });
   });
 
   it('shows a spanish payment error and hides zod json', async () => {

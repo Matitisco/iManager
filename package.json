@@ -20,19 +20,14 @@
     "test:ci": "npm run test:frontend && npm run test:backend:unit && npm run test:backend:integration && npm run test:e2e"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "better-sqlite3": "^12.4.1",
-    "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
     "firebase": "^12.10.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "recharts": "^3.8.0",
-    "tailwind-merge": "^3.5.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",
@@ -43,9 +38,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.1.2",
-    "autoprefixer": "^10.4.21",
     "jsdom": "^29.0.1",
-    "msw": "^2.11.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

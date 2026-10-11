@@ -1,5 +1,5 @@
 import type { StoreNotification } from "@prisma/client";
-import { prisma } from "../../plugins/prisma.js";
+import { notificationsRepository } from "./notifications.repository.js";
 
 export type NotificationView = Omit<StoreNotification, "createdAt"> & {
   createdAt: string;
@@ -8,12 +8,7 @@ export type NotificationView = Omit<StoreNotification, "createdAt"> & {
 
 export async function listNotifications(storeId: string, userId: string, allowedSections: string[]): Promise<NotificationView[]> {
   if (!allowedSections.length) return [];
-  const rows = await prisma.storeNotification.findMany({
-    where: { storeId, section: { in: allowedSections } },
-    include: { reads: { where: { userId }, select: { readAt: true }, take: 1 } },
-    orderBy: { createdAt: "desc" },
-    take: 250,
-  });
+  const rows = await notificationsRepository.list(storeId, userId, allowedSections);
   return rows.map(({ reads, ...row }) => ({
     ...row,
     createdAt: row.createdAt.toISOString(),
@@ -23,30 +18,17 @@ export async function listNotifications(storeId: string, userId: string, allowed
 
 export async function markNotificationRead(storeId: string, userId: string, notificationId: string, allowedSections: string[]) {
   if (!allowedSections.length) return null;
-  const notification = await prisma.storeNotification.findFirst({
-    where: { id: notificationId, storeId, section: { in: allowedSections } },
-    select: { id: true },
-  });
+  const notification = await notificationsRepository.findVisible(storeId, notificationId, allowedSections);
   if (!notification) return null;
   const readAt = new Date();
-  await prisma.notificationRead.upsert({
-    where: { notificationId_userId: { notificationId, userId } },
-    create: { notificationId, userId, readAt },
-    update: { readAt },
-  });
+  await notificationsRepository.markRead(notificationId, userId, readAt);
   return { id: notificationId, readAt: readAt.toISOString() };
 }
 
 export async function markAllNotificationsRead(storeId: string, userId: string, allowedSections: string[]) {
   if (!allowedSections.length) return { count: 0 };
-  const unread = await prisma.storeNotification.findMany({
-    where: { storeId, section: { in: allowedSections }, reads: { none: { userId } } },
-    select: { id: true },
-  });
+  const unread = await notificationsRepository.listUnread(storeId, userId, allowedSections);
   if (!unread.length) return { count: 0 };
-  await prisma.notificationRead.createMany({
-    data: unread.map(({ id }) => ({ notificationId: id, userId })),
-    skipDuplicates: true,
-  });
+  await notificationsRepository.markManyRead(userId, unread.map(({ id }) => id));
   return { count: unread.length };
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  BLUE_SOURCES,
   BLUE_STORAGE_KEY,
+  EXCHANGE_HOUSES,
   argentinaDay,
   convertUsd,
   formatClock,
@@ -9,7 +9,7 @@ import {
   parseBlueQuote,
   previousCloseFromAmbito,
   readBlueState,
-  refreshBlueQuote,
+  refreshExchangeQuote,
   sellDelta,
   shiftDay,
 } from './blue-rate';
@@ -25,23 +25,19 @@ afterEach(() => {
 });
 
 describe('blue dollar quote', () => {
-  it('keeps the public sources that expose a free blue quote', () => {
-    expect(BLUE_SOURCES.map((item) => item.label)).toEqual(['DolarApi', 'Bluelytics']);
-    expect(BLUE_SOURCES.some((item) => item.url.includes('dolarhoy'))).toBe(false);
+  it('reads the blue, official and MEP houses from DolarApi', () => {
+    expect(EXCHANGE_HOUSES.map((item) => item.label)).toEqual(['Blue', 'Oficial', 'MEP']);
+    expect(EXCHANGE_HOUSES.every((item) => item.url.startsWith('https://dolarapi.com/'))).toBe(true);
   });
 
-  it('parses DolarApi and Bluelytics payloads', () => {
-    expect(parseBlueQuote('dolarapi', dolar)).toMatchObject({ source: 'dolarapi', buy: 1530, sell: 1550 });
-    expect(parseBlueQuote('bluelytics', {
-      blue: { value_buy: '1517.00', value_sell: 1550 },
-      last_update: '2026-10-08T13:30:53.866256-03:00',
-    })).toMatchObject({ source: 'bluelytics', buy: 1517, sell: 1550 });
+  it('parses the DolarApi payload', () => {
+    expect(parseBlueQuote(dolar)).toEqual({ buy: 1530, sell: 1550, updatedAt: dolar.fechaActualizacion });
   });
 
   it('rejects an empty or incomplete payload', () => {
-    expect(() => parseBlueQuote('dolarapi', null)).toThrow('Cotización inválida');
-    expect(() => parseBlueQuote('dolarapi', { compra: 0, venta: 10, fechaActualizacion: '2026-10-08T00:00:00Z' })).toThrow('Cotización inválida');
-    expect(() => parseBlueQuote('bluelytics', { last_update: '2026-10-08T00:00:00Z' })).toThrow('Cotización inválida');
+    expect(() => parseBlueQuote(null)).toThrow('Cotización inválida');
+    expect(() => parseBlueQuote({ compra: 0, venta: 10, fechaActualizacion: '2026-10-08T00:00:00Z' })).toThrow('Cotización inválida');
+    expect(() => parseBlueQuote({ compra: 10, venta: 12 })).toThrow('Cotización inválida');
   });
 
   it('reads the previous close only when Ámbito matches the live sell', () => {
@@ -72,33 +68,33 @@ describe('blue dollar quote', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const first = await refreshBlueQuote('dolarapi');
+    const first = await refreshExchangeQuote('blue');
     expect(first.quote.sell).toBe(1550);
     expect(sellDelta(first.quote.sell, first.days)).toBe(10);
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('ambito.com'))).toBe(true);
 
     fetchMock.mockClear();
-    const second = await refreshBlueQuote('dolarapi');
+    const second = await refreshExchangeQuote('blue');
     expect(second.quote.buy).toBe(1530);
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('ambito.com'))).toBe(false);
-    expect(readBlueState().quotes.dolarapi?.sell).toBe(1550);
+    expect(readBlueState().houses.blue?.quote.sell).toBe(1550);
   });
 
   it('leaves the saved quote untouched when the source fails', async () => {
     localStorage.setItem(BLUE_STORAGE_KEY, JSON.stringify({
-      source: 'dolarapi',
       quotes: { dolarapi: { buy: 10, sell: 12, updatedAt: '2026-10-08T21:40:00-03:00', fetchedAt: '2026-10-08T21:40:00-03:00' } },
       days: {},
     }));
     vi.stubGlobal('fetch', vi.fn(async () => json({}, false)));
-    await expect(refreshBlueQuote('dolarapi')).rejects.toThrow('No se pudo actualizar');
+    await expect(refreshExchangeQuote('blue')).rejects.toThrow('No se pudo actualizar');
     expect(readBlueState().quotes.dolarapi?.sell).toBe(12);
+    expect(readBlueState().houses.blue).toBeUndefined();
   });
 
   it('ignores a broken cache', () => {
     localStorage.setItem(BLUE_STORAGE_KEY, '{');
-    expect(readBlueState().source).toBe('dolarapi');
+    expect(readBlueState()).toEqual({ quotes: {}, days: {}, houses: {} });
     localStorage.setItem(BLUE_STORAGE_KEY, JSON.stringify({ source: 'dolar-hoy', quotes: { dolarapi: { buy: 'x' } } }));
-    expect(readBlueState()).toEqual({ source: 'dolarapi', quotes: {}, days: {}, houses: {} });
+    expect(readBlueState()).toEqual({ quotes: {}, days: {}, houses: {} });
   });
 });

@@ -2,10 +2,6 @@ export type MoneyCurrency = 'ARS' | 'USD';
 
 export const FX_WARNING = 'No hay una cotización válida. Los importes en otra moneda se muestran sin convertir.';
 
-export function asMoneyCurrency(value: unknown, fallback: MoneyCurrency = 'ARS'): MoneyCurrency {
-  return value === 'USD' ? 'USD' : value === 'ARS' ? 'ARS' : fallback;
-}
-
 export function recordCurrency(value: string | null | undefined, active: MoneyCurrency): MoneyCurrency {
   if (value == null || value === '') return active;
   return value === 'USD' ? 'USD' : value === 'ARS' ? 'ARS' : active;

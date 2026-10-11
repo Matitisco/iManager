@@ -1,13 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TradeIn } from '../types';
 import {
-  bulkMoveTradeInCategoryApi,
-  createBackendTradeIn,
-  createTradeInCategoryApi,
   deleteBackendTradeIn,
   fetchBackendTradeIns,
-  fetchTradeInCategoriesApi,
-  reorderTradeInCategoriesApi,
   updateBackendTradeIn,
 } from './trade-ins-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -38,8 +33,6 @@ const tradeInFixture: TradeIn = {
   grade: 'A',
 };
 
-const { id: _tradeInId, ...createTradeInPayload } = tradeInFixture;
-
 function setApiBaseUrl(value: string) {
   (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__ = value;
 }
@@ -65,21 +58,18 @@ describe('trade-ins-api', () => {
 
     await expect(fetchBackendTradeIns(mockUser)).resolves.toEqual([tradeInFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/trade-ins', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
   });
 
-  it('surfaces creation failures and validates successful create responses', async () => {
-    vi.mocked(fetchWithTimeout)
-      .mockResolvedValueOnce(jsonResponse({ error: 'IMEI duplicado' }, 409))
-      .mockResolvedValueOnce(jsonResponse({ tradeIn: tradeInFixture }, 201));
+  it('surfaces update failures from the backend error body', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(jsonResponse({ error: 'IMEI duplicado' }, 409));
 
-    await expect(createBackendTradeIn(mockUser, createTradeInPayload)).rejects.toThrow('IMEI duplicado');
-    await expect(createBackendTradeIn(mockUser, createTradeInPayload)).resolves.toEqual(tradeInFixture);
+    await expect(updateBackendTradeIn(mockUser, tradeInFixture)).rejects.toThrow('IMEI duplicado');
   });
 
   it('updates trade-ins through PATCH and allows 204 deletes', async () => {
@@ -114,16 +104,4 @@ describe('trade-ins-api', () => {
     });
   });
 
-  it('covers trade-in category fetch/create and category mutation endpoints', async () => {
-    vi.mocked(fetchWithTimeout)
-      .mockResolvedValueOnce(jsonResponse({ categories: [{ id: 'cat-1', name: 'Pendientes' }] }))
-      .mockResolvedValueOnce(jsonResponse({ category: { id: 'cat-2', name: 'Listos' } }, 201))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
-
-    await expect(fetchTradeInCategoriesApi(mockUser)).resolves.toEqual([{ id: 'cat-1', name: 'Pendientes' }]);
-    await expect(createTradeInCategoryApi(mockUser, 'Listos')).resolves.toEqual({ id: 'cat-2', name: 'Listos' });
-    await expect(reorderTradeInCategoriesApi(mockUser, ['cat-1', 'cat-2'])).resolves.toBeUndefined();
-    await expect(bulkMoveTradeInCategoryApi(mockUser, ['trade-1'], 'cat-2')).resolves.toBeUndefined();
-  });
 });

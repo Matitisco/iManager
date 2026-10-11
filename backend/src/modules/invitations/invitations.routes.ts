@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
+import { requireMember } from "../../middleware/section-access.js";
 import {
   createInvitation,
   listInvitations,
@@ -92,9 +93,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
   const protectedPreHandler = [authenticate, resolveAppUser];
 
   app.get("/", { preHandler: protectedPreHandler }, async (request, reply) => {
-    if (!request.appUser) {
-      return reply.code(403).send({ error: "Store membership required" });
-    }
+    requireMember(request);
     if (request.appUser.role !== "OWNER" && request.appUser.role !== "MANAGER") {
       return reply.code(403).send({ error: "No tenes permisos para ver las invitaciones" });
     }
@@ -114,9 +113,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
   });
 
   app.post("/", { preHandler: protectedPreHandler }, async (request, reply) => {
-    if (!request.appUser) {
-      return reply.code(403).send({ error: "Store membership required" });
-    }
+    requireMember(request);
 
     try {
       const body = createSchema.parse(request.body);
@@ -162,9 +159,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
   });
 
   app.delete("/:id", { preHandler: protectedPreHandler }, async (request, reply) => {
-    if (!request.appUser) {
-      return reply.code(403).send({ error: "Store membership required" });
-    }
+    requireMember(request);
 
     const { id } = request.params as { id: string };
     try {

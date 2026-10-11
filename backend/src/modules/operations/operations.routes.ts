@@ -11,7 +11,6 @@ import {
   cancelTradeOperation,
   confirmTradeOperation,
   createOperation,
-  getOperationErrorStatus,
   getOperationOptions,
   getSaleOperation,
   getTradeOperation,
@@ -88,12 +87,6 @@ function authorized(request: FastifyRequest, reply: FastifyReply, source: Operat
   return true;
 }
 
-function errorReply(error: unknown, reply: FastifyReply) {
-  const mapped = getOperationErrorStatus(error);
-  if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
-  throw error;
-}
-
 function parseInput(value: unknown, reply: FastifyReply): OperationInput | null {
   const parsed = inputSchema.safeParse(value);
   if (!parsed.success) {
@@ -128,8 +121,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" && !input.productId) return reply.code(400).send({ error: "Inventory source requires an existing product sale" });
     if (source === "clients" && !input.clientId) return reply.code(400).send({ error: "Clients source requires an existing client sale" });
     if (source === "tradeins" && !input.tradeIn) return reply.code(400).send({ error: "Trade-ins source requires exchange details" });
-    try { return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input)); }
-    catch (error) { return errorReply(error, reply); }
+    return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input));
   });
 
   app.get("/:source/sales/:id", { preHandler }, async (request, reply) => {
@@ -138,8 +130,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (source !== "sales") return reply.code(403).send({ error: "Only sales source can read a sale operation" });
     if (!authorized(request, reply, source)) return;
-    try { return await getSaleOperation(request.appUser!.storeId, params.id ?? ""); }
-    catch (error) { return errorReply(error, reply); }
+    return await getSaleOperation(request.appUser!.storeId, params.id ?? "");
   });
 
   app.get("/:source/trades/:id", { preHandler }, async (request, reply) => {
@@ -150,8 +141,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
       return reply.code(403).send({ error: "This source cannot read the trade-in operation" });
     }
-    try { return await getTradeOperation(request.appUser!.storeId, params.id ?? "", source); }
-    catch (error) { return errorReply(error, reply); }
+    return await getTradeOperation(request.appUser!.storeId, params.id ?? "", source);
   });
 
   app.post("/:source/trades/:id/confirm", { preHandler }, async (request, reply) => {
@@ -166,8 +156,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     }
     const input = parseInput(request.body, reply);
     if (!input) return;
-    try { return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input); }
-    catch (error) { return errorReply(error, reply); }
+    return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input);
   });
 
   app.patch("/:source/sales/:id", { preHandler }, async (request, reply) => {
@@ -178,8 +167,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
-    try { return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input); }
-    catch (error) { return errorReply(error, reply); }
+    return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input);
   });
 
   app.patch("/:source/trades/:id", { preHandler }, async (request, reply) => {
@@ -193,8 +181,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot edit the trade-in operation" });
     const input = parseInput(request.body, reply);
     if (!input) return;
-    try { return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input); }
-    catch (error) { return errorReply(error, reply); }
+    return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input);
   });
 
   app.post("/:source/trades/:id/cancel", { preHandler }, async (request, reply) => {
@@ -208,8 +195,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
     const actor = await requireSensitiveActor(request.appUser, reply);
     if (!actor) return;
-    try { return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor); }
-    catch (error) { return errorReply(error, reply); }
+    return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor);
   });
 
   app.post("/:source/sales/:id/cancel", { preHandler }, async (request, reply) => {
@@ -220,7 +206,6 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const actor = await requireSensitiveActor(request.appUser, reply);
     if (!actor) return;
-    try { return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor); }
-    catch (error) { return errorReply(error, reply); }
+    return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor);
   });
 }

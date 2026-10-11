@@ -2,14 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
-import { ColumnFilter } from '../ColumnFilter';
+import { ColumnFilter, DateRange, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { approxActive, approxUsd, useDisplayQuote, useMoney } from '../exchange';
 import {
   saleBuyer,
-  formatInputMoney,
   formatShortDate,
   inPeriod,
-  parseMoney,
   paymentLabel,
   periodBounds,
   saleCode,
@@ -19,6 +17,7 @@ import {
 } from '../format';
 import { displayQuality, qualityDetail } from '../quality';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import {
   EMPTY_SALE_FILTERS,
@@ -49,7 +48,7 @@ export function SalesScreen() {
   const [period, setPeriod] = useState<PeriodKey>('Mes');
   const [statusPill, setStatusPill] = useState('Todos');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
-  const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const menu = useColumnMenu();
   const draftError = useOperationDraftError('sales');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
   const bounds = periodBounds(period);
@@ -120,16 +119,7 @@ export function SalesScreen() {
         </div>
       ) : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className={`dcard op-drafts${phone ? ' compact' : ''}`}>
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos aunque hayas recargado la página.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'sales' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos aunque hayas recargado la página." onOpen={(id) => open({ type: 'edit-cj', id, source: 'sales' })} />
       {phone ? (
         <SalesHero
           seeFinancials={seeFinancials}
@@ -193,30 +183,27 @@ export function SalesScreen() {
             <thead>
               <tr>
                 <th><span className="thf">Venta
-                  <ColumnFilter label="venta" open={openColumn === 'venta'} onToggle={() => setOpenColumn((current) => current === 'venta' ? null : 'venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
+                  <ColumnFilter label="venta" {...menu('venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Fecha
-                  <ColumnFilter label="fecha" open={openColumn === 'fecha'} onToggle={() => setOpenColumn((current) => current === 'fecha' ? null : 'fecha')} active={saleColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
-                    <div className="range">
-                      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={columns.dateFrom} onChange={(event) => setColumn({ dateFrom: event.target.value })} /></label>
-                      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={columns.dateTo} onChange={(event) => setColumn({ dateTo: event.target.value })} /></label>
-                    </div>
+                  <ColumnFilter label="fecha" {...menu('fecha')} active={saleColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
+                    <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Cliente
-                  <ColumnFilter label="cliente" open={openColumn === 'cliente'} onToggle={() => setOpenColumn((current) => current === 'cliente' ? null : 'cliente')} active={saleColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
+                  <ColumnFilter label="cliente" {...menu('cliente')} active={saleColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.client} onChange={(event) => setColumn({ client: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Equipo
-                  <ColumnFilter label="equipo" open={openColumn === 'equipo'} onToggle={() => setOpenColumn((current) => current === 'equipo' ? null : 'equipo')} active={saleColumnActive(columns, 'equipment')} onClear={() => setColumn({ equipment: '' })}>
+                  <ColumnFilter label="equipo" {...menu('equipo')} active={saleColumnActive(columns, 'equipment')} onClear={() => setColumn({ equipment: '' })}>
                     <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Pago
-                  <ColumnFilter label="pago" open={openColumn === 'pago'} onToggle={() => setOpenColumn((current) => current === 'pago' ? null : 'pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
+                  <ColumnFilter label="pago" {...menu('pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
                     <div className="opts">
                       {payments.map((label) => (
                         <label key={label} className="chk"><input type="checkbox" checked={columns.payments.includes(label)} onChange={() => toggleList('payments', label)} />{label}</label>
@@ -225,15 +212,12 @@ export function SalesScreen() {
                   </ColumnFilter>
                 </span></th>
                 <th className="r"><span className="thf">Total
-                  <ColumnFilter label="total" align="right" open={openColumn === 'total'} onToggle={() => setOpenColumn((current) => current === 'total' ? null : 'total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
-                    <div className="range">
-                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.amountMin ? formatInputMoney(parseMoney(columns.amountMin)) : ''} onChange={(event) => setColumn({ amountMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.amountMax ? formatInputMoney(parseMoney(columns.amountMax)) : ''} onChange={(event) => setColumn({ amountMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                    </div>
+                  <ColumnFilter label="total" align="right" {...menu('total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
+                    <MoneyRange min={columns.amountMin} max={columns.amountMax} onMin={(amountMin) => setColumn({ amountMin })} onMax={(amountMax) => setColumn({ amountMax })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Estado
-                  <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
+                  <ColumnFilter label="estado" align="right" {...menu('estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                     <div className="opts">
                       {statuses.map((status) => (
                         <label key={status} className="chk"><input type="checkbox" checked={columns.statuses.includes(status)} onChange={() => toggleList('statuses', status)} />{statusLabel(status)}</label>

@@ -1,10 +1,10 @@
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
+import { apiRequest } from './api-client';
+import type { AppSession } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 
 export type InvitationRole = 'MANAGER' | 'STAFF';
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
-
 export interface Invitation {
   id: string;
   email?: string;
@@ -43,15 +43,6 @@ function getBaseUrl(): string {
   const url = getBackendBaseUrl();
   if (!url) throw new Error('Backend no configurado');
   return url.replace(/\/+$/, '');
-}
-
-async function authHeaders(user: AuthUserLike) {
-  const token = await user.getIdToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  };
 }
 
 function getErrorMessage(error: unknown): string {
@@ -96,44 +87,26 @@ export async function createInvitation(
   email: string | undefined,
   role: InvitationRole
 ): Promise<CreatedInvitation> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations`, {
+  return apiRequest<CreatedInvitation>(user, '/api/invitations', {
     method: 'POST',
-    headers: await authHeaders(user),
-    body: JSON.stringify(email ? { email, role } : { role }),
+    body: email ? { email, role } : { role },
+    fallback: 'Error al crear invitación',
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al crear invitación');
-  }
-  return res.json();
 }
 
 export async function listInvitations(user: AuthUserLike): Promise<Invitation[]> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations`, {
-    headers: await authHeaders(user),
+  const data = await apiRequest<{ invitations: Invitation[] }>(user, '/api/invitations', {
+    fallback: 'Error al cargar invitaciones',
+    errorFrom: 'fallback',
   });
-  if (!res.ok) throw new Error('Error al cargar invitaciones');
-  const data = await res.json();
   return data.invitations;
 }
 
 export async function revokeInvitation(user: AuthUserLike, invitationId: string): Promise<void> {
-  const token = await user.getIdToken();
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/${invitationId}`, {
+  await apiRequest<void>(user, `/api/invitations/${invitationId}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    fallback: 'Error al revocar invitación',
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al revocar invitación');
-  }
-}
-
-export async function previewInvitation(token: string): Promise<InvitationPreview | null> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/preview/${token}`);
-  if (res.status === 410 || res.status === 404) return null;
-  if (!res.ok) throw new Error('Error al verificar invitación');
-  return res.json();
 }
 
 export async function resolveInvitationPreview(
@@ -206,14 +179,9 @@ export async function resolveInvitationPreview(
 }
 
 export async function acceptInvitation(user: AuthUserLike, token: string) {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/accept`, {
+  return apiRequest<{ session: AppSession }>(user, '/api/invitations/accept', {
     method: 'POST',
-    headers: await authHeaders(user),
-    body: JSON.stringify({ token }),
+    body: { token },
+    fallback: 'Error al aceptar invitación',
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al aceptar invitación');
-  }
-  return res.json();
 }

@@ -1,0 +1,443 @@
+import { useEffect, useRef, useState } from 'react';
+import { useAppContext } from '../../context/AppContext';
+import { INPUT_LIMITS } from '../../lib/input-limits';
+import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
+import { getFriendlyErrorMessage } from '../../lib/utils';
+import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
+import type { OperationInput, OperationSource } from '../../services/operations-api';
+import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatArDate, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment } from '../format';
+import { cancellationRefund } from '../cancel-refund';
+import { useMoney } from '../exchange';
+import { FX_WARNING } from '../money';
+import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
+import type { CatalogKind } from '../../services/catalogs-api';
+import { ClientField } from '../ClientField';
+import { EquipmentField } from '../EquipmentField';
+import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from '../sale-equipment';
+import { usePhoneLayout } from '../section-notices';
+import { QualityField } from '../QualityField';
+import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from '../quality';
+import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
+import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
+
+export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string } }) {
+  return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
+}
+
+export function operationMoneyInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return formatInputMoney(Number(digits)) || '0';
+}
+
+function productMoneyCurrency(item: { currency?: string | null } | null | undefined) {
+  return item?.currency;
+}
+
+export function OperationForm({ saleId, tradeId, source, preset, startWithTrade = false, run, busy, error }: FormProps & {
+  saleId?: string;
+  tradeId?: string;
+  source: OperationSource;
+  preset?: { clientName?: string; clientId?: string; productId?: string };
+  startWithTrade?: boolean;
+}) {
+  const context = useAppContext();
+  const money = useMoney();
+  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
+  const catalogs = useCatalogs();
+  const requestKey = useRef(`desk-${crypto.randomUUID()}`);
+  const dirty = useRef(new Set<string>());
+  const explicitSale = sales.find((sale) => sale.id === saleId);
+  const tradeRef = explicitSale?.tradeInId ?? tradeId;
+  const currentTrade = tradeIns.find((trade) => trade.id === tradeRef) ?? operationDrafts.find((trade) => trade.id === tradeRef);
+  const currentSale = explicitSale ?? sales.find((sale) => sale.id === currentTrade?.saleId);
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
+  const [optionError, setOptionError] = useState<string | null>(null);
+  const [hasTrade, setHasTrade] = useState(startWithTrade || Boolean(tradeRef));
+  const phone = usePhoneLayout();
+  const foldTrade = phone && source === 'sales';
+  const [tradeOpen, setTradeOpen] = useState(startWithTrade || Boolean(tradeRef));
+  const { close, go } = useDesk();
+  const options = operationOptions[source];
+  const productOptions = options?.products ?? [];
+  const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
+  const linkedProductId = currentSale?.productId || currentTrade?.draftProductId || preset?.productId || '';
+  const linkedProduct = productOptions.find((item) => item.id === linkedProductId) ?? inventory.find((item) => item.id === linkedProductId);
+  const [productId, setProductId] = useState(linkedProductId);
+  const [deviceLabel, setDeviceLabel] = useState(currentSale?.deviceLabel || currentTrade?.draftDeviceLabel || (linkedProduct ? equipmentTitle(linkedProduct.model, linkedProduct.capacity) : ''));
+  const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
+  const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
+  const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
+  const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
+  const [amount, setAmount] = useState(seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+  const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
+  const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
+  const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
+  const [take, setTake] = useState(currentTrade ? (money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0') : '');
+  const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
+  const [battery, setBattery] = useState(currentTrade?.batteryHealth ?? '');
+  const [grade, setGrade] = useState<string>(canonicalQuality(currentTrade?.grade));
+  const [outgoingCapacity, setOutgoingCapacity] = useState('');
+  const [outgoingColor, setOutgoingColor] = useState('');
+  const [outgoingCondition, setOutgoingCondition] = useState('');
+  const [outgoingImei, setOutgoingImei] = useState('');
+  const [bad, setBad] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (hasTrade) setTradeOpen(true);
+  }, [hasTrade]);
+
+  useEffect(() => {
+    let active = true;
+    loadOperationOptions(source).catch((err: unknown) => {
+      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudieron cargar las opciones.'));
+    });
+    return () => { active = false; };
+  }, [source]);
+
+  useEffect(() => {
+    let active = true;
+    const loadLinked = currentSale?.integratedOperation && saleId
+      ? fetchSaleOperation(saleId)
+      : tradeRef ? fetchTradeOperation(source, tradeRef) : null;
+    loadLinked?.catch((err: unknown) => {
+      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación vinculada.'));
+    });
+    return () => { active = false; };
+  }, [saleId, tradeRef, source, currentSale?.integratedOperation]);
+
+  useEffect(() => {
+    const update = (key: string, action: () => void) => { if (!dirty.current.has(key)) action(); };
+    if (currentSale) {
+      update('clientId', () => setClientId(currentSale.clientId || ''));
+      update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
+      update('productId', () => setProductId(currentSale.productId || ''));
+      update('deviceLabel', () => setDeviceLabel(currentSale.deviceLabel || ''));
+      update('amount', () => setAmount(money.inputValue(currentSale.amount, currentSale.amountCurrency) || '0'));
+      update('payment', () => setPayment(currentSale.paymentMethod || 'TRANSFERENCIA'));
+      update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
+    }
+    if (currentTrade) {
+      update('hasTrade', () => setHasTrade(true));
+      update('clientId', () => setClientId(currentTrade.clientId || ''));
+      update('buyer', () => setBuyer(currentTrade.clientName?.trim() || clients.find((client) => client.id === currentTrade.clientId)?.name || ''));
+      update('productId', () => setProductId(currentSale?.productId || currentTrade.draftProductId || ''));
+      update('deviceLabel', () => setDeviceLabel(currentSale?.deviceLabel || currentTrade.draftDeviceLabel || currentTrade.deviceGiven || ''));
+      const tradeAmount = currentTrade.confirmationStatus === 'PENDING'
+        ? currentTrade.draftAmount
+        : currentTrade.draftAmount ?? currentTrade.differencePaid + currentTrade.takeValue;
+      update('amount', () => setAmount(money.inputValue(currentSale?.amount ?? tradeAmount ?? 0, currentSale?.amountCurrency ?? currentTrade.currency) || '0'));
+      update('payment', () => setPayment(currentSale?.paymentMethod || currentTrade.draftPaymentMethod || 'TRANSFERENCIA'));
+      update('paymentStatus', () => setPaymentStatus(currentSale ? (currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA') : currentTrade.draftPaymentStatus || 'COMPLETADA'));
+      update('received', () => setReceived(currentTrade.deviceReceived || ''));
+      update('imei', () => setImei(currentTrade.deviceReceivedImei || ''));
+      update('take', () => setTake(money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0'));
+      update('technicalStatus', () => setTechnicalStatus(currentTrade.status || 'PENDIENTE'));
+      update('battery', () => setBattery(currentTrade.batteryHealth || ''));
+      update('grade', () => setGrade(canonicalQuality(currentTrade.grade)));
+    }
+    if (linkedProduct) {
+      update('productId', () => setProductId(linkedProduct.id));
+      update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
+      if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
+        update('amount', () => setAmount(linkedProduct.price > 0 ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+      }
+    }
+  }, [currentSale, currentTrade, linkedProduct, clients, money]);
+
+  const selectedProduct = productId
+    ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
+    : undefined;
+  const equipmentItems: (OperationProductOption | Product)[] = [
+    ...productOptions,
+    ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
+  ].filter((item) => item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
+  const priceEntered = amount.trim() !== '';
+  const tradeGap = outgoingTradeDifference({
+    registered: Boolean(selectedProduct),
+    priceProvided: priceEntered,
+    saleAmount: parseMoney(amount),
+    takeValue: parseMoney(take),
+  });
+  const difference = tradeGap.difference;
+  const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
+  const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
+
+  const buildInput = (draft: boolean): OperationInput => ({
+    date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
+    clientId: clientId || null,
+    clientName: buyer.trim() || null,
+    productId: productId || null,
+    deviceLabel: deviceLabel.trim() || undefined,
+    ...(!draft && source !== 'inventory' && !productId && deviceLabel.trim() ? { unlistedEquipment: {
+      model: deviceLabel.trim(),
+      capacity: outgoingCapacity.trim(),
+      color: outgoingColor.trim(),
+      condition: outgoingCondition,
+      imei: outgoingImei.trim() || null,
+      price: parseMoney(amount),
+    } } : {}),
+    ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
+    paymentMethod: payment,
+    status: paymentStatus,
+    saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
+    categoryId: currentTrade?.categoryId ?? currentSale?.categoryId ?? null,
+    requestKey: requestKey.current,
+    draft,
+    ...(hasTrade ? { tradeIn: {
+      deviceReceived: received.trim(),
+      deviceReceivedImei: imei.trim() || undefined,
+      takeValue: parseMoney(take),
+      status: technicalStatus,
+      batteryHealth: battery,
+      grade,
+      customFields: currentTrade?.customFields,
+    } } : {}),
+  });
+
+  const validate = (kind: 'draft' | 'confirm') => {
+    const next: Record<string, string> = {};
+    if (kind === 'draft') {
+      if (!hasTrade || !received.trim()) next.received = 'Completá el modelo recibido';
+      if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
+      if (!take.trim()) next.take = 'Completá el valor tomado';
+      if (amount.trim() && hasTrade && tradeGap.warning) next.amount = tradeGap.warning;
+    } else {
+      if (hasTrade && !buyer.trim()) next.client = 'Completá el nombre del cliente';
+      if (source === 'clients' && !clientId) next.client = 'Elegí un cliente existente de la lista';
+      if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
+      else if (!selectedProduct && deviceLabel.trim().length > INPUT_LIMITS.model) next.equipment = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
+      if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
+      if (!selectedProduct && outgoingColor.trim().length > INPUT_LIMITS.color) next.outgoingColor = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
+      if (!selectedProduct && outgoingCapacity.trim().length > 50) next.outgoingCapacity = 'La capacidad puede tener hasta 50 caracteres';
+      if (!selectedProduct && imeiFormatError(outgoingImei)) next.outgoingImei = IMEI_FORMAT_MESSAGE;
+      if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) {
+        next.amount = hasTrade && !selectedProduct ? MISSING_OUTGOING_PRICE : 'Completá el precio de salida';
+      } else if (hasTrade && tradeGap.warning) next.amount = tradeGap.warning === NEGATIVE_TRADE_DIFFERENCE ? NEGATIVE_TRADE_DIFFERENCE : tradeGap.warning;
+      if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
+      if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
+      if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
+    }
+    setBad(next);
+    return Object.keys(next).length === 0;
+  };
+  const save = (kind: 'draft' | 'confirm') => {
+    if (!validate(kind)) return;
+    const includeAmount = !(kind === 'draft' && !amount.trim());
+    const originalAmount = currentSale?.amount ?? currentTrade?.draftAmount ?? selectedProduct?.price ?? 0;
+    const originalCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(selectedProduct);
+    const fields = [
+      ...(includeAmount ? [{ typed: parseMoney(amount), original: originalAmount, currency: originalCurrency }] : []),
+      ...(hasTrade ? [{ typed: parseMoney(take), original: currentTrade?.takeValue ?? 0, currency: currentTrade?.currency }] : []),
+    ];
+    const group = money.commitGroup(fields);
+    if (group.blocked) {
+      setBad({ amount: FX_WARNING });
+      return;
+    }
+    const input = buildInput(kind === 'draft');
+    const amountField = includeAmount ? group.amounts[0] : undefined;
+    const takeField = hasTrade ? group.amounts[includeAmount ? 1 : 0] : undefined;
+    if (amountField && input.amount !== undefined) input.amount = amountField.amount;
+    const stamp = stampedCurrency(amountField?.currency ?? takeField?.currency);
+    if (stamp) input.currency = stamp;
+    if (takeField && input.tradeIn) input.tradeIn.takeValue = takeField.amount;
+    void run(async () => {
+      if (kind === 'draft') {
+        if (tradeRef && currentTrade?.confirmationStatus === 'PENDING') {
+          if (source !== 'tradeins' && currentTrade.operationSource !== source) throw new Error('Este borrador solo se puede editar desde su sección de origen.');
+          return await updateTradeOperation(source, tradeRef, input);
+        } else {
+          return await createOperation(source, input);
+        }
+      }
+      if (currentTrade?.confirmationStatus === 'PENDING' && tradeRef) {
+        return await confirmTradeOperation(source, tradeRef, input);
+      } else if (currentSale?.integratedOperation && saleId) {
+        return await updateSaleOperation(saleId, input);
+      } else if (hasTrade && hasConfirmedOperation && tradeRef && (source === 'sales' || source === 'tradeins')) {
+        return await updateTradeOperation(source, tradeRef, input);
+      } else if (currentSale && !currentSale.integratedOperation) {
+        const updated: Sale = {
+          ...currentSale,
+          clientId: clientId || '',
+          clientName: buyer.trim(),
+          productId: productId || '',
+          deviceLabel: deviceLabel.trim(),
+          amount: amountField?.amount ?? parseMoney(amount),
+          amountCurrency: stampedCurrency(amountField?.currency),
+          paymentMethod: payment,
+          status: paymentStatus,
+        };
+        return await updateSale(updated);
+      } else {
+        return await createOperation(source, { ...input, draft: false });
+      }
+    }, kind === 'draft' ? 'Borrador de canje guardado' : hasTrade ? 'Canje confirmado' : 'Venta registrada');
+  };
+
+  const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
+  const sheetClass = [source === 'sales' || source === 'clients' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
+  const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
+  const dueCopy = hasTrade
+    ? (difference == null ? (tradeGap.warning ?? 'Completá el precio de salida para calcular la diferencia') : `Diferencia a cobrar: ${money.show(difference, typedCurrency)}`)
+    : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
+  const tradeBlock = (
+    <>
+      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
+      {hasTrade ? (
+        <>
+          <div className="frow">
+            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
+            <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+          </div>
+          <div className="frow">
+            <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
+            <Field label="Diferencia"><input aria-label="Diferencia" value={difference == null ? '' : money.show(difference, typedCurrency)} readOnly placeholder={difference == null && tradeGap.warning !== NEGATIVE_TRADE_DIFFERENCE ? 'Completá el precio' : undefined} /></Field>
+          </div>
+          <Field label="Estado técnico"><span /></Field>
+          <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
+          <Field label="Batería recibida"><input value={battery} onChange={(event) => setBattery(event.target.value)} placeholder="Opcional" /></Field>
+          <QualityField label="Calidad del recibido" value={grade} onChange={(next) => { dirty.current.add('grade'); setGrade(next); }} />
+        </>
+      ) : null}
+    </>
+  );
+  return (
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={sheetClass || undefined}>
+      {error && <div className="ferr">{error}</div>}
+      {optionError && <div className="ferr">{optionError}</div>}
+      <ClientField
+        clients={optionClients}
+        value={buyer}
+        linked={Boolean(clientId)}
+        error={bad.client}
+        readOnly={Boolean(currentSale && !currentSale.integratedOperation)}
+        onValue={(value) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
+        onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
+      />
+      <EquipmentField
+        items={equipmentItems}
+        value={deviceLabel}
+        linked={Boolean(selectedProduct)}
+        error={bad.equipment}
+        onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
+        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setOutgoingCapacity(''); setOutgoingColor(''); setOutgoingCondition(''); setOutgoingImei(''); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
+      />
+      {deviceLabel.trim() && !selectedProduct ? (
+        <div className="unlisted-eq" data-testid="unlisted-equipment">
+          <p className="eqs-note">Se crea en el inventario marcado para completar. El texto de arriba es el modelo.</p>
+          <div className="frow">
+            <Field label="Capacidad" error={bad.outgoingCapacity}><input value={outgoingCapacity} onChange={(event) => { dirty.current.add('outgoingCapacity'); setOutgoingCapacity(event.target.value); clearBad(setBad, 'outgoingCapacity'); }} placeholder="Ej. 128GB" /></Field>
+            <Field label="Color" error={bad.outgoingColor}><input value={outgoingColor} onChange={(event) => { dirty.current.add('outgoingColor'); setOutgoingColor(event.target.value); clearBad(setBad, 'outgoingColor'); }} placeholder="Ej. Azul" /></Field>
+          </div>
+          <Field label="Condición"><span /></Field>
+          <Segs options={BASE_CONDITIONS} value={outgoingCondition} onChange={(next) => { dirty.current.add('outgoingCondition'); setOutgoingCondition(next); }} allowClear />
+          <Field label="IMEI del vendido (opcional)" error={bad.outgoingImei}><input value={outgoingImei} inputMode="numeric" maxLength={15} onChange={(event) => { dirty.current.add('outgoingImei'); setOutgoingImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'outgoingImei'); }} placeholder="15 dígitos" /></Field>
+        </div>
+      ) : null}
+      {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
+      {noStock ? (
+        <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
+          <span>No hay equipos disponibles en el inventario.</span>
+          <button type="button" className="wlink" onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
+        </div>
+      ) : null}
+      {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
+      {foldTrade ? null : tradeBlock}
+      <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
+      <p className="op-summary">{dueCopy}</p>
+      <Field label="Forma de pago"><span /></Field>
+      <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
+      {foldTrade ? (
+        <details className="op-fold" data-testid="sale-trade-fold" open={tradeOpen} onToggle={(event) => setTradeOpen(event.currentTarget.open)}>
+          <summary>Canje como parte de pago</summary>
+          <div className="op-fold-body">{tradeBlock}</div>
+        </details>
+      ) : null}
+      <Field label="Cobro"><span /></Field>
+      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
+      <div className="sacts">
+        <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
+        {hasTrade && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
+        <button className="btn2 p" type="button" disabled={busy} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
+      </div>
+    </Sheet>
+  );
+}
+
+export function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
+  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation } = useAppContext();
+  const money = useMoney();
+  const { close, open, toast, canManageSensitive = true } = useDesk();
+  const sale = sales.find((item) => item.id === id);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  useEffect(() => {
+    if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
+  }, [id, sale?.integratedOperation]);
+  if (!sale) return null;
+  const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
+  const buyer = clients.find((client) => client.id === sale.clientId);
+  const cash = linkedTrade ? linkedTrade.differencePaid : sale.amount;
+  const refund = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
+    ? cancellationRefund(sale.status, cash, buyer?.pendingBalance ?? 0)
+    : 0;
+  if (confirmCancel) {
+    return (
+      <ConfirmOperationDialog
+        label={saleCode(sale)}
+        refund={refund}
+        busy={busy}
+        error={error}
+        onClose={() => { if (!busy) setConfirmCancel(false); }}
+        currency={sale.amountCurrency}
+        onOk={() => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada'); }}
+      />
+    );
+  }
+  const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
+  const sold = inventory.find((item) => item.id === sale.productId);
+  const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
+  return (
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet">
+      {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+      <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
+      {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
+      <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
+      <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
+      <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
+      <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      {linkedTrade ? <>
+        <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
+        <div className="kv"><span>Calidad recibida</span><b>{tradeQuality(linkedTrade.grade) ? qualityDetail(tradeQuality(linkedTrade.grade)) : '—'}</b></div>
+        <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
+        <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
+        <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
+        <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
+      </> : null}
+      {sale.status === 'PENDIENTE' ? (
+        <div className="sacts">
+          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
+          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
+          {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+        </div>
+      ) : (
+        <div className="sacts">
+          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+          <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
+          <button className="btn2 p" type="button" onClick={() => {
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)}${soldQuality ? ` · Calidad ${soldQuality}` : ''} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
+            const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
+            shareOrCopy({ title: saleCode(sale), text }, copy);
+          }}>Compartir comprobante</button>
+        </div>
+      )}
+    </Sheet>
+  );
+}

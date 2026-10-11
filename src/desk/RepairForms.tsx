@@ -309,94 +309,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     </div>
   );
 
-  if (!phone) return (
-    <>
-      <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
-        <div className="svc-steps" aria-hidden="true">
-          {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
-        </div>
-        <div className="svc-now">
-          <Pill status={shownStatus} kind="REPAIR_STATUS" />
-          {next ? <span>Sigue: {next.label}</span> : null}
-        </div>
-        {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
-        {identityBlock}
-        <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
-        <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
-        {editing ? (
-          <div className="svc-edit">
-            <div className="frow">
-              <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
-                <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '' })); }} />
-              </Field>
-              <Field label="Seña" mark={money.active} error={bad.deposit}>
-                <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
-              </Field>
-            </div>
-            <div className="sacts">
-              <button type="button" className="btn2 s" disabled={saving} onClick={() => { setEditing(false); setError(''); }}>Cancelar</button>
-              <button type="button" className="btn2 p" data-testid="repair-save-budget" disabled={busy || saving} onClick={() => { void saveBudget(); }}>{saving ? 'Guardando…' : 'Guardar'}</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
-            <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
-            <div className="svc-sensitive">
-              <button type="button" className="btn2 s" data-testid="repair-edit-budget" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={startEdit}>Editar presupuesto</button>
-              <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Eliminar orden</button>
-              {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
-            </div>
-          </>
-        )}
-        <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
-        <div className="svc-log">
-          <span>Historial</span>
-          <ol>
-            {order.events.map((event) => {
-              const meta = repairStatusMeta(event.status, statuses);
-              return (
-                <li key={event.id}>
-                  <i style={{ background: meta.color }} />
-                  <b>{meta.label}</b>
-                  <small>{event.createdAt}</small>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-        {order.whatsappUrl ? (
-          <div className="svc-wa">
-            <span>Listo para avisar al cliente</span>
-            <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
-          </div>
-        ) : null}
-        {next ? (
-          <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
-        ) : (
-          <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
-        )}
-      </Sheet>
-      {confirmDelete ? (
-        <Dialog
-          title="Eliminar orden"
-          text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
-          ok="Eliminar"
-          danger
-          busy={saving}
-          error={error}
-          onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
-          onOk={() => { void remove(); }}
-        />
-      ) : null}
-    </>
-  );
-
-  const late = repairOverdue(order);
-  const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
-  const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
-  const step = index >= 0 ? index + 1 : 0;
-  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
   const budgetFields = (
     <div className="svc-edit">
       <div className="frow">
@@ -421,6 +333,78 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     </div>
   );
 
+  const footer = next ? (
+    <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
+  ) : (
+    <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
+  );
+  const deleteDialog = confirmDelete ? (
+    <Dialog
+      title="Eliminar orden"
+      text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
+      ok="Eliminar"
+      danger
+      busy={saving}
+      error={error}
+      onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
+      onOk={() => { void remove(); }}
+    />
+  ) : null;
+
+  if (!phone) return (
+    <>
+      <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
+        <div className="svc-steps" aria-hidden="true">
+          {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
+        </div>
+        <div className="svc-now">
+          <Pill status={shownStatus} kind="REPAIR_STATUS" />
+          {next ? <span>Sigue: {next.label}</span> : null}
+        </div>
+        {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
+        {identityBlock}
+        <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
+        <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
+        {editing ? budgetFields : (
+          <>
+            <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
+            <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+            {sensitive}
+          </>
+        )}
+        <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
+        <div className="svc-log">
+          <span>Historial</span>
+          <ol>
+            {order.events.map((event) => {
+              const meta = repairStatusMeta(event.status, statuses);
+              return (
+                <li key={event.id}>
+                  <i style={{ background: meta.color }} />
+                  <b>{meta.label}</b>
+                  <small>{event.createdAt}</small>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        {order.whatsappUrl ? (
+          <div className="svc-wa">
+            <span>Listo para avisar al cliente</span>
+            <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+          </div>
+        ) : null}
+        {footer}
+      </Sheet>
+      {deleteDialog}
+    </>
+  );
+
+  const late = repairOverdue(order);
+  const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
+  const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
+  const step = index >= 0 ? index + 1 : 0;
+  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
   return (
     <>
       <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close}>
@@ -484,24 +468,9 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
             </a>
           </div>
         ) : null}
-        {next ? (
-          <Actions busy={busy || saving} secondary="Cerrar" primary={`Pasar a ${next.label}`} onSecondary={close} onPrimary={() => { void advance(); }} />
-        ) : (
-          <div className="sacts one"><button type="button" className="btn2 s" onClick={close}>Cerrar</button></div>
-        )}
+        {footer}
       </Sheet>
-      {confirmDelete ? (
-        <Dialog
-          title="Eliminar orden"
-          text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
-          ok="Eliminar"
-          danger
-          busy={saving}
-          error={error}
-          onClose={() => { if (!saving) { setConfirmDelete(false); setError(''); } }}
-          onOk={() => { void remove(); }}
-        />
-      ) : null}
+      {deleteDialog}
     </>
   );
 }

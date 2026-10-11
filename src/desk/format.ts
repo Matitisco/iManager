@@ -19,12 +19,6 @@ export function formatShortDate(value: string | null | undefined): string {
   return formatArDate(date);
 }
 
-export function formatDayMonth(value: string | null | undefined): string {
-  const date = parseAppDate(value);
-  if (!date) return '';
-  return formatArDate(date);
-}
-
 export function relTime(value: string | null | undefined): string {
   const date = parseAppDate(value);
   if (!date) return '';
@@ -236,12 +230,6 @@ export const IN_PROGRESS_TRADE_STATUSES = new Set(['PENDIENTE', 'PERITAJE TÉC.'
 
 export function isInProgressTrade(status: string): boolean {
   return IN_PROGRESS_TRADE_STATUSES.has(status);
-}
-
-export const OPEN_TRADE_STATUSES = new Set(['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN', 'APROBADO']);
-
-export function isOpenTrade(status: string): boolean {
-  return OPEN_TRADE_STATUSES.has(status);
 }
 
 export type PeriodKey = 'Semana' | 'Mes' | '3 meses' | 'Año';

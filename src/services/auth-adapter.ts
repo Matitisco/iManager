@@ -172,6 +172,3 @@ export function getAuthAdapter() {
   return adapter;
 }
 
-export function isFirebaseBackedAuth() {
-  return adapter.mode === 'firebase';
-}

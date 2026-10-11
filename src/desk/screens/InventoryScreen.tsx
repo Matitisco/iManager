@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
-import { ColumnFilter } from '../ColumnFilter';
+import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
-import { conditionLabel, conditionName, equipmentTitle, formatImei, formatInputMoney, isInStock, parseMoney, statusLabel } from '../format';
+import { conditionLabel, conditionName, equipmentTitle, formatImei, isInStock, statusLabel } from '../format';
 import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from '../quality';
 import {
   CONDITION_FILTERS,
@@ -21,6 +21,7 @@ import {
 } from '../inventory-filters';
 import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
+import { PendingDrafts } from '../pending-drafts';
 import { priceListMessage } from '../price-list';
 import { ImanagerIcon } from '../icons';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
@@ -80,7 +81,7 @@ export function InventoryScreen() {
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
   const [listOpen, setListOpen] = useState(false);
-  const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
 
@@ -204,16 +205,7 @@ export function InventoryScreen() {
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
-      {ownDrafts.length > 0 ? (
-        <div className="dcard op-drafts">
-          <div><b>Canjes pendientes de confirmar</b><small>Podés retomarlos para completar el cliente y la venta.</small></div>
-          <div className="op-draft-list">{ownDrafts.map((trade) => (
-            <button key={trade.id} type="button" onClick={() => open({ type: 'edit-cj', id: trade.id, source: 'inventory' })}>
-              <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
-            </button>
-          ))}</div>
-        </div>
-      ) : null}
+      <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
         <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
@@ -257,7 +249,7 @@ export function InventoryScreen() {
               <tr>
                 <th>
                   <span className="thf">Equipo
-                    <ColumnFilter label="equipo" open={openColumn === 'equipo'} onToggle={() => setOpenColumn((current) => current === 'equipo' ? null : 'equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>
+                    <ColumnFilter label="equipo" {...menu('equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>
                       <input aria-label="Contiene" placeholder="Modelo, capacidad o color" value={columns.equipo} onChange={(event) => setColumn({ equipo: event.target.value })} />
                     </ColumnFilter>
                   </span>
@@ -267,7 +259,7 @@ export function InventoryScreen() {
                     <button type="button" className="thsort" aria-label="Ordenar por color" onClick={() => setSort((current) => current === 'Color ↑' ? 'Color ↓' : 'Color ↑')}>
                       Color{sort === 'Color ↑' ? ' ↑' : sort === 'Color ↓' ? ' ↓' : ''}
                     </button>
-                    <ColumnFilter label="color" open={openColumn === 'color'} onToggle={() => setOpenColumn((current) => current === 'color' ? null : 'color')} active={columnFilterActive(columns, 'colors')} onClear={() => setColumn({ colors: [] })}>
+                    <ColumnFilter label="color" {...menu('color')} active={columnFilterActive(columns, 'colors')} onClear={() => setColumn({ colors: [] })}>
                       <div className="opts">
                         {colorOptions.map((label) => (
                           <label key={label} className="chk">
@@ -285,7 +277,7 @@ export function InventoryScreen() {
                 </th>
                 <th>
                   <span className="thf">Condición
-                    <ColumnFilter label="condición" open={openColumn === 'condición'} onToggle={() => setOpenColumn((current) => current === 'condición' ? null : 'condición')} active={columnFilterActive(columns, 'conditions')} onClear={() => setColumn({ conditions: [] })}>
+                    <ColumnFilter label="condición" {...menu('condición')} active={columnFilterActive(columns, 'conditions')} onClear={() => setColumn({ conditions: [] })}>
                       <div className="opts">
                         {conditionOptions.map((option) => (
                           <label key={option.id} className="chk">
@@ -308,7 +300,7 @@ export function InventoryScreen() {
                     <button type="button" className="thsort" aria-label="Ordenar por calidad" onClick={() => setSort((current) => current === 'Calidad ↑' ? 'Calidad ↓' : 'Calidad ↑')}>
                       Calidad{sort === 'Calidad ↑' ? ' ↑' : sort === 'Calidad ↓' ? ' ↓' : ''}
                     </button>
-                    <ColumnFilter label="calidad" open={openColumn === 'calidad'} onToggle={() => setOpenColumn((current) => current === 'calidad' ? null : 'calidad')} active={columnFilterActive(columns, 'qualities')} onClear={() => setColumn({ qualities: [] })}>
+                    <ColumnFilter label="calidad" {...menu('calidad')} active={columnFilterActive(columns, 'qualities')} onClear={() => setColumn({ qualities: [] })}>
                       <div className="opts">
                         {DEVICE_QUALITIES.map((item) => (
                           <label key={item.value} className="chk" title={`${item.name}: ${item.description}`}>
@@ -330,7 +322,7 @@ export function InventoryScreen() {
                 </th>
                 <th>
                   <span className="thf">Batería
-                    <ColumnFilter label="batería" open={openColumn === 'batería'} onToggle={() => setOpenColumn((current) => current === 'batería' ? null : 'batería')} active={columnFilterActive(columns, 'battery')} onClear={() => setColumn({ battery: '' })}>
+                    <ColumnFilter label="batería" {...menu('batería')} active={columnFilterActive(columns, 'battery')} onClear={() => setColumn({ battery: '' })}>
                       <div className="opts">
                         {BATTERY_FILTERS.map((option) => (
                           <button key={option.label} className={`opt${columns.battery === option.id ? ' on' : ''}`} type="button" onClick={() => setColumn({ battery: option.id })}>{option.label}</button>
@@ -341,17 +333,14 @@ export function InventoryScreen() {
                 </th>
                 <th className="r">
                   <span className="thf">Precio
-                    <ColumnFilter label="precio" align="right" open={openColumn === 'precio'} onToggle={() => setOpenColumn((current) => current === 'precio' ? null : 'precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '' })}>
-                      <div className="range">
-                        <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.priceMin ? formatInputMoney(parseMoney(columns.priceMin)) : ''} onChange={(event) => setColumn({ priceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                        <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.priceMax ? formatInputMoney(parseMoney(columns.priceMax)) : ''} onChange={(event) => setColumn({ priceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      </div>
+                    <ColumnFilter label="precio" align="right" {...menu('precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '' })}>
+                      <MoneyRange min={columns.priceMin} max={columns.priceMax} onMin={(priceMin) => setColumn({ priceMin })} onMax={(priceMax) => setColumn({ priceMax })} />
                     </ColumnFilter>
                   </span>
                 </th>
                 <th>
                   <span className="thf">Estado
-                    <ColumnFilter label="estado" align="right" open={openColumn === 'estado'} onToggle={() => setOpenColumn((current) => current === 'estado' ? null : 'estado')} active={columnFilterActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [], needsCompletion: false })}>
+                    <ColumnFilter label="estado" align="right" {...menu('estado')} active={columnFilterActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [], needsCompletion: false })}>
                       <div className="opts">
                         {statusOptions.map((option) => (
                           <label key={option.id} className="chk">
@@ -504,10 +493,10 @@ export function InventoryScreen() {
             <p className="sec">Precio</p>
             <div className="inv-range">
               <Field label={`Mínimo · ${money.active}`}>
-                <input aria-label="Mínimo" inputMode="numeric" value={draftFilters.priceMin ? formatInputMoney(parseMoney(draftFilters.priceMin)) : ''} onChange={(event) => setDraftFilters((current) => ({ ...current, priceMin: event.target.value.replace(/\D/g, '').slice(0, 12) }))} />
+                <MoneyFilterInput label="Mínimo" value={draftFilters.priceMin} onChange={(digits) => setDraftFilters((current) => ({ ...current, priceMin: digits }))} />
               </Field>
               <Field label={`Máximo · ${money.active}`}>
-                <input aria-label="Máximo" inputMode="numeric" value={draftFilters.priceMax ? formatInputMoney(parseMoney(draftFilters.priceMax)) : ''} onChange={(event) => setDraftFilters((current) => ({ ...current, priceMax: event.target.value.replace(/\D/g, '').slice(0, 12) }))} />
+                <MoneyFilterInput label="Máximo" value={draftFilters.priceMax} onChange={(digits) => setDraftFilters((current) => ({ ...current, priceMax: digits }))} />
               </Field>
             </div>
           </div>

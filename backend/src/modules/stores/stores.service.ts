@@ -1,3 +1,4 @@
+import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
@@ -49,7 +50,7 @@ export async function listStoresForUser(userId: string): Promise<UserStoreSummar
 export async function createStoreForUser(userId: string, storeName: string) {
   const name = storeName.trim();
   if (!name) {
-    throw Object.assign(new Error("El nombre de la tienda es obligatorio"), { statusCode: 400 });
+    throw new DomainError("El nombre de la tienda es obligatorio", 400);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -86,7 +87,7 @@ export async function activateStoreForUser(userId: string, storeId: string) {
   });
 
   if (!membership) {
-    throw Object.assign(new Error("No pertenecés a esa tienda"), { statusCode: 404 });
+    throw new DomainError("No pertenecés a esa tienda", 404);
   }
 
   await prisma.$transaction([
@@ -182,28 +183,28 @@ export async function updateMemberRole(
   actorUserId: string
 ) {
   if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
-    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+    throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
   const target = await prisma.storeMember.findFirst({ where: { id: memberId, storeId } });
   if (!target) {
-    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+    throw new DomainError("Miembro no encontrado", 404);
   }
 
   // MANAGER cannot touch OWNERs
   if (actorRole === "MANAGER" && target.role === "OWNER") {
-    throw Object.assign(new Error("No podés modificar el rol de un Propietario"), { statusCode: 403 });
+    throw new DomainError("No podés modificar el rol de un Propietario", 403);
   }
   // MANAGER cannot assign OWNER role
   if (actorRole === "MANAGER" && newRole === "OWNER") {
-    throw Object.assign(new Error("No podés asignar el rol Propietario"), { statusCode: 403 });
+    throw new DomainError("No podés asignar el rol Propietario", 403);
   }
 
   // Cannot leave store without an OWNER
   if (target.role === "OWNER" && newRole !== "OWNER") {
     const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
     if (ownerCount <= 1) {
-      throw Object.assign(new Error("No puede haber una tienda sin Propietario"), { statusCode: 400 });
+      throw new DomainError("No puede haber una tienda sin Propietario", 400);
     }
   }
 
@@ -217,7 +218,7 @@ export async function removeMember(
   actorUserId: string
 ) {
   if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
-    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+    throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
   const target = await prisma.storeMember.findFirst({
@@ -225,19 +226,19 @@ export async function removeMember(
     include: { user: true },
   });
   if (!target) {
-    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+    throw new DomainError("Miembro no encontrado", 404);
   }
 
   // MANAGER cannot remove OWNERs
   if (actorRole === "MANAGER" && target.role === "OWNER") {
-    throw Object.assign(new Error("No podés remover a un Propietario"), { statusCode: 403 });
+    throw new DomainError("No podés remover a un Propietario", 403);
   }
 
   // Cannot remove the only OWNER
   if (target.role === "OWNER") {
     const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
     if (ownerCount <= 1) {
-      throw Object.assign(new Error("No puede haber una tienda sin Propietario"), { statusCode: 400 });
+      throw new DomainError("No puede haber una tienda sin Propietario", 400);
     }
   }
 
@@ -253,7 +254,7 @@ export async function updateMemberSections(
   sensitiveAccess?: boolean | null,
 ) {
   if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
-    throw Object.assign(new Error("No tenés permisos para gestionar el equipo"), { statusCode: 403 });
+    throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
   const target = await prisma.storeMember.findFirst({
@@ -261,10 +262,10 @@ export async function updateMemberSections(
     include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
   });
   if (!target) {
-    throw Object.assign(new Error("Miembro no encontrado"), { statusCode: 404 });
+    throw new DomainError("Miembro no encontrado", 404);
   }
   if (target.role === "OWNER") {
-    throw Object.assign(new Error("El propietario conserva el acceso a todas las secciones"), { statusCode: 403 });
+    throw new DomainError("El propietario conserva el acceso a todas las secciones", 403);
   }
 
   const next = assertSectionList(sections);
