@@ -6,6 +6,7 @@ import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { loadActor } from "../audit/audit.js";
+import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
 import {
   changeRepairStatus,
   createRepair,
@@ -40,6 +41,9 @@ const repairSchema = z.object({
   if (!value.fault && value.faultTags.length === 0) {
     context.addIssue({ code: "custom", message: "Contá la falla", path: ["fault"] });
   }
+  if (depositExceedsEstimate(value.estimate, value.deposit)) {
+    context.addIssue({ code: "custom", message: DEPOSIT_OVER_ESTIMATE, path: ["deposit"] });
+  }
 });
 
 const patchSchema = z.object({
@@ -58,6 +62,9 @@ const patchSchema = z.object({
   const imei = parseOptionalImei(value.imei);
   if (imei.ok === false) {
     context.addIssue({ code: "custom", message: IMEI_FORMAT_MESSAGE, path: ["imei"] });
+  }
+  if (value.estimate !== undefined && value.deposit !== undefined && depositExceedsEstimate(value.estimate, value.deposit)) {
+    context.addIssue({ code: "custom", message: DEPOSIT_OVER_ESTIMATE, path: ["deposit"] });
   }
 }).refine((value) => Object.keys(value).length > 0, { message: "No hay cambios" });
 

@@ -10,6 +10,7 @@ import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
 import { isRetiredRepairStatus, retireRepairStatuses } from "./retire-repair-statuses.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
 
 export interface RepairOrderInput {
   clientId?: string | null;
@@ -175,6 +176,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
   const name = await storeName(storeId);
   const status = input.status?.trim() || REPAIR_RECEIVED;
   if (isRetiredRepairStatus(status)) throw new RepairError("Ese estado ya no está en el flujo");
+  if (depositExceedsEstimate(input.estimate, input.deposit ?? 0)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
   const created = await prisma.$transaction(async (tx) => {
     const client = await resolveRepairClient(tx, storeId, input);
     const clientId = client.clientId;
@@ -223,6 +225,12 @@ export async function updateRepair(
   const currencyChanged = explicitCurrency != null && explicitCurrency !== current.currency;
   if ((estimateChanged || depositChanged || currencyChanged) && !options.canChangePrice) {
     throw new RepairError(SENSITIVE_DENIED, 403);
+  }
+  const touchesBudget = input.estimate !== undefined || input.deposit !== undefined;
+  if (touchesBudget) {
+    const nextEstimate = input.estimate !== undefined ? input.estimate : money(current.estimate);
+    const nextDeposit = input.deposit !== undefined ? input.deposit : (money(current.deposit) ?? 0);
+    if (depositExceedsEstimate(nextEstimate, nextDeposit)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
   }
   const name = await storeName(storeId);
   const data: {

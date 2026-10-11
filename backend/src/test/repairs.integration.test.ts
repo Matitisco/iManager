@@ -291,4 +291,77 @@ describe("repair orders", () => {
     expect(blankDevice.statusCode).toBe(400);
     expect(blankDevice.json().fields.device).toBe("Completá el equipo");
   });
+
+  it("rejects a deposit above the budget on create and on partial updates", async () => {
+    const app = ctx.getApp();
+    await seedStoreContext({ firebaseUid: "rep-deposit", email: "rep-deposit@example.com", displayName: "Dueña" });
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: "rep-deposit", email: "rep-deposit@example.com", name: "Dueña" }) };
+    const base = { clientName: "Cliente", device: "iPhone 13", fault: "Pantalla" };
+
+    const over = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { ...base, estimate: 85000, deposit: 100000 },
+    });
+    expect(over.statusCode).toBe(400);
+    expect(over.json().error).toBe("La seña no puede superar el presupuesto");
+    expect(over.json().fields.deposit).toBe("La seña no puede superar el presupuesto");
+
+    const equal = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { ...base, estimate: 85000, deposit: 85000 },
+    });
+    expect(equal.statusCode).toBe(201);
+    expect(equal.json().order).toMatchObject({ estimate: 85000, deposit: 85000 });
+
+    const open = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { ...base, device: "Pixel 8", deposit: 100000 },
+    });
+    expect(open.statusCode).toBe(201);
+    expect(open.json().order.estimate).toBeNull();
+    expect(open.json().order.deposit).toBe(100000);
+
+    const orderId = equal.json().order.id as string;
+    const raised = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { deposit: 100000 },
+    });
+    expect(raised.statusCode).toBe(400);
+    expect(raised.json().error).toBe("La seña no puede superar el presupuesto");
+
+    const lowered = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { estimate: 10000 },
+    });
+    expect(lowered.statusCode).toBe(400);
+    expect(lowered.json().error).toBe("La seña no puede superar el presupuesto");
+
+    const both = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { estimate: 90000, deposit: 100000 },
+    });
+    expect(both.statusCode).toBe(400);
+    expect(both.json().fields.deposit).toBe("La seña no puede superar el presupuesto");
+
+    const cleared = await app.inject({
+      method: "PATCH",
+      url: `/api/repairs/${orderId}`,
+      headers,
+      payload: { estimate: null, deposit: 100000 },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().order).toMatchObject({ estimate: null, deposit: 100000 });
+  });
 });
