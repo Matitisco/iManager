@@ -55,6 +55,10 @@ export function parseArDate(value: string | null | undefined): Date | null {
   return calendarDate(Number(named[3]), month, Number(named[1]));
 }
 
+export function parseArDateOr(value: string | null | undefined, fallback = new Date()): Date {
+  return parseArDate(value) ?? fallback;
+}
+
 export function formatStoredDate(label: string | null | undefined, fallback: Date): string {
   return formatArDate(parseArDate(label) ?? fallback);
 }

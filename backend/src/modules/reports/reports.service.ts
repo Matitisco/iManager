@@ -761,13 +761,3 @@ export function normalizeReportsOverviewInput(input: ReportsQueryInput): Reports
   };
 }
 
-export function getReportsErrorStatus(error: unknown) {
-  if (error instanceof ReportsError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
-}

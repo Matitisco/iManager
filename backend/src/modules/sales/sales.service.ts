@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
-import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { normalizeCustomFields } from "../../lib/custom-fields.js";
+import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -114,18 +115,6 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
   return value as Record<string, unknown>;
 };
 
-function normalizeCustomFields(customFields?: Record<string, unknown> | null) {
-  if (!customFields) {
-    return {} as Prisma.InputJsonValue;
-  }
-
-  return (Object.keys(customFields).length > 0 ? customFields : {}) as Prisma.InputJsonValue;
-}
-
-function resolveDate(value: string | null | undefined, fallback = new Date()) {
-  return parseArDate(value) ?? fallback;
-}
-
 async function recomputeClientStats(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   storeId: string,
@@ -212,7 +201,7 @@ export async function createSale(storeId: string, input: SaleInput) {
       throw new SalesError("Indicá el equipo", 400);
     }
 
-    const soldAt = resolveDate(input.date);
+    const soldAt = parseArDateOr(input.date);
     const dateLabel = formatArDate(soldAt);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
@@ -313,7 +302,7 @@ export async function updateSale(
       }
     }
 
-    const newSoldAt = input.date ? resolveDate(input.date, existing.soldAt) : existing.soldAt;
+    const newSoldAt = input.date ? parseArDateOr(input.date, existing.soldAt) : existing.soldAt;
     const newDateLabel = input.date ? formatArDate(newSoldAt) : existing.dateLabel;
     const newAmount = input.amount !== undefined ? toDecimal(input.amount) : existing.amount;
     const amountChanges = input.amount !== undefined && moneyChanged(existing.amount, input.amount);
@@ -455,17 +444,6 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
   });
 }
 
-export function getSalesErrorStatus(error: unknown) {
-  if (error instanceof SalesError) {
-    return {
-      statusCode: error.statusCode,
-      message: error.message,
-    };
-  }
-
-  return null;
-}
-
 // ── Import ────────────────────────────────────────────────────────────────────
 
 export interface SaleImportRow {
@@ -533,7 +511,7 @@ export async function importSales(
       const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
 
       const dateStr = r.date?.trim() || "";
-      const soldAt = resolveDate(dateStr);
+      const soldAt = parseArDateOr(dateStr);
       const dateLabel = formatArDate(soldAt);
 
       await prisma.$transaction(async (tx) => {

@@ -3,14 +3,13 @@ import { z } from "zod";
 import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
-import { requireSectionAccess } from "../../middleware/section-access.js";
+import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { requireSensitiveActor } from "../stores/sensitive-access.js";
-import { cancelTradeOperation, createOperation, getOperationErrorStatus, isIntegratedTradeIn, updateTradeFromLegacy } from "../operations/operations.service.js";
+import { cancelTradeOperation, createOperation, isIntegratedTradeIn, updateTradeFromLegacy } from "../operations/operations.service.js";
 import type { TradeInInput } from "./trade-ins.service.js";
 import {
   createTradeIn,
   deleteTradeIn,
-  getTradeInsErrorStatus,
   importTradeIns,
   listTradeIns,
   updateTradeIn,
@@ -59,9 +58,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const rowSchema = z.object({
         date: z.string().trim().optional(),
@@ -88,9 +85,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const tradeIns = await listTradeIns(request.appUser.storeId);
       return { tradeIns };
@@ -103,44 +98,31 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const body = tradeInCreateSchema.parse(request.body) as TradeInInput;
 
-      try {
-        const payload = request.body as TradeInInput & { draft?: boolean };
-        const takeValue = body.takeValue ?? 0;
-        const operation = await createOperation(request.appUser.storeId, "tradeins", {
-          date: body.date ?? undefined,
-          clientId: body.clientId,
-          clientName: body.clientName,
-          categoryId: body.categoryId,
-          deviceLabel: body.deviceGiven,
-          amount: takeValue + (body.differencePaid ?? 0),
-          draft: payload.draft !== false,
-          tradeIn: {
-            deviceReceived: body.deviceReceived,
-            deviceReceivedImei: body.deviceReceivedImei,
-            takeValue,
-            status: body.status,
-            batteryHealth: body.batteryHealth,
-            grade: body.grade,
-            customFields: body.customFields,
-          },
-        });
-        return reply.code(201).send({ ...operation, tradeIn: operation.tradeIn });
-      } catch (error) {
-        const operationError = getOperationErrorStatus(error);
-        if (operationError) return reply.code(operationError.statusCode).send({ error: operationError.message });
-        const mapped = getTradeInsErrorStatus(error);
-        if (mapped) {
-          return reply.code(mapped.statusCode).send({ error: mapped.message });
-        }
-
-        throw error;
-      }
+      const payload = request.body as TradeInInput & { draft?: boolean };
+      const takeValue = body.takeValue ?? 0;
+      const operation = await createOperation(request.appUser.storeId, "tradeins", {
+        date: body.date ?? undefined,
+        clientId: body.clientId,
+        clientName: body.clientName,
+        categoryId: body.categoryId,
+        deviceLabel: body.deviceGiven,
+        amount: takeValue + (body.differencePaid ?? 0),
+        draft: payload.draft !== false,
+        tradeIn: {
+          deviceReceived: body.deviceReceived,
+          deviceReceivedImei: body.deviceReceivedImei,
+          takeValue,
+          status: body.status,
+          batteryHealth: body.batteryHealth,
+          grade: body.grade,
+          customFields: body.customFields,
+        },
+      });
+      return reply.code(201).send({ ...operation, tradeIn: operation.tradeIn });
     }
   );
 
@@ -150,35 +132,22 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = tradeInPatchSchema.parse(request.body);
 
-      try {
-        if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
-          const operation = await updateTradeFromLegacy(request.appUser.storeId, params.id, body);
-          return { tradeIn: operation.tradeIn };
-        }
-        const tradeIn = await updateTradeIn(request.appUser.storeId, params.id, body);
-
-        if (!tradeIn) {
-          return reply.code(404).send({ error: "Trade-in not found" });
-        }
-
-        return { tradeIn };
-      } catch (error) {
-        const operationError = getOperationErrorStatus(error);
-        if (operationError) return reply.code(operationError.statusCode).send({ error: operationError.message });
-        const mapped = getTradeInsErrorStatus(error);
-        if (mapped) {
-          return reply.code(mapped.statusCode).send({ error: mapped.message });
-        }
-
-        throw error;
+      if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
+        const operation = await updateTradeFromLegacy(request.appUser.storeId, params.id, body);
+        return { tradeIn: operation.tradeIn };
       }
+      const tradeIn = await updateTradeIn(request.appUser.storeId, params.id, body);
+
+      if (!tradeIn) {
+        return reply.code(404).send({ error: "Trade-in not found" });
+      }
+
+      return { tradeIn };
     }
   );
 
@@ -188,22 +157,14 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
       if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
-        try {
-          await cancelTradeOperation(request.appUser.storeId, params.id, actor);
-          return reply.code(204).send();
-        } catch (error) {
-          const operationError = getOperationErrorStatus(error);
-          if (operationError) return reply.code(operationError.statusCode).send({ error: operationError.message });
-          throw error;
-        }
+        await cancelTradeOperation(request.appUser.storeId, params.id, actor);
+        return reply.code(204).send();
       }
       const deleted = await deleteTradeIn(request.appUser.storeId, params.id, actor);
 
@@ -218,34 +179,34 @@ export async function tradeInsRoutes(app: FastifyInstance) {
   // ── Categories ────────────────────────────────────────────────────────────
 
   app.get("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const categories = await listTradeInCategories(request.appUser.storeId);
     return { categories };
   });
 
   app.post("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
     const category = await createTradeInCategory(request.appUser.storeId, name);
     return reply.code(201).send({ category });
   });
 
   app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { categoryIds } = z.object({ categoryIds: z.array(z.string()) }).parse(request.body);
     await reorderTradeInCategories(request.appUser.storeId, categoryIds);
     return reply.code(204).send();
   });
 
   app.patch("/categories/bulk-move", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const body = z.object({ itemIds: z.array(z.string()), categoryId: z.string().nullable() }).parse(request.body);
     await bulkMoveTradeInCategory(request.appUser.storeId, body.itemIds, body.categoryId);
     return reply.code(204).send();
   });
 
   app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const { name } = z.object({ name: z.string().min(1).max(80) }).parse(request.body);
     const category = await renameTradeInCategory(request.appUser.storeId, id, name);
@@ -254,7 +215,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
   });
 
   app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const deleted = await deleteTradeInCategory(request.appUser.storeId, id);
     if (!deleted) return reply.code(404).send({ error: "Category not found" });

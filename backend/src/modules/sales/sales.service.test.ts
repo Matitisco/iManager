@@ -33,7 +33,7 @@ vi.mock("../../lib/store-sequence.js", () => ({
   allocateDocumentNumber,
 }));
 
-import { createCategory, createSale, getSalesErrorStatus, importSales } from "./sales.service.js";
+import { createCategory, createSale, importSales } from "./sales.service.js";
 
 describe("sales.service", () => {
   beforeEach(() => {
@@ -170,9 +170,5 @@ describe("sales.service", () => {
 
     expect(result.errors).toEqual([{ row: 2, message: "El IMEI tiene 15 dígitos" }]);
     expect(prismaMock.sale.create).not.toHaveBeenCalled();
-  });
-
-  it("returns null for non-domain errors", () => {
-    expect(getSalesErrorStatus(new Error("boom"))).toBeNull();
   });
 });

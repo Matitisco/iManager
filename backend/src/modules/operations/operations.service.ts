@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
-import { formatArDate, formatStoredDate, parseArDate } from "../../lib/ar-date.js";
+import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { formatArMoney } from "../../lib/ar-money.js";
 import { cancellationRefund } from "../../lib/cancel-refund.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
@@ -193,10 +193,6 @@ function serializeClient(client: Client) {
     customFields: client.customFields ?? {},
     createdAt: client.createdAt ? client.createdAt.toISOString() : null,
   };
-}
-
-function at(value?: string) {
-  return parseArDate(value) ?? new Date();
 }
 
 export async function writeOperationNotifications(
@@ -435,7 +431,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         if (existingSale) return replaySaleResult(tx, storeId, existingSale, "Canje recuperado");
         return { tradeIn: serializeTrade(prior), inventory: [], clients: [], notifications: [], summary: "Borrador de canje recuperado" };
       }
-      const date = at(input.date);
+      const date = parseArDateOr(input.date);
       const draftClient = input.clientId ? await tx.client.findFirst({ where: { id: input.clientId, storeId }, select: { id: true, name: true } }) : null;
       if (input.clientId && !draftClient) throw new OperationError("Client not found", 404);
       if (input.productId) {
@@ -509,7 +505,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const client = resolvedClient.client;
     const clientCreated = resolvedClient.created;
     if (tradeInput && !client) throw new OperationError("El canje confirmado requiere un cliente", 400);
-    const date = at(input.date);
+    const date = parseArDateOr(input.date);
     let trade: TradeIn | null = null;
     let incoming: InventoryItem | null = null;
     if (tradeInput) {
@@ -691,7 +687,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, outgoingAmount ?? 0, currency);
     }
 
-    const date = at(input.date ?? trade.dateLabel);
+    const date = parseArDateOr(input.date ?? trade.dateLabel);
     await assertIncomingImei(tx, storeId, receivedImei);
     const received = await tx.inventoryItem.create({ data: {
       storeId,
@@ -819,7 +815,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         invalidMessage: "La diferencia no puede ser negativa",
       });
     }
-    const nextDate = input.date ? at(input.date) : sale.soldAt;
+    const nextDate = input.date ? parseArDateOr(input.date) : sale.soldAt;
     let nextProductId = input.productId === undefined ? sale.inventoryItemId : input.productId?.trim() || null;
     const nextDeviceLabel = input.deviceLabel === undefined ? sale.deviceLabel : input.deviceLabel?.trim() || null;
     let nextProduct = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId, archivedAt: null } }) : null;
@@ -1002,7 +998,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftPaymentMethod: input.paymentMethod ?? trade.draftPaymentMethod, draftPaymentStatus: input.status ?? trade.draftPaymentStatus,
         categoryId: input.categoryId === undefined ? trade.categoryId : input.categoryId,
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
-        dateLabel: input.date ? formatArDate(at(input.date)) : trade.dateLabel, tradeAt: input.date ? at(input.date) : trade.tradeAt,
+        dateLabel: input.date ? formatArDate(parseArDateOr(input.date)) : trade.dateLabel, tradeAt: input.date ? parseArDateOr(input.date) : trade.tradeAt,
       } });
       const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
         action: "draft-updated",
@@ -1209,7 +1205,6 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
   });
 }
 
-export function getOperationErrorStatus(error: unknown) { return error instanceof OperationError ? { statusCode: error.statusCode, message: error.message } : null; }
 export async function isIntegratedSale(storeId: string, saleId: string) {
   return Boolean(await prisma.sale.findFirst({ where: { id: saleId, storeId, integratedOperation: true }, select: { id: true } }));
 }

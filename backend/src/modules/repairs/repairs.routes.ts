@@ -11,7 +11,6 @@ import {
   createRepair,
   deleteRepair,
   getRepair,
-  getRepairErrorStatus,
   listRepairs,
   updateRepair,
   type RepairOrderInput,
@@ -78,13 +77,6 @@ function guard(request: { appUser?: { userId: string; storeId: string; role: str
   return request.appUser;
 }
 
-// Zod errors go to the global handler (lib/api-error.ts), which answers 400 in Spanish with per-field messages.
-function sendError(error: unknown, reply: { code: (status: number) => { send: (body: unknown) => unknown } }) {
-  const mapped = getRepairErrorStatus(error);
-  if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
-  throw error;
-}
-
 export async function repairsRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, resolveAppUser];
 
@@ -106,44 +98,32 @@ export async function repairsRoutes(app: FastifyInstance) {
   app.post("/", { preHandler }, async (request, reply) => {
     const member = guard(request, reply);
     if (!member) return;
-    try {
-      const body = repairSchema.parse(request.body) as RepairOrderInput;
-      const result = await createRepair(member.storeId, body);
-      return reply.code(201).send(result);
-    } catch (error) {
-      return sendError(error, reply);
-    }
+    const body = repairSchema.parse(request.body) as RepairOrderInput;
+    const result = await createRepair(member.storeId, body);
+    return reply.code(201).send(result);
   });
 
   app.patch("/:id", { preHandler }, async (request, reply) => {
     const member = guard(request, reply);
     if (!member) return;
-    try {
-      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-      const body = patchSchema.parse(request.body);
-      const canChangePrice = canManageSensitive(member);
-      const touchesMoney = body.estimate !== undefined || body.deposit !== undefined;
-      const actor = touchesMoney && canChangePrice ? await loadActor(member.userId) : null;
-      const result = await updateRepair(member.storeId, id, body, { canChangePrice, actor });
-      if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
-      return result;
-    } catch (error) {
-      return sendError(error, reply);
-    }
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const body = patchSchema.parse(request.body);
+    const canChangePrice = canManageSensitive(member);
+    const touchesMoney = body.estimate !== undefined || body.deposit !== undefined;
+    const actor = touchesMoney && canChangePrice ? await loadActor(member.userId) : null;
+    const result = await updateRepair(member.storeId, id, body, { canChangePrice, actor });
+    if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
+    return result;
   });
 
   app.post("/:id/status", { preHandler }, async (request, reply) => {
     const member = guard(request, reply);
     if (!member) return;
-    try {
-      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-      const body = statusSchema.parse(request.body);
-      const result = await changeRepairStatus(member.storeId, id, body.status);
-      if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
-      return result;
-    } catch (error) {
-      return sendError(error, reply);
-    }
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const body = statusSchema.parse(request.body);
+    const result = await changeRepairStatus(member.storeId, id, body.status);
+    if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
+    return result;
   });
 
   app.delete("/:id", { preHandler }, async (request, reply) => {

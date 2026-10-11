@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
-import { requireSectionAccess } from "../../middleware/section-access.js";
+import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
@@ -11,7 +11,6 @@ import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inven
 import {
   createInventoryItem,
   deleteInventoryItem,
-  getInventoryErrorStatus,
   importInventoryItems,
   listInventory,
   listInventoryPaged,
@@ -71,7 +70,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     "/",
     { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
     async (request, reply) => {
-      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+      requireMember(request);
 
       const query = pagedQuerySchema.parse(request.query);
 
@@ -103,7 +102,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     "/ids",
     { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
     async (request, reply) => {
-      if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+      requireMember(request);
 
       const query = pagedQuerySchema.parse(request.query);
       const ids = await getInventoryFilteredIds(request.appUser.storeId, {
@@ -126,23 +125,12 @@ export async function inventoryRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const body = inventoryItemSchema.parse(request.body) as InventoryItemInput;
-      try {
-        const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
+      const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
 
-        return reply.code(201).send({ inventoryItem });
-      } catch (error) {
-        const mapped = getInventoryErrorStatus(error);
-        if (mapped) {
-          return reply.code(mapped.statusCode).send({ error: mapped.message });
-        }
-
-        throw error;
-      }
+      return reply.code(201).send({ inventoryItem });
     }
   );
 
@@ -152,37 +140,26 @@ export async function inventoryRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = inventoryPatchSchema.parse(request.body);
       if (!canSeeFinancials(request.appUser)) delete body.cost;
-      try {
-        const inventoryItem = await updateInventoryItem(
-          request.appUser.storeId,
-          params.id,
-          body,
-          {
-            actor: await loadActor(request.appUser.userId),
-            enforcePriceCost: !canManageSensitive(request.appUser),
-          },
-        );
+      const inventoryItem = await updateInventoryItem(
+        request.appUser.storeId,
+        params.id,
+        body,
+        {
+          actor: await loadActor(request.appUser.userId),
+          enforcePriceCost: !canManageSensitive(request.appUser),
+        },
+      );
 
-        if (!inventoryItem) {
-          return reply.code(404).send({ error: "Inventory item not found" });
-        }
-
-        return { inventoryItem };
-      } catch (error) {
-        const mapped = getInventoryErrorStatus(error);
-        if (mapped) {
-          return reply.code(mapped.statusCode).send({ error: mapped.message });
-        }
-
-        throw error;
+      if (!inventoryItem) {
+        return reply.code(404).send({ error: "Inventory item not found" });
       }
+
+      return { inventoryItem };
     }
   );
 
@@ -192,9 +169,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const bodySchema = z.object({
         rows: z
@@ -231,9 +206,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
@@ -251,48 +224,36 @@ export async function inventoryRoutes(app: FastifyInstance) {
   // ─── Categories ─────────────────────────────────────────────────────────────
 
   app.get("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const categories = await listCategories(request.appUser.storeId);
     return { categories };
   });
 
   app.post("/categories", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
-    try {
-      const category = await createCategory(request.appUser.storeId, name);
-      return reply.code(201).send({ category });
-    } catch (error) {
-      const mapped = getInventoryErrorStatus(error);
-      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
-      throw error;
-    }
+    const category = await createCategory(request.appUser.storeId, name);
+    return reply.code(201).send({ category });
   });
 
   app.patch("/categories/reorder", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { ids } = z.object({ ids: z.array(z.string()).min(1).max(200) }).parse(request.body);
     await reorderCategories(request.appUser.storeId, ids);
     return reply.code(204).send();
   });
 
   app.patch("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
-    try {
-      const category = await renameCategory(request.appUser.storeId, id, name);
-      if (!category) return reply.code(404).send({ error: "Category not found" });
-      return { category };
-    } catch (error) {
-      const mapped = getInventoryErrorStatus(error);
-      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
-      throw error;
-    }
+    const category = await renameCategory(request.appUser.storeId, id, name);
+    if (!category) return reply.code(404).send({ error: "Category not found" });
+    return { category };
   });
 
   app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const deleted = await deleteCategory(request.appUser.storeId, id);
     if (!deleted) return reply.code(404).send({ error: "Category not found" });
@@ -300,18 +261,12 @@ export async function inventoryRoutes(app: FastifyInstance) {
   });
 
   app.post("/bulk-move", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
-    if (!request.appUser) return reply.code(403).send({ error: "Store membership required" });
+    requireMember(request);
     const { ids, categoryId } = z.object({
       ids: z.array(z.string()).min(1).max(500),
       categoryId: z.string().nullable(),
     }).parse(request.body);
-    try {
-      const count = await bulkMoveCategory(request.appUser.storeId, ids, categoryId);
-      return { count };
-    } catch (error) {
-      const mapped = getInventoryErrorStatus(error);
-      if (mapped) return reply.code(mapped.statusCode).send({ error: mapped.message });
-      throw error;
-    }
+    const count = await bulkMoveCategory(request.appUser.storeId, ids, categoryId);
+    return { count };
   });
 }

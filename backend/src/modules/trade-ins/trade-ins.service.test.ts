@@ -33,7 +33,6 @@ vi.mock("../../lib/store-sequence.js", () => ({
 import {
   createTradeIn,
   createTradeInCategory,
-  getTradeInsErrorStatus,
   importTradeIns,
   updateTradeIn,
 } from "./trade-ins.service.js";
@@ -222,9 +221,5 @@ describe("trade-ins.service", () => {
     }]);
 
     expect(result.errors).toEqual([{ row: 2, message: "Valor de toma invalido" }]);
-  });
-
-  it("returns null for generic errors", () => {
-    expect(getTradeInsErrorStatus(new Error("boom"))).toBeNull();
   });
 });

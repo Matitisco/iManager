@@ -41,7 +41,6 @@ vi.mock("../../plugins/prisma.js", () => ({
 import {
   buildInventoryAging,
   changePercent,
-  getReportsErrorStatus,
   getReportsOverview,
   normalizeReportsOverviewInput,
   resolvePreviousWindow,
@@ -61,7 +60,7 @@ describe("normalizeReportsOverviewInput", () => {
       }
     })();
 
-    expect(getReportsErrorStatus(error)).toEqual({
+    expect(error).toMatchObject({
       statusCode: 400,
       message: "Custom report range requires startDate and endDate",
     });
@@ -81,7 +80,7 @@ describe("normalizeReportsOverviewInput", () => {
       }
     })();
 
-    expect(getReportsErrorStatus(error)).toEqual({
+    expect(error).toMatchObject({
       statusCode: 400,
       message: "Report startDate must be before endDate",
     });

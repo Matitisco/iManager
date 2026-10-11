@@ -64,11 +64,6 @@ type RepairRecord = Prisma.RepairOrderGetPayload<{ include: typeof include }>;
 
 export class RepairError extends DomainError {}
 
-export function getRepairErrorStatus(error: unknown) {
-  if (error instanceof RepairError) return { statusCode: error.statusCode, message: error.message };
-  return null;
-}
-
 const money = (value: Decimal | number | null | undefined) => {
   if (value == null) return null;
   return value instanceof Decimal ? value.toNumber() : Number(value);

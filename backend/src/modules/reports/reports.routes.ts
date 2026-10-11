@@ -3,8 +3,8 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canSeeFinancials } from "../stores/sections.js";
+import { requireMember } from "../../middleware/section-access.js";
 import {
-  getReportsErrorStatus,
   getReportsOverview,
   normalizeReportsOverviewInput,
   type ReportsRangeKey,
@@ -23,34 +23,23 @@ export async function reportsRoutes(app: FastifyInstance) {
     "/overview",
     { preHandler: [authenticate, resolveAppUser] },
     async (request, reply) => {
-      if (!request.appUser) {
-        return reply.code(403).send({ error: "Store membership required" });
-      }
+      requireMember(request);
       if (!canSeeFinancials(request.appUser)) {
         return reply.code(403).send({ error: "No tenés acceso a Reportes" });
       }
 
       const query = reportsQuerySchema.parse(request.query);
 
-      try {
-        const overview = await getReportsOverview(
-          request.appUser.storeId,
-          normalizeReportsOverviewInput({
-            rangeKey: query.rangeKey as ReportsRangeKey,
-            startDate: query.startDate,
-            endDate: query.endDate,
-          })
-        );
+      const overview = await getReportsOverview(
+        request.appUser.storeId,
+        normalizeReportsOverviewInput({
+          rangeKey: query.rangeKey as ReportsRangeKey,
+          startDate: query.startDate,
+          endDate: query.endDate,
+        })
+      );
 
-        return { overview };
-      } catch (error) {
-        const mapped = getReportsErrorStatus(error);
-        if (mapped) {
-          return reply.code(mapped.statusCode).send({ error: mapped.message });
-        }
-
-        throw error;
-      }
+      return { overview };
     }
   );
 }
