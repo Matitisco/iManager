@@ -81,7 +81,7 @@ test.describe('desktop trade-ins stays put', () => {
     await expect(page.getByRole('button', { name: 'Filtros' })).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar cliente, equipo, IMEI o número')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Nuevo canje' })).toHaveCount(1);
-    await expect(page.getByRole('button', { name: 'Importar' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Importar' })).toHaveCount(0);
 
     await createTradeInViaApi(request, email, {
       date: '09/10/2026',
@@ -180,7 +180,7 @@ test.describe('trade-ins on a phone', () => {
     await expect(page.locator('.wchips').getByRole('button', { name: 'Peritaje téc.', exact: true })).toBeVisible();
     await settleMotion(page, '.enter-f');
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
-    await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
+    await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toHaveCount(0);
     await expect(page.getByTestId('tradeins-empty').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     const dockBox = await page.getByTestId('mobile-dock').boundingBox();
     const tabBox = await page.getByTestId('mobile-tab-bar').boundingBox();
@@ -214,14 +214,6 @@ test.describe('trade-ins on a phone', () => {
     await search.fill('');
     await expect(page.getByTestId('tradeins-empty')).toBeVisible();
     await page.getByRole('button', { name: 'Buscar' }).click();
-
-    await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
-    const importer = page.getByRole('dialog', { name: 'Importar canjes' });
-    await expect(importer.locator('.sheet-grab')).toBeVisible();
-    await expect(importer.locator('.sheet-foot').getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    await settleMotion(page, '.sheet');
-    await expectFits(page);
-    await importer.getByRole('button', { name: 'Cerrar' }).click();
 
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' }).click();
     const form = page.getByRole('dialog', { name: 'Nuevo canje' });

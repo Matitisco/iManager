@@ -19,7 +19,7 @@ import {
   tradeFiltersActive,
   type TradeColumnFilters,
 } from '../trade-column-filters';
-import { Actions, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, ChipRow, DeskCta, Field, IconButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { TradeIn } from '../../types';
 
 const DEFAULT_STATUSES = [
@@ -119,7 +119,6 @@ export function TradeInsScreen() {
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo, IMEI o número" />
-            <ImportButton onClick={() => open({ type: 'import', kind: 'cj' })} />
             <DeskCta onClick={() => open({ type: 'new-cj' })}>Nuevo canje</DeskCta>
           </div>
         )}
@@ -250,7 +249,7 @@ export function TradeInsScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cj' })} /> : null}
+      {phone ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cj-sheet">
           <div className="inv-filters">
