@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight, Info } from 'lucide-react';
+import { Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight, Info } from 'lucide-react';
+import { BrandLockup } from '../components/brand-mark';
 import { PasswordResetDialog } from '../components/PasswordResetDialog';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
@@ -206,12 +207,12 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 mb-16"
+            className="mb-16"
           >
-            <div className="bg-white text-black p-2.5 rounded-xl shadow-lg shadow-white/10">
-              <Package size={24} />
-            </div>
-            <span className="text-2xl font-bold tracking-tight">iManager</span>
+            <BrandLockup variant="dark" className="h-14 w-auto" />
+            <p className="mt-3 text-[13px] font-semibold leading-snug text-[#9AA0AA]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              Gestión para tiendas de celulares
+            </p>
           </motion.div>
 
           <motion.div
@@ -277,11 +278,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         >
         <div data-testid="auth-scroll" className="max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:px-5 max-[760px]:pt-6 max-[760px]:pb-2">
         <motion.div layout className="w-full max-w-md max-[760px]:max-w-none">
-          <div className="lg:hidden flex items-center gap-3 mb-12 max-[760px]:mb-8">
-            <div className="bg-black text-white p-2.5 rounded-xl max-[760px]:bg-[#FFD000] max-[760px]:text-[#16181D] max-[760px]:rounded-2xl">
-              <Package size={24} />
-            </div>
-            <span className="text-2xl font-bold tracking-tight">iManager</span>
+          <div className="lg:hidden mb-12 max-[760px]:mb-8" data-testid="login-brand">
+            <BrandLockup variant="tagline" className="h-12 w-auto max-w-full" />
           </div>
 
           <motion.div layout className="mb-8 text-center">

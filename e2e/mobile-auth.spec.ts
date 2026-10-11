@@ -84,8 +84,12 @@ test.describe('phone login, invite and onboarding', () => {
     await expect(page.getByTestId('forgot-password')).toBeVisible();
     const yellow = await page.getByTestId('login-submit').evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(yellow).toBe('rgb(255, 208, 0)');
-    const logo = await page.locator('div.lg\\:hidden > div').first().evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(logo).toBe('rgb(255, 208, 0)');
+    const logo = page.getByTestId('login-brand').locator('img');
+    await expect(logo).toBeVisible();
+    const logoSrc = await logo.getAttribute('src');
+    expect(logoSrc).toContain('logotipo-horizontal-tagline.svg');
+    const logoSvg = await page.evaluate(async (url) => (await fetch(url)).text(), logoSrc);
+    expect(logoSvg).toContain('fill="#FFD000"');
 
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });

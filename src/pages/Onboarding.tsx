@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { BrandLockup } from '../components/brand-mark';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
@@ -124,7 +125,12 @@ function OnboardingLayout({
     : undefined;
   const body = (
     <>
-      <div data-testid="onboarding-scroll" className={scrollClass}>{children}</div>
+      <div data-testid="onboarding-scroll" className={scrollClass}>
+        <div className="mb-6 flex justify-center max-[760px]:mb-5">
+          <BrandLockup variant="tagline" className="h-11 w-auto max-w-full" />
+        </div>
+        {children}
+      </div>
       <div data-testid="onboarding-dock" className={dockClass} style={dockStyle}>{dock}</div>
     </>
   );

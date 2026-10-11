@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Box, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { BrandLockup } from '../components/brand-mark';
 import { authActionErrorMessage } from '../lib/auth-action-errors';
 import type { AuthActionLink } from '../lib/auth-action-url';
 import {
@@ -145,10 +146,7 @@ export const AuthActionPage: React.FC<AuthActionPageProps> = ({ link, onDone }) 
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
-        <div className="mark" aria-hidden="true">
-          <Box size={28} />
-        </div>
-        <div className="brand">iManager</div>
+        <BrandLockup variant="tagline" className="lockup" />
         <h1>{titleFor(link.mode)}</h1>
 
         {phase === 'loading' && (
