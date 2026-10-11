@@ -72,6 +72,3 @@ export function parseArDate(value: string | null | undefined): Date | null {
   return calendarDate(Number(named[3]), month, Number(named[1]));
 }
 
-export function formatStoredDate(label: string | null | undefined, fallback: Date): string {
-  return formatArDate(parseArDate(label) ?? fallback);
-}

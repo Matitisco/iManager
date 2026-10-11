@@ -84,7 +84,7 @@ function readCachedQuote(source: ExchangeSourceId) {
   const legacy = state.quotes.dolarapi;
   if (!legacy) return null;
   return {
-    quote: { source: 'dolarapi' as const, buy: legacy.buy, sell: legacy.sell, updatedAt: legacy.updatedAt },
+    quote: { buy: legacy.buy, sell: legacy.sell, updatedAt: legacy.updatedAt },
     days: state.days.dolarapi ?? {},
     fetchedAt: legacy.fetchedAt,
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getFriendlyErrorMessage } from './utils';
-import { INPUT_LIMITS, limitedText, nonNegativeAmount } from './input-limits';
+import { INPUT_LIMITS, limitedText } from './input-limits';
 
 describe('friendly validation messages', () => {
   it('keeps a spanish api message and never surfaces raw zod json', () => {
@@ -26,10 +26,6 @@ describe('friendly validation messages', () => {
     expect(limitedText('nombre', '   ', INPUT_LIMITS.storeName)).toBe('El nombre es obligatorio');
     expect(limitedText('modelo', 'a'.repeat(500), INPUT_LIMITS.model)).toBe('El modelo puede tener hasta 100 caracteres');
     expect(limitedText('nombre', 'a'.repeat(300), INPUT_LIMITS.clientName)).toBe('El nombre puede tener hasta 120 caracteres');
-    expect(nonNegativeAmount('costo', -1)).toBe('El costo no puede ser negativo');
-    expect(nonNegativeAmount('precio', -20)).toBe('El precio no puede ser negativo');
-    expect(nonNegativeAmount('pago', -5)).toBe('El pago no puede ser negativo');
     expect(limitedText('nombre', 'Sucursal Norte', INPUT_LIMITS.storeName)).toBeNull();
-    expect(nonNegativeAmount('precio', 0)).toBeNull();
   });
 });

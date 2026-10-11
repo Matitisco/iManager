@@ -226,10 +226,6 @@ export function useUnreadCounts() {
   return unreadBySection(operationNotifications);
 }
 
-export function useUnreadCount() {
-  return useUnreadCounts().total;
-}
-
 function sectionLabel(section: string) {
   return SECTION_LABEL[section as NoticeSection] ?? section;
 }

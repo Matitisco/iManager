@@ -3,8 +3,6 @@ import { fetchWithTimeout } from './fetch-with-timeout';
 import type { AuthUserLike } from '../types/auth-user';
 
 export type InvitationRole = 'MANAGER' | 'STAFF';
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
-
 export interface Invitation {
   id: string;
   email?: string;
@@ -127,13 +125,6 @@ export async function revokeInvitation(user: AuthUserLike, invitationId: string)
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? 'Error al revocar invitación');
   }
-}
-
-export async function previewInvitation(token: string): Promise<InvitationPreview | null> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/invitations/preview/${token}`);
-  if (res.status === 410 || res.status === 404) return null;
-  if (!res.ok) throw new Error('Error al verificar invitación');
-  return res.json();
 }
 
 export async function resolveInvitationPreview(

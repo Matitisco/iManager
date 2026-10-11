@@ -132,7 +132,3 @@ export function mergePinned(current: PinnedNotice[], incoming: OperationNotifica
 export function pinnedCount(rows: PinnedNotice[]) {
   return new Set(rows.flatMap((row) => row.notificationIds)).size;
 }
-
-export function isNoticeSection(section: string): section is NoticeSection {
-  return section === 'inventory' || section === 'sales' || section === 'tradeins' || section === 'clients';
-}

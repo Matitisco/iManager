@@ -12,7 +12,3 @@ export function limitedText(label: string, value: string, max: number): string |
   return null;
 }
 
-export function nonNegativeAmount(label: string, value: number): string | null {
-  if (!Number.isFinite(value) || value < 0) return `El ${label} no puede ser negativo`;
-  return null;
-}
