@@ -180,87 +180,52 @@ Usar exactamente los mismos nombres de campo que devuelve el backend en `WidgetR
 
 ## Paso 5: Service frontend en `src/services/widgets-api.ts`
 
+`apiRequest` (`src/services/api-client.ts`) arma la URL, el token, el timeout y el `Content-Type` (solo si hay body), y lanza `ApiError` con el status. `errorFrom: 'friendly'` muestra los mensajes de validación del backend sin texto técnico.
+
 ```ts
-import type { User } from 'firebase/auth';
+import type { AuthUserLike } from '../types/auth-user';
 import type { Widget } from '../types';
-import { getBackendBaseUrl } from './backend-session';
-import { fetchWithTimeout } from './fetch-with-timeout';
+import { apiRequest } from './api-client';
 
 type BackendWidgetResponse = {
   widget?: Widget;
   widgets?: Widget[];
 };
 
-async function getAuthHeaders(user: User) {
-  const token = await user.getIdToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-}
-
-function getBaseUrlOrThrow() {
-  const baseUrl = getBackendBaseUrl();
-  if (!baseUrl) throw new Error('Backend no configurado');
-  return baseUrl.replace(/\/+$/, '');
-}
-
-export async function fetchBackendWidgets(user: User): Promise<Widget[]> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/widgets`, {
-    headers: await getAuthHeaders(user),
+export async function fetchBackendWidgets(user: AuthUserLike): Promise<Widget[]> {
+  const data = await apiRequest<BackendWidgetResponse>(user, '/api/widgets', {
+    fallback: (status) => `Error al cargar widgets (${status})`,
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `Error al cargar widgets (${response.status})`);
-  }
-  const data = await response.json() as BackendWidgetResponse;
   return data.widgets ?? [];
 }
 
-export async function createBackendWidget(user: User, data: Omit<Widget, 'id'>): Promise<Widget> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/widgets`, {
+export async function createBackendWidget(user: AuthUserLike, widget: Omit<Widget, 'id'>): Promise<Widget> {
+  const data = await apiRequest<BackendWidgetResponse>(user, '/api/widgets', {
     method: 'POST',
-    headers: await getAuthHeaders(user),
-    body: JSON.stringify(data),
+    body: widget,
+    fallback: (status) => `Error al crear widget (${status})`,
+    errorFrom: 'friendly',
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `Error al crear widget (${response.status})`);
-  }
-  const result = await response.json() as BackendWidgetResponse;
-  if (!result.widget) throw new Error('Respuesta inválida al crear widget');
-  return result.widget;
+  if (!data.widget) throw new Error('Respuesta inválida al crear widget');
+  return data.widget;
 }
 
-export async function updateBackendWidget(user: User, widget: Widget): Promise<Widget> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/widgets/${widget.id}`, {
+export async function updateBackendWidget(user: AuthUserLike, widget: Widget): Promise<Widget> {
+  const data = await apiRequest<BackendWidgetResponse>(user, `/api/widgets/${widget.id}`, {
     method: 'PATCH',
-    headers: await getAuthHeaders(user),
-    body: JSON.stringify(widget),
+    body: widget,
+    fallback: (status) => `Error al actualizar widget (${status})`,
+    errorFrom: 'friendly',
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `Error al actualizar widget (${response.status})`);
-  }
-  const result = await response.json() as BackendWidgetResponse;
-  if (!result.widget) throw new Error('Respuesta inválida al actualizar widget');
-  return result.widget;
+  if (!data.widget) throw new Error('Respuesta inválida al actualizar widget');
+  return data.widget;
 }
 
-export async function deleteBackendWidget(user: User, id: string): Promise<void> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/widgets/${id}`, {
+export async function deleteBackendWidget(user: AuthUserLike, id: string): Promise<void> {
+  await apiRequest<void>(user, `/api/widgets/${id}`, {
     method: 'DELETE',
-    headers: await getAuthHeaders(user),
+    fallback: (status) => `Error al eliminar widget (${status})`,
   });
-  if (!response.ok && response.status !== 204) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `Error al eliminar widget (${response.status})`);
-  }
 }
 ```
 
