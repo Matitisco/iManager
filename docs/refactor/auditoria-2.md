@@ -79,7 +79,7 @@ Un único `apiRequest(user, path, options)` en `src/services/api-client.ts` arma
 
 La primera pasada lo dejó a propósito. Mezcla el switch de overlays con 15 formularios y detalles de cinco dominios. Se parte por dominio en `src/desk/overlays/` (equipo, operación, canje, cliente, cuenta/tienda, importación) sin tocar markup. En el corte salen también:
 
-- `PAYMENTS`, `EQ_STATUS`, `CJ_STATUS` y las etiquetas de rol (`Propietario` / `Socio` / `Empleado`), hoy repetidas entre `DeskOverlays`, `AccountScreens` y `MemberPermissions`.
+- `PAYMENTS`, `EQ_STATUS`, `CJ_STATUS` y el mapa de roles `Propietario` / `Socio` / `Empleado`, copiado igual en `DeskApp`, `AccountScreens`, `MemberPermissions` y `Onboarding`, más dos variantes inline en `DeskOverlays`. (`App.tsx` dice "Dueño" y se deja como está.)
 - El "compartir o copiar" (`navigator.share` con fallback a portapapeles) repetido en el comprobante de venta y en el link de invitación.
 - `ImportHost` calcula `sheet={(kind === 'inv' || kind === 'sale' || kind === 'cj' || kind === 'cl') && phone}`: las cuatro opciones son todos los valores posibles, queda `sheet={phone}`.
 - `SALE_STATUS` no lo usa nadie.
