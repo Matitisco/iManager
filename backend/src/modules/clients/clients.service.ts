@@ -7,6 +7,8 @@ import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { clientsRepository } from "./clients.repository.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { blankFieldsToFill, decideClientLink } from "../import/link-imported-sale.js";
+import { normalizeImportedDni, normalizeImportedEmail, normalizeImportedInstagram, normalizeImportedPhone } from "../import/normalize-import.js";
 
 export interface ClientInput {
   dni?: string | null;
@@ -14,6 +16,7 @@ export interface ClientInput {
   categoryId?: string | null;
   email?: string | null;
   phone?: string | null;
+  instagram?: string | null;
   lastPurchaseDate?: string | null;
   totalSpent?: number;
   pendingBalance?: number;
@@ -28,6 +31,7 @@ export interface ClientResponse {
   name: string;
   email: string;
   phone: string;
+  instagram: string;
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
@@ -49,6 +53,7 @@ type ClientRecord = {
   name: string;
   email: string | null;
   phone: string | null;
+  instagram?: string | null;
   lastPurchaseAt: Date | null;
   totalSpent: Decimal;
   pendingBalance: Decimal;
@@ -95,6 +100,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     name: client.name,
     email: client.email ?? "",
     phone: client.phone ?? "",
+    instagram: client.instagram ?? "",
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
@@ -147,6 +153,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       name: input.name.trim(),
       email: input.email || null,
       phone: input.phone || null,
+      instagram: normalizeImportedInstagram(input.instagram ?? undefined) || null,
       categoryId: input.categoryId ?? null,
       lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate),
       totalSpent: toDecimal(input.totalSpent),
@@ -195,6 +202,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
       name: input.name !== undefined ? input.name.trim() : existing.name,
       email: input.email !== undefined ? input.email || null : existing.email,
       phone: input.phone !== undefined ? input.phone || null : existing.phone,
+      instagram: input.instagram !== undefined ? normalizeImportedInstagram(input.instagram ?? undefined) || null : existing.instagram,
       categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
       lastPurchaseAt:
         input.lastPurchaseDate !== undefined
@@ -306,6 +314,7 @@ export interface ClientImportRow {
   dni?: string;
   email?: string;
   phone?: string;
+  instagram?: string;
 }
 
 export interface ClientImportResult {
@@ -321,46 +330,65 @@ export async function importClients(
   let imported = 0;
   let updated = 0;
   const errors: { row: number; message: string }[] = [];
+  const known = (await clientsRepository.list(storeId)).map((client) => ({
+    id: client.id,
+    name: client.name,
+    dni: client.dni,
+    phone: client.phone,
+    email: client.email,
+    instagram: client.instagram,
+  }));
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const rowNum = i + 2; // 1-based + header row
-    const name = r.name?.trim();
+    const rowNum = i + 2;
+    const name = r.name?.trim().replace(/\s+/g, " ") ?? "";
     if (!name) {
       errors.push({ row: rowNum, message: "Nombre requerido" });
       continue;
     }
 
+    const dni = normalizeImportedDni(r.dni);
+    const phone = normalizeImportedPhone(r.phone);
+    const email = normalizeImportedEmail(r.email);
+    const instagram = normalizeImportedInstagram(r.instagram);
+
     try {
-      const dni = r.dni?.trim() || "";
-
-      // Match existing: by DNI first, then by name
-      let existing = null;
-      if (dni) {
-        existing = await clientsRepository.findByDni(storeId, dni);
+      const decision = decideClientLink(known, { name, dni, phone, email });
+      if (decision.action === "ambiguous") {
+        errors.push({ row: rowNum, message: "Hay más de un cliente con esos datos y no se duplicó" });
+        continue;
       }
-      if (!existing) {
-        existing = await clientsRepository.findByName(storeId, name);
-      }
-
-      if (existing) {
-        await clientsRepository.update(existing.id, {
-          name,
-          ...(dni && { dni }),
-          ...(r.email?.trim() && { email: r.email.trim() }),
-          ...(r.phone?.trim() && { phone: r.phone.trim() }),
-        });
+      if (decision.action === "use") {
+        const current = known.find((client) => client.id === decision.clientId);
+        if (!current) continue;
+        const dniTaken = Boolean(dni && known.some((client) => client.id !== current.id && normalizeImportedDni(client.dni ?? "") === dni));
+        const patch = blankFieldsToFill(current, { dni, phone, email, instagram }, dniTaken);
+        if (Object.keys(patch).length > 0) {
+          await clientsRepository.update(current.id, patch);
+          Object.assign(current, patch);
+        }
         updated++;
-      } else {
-        await clientsRepository.create({
-          storeId,
-          name,
-          dni: dni || null,
-          email: r.email?.trim() || null,
-          phone: r.phone?.trim() || null,
-        });
-        imported++;
+        continue;
       }
+
+      const created = await clientsRepository.create({
+        storeId,
+        name: name.slice(0, 120),
+        dni: dni || null,
+        email: email || null,
+        phone: phone || null,
+        instagram: instagram || null,
+      });
+      known.push({
+        id: created.id,
+        name: created.name,
+        dni: created.dni,
+        phone: created.phone,
+        email: created.email,
+        instagram: created.instagram,
+      });
+      imported++;
     } catch (e) {
       errors.push({ row: rowNum, message: e instanceof Error ? e.message : "Error desconocido" });
     }

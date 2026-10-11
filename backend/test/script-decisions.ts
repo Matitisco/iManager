@@ -32,19 +32,49 @@ export function scriptDecisionAnswers(body: DecisionBody): {
       return { name: question.name, type: "choice", choice: String(picked), confidence: 0.95 };
     }
     const header = /«([^»]*)»/.exec(question.instructions)?.[1] ?? "";
-    return { name: question.name, type: "choice", choice: fieldForHeader(header), confidence: 0.9 };
+    return { name: question.name, type: "choice", choice: fieldForHeader(header, question.choices ?? []), confidence: 0.9 };
   });
 }
 
-function fieldForHeader(header: string): string {
+function fieldForHeader(header: string, choices: { value: string }[]): string {
+  const allowed = new Set(choices.map((choice) => choice.value));
   const first = header.split(" / ")[0]?.trim().toLowerCase() ?? "";
+  const guessed = guessField(first);
+  if (allowed.has(guessed)) return guessed;
+  const aliases: Record<string, string[]> = {
+    price: ["amount"],
+    model: ["device"],
+    imei: ["productImei"],
+    condition: ["status"],
+    name: ["clientName"],
+    clientName: ["name"],
+  };
+  for (const alias of aliases[guessed] ?? []) {
+    if (allowed.has(alias)) return alias;
+  }
+  return allowed.has("ignore") ? "ignore" : "ignore";
+}
+
+function guessField(first: string): string {
   if (!first) return "ignore";
   if (/precio normal|precio de lista/.test(first)) return "list_price";
   if (/promo/.test(first)) return "price";
-  if (/precio|u\$d|u\$s|^usd$|\bdls\b/.test(first)) return "price";
+  if (/precio|importe|monto|u\$d|u\$s|^usd$|\bdls\b/.test(first)) return "price";
   if (/pila|^bat\b|bater[ií]a|salud/.test(first)) return "batteryHealth";
   if (/tono|^color\b|colour/.test(first)) return "color";
   if (/^cond\b|estado|condici[oó]n/.test(first)) return "condition";
+  if (/fecha|^d[ií]a\b/.test(first)) return "date";
+  if (/comprador/.test(first)) return "clientName";
+  if (/^cliente\b/.test(first)) return "clientName";
+  if (/vendedor|^vend\b/.test(first)) return "seller";
+  if (/canje|permuta/.test(first)) return "tradeIn";
+  if (/medio de pago|^pago\b|^medio\b/.test(first)) return "paymentMethod";
+  if (/moneda/.test(first)) return "currency";
+  if (/whatsapp|wsp|celular|tel[eé]fono/.test(first)) return "phone";
+  if (/instagram|^ig\b/.test(first)) return "instagram";
+  if (/^mail\b|e-?mail|correo/.test(first)) return "email";
+  if (/^dni\b|documento/.test(first)) return "dni";
+  if (/^nombre\b/.test(first)) return "name";
   if (/descrip|^equipo\b|^mod$|modelo/.test(first)) return "model";
   if (/imei|serie/.test(first)) return "imei";
   if (/capacidad|^alm$|^gb$|almacenamiento/.test(first)) return "capacity";

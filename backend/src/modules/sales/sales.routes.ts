@@ -76,9 +76,15 @@ export async function salesRoutes(app: FastifyInstance) {
       const rowSchema = z.object({
         date:          z.string().trim().optional(),
         clientName:    z.string().trim().optional(),
+        clientDni:     z.string().trim().optional(),
+        clientPhone:   z.string().trim().optional(),
+        device:        z.string().trim().optional(),
         productImei:   z.string().trim().optional(),
         amount:        z.string().trim().optional(),
+        currency:      z.string().trim().optional(),
         paymentMethod: z.string().trim().optional(),
+        tradeIn:       z.string().trim().optional(),
+        seller:        z.string().trim().optional(),
         status:        z.string().trim().optional(),
       });
       const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);

@@ -1,0 +1,28 @@
+{
+ "section": "sales",
+ "currency": "ARS",
+ "rows": [
+  {
+   "date": "02/10/2026",
+   "clientName": "Wendy Salas",
+   "device": "iPhone 12 mini 128 GB",
+   "productImei": "359595858584848",
+   "amount": "620000",
+   "currency": "ARS",
+   "paymentMethod": "EFECTIVO",
+   "tradeIn": "",
+   "seller": "Luis"
+  },
+  {
+   "date": "01/10/2026",
+   "clientName": "Xavier Duarte",
+   "device": "iPhone 15 Plus 128 GB",
+   "productImei": "351122334455667",
+   "amount": "1900000",
+   "currency": "ARS",
+   "paymentMethod": "TRANSFERENCIA",
+   "tradeIn": "",
+   "seller": "Mica"
+  }
+ ]
+}

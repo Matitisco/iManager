@@ -1,0 +1,41 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Ana Gómez",
+   "phone": "+5491155551234",
+   "instagram": "ana.perez",
+   "email": "ana@gmail.com",
+   "dni": "30111222"
+  },
+  {
+   "name": "Bruno Díaz",
+   "phone": "+5491144442211",
+   "instagram": "bruno.diaz",
+   "email": "bruno@gmail.com",
+   "dni": "28444555"
+  },
+  {
+   "name": "Carla Ruiz",
+   "phone": "+5491155559090",
+   "instagram": "carla.ruiz",
+   "email": "carla@tienda.com",
+   "dni": "33444555"
+  },
+  {
+   "name": "Diego Paz",
+   "phone": "+5492614445566",
+   "instagram": "diego.paz",
+   "email": "diego@correo.com",
+   "dni": "25999888"
+  },
+  {
+   "name": "Elena Soto",
+   "phone": "+5492614447788",
+   "instagram": "elena.soto",
+   "email": "elena.soto@gmail.com",
+   "dni": "27111333"
+  }
+ ]
+}

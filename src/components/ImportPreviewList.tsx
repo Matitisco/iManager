@@ -12,12 +12,33 @@ const EQUIPMENT_COLUMNS: PreviewColumn[] = [
   { key: 'currency', label: 'Moneda' },
 ];
 
+const SALE_COLUMNS: PreviewColumn[] = [
+  { key: 'date', label: 'Fecha' },
+  { key: 'clientName', label: 'Cliente' },
+  { key: 'device', label: 'Equipo' },
+  { key: 'amount', label: 'Precio' },
+  { key: 'currency', label: 'Moneda' },
+  { key: 'paymentMethod', label: 'Pago' },
+  { key: 'tradeIn', label: 'Canje' },
+  { key: 'seller', label: 'Vendedor' },
+];
+
+const CLIENT_COLUMNS: PreviewColumn[] = [
+  { key: 'name', label: 'Nombre' },
+  { key: 'phone', label: 'Teléfono' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'email', label: 'Email' },
+  { key: 'dni', label: 'DNI' },
+];
+
 const TABLE_ROW = 44;
 const CARD_ROW = 72;
 const OVERSCAN = 6;
 
 export function previewColumns(fields: { key: string; label: string }[]): PreviewColumn[] {
   if (fields.some((field) => field.key === 'model')) return EQUIPMENT_COLUMNS;
+  if (fields.some((field) => field.key === 'amount')) return SALE_COLUMNS;
+  if (fields.some((field) => field.key === 'name')) return CLIENT_COLUMNS;
   return fields.map((field) => ({ key: field.key, label: field.label }));
 }
 
@@ -40,6 +61,9 @@ export function ImportPreviewList({
   const rowHeight = layout === 'cards' ? CARD_ROW : TABLE_ROW;
   const headerHeight = layout === 'table' ? 36 : 0;
   const equipment = columns.some((column) => column.key === 'model');
+  const sales = columns.some((column) => column.key === 'amount');
+  const clients = columns.some((column) => column.key === 'name') && !sales && !equipment;
+  const wide = equipment || sales || clients;
   const total = new Intl.NumberFormat('es-AR').format(rows.length);
   const noun = rows.length === 1 ? nouns.one : nouns.many;
   const label = `${total} ${noun}`;
@@ -62,7 +86,7 @@ export function ImportPreviewList({
   return (
     <div className="space-y-2" data-layout={layout}>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-bold text-gray-900">{equipment ? 'Equipos a importar' : 'Para importar'}</h3>
+        <h3 className="text-sm font-bold text-gray-900">{equipment ? 'Equipos a importar' : sales ? 'Ventas a importar' : clients ? 'Clientes a importar' : 'Para importar'}</h3>
         <p className="text-sm font-medium text-gray-600" data-testid="import-preview-count">{label}</p>
       </div>
       <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
@@ -80,12 +104,12 @@ export function ImportPreviewList({
           {layout === 'table' && (
             <div
               className="sticky top-0 z-[1] grid gap-2 border-b border-gray-200 bg-gray-50 px-3 text-xs font-bold uppercase tracking-wide text-gray-500"
-              style={{ height: headerHeight, gridTemplateColumns: template(columns), minWidth: equipment ? 720 : undefined, alignItems: 'center' }}
+              style={{ height: headerHeight, gridTemplateColumns: template(columns), minWidth: wide ? tableMinWidth(columns) : undefined, alignItems: 'center' }}
             >
               {columns.map((column) => <span key={column.key} className="truncate">{column.label}</span>)}
             </div>
           )}
-          <div style={{ height: rows.length * rowHeight, position: 'relative', minWidth: layout === 'table' && equipment ? 720 : undefined }}>
+          <div style={{ height: rows.length * rowHeight, position: 'relative', minWidth: layout === 'table' && wide ? tableMinWidth(columns) : undefined }}>
             {visible.map((row, offset) => {
               const index = start + offset;
               return (
@@ -98,7 +122,7 @@ export function ImportPreviewList({
                 >
                   {layout === 'table'
                     ? <TableRow row={row} columns={columns} currency={currency} />
-                    : <CardRow row={row} columns={columns} currency={currency} equipment={equipment} />}
+                    : <CardRow row={row} columns={columns} currency={currency} kind={equipment ? 'equipment' : sales ? 'sales' : clients ? 'clients' : 'generic'} />}
                 </div>
               );
             })}
@@ -113,7 +137,7 @@ function TableRow({ row, columns, currency }: { row: Record<string, string>; col
   return (
     <div className="grid gap-2 h-full items-center px-3 text-sm" style={{ gridTemplateColumns: template(columns) }}>
       {columns.map((column) => (
-        <span key={column.key} className={`truncate ${column.key === 'model' || column.key === 'price' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+        <span key={column.key} className={`truncate ${column.key === 'model' || column.key === 'price' || column.key === 'clientName' || column.key === 'name' || column.key === 'amount' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
           {display(row, column.key, currency) || '—'}
         </span>
       ))}
@@ -122,14 +146,14 @@ function TableRow({ row, columns, currency }: { row: Record<string, string>; col
 }
 
 function CardRow({
-  row, columns, currency, equipment,
+  row, columns, currency, kind,
 }: {
   row: Record<string, string>;
   columns: PreviewColumn[];
   currency: string;
-  equipment: boolean;
+  kind: 'equipment' | 'sales' | 'clients' | 'generic';
 }) {
-  if (equipment) {
+  if (kind === 'equipment') {
     const meta = ['capacity', 'color', 'condition', 'batteryHealth']
       .map((key) => row[key]?.trim())
       .filter(Boolean)
@@ -145,6 +169,31 @@ function CardRow({
       </div>
     );
   }
+  if (kind === 'sales') {
+    const price = [display(row, 'amount', currency), display(row, 'currency', currency)].filter(Boolean).join(' ');
+    const meta = [row.date, deviceLine(row), row.paymentMethod, row.tradeIn, row.seller].map((value) => value?.trim()).filter(Boolean).join(' · ');
+    return (
+      <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-gray-900 truncate">{row.clientName || deviceLine(row) || '—'}</p>
+          <p className="text-sm font-medium text-gray-900 shrink-0">{price || '—'}</p>
+        </div>
+        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+      </div>
+    );
+  }
+  if (kind === 'clients') {
+    const meta = [row.phone, row.instagram ? `@${row.instagram.replace(/^@/, '')}` : '', row.email, row.dni ? `DNI ${row.dni}` : '']
+      .map((value) => value?.trim())
+      .filter(Boolean)
+      .join(' · ');
+    return (
+      <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
+        <p className="text-sm font-medium text-gray-900 truncate">{row.name || '—'}</p>
+        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+      </div>
+    );
+  }
   const [primary, ...rest] = columns;
   return (
     <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
@@ -156,16 +205,35 @@ function CardRow({
   );
 }
 
+function tableMinWidth(columns: PreviewColumn[]): number {
+  if (columns.some((column) => column.key === 'amount')) return 980;
+  if (columns.some((column) => column.key === 'name')) return 760;
+  return 720;
+}
+
 function template(columns: PreviewColumn[]): string {
   if (columns.some((column) => column.key === 'model') && columns.length === EQUIPMENT_COLUMNS.length) {
     return 'minmax(140px, 1.6fr) minmax(72px, 0.8fr) minmax(72px, 0.9fr) minmax(88px, 0.8fr) minmax(64px, 0.7fr) minmax(72px, 0.8fr) minmax(56px, 0.5fr)';
   }
+  if (columns.some((column) => column.key === 'amount') && columns.length === SALE_COLUMNS.length) {
+    return 'minmax(88px, 0.8fr) minmax(120px, 1.2fr) minmax(140px, 1.4fr) minmax(80px, 0.8fr) minmax(56px, 0.5fr) minmax(110px, 0.9fr) minmax(100px, 0.9fr) minmax(90px, 0.8fr)';
+  }
   return `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`;
 }
 
+function deviceLine(row: Record<string, string>): string {
+  return [row.device, row.productImei].map((value) => value?.trim()).filter(Boolean).join(' · ');
+}
+
 function display(row: Record<string, string>, key: string, currency: string): string {
-  if (key === 'currency') return currency;
+  if (key === 'currency') return row.currency?.trim() || currency;
   if (key === 'price') return formatAmount(row.price);
+  if (key === 'amount') return formatAmount(row.amount);
+  if (key === 'device') return deviceLine(row);
+  if (key === 'instagram') {
+    const handle = row.instagram?.trim().replace(/^@+/, '');
+    return handle ? `@${handle}` : '';
+  }
   return row[key]?.trim() ?? '';
 }
 

@@ -82,6 +82,7 @@ model Client {
   name           String          @db.VarChar(120)
   email          String?         @db.VarChar(255)
   phone          String?         @db.VarChar(50)
+  instagram      String?         @db.VarChar(80)
   lastPurchaseAt DateTime?
   totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
   pendingBalance Decimal         @default(0) @db.Decimal(12, 2)

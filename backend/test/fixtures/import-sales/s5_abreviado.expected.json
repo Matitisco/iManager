@@ -1,0 +1,39 @@
+{
+ "section": "sales",
+ "currency": "USD",
+ "rows": [
+  {
+   "date": "06/10/2026",
+   "clientName": "Tomás Alegre",
+   "device": "iPhone 16 Pro 256 GB",
+   "productImei": "351919293949596",
+   "amount": "1450",
+   "currency": "USD",
+   "paymentMethod": "TRANSFERENCIA",
+   "tradeIn": "iPhone 13",
+   "seller": "Luis"
+  },
+  {
+   "date": "05/10/2026",
+   "clientName": "Uma Brest",
+   "device": "iPhone 14 128 GB",
+   "productImei": "358080706050403",
+   "amount": "690",
+   "currency": "USD",
+   "paymentMethod": "EFECTIVO",
+   "tradeIn": "",
+   "seller": "Mica"
+  },
+  {
+   "date": "04/10/2026",
+   "clientName": "Vera Nieto",
+   "device": "iPhone 13 Pro Max 128 GB",
+   "productImei": "354321098765432",
+   "amount": "810",
+   "currency": "USD",
+   "paymentMethod": "TARJETA",
+   "tradeIn": "iPhone XR 64",
+   "seller": "Sofía"
+  }
+ ]
+}

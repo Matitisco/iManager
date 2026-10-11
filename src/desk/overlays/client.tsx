@@ -77,6 +77,7 @@ export function ClientDetail({ id }: { id: string }) {
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{money.show(client.pendingBalance, client.balanceCurrency)}</div></div>
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
+      <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
       {client.pendingBalance > 0 ? (
@@ -126,6 +127,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const [name, setName] = useState(current?.name ?? '');
   const [dni, setDni] = useState(current?.dni ?? '');
   const [phone, setPhone] = useState(current?.phone ?? '');
+  const [instagram, setInstagram] = useState(current?.instagram ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
   const [balance, setBalance] = useState(current ? money.inputValue(current.pendingBalance, current.balanceCurrency) : '');
   const [tag, setTag] = useState(current?.tag ?? '');
@@ -144,6 +146,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
         </div>
       )}
       <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
+      <Field label="Instagram"><input value={instagram} placeholder="@usuario" onChange={(event) => setInstagram(event.target.value)} /></Field>
       {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
       <Field label="Etiqueta"><span /></Field>
       <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
@@ -164,6 +167,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
           name: name.trim(),
           dni: dni.trim(),
           phone: phone.trim(),
+          instagram: instagram.trim(),
           email: email.trim(),
           lastPurchaseDate: current?.lastPurchaseDate || 'N/A',
           totalSpent: current?.totalSpent ?? 0,

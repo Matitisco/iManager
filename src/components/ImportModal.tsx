@@ -31,6 +31,7 @@ interface Props {
   title?: string;
   sheet?: boolean;
   nouns?: { one: string; many: string };
+  unrelatedNotice?: string;
   onAnalyze: (sheets: ImportSheetPayload[]) => Promise<ImportAnalysis>;
   onApply: (sheets: ImportSheetPayload[], plan: ImportSheetPlan[], refreshMapping: boolean) => Promise<ImportAnalysis>;
 }
@@ -54,7 +55,7 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
 
 export const ImportModal: React.FC<Props> = ({
   fields, onImport, onClose, title = 'Importar', sheet = false,
-  nouns = { one: 'fila', many: 'filas' }, onAnalyze, onApply,
+  nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply,
 }) => {
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
@@ -137,7 +138,7 @@ export const ImportModal: React.FC<Props> = ({
   const included = plan.filter((item) => item.include);
   const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
   const canImport = !applying && rows.length > 0 && requiredMissing.length === 0 && included.length > 0;
-  const unrelated = rows.length === 0 && notice === UNRELATED_IMPORT_NOTICE;
+  const unrelated = rows.length === 0 && notice === unrelatedNotice;
   const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
   const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
   const headerIndex = Math.max(0, (active?.headerRow ?? 1) - 1);
@@ -165,7 +166,9 @@ export const ImportModal: React.FC<Props> = ({
   const subtitle = {
     upload: 'Subí un archivo CSV o XLSX',
     reading: 'Leyendo la planilla…',
-    summary: unrelated ? 'Sin equipos para importar' : 'Listo para importar',
+    summary: unrelated
+      ? (unrelatedNotice.includes('ventas') ? 'Sin ventas para importar' : unrelatedNotice.includes('clientes') ? 'Sin clientes para importar' : 'Sin equipos para importar')
+      : 'Listo para importar',
     adjust: 'Ajustá hojas, encabezado o columnas',
     result: 'Importación completada',
   }[step];
@@ -211,7 +214,7 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && unrelated && (
         <div data-testid="import-unrelated" role="status" className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
-          <p className="text-sm font-medium text-gray-900">{UNRELATED_IMPORT_NOTICE}</p>
+          <p className="text-sm font-medium text-gray-900">{unrelatedNotice}</p>
         </div>
       )}
 

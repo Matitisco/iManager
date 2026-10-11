@@ -1,0 +1,48 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Laura Benítez",
+   "phone": "+5491155551234",
+   "instagram": "laura.b",
+   "email": "laura@mail.com",
+   "dni": "33400111"
+  },
+  {
+   "name": "Martín Correa",
+   "phone": "+5491155551234",
+   "instagram": "martin.c",
+   "email": "martin@mail.com",
+   "dni": "33400112"
+  },
+  {
+   "name": "Nina Ferreyra",
+   "phone": "+5491155551234",
+   "instagram": "nina.f",
+   "email": "nina@mail.com",
+   "dni": "33400113"
+  },
+  {
+   "name": "Omar Vidal",
+   "phone": "+5492614445566",
+   "instagram": "omar.v",
+   "email": "omar@mail.com",
+   "dni": "33400114"
+  },
+  {
+   "name": "Paula Ibáñez",
+   "phone": "+5492614445566",
+   "instagram": "paula.i",
+   "email": "paula@mail.com",
+   "dni": "33400115"
+  },
+  {
+   "name": "Ramiro Costa",
+   "phone": "+5491144442211",
+   "instagram": "ramiro.c",
+   "email": "ramiro@mail.com",
+   "dni": "33400116"
+  }
+ ]
+}

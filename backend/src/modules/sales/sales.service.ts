@@ -6,8 +6,10 @@ import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
-import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { decideClientLink, decideInventoryLink, matchOpenTradeIn, matchSellerUserId } from "../import/link-imported-sale.js";
+import { normalizeCurrencyToken, normalizeImei, normalizeImportDate, normalizeImportedDni, normalizeImportedPhone, normalizePayment, normalizeTradeIn } from "../import/normalize-import.js";
+import { parseMoney } from "../import/sheet-plan.js";
 
 export interface SaleInput {
   date: string;
@@ -449,9 +451,15 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
 export interface SaleImportRow {
   date?: string;
   clientName?: string;
+  clientDni?: string;
+  clientPhone?: string;
+  device?: string;
   productImei?: string;
   amount?: string;
+  currency?: string;
   paymentMethod?: string;
+  tradeIn?: string;
+  seller?: string;
   status?: string;
 }
 
@@ -461,13 +469,15 @@ export interface SaleImportResult {
   errors: { row: number; message: string }[];
 }
 
-const VALID_PAYMENT_METHODS = [
-  "TRANSFERENCIA",
-  "EFECTIVO",
-  "TARJETA",
-  "CANJE / PAGO",
-  "T. Crédito",
-] as const;
+type ImportClient = {
+  id: string;
+  name: string;
+  dni: string | null;
+  phone: string | null;
+  email: string | null;
+  totalSpent: Decimal;
+  lastPurchaseAt: Date | null;
+};
 
 export async function importSales(
   storeId: string,
@@ -475,67 +485,133 @@ export async function importSales(
 ): Promise<SaleImportResult> {
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
+  const clients: ImportClient[] = await prisma.client.findMany({
+    where: { storeId },
+    select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
+  });
+  const members = await prisma.storeMember.findMany({
+    where: { storeId },
+    select: { userId: true, user: { select: { displayName: true } } },
+  });
+  const sellers = members.map((member) => ({ userId: member.userId, displayName: member.user.displayName }));
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const rowNum = i + 2;
 
     try {
-      const clientName = r.clientName?.trim() ?? "";
-
-      const parsedImei = parseOptionalImei(r.productImei);
-      if (parsedImei.ok === false) {
-        errors.push({ row: rowNum, message: parsedImei.message });
+      const clientName = r.clientName?.trim().replace(/\s+/g, " ") ?? "";
+      const device = r.device?.trim().replace(/\s+/g, " ") ?? "";
+      const imei = normalizeImei(r.productImei);
+      const dni = normalizeImportedDni(r.clientDni);
+      const phone = normalizeImportedPhone(r.clientPhone);
+      const tradeIn = normalizeTradeIn(r.tradeIn);
+      const seller = r.seller?.trim() ?? "";
+      const amount = parseMoney(r.amount ?? "");
+      if (amount == null) {
+        errors.push({ row: rowNum, message: "Importe inválido" });
         continue;
       }
-      const imei = parsedImei.imei;
-      const item = imei
-        ? await prisma.inventoryItem.findFirst({
-          where: { storeId, imei },
-          select: { id: true },
-        })
-        : null;
-      if (imei && !item) {
-        errors.push({ row: rowNum, message: `Producto no encontrado (IMEI): "${imei}"` });
+      if (!clientName && !device && !imei) {
+        errors.push({ row: rowNum, message: "La venta no tiene cliente ni equipo" });
         continue;
       }
 
-      const rawAmount = (r.amount ?? "").replace(",", ".");
-      const amount = parseFloat(rawAmount) || 0;
-
-      const pm = (r.paymentMethod ?? "").trim();
-      const paymentMethod = (VALID_PAYMENT_METHODS as readonly string[]).includes(pm)
-        ? (pm as typeof VALID_PAYMENT_METHODS[number])
-        : "EFECTIVO";
-
+      const paymentMethod = normalizePayment(r.paymentMethod);
       const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
-
-      const dateStr = r.date?.trim() || "";
-      const soldAt = parseArDateOr(dateStr);
+      const soldAt = parseArDateOr(normalizeImportDate(r.date) || r.date);
       const dateLabel = formatArDate(soldAt);
+      const rowCurrency = normalizeCurrencyToken(r.currency);
 
       await prisma.$transaction(async (tx) => {
+        const clientLink = clientName || dni || phone
+          ? decideClientLink(clients, { name: clientName, dni, phone })
+          : { action: "skip" as const };
+        let clientId: string | null = null;
+        if (clientLink.action === "use") clientId = clientLink.clientId;
+        if (clientLink.action === "create" && clientName) {
+          const created = await tx.client.create({
+            data: {
+              storeId,
+              name: clientName.slice(0, 120),
+              dni: dni || null,
+              phone: phone || null,
+            },
+            select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
+          });
+          clients.push(created);
+          clientId = created.id;
+        }
+
+        const item = imei
+          ? await tx.inventoryItem.findFirst({
+            where: { storeId, imei },
+            select: { id: true, status: true, archivedAt: true },
+          })
+          : null;
+        const activeSale = item
+          ? await tx.sale.findFirst({
+            where: { storeId, inventoryItemId: item.id, status: { not: "CANCELADA" } },
+            select: { id: true },
+          })
+          : null;
+        const stock = decideInventoryLink(item, Boolean(activeSale));
+        const inventoryItemId = stock.action === "link" ? stock.inventoryItemId : null;
+        const openTrades = clientId && tradeIn
+          ? await tx.tradeIn.findMany({
+            where: { storeId, clientId, sale: { is: null } },
+            select: { id: true, deviceReceived: true },
+          })
+          : [];
+        const tradeInId = matchOpenTradeIn(openTrades, tradeIn);
+        const sellerUserId = matchSellerUserId(sellers, seller);
+        const customFields: Record<string, string> = {};
+        if (seller) customFields.vendedor = seller;
+        if (sellerUserId) customFields.sellerUserId = sellerUserId;
+        if (tradeIn) customFields.canje = tradeIn;
+        if (imei && !inventoryItemId) customFields.imei = imei;
+        const deviceLabel = [device, !inventoryItemId && imei ? imei : ""].filter(Boolean).join(" · ").slice(0, 120) || null;
+        const linkedClient = clientId ? clients.find((client) => client.id === clientId) : undefined;
         const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
+        const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
+
         await tx.sale.create({
           data: {
             saleNumber,
             storeId,
-            clientId: null,
-            clientName,
-            inventoryItemId: item?.id ?? null,
+            clientId,
+            clientName: clientName || linkedClient?.name || "",
+            inventoryItemId,
+            tradeInId,
+            deviceLabel,
             dateLabel,
             amount: toDecimal(amount),
+            ...(amountCurrency ? { amountCurrency } : {}),
             paymentMethod,
             status,
+            customFields: normalizeCustomFields(customFields),
             soldAt,
           },
         });
 
-        if (item) {
+        if (inventoryItemId) {
           await tx.inventoryItem.update({
-            where: { id: item.id },
+            where: { id: inventoryItemId },
             data: { status: "VENDIDO" },
           });
+        }
+
+        if (linkedClient) {
+          const nextSpent = new Decimal(linkedClient.totalSpent.toString()).add(amount);
+          const nextPurchase = !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt
+            ? soldAt
+            : linkedClient.lastPurchaseAt;
+          await tx.client.update({
+            where: { id: linkedClient.id },
+            data: { totalSpent: nextSpent, lastPurchaseAt: nextPurchase },
+          });
+          linkedClient.totalSpent = nextSpent;
+          linkedClient.lastPurchaseAt = nextPurchase;
         }
       });
 

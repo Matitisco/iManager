@@ -10,6 +10,7 @@ import {
   usageOf,
   type ModelFailure,
 } from "./responses-client.js";
+import { preferWhatsappPhone } from "./normalize-import.js";
 import {
   conditionFromName,
   priceCurrencyOf,
@@ -19,7 +20,7 @@ import {
   type SheetPlan,
 } from "./sheet-plan.js";
 
-const ALWAYS_ASK = new Set(["price", "status", "condition"]);
+const ALWAYS_ASK = new Set(["price", "amount", "status", "condition"]);
 
 const INVENTORY_CHOICES: { value: string; description: string }[] = [
   { value: "model", description: "modelo del equipo" },
@@ -82,7 +83,7 @@ export function buildDecisionContext(
     ];
   const prepared = sheets
     .map((sheet) => ({ name: sheet.name.trim(), rows: trimSheet(sheet.rows) }))
-    .map((sheet) => ({ ...sheet, candidates: headerCandidates(sheet.rows) }))
+    .map((sheet) => ({ ...sheet, candidates: headerCandidates(sheet.rows, section) }))
     .filter((sheet) => sheet.candidates.length > 0);
   if (prepared.length === 0) return null;
 
@@ -182,11 +183,12 @@ export function plansFromAnswers(
       seen.add(pick.field);
       mapping.push({ header: headers[pick.column] ?? "", field: pick.field });
     }
+    const resolved = section === "clients" ? preferWhatsappPhone(headers, mapping) : mapping;
 
-    const columnIndex = (field: string) => headers.indexOf(mapping.find((column) => column.field === field)?.header ?? "\u0000");
+    const columnIndex = (field: string) => headers.indexOf(resolved.find((column) => column.field === field)?.header ?? "\u0000");
     const modelIndex = columnIndex("model");
     const batteryIndex = columnIndex("batteryHealth");
-    const priceHeader = mapping.find((column) => column.field === "price")?.header ?? "";
+    const priceHeader = resolved.find((column) => column.field === "price" || column.field === "amount")?.header ?? "";
     const body = rows.slice(headerRow);
     const models = modelIndex >= 0 ? body.map((row) => row[modelIndex] ?? "").filter(Boolean).slice(0, 40) : [];
     const batteries = batteryIndex >= 0 ? body.map((row) => row[batteryIndex] ?? "").filter(Boolean).slice(0, 40) : [];
@@ -198,7 +200,7 @@ export function plansFromAnswers(
       headerRow,
       dataStartRow: headerRow + 1,
       dataEndRow: rows.length,
-      mapping,
+      mapping: resolved,
       splitModelCapacity: columnIndex("capacity") < 0 && models.some((model) => splitModelCapacity(model).capacity),
       batteryAsPercent: batteries.some((value) => batteryLooksPercent(value)),
       priceCurrency: priceCurrencyOf(priceHeader) || "",
@@ -237,13 +239,13 @@ export async function postDecisions(options: {
   return { ok: true, answers: answers as DecisionAnswer[], ...tokens };
 }
 
-export function headerCandidates(rows: string[][]): number[] {
+export function headerCandidates(rows: string[][], section: ImportSection = "inventory"): number[] {
   const scored: { row: number; score: number }[] = [];
   for (let index = 0; index < Math.min(rows.length - 1, 40); index += 1) {
     const cells = (rows[index] ?? []).filter((cell) => cell.trim());
     const text = cells.filter((cell) => !isNumericCell(cell) && cell.length <= 30);
     if (text.length < 3 || text.length < cells.length * 0.6) continue;
-    const below = rows.slice(index + 1, index + 4).flat().filter((cell) => isNumericCell(cell)).length;
+    const below = rows.slice(index + 1, index + 4).flat().filter((cell) => cellCountsAsData(cell, section)).length;
     if (below === 0) continue;
     scored.push({ row: index + 1, score: text.length + below });
   }
@@ -262,6 +264,14 @@ function exactFields(catalog: ImportCatalog): Map<string, string> {
   }
   for (const [hint, field] of Object.entries(catalog.hints)) exact.set(normalizeHeader(hint), field);
   return exact;
+}
+
+function cellCountsAsData(cell: string, section: ImportSection): boolean {
+  if (isNumericCell(cell)) return true;
+  const trimmed = cell.trim();
+  if (section === "sales") return /^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/.test(trimmed) || /^\d{1,2}\s+[a-záéíóúñ]{3,}/i.test(trimmed);
+  if (section === "clients") return trimmed.includes("@");
+  return false;
 }
 
 function isNumericCell(cell: string): boolean {

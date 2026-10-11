@@ -41,12 +41,17 @@ export function parseArDate(value: string | null | undefined): Date | null {
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  const numeric = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (numeric) return calendarDate(Number(numeric[3]), Number(numeric[2]) - 1, Number(numeric[1]));
+  const numeric = trimmed.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+  if (numeric) {
+    let year = Number(numeric[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    return calendarDate(year, Number(numeric[2]) - 1, Number(numeric[1]));
+  }
 
   const named = trimmed
     .toLowerCase()
     .replace(/\./g, "")
+    .replace(/-/g, " ")
     .match(/^(\d{1,2})(?:\s+de)?\s+([a-záéíóúñ]+)(?:\s+de)?\s+(\d{4})$/i);
   if (!named) return null;
   const key = named[2].normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 3);

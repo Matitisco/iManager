@@ -1,0 +1,20 @@
+{
+ "section": "clients",
+ "currency": "ARS",
+ "rows": [
+  {
+   "name": "Vera Nieto",
+   "phone": "+5491155558888",
+   "instagram": "vera.nieto",
+   "email": "vera@nieto.com",
+   "dni": "29111222"
+  },
+  {
+   "name": "Wendy Salas",
+   "phone": "+5491155559999",
+   "instagram": "wendy.salas",
+   "email": "wendy@salas.com",
+   "dni": "29111333"
+  }
+ ]
+}
