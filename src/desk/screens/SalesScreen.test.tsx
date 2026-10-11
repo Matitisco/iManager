@@ -103,6 +103,14 @@ describe('Sales column filters', () => {
     owner.unmount();
 
     context.appSession = { membership: { role: 'STAFF', sections: ['sales', 'reports'] } };
+    const granted = renderScreen();
+    expect(screen.getByText('Facturación total')).toBeInTheDocument();
+    expect(screen.getByText('Margen bruto est.')).toBeInTheDocument();
+    expect(screen.getByText('precio menos costo')).toBeInTheDocument();
+    expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
+    granted.unmount();
+
+    context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
     const staff = renderScreen();
     expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
     expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
@@ -161,6 +169,13 @@ describe('Sales on a phone', () => {
     expect(screen.queryByRole('columnheader', { name: /Venta/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('sales-period')).toHaveTextContent('Mes');
     expect(screen.getByTestId('sales-status')).toHaveTextContent('Estado');
+  });
+
+  it('shows billing and margin on a phone when the employee can open reports', () => {
+    context.appSession = { membership: { role: 'STAFF', sections: ['sales', 'reports'] } };
+    renderScreen();
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Facturación total');
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Margen bruto est.');
   });
 
   it('hides billing and margin when the member cannot open reports', () => {

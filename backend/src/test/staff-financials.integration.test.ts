@@ -63,7 +63,8 @@ describe("financial fields by permission", () => {
     const app = getApp();
     const owner = await seedStoreContext({ firebaseUid: "owner-costs", email: "owner-costs@example.com" });
     const storeId = owner.store!.id;
-    await addMember(storeId, "staff-costs", "STAFF", ["inventory", "sales", "tradeins", "reports"]);
+    await addMember(storeId, "staff-costs", "STAFF", ["inventory", "sales", "tradeins"]);
+    await addMember(storeId, "staff-reports", "STAFF", ["inventory", "sales", "reports"]);
     await addMember(storeId, "manager-sales", "MANAGER", ["inventory", "sales"]);
     await addMember(storeId, "manager-reports", "MANAGER", ["inventory", "reports"]);
 
@@ -170,5 +171,11 @@ describe("financial fields by permission", () => {
 
     const reports = await app.inject({ method: "GET", url: "/api/reports/overview", headers: headers("staff-costs") });
     expect(reports.statusCode).toBe(403);
+
+    const grantedList = await app.inject({ method: "GET", url: "/api/inventory", headers: headers("staff-reports") });
+    expect(grantedList.statusCode).toBe(200);
+    expect(grantedList.json().inventory.find((item: { id: string }) => item.id === itemId).cost).toBe(900);
+    const grantedReports = await app.inject({ method: "GET", url: "/api/reports/overview", headers: headers("staff-reports") });
+    expect(grantedReports.statusCode).toBe(200);
   });
 });

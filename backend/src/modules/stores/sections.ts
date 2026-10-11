@@ -14,10 +14,12 @@ export const SECTION_IDS = [
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export function canAccessSection(section: SectionId, member: { role: string; sections?: unknown }): boolean {
-  if (section === "reports" && member.role === "STAFF") return false;
-  if (member.role === "OWNER" || member.sections == null) return true;
+  if (member.role === "OWNER") return true;
   const sections = normalizeSections(member.sections);
-  return sections?.includes(section) ?? true;
+  if (sections == null) {
+    return !(section === "reports" && member.role === "STAFF");
+  }
+  return sections.includes(section);
 }
 
 /** Cost, margin and store billing follow the same gate as Reportes. */

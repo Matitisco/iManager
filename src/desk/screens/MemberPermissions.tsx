@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { updateMemberSections, type TeamMember } from '../../services/members-api';
-import { DESK_SECTIONS, visibleSections } from '../sections';
+import { DESK_SECTIONS, grantedSections } from '../sections';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, PageHead } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
@@ -15,7 +15,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
   const { user, appSession, reloadSession } = useAppContext();
   const phone = usePhoneLayout();
   const locked = member.role === 'OWNER';
-  const [sections, setSections] = useState(() => visibleSections(member.sections, member.role));
+  const [sections, setSections] = useState(() => grantedSections(member.sections, member.role));
   const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

@@ -20,8 +20,14 @@ export function visibleSections(stored: string[] | null | undefined, role?: stri
 
 export function canOpenSection(id: string, stored: string[] | null | undefined, role?: string | null) {
   if (id === 'settings') return true;
-  if (role === 'STAFF' && id === 'reports') return false;
+  // Un empleado sin permisos guardados no ve Reportes. Si el dueño lo activa, sí.
+  if (role === 'STAFF' && id === 'reports' && stored == null) return false;
   return visibleSections(stored, role).includes(id as DeskSectionId);
+}
+
+/** Secciones que el switch de permisos debe mostrar prendidas: coinciden con el acceso real. */
+export function grantedSections(stored: string[] | null | undefined, role?: string | null): DeskSectionId[] {
+  return DESK_SECTION_IDS.filter((id) => canOpenSection(id, stored, role));
 }
 
 /** Facturación, margen y costo usan el mismo permiso que Reportes. */
