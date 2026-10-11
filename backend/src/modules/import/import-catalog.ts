@@ -41,6 +41,7 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
     ],
     hints: {
       modelo: "model",
+      equipo: "model",
       imei: "imei",
       precio: "price",
       capacidad: "capacity",

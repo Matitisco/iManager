@@ -1,6 +1,7 @@
 import { columnInput } from "./column-mapping.js";
 
 export const DECISIONS_URL = "https://api.openai.com/v1/decisions";
+// Decisions guide: gpt-6-luna is the only model on POST /v1/decisions.
 export const DEFAULT_DECISIONS_MODEL = "gpt-6-luna";
 export const DECISIONS_USD_PER_MILLION_INPUT_TOKENS = 0.1;
 export const REQUEST_TIMEOUT_MS = 8_000;

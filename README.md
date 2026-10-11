@@ -81,9 +81,10 @@ FIREBASE_PRIVATE_KEY=...
 FIRESTORE_DATABASE_ID=...
 OPENAI_API_KEY=...
 OPENAI_DECISIONS_MODEL=gpt-6-luna
+OPENAI_IMPORT_MODEL=gpt-6.1-sol
 ```
 
-`OPENAI_API_KEY` solo vive en el backend. Sugiere el mapeo de columnas al importar (`POST /v1/decisions`). Si falta, la importación sigue con el mapeo por nombre.
+`OPENAI_API_KEY` solo vive en el backend. Al importar, `POST /v1/responses` (`gpt-6.1-sol`, structured outputs) detecta hojas, encabezado y columnas. `POST /v1/decisions` (`gpt-6-luna`, el único modelo de ese endpoint) sigue disponible para clasificar una columna. Si falta la clave o la API falla, la importación usa la lectura automática.
 ```
 
 ---

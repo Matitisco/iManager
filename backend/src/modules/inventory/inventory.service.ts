@@ -616,6 +616,7 @@ const CONDITION_MAP: Record<string, string> = {
   new: "NUEVO",
   usado: "USADO",
   used: "USADO",
+  outlet: "OUTLET",
   "pre-owned": "PRE-OWNED",
   preowned: "PRE-OWNED",
   "pre owned": "PRE-OWNED",
