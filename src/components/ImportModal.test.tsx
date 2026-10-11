@@ -308,3 +308,45 @@ describe('previsualización de ventas y clientes', () => {
     expect(screen.queryByTestId('import-confirm')).not.toBeInTheDocument();
   });
 });
+
+function renderImporter(sheet: boolean) {
+  const onClose = vi.fn();
+  render(
+    <ImportModal
+      title="Importar equipos"
+      fields={fields}
+      nouns={{ one: 'equipo', many: 'equipos' }}
+      sheet={sheet}
+      onClose={onClose}
+      onAnalyze={vi.fn()}
+      onApply={vi.fn()}
+      onImport={vi.fn()}
+    />,
+  );
+  return onClose;
+}
+
+describe('cierre del importador con Escape', () => {
+  it('cierra el modal de escritorio y no reacciona a otras teclas', async () => {
+    const onClose = renderImporter(false);
+    expect(screen.getByRole('dialog', { name: 'Importar equipos' })).toBeInTheDocument();
+    await userEvent.keyboard('{Enter}');
+    expect(onClose).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('cierra la hoja del celular una sola vez', async () => {
+    const onClose = renderImporter(true);
+    expect(screen.getByRole('dialog', { name: 'Importar equipos' })).toHaveClass('sheet');
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('sigue cerrando el modal de escritorio con un clic afuera', () => {
+    const onClose = renderImporter(false);
+    const dialog = screen.getByRole('dialog', { name: 'Importar equipos' });
+    fireEvent.click(dialog.parentElement as HTMLElement);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});
