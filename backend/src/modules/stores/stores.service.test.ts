@@ -13,6 +13,7 @@ const prismaMock = vi.hoisted(() => ({
   store: {
     update: vi.fn(),
     create: vi.fn(),
+    findUnique: vi.fn(),
   },
   $executeRaw: vi.fn(),
   $transaction: vi.fn(),
@@ -22,12 +23,14 @@ vi.mock("../../plugins/prisma.js", () => ({
   prisma: prismaMock,
 }));
 
+import { MANUAL_QUOTE_ORDER_ERROR } from "../../lib/manual-quote.js";
 import {
   activateStoreForUser,
   createStoreForUser,
   listStoresForUser,
   removeMember,
   updateMemberRole,
+  updateStore,
 } from "./stores.service.js";
 
 describe("stores.service", () => {
@@ -136,6 +139,77 @@ describe("stores.service", () => {
       where: { id: "member-2" },
       data: { isDefault: true },
     });
+  });
+
+  it("rejects a manual buy rate above the sell rate before saving", async () => {
+    prismaMock.store.findUnique.mockResolvedValue({
+      exchangeMode: "auto",
+      manualBuy: null,
+      manualSell: null,
+    });
+
+    await expect(updateStore("store-1", {
+      exchangeMode: "manual",
+      manualBuy: 1400,
+      manualSell: 1300,
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: MANUAL_QUOTE_ORDER_ERROR,
+    });
+    expect(prismaMock.store.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a higher buy rate against the sell rate already stored", async () => {
+    prismaMock.store.findUnique.mockResolvedValue({
+      exchangeMode: "manual",
+      manualBuy: { toNumber: () => 1200 },
+      manualSell: { toNumber: () => 1300 },
+    });
+
+    await expect(updateStore("store-1", { manualBuy: 1400 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: MANUAL_QUOTE_ORDER_ERROR,
+    });
+    expect(prismaMock.store.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects switching to manual when the stored rates are inverted", async () => {
+    prismaMock.store.findUnique.mockResolvedValue({
+      exchangeMode: "auto",
+      manualBuy: 1400,
+      manualSell: 1300,
+    });
+
+    await expect(updateStore("store-1", { exchangeMode: "manual" })).rejects.toMatchObject({
+      message: MANUAL_QUOTE_ORDER_ERROR,
+    });
+    expect(prismaMock.store.update).not.toHaveBeenCalled();
+  });
+
+  it("saves a manual quote when the buy rate is lower or equal", async () => {
+    prismaMock.store.findUnique.mockResolvedValue({
+      exchangeMode: "manual",
+      manualBuy: null,
+      manualSell: null,
+    });
+    prismaMock.store.update.mockResolvedValue({ id: "store-1" });
+
+    await updateStore("store-1", { exchangeMode: "manual", manualBuy: 1400, manualSell: 1400 });
+    await updateStore("store-1", { exchangeMode: "manual", manualBuy: 1300, manualSell: 1400 });
+
+    expect(prismaMock.store.update).toHaveBeenCalledTimes(2);
+    expect(prismaMock.store.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ manualBuy: 1300, manualSell: 1400, exchangeMode: "manual" }),
+    }));
+  });
+
+  it("does not compare rates while the quote stays automatic", async () => {
+    prismaMock.store.update.mockResolvedValue({ id: "store-1" });
+
+    await updateStore("store-1", { name: "Casa" });
+
+    expect(prismaMock.store.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.store.update).toHaveBeenCalled();
   });
 
   it("refuses to activate a store outside the user memberships", async () => {

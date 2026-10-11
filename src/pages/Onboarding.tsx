@@ -3,6 +3,7 @@ import { BrandLockup } from '../components/brand-mark';
 import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
+import { manualQuoteOrderError } from '../lib/manual-quote';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { normalizeInstagram, storeContactErrors } from '../lib/store-contact';
 import { getFriendlyErrorMessage, trimToString } from '../lib/utils';
@@ -212,9 +213,18 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
       return;
     }
 
-    if (exchangeMode === 'manual' && ((manualBuy && !manualSell) || (!manualBuy && manualSell))) {
-      setError('Completá compra y venta, o dejalas vacías.');
-      return;
+    if (exchangeMode === 'manual') {
+      const buy = rateOrNull(manualBuy);
+      const sell = rateOrNull(manualSell);
+      if ((buy && !sell) || (!buy && sell)) {
+        setError('Completá compra y venta, o dejalas vacías.');
+        return;
+      }
+      const quoteOrder = manualQuoteOrderError(buy ?? 0, sell ?? 0);
+      if (quoteOrder) {
+        setError(quoteOrder);
+        return;
+      }
     }
 
     setError('');

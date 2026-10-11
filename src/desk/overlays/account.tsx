@@ -7,6 +7,7 @@ import { formatInputMoney, formatArDate, initials, parseMoney } from '../format'
 import { ImanagerIcon } from '../icons';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
+import { manualQuoteOrderError } from '../../lib/manual-quote';
 import { clearStoreContactOffer, normalizeInstagram, storeContactErrors } from '../../lib/store-contact';
 import { clearBad, shareOrCopy, type FormProps } from './shared';
 import { ROLE_LABEL } from '../../lib/roles';
@@ -59,8 +60,8 @@ export function StoreForm({ run, busy, error }: FormProps) {
         </Field>
       ) : (
         <div className="frow">
-          <Field label="Compra" error={bad.manualBuy}><input data-testid="store-manual-buy" inputMode="numeric" value={manualBuy} placeholder="Ej. 1200" onChange={(event) => { setManualBuy(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'manualBuy'); }} /></Field>
-          <Field label="Venta" error={bad.manualSell}><input data-testid="store-manual-sell" inputMode="numeric" value={manualSell} placeholder="Ej. 1250" onChange={(event) => { setManualSell(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'manualSell'); }} /></Field>
+          <Field label="Compra" error={bad.manualBuy}><input data-testid="store-manual-buy" inputMode="numeric" value={manualBuy} placeholder="Ej. 1200" onChange={(event) => { setManualBuy(formatInputMoney(parseMoney(event.target.value))); clearQuoteErrors(setBad); }} /></Field>
+          <Field label="Venta" error={bad.manualSell}><input data-testid="store-manual-sell" inputMode="numeric" value={manualSell} placeholder="Ej. 1250" onChange={(event) => { setManualSell(formatInputMoney(parseMoney(event.target.value))); clearQuoteErrors(setBad); }} /></Field>
         </div>
       )}
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
@@ -68,11 +69,13 @@ export function StoreForm({ run, busy, error }: FormProps) {
         const buy = parseMoney(manualBuy);
         const sell = parseMoney(manualSell);
         const manualGap = exchangeMode === 'manual' && ((buy > 0) !== (sell > 0));
-        if (!name.trim() || contact.email || contact.instagram || manualGap) {
+        const quoteOrder = exchangeMode === 'manual' ? manualQuoteOrderError(buy, sell) : null;
+        if (!name.trim() || contact.email || contact.instagram || manualGap || quoteOrder) {
           setBad({
             ...contact,
             ...(!name.trim() ? { name: 'Completá este dato' } : {}),
             ...(manualGap ? { manualBuy: 'Completá compra y venta', manualSell: 'Completá compra y venta' } : {}),
+            ...(quoteOrder ? { manualBuy: quoteOrder, manualSell: quoteOrder } : {}),
           });
           return;
         }
@@ -129,6 +132,11 @@ export function ContactForm({ run, busy, error }: FormProps) {
       }} />
     </Sheet>
   );
+}
+
+function clearQuoteErrors(setBad: Parameters<typeof clearBad>[0]) {
+  clearBad(setBad, 'manualBuy');
+  clearBad(setBad, 'manualSell');
 }
 
 function ContactFields({ phone, email, instagram, instagramRequired, bad, onPhone, onEmail, onInstagram, onClear }: {

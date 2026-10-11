@@ -5,6 +5,7 @@ import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lo
 import { assertStoreContact, blankToNull } from "./store-contact.js";
 import { assertSectionList, normalizeSections } from "./sections.js";
 import { asCurrency, asExchangeMode, asExchangeSource, positiveRate } from "../../lib/money-currency.js";
+import { assertManualQuoteOrder } from "../../lib/manual-quote.js";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
@@ -122,6 +123,7 @@ export interface StoreUpdateInput {
 
 export async function updateStore(storeId: string, data: StoreUpdateInput) {
   const contact = assertStoreContact(data);
+  await assertManualQuoteUpdate(storeId, data);
   return prisma.store.update({
     where: { id: storeId },
     data: {
@@ -139,6 +141,24 @@ export async function updateStore(storeId: string, data: StoreUpdateInput) {
       ...("address" in data ? { address: blankToNull(data.address) } : {}),
     },
   });
+}
+
+async function assertManualQuoteUpdate(storeId: string, data: StoreUpdateInput) {
+  const touchesQuote = "exchangeMode" in data || "manualBuy" in data || "manualSell" in data;
+  if (!touchesQuote) return;
+
+  const current = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { exchangeMode: true, manualBuy: true, manualSell: true },
+  });
+  if (!current) throw new DomainError("Tienda no encontrada", 404);
+
+  const mode = "exchangeMode" in data ? asExchangeMode(data.exchangeMode) : asExchangeMode(current.exchangeMode);
+  if (mode !== "manual") return;
+
+  const buy = "manualBuy" in data ? positiveRate(data.manualBuy) : positiveRate(current.manualBuy);
+  const sell = "manualSell" in data ? positiveRate(data.manualSell) : positiveRate(current.manualSell);
+  assertManualQuoteOrder(buy, sell);
 }
 
 export async function listMembers(storeId: string) {

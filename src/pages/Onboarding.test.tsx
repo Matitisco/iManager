@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MANUAL_QUOTE_ORDER_ERROR } from '../lib/manual-quote';
 import { Onboarding } from './Onboarding';
 
 const mockAppContext = vi.hoisted(() => ({
@@ -142,6 +143,21 @@ describe('Onboarding', () => {
         manualSell: null,
       });
     });
+  });
+
+  it('blocks a manual buy rate above the sell rate', async () => {
+    const user = userEvent.setup();
+    render(<Onboarding />);
+
+    await user.type(screen.getByLabelText('Nombre de la tienda'), 'Sucursal Norte');
+    await user.type(screen.getByLabelText(/Instagram/), '@norte');
+    await user.selectOptions(screen.getByTestId('onboarding-exchange-mode'), 'manual');
+    await user.type(screen.getByTestId('onboarding-manual-buy'), '1400');
+    await user.type(screen.getByTestId('onboarding-manual-sell'), '1300');
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText(MANUAL_QUOTE_ORDER_ERROR)).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
   });
 
   it('rejects an instagram that is not a handle or a profile URL', async () => {
