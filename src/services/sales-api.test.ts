@@ -64,10 +64,10 @@ describe('sales-api', () => {
 
     await expect(fetchBackendSales(mockUser)).resolves.toEqual([saleFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/sales', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
   });

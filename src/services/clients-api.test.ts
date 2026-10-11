@@ -60,10 +60,10 @@ describe('clients-api', () => {
 
     await expect(fetchBackendClients(mockUser)).resolves.toEqual([clientFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
   });

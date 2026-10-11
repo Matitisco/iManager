@@ -61,10 +61,10 @@ describe('inventory-api', () => {
 
     await expect(fetchBackendInventory(mockUser)).resolves.toEqual([inventoryItem]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/inventory', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
     await expect(fetchBackendInventory(mockUser)).rejects.toThrow('Filtro invalido');

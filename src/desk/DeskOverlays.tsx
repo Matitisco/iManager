@@ -5,11 +5,8 @@ import { INPUT_LIMITS } from '../lib/input-limits';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../lib/imei';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ImportModal } from '../components/ImportModal';
-import { importBackendInventoryItems, type ImportRow } from '../services/inventory-import-api';
-import { importBackendSales } from '../services/sales-import-api';
-import { importBackendClients } from '../services/clients-import-api';
+import { importBackendRows, type InventoryImportRow } from '../services/import-api';
 import { fetchClientPayments, type ClientPaymentRecord } from '../services/clients-api';
-import { importBackendTradeIns } from '../services/trade-ins-import-api';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../services/invitations-api';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
 import type { OperationInput, OperationSource } from '../services/operations-api';
@@ -1589,7 +1586,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       hints: { modelo: 'model', imei: 'imei', precio: 'price', capacidad: 'capacity', color: 'color', colour: 'color', colores: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
         const parseNum = (value?: string) => value ? Number(value.replace(/\./g, '').replace(',', '.')) || 0 : undefined;
-        const payload: ImportRow[] = rows.map((row) => ({
+        const payload: InventoryImportRow[] = rows.map((row) => ({
           imei: row.imei ?? '',
           model: row.model ?? '',
           price: parseNum(row.price) ?? 0,
@@ -1601,7 +1598,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
           cost: parseNum(row.cost),
           status: row.status,
         }));
-        const result = await importBackendInventoryItems(user, payload);
+        const result = await importBackendRows(user, 'inventory', payload);
         await after();
         return result;
       },
@@ -1620,7 +1617,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       ],
       hints: { cliente: 'clientName', imei: 'productImei', total: 'amount', fecha: 'date', pago: 'paymentMethod', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const result = await importBackendSales(user, rows);
+        const result = await importBackendRows(user, 'sales', rows);
         await after();
         return result;
       },
@@ -1637,7 +1634,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       ],
       hints: { nombre: 'name', dni: 'dni', telefono: 'phone', email: 'email' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const result = await importBackendClients(user, rows);
+        const result = await importBackendRows(user, 'clients', rows);
         await after();
         return result;
       },
@@ -1656,7 +1653,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
     ],
     hints: { cliente: 'clientName', recibido: 'deviceReceived', imei: 'deviceReceivedImei', valor: 'takeValue', entrega: 'deviceGiven', diferencia: 'differencePaid', estado: 'status' },
     onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-      const result = await importBackendTradeIns(user, rows);
+      const result = await importBackendRows(user, 'trade-ins', rows);
       await after();
       return result;
     },

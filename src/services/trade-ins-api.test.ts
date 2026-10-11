@@ -58,10 +58,10 @@ describe('trade-ins-api', () => {
 
     await expect(fetchBackendTradeIns(mockUser)).resolves.toEqual([tradeInFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/trade-ins', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
     });
   });

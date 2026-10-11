@@ -1,70 +1,23 @@
 import type { Sale } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
-import { getBackendBaseUrl } from './backend-session';
-import { fetchWithTimeout } from './fetch-with-timeout';
+import { apiRequest } from './api-client';
 
 type BackendSalesResponse = {
   sale?: Sale;
   sales?: Sale[];
 };
 
-const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-
-async function getAuthHeaders(user: AuthUserLike) {
-  const token = await user.getIdToken();
-
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-}
-
-// Fastify rejects an empty body sent with Content-Type: application/json.
-async function getDeleteHeaders(user: AuthUserLike) {
-  const token = await user.getIdToken();
-
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-  };
-}
-
-function getBaseUrlOrThrow() {
-  const baseUrl = getBackendBaseUrl();
-
-  if (!baseUrl) {
-    throw new Error('Backend no configurado');
-  }
-
-  return trimTrailingSlash(baseUrl);
-}
-
-async function parseJson<T>(response: Response): Promise<T> {
-  return (await response.json()) as T;
-}
-
 export async function fetchBackendSales(user: AuthUserLike): Promise<Sale[]> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/sales`, {
-    headers: await getAuthHeaders(user),
+  const data = await apiRequest<BackendSalesResponse>(user, '/api/sales', {
+    fallback: (status) => `No se pudieron cargar las ventas (${status})`,
   });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudieron cargar las ventas (${response.status})`);
-  }
-
-  const data = await parseJson<BackendSalesResponse>(response);
   return data.sales ?? [];
 }
 
 export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise<Sale> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/sales/${sale.id}`, {
+  const data = await apiRequest<BackendSalesResponse>(user, `/api/sales/${sale.id}`, {
     method: 'PATCH',
-    headers: await getAuthHeaders(user),
-    body: JSON.stringify({
+    body: {
       clientId: sale.clientId,
       ...(sale.clientName !== undefined ? { clientName: sale.clientName } : {}),
       productId: sale.productId,
@@ -75,15 +28,9 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
       amount: sale.amount,
       categoryId: sale.categoryId ?? null,
       customFields: sale.customFields,
-    }),
+    },
+    fallback: (status) => `No se pudo actualizar la venta (${status})`,
   });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo actualizar la venta (${response.status})`);
-  }
-
-  const data = await parseJson<BackendSalesResponse>(response);
   if (!data.sale) {
     throw new Error('Respuesta inválida al actualizar venta');
   }
@@ -92,14 +39,8 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
 }
 
 export async function deleteBackendSale(user: AuthUserLike, saleId: string): Promise<void> {
-  const baseUrl = getBaseUrlOrThrow();
-  const response = await fetchWithTimeout(`${baseUrl}/api/sales/${saleId}`, {
+  await apiRequest<void>(user, `/api/sales/${saleId}`, {
     method: 'DELETE',
-    headers: await getDeleteHeaders(user),
+    fallback: (status) => `No se pudo eliminar la venta (${status})`,
   });
-
-  if (!response.ok && response.status !== 204) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || `No se pudo eliminar la venta (${response.status})`);
-  }
 }
