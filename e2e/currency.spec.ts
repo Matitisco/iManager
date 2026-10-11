@@ -25,6 +25,7 @@ test('configures the store currency and converts a saved price', async ({ page }
 
   await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
   await page.getByTestId('onboarding-store-name').fill(storeName);
+  await page.getByTestId('onboarding-instagram').fill('@moneda');
   await page.getByTestId('onboarding-currency').selectOption('USD');
   await page.getByTestId('onboarding-exchange-mode').selectOption('auto');
   await page.getByTestId('onboarding-exchange-source').selectOption('blue');
@@ -118,6 +119,7 @@ test.describe('phone', () => {
     await loginViaUi(page, email);
     await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     await page.getByTestId('onboarding-store-name').fill(`Celular ${testInfo.parallelIndex}`);
+    await page.getByTestId('onboarding-instagram').fill('@celular');
     await page.getByTestId('onboarding-submit').click();
     const skipContact = page.getByRole('button', { name: 'Ahora no' });
     if (await skipContact.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)) {

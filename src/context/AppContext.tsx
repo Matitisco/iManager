@@ -99,7 +99,7 @@ interface AppState {
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
-  completeOnboarding: (input: { storeName: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
+  completeOnboarding: (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
   createOwnedStore: (storeName: string) => Promise<void>;
   activateStore: (storeId: string) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
@@ -527,7 +527,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
-  const completeOnboarding = async (input: { storeName: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
+  const completeOnboarding = async (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
     if (!user) {
       throw new Error('No authenticated user');
     }

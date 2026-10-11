@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
+import { normalizeInstagram, storeContactErrors } from '../lib/store-contact';
 import { getFriendlyErrorMessage, trimToString } from '../lib/utils';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -92,10 +93,10 @@ const primaryButton =
   'w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 px-4 text-center max-[760px]:min-h-[52px] max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:opacity-100 max-[760px]:break-words max-[760px]:leading-snug';
 
 const screenClass =
-  'min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8 max-[760px]:h-dvh max-[760px]:min-h-0 max-[760px]:flex-col max-[760px]:items-stretch max-[760px]:justify-start max-[760px]:overflow-hidden max-[760px]:overflow-x-clip max-[760px]:bg-[#F7F8FA] max-[760px]:p-0';
+  'flex h-dvh flex-col overflow-y-auto overflow-x-hidden bg-gray-50 px-4 max-[760px]:min-h-0 max-[760px]:overflow-hidden max-[760px]:overflow-x-clip max-[760px]:bg-[#F7F8FA] max-[760px]:p-0';
 
 const cardClass =
-  'onb-card w-full max-w-xl bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10 max-[760px]:flex max-[760px]:h-full max-[760px]:max-w-none max-[760px]:min-w-0 max-[760px]:flex-col max-[760px]:rounded-none max-[760px]:border-0 max-[760px]:bg-transparent max-[760px]:p-0 max-[760px]:shadow-none';
+  'onb-card mx-auto my-auto w-full max-w-xl shrink-0 bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10 max-[760px]:mx-0 max-[760px]:my-0 max-[760px]:flex max-[760px]:h-full max-[760px]:max-w-none max-[760px]:min-w-0 max-[760px]:flex-col max-[760px]:rounded-none max-[760px]:border-0 max-[760px]:bg-transparent max-[760px]:p-0 max-[760px]:shadow-none';
 
 const stackClass = 'max-[760px]:flex max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:flex-col';
 
@@ -149,6 +150,8 @@ interface OnboardingProps {
 export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
   const { appSession, completeOnboarding, acceptStoreInvitation, logout } = useAppContext();
   const [storeName, setStoreName] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [instagramError, setInstagramError] = useState('');
   const [currency, setCurrency] = useState<StoreCurrency>('ARS');
   const [exchangeMode, setExchangeMode] = useState<ExchangeMode>('auto');
   const [exchangeSource, setExchangeSource] = useState<ExchangeSource>('blue');
@@ -201,16 +204,25 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
       return;
     }
 
+    const instagramCheck = storeContactErrors({ email: '', instagram }, { instagramRequired: true });
+    if (instagramCheck.instagram) {
+      setInstagramError(instagramCheck.instagram);
+      setError('');
+      return;
+    }
+
     if (exchangeMode === 'manual' && ((manualBuy && !manualSell) || (!manualBuy && manualSell))) {
       setError('Completá compra y venta, o dejalas vacías.');
       return;
     }
 
     setError('');
+    setInstagramError('');
     setIsSubmitting(true);
     try {
       await completeOnboarding({
         storeName: trimmedStoreName,
+        instagram: normalizeInstagram(instagram),
         currency,
         exchangeMode,
         exchangeSource,
@@ -256,6 +268,31 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
 
   const titleClass = 'text-3xl font-bold text-gray-900 max-[760px]:text-2xl max-[760px]:break-words';
   const storeInputClass = 'w-full max-w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all max-[760px]:text-base';
+  const instagramField = (
+    <div>
+      <label htmlFor="onboarding-instagram" className="block text-sm font-medium text-gray-700 mb-2">
+        Instagram <span className="font-normal text-gray-400">· obligatorio</span>
+      </label>
+      <input
+        id="onboarding-instagram"
+        data-testid="onboarding-instagram"
+        type="text"
+        value={instagram}
+        onChange={(event) => {
+          setInstagram(event.target.value);
+          setInstagramError('');
+        }}
+        placeholder="@tienda o instagram.com/tienda"
+        className={storeInputClass}
+        disabled={isSubmitting}
+        autoComplete="off"
+      />
+      {instagramError ? (
+        <p className="mt-2 text-sm text-red-700" data-testid="onboarding-instagram-error">{instagramError}</p>
+      ) : null}
+    </div>
+  );
+
   const currencyFields = (
     <CurrencySetup
       currency={currency}
@@ -409,6 +446,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
               autoFocus
             />
           </div>
+          {instagramField}
           {currencyFields}
           {error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm break-words">
@@ -466,6 +504,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
             autoFocus
           />
         </div>
+        {instagramField}
         {currencyFields}
       </div>
     </OnboardingLayout>

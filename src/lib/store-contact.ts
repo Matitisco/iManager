@@ -13,12 +13,23 @@ export function hasStoreContactOffer(storeId: string) {
   try { return sessionStorage.getItem(`imanager.contact-offer.${storeId}`) === '1'; } catch { return false; }
 }
 
-export function storeContactErrors(input: { email: string; instagram: string }) {
+export function normalizeInstagram(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const fromUrl = trimmed.match(/instagram\.com\/@?([A-Za-z0-9._]+)/i)?.[1];
+  return (fromUrl ?? trimmed).replace(/^@+/, '').replace(/\/$/, '');
+}
+
+export function storeContactErrors(
+  input: { email: string; instagram: string },
+  options?: { instagramRequired?: boolean },
+) {
   const errors: { email?: string; instagram?: string } = {};
   const email = input.email.trim();
-  const instagram = input.instagram.trim().replace(/^@+/, '');
+  const instagram = normalizeInstagram(input.instagram);
   if (email && !EMAIL.test(email)) errors.email = 'El correo no es válido';
-  if (instagram && !INSTAGRAM.test(instagram)) errors.instagram = 'Usá el usuario de Instagram, sin espacios';
+  if (options?.instagramRequired && !instagram) errors.instagram = 'Completá el Instagram de la tienda';
+  else if (instagram && !INSTAGRAM.test(instagram)) errors.instagram = 'Usá @usuario o el link del perfil';
   return errors;
 }
 

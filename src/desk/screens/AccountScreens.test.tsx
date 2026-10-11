@@ -52,6 +52,7 @@ describe('Settings store contact', () => {
   it('shows the saved contact details and opens the store editor', async () => {
     renderSettings();
     expect(screen.getByText('2614001122 · hola@tienda.test · @mitienda')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-instagram-notice')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Casa/ }));
     expect(open).toHaveBeenCalledWith({ type: 'store' });
   });
@@ -62,6 +63,8 @@ describe('Settings store contact', () => {
     context.appSession.store.instagram = null;
     renderSettings();
     expect(screen.getByText('Sin datos de contacto')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-instagram-notice')).toHaveTextContent('Falta el Instagram de la tienda');
+    expect(screen.getByTestId('settings-instagram-notice')).toHaveTextContent('seguir usando la app');
   });
 });
 

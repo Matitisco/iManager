@@ -14,6 +14,17 @@ export function normalizeInstagram(value: string | null | undefined) {
   return handle || null;
 }
 
+export function requireInstagram(value: string | null | undefined) {
+  const instagram = normalizeInstagram(value);
+  if (!instagram) {
+    throw Object.assign(new Error('Completá el Instagram de la tienda'), { statusCode: 400 });
+  }
+  if (!INSTAGRAM.test(instagram)) {
+    throw Object.assign(new Error('Usá @usuario o el link del perfil'), { statusCode: 400 });
+  }
+  return instagram;
+}
+
 export function assertStoreContact(data: { email?: string | null; instagram?: string | null }) {
   const next: { email?: string | null; instagram?: string | null } = {};
   if ('email' in data) {
@@ -24,11 +35,7 @@ export function assertStoreContact(data: { email?: string | null; instagram?: st
     next.email = email;
   }
   if ('instagram' in data) {
-    const instagram = normalizeInstagram(data.instagram);
-    if (instagram && !INSTAGRAM.test(instagram)) {
-      throw Object.assign(new Error('El Instagram no es válido'), { statusCode: 400 });
-    }
-    next.instagram = instagram;
+    next.instagram = requireInstagram(data.instagram);
   }
   return next;
 }

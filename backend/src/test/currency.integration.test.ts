@@ -29,6 +29,7 @@ describe("store currency", () => {
       headers,
       payload: {
         storeName: "Casa Dólar",
+        instagram: "https://instagram.com/casa.dolar",
         currency: "USD",
         exchangeMode: "auto",
         exchangeSource: "mep",
@@ -37,6 +38,7 @@ describe("store currency", () => {
     expect(onboarded.statusCode).toBe(200);
     expect(onboarded.json().session.store).toMatchObject({
       name: "Casa Dólar",
+      instagram: "casa.dolar",
       currency: "USD",
       exchangeMode: "auto",
       exchangeSource: "mep",

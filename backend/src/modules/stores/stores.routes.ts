@@ -22,7 +22,7 @@ const storePatchSchema = z.object({
   taxId: z.string().max(50).nullable().optional(),
   phone: z.string().max(50).nullable().optional(),
   email: z.string().max(255).nullable().optional(),
-  instagram: z.string().max(80).nullable().optional(),
+  instagram: z.string().max(300).nullable().optional(),
   address: z.string().max(255).nullable().optional(),
   currency: z.enum(["ARS", "USD"]).optional(),
   exchangeMode: z.enum(["auto", "manual"]).optional(),

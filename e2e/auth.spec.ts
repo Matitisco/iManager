@@ -26,6 +26,10 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   await page.getByTestId('onboarding-submit').click();
   await expect(page.getByText('Completá el nombre de la tienda')).toBeVisible();
   await storeNameInput.fill(storeName);
+  await page.getByTestId('onboarding-submit').click();
+  await expect(page.getByTestId('onboarding-instagram-error')).toHaveText('Completá el Instagram de la tienda');
+
+  await page.getByTestId('onboarding-instagram').fill('https://www.instagram.com/mitienda/');
 
   const onboardingResponse = page.waitForResponse(
     (response) =>
@@ -38,6 +42,7 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   const onboardingPayload = await (await onboardingResponse).json();
   expect(onboardingPayload.session.onboardingRequired).toBeFalsy();
   expect(onboardingPayload.session.store?.name).toBe(storeName);
+  expect(onboardingPayload.session.store?.instagram).toBe('mitienda');
 
   const contact = page.getByRole('dialog', { name: 'Datos de contacto' });
   await expect(contact).toBeVisible();

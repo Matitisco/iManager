@@ -77,7 +77,7 @@ describe("concurrent first login", () => {
           method: "POST",
           url: "/api/onboarding",
           headers,
-          payload: { storeName: "Tienda Única" },
+          payload: { storeName: "Tienda Única", instagram: "@tiendaunica" },
         })
       )
     );

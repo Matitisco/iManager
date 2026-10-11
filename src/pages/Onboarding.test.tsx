@@ -111,6 +111,7 @@ describe('Onboarding', () => {
 
     const input = screen.getByLabelText('Nombre de la tienda');
     await user.type(input, 'Sucursal Norte');
+    await user.type(screen.getByLabelText(/Instagram/), '@norte');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
     expect(await screen.findByText('No se pudo completar el onboarding')).toBeInTheDocument();
@@ -124,10 +125,16 @@ describe('Onboarding', () => {
     const input = screen.getByLabelText('Nombre de la tienda');
     await user.type(input, 'Sucursal Norte');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    expect(await screen.findByText('Completá el Instagram de la tienda')).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText(/Instagram/), 'https://instagram.com/@sucursal.norte/');
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
     await waitFor(() => {
       expect(mockAppContext.completeOnboarding).toHaveBeenCalledWith({
         storeName: 'Sucursal Norte',
+        instagram: 'sucursal.norte',
         currency: 'ARS',
         exchangeMode: 'auto',
         exchangeSource: 'blue',
@@ -135,6 +142,18 @@ describe('Onboarding', () => {
         manualSell: null,
       });
     });
+  });
+
+  it('rejects an instagram that is not a handle or a profile URL', async () => {
+    const user = userEvent.setup();
+    render(<Onboarding />);
+
+    await user.type(screen.getByLabelText('Nombre de la tienda'), 'Sucursal Norte');
+    await user.type(screen.getByLabelText(/Instagram/), 'mi tienda');
+    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+
+    expect(await screen.findByText('Usá @usuario o el link del perfil')).toBeInTheDocument();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
   });
 
   it('accepts a valid invitation and notifies the caller', async () => {

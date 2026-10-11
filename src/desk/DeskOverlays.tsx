@@ -49,7 +49,7 @@ import { QualityField } from './QualityField';
 import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from './quality';
 import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, signalDesk, useDesk } from './ui';
 import type { Overlay } from './types';
-import { clearStoreContactOffer, storeContactErrors } from '../lib/store-contact';
+import { clearStoreContactOffer, normalizeInstagram, storeContactErrors } from '../lib/store-contact';
 import { markSessionClosed } from './screens/SessionClosed';
 
 function clearBad(setBad: Dispatch<SetStateAction<Record<string, string>>>, key: string) {
@@ -1247,7 +1247,7 @@ function StoreForm({ run, busy, error }: FormProps) {
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
-      <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
+      <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       {isPhone ? <h4 className="cfg-h">Moneda y dólar</h4> : null}
       <Field label="Moneda principal">
         <span className="money-row">
@@ -1276,7 +1276,7 @@ function StoreForm({ run, busy, error }: FormProps) {
         </div>
       )}
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
-        const contact = storeContactErrors({ email, instagram });
+        const contact = storeContactErrors({ email, instagram }, { instagramRequired: true });
         const buy = parseMoney(manualBuy);
         const sell = parseMoney(manualSell);
         const manualGap = exchangeMode === 'manual' && ((buy > 0) !== (sell > 0));
@@ -1296,7 +1296,7 @@ function StoreForm({ run, busy, error }: FormProps) {
           address: address.trim() || null,
           phone: phone.trim() || null,
           email: email.trim() || null,
-          instagram: instagram.trim() || null,
+          instagram: normalizeInstagram(instagram),
           currency,
           exchangeMode,
           exchangeSource,
@@ -1325,16 +1325,16 @@ function ContactForm({ run, busy, error }: FormProps) {
   return (
     <Sheet title="Datos de contacto" subtitle="Podés completarlos ahora o más tarde desde Configuración." onClose={dismiss}>
       {error && <div className="ferr">{error}</div>}
-      <ContactFields phone={phone} email={email} instagram={instagram} bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
+      <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       <Actions busy={busy} primary="Guardar" secondary="Ahora no" onSecondary={dismiss} onPrimary={() => {
-        const contact = storeContactErrors({ email, instagram });
+        const contact = storeContactErrors({ email, instagram }, { instagramRequired: true });
         if (contact.email || contact.instagram) { setBad(contact); return; }
         setBad({});
         void run(async () => {
           await updateStore({
             phone: phone.trim() || null,
             email: email.trim() || null,
-            instagram: instagram.trim() || null,
+            instagram: normalizeInstagram(instagram),
           });
           if (store?.id) clearStoreContactOffer(store.id);
         }, 'Datos de contacto guardados');
@@ -1343,10 +1343,11 @@ function ContactForm({ run, busy, error }: FormProps) {
   );
 }
 
-function ContactFields({ phone, email, instagram, bad, onPhone, onEmail, onInstagram, onClear }: {
+function ContactFields({ phone, email, instagram, instagramRequired, bad, onPhone, onEmail, onInstagram, onClear }: {
   phone: string;
   email: string;
   instagram: string;
+  instagramRequired?: boolean;
   bad: Record<string, string>;
   onPhone: (value: string) => void;
   onEmail: (value: string) => void;
@@ -1357,7 +1358,7 @@ function ContactFields({ phone, email, instagram, bad, onPhone, onEmail, onInsta
     <>
       <Field label="Teléfono"><input value={phone} inputMode="tel" placeholder="Ej. 11 5555 5555" onChange={(event) => onPhone(event.target.value)} /></Field>
       <Field label="Correo electrónico" error={bad.email}><input type="email" value={email} placeholder="hola@tienda.com" onChange={(event) => { onEmail(event.target.value); onClear('email'); }} /></Field>
-      <Field label="Instagram" error={bad.instagram}><input value={instagram} placeholder="@tienda" onChange={(event) => { onInstagram(event.target.value); onClear('instagram'); }} /></Field>
+      <Field label="Instagram" mark={instagramRequired ? 'obligatorio' : undefined} error={bad.instagram}><input value={instagram} placeholder="@tienda o instagram.com/tienda" onChange={(event) => { onInstagram(event.target.value); onClear('instagram'); }} /></Field>
     </>
   );
 }
