@@ -21,7 +21,7 @@ const context = vi.hoisted(() => ({
       email: 'hola@tienda.test' as string | null,
       instagram: 'mitienda' as string | null,
     },
-    membership: { role: 'OWNER' as const },
+    membership: { role: 'OWNER' as 'OWNER' | 'MANAGER' | 'STAFF' },
   },
   user: { getIdToken: async () => 'token' },
   reloadSession: vi.fn(async () => undefined),
@@ -253,5 +253,50 @@ describe('settings on a phone', () => {
     await user.click(within(bar).getByRole('button', { name: 'Guardar permisos' }));
     await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalled());
     expect(membersApi.updateMemberSections.mock.calls.at(-1)?.[3]).toEqual(expect.arrayContaining(['reports']));
+  });
+});
+
+describe('employee settings', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    context.appSession.membership.role = 'OWNER';
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('does not request the team on desktop', () => {
+    context.appSession.membership.role = 'STAFF';
+    render(
+      <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: true }}>
+        <SettingsScreen />
+      </DeskProvider>,
+    );
+    expect(screen.getByTestId('settings-account')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-team')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-store')).not.toBeInTheDocument();
+    expect(membersApi.listMembers).not.toHaveBeenCalled();
+  });
+
+  it('does not request the team on a phone', () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    context.appSession.membership.role = 'STAFF';
+    render(
+      <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: true, back: vi.fn() }}>
+        <SettingsScreen />
+      </DeskProvider>,
+    );
+    expect(screen.getByTestId('page-back')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-account')).toHaveTextContent('Mi cuenta');
+    expect(screen.queryByTestId('settings-team')).not.toBeInTheDocument();
+    expect(membersApi.listMembers).not.toHaveBeenCalled();
   });
 });

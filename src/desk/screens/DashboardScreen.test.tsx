@@ -1,10 +1,14 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../../types';
 import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { DashboardScreen } from './DashboardScreen';
+
+const membersApi = vi.hoisted(() => ({
+  listMembers: vi.fn(async () => []),
+}));
 
 const context = vi.hoisted(() => ({
   appSession: null as {
@@ -21,13 +25,13 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
-vi.mock('../../services/members-api', () => ({ listMembers: vi.fn(async () => []) }));
+vi.mock('../../services/members-api', () => membersApi);
 
 const go = vi.fn();
 
-function renderScreen() {
+function renderScreen(isStaff = false) {
   return render(
-    <DeskProvider value={{ tab: 'dashboard', go, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'dashboard', go, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff }}>
       <DashboardScreen />
     </DeskProvider>,
   );
@@ -191,5 +195,60 @@ describe('Dashboard on a phone', () => {
     expect(sales).not.toHaveTextContent('Margen');
     expect(sales).not.toHaveTextContent(/costo/i);
     expect(screen.queryByTestId('dashboard-bell')).not.toBeInTheDocument();
+    expect(membersApi.listMembers).not.toHaveBeenCalled();
+  });
+});
+
+describe('Dashboard team list', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  function session(role: 'OWNER' | 'MANAGER' | 'STAFF') {
+    context.user = { uid: 'user-1' };
+    context.sales = [];
+    context.inventory = [];
+    context.tradeIns = [];
+    context.clients = [];
+    context.operationNotifications = [];
+    context.appSession = {
+      user: { displayName: 'Luis', email: 'luis@test.com' },
+      store: { id: 'store-1', name: 'Centro' },
+      membership: { role, sections: role === 'STAFF' ? ['dashboard', 'sales'] : null },
+    };
+  }
+
+  it('loads teammates for a manager on desktop', () => {
+    session('MANAGER');
+    renderScreen();
+    expect(screen.getByRole('heading', { name: /Qué hay para/ })).toBeInTheDocument();
+    expect(membersApi.listMembers).toHaveBeenCalledTimes(1);
+    expect(membersApi.listMembers).toHaveBeenCalledWith(context.user, 'store-1');
+  });
+
+  it('does not ask for the team when an employee opens the desktop dashboard', () => {
+    session('STAFF');
+    renderScreen(true);
+    expect(screen.getByRole('heading', { name: /Qué hay para/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Invitar' })).toBeInTheDocument();
+    expect(membersApi.listMembers).not.toHaveBeenCalled();
+  });
+
+  it('does not ask for the team when an employee opens the phone dashboard', () => {
+    phoneMedia();
+    session('STAFF');
+    renderScreen(true);
+    expect(screen.getByRole('heading', { name: /Qué hay para/ })).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-register-sale')).toBeInTheDocument();
+    expect(membersApi.listMembers).not.toHaveBeenCalled();
   });
 });

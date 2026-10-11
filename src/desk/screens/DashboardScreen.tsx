@@ -16,7 +16,7 @@ import {
   tradeCode,
 } from '../format';
 import { ImanagerIcon } from '../icons';
-import { canOpenSection, canSeeFinancials } from '../sections';
+import { canOpenSection, canSeeFinancials, canViewTeam } from '../sections';
 import { usePhoneLayout } from '../section-notices';
 import { PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { unreadBySection } from '../unread-count';
@@ -47,14 +47,16 @@ export function DashboardScreen() {
     }
   }, [storageKey]);
 
+  const role = appSession?.membership?.role;
+  const teamStoreId = appSession?.store?.id;
   useEffect(() => {
-    if (!user || !appSession?.store?.id) return;
+    if (!canViewTeam(role) || !user || !teamStoreId) return;
     let cancelled = false;
-    listMembers(user, appSession.store.id)
+    listMembers(user, teamStoreId)
       .then((rows) => { if (!cancelled) setMembers(rows); })
       .catch(() => { if (!cancelled) setMembers([]); });
     return () => { cancelled = true; };
-  }, [user, appSession?.store?.id]);
+  }, [user, teamStoreId, role]);
 
   useEffect(() => {
     const onCheck = (event: Event) => {
