@@ -2,27 +2,8 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
 
-const OUT = '/opt/cursor/artifacts/import-mapping';
-
-const CSV = [
-  'Equipo,GB,Pintura,Serial,Valor venta,Obs',
-  'iPhone 14,128,Negro,350000000000001,450000,caja',
-  'iPhone 13,256,Azul,350000000000002,390000,sellado',
-  'Galaxy A54,128,Blanco,350000000000003,280000,',
-].join('\n');
-
-const SUGGESTION = {
-  source: 'decisions',
-  notice: null,
-  suggestions: [
-    { header: 'Equipo', field: 'model', confidence: 0.94, review: false, suggestedField: 'model' },
-    { header: 'GB', field: 'capacity', confidence: 0.88, review: false, suggestedField: 'capacity' },
-    { header: 'Pintura', field: 'color', confidence: 0.46, review: true, suggestedField: 'color' },
-    { header: 'Serial', field: 'imei', confidence: 0.91, review: false, suggestedField: 'imei' },
-    { header: 'Valor venta', field: 'price', confidence: 0.83, review: false, suggestedField: 'price' },
-    { header: 'Obs', field: null, confidence: 0.62, review: true, suggestedField: 'cost' },
-  ],
-};
+const OUT = '/opt/cursor/artifacts/import-auto';
+const WORKBOOK = path.resolve('e2e/fixtures/ejemplo-stock.xlsx');
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({
@@ -45,26 +26,16 @@ for (const viewport of viewports) {
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test('muestra el mapeo sugerido y deja corregirlo', async ({ page }, testInfo) => {
-      test.setTimeout(90_000);
+    test('importa el excel de ejemplo sin configurar columnas', async ({ page }, testInfo) => {
+      test.setTimeout(120_000);
       const phone = viewport.width < 700;
       const email = buildTestEmail(testInfo, viewport.name);
-      let suggested = false;
       page.on('request', (request) => {
         if (request.url().includes('api.openai.com')) {
           throw new Error('El navegador no debe llamar a OpenAI');
         }
       });
       await mockDollar(page);
-      await page.route('**/api/import/suggest-mapping', async (route) => {
-        suggested = true;
-        const body = route.request().postDataJSON() as { section: string; columns: { header: string; samples: string[] }[] };
-        expect(body.section).toBe('inventory');
-        expect(body.columns.map((column) => column.header)).toEqual(['Equipo', 'GB', 'Pintura', 'Serial', 'Valor venta', 'Obs']);
-        expect(body.columns.every((column) => column.samples.length <= 8)).toBe(true);
-        expect(body.columns[0]?.samples).toContain('iPhone 14');
-        await route.fulfill({ json: SUGGESTION });
-      });
 
       await page.goto('/');
       await loginViaUi(page, email);
@@ -94,30 +65,39 @@ for (const viewport of viewports) {
 
       const dialog = page.getByRole('dialog', { name: 'Importar equipos' });
       await expect(dialog).toBeVisible();
-      await dialog.locator('input[type="file"]').setInputFiles({
-        name: 'stock.csv',
-        mimeType: 'text/csv',
-        buffer: Buffer.from(CSV),
-      });
-      await dialog.getByRole('button', { name: phone ? 'Continuar' : 'Confirmar encabezado' }).click();
+      await dialog.locator('input[type="file"]').setInputFiles(WORKBOOK);
 
-      await expect(dialog.getByTestId('import-confidence-model')).toHaveText('94%');
-      await expect(dialog.getByTestId('import-confidence-color')).toHaveText('Revisar 46%');
-      await expect(dialog.getByTestId('import-field-model')).toHaveValue('Equipo');
-      await expect(dialog.getByTestId('import-field-color')).toHaveValue('Pintura');
-      await expect(dialog.getByTestId('import-field-capacity')).toHaveValue('GB');
-      await expect(dialog.getByTestId('import-mapping-notice')).toContainText('Revisá las columnas marcadas');
-      await expect(dialog.getByTestId('import-column-review')).toContainText('Obs');
-      await expect(dialog.getByTestId('import-column-review')).toContainText('Costo');
-      await expect(dialog.getByTestId('import-field-model').locator('option[value="Serial"]')).toBeDisabled();
-      expect(suggested).toBe(true);
+      await expect(dialog.getByTestId('import-summary-count')).toHaveText('Detectamos 3 hojas, 37 equipos');
+      await expect(dialog.getByTestId('import-sheet-summary')).toHaveCount(3);
+      await expect(dialog.getByText('iPhones Usados')).toBeVisible();
+      await expect(dialog.getByText('iPhones Nuevos')).toBeVisible();
+      await expect(dialog.getByText('OUTLET')).toBeVisible();
+      await expect(dialog.getByText('20 equipos usados')).toBeVisible();
+      await expect(dialog.getByText('10 equipos nuevos')).toBeVisible();
+      await expect(dialog.getByText('Revisá las columnas')).toHaveCount(0);
+      await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
 
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-mapeo.png`) });
+      await dialog.getByTestId('import-adjust-open').click();
+      await expect(dialog.getByTestId('import-adjust')).toBeVisible();
+      await expect(dialog.getByTestId('import-field-model')).toHaveValue('Modelo');
+      await expect(dialog.getByTestId('import-field-price')).toHaveValue('PRECIO ARS');
+      await expect(dialog.getByTestId('import-field-batteryHealth')).toHaveValue('Batería');
+      await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
+      await expect(dialog.getByText('%', { exact: true })).toHaveCount(0);
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ajustar.png`) });
 
-      await dialog.getByTestId('import-field-color').selectOption('');
-      await expect(dialog.getByTestId('import-confidence-color')).toHaveCount(0);
-      await expect(dialog.getByTestId('import-field-color')).toHaveValue('');
-      await expect(dialog.getByTestId('import-field-model')).toHaveValue('Equipo');
+      await dialog.getByRole('button', { name: 'Listo' }).click();
+      const importResponse = page.waitForResponse(
+        (response) => response.url().includes('/api/inventory/import') && response.request().method() === 'POST',
+      );
+      await dialog.getByTestId('import-confirm').click();
+      const response = await importResponse;
+      expect(response.ok()).toBe(true);
+      const body = await response.json() as { imported: number; errors: unknown[] };
+      expect(body.imported).toBe(37);
+      expect(body.errors).toEqual([]);
+      await expect(dialog.getByText('37 creados')).toBeVisible();
     });
   });
 }

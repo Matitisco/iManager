@@ -4,8 +4,6 @@ export const IMPORT_SECTIONS = ["inventory", "sales", "clients", "trade-ins"] as
 
 export type ImportSection = (typeof IMPORT_SECTIONS)[number];
 
-export const IGNORE_COLUMN = "Ignorar columna";
-
 export type ImportField = {
   key: string;
   label: string;
@@ -41,14 +39,20 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
     ],
     hints: {
       modelo: "model",
+      equipo: "model",
       imei: "imei",
+      serial: "imei",
       precio: "price",
       capacidad: "capacity",
+      gb: "capacity",
+      almacenamiento: "capacity",
       color: "color",
       colour: "color",
       colores: "color",
+      pintura: "color",
       condicion: "condition",
       grado: "grade",
+      calidad: "grade",
       bateria: "batteryHealth",
       costo: "cost",
       estado: "status",
@@ -116,16 +120,3 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
     },
   },
 };
-
-export function decisionChoices(catalog: ImportCatalog): { value: string; description: string }[] {
-  return [
-    ...catalog.fields.map((field) => ({
-      value: field.key,
-      description: `${field.label}. ${field.description}`,
-    })),
-    {
-      value: IGNORE_COLUMN,
-      description: "La columna no corresponde a ningún campo de iManager o no hay que importarla.",
-    },
-  ];
-}

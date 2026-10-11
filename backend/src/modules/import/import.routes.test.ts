@@ -1,12 +1,13 @@
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerApiErrorHandler } from "../../lib/api-error.js";
-import { MAPPING_NOTICES } from "./suggest-mapping.service.js";
+import { ANALYSIS_NOTICES } from "./analyze-import.service.js";
 import { importRoutes } from "./import.routes.js";
 
-const { authenticateMock, resolveAppUserMock } = vi.hoisted(() => ({
+const { authenticateMock, resolveAppUserMock, findStoreMock } = vi.hoisted(() => ({
   authenticateMock: vi.fn(),
   resolveAppUserMock: vi.fn(),
+  findStoreMock: vi.fn(async () => ({ currency: "ARS" })),
 }));
 
 vi.mock("../../middleware/authenticate.js", () => ({
@@ -17,21 +18,28 @@ vi.mock("../../middleware/resolve-app-user.js", () => ({
   resolveAppUser: resolveAppUserMock,
 }));
 
+vi.mock("../../plugins/prisma.js", () => ({
+  prisma: { store: { findUnique: findStoreMock } },
+}));
+
 function buildApp() {
   const app = Fastify();
   registerApiErrorHandler(app);
   return app;
 }
 
-describe("importRoutes suggest-mapping", () => {
+const sheets = [{ name: "Hoja 1", rows: [["Nombre", "Email"], ["Ana", "ana@test.com"]] }];
+
+describe("importRoutes analyze", () => {
   const previousKey = process.env.OPENAI_API_KEY;
 
   afterEach(() => {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousKey;
+    findStoreMock.mockClear();
   });
 
-  it("returns the heuristic mapping when OpenAI is not configured", async () => {
+  it("returns the heuristic plan when OpenAI is not configured", async () => {
     delete process.env.OPENAI_API_KEY;
     authenticateMock.mockImplementation(async () => undefined);
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
@@ -43,31 +51,25 @@ describe("importRoutes suggest-mapping", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: "/suggest-mapping",
-      payload: {
-        section: "inventory",
-        columns: [
-          { header: "Modelo", samples: ["iPhone 14", ""] },
-          { header: "Obs", samples: [] },
-        ],
-      },
+      url: "/analyze",
+      payload: { section: "clients", sheets },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    expect(response.json()).toMatchObject({
       source: "heuristic",
-      notice: MAPPING_NOTICES.missingKey,
-      suggestions: [
-        { header: "Modelo", field: "model", confidence: null, review: false, suggestedField: "model" },
-        { header: "Obs", field: null, confidence: null, review: false, suggestedField: null },
-      ],
+      notice: ANALYSIS_NOTICES.missingKey,
+      currency: "ARS",
+      summary: { sheetCount: 1, rowCount: 1 },
+      rows: [{ name: "Ana", email: "ana@test.com" }],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(findStoreMock).toHaveBeenCalled();
     fetchSpy.mockRestore();
     await app.close();
   });
 
-  it("rejects staff without access to the section and invalid files", async () => {
+  it("rejects staff without access and an empty workbook", async () => {
     authenticateMock.mockImplementation(async () => undefined);
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", userId: "user-1", sections: ["sales"] };
@@ -77,8 +79,8 @@ describe("importRoutes suggest-mapping", () => {
 
     const forbidden = await app.inject({
       method: "POST",
-      url: "/suggest-mapping",
-      payload: { section: "inventory", columns: [{ header: "Modelo", samples: ["iPhone"] }] },
+      url: "/analyze",
+      payload: { section: "inventory", sheets },
     });
     expect(forbidden.statusCode).toBe(403);
     expect(forbidden.json()).toEqual({ error: "No tenés acceso a Inventario" });
@@ -88,11 +90,10 @@ describe("importRoutes suggest-mapping", () => {
     });
     const invalid = await app.inject({
       method: "POST",
-      url: "/suggest-mapping",
-      payload: { section: "inventory", columns: [] },
+      url: "/analyze",
+      payload: { section: "inventory", sheets: [] },
     });
     expect(invalid.statusCode).toBe(400);
-
     await app.close();
   });
 });

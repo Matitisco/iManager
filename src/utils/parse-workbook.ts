@@ -5,16 +5,72 @@ export interface ParsedWorkbook {
   getSheet: (name: string) => string[][];
 }
 
-function normalizeRows(rows: Array<Array<unknown>>): string[][] {
-  return rows.map((row) => row.map((cell) => String(cell ?? '').trim()));
+export function cellText(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim();
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.richText)) {
+      return record.richText.map((part) => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part === 'object' && 'text' in part) return String((part as { text: unknown }).text ?? '');
+        return '';
+      }).join('').replace(/\s+/g, ' ').trim();
+    }
+    if (typeof record.text === 'string') return cellText(record.text);
+    if ('result' in record && record.result != null && record.result !== '') return cellText(record.result);
+    if (typeof record.formula === 'string' && record.formula.trim()) {
+      const formula = record.formula.trim();
+      return formula.startsWith('=') ? formula : `=${formula}`;
+    }
+    return '';
+  }
+  return '';
+}
+
+function trimRows(rows: string[][]): string[][] {
+  let end = rows.length;
+  while (end > 0 && rows[end - 1].every((cell) => !cell.trim())) end -= 1;
+  const sliced = rows.slice(0, end);
+  let cols = 0;
+  for (const row of sliced) {
+    for (let index = row.length - 1; index >= 0; index -= 1) {
+      if (row[index]?.trim()) {
+        cols = Math.max(cols, index + 1);
+        break;
+      }
+    }
+  }
+  return sliced.map((row) => row.slice(0, cols).map((cell) => cell.trim()));
+}
+
+function readWorksheet(worksheet: ExcelJS.Worksheet): string[][] {
+  const colCount = Math.max(worksheet.columnCount, 1);
+  const rows: string[][] = [];
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    const line: string[] = [];
+    for (let col = 1; col <= colCount; col += 1) {
+      const cell = row.getCell(col);
+      if (cell.isMerged && cell.master.address !== cell.address) {
+        line.push('');
+        continue;
+      }
+      line.push(cellText(cell.value));
+    }
+    rows.push(line);
+  });
+  return trimRows(rows);
 }
 
 async function parseCsv(file: File): Promise<ParsedWorkbook> {
   const text = await file.text();
-  const rows = text
+  const rows = trimRows(text
     .split(/\r?\n/)
     .filter((line) => line.length > 0)
-    .map((line) => line.split(',').map((cell) => cell.replace(/^\"|\"$/g, '').trim()));
+    .map((line) => line.split(',').map((cell) => cell.replace(/^"|"$/g, '').trim())));
 
   return {
     sheetNames: ['Hoja 1'],
@@ -24,15 +80,10 @@ async function parseCsv(file: File): Promise<ParsedWorkbook> {
 
 async function parseXlsx(file: File): Promise<ParsedWorkbook> {
   const workbook = new ExcelJS.Workbook();
-  const buffer = await file.arrayBuffer();
-  await workbook.xlsx.load(buffer);
-
+  await workbook.xlsx.load(await file.arrayBuffer());
   const sheetMap = new Map<string, string[][]>();
   workbook.worksheets.forEach((worksheet) => {
-    const rows = normalizeRows(
-      worksheet.getSheetValues().slice(1).map((row) => Array.isArray(row) ? row.slice(1) : [])
-    );
-    sheetMap.set(worksheet.name, rows);
+    sheetMap.set(worksheet.name, readWorksheet(worksheet));
   });
 
   return {
@@ -43,18 +94,8 @@ async function parseXlsx(file: File): Promise<ParsedWorkbook> {
 
 export async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
   const ext = file.name.split('.').pop()?.toLowerCase();
-
-  if (ext === 'csv') {
-    return parseCsv(file);
-  }
-
-  if (ext === 'xlsx') {
-    return parseXlsx(file);
-  }
-
-  if (ext === 'xls') {
-    throw new Error('El formato .xls ya no es compatible. Exportá el archivo a .xlsx o .csv.');
-  }
-
+  if (ext === 'csv') return parseCsv(file);
+  if (ext === 'xlsx') return parseXlsx(file);
+  if (ext === 'xls') throw new Error('El formato .xls ya no es compatible. Exportá el archivo a .xlsx o .csv.');
   throw new Error('Formato no soportado. Usá .csv o .xlsx.');
 }

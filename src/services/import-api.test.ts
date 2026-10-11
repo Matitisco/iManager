@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { importBackendRows, suggestImportMapping, type ImportSection } from './import-api';
+import { analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from './import-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 vi.mock('./fetch-with-timeout', () => ({
@@ -61,24 +61,59 @@ describe('import-api', () => {
     await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow(/Error al importar \(500\)/);
   });
 
-  it('asks the backend for a column mapping and keeps the OpenAI key off the client', async () => {
-    const suggestion = {
-      source: 'decisions' as const,
+  it('asks the backend to read the workbook and keeps the OpenAI key off the client', async () => {
+    const analysis = {
+      source: 'model' as const,
       notice: null,
-      suggestions: [{ header: 'Equipo', field: 'model', confidence: 0.9, review: false, suggestedField: 'model' }],
+      currency: 'ARS' as const,
+      plan: [],
+      rows: [{ model: '13 mini', capacity: '128 GB' }],
+      summary: { sheetCount: 1, rowCount: 1, sheets: [] },
     };
-    vi.mocked(fetchWithTimeout).mockResolvedValue(json(suggestion));
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(analysis));
+    const sheets = [{ name: 'iPhones Usados', rows: [['Modelo'], ['13 mini 128 GB']] }];
 
-    await expect(suggestImportMapping(mockUser, 'inventory', [{ header: 'Equipo', samples: ['iPhone 14'] }])).resolves.toEqual(suggestion);
-    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/suggest-mapping', {
+    await expect(analyzeImport(mockUser, 'inventory', sheets)).resolves.toEqual(analysis);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ section: 'inventory', columns: [{ header: 'Equipo', samples: ['iPhone 14'] }] }),
-    }, 60_000);
+      body: JSON.stringify({ section: 'inventory', sheets }),
+    }, 45_000);
     expect(JSON.stringify(vi.mocked(fetchWithTimeout).mock.calls)).not.toContain('OPENAI');
+  });
+
+  it('reapplies an edited plan without asking the model again', async () => {
+    const analysis = {
+      source: 'manual' as const,
+      notice: null,
+      currency: 'USD' as const,
+      plan: [],
+      rows: [],
+      summary: { sheetCount: 0, rowCount: 0, sheets: [] },
+    };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(analysis));
+    const sheets = [{ name: 'Hoja 1', rows: [['Modelo']] }];
+    const plan = [{
+      name: 'Hoja 1',
+      include: true,
+      condition: 'USADO' as const,
+      headerRow: 1,
+      dataStartRow: 2,
+      dataEndRow: 2,
+      mapping: [{ header: 'Modelo', field: 'model' }],
+      splitModelCapacity: true,
+      batteryAsPercent: true,
+      priceCurrency: 'USD' as const,
+    }];
+
+    await expect(applyImportPlan(mockUser, 'inventory', sheets, plan, true)).resolves.toEqual(analysis);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/apply', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ section: 'inventory', sheets, plan, refreshMapping: true }),
+    }), 45_000);
   });
 });

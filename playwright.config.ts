@@ -46,7 +46,7 @@ export default defineConfig({
         ENABLE_TEST_AUTH_BYPASS: 'true',
         FRONTEND_URL: DEFAULT_FRONTEND_URL,
         OPENAI_API_KEY: '',
-        OPENAI_DECISIONS_MODEL: '',
+        OPENAI_IMPORT_MODEL: '',
       },
     },
     {

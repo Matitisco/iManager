@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
 import { ImportModal } from '../../components/ImportModal';
-import { importBackendRows, suggestImportMapping, type ImportSection, type InventoryImportRow } from '../../services/import-api';
+import { analyzeImport, applyImportPlan, importBackendRows, type ImportSection, type InventoryImportRow } from '../../services/import-api';
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
@@ -23,7 +23,8 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
     cl: ['cliente importado', 'clientes importados'],
     cj: ['canje importado', 'canjes importados'],
   };
-  return <ImportModal title={config.title} fields={config.fields} mapHints={config.hints} sheet={phone} onClose={close} onSuggest={(columns) => suggestImportMapping(user, sectionFor(kind), columns)} onImport={async (rows) => {
+  const section = sectionFor(kind);
+  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} onClose={close} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -44,6 +45,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'inv') {
     return {
       title: 'Importar equipos',
+      nouns: { one: 'equipo', many: 'equipos' },
       fields: [
         { key: 'model', label: 'Modelo', required: true },
         { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
@@ -56,9 +58,18 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      hints: { modelo: 'model', imei: 'imei', precio: 'price', capacidad: 'capacity', color: 'color', colour: 'color', colores: 'color', condicion: 'condition', grado: 'grade', bateria: 'batteryHealth', costo: 'cost', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const parseNum = (value?: string) => value ? Number(value.replace(/\./g, '').replace(',', '.')) || 0 : undefined;
+        const parseNum = (value?: string) => {
+          if (!value?.trim()) return undefined;
+          const trimmed = value.trim().replace(/[$\s]/g, '');
+          const normal = /^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(trimmed)
+            ? trimmed.replace(/\./g, '').replace(',', '.')
+            : /^-?\d+,\d+$/.test(trimmed)
+              ? trimmed.replace(',', '.')
+              : trimmed;
+          const amount = Number(normal);
+          return Number.isFinite(amount) ? amount : undefined;
+        };
         const payload: InventoryImportRow[] = rows.map((row) => ({
           imei: row.imei ?? '',
           model: row.model ?? '',
@@ -80,6 +91,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'sale') {
     return {
       title: 'Importar ventas',
+      nouns: { one: 'venta', many: 'ventas' },
       fields: [
         { key: 'clientName', label: 'Cliente', required: false },
         { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
@@ -88,7 +100,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
         { key: 'paymentMethod', label: 'Pago', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      hints: { cliente: 'clientName', imei: 'productImei', total: 'amount', fecha: 'date', pago: 'paymentMethod', estado: 'status' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
         const result = await importBackendRows(user, 'sales', rows);
         await after();
@@ -99,13 +110,13 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   if (kind === 'cl') {
     return {
       title: 'Importar clientes',
+      nouns: { one: 'cliente', many: 'clientes' },
       fields: [
         { key: 'name', label: 'Nombre', required: true },
         { key: 'dni', label: 'DNI', required: false },
         { key: 'phone', label: 'Teléfono', required: false },
         { key: 'email', label: 'Email', required: false },
       ],
-      hints: { nombre: 'name', dni: 'dni', telefono: 'phone', email: 'email' },
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
         const result = await importBackendRows(user, 'clients', rows);
         await after();
@@ -115,6 +126,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
   }
   return {
     title: 'Importar canjes',
+    nouns: { one: 'canje', many: 'canjes' },
     fields: [
       { key: 'clientName', label: 'Cliente', required: true },
       { key: 'deviceReceived', label: 'Equipo recibido', required: true },
@@ -124,7 +136,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       { key: 'differencePaid', label: 'Diferencia', required: false },
       { key: 'status', label: 'Estado', required: false },
     ],
-    hints: { cliente: 'clientName', recibido: 'deviceReceived', imei: 'deviceReceivedImei', valor: 'takeValue', entrega: 'deviceGiven', diferencia: 'differencePaid', estado: 'status' },
     onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
       const result = await importBackendRows(user, 'trade-ins', rows);
       await after();

@@ -1,27 +1,71 @@
 import type { AuthUserLike } from '../types/auth-user';
-import type { ColumnSuggestion } from '../lib/import-mapping';
 import { apiRequest } from './api-client';
 
 export type ImportSection = 'inventory' | 'sales' | 'clients' | 'trade-ins';
 
-export type SuggestMappingResponse = {
-  source: 'decisions' | 'heuristic';
-  notice: string | null;
-  suggestions: ColumnSuggestion[];
+export type ImportSheetPayload = {
+  name: string;
+  rows: string[][];
 };
 
-const SUGGEST_TIMEOUT_MS = 60_000;
+export type ImportColumnMapping = {
+  header: string;
+  field: string;
+};
 
-export async function suggestImportMapping(
+export type ImportSheetPlan = {
+  name: string;
+  include: boolean;
+  condition: '' | 'NUEVO' | 'USADO' | 'PRE-OWNED';
+  headerRow: number;
+  dataStartRow: number;
+  dataEndRow: number;
+  mapping: ImportColumnMapping[];
+  splitModelCapacity: boolean;
+  batteryAsPercent: boolean;
+  priceCurrency: '' | 'ARS' | 'USD';
+};
+
+export type ImportAnalysis = {
+  source: 'model' | 'heuristic' | 'manual';
+  notice: string | null;
+  currency: 'ARS' | 'USD';
+  plan: ImportSheetPlan[];
+  rows: Record<string, string>[];
+  summary: {
+    sheetCount: number;
+    rowCount: number;
+    sheets: { name: string; rows: number; condition: string; included: boolean }[];
+  };
+};
+
+const ANALYZE_TIMEOUT_MS = 45_000;
+
+export async function analyzeImport(
   user: AuthUserLike,
   section: ImportSection,
-  columns: { header: string; samples: string[] }[],
-): Promise<SuggestMappingResponse> {
-  return apiRequest<SuggestMappingResponse>(user, '/api/import/suggest-mapping', {
+  sheets: ImportSheetPayload[],
+): Promise<ImportAnalysis> {
+  return apiRequest<ImportAnalysis>(user, '/api/import/analyze', {
     method: 'POST',
-    body: { section, columns },
-    fallback: 'No se pudo consultar el mapeo inteligente. Usamos el mapeo por nombre de columna.',
-    timeoutMs: SUGGEST_TIMEOUT_MS,
+    body: { section, sheets },
+    fallback: 'No se pudo leer la planilla.',
+    timeoutMs: ANALYZE_TIMEOUT_MS,
+  });
+}
+
+export async function applyImportPlan(
+  user: AuthUserLike,
+  section: ImportSection,
+  sheets: ImportSheetPayload[],
+  plan: ImportSheetPlan[],
+  refreshMapping = false,
+): Promise<ImportAnalysis> {
+  return apiRequest<ImportAnalysis>(user, '/api/import/apply', {
+    method: 'POST',
+    body: { section, sheets, plan, refreshMapping },
+    fallback: 'No se pudo actualizar la importación.',
+    timeoutMs: ANALYZE_TIMEOUT_MS,
   });
 }
 

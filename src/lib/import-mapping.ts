@@ -1,91 +1,22 @@
-export const IMPORT_SAMPLE_LIMIT = 8;
-export const IMPORT_SAMPLE_CHARS = 80;
-
-export type ColumnSuggestion = {
+export type ColumnMapping = {
   header: string;
-  field: string | null;
-  confidence: number | null;
-  review: boolean;
-  suggestedField: string | null;
+  field: string;
 };
 
-export type ColumnNote = {
-  header: string;
-  suggestedField: string | null;
-  confidence: number | null;
-};
-
-export function columnSamples(fileRows: Record<string, string>[], header: string): string[] {
-  const samples: string[] = [];
-  for (const row of fileRows) {
-    const value = String(row[header] ?? '').trim().slice(0, IMPORT_SAMPLE_CHARS);
-    if (!value) continue;
-    samples.push(value);
-    if (samples.length >= IMPORT_SAMPLE_LIMIT) break;
+export function fieldToColumn(mapping: ColumnMapping[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const column of mapping) {
+    if (column.field && !map[column.field]) map[column.field] = column.header;
   }
-  return samples;
-}
-
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[\s_\-.]/g, '')
-    .replace(/[áàäâã]/g, 'a')
-    .replace(/[éèëê]/g, 'e')
-    .replace(/[íìïî]/g, 'i')
-    .replace(/[óòöôõ]/g, 'o')
-    .replace(/[úùüû]/g, 'u')
-    .replace(/ñ/g, 'n');
-}
-
-// Same three passes as the backend heuristic: hints, exact key/label, then substring.
-// A file column is used at most once.
-export function autoMap(
-  headers: string[],
-  fields: { key: string; label: string }[],
-  hints: Record<string, string> = {},
-): Record<string, string> {
-  const mapping: Record<string, string> = {};
-  const used = new Set<string>();
-
-  const claim = (fieldKey: string, header: string) => {
-    if (mapping[fieldKey] || used.has(header)) return false;
-    mapping[fieldKey] = header;
-    used.add(header);
-    return true;
-  };
-
-  for (const field of fields) {
-    const nKey = normalize(field.key);
-    const nLabel = normalize(field.label);
-
-    for (const header of headers) {
-      if (hints[normalize(header)] === field.key && claim(field.key, header)) break;
-    }
-    if (mapping[field.key]) continue;
-
-    for (const header of headers) {
-      const normalized = normalize(header);
-      if ((normalized === nKey || normalized === nLabel) && claim(field.key, header)) break;
-    }
-    if (mapping[field.key]) continue;
-
-    for (const header of headers) {
-      const normalized = normalize(header);
-      const labelMatch = nLabel.length >= 4 && normalized.includes(nLabel);
-      if ((normalized.includes(nKey) || labelMatch) && claim(field.key, header)) break;
-    }
-  }
-
-  return mapping;
+  return map;
 }
 
 export function assignColumn(
-  fieldToColumn: Record<string, string>,
+  fieldToColumnMap: Record<string, string>,
   fieldKey: string,
   column: string,
 ): Record<string, string> {
-  const next = { ...fieldToColumn, [fieldKey]: column };
+  const next = { ...fieldToColumnMap, [fieldKey]: column };
   if (!column) return next;
   for (const key of Object.keys(next)) {
     if (key !== fieldKey && next[key] === column) next[key] = '';
@@ -93,37 +24,14 @@ export function assignColumn(
   return next;
 }
 
-export function applyColumnSuggestions(
-  fields: { key: string }[],
-  suggestions: ColumnSuggestion[],
-): {
-  fieldToColumn: Record<string, string>;
-  confidenceByField: Record<string, number | null>;
-  reviewByField: Record<string, boolean>;
-  notes: ColumnNote[];
-} {
-  const known = new Set(fields.map((field) => field.key));
-  const fieldToColumn: Record<string, string> = {};
-  const confidenceByField: Record<string, number | null> = {};
-  const reviewByField: Record<string, boolean> = {};
-  const notes: ColumnNote[] = [];
-
-  for (const suggestion of suggestions) {
-    const field = suggestion.field && known.has(suggestion.field) ? suggestion.field : null;
-    if (field && !fieldToColumn[field]) {
-      fieldToColumn[field] = suggestion.header;
-      confidenceByField[field] = suggestion.confidence;
-      reviewByField[field] = suggestion.review;
-      continue;
-    }
-    if (suggestion.review) {
-      notes.push({
-        header: suggestion.header,
-        suggestedField: suggestion.suggestedField && known.has(suggestion.suggestedField) ? suggestion.suggestedField : null,
-        confidence: suggestion.confidence,
-      });
-    }
+export function mappingFromFields(headers: string[], fields: Record<string, string>): ColumnMapping[] {
+  const byHeader = new Map<string, string>();
+  for (const [field, header] of Object.entries(fields)) {
+    if (!header || byHeader.has(header)) continue;
+    byHeader.set(header, field);
   }
-
-  return { fieldToColumn, confidenceByField, reviewByField, notes };
+  return headers.filter((header) => header.trim()).map((header) => ({
+    header,
+    field: byHeader.get(header) ?? '',
+  }));
 }
