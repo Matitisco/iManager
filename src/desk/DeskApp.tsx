@@ -26,8 +26,8 @@ import { canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from '.
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
 import './desk.css';
+import { ROLE_LABEL } from '../lib/roles';
 
-const ROLE: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
@@ -335,7 +335,7 @@ export function DeskApp() {
           <BlueDollar />
           <button className="duser" type="button" onClick={() => go('settings')}>
             <div className="av-c b">{initials(name)}</div>
-            <div className="info"><b>{name}</b><small>{ROLE[appSession?.membership?.role ?? 'STAFF']}</small></div>
+            <div className="info"><b>{name}</b><small>{ROLE_LABEL[appSession?.membership?.role ?? 'STAFF']}</small></div>
           </button>
         </aside>
         )}
@@ -355,7 +355,7 @@ export function DeskApp() {
               <MoreScreen
                 name={name}
                 store={appSession?.store?.name || 'Tienda'}
-                role={ROLE[role ?? 'STAFF']}
+                role={ROLE_LABEL[role ?? 'STAFF']}
                 rows={mobile.more}
                 openTrades={openTrades}
                 openRepairs={openRepairs}

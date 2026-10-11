@@ -6,12 +6,7 @@ import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { normalizeInstagram, storeContactErrors } from '../lib/store-contact';
 import { getFriendlyErrorMessage, trimToString } from '../lib/utils';
-
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: 'Propietario',
-  MANAGER: 'Socio',
-  STAFF: 'Empleado',
-};
+import { ROLE_LABEL } from '../lib/roles';
 
 type StoreCurrency = 'ARS' | 'USD';
 type ExchangeMode = 'auto' | 'manual';
@@ -361,7 +356,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
             <p className="mt-2 text-gray-500 break-words">
               Vas a unirte a <strong className="text-gray-900">{inviteState.preview.storeName}</strong> como{' '}
               <strong className="text-gray-900">
-                {ROLE_LABELS[inviteState.preview.role] ?? inviteState.preview.role}
+                {ROLE_LABEL[inviteState.preview.role] ?? inviteState.preview.role}
               </strong>.
             </p>
           </div>
