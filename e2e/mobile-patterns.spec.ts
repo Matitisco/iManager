@@ -128,12 +128,32 @@ test.describe('phone patterns', () => {
     await expect(menu.getByRole('button', { name: 'Editar' })).toBeVisible();
     await settleMotion(page, '.ctx');
     const menuBox = await page.evaluate(() => {
+      const overlay = document.querySelector('.ov.ctxov')!.getBoundingClientRect();
       const ctx = document.querySelector('.ctx')!.getBoundingClientRect();
       const tab = document.querySelector('.mtab')!.getBoundingClientRect();
-      return { width: ctx.width, bottom: ctx.bottom, tabTop: tab.top, viewport: document.documentElement.clientWidth };
+      const height = window.innerHeight;
+      const x = tab.left + tab.width / 2;
+      const y = tab.top + tab.height / 2;
+      const hit = document.elementsFromPoint(x, y);
+      const sheet = document.querySelector('.ctx')!;
+      const tabNode = document.querySelector('.mtab')!;
+      return {
+        width: ctx.width,
+        bottom: ctx.bottom,
+        overlayBottom: overlay.bottom,
+        scrim: getComputedStyle(document.querySelector('.ov.ctxov')!).backgroundColor,
+        height,
+        viewport: document.documentElement.clientWidth,
+        sheetIndex: hit.findIndex((node) => node === sheet || sheet.contains(node)),
+        tabIndex: hit.findIndex((node) => node === tabNode || tabNode.contains(node)),
+      };
     });
     expect(menuBox.width).toBeGreaterThan(menuBox.viewport - 8);
-    expect(menuBox.bottom).toBeLessThanOrEqual(menuBox.tabTop + 1);
+    expect(menuBox.overlayBottom).toBeGreaterThanOrEqual(menuBox.height - 1);
+    expect(menuBox.bottom).toBeGreaterThanOrEqual(menuBox.height - 1);
+    expect(menuBox.scrim).toBe('rgba(17, 17, 17, 0.45)');
+    expect(menuBox.sheetIndex).toBeGreaterThanOrEqual(0);
+    expect(menuBox.tabIndex).toBeGreaterThan(menuBox.sheetIndex);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/patterns-390-menu.png` });
     await menu.getByRole('button', { name: 'Eliminar' }).click();
     const confirm = page.getByRole('dialog', { name: 'Eliminar registro' });
