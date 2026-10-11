@@ -6,7 +6,7 @@ import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
 import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, presentRepairStatusChange, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, REPAIR_DELIVERED, REPAIR_READY, visibleRepairStatuses } from '../repairs';
 import { usePhoneLayout } from '../section-notices';
-import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, ScreenTitle, SearchBox, useDesk } from '../ui';
+import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 
 export function ServiceScreen() {
   const { repairOrders = [], repairOrdersError = null, changeRepairStatus } = useAppContext();
@@ -81,22 +81,29 @@ export function ServiceScreen() {
     }
   };
 
-  const dragProps = (orderId: string) => ({
-    draggable: true,
-    onDragStart: (event: DragEvent<HTMLButtonElement>) => {
-      suppressClick.current = true;
-      draggingIdRef.current = orderId;
-      setDraggingId(orderId);
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', orderId);
-    },
-    onDragEnd: () => {
-      draggingIdRef.current = null;
-      setDraggingId(null);
-      setDropStatus(null);
-      window.setTimeout(() => { suppressClick.current = false; }, 0);
-    },
-  });
+  const openOrder = (id: string) => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    open({ type: 'ot', id });
+  };
+  const openMenu = (order: { id: string; code: string; device: string }) => (point: { x: number; y: number }) => {
+    open({ type: 'ctx', kind: 'ot', id: order.id, label: `#${order.code} · ${order.device}`, ...point });
+  };
+  const dragStart = (orderId: string) => (event: DragEvent<HTMLElement>) => {
+    suppressClick.current = true;
+    draggingIdRef.current = orderId;
+    setDraggingId(orderId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', orderId);
+  };
+  const dragEnd = () => {
+    draggingIdRef.current = null;
+    setDraggingId(null);
+    setDropStatus(null);
+    window.setTimeout(() => { suppressClick.current = false; }, 0);
+  };
 
   const views = (
     <div className="svc-views" role="group" aria-label="Vista">
@@ -151,7 +158,7 @@ export function ServiceScreen() {
                   const date = dayMonth(when);
                   const dateText = !date ? '' : late ? `Atrasada · ${date}` : order.estimatedDelivery ? `Entrega ${date}` : date;
                   return (
-                    <button key={order.id} className="ticket" type="button" data-testid={`repair-card-${order.id}`} onClick={() => open({ type: 'ot', id: order.id })}>
+                    <PressTarget key={order.id} as="button" className="ticket" testId={`repair-card-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
                       <div className="wtop">
                         <b>#{order.code}</b>
                         {dateText ? <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dateText}</span> : null}
@@ -162,7 +169,7 @@ export function ServiceScreen() {
                       <div className="wbot">
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
-                    </button>
+                    </PressTarget>
                   );
                 })}
               </section>
@@ -202,20 +209,17 @@ export function ServiceScreen() {
                   const when = order.estimatedDelivery || order.receivedAt;
                   const late = repairOverdue(order);
                   return (
-                    <button
+                    <PressTarget
                       key={order.id}
+                      as="button"
                       className={`ticket${draggingId === order.id ? ' dragging' : ''}`}
-                      type="button"
-                      data-testid={`repair-card-${order.id}`}
-                      aria-grabbed={draggingId === order.id}
-                      {...dragProps(order.id)}
-                      onClick={() => {
-                        if (suppressClick.current) {
-                          suppressClick.current = false;
-                          return;
-                        }
-                        open({ type: 'ot', id: order.id });
-                      }}
+                      testId={`repair-card-${order.id}`}
+                      draggable
+                      grabbed={draggingId === order.id}
+                      onDragStart={dragStart(order.id)}
+                      onDragEnd={dragEnd}
+                      onActivate={() => openOrder(order.id)}
+                      onMenu={openMenu(order)}
                     >
                       <div className="wtop">
                         <b>#{order.code}</b>
@@ -227,7 +231,7 @@ export function ServiceScreen() {
                       <div className="wbot">
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
-                    </button>
+                    </PressTarget>
                   );
                 })}
               </section>
@@ -253,7 +257,7 @@ export function ServiceScreen() {
                 </thead>
                 <tbody>
                   {rows.map((order) => (
-                    <tr key={order.id} data-testid={`repair-row-${order.id}`} onClick={() => open({ type: 'ot', id: order.id })}>
+                    <PressTarget key={order.id} as="tr" testId={`repair-row-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
                       <td><b>#{order.code}</b></td>
                       <td>{dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}</td>
                       <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>
@@ -262,7 +266,7 @@ export function ServiceScreen() {
                       <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>
                       <td><Pill status={repairColumnStatus(order.status)} kind="REPAIR_STATUS" /></td>
-                    </tr>
+                    </PressTarget>
                   ))}
                 </tbody>
               </table>

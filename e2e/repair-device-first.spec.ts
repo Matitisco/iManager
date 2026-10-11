@@ -93,12 +93,13 @@ test('the new order puts the device above the optional client on desktop and pho
   await loose.click();
   const detail = page.getByRole('dialog', { name: /#OT-/ });
   await expect(detail.getByTestId('repair-client')).toHaveCount(0);
-  await detail.getByTestId('repair-edit-identity').click();
-  await expectBelow(detail.getByLabel('Equipo'), detail.getByRole('combobox', { name: 'Cliente (opcional)' }));
-  await detail.screenshot({ path: `${SHOTS}/editar-orden-1440x900.png` });
-  await detail.getByRole('button', { name: 'Cancelar' }).click();
-  await detail.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
-  await expect(detail).toBeHidden();
+  await expect(detail.getByLabel('Equipo')).toHaveCount(0);
+  await detail.getByTestId('repair-open-edit').click();
+  const editor = page.getByRole('dialog', { name: 'Editar orden' });
+  await expectBelow(editor.getByLabel('Equipo'), editor.getByRole('combobox', { name: 'Cliente (opcional)' }));
+  await editor.screenshot({ path: `${SHOTS}/editar-orden-1440x900.png` });
+  await editor.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(editor).toBeHidden();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId('mobile-dock')).toBeVisible();
@@ -124,7 +125,9 @@ test('the new order puts the device above the optional client on desktop and pho
   const phoneDetail = page.getByRole('dialog', { name: /#OT-/ });
   await expect(phoneDetail.getByText('Pixel 8', { exact: true })).toBeVisible();
   await expect(phoneDetail.getByTestId('repair-client')).toContainText('Ana Pérez');
-  await phoneDetail.getByTestId('repair-edit-identity').click();
-  await expectBelow(phoneDetail.getByLabel('Equipo'), phoneDetail.getByRole('combobox', { name: 'Cliente (opcional)' }));
-  await phoneDetail.screenshot({ path: `${SHOTS}/editar-orden-390x844.png` });
+  await expect(phoneDetail.getByLabel('Equipo')).toHaveCount(0);
+  await phoneDetail.getByTestId('repair-open-edit').click();
+  const phoneEditor = page.getByRole('dialog', { name: 'Editar orden' });
+  await expectBelow(phoneEditor.getByLabel('Equipo'), phoneEditor.getByRole('combobox', { name: 'Cliente (opcional)' }));
+  await phoneEditor.screenshot({ path: `${SHOTS}/editar-orden-390x844.png` });
 });

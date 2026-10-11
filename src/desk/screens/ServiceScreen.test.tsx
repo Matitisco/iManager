@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepairOrder } from '../../types';
 import { ExchangeProvider, type StoreExchange } from '../exchange';
 import { FX_WARNING } from '../money';
 import { DeskProvider } from '../ui';
-import { RepairOrderDetail, RepairOrderForm } from '../RepairForms';
+import { DeskOverlays } from '../DeskOverlays';
+import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from '../RepairForms';
 import { ServiceScreen } from './ServiceScreen';
 
 const open = vi.fn();
@@ -285,23 +286,29 @@ describe('servicio técnico', () => {
     state.repairOrders = [order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C' })];
     desk(<RepairOrderDetail id="95" busy={false} />);
     expect(screen.getByTestId('repair-client')).toHaveTextContent('Ejemplo C');
-    await user.click(screen.getByTestId('repair-edit-identity'));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eliminar orden' })).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('repair-open-edit'));
+    expect(open).toHaveBeenCalledWith({ type: 'edit-ot', id: '95' });
+
+    open.mockClear();
+    desk(<RepairOrderEditor id="95" busy={false} />);
     const device = screen.getByLabelText('Equipo');
     const client = screen.getByRole('combobox', { name: 'Cliente (opcional)' });
     expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await user.clear(device);
-    await user.click(screen.getByTestId('repair-save-identity'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(screen.getByText('Completá este dato')).toBeInTheDocument();
     expect(updateRepairOrder).not.toHaveBeenCalled();
     await user.type(device, 'Pixel 8');
     await user.clear(client);
-    await user.click(screen.getByTestId('repair-save-identity'));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', {
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({
       device: 'Pixel 8',
       clientId: null,
       clientName: null,
-    });
-    expect(screen.queryByTestId('repair-client')).not.toBeInTheDocument();
+    }));
+    expect(close).toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith('Orden actualizada');
   });
 
@@ -368,24 +375,23 @@ describe('servicio técnico', () => {
       return next;
     });
     deleteRepairOrder.mockResolvedValue(undefined);
-    desk(<RepairOrderDetail id="95" busy={false} />);
-    await user.click(screen.getByRole('button', { name: 'Editar presupuesto' }));
+    desk(<RepairOrderEditor id="95" busy={false} />);
     await user.clear(screen.getByLabelText('Presupuesto'));
     await user.type(screen.getByLabelText('Presupuesto'), '150000');
     await user.clear(screen.getByLabelText('Seña'));
     await user.type(screen.getByLabelText('Seña'), '20000');
-    await user.click(screen.getByTestId('repair-save-budget'));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', { estimate: 150000, deposit: 20000, currency: null });
-    expect(screen.getByText('$ 150.000')).toBeInTheDocument();
-    expect(screen.getByText('$ 20.000')).toBeInTheDocument();
-    expect(close).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 150000, deposit: 20000, currency: null }));
+    expect(close).toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Orden actualizada');
 
     await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));
-    expect(screen.getByRole('dialog', { name: 'Eliminar orden' })).toHaveTextContent('no se puede deshacer');
-    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    const confirm = screen.getByRole('dialog', { name: 'Eliminar orden' });
+    expect(confirm).toHaveTextContent('no se puede deshacer');
+    await user.click(within(confirm).getByRole('button', { name: 'Cancelar' }));
     expect(deleteRepairOrder).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));
-    await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Eliminar orden' })).getByRole('button', { name: 'Eliminar' }));
     expect(deleteRepairOrder).toHaveBeenCalledWith('95');
     expect(close).toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith('Orden eliminada');
@@ -394,20 +400,22 @@ describe('servicio técnico', () => {
   it('keeps the budget form open and shows the Spanish error when saving fails', async () => {
     const user = userEvent.setup();
     updateRepairOrder.mockRejectedValue(new Error('No tenés permiso para esta acción'));
-    desk(<RepairOrderDetail id="95" busy={false} />);
-    await user.click(screen.getByRole('button', { name: 'Editar presupuesto' }));
-    await user.click(screen.getByTestId('repair-save-budget'));
+    desk(<RepairOrderEditor id="95" busy={false} />);
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(await screen.findByText('No tenés permiso para esta acción')).toBeInTheDocument();
     expect(screen.getByLabelText('Presupuesto')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
   });
 
   it('disables budget and delete for a member without sensitive actions', async () => {
-    desk(<RepairOrderDetail id="95" busy={false} />, false);
-    expect(screen.getByRole('button', { name: 'Editar presupuesto' })).toBeDisabled();
+    desk(<RepairOrderEditor id="95" busy={false} />, false);
+    expect(screen.getByLabelText('Presupuesto')).toBeDisabled();
+    expect(screen.getByLabelText('Seña')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Eliminar orden' })).toBeDisabled();
     expect(screen.getByText('Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Presupuesto')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.not.objectContaining({ estimate: expect.anything() }));
+    expect(updateRepairOrder.mock.calls[0]?.[1]).not.toHaveProperty('deposit');
   });
 
   it('shows the order currency in the store format and keeps it when the amount does not change', async () => {
@@ -417,23 +425,23 @@ describe('servicio técnico', () => {
     deskMoney(<RepairOrderDetail id="95" busy={false} />, ARS);
     expect(screen.getByText('$ 100.000')).toBeInTheDocument();
     expect(screen.getByText('$ 10.000')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Editar presupuesto' }));
+    expect(screen.queryByLabelText('Presupuesto')).not.toBeInTheDocument();
+    deskMoney(<RepairOrderEditor id="95" busy={false} />, ARS);
     expect(screen.getByLabelText('Presupuesto')).toHaveValue('100.000');
     expect(screen.getByLabelText('Seña')).toHaveValue('10.000');
-    await user.click(screen.getByTestId('repair-save-budget'));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', { estimate: 100, deposit: 10, currency: 'USD' });
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 100, deposit: 10, currency: 'USD' }));
   });
 
   it('stamps the store currency when the displayed budget changes', async () => {
     const user = userEvent.setup();
     updateRepairOrder.mockResolvedValue(order('95', 'ESPERANDO_REPUESTO'));
     state.repairOrders = [order('95', 'ESPERANDO_REPUESTO', { estimate: 100, deposit: 10, currency: 'USD' })];
-    deskMoney(<RepairOrderDetail id="95" busy={false} />, ARS);
-    await user.click(screen.getByRole('button', { name: 'Editar presupuesto' }));
+    deskMoney(<RepairOrderEditor id="95" busy={false} />, ARS);
     await user.clear(screen.getByLabelText('Presupuesto'));
     await user.type(screen.getByLabelText('Presupuesto'), '200000');
-    await user.click(screen.getByTestId('repair-save-budget'));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', { estimate: 200000, deposit: 10000, currency: 'ARS' });
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 200000, deposit: 10000, currency: 'ARS' }));
   });
 
   it('keeps the saved currency and explains when there is no quote to convert a new amount', async () => {
@@ -442,13 +450,64 @@ describe('servicio técnico', () => {
     deskMoney(<RepairOrderDetail id="95" busy={false} />, { ...ARS, manualBuy: null, manualSell: null });
     expect(screen.getByText('US$ 100')).toBeInTheDocument();
     expect(screen.getByText('US$ 10')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Editar presupuesto' }));
+    deskMoney(<RepairOrderEditor id="95" busy={false} />, { ...ARS, manualBuy: null, manualSell: null });
     await user.clear(screen.getByLabelText('Presupuesto'));
     await user.type(screen.getByLabelText('Presupuesto'), '200');
-    await user.click(screen.getByTestId('repair-save-budget'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(screen.getByText(FX_WARNING)).toBeInTheDocument();
     expect(updateRepairOrder).not.toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('opens the shared context menu from the board and the list, and keeps drag from opening it', async () => {
+    const user = userEvent.setup();
+    desk(<ServiceScreen />);
+    vi.useFakeTimers();
+    try {
+      const card = screen.getByTestId('repair-card-101');
+      fireEvent.pointerDown(card, { clientX: 12, clientY: 16, pointerType: 'mouse', button: 0 });
+      fireEvent.dragStart(card, { dataTransfer: dragData() });
+      act(() => { vi.advanceTimersByTime(600); });
+      expect(open).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+    fireEvent.contextMenu(screen.getByTestId('repair-card-95'), { clientX: 40, clientY: 80 });
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ type: 'ctx', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }));
+    await user.click(screen.getByRole('button', { name: 'Lista' }));
+    fireEvent.contextMenu(screen.getByTestId('repair-row-101'), { clientX: 90, clientY: 140 });
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'ctx', kind: 'ot', id: '101', label: '#OT-0101 · iPhone 12' }));
+  });
+
+  it('closes the repair menu with Escape and a click outside, and deletes after confirming', async () => {
+    const user = userEvent.setup();
+    const menu = { type: 'ctx' as const, kind: 'ot' as const, id: '95', label: '#OT-0095 · iPhone 14', x: 24, y: 36 };
+    desk(<DeskOverlays overlay={menu} />);
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
+    expect(open).toHaveBeenCalledWith({ type: 'edit-ot', id: '95' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(close).toHaveBeenCalled();
+    fireEvent.mouseDown(document.querySelector('.ctxov') as HTMLElement);
+    expect(close).toHaveBeenCalledTimes(2);
+
+    cleanup();
+    desk(<DeskOverlays overlay={menu} />, false);
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+
+    cleanup();
+    deleteRepairOrder.mockResolvedValue(undefined);
+    desk(<DeskOverlays overlay={{ type: 'del', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }} />);
+    expect(screen.getByRole('dialog', { name: 'Eliminar orden' })).toHaveTextContent('no se puede deshacer');
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(deleteRepairOrder).not.toHaveBeenCalled();
+    cleanup();
+    desk(<DeskOverlays overlay={{ type: 'del', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }} />);
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+    expect(deleteRepairOrder).toHaveBeenCalledWith('95');
+    expect(toast).toHaveBeenCalledWith('Orden eliminada');
   });
 });
 
@@ -508,6 +567,17 @@ describe('servicio técnico en el celular', () => {
     await user.click(screen.getByRole('button', { name: 'Abiertas 2' }));
     await user.click(screen.getByTestId('repair-card-95'));
     expect(open).toHaveBeenCalledWith({ type: 'ot', id: '95' });
+    await user.click(screen.getAllByRole('button', { name: 'Más acciones' })[0]);
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'ctx', kind: 'ot', id: '101' }));
+    open.mockClear();
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(screen.getByTestId('repair-card-95'), { clientX: 20, clientY: 30, pointerType: 'touch', button: 0 });
+      act(() => { vi.advanceTimersByTime(480); });
+      expect(open).toHaveBeenCalledWith(expect.objectContaining({ type: 'ctx', kind: 'ot', id: '95' }));
+    } finally {
+      vi.useRealTimers();
+    }
     await user.click(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-ot' });
   });
@@ -570,6 +640,9 @@ describe('servicio técnico en el celular', () => {
     expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('En reparación').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeEnabled();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eliminar orden' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Pasar a Listo para retirar' }));
     expect(changeRepairStatus).toHaveBeenCalledWith('95', 'LISTO_PARA_RETIRAR');
@@ -606,12 +679,11 @@ describe('servicio técnico en el celular', () => {
       state.repairOrders = [next];
       return next;
     });
-    desk(<RepairOrderDetail id="95" busy={false} />);
-    await user.click(screen.getByTestId('repair-edit-budget'));
+    desk(<RepairOrderEditor id="95" busy={false} />);
     await user.clear(screen.getByLabelText('Presupuesto'));
     await user.type(screen.getByLabelText('Presupuesto'), '150000');
-    await user.click(screen.getByTestId('repair-save-budget'));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', { estimate: 150000, deposit: 0, currency: null });
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 150000, deposit: 0, currency: null }));
     expect(screen.getByRole('button', { name: 'Eliminar orden' })).toBeEnabled();
   });
 });
