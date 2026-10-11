@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
-import { ColumnFilter } from '../ColumnFilter';
+import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import {
   EMPTY_CLIENT_FILTERS,
   clientColumnActive,
@@ -12,7 +12,7 @@ import {
   type ClientColumnFilters,
 } from '../client-column-filters';
 import { useMoney, type MoneyApi } from '../exchange';
-import { avatarTone, formatInputMoney, formatShortDate, initials, parseAppDate, parseMoney } from '../format';
+import { avatarTone, formatShortDate, initials, parseAppDate } from '../format';
 import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
@@ -67,7 +67,7 @@ export function ClientsScreen() {
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [openColumn, setOpenColumn] = useState<string | null>(null);
+  const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
   const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
@@ -176,7 +176,7 @@ export function ClientsScreen() {
             <thead>
               <tr>
                 <th><span className="thf">Cliente
-                  <ColumnFilter label="cliente" open={openColumn === 'cliente'} onToggle={() => setOpenColumn((current) => current === 'cliente' ? null : 'cliente')} active={clientColumnActive(columns, 'name')} onClear={() => setColumn({ name: '', tags: [] })}>
+                  <ColumnFilter label="cliente" {...menu('cliente')} active={clientColumnActive(columns, 'name')} onClear={() => setColumn({ name: '', tags: [] })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.name} onChange={(event) => setColumn({ name: event.target.value })} />
                     {tags.length > 0 ? <div className="opts">{tags.map((tag) => (
                       <label key={tag} className="chk"><input type="checkbox" checked={columns.tags.includes(tag)} onChange={(event) => setColumn({ tags: event.target.checked ? [...columns.tags, tag] : columns.tags.filter((item) => item !== tag) })} />{tag}</label>
@@ -184,37 +184,28 @@ export function ClientsScreen() {
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">DNI
-                  <ColumnFilter label="dni" open={openColumn === 'dni'} onToggle={() => setOpenColumn((current) => current === 'dni' ? null : 'dni')} active={clientColumnActive(columns, 'dni')} onClear={() => setColumn({ dni: '' })}>
+                  <ColumnFilter label="dni" {...menu('dni')} active={clientColumnActive(columns, 'dni')} onClear={() => setColumn({ dni: '' })}>
                     <input aria-label="Contiene" placeholder="DNI" value={columns.dni} onChange={(event) => setColumn({ dni: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Teléfono
-                  <ColumnFilter label="teléfono" open={openColumn === 'teléfono'} onToggle={() => setOpenColumn((current) => current === 'teléfono' ? null : 'teléfono')} active={clientColumnActive(columns, 'phone')} onClear={() => setColumn({ phone: '' })}>
+                  <ColumnFilter label="teléfono" {...menu('teléfono')} active={clientColumnActive(columns, 'phone')} onClear={() => setColumn({ phone: '' })}>
                     <input aria-label="Contiene" placeholder="Teléfono" value={columns.phone} onChange={(event) => setColumn({ phone: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Última compra
-                  <ColumnFilter label="última compra" open={openColumn === 'fecha'} onToggle={() => setOpenColumn((current) => current === 'fecha' ? null : 'fecha')} active={clientColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
-                    <div className="range">
-                      <label><span>Desde</span><input aria-label="Desde" placeholder="dd/mm/aaaa" value={columns.dateFrom} onChange={(event) => setColumn({ dateFrom: event.target.value })} /></label>
-                      <label><span>Hasta</span><input aria-label="Hasta" placeholder="dd/mm/aaaa" value={columns.dateTo} onChange={(event) => setColumn({ dateTo: event.target.value })} /></label>
-                    </div>
+                  <ColumnFilter label="última compra" {...menu('fecha')} active={clientColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
+                    <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
                 <th className="r"><span className="thf">Gastado
-                  <ColumnFilter label="gastado" align="right" open={openColumn === 'gastado'} onToggle={() => setOpenColumn((current) => current === 'gastado' ? null : 'gastado')} active={clientColumnActive(columns, 'spent')} onClear={() => setColumn({ spentMin: '', spentMax: '' })}>
-                    <div className="range">
-                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.spentMin ? formatInputMoney(parseMoney(columns.spentMin)) : ''} onChange={(event) => setColumn({ spentMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.spentMax ? formatInputMoney(parseMoney(columns.spentMax)) : ''} onChange={(event) => setColumn({ spentMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                    </div>
+                  <ColumnFilter label="gastado" align="right" {...menu('gastado')} active={clientColumnActive(columns, 'spent')} onClear={() => setColumn({ spentMin: '', spentMax: '' })}>
+                    <MoneyRange min={columns.spentMin} max={columns.spentMax} onMin={(spentMin) => setColumn({ spentMin })} onMax={(spentMax) => setColumn({ spentMax })} />
                   </ColumnFilter>
                 </span></th>
                 <th><span className="thf">Saldo
-                  <ColumnFilter label="saldo" align="right" open={openColumn === 'saldo'} onToggle={() => setOpenColumn((current) => current === 'saldo' ? null : 'saldo')} active={clientColumnActive(columns, 'balance')} onClear={() => setColumn({ balanceMin: '', balanceMax: '' })}>
-                    <div className="range">
-                      <label><span>Mínimo</span><input aria-label="Mínimo" inputMode="numeric" value={columns.balanceMin ? formatInputMoney(parseMoney(columns.balanceMin)) : ''} onChange={(event) => setColumn({ balanceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                      <label><span>Máximo</span><input aria-label="Máximo" inputMode="numeric" value={columns.balanceMax ? formatInputMoney(parseMoney(columns.balanceMax)) : ''} onChange={(event) => setColumn({ balanceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} /></label>
-                    </div>
+                  <ColumnFilter label="saldo" align="right" {...menu('saldo')} active={clientColumnActive(columns, 'balance')} onClear={() => setColumn({ balanceMin: '', balanceMax: '' })}>
+                    <MoneyRange min={columns.balanceMin} max={columns.balanceMax} onMin={(balanceMin) => setColumn({ balanceMin })} onMax={(balanceMax) => setColumn({ balanceMax })} />
                   </ColumnFilter>
                 </span></th>
               </tr>
@@ -283,19 +274,19 @@ export function ClientsScreen() {
             <p className="sec">Gastado · {money.active}</p>
             <div className="inv-range">
               <Field label="Gastado mínimo">
-                <input aria-label="Gastado mínimo" inputMode="numeric" value={draftFilters.spentMin ? formatInputMoney(parseMoney(draftFilters.spentMin)) : ''} onChange={(event) => setDraft({ spentMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Gastado mínimo" value={draftFilters.spentMin} onChange={(digits) => setDraft({ spentMin: digits })} />
               </Field>
               <Field label="Gastado máximo">
-                <input aria-label="Gastado máximo" inputMode="numeric" value={draftFilters.spentMax ? formatInputMoney(parseMoney(draftFilters.spentMax)) : ''} onChange={(event) => setDraft({ spentMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Gastado máximo" value={draftFilters.spentMax} onChange={(digits) => setDraft({ spentMax: digits })} />
               </Field>
             </div>
             <p className="sec">Saldo · {money.active}</p>
             <div className="inv-range">
               <Field label="Saldo mínimo">
-                <input aria-label="Saldo mínimo" inputMode="numeric" value={draftFilters.balanceMin ? formatInputMoney(parseMoney(draftFilters.balanceMin)) : ''} onChange={(event) => setDraft({ balanceMin: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Saldo mínimo" value={draftFilters.balanceMin} onChange={(digits) => setDraft({ balanceMin: digits })} />
               </Field>
               <Field label="Saldo máximo">
-                <input aria-label="Saldo máximo" inputMode="numeric" value={draftFilters.balanceMax ? formatInputMoney(parseMoney(draftFilters.balanceMax)) : ''} onChange={(event) => setDraft({ balanceMax: event.target.value.replace(/\D/g, '').slice(0, 12) })} />
+                <MoneyFilterInput label="Saldo máximo" value={draftFilters.balanceMax} onChange={(digits) => setDraft({ balanceMax: digits })} />
               </Field>
             </div>
           </div>
