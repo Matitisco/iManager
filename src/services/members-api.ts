@@ -44,25 +44,6 @@ export async function listMembers(user: AuthUserLike, storeId: string): Promise<
   return data.members;
 }
 
-export async function updateMemberRole(
-  user: AuthUserLike,
-  storeId: string,
-  memberId: string,
-  role: MemberRole
-): Promise<TeamMember> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
-    method: 'PATCH',
-    headers: await authHeaders(user),
-    body: JSON.stringify({ role }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al cambiar rol');
-  }
-  const data = await res.json();
-  return data.member;
-}
-
 export async function updateMemberSections(
   user: AuthUserLike,
   storeId: string,
@@ -83,13 +64,3 @@ export async function updateMemberSections(
   return data.member;
 }
 
-export async function removeMember(user: AuthUserLike, storeId: string, memberId: string): Promise<void> {
-  const res = await fetchWithTimeout(`${getBaseUrl()}/api/stores/${storeId}/members/${memberId}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${await user.getIdToken()}`, Accept: 'application/json' },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? 'Error al remover miembro');
-  }
-}

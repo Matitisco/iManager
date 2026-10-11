@@ -16,7 +16,7 @@ Aplicar esta skill antes de escribir cualquier código en `src/`.
 - Tailwind CSS 4 (no v3 — la sintaxis de algunos utilities cambió)
 - `motion/react` (no `framer-motion` — el import cambió)
 - lucide-react para íconos
-- recharts para gráficos
+- Gráficos en SVG propio (`src/desk/screens/ReportsScreen.tsx`), sin librería de charts
 
 ---
 

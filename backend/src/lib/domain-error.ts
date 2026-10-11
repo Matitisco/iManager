@@ -8,12 +8,6 @@ export class DomainError extends Error {
   }
 }
 
-export function domainErrorBody(error: unknown): { statusCode: number; message: string } | null {
-  const domain = domainErrorFrom(error);
-  if (!domain) return null;
-  return { statusCode: domain.statusCode, message: domain.message };
-}
-
 export function domainErrorFrom(error: unknown): DomainError | null {
   if (error instanceof DomainError) return error;
   if (!error || typeof error !== "object" || !("cause" in error)) return null;
