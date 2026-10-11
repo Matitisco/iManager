@@ -20,6 +20,7 @@ import {
   headerLooksValid,
   heuristicPlan,
   heuristicSheet,
+  inventoryHasEquipmentColumns,
   priceCurrencyOf,
   trimSheet,
   type ImportSheet,
@@ -32,6 +33,7 @@ export const ANALYSIS_NOTICES = {
   quota: "OpenAI no tiene saldo disponible. Leímos la planilla con las reglas internas.",
   refusal: "OpenAI se negó a leer la planilla. Usamos las reglas internas.",
   error: "No se pudo consultar el análisis inteligente. Usamos las reglas internas.",
+  unrelated: "Este archivo no parece tener equipos para importar.",
 } as const;
 
 const modelSheetSchema = z.object({
@@ -88,6 +90,10 @@ export async function analyzeImport(
 ): Promise<AnalysisResult> {
   const sheets = prepareSheets(input.sheets);
   const heuristic = () => heuristicPlan(sheets, input.section, input.currency);
+  if (input.section === "inventory" && !inventoryHasEquipmentColumns(sheets)) {
+    const plan = heuristic().map((sheet) => ({ ...sheet, include: false }));
+    return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.unrelated, plan, null, 0, 0, "none");
+  }
   const key = openAiApiKey();
   if (!key) return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.missingKey, heuristic(), null, 0, 0, "none");
 

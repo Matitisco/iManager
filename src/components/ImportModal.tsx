@@ -22,6 +22,8 @@ export interface GenericImportResult {
 
 type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
 
+export const UNRELATED_IMPORT_NOTICE = 'Este archivo no parece tener equipos para importar.';
+
 interface Props {
   fields: ImportFieldDef[];
   onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
@@ -62,6 +64,7 @@ export const ImportModal: React.FC<Props> = ({
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [summary, setSummary] = useState<ImportAnalysis['summary'] | null>(null);
   const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
+  const [notice, setNotice] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState('');
   const [applying, setApplying] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -74,6 +77,7 @@ export const ImportModal: React.FC<Props> = ({
     setRows(analysis.rows);
     setSummary(analysis.summary);
     setCurrency(analysis.currency);
+    setNotice(analysis.notice);
     setActiveSheet((current) => analysis.plan.some((item) => item.name === current) ? current : analysis.plan[0]?.name ?? '');
   };
 
@@ -133,6 +137,7 @@ export const ImportModal: React.FC<Props> = ({
   const included = plan.filter((item) => item.include);
   const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
   const canImport = !applying && rows.length > 0 && requiredMissing.length === 0 && included.length > 0;
+  const unrelated = rows.length === 0 && notice === UNRELATED_IMPORT_NOTICE;
   const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
   const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
   const headerIndex = Math.max(0, (active?.headerRow ?? 1) - 1);
@@ -160,7 +165,7 @@ export const ImportModal: React.FC<Props> = ({
   const subtitle = {
     upload: 'Subí un archivo CSV o XLSX',
     reading: 'Leyendo la planilla…',
-    summary: 'Listo para importar',
+    summary: unrelated ? 'Sin equipos para importar' : 'Listo para importar',
     adjust: 'Ajustá hojas, encabezado o columnas',
     result: 'Importación completada',
   }[step];
@@ -204,7 +209,13 @@ export const ImportModal: React.FC<Props> = ({
         <p className="text-sm text-gray-500" data-testid="import-reading">Leyendo la planilla…</p>
       )}
 
-      {step === 'summary' && summary && (
+      {step === 'summary' && summary && unrelated && (
+        <div data-testid="import-unrelated" role="status" className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
+          <p className="text-sm font-medium text-gray-900">{UNRELATED_IMPORT_NOTICE}</p>
+        </div>
+      )}
+
+      {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
           <p className="text-lg font-bold text-gray-900" data-testid="import-summary-count">{headline}</p>
           <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100">
@@ -371,12 +382,16 @@ export const ImportModal: React.FC<Props> = ({
     requestRef.current += 1;
     setStep('upload');
     setFileError(null);
+    setNotice(null);
   };
 
   const modalFooter = (
     <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
       {step === 'upload' && <button type="button" onClick={onClose} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Cancelar</button>}
-      {step === 'summary' && (
+      {step === 'summary' && unrelated && (
+        <button type="button" onClick={backUpload} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
+      )}
+      {step === 'summary' && !unrelated && (
         <>
           <button type="button" onClick={backUpload} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
           <button type="button" data-testid="import-adjust-open" onClick={() => setStep('adjust')} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Ajustar importación</button>
@@ -397,6 +412,8 @@ export const ImportModal: React.FC<Props> = ({
 
   const sheetFooter = step === 'upload' ? (
     <div className="sacts one"><button type="button" className="btn2 s" onClick={onClose}>Cancelar</button></div>
+  ) : step === 'summary' && unrelated ? (
+    <div className="sacts one"><button type="button" className="btn2 s" onClick={backUpload}>Volver</button></div>
   ) : step === 'summary' ? (
     <div className="sacts">
       <button type="button" className="btn2 s" data-testid="import-adjust-open" onClick={() => setStep('adjust')}>Ajustar importación</button>

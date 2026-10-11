@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Alumnos",
+    "rows": [
+      ["Nombre", "DNI", "Curso", "Nota"],
+      ["Ana López", "40111222", "3A", "8"],
+      ["Bruno Díaz", "38999111", "3A", "7"],
+      ["Carla Méndez", "41222333", "4B", "9"],
+      ["Diego Ruiz", "37888444", "4B", "6"]
+    ]
+  }
+]

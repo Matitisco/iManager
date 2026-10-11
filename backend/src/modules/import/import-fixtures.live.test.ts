@@ -9,11 +9,15 @@ import type { ImportSheet } from "./sheet-plan.js";
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../test/fixtures/import");
 
-type ExpectedFile = { currency: "ARS" | "USD"; rows: { model?: string; capacity?: string; imei?: string }[] };
+type ExpectedFile = { currency: "ARS" | "USD"; rows: { model?: string; capacity?: string; imei?: string }[]; unrelated?: boolean };
 
 const names = readdirSync(FIXTURES)
   .filter((file) => file.endsWith(".grid.json"))
   .map((file) => file.replace(/\.grid\.json$/, ""))
+  .filter((name) => {
+    const expected = JSON.parse(readFileSync(path.join(FIXTURES, `${name}.expected.json`), "utf8")) as ExpectedFile;
+    return !expected.unrelated;
+  })
   .sort();
 
 describe.skipIf(!process.env.OPENAI_API_KEY)("import fixtures live", () => {

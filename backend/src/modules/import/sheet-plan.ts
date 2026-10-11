@@ -277,6 +277,39 @@ export function heuristicPlan(
   return sheets.map((sheet) => heuristicSheet(sheet, catalog, storeCurrency));
 }
 
+const EQUIPMENT_COLUMN_FIELDS = new Set(["model", "imei", "capacity", "color", "condition", "batteryHealth", "grade"]);
+const EQUIPMENT_HEADER = /^(mod|modelo|equipo|equipos|imei|serie|capacidad|almacenamiento|alm|gb|color|colour|colores|tono|condicion|cond|bateria|pila|bat|calidad|grado)$/;
+
+function namesEquipment(cell: string): boolean {
+  const normalized = normalizeHeader(cell);
+  if (!normalized || normalized.length > 40) return false;
+  if (EQUIPMENT_HEADER.test(normalized)) return true;
+  return normalized.includes("imei")
+    || normalized.includes("modelo")
+    || normalized.includes("bateria")
+    || normalized.includes("capacidad")
+    || normalized.startsWith("salud");
+}
+
+// Price, cost and status show up in gastos and other lists. A sheet counts as
+// inventory only when a header row names an equipment column (including the
+// short names Mod, Alm, Bat, Pila, Tono).
+export function inventoryHasEquipmentColumns(sheets: ImportSheet[]): boolean {
+  const catalog = IMPORT_CATALOGS.inventory;
+  return sheets.some((sheet) => {
+    const rows = trimSheet(sheet.rows);
+    const limit = Math.min(rows.length, 40);
+    for (let index = 0; index < limit; index += 1) {
+      const cells = (rows[index] ?? []).map((cell) => cell.trim()).filter((cell) => cell.length > 0 && cell.length <= 40);
+      if (cells.length < 2) continue;
+      if (cells.some((cell) => namesEquipment(cell))) return true;
+      const mapped = autoMap(cells, catalog.fields, catalog.hints);
+      if (Object.keys(mapped).some((field) => EQUIPMENT_COLUMN_FIELDS.has(field))) return true;
+    }
+    return false;
+  });
+}
+
 function roundPart(value: string | undefined): string {
   const amount = Number((value ?? "").replace(",", "."));
   return Number.isFinite(amount) ? String(Math.round(amount)) : "0";

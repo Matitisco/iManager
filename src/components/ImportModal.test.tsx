@@ -134,4 +134,35 @@ describe('previsualización de importación', () => {
     await userEvent.upload(again, blocked);
     expect(await screen.findByText('El archivo supera las 5000 filas.')).toBeInTheDocument();
   });
+
+  it.each([
+    ['desktop', false],
+    ['mobile', true],
+  ])('en %s no importa un archivo sin equipos y lo dice', async (_label, sheet) => {
+    const onImport = vi.fn();
+    render(
+      <ImportModal
+        title="Importar equipos"
+        fields={fields}
+        nouns={{ one: 'equipo', many: 'equipos' }}
+        sheet={sheet}
+        onClose={vi.fn()}
+        onAnalyze={vi.fn(async () => ({
+          ...analysis(0),
+          notice: 'Este archivo no parece tener equipos para importar.',
+          summary: { sheetCount: 0, rowCount: 0, sheets: [] },
+        }))}
+        onApply={vi.fn()}
+        onImport={onImport}
+      />,
+    );
+    const input = document.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('falta el input');
+    await userEvent.upload(input, new File(['Nombre,Nota\nAna,8\n'], 'alumnos.csv', { type: 'text/csv' }));
+    expect(await screen.findByTestId('import-unrelated')).toHaveTextContent('Este archivo no parece tener equipos para importar.');
+    expect(screen.queryByTestId('import-preview')).not.toBeInTheDocument();
+    expect(screen.queryByText('No encontramos filas para importar. Podés ajustar el encabezado.')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('import-confirm')).not.toBeInTheDocument();
+    expect(onImport).not.toHaveBeenCalled();
+  });
 });
