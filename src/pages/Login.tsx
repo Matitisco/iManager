@@ -7,6 +7,7 @@ import { useAppContext } from '../context/AppContext';
 import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { consumePasswordResetNotice, PASSWORD_RESET_LOGIN_NOTICE } from '../lib/password-reset-notice';
+import { ROLE_LABEL } from '../lib/roles';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -54,14 +55,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   }, []);
 
   const clearError = () => setError(null);
-  const roleLabel =
-    inviteState.preview?.role === 'MANAGER'
-      ? 'Socio'
-      : inviteState.preview?.role === 'STAFF'
-        ? 'Empleado'
-        : inviteState.preview?.role === 'OWNER'
-          ? 'Propietario'
-          : null;
+  const roleLabel = inviteState.preview ? ROLE_LABEL[inviteState.preview.role] ?? null : null;
 
   const getFirebaseErrorMessage = (errorCode: string): string => {
     switch (errorCode) {

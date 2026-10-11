@@ -1,0 +1,182 @@
+import { useEffect, useState } from 'react';
+import { useAppContext } from '../../context/AppContext';
+import { INPUT_LIMITS } from '../../lib/input-limits';
+import { getFriendlyErrorMessage } from '../../lib/utils';
+import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
+import type { Client } from '../../types';
+import { formatInputMoney, formatShortDate, parseMoney, paymentLabel } from '../format';
+import { useMoney } from '../exchange';
+import { FX_WARNING } from '../money';
+import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
+import type { CatalogKind } from '../../services/catalogs-api';
+import { usePhoneLayout } from '../section-notices';
+import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
+import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
+
+export function ClientDetail({ id }: { id: string }) {
+  const { clients, user, registerClientPayment } = useAppContext();
+  const money = useMoney();
+  const { close, open, toast } = useDesk();
+  const phone = usePhoneLayout();
+  const client = clients.find((item) => item.id === id);
+  const [method, setMethod] = useState('TRANSFERENCIA');
+  const [amount, setAmount] = useState('');
+  const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const quoteRate = money.rate;
+  const activeCurrency = money.active;
+  useEffect(() => {
+    if (!client) return;
+    setAmount(money.inputValue(client.pendingBalance, client.balanceCurrency));
+  }, [client?.id, client?.pendingBalance, client?.balanceCurrency, quoteRate, activeCurrency]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchClientPayments(user, id)
+      .then((rows) => { if (!cancelled) setPayments(rows); })
+      .catch(() => { if (!cancelled) setPayments([]); });
+    return () => { cancelled = true; };
+  }, [user, id, client?.pendingBalance]);
+
+  if (!client) return null;
+  const pay = async () => {
+    const value = parseMoney(amount);
+    const projected = money.number(client.pendingBalance, client.balanceCurrency);
+    const stored = projected != null && projected > 0 ? Math.round(value * client.pendingBalance / projected) : value;
+    if (amount.includes('-') || value < 0) {
+      setError('El pago no puede ser negativo');
+      return;
+    }
+    if (!value) {
+      setError('Completá el monto');
+      return;
+    }
+    if (stored > client.pendingBalance) {
+      setError('El monto supera el saldo');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await registerClientPayment(client.id, { amount: stored, method, currency: stampedCurrency(client.balanceCurrency) });
+      toast('Pago registrado');
+      setAmount(money.inputValue(updated.pendingBalance, updated.balanceCurrency));
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
+  const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
+  return (
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} className="cl-sheet">
+      {error && <div className="ferr">{error}</div>}
+      <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{money.show(client.pendingBalance, client.balanceCurrency)}</div></div>
+      <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
+      <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
+      {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
+      {client.pendingBalance > 0 ? (
+        <>
+          <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+            const raw = event.target.value;
+            if (raw.includes('-')) {
+              setAmount(raw);
+              setError('El pago no puede ser negativo');
+              return;
+            }
+            setAmount(formatInputMoney(parseMoney(raw)));
+            setError(null);
+          }} /></Field>
+          <Field label="Forma de pago"><span /></Field>
+          <Segs options={PAYMENTS} value={method} onChange={setMethod} />
+        </>
+      ) : null}
+      {payments.length > 0 ? (
+        <>
+          <Field label="Pagos"><span /></Field>
+          {payments.map((payment) => (
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+          ))}
+        </>
+      ) : null}
+      <div className="sacts">
+        {client.pendingBalance > 0
+          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+          : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
+        {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
+        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>
+      </div>
+    </Sheet>
+  );
+}
+
+export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }) {
+  const { clients, addClient, updateClient } = useAppContext();
+  const money = useMoney();
+  const { close } = useDesk();
+  const phoneLayout = usePhoneLayout();
+  const catalogs = useCatalogs();
+  const [editor, setEditor] = useState<CatalogKind | null>(null);
+  const current = clients.find((item) => item.id === id);
+  const tags = catalogChoices(catalogs?.options ?? [], 'CLIENT_TAG', BASE_TAGS);
+  const [name, setName] = useState(current?.name ?? '');
+  const [dni, setDni] = useState(current?.dni ?? '');
+  const [phone, setPhone] = useState(current?.phone ?? '');
+  const [email, setEmail] = useState(current?.email ?? '');
+  const [balance, setBalance] = useState(current ? money.inputValue(current.pendingBalance, current.balanceCurrency) : '');
+  const [tag, setTag] = useState(current?.tag ?? '');
+  const [bad, setBad] = useState<Record<string, string>>({});
+
+  return (
+    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close} className="cl-sheet">
+      {error && <div className="ferr">{error}</div>}
+      <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
+      {current ? (
+        <Field label="Teléfono"><input value={phone} placeholder="Ej. 11 5555 5555" onChange={(event) => setPhone(event.target.value)} /></Field>
+      ) : (
+        <div className="frow">
+          <Field label="DNI" error={bad.dni}><input value={dni} placeholder="Sin puntos" onChange={(event) => { setDni(event.target.value); clearBad(setBad, 'dni'); }} /></Field>
+          <Field label="Teléfono"><input value={phone} placeholder="Ej. 11 5555 5555" onChange={(event) => setPhone(event.target.value)} /></Field>
+        </div>
+      )}
+      <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
+      {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
+      <Field label="Etiqueta"><span /></Field>
+      <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
+      {!current && phoneLayout ? <p className="eqs-note">Última compra, total y saldo se calculan desde Ventas.</p> : null}
+      {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
+      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!name.trim()) next.name = 'Completá este dato';
+        else if (name.trim().length > INPUT_LIMITS.clientName) next.name = `El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`;
+        const priced = current
+          ? money.commitGroup([{ typed: parseMoney(balance), original: current.pendingBalance, currency: current.balanceCurrency }])
+          : { blocked: false, amounts: [{ amount: 0, currency: null as string | null }] };
+        if (priced.blocked) next.balance = FX_WARNING;
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
+        const payload: Omit<Client, 'id'> = {
+          name: name.trim(),
+          dni: dni.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          lastPurchaseDate: current?.lastPurchaseDate || 'N/A',
+          totalSpent: current?.totalSpent ?? 0,
+          pendingBalance: priced.amounts[0]?.amount ?? 0,
+          balanceCurrency: priced.amounts[0]?.currency ?? null,
+          tag: tag || null,
+          categoryId: current?.categoryId,
+          customFields: current?.customFields,
+        };
+        if (current) await updateClient({ ...current, ...payload });
+        else await addClient(payload);
+      }, current ? 'Cliente actualizado' : 'Cliente guardado');
+      }} />
+    </Sheet>
+  );
+}

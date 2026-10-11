@@ -9,6 +9,7 @@ import { usePhoneLayout } from '../section-notices';
 import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ImanagerIcon, notificationIcon } from '../icons';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
+import { ROLE_LABEL } from '../../lib/roles';
 
 const SECTION_LABEL: Record<NoticeSection, string> = {
   inventory: 'Inventario',
@@ -236,7 +237,6 @@ function emptyCopy(filter: string) {
   return `No hay notificaciones de ${sectionLabel(filter)}.`;
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
 
 function MRow({ icon, title, sub, right, onClick }: { icon: ReactNode; title: string; sub: string; right?: string; onClick?: () => void }) {
   return (
