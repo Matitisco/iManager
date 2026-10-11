@@ -88,7 +88,7 @@ describe('Trade-ins table', () => {
     expect(screen.getByText('Recibido 1')).toBeInTheDocument();
   });
 
-  it('opens details and the existing context menu from rows and keeps create/import actions', async () => {
+  it('opens details and the existing context menu from rows and keeps the create action', async () => {
     const user = userEvent.setup();
     state.tradeIns = [trade(1)];
     renderScreen();
@@ -101,8 +101,7 @@ describe('Trade-ins table', () => {
     expect(open).toHaveBeenCalledTimes(calls);
     await user.click(screen.getByRole('button', { name: 'Nuevo canje' }));
     expect(open).toHaveBeenLastCalledWith({ type: 'new-cj' });
-    await user.click(screen.getByRole('button', { name: 'Importar' }));
-    expect(open).toHaveBeenLastCalledWith({ type: 'import', kind: 'cj' });
+    expect(screen.queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
   });
 
   it('shows a free-text client name beside linked clients', async () => {
@@ -237,7 +236,7 @@ describe('Trade-ins on a phone', () => {
     expect(timeline).toHaveTextContent('Aprobado');
     expect(timeline).toHaveTextContent('Canje confirmado');
     expect(screen.getByTestId('mobile-dock')).toHaveTextContent('Nuevo canje');
-    expect(screen.getByTestId('mobile-dock')).toHaveTextContent('Importar');
+    expect(within(screen.getByTestId('mobile-dock')).queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('row-menu').length).toBeGreaterThan(0);
     expect(screen.queryByRole('columnheader', { name: 'Canje' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recientes' })).toBeInTheDocument();

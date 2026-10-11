@@ -6,22 +6,20 @@ import { analyzeImport, applyImportPlan, importBackendRows, type ImportSection, 
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
-export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
+export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
   const phone = usePhoneLayout();
-  const { user, reloadInventory, reloadSales, reloadClients, reloadTradeIns } = useAppContext();
+  const { user, reloadInventory, reloadSales, reloadClients } = useAppContext();
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
     if (kind === 'inv') await reloadInventory();
     if (kind === 'sale') await reloadSales();
     if (kind === 'cl') await reloadClients();
-    if (kind === 'cj') await reloadTradeIns();
-  }), [kind, reloadInventory, reloadSales, reloadClients, reloadTradeIns]);
+  }), [kind, reloadInventory, reloadSales, reloadClients]);
   if (!user) return null;
   const noun: Record<typeof kind, [string, string]> = {
     inv: ['equipo importado', 'equipos importados'],
     sale: ['venta importada', 'ventas importadas'],
     cl: ['cliente importado', 'clientes importados'],
-    cj: ['canje importado', 'canjes importados'],
   };
   const section = sectionFor(kind);
   return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} onClose={close} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
@@ -34,14 +32,13 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' | 'cj' }) {
   }} />;
 }
 
-function sectionFor(kind: 'inv' | 'sale' | 'cl' | 'cj'): ImportSection {
+function sectionFor(kind: 'inv' | 'sale' | 'cl'): ImportSection {
   if (kind === 'inv') return 'inventory';
   if (kind === 'sale') return 'sales';
-  if (kind === 'cl') return 'clients';
-  return 'trade-ins';
+  return 'clients';
 }
 
-function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<void>) {
+function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
   if (kind === 'inv') {
     return {
       title: 'Importar equipos',
@@ -107,37 +104,17 @@ function importConfig(kind: 'inv' | 'sale' | 'cl' | 'cj', after: () => Promise<v
       },
     };
   }
-  if (kind === 'cl') {
-    return {
-      title: 'Importar clientes',
-      nouns: { one: 'cliente', many: 'clientes' },
-      fields: [
-        { key: 'name', label: 'Nombre', required: true },
-        { key: 'dni', label: 'DNI', required: false },
-        { key: 'phone', label: 'Teléfono', required: false },
-        { key: 'email', label: 'Email', required: false },
-      ],
-      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const result = await importBackendRows(user, 'clients', rows);
-        await after();
-        return result;
-      },
-    };
-  }
   return {
-    title: 'Importar canjes',
-    nouns: { one: 'canje', many: 'canjes' },
+    title: 'Importar clientes',
+    nouns: { one: 'cliente', many: 'clientes' },
     fields: [
-      { key: 'clientName', label: 'Cliente', required: true },
-      { key: 'deviceReceived', label: 'Equipo recibido', required: true },
-      { key: 'deviceReceivedImei', label: IMEI_OPTIONAL_LABEL, required: false },
-      { key: 'takeValue', label: 'Valor tomado', required: false },
-      { key: 'deviceGiven', label: 'Equipo entregado', required: true },
-      { key: 'differencePaid', label: 'Diferencia', required: false },
-      { key: 'status', label: 'Estado', required: false },
+      { key: 'name', label: 'Nombre', required: true },
+      { key: 'dni', label: 'DNI', required: false },
+      { key: 'phone', label: 'Teléfono', required: false },
+      { key: 'email', label: 'Email', required: false },
     ],
     onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-      const result = await importBackendRows(user, 'trade-ins', rows);
+      const result = await importBackendRows(user, 'clients', rows);
       await after();
       return result;
     },
