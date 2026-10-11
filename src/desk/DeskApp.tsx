@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box } from 'lucide-react';
+import { BrandIsotipo } from '../components/brand-mark';
 import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
 import { initials, isInProgressTrade } from './format';
@@ -292,8 +292,11 @@ export function DeskApp() {
         {phone ? (
           <header className="mhead" data-testid="mobile-header">
             <div className="mstore">
-              <i className="mstore-dot" aria-hidden="true" />
-              <b data-testid="mobile-store-name">{appSession?.store?.name || 'Tienda'}</b>
+              <BrandIsotipo size={32} className="mstore-logo" />
+              <span className="mstore-copy">
+                <b className="mstore-word">iManager</b>
+                <small data-testid="mobile-store-name" title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
+              </span>
             </div>
             <BlueDollar variant="chip" />
           </header>
@@ -301,8 +304,11 @@ export function DeskApp() {
         {phone ? null : (
         <aside className="side">
           <div className="dbrand">
-            <div className="dlogo"><Box size={22} aria-hidden="true" /></div>
-            <div><b>iManager</b><small>{appSession?.store?.name || 'Tienda'}</small></div>
+            <BrandIsotipo size={38} className="dlogo" />
+            <div className="dbrand-copy">
+              <b>iManager</b>
+              <small title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
+            </div>
           </div>
           <div className="dnav">
             <div className="dgroup">

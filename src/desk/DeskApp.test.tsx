@@ -86,7 +86,8 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByText('Comisiones')).not.toBeInTheDocument();
     expect(screen.queryByText(/Tentativo/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/propuesta/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('iManager')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-header')).toHaveTextContent('iManager');
+    expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
   });
 
   it('shows a back arrow on sections that live in Más and a dock on the bar sections', () => {

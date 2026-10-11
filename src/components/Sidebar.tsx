@@ -1,5 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, Package, ShoppingCart, RefreshCcw, Users, BarChart2, Settings, Box, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, RefreshCcw, Users, BarChart2, Settings, X, LogOut } from 'lucide-react';
+import { BrandIsotipo } from './brand-mark';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '../context/AppContext';
@@ -30,17 +31,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
   const sidebarContent = (
     <aside className="w-64 bg-white border-r border-gray-200 h-full flex flex-col">
       <div className="p-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <motion.div 
-            whileHover={{ rotate: 90 }}
-            transition={{ type: "spring", stiffness: 200, damping: 10 }}
-            className="bg-black text-white p-2 rounded-lg"
-          >
-            <Box size={20} />
-          </motion.div>
-          <div>
-            <h1 className="font-bold text-lg leading-tight">iManager</h1>
-            <p className="text-xs text-gray-500 font-medium">GESTION DE EQUIPOS</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <BrandIsotipo size={38} className="h-[38px] w-[38px] shrink-0" />
+          <div className="min-w-0" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            <h1 className="text-lg font-extrabold leading-tight tracking-tight">iManager</h1>
+            <p className="truncate text-[13px] font-semibold text-[#737984]" title={appSession?.store?.name || 'Tienda'}>
+              {appSession?.store?.name || 'Tienda'}
+            </p>
           </div>
         </div>
         <button onClick={onClose} className="md:hidden text-gray-500 hover:text-gray-900">
