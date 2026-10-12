@@ -33,6 +33,23 @@ describe('mobile sheet patterns', () => {
     expect(screen.queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
   });
 
+  it('keeps an explicit footer outside the body even when its actions are wrapped', () => {
+    function FooterActions() {
+      return <Actions primary="Compartir comprobante" onPrimary={() => undefined} secondary="Cerrar" onSecondary={() => undefined} />;
+    }
+    render(
+      <Sheet title="Detalle de venta" onClose={() => undefined} footer={<FooterActions />}>
+        <p>Canje como parte de pago</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Detalle de venta' });
+    const body = dialog.querySelector('.sheet-scroll');
+    const footer = dialog.querySelector('.sheet-foot');
+    expect(body).toContainElement(screen.getByText('Canje como parte de pago'));
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Compartir comprobante' }));
+    expect(body).not.toContainElement(screen.getByRole('button', { name: 'Cerrar' }));
+  });
+
   it('shows the shared close button on a phone sheet', () => {
     const restore = usePhoneViewport();
     try {

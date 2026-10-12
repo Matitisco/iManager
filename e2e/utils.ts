@@ -242,7 +242,7 @@ export async function fetchSales(request: APIRequestContext, email: string) {
   });
   const body = await assertOk(response, 'Fetch sales');
   return JSON.parse(body) as {
-    sales: Array<{ id: string; saleNumber: number; clientId: string; productId: string; deviceLabel?: string; status: string; amount: number; tradeInId?: string | null }>;
+    sales: Array<{ id: string; saleNumber: number; clientId: string; productId: string; deviceLabel?: string; status: string; amount: number; integratedOperation: boolean; tradeInId?: string | null }>;
   };
 }
 
@@ -314,10 +314,24 @@ export async function createInvitationViaApi(
   return JSON.parse(body) as { id: string; token: string; inviteUrl: string; role: string };
 }
 
+// Imported historical sales have no integrated operation and expose fewer actions.
+export async function importSalesViaApi(
+  request: APIRequestContext,
+  email: string,
+  rows: Array<{ date: string; clientName: string; device: string; amount: string; status: 'COMPLETADA' | 'PENDIENTE' }>,
+) {
+  const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales/import`, {
+    headers: { ...authHeaders(email), 'Content-Type': 'application/json' },
+    data: { rows },
+  });
+  const body = await assertOk(response, 'Import historical sales');
+  return JSON.parse(body) as { imported: number; errors: Array<{ row: number; message: string }> };
+}
+
 export async function createSaleViaApi(
   request: APIRequestContext,
   email: string,
-  input: { date: string; clientName: string; clientId?: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD'; paymentMethod?: string },
+  input: { date: string; clientName: string; clientId?: string; deviceLabel: string; amount: number; amountCurrency?: 'ARS' | 'USD'; paymentMethod?: string; status?: 'COMPLETADA' | 'PENDIENTE' },
 ) {
   const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales`, {
     headers: {
@@ -332,7 +346,7 @@ export async function createSaleViaApi(
       amount: input.amount,
       amountCurrency: input.amountCurrency,
       paymentMethod: input.paymentMethod ?? 'EFECTIVO',
-      status: 'COMPLETADA',
+      status: input.status ?? 'COMPLETADA',
     },
   });
   const body = await assertOk(response, 'Create sale');
