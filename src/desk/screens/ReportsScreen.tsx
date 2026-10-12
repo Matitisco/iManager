@@ -174,22 +174,26 @@ export function ReportsScreen() {
   };
 
   const exportReport = () => {
-    const rows: string[][] = [['detalle', 'importe', 'estado']];
+    const rows: string[][] = [['detalle', 'importe', 'Moneda', 'estado']];
+    const moneyCells = (amount: number, currency?: string | null): [string, string] => {
+      const shown = money.shown(amount, currency);
+      return [shown.text, shown.currency];
+    };
     if (activeTab === 'Ventas') {
       saleRows.forEach((sale) => {
-        rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, String(money.number(sale.amount, sale.amountCurrency) ?? sale.amount), statusLabel(sale.status)]);
+        rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
       });
     } else if (activeTab === 'Stock') {
-      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, String(money.number(item.price, item.currency) ?? item.price), statusLabel(item.status)]));
+      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, ...moneyCells(item.price, item.currency), statusLabel(item.status)]));
     } else if (activeTab === 'Canjes') {
       tradeRows.forEach((item) => {
-        rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, String(money.number(item.differencePaid, item.currency) ?? item.differencePaid), statusLabel(item.status)]);
+        rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, ...moneyCells(item.differencePaid, item.currency), statusLabel(item.status)]);
       });
     } else if (activeTab === 'Clientes') {
-      clientRows.forEach((row) => rows.push([row.name, row.blocked ? '' : String(Math.round(row.revenue)), row.kind]));
+      clientRows.forEach((row) => rows.push([row.name, ...(row.blocked ? ['', ''] as [string, string] : [money.showActive(row.revenue), money.active]), row.kind]));
     } else {
       repairRows.forEach((order) => {
-        rows.push([`${order.code} ${order.clientName}`, order.estimate == null ? '' : String(money.number(order.estimate, order.currency) ?? order.estimate), statusLabel(order.status)]);
+        rows.push([`${order.code} ${order.clientName}`, ...(order.estimate == null ? ['', ''] as [string, string] : moneyCells(order.estimate, order.currency)), statusLabel(order.status)]);
       });
     }
     downloadCsv(rows, `reporte-${activeTab.toLowerCase()}.csv`);

@@ -19,6 +19,7 @@ import {
   commitAmount,
   commitGroup,
   projectAmount,
+  recordCurrency,
   type MoneyCurrency,
   type StoredAmount,
 } from './money';
@@ -42,6 +43,7 @@ export type MoneyApi = {
   rate: number | null;
   warning: string | null;
   show: (amount: number, currency?: string | null) => string;
+  shown: (amount: number, currency?: string | null) => { text: string; currency: MoneyCurrency };
   compact: (amount: number, currency?: string | null) => string;
   showActive: (amount: number) => string;
   compactActive: (amount: number) => string;
@@ -117,6 +119,10 @@ function passthroughMoney(): MoneyApi {
     rate: null,
     warning: null,
     show: (amount) => formatMoney(amount),
+    shown: (amount, currency) => {
+      const code = recordCurrency(currency, 'ARS');
+      return { text: formatMoney(amount, code), currency: code };
+    },
     compact: (amount) => formatMoneyCompact(amount),
     showActive: (amount) => formatMoney(amount),
     compactActive: (amount) => formatMoneyCompact(amount),
@@ -130,10 +136,11 @@ function passthroughMoney(): MoneyApi {
 }
 
 function buildMoney(active: MoneyCurrency, rate: number | null, warning: string | null): MoneyApi {
-  const show = (amount: number, currency?: string | null) => {
+  const shown = (amount: number, currency?: string | null) => {
     const projected = projectAmount(amount, currency, active, rate);
-    return formatMoney(projected.value, projected.currency);
+    return { text: formatMoney(projected.value, projected.currency), currency: projected.currency };
   };
+  const show = (amount: number, currency?: string | null) => shown(amount, currency).text;
   const compact = (amount: number, currency?: string | null) => {
     const projected = projectAmount(amount, currency, active, rate);
     return formatMoneyCompact(projected.value, projected.currency);
@@ -143,6 +150,7 @@ function buildMoney(active: MoneyCurrency, rate: number | null, warning: string 
     rate,
     warning,
     show,
+    shown,
     compact,
     showActive: (amount) => formatMoney(amount, active),
     compactActive: (amount) => formatMoneyCompact(amount, active),

@@ -218,7 +218,10 @@ export function InventoryScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length} name="inventario"
         headers={['Equipo', 'IMEI', 'Color', 'Condición', 'Calidad', 'Batería', 'Precio', 'Moneda', 'Estado']}
-        cells={(item) => [equipmentTitle(item.model, item.capacity), item.imei, item.color, conditionLabel(item.condition), displayQuality(item.condition, item.grade), item.batteryHealth, String(item.price), item.currency || 'ARS', statusLabel(item.status)]}
+        cells={(item) => {
+          const price = money.shown(item.price, item.currency);
+          return [equipmentTitle(item.model, item.capacity), item.imei, item.color, conditionLabel(item.condition), displayQuality(item.condition, item.grade), item.batteryHealth, price.text, price.currency, statusLabel(item.status)];
+        }}
         label={(item) => equipmentTitle(item.model, item.capacity)}
         action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (item) => deleteProduct(item.id) }}
       />

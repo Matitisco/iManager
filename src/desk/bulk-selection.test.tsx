@@ -73,6 +73,38 @@ describe('filtered bulk selection', () => {
     expect(screen.getByRole('checkbox')).not.toBeChecked();
   });
 
+  it('treats the iOS context menu as selection and swallows the click that follows', () => {
+    vi.useFakeTimers();
+    const activate = vi.fn(); const menu = vi.fn();
+    function Card() {
+      const selection = useBulkSelection(rows, 's');
+      return <PressTarget as="button" className="phone-row" onActivate={activate} onMenu={menu} selection={selection.row('1', 'Equipo 1')}>Equipo 1</PressTarget>;
+    }
+    render(<Card />);
+    const card = screen.getByRole('button', { name: 'Equipo 1' });
+    fireEvent.pointerDown(card, { pointerType: 'touch', clientX: 40, clientY: 40 });
+    expect(card.style.userSelect).toBe('none');
+    expect(card.style.getPropertyValue('-webkit-user-select')).toBe('none');
+    expect(card).toHaveClass('holding');
+    fireEvent.contextMenu(card);
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.pointerUp(card);
+    fireEvent.click(card);
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1' })).toBeChecked();
+    expect(menu).not.toHaveBeenCalled();
+    expect(activate).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(800));
+    fireEvent.click(card);
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1' })).not.toBeChecked();
+  });
+
+  it('keeps the desktop row menu on right click', () => {
+    const menu = vi.fn();
+    render(<table><tbody><PressTarget as="tr" onActivate={vi.fn()} onMenu={menu}><td>Venta</td></PressTarget></tbody></table>);
+    fireEvent.contextMenu(screen.getByRole('row'));
+    expect(menu).toHaveBeenCalledOnce();
+  });
+
   it('cancels a hold on scroll or pointer cancel and cleans up on unmount', () => {
     vi.useFakeTimers();
     const toggle = vi.fn(); const menu = vi.fn();

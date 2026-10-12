@@ -512,20 +512,19 @@ export async function deleteInventoryItem(storeId: string, id: string, actor?: A
   const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED" }, select: { id: true } });
   if (linkedSale || activeReceivedTrade) throw new InventoryError("El equipo pertenece a una operación activa", 409);
 
-  await inventoryPrisma.inventoryItem.delete({
-    where: { id },
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.delete({ where: { id } });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "inventory.deleted",
+        entityType: "inventory",
+        entityId: id,
+        detail: existing.model,
+      });
+    }
   });
-
-  if (actor) {
-    await writeAudit(prisma, {
-      storeId,
-      actor,
-      action: "inventory.deleted",
-      entityType: "inventory",
-      entityId: id,
-      detail: existing.model,
-    });
-  }
 
   return true;
 }
