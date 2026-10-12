@@ -36,7 +36,7 @@ export interface OperationInput {
     batteryHealth?: string;
     grade?: string;
     customFields?: Record<string, unknown>;
-  };
+  } | null;
 }
 
 export interface OperationResult {

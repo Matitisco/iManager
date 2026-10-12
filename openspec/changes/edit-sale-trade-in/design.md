@@ -1,0 +1,3 @@
+# Diseño
+
+Habilitar Tiene canje en el formulario compartido de ventas. Enviar tradeIn como objeto para agregar/editar, null para quitar y omitirlo para conservar en actualizaciones parciales. La operación transaccional crea el canje y recibido cuando faltan; al quitar desvincula la venta, cancela el canje y archiva el recibido sin borrar historia. Rechazar quitar un recibido vendido o vinculado a otra venta. Mantener el total de salida y recalcular la diferencia y deuda. Admitir ventas históricas mediante la operación integrada, conservando su identidad. La respuesta incluye el canje cancelado y el recibido archivado para sincronizar AppContext.

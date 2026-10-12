@@ -39,7 +39,7 @@ const tradeSchema = z.object({
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
   customFields: z.record(z.unknown()).nullable().optional(),
-}).partial().optional();
+}).partial().nullable().optional();
 const inputSchema = z.object({
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),

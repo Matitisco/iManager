@@ -21,6 +21,9 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Issue #81: el indicador de batería hi-fi reutiliza los colores de `main` (rojo <70%, ámbar 70–85%, verde >85%) y anima el llenado con Motion. Conserva rangos y convierte fracciones decimales con los mismos helpers de la referencia.
 - Validación #81: revisión en Chrome del componente real con 69/70/85/86/100%, rangos y fracciones; transición de 87% a 40% y llenado de entrada observados. Los 10 tests existentes de los helpers y TypeScript frontend/backend pasaron. Vista temporal de QA retirada.
 
+- Issue #146: editar una venta permite agregar, modificar o quitar el canje en desktop y mobile con el formulario compartido. Quitar conserva la venta activa y el historial del canje, archiva el recibido y recalcula la deuda; un recibido ya vendido bloquea la operación sin cambios parciales. Compatible con ventas históricas; sin cambios de Prisma.
+- Validación #146: 450 tests frontend, 225 unitarios backend y 72 de integración aprobados; lint frontend/backend aprobado. Playwright verifica agregar, cambiar, quitar y persistir tras recargar a 1440×900 y 390×844. Capturas en `docs/pr-shots/issue-146-*.png`; sin build.
+
 ---
 
 ## Estado actual
