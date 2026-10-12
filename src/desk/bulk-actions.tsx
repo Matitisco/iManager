@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { BulkSelection } from './bulk-selection';
 import { SelectFiltered } from './bulk-selection';
-import { downloadCsv } from './csv';
 import { usePhoneLayout } from './section-notices';
 import { Dialog, useDesk } from './ui';
 
@@ -18,9 +17,8 @@ export function useBulkScope() {
   return `${appSession?.store?.id ?? ''}|${appSession?.user?.id ?? ''}`;
 }
 
-export function BulkActions<T extends { id: string }>({ selection, total, name, headers, cells, label, action }: {
-  selection: BulkSelection<T>; total: number; name: string; headers: string[];
-  cells: (row: T) => string[]; label: (row: T) => string; action: BulkAction<T>;
+export function BulkActions<T extends { id: string }>({ selection, total, label, action }: {
+  selection: BulkSelection<T>; total: number; label: (row: T) => string; action: BulkAction<T>;
 }) {
   const { canManageSensitive, toast } = useDesk();
   const { backendStatus, appSession } = useAppContext();
@@ -72,16 +70,13 @@ export function BulkActions<T extends { id: string }>({ selection, total, name, 
     }
   };
   return <>
-    {phone && total > 0 ? <div className="bulk-select-filter"><SelectFiltered selection={selection} total={total} /><span>Seleccionar todos los filtrados</span></div> : null}
-    {selection.selected.length > 0 ? (
+    {phone && !selection.mode ? <div className="bulk-select-filter"><button className="dbtn s" type="button" disabled={total === 0} onClick={() => selection.start()}>Seleccionar</button></div> : null}
+    {phone && selection.mode ? <div className="bulk-select-filter"><SelectFiltered selection={selection} total={total} /><span>Seleccionar todos</span></div> : null}
+    {selection.selected.length > 0 || (phone && selection.mode) ? (
       <div className={`bulk-bar${phone ? ' mobile' : ''}`} role="region" aria-label="Acciones masivas" data-testid="bulk-action-bar" aria-busy={busy}>
-        <div className="bulk-count"><b aria-live="polite">{selection.selected.length} {selection.selected.length === 1 ? 'seleccionado' : 'seleccionados'}</b><button type="button" disabled={selection.locked} onClick={selection.clear}>Limpiar selección</button></div>
+        <div className="bulk-count"><b aria-live="polite">{selection.selected.length} {selection.selected.length === 1 ? 'seleccionado' : 'seleccionados'}</b><button type="button" disabled={selection.locked} onClick={selection.clear}>{phone ? 'Listo' : 'Limpiar selección'}</button></div>
         <div className="bulk-buttons">
-          <button type="button" className="dbtn s" disabled={selection.locked} onClick={() => {
-            try { downloadCsv([headers, ...selection.selected.map(cells)], `${name}-seleccion.csv`); toast('Selección exportada'); }
-            catch { toast('No se pudo exportar la selección'); }
-          }}>Exportar selección</button>
-          {canManageSensitive ? <button type="button" className="dbtn bulk-danger" disabled={selection.locked || !ready || Boolean(unavailable)} onClick={() => {
+          {canManageSensitive ? <button type="button" className="dbtn bulk-danger" disabled={selection.locked || !ready || selection.selected.length === 0 || Boolean(unavailable)} onClick={() => {
             setError(''); setConfirmation([...selection.selected]); selection.setLocked(true);
           }}>{action.label}</button> : null}
         </div>

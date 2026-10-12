@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
 
-const shots = process.env.ISSUE_285_SHOTS?.trim();
+const shots = process.env.ISSUE_303_SHOTS?.trim();
 const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType });
 for (const device of [
@@ -11,7 +11,7 @@ for (const device of [
 ]) {
   test.describe(`bulk actions ${device.name}`, () => {
     test.use(device.options);
-    test('selects filtered rows across pages, exports, confirms and persists deletion', async ({ page, request }, testInfo) => {
+    test('selects filtered rows across pages, confirms and persists deletion', async ({ page, request }, testInfo) => {
       const email = buildTestEmail(testInfo, `bulk-${device.name}`);
       await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: { compra: 1280, venta: 1300, fechaActualizacion: new Date().toISOString() } }));
       await page.route('https://api.bluelytics.com.ar/**', (route) => route.fulfill({ json: { blue: { value_buy: 1280, value_sell: 1300 } } }));
@@ -25,10 +25,18 @@ for (const device of [
       const checks = page.getByRole('checkbox', { name: /^Seleccionar iPhone/ });
       if (device.mobile) {
         const card = page.locator('.phone-row').first();
+        await expect(checks).toHaveCount(0);
+        if (shots) { mkdirSync(shots, { recursive: true }); await page.screenshot({ path: `${shots}/issue-303-mobile-list.png`, animations: 'disabled' }); }
         // Real touch pointer events in WebKit trigger the same hold timer as an iPhone.
         await card.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });
-        await expect(checks.first()).toBeChecked();
+        await expect(page.locator('.ctx')).toBeVisible();
+        await expect(checks).toHaveCount(0);
         await card.dispatchEvent('pointerup', { pointerType: 'touch' });
+        await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
+        await expect(page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true })).toBeVisible();
+        if (shots) await page.screenshot({ path: `${shots}/issue-303-mobile-longpress-sheet.png`, animations: 'disabled' });
+        await page.getByRole('button', { name: 'Seleccionar varios', exact: true }).click();
+        await expect(checks.first()).toBeChecked();
         await checks.nth(1).check(); await checks.nth(2).check();
         await expect(page.getByRole('dialog')).toHaveCount(0);
       } else {
@@ -37,7 +45,6 @@ for (const device of [
       await page.locator('.stage').evaluate((node) => { node.scrollTop = 0; });
       const bar = page.getByTestId('bulk-action-bar');
       await expect(bar).toContainText('3 seleccionados');
-      await expect(bar.getByRole('button', { name: 'Exportar selección' })).toBeInViewport({ ratio: 1 });
       await expect(bar.getByRole('button', { name: 'Eliminar selección' })).toBeInViewport({ ratio: 1 });
       if (device.mobile) {
         await expect(bar).toHaveCSS('position', 'fixed');
@@ -46,14 +53,11 @@ for (const device of [
         await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-      if (shots) { mkdirSync(shots, { recursive: true }); await page.screenshot({ path: `${shots}/issue-285-${device.name === 'mobile-iphone' ? 'mobile-iphone' : 'desktop'}.png`, animations: 'disabled' }); }
-      const downloadPromise = page.waitForEvent('download'); await bar.getByRole('button', { name: 'Exportar selección' }).click();
-      expect((await downloadPromise).suggestedFilename()).toBe('inventario-seleccion.csv');
+      if (shots) { mkdirSync(shots, { recursive: true }); await page.screenshot({ path: `${shots}/issue-303-${device.mobile ? 'mobile-selection' : 'desktop'}.png`, animations: 'disabled' }); }
       await bar.getByRole('button', { name: 'Eliminar selección' }).click();
       const dialog = page.getByRole('dialog', { name: 'Eliminar selección: 3 registros' }); await expect(dialog).toBeVisible();
       await expect(dialog).toContainText('no se puede deshacer');
       await expect(page.locator('.toast.show')).toBeHidden();
-      if (shots && !device.mobile) await page.screenshot({ path: `${shots}/issue-285-desktop-confirm.png`, animations: 'disabled' });
       await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
       expect((await fetchInventory(request, email)).inventory).toHaveLength(10);
       await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (10)' }).check();
@@ -62,7 +66,12 @@ for (const device of [
       await expect(page.getByRole('checkbox', { name: /^Seleccionar iPhone/ }).first()).toBeChecked();
       await bar.getByRole('button', { name: 'Eliminar selección' }).click();
       await page.getByRole('dialog', { name: 'Eliminar selección: 10 registros' }).getByRole('button', { name: 'Eliminar selección', exact: true }).click();
-      await expect(page.getByRole('dialog')).toHaveCount(0); await expect(bar).toHaveCount(0);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      if (device.mobile) {
+        await expect(bar).toContainText('0 seleccionados');
+        await bar.getByRole('button', { name: 'Listo', exact: true }).click();
+      }
+      await expect(bar).toHaveCount(0);
       expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
       await page.reload(); await page.getByTestId('sidebar-tab-inventory').click();
       await expect(page.getByTestId('inventory-empty')).toBeVisible();

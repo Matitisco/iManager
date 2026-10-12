@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createSaleViaApi, createTradeInViaApi } from './utils';
 
-const shots = 'docs/pr-shots';
+const shots = process.env.BULK_LAYOUT_SHOTS?.trim() || 'test-results/bulk-layout-shots';
 const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType });
 
@@ -29,7 +29,7 @@ async function openPhoneSection(page: import('@playwright/test').Page, hash: str
 test.describe('bulk action follow-up on iPhone', () => {
   test.use({ ...iphone, viewport: { width: 390, height: 844 } });
 
-  test('keeps long press, client lines and the last canje checkbox clear', async ({ page, request }, testInfo) => {
+  test('keeps the original long press, client lines and the last canje row clear', async ({ page, request }, testInfo) => {
     mkdirSync(shots, { recursive: true });
     const email = buildTestEmail(testInfo, 'bulk-fix-phone');
     await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: { compra: 1500, venta: 1540, fechaActualizacion: new Date().toISOString() } }));
@@ -70,22 +70,29 @@ test.describe('bulk action follow-up on iPhone', () => {
 
     const card = page.locator('.phone-row').first();
     await card.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 180, clientY: 420, button: 0 });
-    await expect(page.getByRole('checkbox', { name: /Seleccionar María/ })).toBeChecked();
+    await expect(page.locator('.ctx')).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /Seleccionar María/ })).toHaveCount(0);
     await card.dispatchEvent('pointerup', { pointerType: 'touch' });
     await card.dispatchEvent('contextmenu');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByRole('checkbox', { name: /Seleccionar María/ })).toBeChecked();
+    await expect(page.locator('.ctx')).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /Seleccionar María/ })).toHaveCount(0);
     await page.screenshot({ path: `${shots}/issue-285-fix-mobile-iphone-longpress.png`, animations: 'disabled' });
+
+    await page.getByRole('button', { name: 'Seleccionar varios', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: /Seleccionar María/ })).toBeChecked();
+    await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Listo' }).click();
 
     await openPhoneSection(page, '#/canjes');
     await expect(page.getByTestId('mobile-dock')).toContainText('Nuevo canje');
-    const checks = page.getByRole('checkbox', { name: /Seleccionar C-/ });
-    await expect(checks).toHaveCount(8);
+    await expect(page.getByRole('checkbox', { name: /Seleccionar C-/ })).toHaveCount(0);
+    const rows = page.locator('.sale-line .phone-row');
+    await expect(rows).toHaveCount(8);
     const dock = page.getByTestId('mobile-dock');
     const visibleAboveDock = async () => {
       const dockBox = (await dock.boundingBox())!;
       const stage = (await page.locator('.stage').boundingBox())!;
-      for (const check of await checks.all()) {
+      for (const check of await rows.all()) {
         const box = await check.boundingBox();
         if (!box) continue;
         const visibleTop = Math.max(box.y, stage.y);
@@ -95,13 +102,22 @@ test.describe('bulk action follow-up on iPhone', () => {
       }
     };
     await visibleAboveDock();
-    const checkbox = checks.last();
+    const checkbox = rows.last();
     await scrollToEnd(page, checkbox);
     await expect(checkbox).toBeInViewport();
     const checkBox = (await checkbox.boundingBox())!;
     const dockBox = (await dock.boundingBox())!;
     expect(checkBox.y + checkBox.height).toBeLessThanOrEqual(dockBox.y + 1);
-    await page.screenshot({ path: `${shots}/issue-285-fix-mobile-iphone-canjes.png`, animations: 'disabled' });
+    await page.screenshot({ path: `${shots}/issue-303-layout-mobile-canjes.png`, animations: 'disabled' });
+    await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+    const checks = page.getByRole('checkbox', { name: /Seleccionar C-/ });
+    await expect(checks).toHaveCount(8);
+    await scrollToEnd(page, checks.last());
+    await checks.last().check();
+    await expect(checks.last()).toBeInViewport();
+    const selectionBar = (await page.getByTestId('bulk-action-bar').boundingBox())!;
+    const lastCheck = (await checks.last().boundingBox())!;
+    expect(lastCheck.y + lastCheck.height).toBeLessThanOrEqual(selectionBar.y + 1);
   });
 });
 

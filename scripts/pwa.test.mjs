@@ -18,7 +18,10 @@ function worker(version = 'test', network = {}) {
       if (!stores.has(key)) stores.set(key, new Map());
       const store = stores.get(key);
       return {
-        addAll: async (assets) => assets.forEach((asset) => store.set(asset, `cached:${asset}`)),
+        addAll: async (assets) => {
+          if (network.precache) await network.precache;
+          assets.forEach((asset) => store.set(asset, `cached:${asset}`));
+        },
         match: async (key) => store.get(key),
         put: async (key, value) => store.set(key, value),
       };
@@ -210,4 +213,13 @@ test('manifest includes wide and narrow real PNG screenshots with declared sizes
     const png = await readFile(join('public', shot.src));
     assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, shot.sizes);
   }
+});
+
+test('install requests skipWaiting immediately even while precache is pending', async () => {
+  let finish;
+  const sw = worker('pending', { precache: new Promise((resolve) => { finish = resolve; }) });
+  const installing = sw.lifecycle('install');
+  assert.equal(sw.forced(), true);
+  finish(); await installing; await sw.lifecycle('activate');
+  assert.equal(sw.claimed(), true);
 });

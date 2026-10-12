@@ -1,0 +1,3 @@
+# Diseño
+
+Modo móvil explícito en useBulkSelection, reseteado por tienda/usuario. La hoja recibe un callback para iniciar selección con la fila. PressTarget conserva el gesto histórico (480 ms, umbral 8 px, supresión de clic 700 ms); muestra checkboxes solo en selección móvil y siempre en desktop. BulkActions conserva la ejecución secuencial y las confirmaciones sin CSV. Retirar también Lista de precios/copia de filas; CSV compartido se mantiene solo para Reportes. No existen endpoints de exportación de tablas en el backend actual. skipWaiting se invoca al comenzar install, independiente del precache.

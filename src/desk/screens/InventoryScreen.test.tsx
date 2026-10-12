@@ -43,77 +43,6 @@ function renderScreen() {
   );
 }
 
-describe('Inventory price list', () => {
-  beforeEach(() => {
-    toast.mockClear();
-    context.markNotificationRead.mockClear();
-    context.operationNotifications = [];
-    context.appSession = { store: { name: 'Tienda Centro' } };
-    context.inventory = [
-      ...Array.from({ length: 11 }, (_, index) => item(String(index + 1))),
-      item('20', { model: 'Pixel', color: 'Azul', status: 'VENDIDO', price: 500 }),
-    ];
-  });
-
-  it('copies every row that matches the current search, filter and sort, including rows off the first page', async () => {
-    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    const writeText = vi.fn(() => Promise.resolve());
-    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, writable: true, value: writeText });
-    renderScreen();
-
-    expect(screen.queryByText('Modelo 11')).not.toBeInTheDocument();
-    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    const message = screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement;
-    expect(message.value).toContain('Lista de precios — Tienda Centro');
-    expect(message.value).toContain('• Modelo 11 · 128 GB — Negro · Nuevo — $ 11.000');
-    expect(message.value).toContain('• Pixel · 128 GB — Azul · Nuevo — $ 500');
-
-    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
-    await user.click(screen.getByRole('button', { name: 'Disponible' }));
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    expect((screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement).value).not.toContain('Pixel');
-
-    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
-    await user.click(screen.getByRole('button', { name: 'Todos' }));
-    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'azul');
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    expect(screen.getByRole('textbox', { name: 'Mensaje' })).toHaveValue([
-      'Lista de precios — Tienda Centro',
-      '',
-      '• Pixel · 128 GB — Azul · Nuevo — $ 500',
-    ].join('\n'));
-
-    await user.click(screen.getByRole('button', { name: 'Copiar mensaje' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith([
-      'Lista de precios — Tienda Centro',
-      '',
-      '• Pixel · 128 GB — Azul · Nuevo — $ 500',
-    ].join('\n')));
-    expect(toast).toHaveBeenCalledWith('Mensaje copiado');
-    expect(screen.queryByRole('dialog', { name: 'Lista de precios' })).not.toBeInTheDocument();
-  });
-
-  it('orders the message by the selected price sort and stays disabled when nothing matches', async () => {
-    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    context.inventory = [
-      item('2', { model: 'Caro', price: 900000 }),
-      item('1', { model: 'Barato', price: 100000 }),
-    ];
-    renderScreen();
-
-    await user.click(screen.getByRole('button', { name: 'Recientes' }));
-    await user.click(screen.getByRole('button', { name: 'Precio ↑' }));
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    const value = (screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement).value;
-    expect(value.indexOf('Barato')).toBeLessThan(value.indexOf('Caro'));
-
-    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
-    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'inexistente');
-    expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
-  });
-});
-
 describe('Inventory column filters', () => {
   beforeEach(() => {
     context.appSession = { store: { name: 'Tienda Centro' } };
@@ -123,7 +52,7 @@ describe('Inventory column filters', () => {
     ];
   });
 
-  it('filters the table and the price list by each column, including rows off the first page', async () => {
+  it('filters the table by each column, including rows off the first page', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
 
@@ -138,16 +67,11 @@ describe('Inventory column filters', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Usado' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Modelo 1 · 128 GB')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    expect((screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement).value).toContain('Pixel');
-    expect((screen.getByRole('textbox', { name: 'Mensaje' }) as HTMLTextAreaElement).value).not.toContain('Modelo 1');
-    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
 
     await user.click(screen.getByRole('button', { name: 'Filtrar batería' }));
     const battery = screen.getByRole('dialog', { name: 'Filtrar batería' });
     await user.click(within(battery).getByRole('button', { name: '≥ 90%' }));
     expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
     await user.click(within(battery).getByRole('button', { name: 'Limpiar' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
 
@@ -462,7 +386,7 @@ describe('Inventory phone list', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('shows the empty state and keeps the price list inside the header menu', async () => {
+  it('shows the empty state without row export actions', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
     const empty = screen.getByTestId('inventory-empty');
@@ -471,9 +395,6 @@ describe('Inventory phone list', () => {
     expect(within(empty).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
     expect(screen.getByText('0 resultados')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Lista de precios' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Más opciones' }));
-    expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
   });
 
   it('uses the filter copy on an empty store once a chip or the search is active', async () => {
@@ -523,9 +444,6 @@ describe('Inventory phone list', () => {
     expect(screen.queryByText(/Pixel/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
 
-    await user.click(screen.getByRole('button', { name: 'Más opciones' }));
-    await user.click(screen.getByRole('button', { name: 'Lista de precios' }));
-    expect(screen.getByRole('dialog', { name: 'Lista de precios' })).toBeInTheDocument();
   });
 
   it('selects several statuses from the sliding chips and the filter sheet', async () => {

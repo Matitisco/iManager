@@ -40,7 +40,8 @@ createServer((req, res) => {
   }
   if (path === '/sw.js') {
     res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store', 'service-worker-allowed': '/' });
-    res.end(originalWorker.replace(/const CACHE = [^;]+;/, `const CACHE = 'imanager-static-e2e-${swRelease}';`)); return;
+    res.end(originalWorker.replace(/const CACHE = [^;]+;/, `const CACHE = 'imanager-static-e2e-${swRelease}';`)
+      + `\nself.addEventListener('message', (event) => { if (event.data === 'TEST_RELEASE') event.ports[0].postMessage(${swRelease}); });`); return;
   }
   if (path.startsWith('/api/')) {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });

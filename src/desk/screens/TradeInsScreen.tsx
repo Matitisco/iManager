@@ -141,15 +141,9 @@ export function TradeInsScreen() {
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={listed.length} name="canjes"
-        headers={['Canje', 'Fecha', 'Cliente', 'Recibido', 'IMEI', 'Entregado', 'Valor tomado', 'Diferencia', 'Moneda', 'Estado', 'Confirmación']}
-        cells={(item) => {
-          const take = money.shown(item.takeValue, item.currency);
-          const difference = money.shown(item.differencePaid, item.currency);
-          return [tradeCode(tradeIns, item.id), item.date, tradeClientLabel(item, clients), item.deviceReceived, item.deviceReceivedImei, item.deviceGiven, take.text, difference.text, take.currency, item.status, item.confirmationStatus === 'CANCELLED' ? 'Cancelado' : item.confirmationStatus === 'CONFIRMED' ? 'Confirmado' : item.confirmationStatus === 'PENDING' ? 'Pendiente' : 'Histórico'];
-        }}
+      <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => tradeCode(tradeIns, item.id)}
-        action={{ label: 'Cancelar canjes', explanation: 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.', execute: (item) => cancelTradeOperation('tradeins', item.id), unavailable: (item) => !item.confirmationStatus || item.confirmationStatus === 'CANCELLED' ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados se pueden exportar.' : undefined }}
+        action={{ label: 'Cancelar canjes', explanation: 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.', execute: (item) => cancelTradeOperation('tradeins', item.id), unavailable: (item) => !item.confirmationStatus || item.confirmationStatus === 'CANCELLED' ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados no se pueden cancelar.' : undefined }}
       />
       {phone ? (
         <>
@@ -175,7 +169,7 @@ export function TradeInsScreen() {
                       selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                         reason={reason}
                         onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
-                        onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
+                        onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                       >
                         <TradeCard item={item} code={tradeCode(tradeIns, item.id)} client={tradeClientLabel(item, clients)} take={money.show(item.takeValue, item.currency)} difference={money.show(item.differencePaid, item.currency)} />
                       </PhoneRecord>
@@ -245,7 +239,7 @@ export function TradeInsScreen() {
                   as="tr"
                   className={notices.reasonFor(item.id) ? 'novedad' : undefined}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                 >
                   <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
                   <td className="trade-nowrap">{formatShortDate(item.date)}</td>

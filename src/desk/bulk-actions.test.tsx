@@ -5,16 +5,14 @@ import { SelectFiltered, useBulkSelection } from './bulk-selection';
 import { DeskProvider } from './ui';
 
 const context = vi.hoisted(() => ({ backendStatus: 'ready', appSession: { store: { id: 's' }, onboardingRequired: false } }));
-const csv = vi.hoisted(() => vi.fn());
 vi.mock('../context/AppContext', () => ({ useAppContext: () => context }));
-vi.mock('./csv', () => ({ downloadCsv: csv }));
 const execute = vi.fn(); const toast = vi.fn();
 const rows = ['a', 'b', 'c'].map((id) => ({ id, name: `Equipo ${id}` }));
 function Harness({ permitted = true, scope = 's', unavailable = false }: { permitted?: boolean; scope?: string; unavailable?: boolean }) {
   const selection = useBulkSelection(rows, scope);
   return <DeskProvider value={{ tab: 'inventory', isStaff: false, canManageSensitive: permitted, toast, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), go: vi.fn() }}>
     <SelectFiltered selection={selection} total={rows.length} />
-    <BulkActions key={scope} selection={selection} total={rows.length} name="inventario" headers={['Equipo']} cells={(row) => [row.name]} label={(row) => row.name}
+    <BulkActions key={scope} selection={selection} total={rows.length} label={(row) => row.name}
       action={{ label: 'Eliminar selección', explanation: 'No se puede deshacer.', execute, unavailable: () => unavailable ? 'Operación no disponible.' : undefined }} />
   </DeskProvider>;
 }
@@ -24,12 +22,10 @@ function confirm() { fireEvent.click(within(screen.getByRole('dialog')).getByRol
 beforeEach(() => { execute.mockReset(); execute.mockResolvedValue(undefined); toast.mockReset(); context.backendStatus = 'ready'; });
 
 describe('bulk actions', () => {
-  it('exports precisely selected explicit fields and allows export without sensitive access', () => {
+  it('hides destructive actions without sensitive access', () => {
     render(<Harness permitted={false} />); select();
     expect(screen.getByText('3 seleccionados')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Eliminar selección' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Exportar selección' }));
-    expect(csv).toHaveBeenCalledWith([['Equipo'], ['Equipo a'], ['Equipo b'], ['Equipo c']], 'inventario-seleccion.csv');
     expect(execute).not.toHaveBeenCalled();
   });
   it('requires confirmation, preserves selection on dismissal and clears only persisted successes', async () => {
