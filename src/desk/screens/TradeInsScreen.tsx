@@ -1,3 +1,5 @@
+import { BulkActions, useBulkScope } from '../bulk-actions';
+import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
@@ -41,7 +43,7 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
 }
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, operationDrafts = [] } = useAppContext();
+  const { tradeIns, clients, cancelTradeOperation, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back } = useDesk();
@@ -82,6 +84,8 @@ export function TradeInsScreen() {
   const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
   const quiet = !query.trim() && filter === 'Todos' && !tradeFiltersActive(columns) && !onlyNotices;
   const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const scope = useBulkScope();
+  const selection = useBulkSelection(listed, scope);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
 
@@ -137,6 +141,12 @@ export function TradeInsScreen() {
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      <BulkActions key={scope} selection={selection} total={listed.length} name="canjes"
+        headers={['Canje', 'Fecha', 'Cliente', 'Recibido', 'IMEI', 'Entregado', 'Valor tomado', 'Diferencia', 'Moneda', 'Estado', 'Confirmación']}
+        cells={(item) => [tradeCode(tradeIns, item.id), item.date, tradeClientLabel(item, clients), item.deviceReceived, item.deviceReceivedImei, item.deviceGiven, String(item.takeValue), String(item.differencePaid), item.currency || 'ARS', item.status, item.confirmationStatus === 'CANCELLED' ? 'Cancelado' : item.confirmationStatus === 'CONFIRMED' ? 'Confirmado' : item.confirmationStatus === 'PENDING' ? 'Pendiente' : 'Histórico']}
+        label={(item) => tradeCode(tradeIns, item.id)}
+        action={{ label: 'Cancelar canjes', explanation: 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.', execute: (item) => cancelTradeOperation('tradeins', item.id), unavailable: (item) => !item.confirmationStatus || item.confirmationStatus === 'CANCELLED' ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados se pueden exportar.' : undefined }}
+      />
       {phone ? (
         <>
           {!quiet && tradeIns.length > 0 ? (
@@ -158,6 +168,7 @@ export function TradeInsScreen() {
                   return (
                     <div key={item.id} className={`sale-node${tone}`}>
                       <PhoneRecord
+                      selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                         reason={reason}
                         onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
                         onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, ...point })}
@@ -179,6 +190,7 @@ export function TradeInsScreen() {
           <table className="dtable trade-table" aria-label="Canjes">
             <thead>
               <tr>
+                <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
                 <th><span className="thf">Canje
                   <ColumnFilter label="canje" {...menu('canje')} active={tradeColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
@@ -224,6 +236,7 @@ export function TradeInsScreen() {
             <tbody>
               {page.visible.map((item) => (
                 <PressTarget
+                  selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                   key={item.id}
                   as="tr"
                   className={notices.reasonFor(item.id) ? 'novedad' : undefined}
@@ -251,7 +264,7 @@ export function TradeInsScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} /> : null}
+      {phone && selection.selected.length === 0 ? <MobileDock primary="Nuevo canje" onPrimary={() => open({ type: 'new-cj' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cj-sheet">
           <div className="inv-filters">

@@ -1,3 +1,4 @@
+import { downloadCsv } from '../csv';
 import { useMemo, useState } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
@@ -191,14 +192,7 @@ export function ReportsScreen() {
         rows.push([`${order.code} ${order.clientName}`, order.estimate == null ? '' : String(money.number(order.estimate, order.currency) ?? order.estimate), statusLabel(order.status)]);
       });
     }
-    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `reporte-${activeTab.toLowerCase()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(rows, `reporte-${activeTab.toLowerCase()}.csv`);
     toast(`Reporte de ${activeTab.toLowerCase()} exportado`);
   };
 

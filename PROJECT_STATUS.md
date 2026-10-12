@@ -11,6 +11,17 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Capturas revisadas: `docs/pr-shots/issue-287-desktop.png` (1440×900) y `docs/pr-shots/issue-287-mobile-iphone.png` (iPhone 13, retina). E2E usa exclusivamente Postgres local `imanager_issue287_test`; puertos 3127/4177 por colisión con los habituales mediante configuración temporal retirada. Para regenerar capturas: `ISSUE_287_SHOTS=docs/pr-shots npx playwright test e2e/report-dropdown*.spec.ts` con los servidores/DB de la configuración E2E.
 - Commit en la rama actual y sin push, según la instrucción específica del issue.
 
+## Issue #285 — Acciones masivas en las tablas — 2026-10-12
+
+- Inventario, Ventas, Canjes y Clientes incorporan checkboxes por fila, selección del filtro completo entre páginas, rangos con Shift+click y barra con cantidad. La selección se limita al usuario/tienda y descarta registros que salen del filtro.
+- Las cuatro tablas exportan los campos explícitos seleccionados a CSV con moneda original, sin costos ocultos. El helper de descarga se comparte con Reportes y conserva acentos, comillas y saltos de línea; neutraliza fórmulas de planilla.
+- Inventario/Clientes permiten eliminar; Ventas permite cancelar operaciones integradas o asociadas a un canje; Canjes permite cancelar operaciones pendientes/confirmadas. Los registros históricos sin operación y los cancelados se pueden exportar. Las acciones destructivas usan confirmación y `canManageSensitive`, y reutilizan los endpoints existentes con permisos, scope de tienda, auditoría y reglas de stock/saldos. Sin endpoints ni cambios de Prisma; sin cambios en comisiones.
+- Cada lote procesa solicitudes individuales en secuencia: ante el primer error se detiene, informa completados/pendientes y conserva los pendientes seleccionados. No se promete atomicidad global. Cambiar de sección, tienda o usuario impide continuar la secuencia; se bloquean doble envío y cierre durante el procesamiento.
+- En móvil, mantener presionada una tarjeta selecciona sin abrir el detalle/menú; scroll/cancelación interrumpe el gesto. Barra inferior con safe areas, controles de 44 px; reemplaza la navegación inferior mientras hay selección. El menú ⋯ sigue disponible fuera de selección.
+- Validación: lint frontend/backend, build, 496 tests frontend, 232 unitarios y 75 de integración backend aprobados. 14 escenarios Playwright aprobados: acciones en las cuatro tablas, inventario, patrones móviles y menú por fila. La suite de menú acepta `ROW_ACTIONS_SHOTS` para evitar rutas de capturas de otra máquina.
+- Capturas generadas e inspeccionadas en `docs/pr-shots/issue-285-desktop.png`, `issue-285-mobile-iphone.png` e `issue-285-desktop-confirm.png`: desktop 1440×900 e iPhone 13/WebKit 390×844, sin overflow, barra/confirmación completas. Regenerar con `ISSUE_285_SHOTS=docs/pr-shots npm run test:e2e -- e2e/bulk-actions.spec.ts` y una base local de pruebas. Esta sesión usó `imanager_issue285_test`/`imanager_issue285_e2e_test` y puertos temporales 3125/4195 por colisión con los habituales.
+- Commit en la rama actual, sin push, según el pedido de la issue.
+
 ## Issue #286 — Detalle de venta compacto — 2026-10-12
 
 - El detalle agrupa los datos del canje en dos columnas. El cuerpo tiene scroll propio y las acciones permanecen visibles en el footer en desktop y mobile, con botones de al menos 48 px y safe area inferior. Conserva textos, permisos y operaciones existentes; solo frontend.

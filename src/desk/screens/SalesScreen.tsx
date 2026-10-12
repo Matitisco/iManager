@@ -1,3 +1,5 @@
+import { BulkActions, useBulkScope } from '../bulk-actions';
+import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
@@ -35,7 +37,7 @@ import type { Sale } from '../../types';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, operationDrafts = [], appSession } = useAppContext();
+  const { sales, clients, inventory, updateSale, operationDrafts = [], appSession } = useAppContext();
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -86,6 +88,8 @@ export function SalesScreen() {
   const narrowed = statusOn ? rows.filter((sale) => statusLabel(sale.status) === statusPill) : rows;
   const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : narrowed;
   const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`);
+  const scope = useBulkScope();
+  const selection = useBulkSelection(shown, scope);
   const visibleKey = page.visible.map((sale) => sale.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
@@ -151,6 +155,12 @@ export function SalesScreen() {
       </div>
       )}
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      <BulkActions key={scope} selection={selection} total={shown.length} name="ventas"
+        headers={['Venta', 'Fecha', 'Cliente', 'Equipo', 'Pago', 'Total', 'Moneda', 'Estado']}
+        cells={(sale) => [saleCode(sale), sale.date, saleBuyer(sale, clients), saleEquipment(sale, inventory), paymentLabel(sale.paymentMethod), String(sale.amount), sale.amountCurrency || 'ARS', statusLabel(sale.status)]}
+        label={saleCode}
+        action={{ label: 'Cancelar ventas', explanation: 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.', execute: (sale) => updateSale({ ...sale, status: 'CANCELADA' }), unavailable: (sale) => sale.status === 'CANCELADA' ? 'Quitá de la selección las ventas ya canceladas.' : !sale.integratedOperation && !sale.tradeInId ? 'Las ventas históricas sin operación asociada se pueden exportar. Seleccioná solo ventas con operación para cancelar.' : undefined }}
+      />
       {phone ? (
         shown.length === 0 ? (
           listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="wempty">No hay ventas con ese filtro.</div>
@@ -163,6 +173,7 @@ export function SalesScreen() {
                 return (
                   <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${sale.status === 'CANCELADA' ? ' cancelled' : ''}`}>
                     <PhoneRecord
+                      selection={selection.row(sale.id, saleCode(sale))}
                       reason={reason}
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
@@ -182,6 +193,7 @@ export function SalesScreen() {
         <table className="dtable">
             <thead>
               <tr>
+                <th className="bulk-cell"><SelectFiltered selection={selection} total={shown.length} /></th>
                 <th><span className="thf">Venta
                   <ColumnFilter label="venta" {...menu('venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
@@ -231,6 +243,7 @@ export function SalesScreen() {
               {page.visible.map((sale) => {
                 return (
                   <PressTarget
+                    selection={selection.row(sale.id, saleCode(sale))}
                     key={sale.id}
                     as="tr"
                     className={notices.reasonFor(sale.id) ? 'novedad' : undefined}
@@ -253,7 +266,7 @@ export function SalesScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
+      {phone && selection.selected.length === 0 ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
     </div>
   );
 }

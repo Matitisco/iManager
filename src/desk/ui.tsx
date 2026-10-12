@@ -8,6 +8,7 @@ import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/
 import { ModalCloseButton } from './close-button';
 import { ImanagerIcon, nearestIconSize, statusIcon, type ImanagerIconName } from './icons';
 import { usePhoneLayout } from './section-notices';
+import { SelectionCheckbox, type RowSelection } from './bulk-selection';
 
 type DeskUi = {
   tab: DeskTab;
@@ -231,7 +232,7 @@ export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
   return { x: left, y: top };
 }
 
-function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void) {
+function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void, onLongPress?: () => void) {
   const timer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const firedAt = useRef(0);
@@ -244,7 +245,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   useEffect(() => {
     const onScroll = () => stop();
     window.addEventListener('scroll', onScroll, true);
-    return () => window.removeEventListener('scroll', onScroll, true);
+    return () => { stop(); window.removeEventListener('scroll', onScroll, true); };
   }, []);
   return {
     onPointerDown(event: React.PointerEvent<HTMLElement>) {
@@ -259,7 +260,8 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
         timer.current = null;
         node.classList.remove('holding');
         firedAt.current = Date.now();
-        onMenu(menuPosition(x, y, node.getBoundingClientRect()));
+        if (onLongPress) onLongPress();
+        else onMenu(menuPosition(x, y, node.getBoundingClientRect()));
       }, 480);
     },
     onPointerMove(event: React.PointerEvent<HTMLElement>) {
@@ -308,7 +310,7 @@ export function RowMenu({ onMenu }: { onMenu: (point: { x: number; y: number }) 
   );
 }
 
-export function PressTarget({ as, className, testId, onActivate, onMenu, draggable, grabbed, onDragStart, onDragEnd, children }: {
+export function PressTarget({ as, className, testId, onActivate, onMenu, draggable, grabbed, onDragStart, onDragEnd, selection, children }: {
   as: 'tr' | 'button';
   className?: string;
   testId?: string;
@@ -318,9 +320,13 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   grabbed?: boolean;
   onDragStart?: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd?: (event: React.DragEvent<HTMLElement>) => void;
+  selection?: RowSelection;
   children: React.ReactNode;
 }) {
-  const bind = usePress(onMenu, onActivate);
+  const bind = usePress(onMenu, () => selection?.active ? selection.toggle() : onActivate(),
+    as === 'button' && selection ? () => selection.toggle() : undefined);
+  const checkbox = selection ? <SelectionCheckbox checked={selection.checked} disabled={selection.disabled} label={selection.label} onToggle={selection.toggle} /> : null;
+  const rowClass = `${className ?? ''}${selection?.checked ? ' bulk-selected' : ''}`.trim() || undefined;
   const drag = draggable ? {
     draggable: true as const,
     'aria-grabbed': Boolean(grabbed),
@@ -332,13 +338,14 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   } : {};
   if (as === 'button') {
     return (
-      <div className="press-host">
-        <button className={className} type="button" data-testid={testId} {...bind} {...drag}>{children}</button>
-        <RowMenu onMenu={onMenu} />
+      <div className={`press-host${selection ? ' bulk-row' : ''}${selection?.checked ? ' bulk-selected' : ''}`}>
+        {checkbox}
+        <button className={rowClass} type="button" data-testid={testId} disabled={selection?.disabled} {...bind} {...drag}>{children}</button>
+        {selection?.active ? null : <RowMenu onMenu={onMenu} />}
       </div>
     );
   }
-  return <tr className={className} data-testid={testId} {...bind} {...drag}>{children}</tr>;
+  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell">{checkbox}</td> : null}{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className }: {

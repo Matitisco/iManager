@@ -1,3 +1,5 @@
+import { BulkActions, useBulkScope } from '../bulk-actions';
+import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
@@ -64,7 +66,7 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, appSession, operationDrafts = [] } = useAppContext();
+  const { inventory, appSession, deleteProduct, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const { sell } = useDisplayQuote();
   const catalogs = useCatalogs();
@@ -120,6 +122,8 @@ export function InventoryScreen() {
   }, [inventory, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
   const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
+  const scope = useBulkScope();
+  const selection = useBulkSelection(listed, scope);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
   const priceMessage = priceListMessage(rows, appSession?.store?.name, (item) => money.show(item.price, item.currency));
@@ -212,6 +216,12 @@ export function InventoryScreen() {
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      <BulkActions key={scope} selection={selection} total={listed.length} name="inventario"
+        headers={['Equipo', 'IMEI', 'Color', 'Condición', 'Calidad', 'Batería', 'Precio', 'Moneda', 'Estado']}
+        cells={(item) => [equipmentTitle(item.model, item.capacity), item.imei, item.color, conditionLabel(item.condition), displayQuality(item.condition, item.grade), item.batteryHealth, String(item.price), item.currency || 'ARS', statusLabel(item.status)]}
+        label={(item) => equipmentTitle(item.model, item.capacity)}
+        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (item) => deleteProduct(item.id) }}
+      />
       {phone && inventory.length > 0 ? (
         <>
           <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{listed.length} de {inventory.length}</span></div>
@@ -225,6 +235,7 @@ export function InventoryScreen() {
               const reason = notices.reasonFor(item.id);
               return (
                 <PhoneRecord
+                  selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
                   key={item.id}
                   reason={reason}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
@@ -248,6 +259,7 @@ export function InventoryScreen() {
         <table className="dtable">
             <thead>
               <tr>
+                <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
                 <th>
                   <span className="thf">Equipo
                     <ColumnFilter label="equipo" {...menu('equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>
@@ -366,6 +378,7 @@ export function InventoryScreen() {
             <tbody>
               {page.visible.map((item) => (
                 <PressTarget
+                  selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
                   key={item.id}
                   as="tr"
                   className={notices.reasonFor(item.id) ? 'novedad' : undefined}
@@ -401,8 +414,8 @@ export function InventoryScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       {showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
-      {inventory.length === 0 ? null : <div className="dhint">{phone ? 'Tocá ⋯ en una fila para editar o eliminar.' : 'Tip: mantené apretada una fila (o clic derecho) para editar o eliminar.'}</div>}
-      {phone ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
+      {inventory.length === 0 ? null : <div className="dhint">{phone ? 'Mantené presionado un equipo para seleccionarlo. Tocá ⋯ para más acciones.' : 'Tip: usá los checkboxes para seleccionar varios equipos. Clic derecho para más acciones.'}</div>}
+      {phone && selection.selected.length === 0 ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">
