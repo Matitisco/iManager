@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ImanagerIcon } from './icons';
 import { novedadesLabel } from './section-notices';
 import { PressTarget } from './ui';
+import type { RowSelection } from './bulk-selection';
 
 export function NoticesBar({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
   if (count <= 0) return null;
@@ -27,16 +28,18 @@ export function PhoneRecord({
   testId,
   onActivate,
   onMenu,
+  selection,
   children,
 }: {
   reason?: string;
   testId?: string;
   onActivate: () => void;
   onMenu: (point: { x: number; y: number }) => void;
+  selection?: RowSelection;
   children: ReactNode;
 }) {
   return (
-    <PressTarget as="button" className={reason ? 'phone-row novedad' : 'phone-row'} testId={testId} onActivate={onActivate} onMenu={onMenu}>
+    <PressTarget as="button" className={reason ? 'phone-row novedad' : 'phone-row'} testId={testId} onActivate={onActivate} onMenu={onMenu} selection={selection}>
       {children}
       <NoticeTag reason={reason} />
     </PressTarget>

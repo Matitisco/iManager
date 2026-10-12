@@ -10,7 +10,7 @@ import {
   createTradeInViaApi,
 } from './utils';
 
-const SHOTS = '/opt/cursor/artifacts/issue-259';
+const SHOTS = process.env.ROW_ACTIONS_SHOTS?.trim();
 
 function todayLabel() {
   const now = new Date();
@@ -134,7 +134,7 @@ async function expectDesktopMenuFloats(page: Page) {
 }
 
 test.beforeAll(() => {
-  mkdirSync(SHOTS, { recursive: true });
+  if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 });
 
 test('lays the row action sheet over the phone footer and keeps the desktop menu floating', async ({ page, request }, testInfo) => {
@@ -191,7 +191,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
     await expect(row).toBeVisible();
     await row.click({ button: 'right' });
     await expectDesktopMenuFloats(page);
-    if (target.id === 'inventory') await page.screenshot({ path: `${SHOTS}/desktop-1440-menu.png` });
+    if (SHOTS && target.id === 'inventory') await page.screenshot({ path: `${SHOTS}/desktop-1440-menu.png` });
     await closeMenu(page);
   }
 
@@ -216,7 +216,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
     for (let index = 0; index < Math.min(count, target.id === 'dashboard' ? 2 : 1); index += 1) {
       await menus.nth(index).click();
       await expectPhoneMenuCoversFooter(page);
-      if (index === 0) await page.screenshot({ path: `${SHOTS}/${target.shot}` });
+      if (SHOTS && index === 0) await page.screenshot({ path: `${SHOTS}/${target.shot}` });
       await closeMenu(page);
     }
   }

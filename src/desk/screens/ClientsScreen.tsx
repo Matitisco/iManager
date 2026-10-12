@@ -1,3 +1,5 @@
+import { BulkActions, useBulkScope } from '../bulk-actions';
+import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
@@ -55,7 +57,7 @@ function sortClients(rows: Client[], sort: string) {
 }
 
 export function ClientsScreen() {
-  const { clients, operationDrafts = [] } = useAppContext();
+  const { clients, deleteClient, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
@@ -85,6 +87,8 @@ export function ClientsScreen() {
   const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
   const ordered = phone ? sortClients(listed, sort) : listed;
   const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`);
+  const scope = useBulkScope();
+  const selection = useBulkSelection(ordered, scope);
   const visibleKey = page.visible.map((client) => client.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((client) => client.id)); }, [visibleKey, notices.markVisible]);
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
@@ -139,6 +143,12 @@ export function ClientsScreen() {
         ) : null}
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
+      <BulkActions key={scope} selection={selection} total={ordered.length} name="clientes"
+        headers={['Nombre', 'DNI', 'Teléfono', 'Email', 'Etiqueta', 'Gastado', 'Saldo', 'Moneda']}
+        cells={(client) => [client.name, client.dni, client.phone, client.email, client.tag || '', String(client.totalSpent), String(client.pendingBalance), client.balanceCurrency || 'ARS']}
+        label={(client) => client.name}
+        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id) }}
+      />
       {phone ? (
         listed.length === 0 ? (
           quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="wempty">No hay clientes con ese filtro.</div>
@@ -155,6 +165,7 @@ export function ClientsScreen() {
                   <Fragment key={client.id}>
                     {showGroup ? <div className="cl-sec">{group}</div> : null}
                     <PhoneRecord
+                      selection={selection.row(client.id, client.name)}
                       reason={reason}
                       testId={`client-row-${client.id}`}
                       onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
@@ -175,6 +186,7 @@ export function ClientsScreen() {
         <table className="dtable">
             <thead>
               <tr>
+                <th className="bulk-cell"><SelectFiltered selection={selection} total={ordered.length} /></th>
                 <th><span className="thf">Cliente
                   <ColumnFilter label="cliente" {...menu('cliente')} active={clientColumnActive(columns, 'name')} onClear={() => setColumn({ name: '', tags: [] })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.name} onChange={(event) => setColumn({ name: event.target.value })} />
@@ -213,6 +225,7 @@ export function ClientsScreen() {
             <tbody>
               {page.visible.map((client) => (
                 <PressTarget
+                  selection={selection.row(client.id, client.name)}
                   key={client.id}
                   as="tr"
                   className={notices.reasonFor(client.id) ? 'novedad' : undefined}
@@ -239,7 +252,7 @@ export function ClientsScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
+      {phone && selection.selected.length === 0 ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cl-sheet">
           <div className="inv-filters">
