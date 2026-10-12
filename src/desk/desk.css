@@ -212,7 +212,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-empty-mark { width: 56px; height: 56px; margin: 0 auto; border-radius: 16px; border: 1.5px dashed #D6D9DE; display: flex; align-items: center; justify-content: center; color: var(--primary); }
 .inv-empty-box b { display: block; margin-top: 12px; font-size: 16px; }
 .inv-empty-box p { margin: 6px auto 14px; max-width: 280px; color: var(--secondary); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.inv-empty-actions { display: flex; flex-direction: column; align-items: stretch; }
 .inv-empty-box .dbtn { width: 100%; justify-content: center; margin-top: 8px; }
+@media (min-width: 761px) {
+  .dcard.flush > .inv-empty { max-width: 420px; margin: 28px auto 32px; }
+}
 .inv-count { margin: 12px 4px 0; color: var(--secondary); font-size: 13px; font-weight: 700; text-align: left; }
 .inv-fx { margin: 12px 4px 0; color: var(--secondary); font-size: 12px; font-weight: 600; line-height: 1.4; }
 .inv-filters .sec { margin-top: 4px; }
@@ -715,7 +719,21 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .svc-views button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--secondary); }
 .svc-views button.on { background: var(--row); color: var(--primary); }
 .dkanban.svc { grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); max-width: 100%; }
+.dkanban.svc .dcol,
+.dkanban.svc .ticket { min-width: 0; }
 .dkanban.svc .wamt { white-space: normal; overflow-wrap: anywhere; }
+.ticket .svc-fault,
+.dtable .svc-fault {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.dtable .svc-fault { max-width: 320px; }
 .svc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 .dcolh span { display: inline-flex; align-items: center; }
 .ticket .date { display: inline-flex; align-items: center; gap: 4px; }
@@ -773,6 +791,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .svc-fault-card { margin-bottom: 8px; }
 .svc-fault-card span, .svc-pair span { display: block; color: var(--secondary); font-size: 12px; font-weight: 700; }
 .svc-fault-card b, .svc-pair b { display: block; margin-top: 4px; font-size: 15px; overflow-wrap: anywhere; }
+.sheet.svc-sheet { min-width: 0; }
+.sheet.svc-sheet .svc-fault-row { display: block; min-width: 0; }
+.svc-fault-full { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.45; }
+.sheet.svc-sheet .svc-fault-row .svc-fault-full { display: block; margin-top: 6px; text-align: left; font-weight: 700; }
 .svc-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
 .svc-pair b.late { color: var(--err); }
 .svc-wa-icon { display: inline-flex; align-items: center; gap: 6px; }
@@ -1018,7 +1040,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .desk-app:has(.ov) .mdock,
   .desk-app:has(.ov) .dolar-toast { visibility: hidden; }
   .desk-app:has(.mdock) .dolar-toast { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-  .ov.ctxov { background: rgba(17,17,17,.45); }
+  .ov.ctxov {
+    bottom: 0;
+    z-index: 90;
+    background: rgba(17,17,17,.45);
+  }
   .ov.ctxov .ctx {
     position: relative;
     top: auto !important;
@@ -1026,7 +1052,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
     width: 100%;
     max-width: 100%;
     border-radius: 24px 24px 0 0;
-    padding: 0 8px 12px;
+    padding: 0 8px calc(12px + env(safe-area-inset-bottom, 0px));
     transform-origin: bottom center;
   }
   .sheet,

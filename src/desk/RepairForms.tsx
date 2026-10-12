@@ -221,7 +221,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       {error ? <div className="ferr">{error}</div> : null}
       {clientRow}
       <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
-      <div className="kv"><span>Falla</span><b>{repairFault(order)}</b></div>
+      <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
       <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
       <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
@@ -274,7 +274,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       <div className="kv"><span>Ingreso</span><b>{received}</b></div>
       <div className="svc-fault-card">
         <span>Falla</span>
-        <b>{repairFault(order)}</b>
+        <b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b>
       </div>
       <div className="svc-pair">
         <div><span>IMEI</span><b>{order.imei || '—'}</b></div>
