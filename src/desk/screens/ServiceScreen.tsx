@@ -165,7 +165,7 @@ export function ServiceScreen() {
                       </div>
                       <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
                       {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
-                      <div className="items">{repairFault(order)}</div>
+                      <div className="items svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div>
                       <div className="wbot">
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
@@ -227,7 +227,7 @@ export function ServiceScreen() {
                       </div>
                       <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
                       {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
-                      <div className="items">{repairFault(order)}</div>
+                      <div className="items svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div>
                       <div className="wbot">
                         <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
@@ -262,7 +262,7 @@ export function ServiceScreen() {
                       <td>{dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}</td>
                       <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>
                       <td>{order.clientName || '—'}</td>
-                      <td>{repairFault(order)}</td>
+                      <td><div className="svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div></td>
                       <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>
                       <td><Pill status={repairColumnStatus(order.status)} kind="REPAIR_STATUS" /></td>
