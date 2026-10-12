@@ -16,6 +16,9 @@ async function mockDollar(page: Page) {
 }
 
 async function expectFits(page: Page) {
+  // The lime pill only exists while it slides. Wait until it lands so a
+  // viewport change cannot measure the previous translate past the screen.
+  await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
   const report = await page.evaluate(() => {
     const width = document.documentElement.clientWidth;
     const extra = document.documentElement.scrollWidth - width;

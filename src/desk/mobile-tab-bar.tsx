@@ -109,9 +109,13 @@ export function MobileTabBar({ buttons }: { buttons: MobileTabButton[] }) {
     const nav = navRef.current;
     if (!nav) return undefined;
     const remember = () => {
-      if (sliding) return;
       const next = readIndicatorFrame(nav);
-      if (next) lastFrame.current = next;
+      if (!next) return;
+      lastFrame.current = next;
+      // A resize during the slide (rotating, or a test narrowing the phone)
+      // must pull the pill back inside the bar. Leaving the old translate
+      // paints it past the viewport.
+      if (sliding) setFrame((current) => current && !sameIndicatorFrame(current, next) ? next : current);
     };
     let observer: ResizeObserver | undefined;
     if (typeof ResizeObserver !== 'undefined') {
