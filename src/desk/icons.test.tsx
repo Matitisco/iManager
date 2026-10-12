@@ -31,6 +31,8 @@ describe('iManager icons', () => {
     expect(statusIcon('En revisión')).toBe('en-revision');
     expect(statusIcon('VENDIDO')).toBe('vendido');
     expect(statusIcon('PERITAJE TÉC.')).toBe('servicio-tecnico');
+    expect(statusIcon('CANCELADO')).toBe('cerrar');
+    expect(statusIcon('Cancelado')).toBe('cerrar');
     expect(statusIcon('VIP')).toBeNull();
 
     const { rerender } = render(<DeskIcon name="list" size={22} />);

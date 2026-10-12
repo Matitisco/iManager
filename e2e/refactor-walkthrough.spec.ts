@@ -11,7 +11,7 @@ import {
   loginViaUi,
 } from './utils';
 
-const OUT = '/opt/cursor/artifacts/refactor-e2e';
+const OUT = process.env.REFACTOR_WALKTHROUGH_SHOTS?.trim();
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({
@@ -26,6 +26,7 @@ async function mockDollar(page: Page) {
 }
 
 async function shot(page: Page, name: string) {
+  if (!OUT) return;
   await page.screenshot({ path: path.join(OUT, name), fullPage: true });
 }
 
@@ -186,6 +187,7 @@ for (const viewport of viewports) {
         await detail.getByRole('button', { name: 'Pasar a En reparación' }).click();
         await expect(page.getByTestId('repair-group-EN_REPARACION')).toContainText('#OT-0001');
         await shot(page, `${prefix}-13-servicio-estado.png`);
+        await closeDialog(page);
       } else {
         const card = page.getByTestId('repair-column-RECIBIDO').locator('[data-testid^="repair-card-"]');
         await card.dragTo(page.getByTestId('repair-column-EN_REPARACION'), { targetPosition: { x: 40, y: 80 } });

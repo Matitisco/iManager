@@ -151,9 +151,27 @@ test.describe('settings on a phone', () => {
     const foot = editor.locator('.sheet-foot');
     await expect(foot.getByRole('button', { name: 'Guardar' })).toBeVisible();
     await expect(foot.getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    const footBox = await foot.boundingBox();
-    const tabBox = await page.getByTestId('mobile-tab-bar').boundingBox();
-    expect(footBox && tabBox && footBox.y + footBox.height <= tabBox.y + 1).toBeTruthy();
+    await settleMotion(page, '.sheet');
+    const placement = await foot.evaluate((node) => {
+      const sheet = node.closest('.sheet')!;
+      const tab = document.querySelector('[data-testid="mobile-tab-bar"]')!;
+      const tabBox = tab.getBoundingClientRect();
+      const hit = document.elementFromPoint(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2);
+      const buttons = [...node.querySelectorAll('button')];
+      return {
+        footBottom: node.getBoundingClientRect().bottom,
+        viewportHeight: window.innerHeight,
+        sheetCoversTab: hit !== null && sheet.contains(hit),
+        buttonsUsable: buttons.every((button) => {
+          const box = button.getBoundingClientRect();
+          const target = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          return box.top >= 0 && box.bottom <= window.innerHeight && target !== null && button.contains(target);
+        }),
+      };
+    });
+    expect(placement.footBottom).toBe(placement.viewportHeight);
+    expect(placement.sheetCoversTab).toBeTruthy();
+    expect(placement.buttonsUsable).toBeTruthy();
     await editor.getByTestId('store-currency').selectOption('USD');
     await editor.getByTestId('store-exchange-mode').selectOption('manual');
     await editor.getByTestId('store-manual-buy').fill('1200');

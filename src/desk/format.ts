@@ -73,6 +73,7 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETADA: 'Completada',
   PENDIENTE: 'Pendiente',
   CANCELADA: 'Cancelada',
+  CANCELADO: 'Cancelado',
   LISTO: 'Completado',
   'PERITAJE TÉC.': 'Peritaje téc.',
   'EN REVISIÓN': 'En revisión',
@@ -103,6 +104,8 @@ const STATUS_COLOR: Record<string, string> = {
   Pendiente: '#E8A33D',
   CANCELADA: '#DC4C4C',
   Cancelada: '#DC4C4C',
+  CANCELADO: '#DC4C4C',
+  Cancelado: '#DC4C4C',
   'PERITAJE TÉC.': '#8B5CF6',
   'Peritaje téc.': '#8B5CF6',
   APROBADO: '#25A66A',
@@ -176,6 +179,12 @@ export function tradeClientLabel(trade: { clientId?: string; clientName?: string
   const typed = trade.clientName?.trim();
   if (typed) return typed;
   return clientName(clients, trade.clientId ?? '');
+}
+
+export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumber'>): string {
+  return trade.removedFromSaleNumber != null
+    ? `Canje quitado de la venta V-${String(trade.removedFromSaleNumber).padStart(4, '0')}`
+    : 'Operación cancelada';
 }
 
 export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {

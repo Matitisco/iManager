@@ -138,6 +138,7 @@ function serializeTrade(trade: TradeForResponse) {
     differencePaid: toNum(trade.differencePaid),
     status: trade.status,
     confirmationStatus: trade.confirmationStatus,
+    removedFromSaleNumber: trade.removedFromSaleNumber ?? null,
     operationSource: trade.operationSource ?? null,
     saleId: trade.sale?.id ?? trade.saleId ?? null,
     receivedInventoryItemId: trade.receivedInventoryItemId ?? null,
@@ -628,7 +629,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
       ]) } },
     ));
-    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming, currency: labelCurrency }) };
+    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming, receivedStatus: trade?.status, currency: labelCurrency }) };
   });
 }
 
@@ -796,7 +797,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       inventory: [outputState, received].filter(present).map(serializeProduct),
       clients: updatedClient ? [serializeClient(updatedClient)] : [],
       notifications,
-      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, status: paymentStatus, hasInventory: !!product, received: true, currency: labelCurrency }),
+      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, status: paymentStatus, hasInventory: !!product, received: true, receivedStatus: confirmed.status, currency: labelCurrency }),
     };
   });
 }
@@ -861,7 +862,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         throw new OperationError("No se puede quitar el canje: el equipo recibido ya está en uso", 409);
       }
       if (received) archivedIncoming = await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
-      removedTrade = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO" } });
+      removedTrade = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", removedFromSaleNumber: sale.saleNumber } });
     }
     if (sale.inventoryItemId && sale.inventoryItemId !== nextProductId) {
       await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
@@ -1012,7 +1013,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         { recordId: archivedIncoming ? removedTrade?.id : null, reason: "Archivado" },
       ]) },
     }));
-    return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : removedTrade ? { tradeIn: serializeTrade(removedTrade) } : {}), inventory: [output, released, incoming, archivedIncoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: hasTrade, amount: nextAmount, takeValue: hasTrade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: hasTrade, currency: labelCurrency })} · operación actualizada` };
+    return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : removedTrade ? { tradeIn: serializeTrade(removedTrade) } : {}), inventory: [output, released, incoming, archivedIncoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: hasTrade, amount: nextAmount, takeValue: hasTrade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: hasTrade, receivedStatus: updatedTrade?.status, currency: labelCurrency })} · operación actualizada` };
   });
 }
 
@@ -1270,7 +1271,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         ]) } } : {}),
       },
     ));
-    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
+    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Operación cancelada · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
   });
 }
 

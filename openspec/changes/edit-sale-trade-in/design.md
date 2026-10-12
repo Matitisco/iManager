@@ -1,3 +1,7 @@
 # Diseño
 
 Habilitar Tiene canje en el formulario compartido de ventas. Enviar tradeIn como objeto para agregar/editar, null para quitar y omitirlo para conservar en actualizaciones parciales. La operación transaccional crea el canje y recibido cuando faltan; al quitar desvincula la venta, cancela el canje y archiva el recibido sin borrar historia. Rechazar quitar un recibido vendido o vinculado a otra venta. Mantener el total de salida y recalcular la diferencia y deuda. Admitir ventas históricas mediante la operación integrada, conservando su identidad. La respuesta incluye el canje cancelado y el recibido archivado para sincronizar AppContext.
+
+## Seguimiento #288
+
+Persistir removedFromSaleNumber (Int nullable, solo lectura) en el canje al quitarlo: la relación inversa sale deja de existir al limpiar Sale.tradeInId y no permite reconstruir el motivo después de recargar. Serializar el campo en listados y operaciones; mantener los canjes cancelados por otras causas con un mensaje distinto. Los registros anteriores sin referencia mostrarán Operación cancelada. Unificar los mapas de etiqueta/color/ícono y conservar los filtros mobile en una fila desplazable. El resumen debe recibir el estado técnico real del canje, sin confundirlo con EN_REVISION del inventario. Extender el overlay mobile hasta bottom: 0 y ajustar altura y safe area del sheet; validar que el modal sea el elemento superior sobre la navegación y cubra todo el borde inferior.

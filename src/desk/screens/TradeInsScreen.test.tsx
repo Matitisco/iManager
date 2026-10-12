@@ -28,6 +28,17 @@ function renderScreen() {
 }
 const rows = () => within(screen.getByRole('table', { name: 'Canjes' })).getAllByRole('row').slice(1);
 
+function expectCancelledPresentation(record: HTMLElement) {
+  const pill = within(record).getByText('Cancelado');
+  expect(pill).toHaveStyle({ '--pc': '#DC4C4C' });
+  expect(pill.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
+  expect(within(record).getByText('Canje quitado de la venta V-0042')).toBeInTheDocument();
+  expect(within(record).queryByText('Operación cancelada')).not.toBeInTheDocument();
+  const chip = screen.getByRole('button', { name: 'Cancelado' });
+  expect(chip.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
+  expect(chip).toHaveStyle({ '--chip-color': '#DC4C4C' });
+}
+
 describe('Trade-ins table', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,6 +46,18 @@ describe('Trade-ins table', () => {
     state.catalog = { ready: true, options: [
       { id: 'pending', kind: 'TRADE_IN_STATUS', value: 'PENDIENTE', label: 'Pendiente', color: '#E8A33D', isSystem: true, sortOrder: 0, count: 12 },
     ] };
+  });
+
+  it('labels removed and other cancelled trades separately and filters with the normalized chip', async () => {
+    state.tradeIns = [trade(1, { status: 'CANCELADO', confirmationStatus: 'CANCELLED', removedFromSaleNumber: 42 }),
+      trade(2, { status: 'CANCELADO', confirmationStatus: 'CANCELLED' }), trade(3)];
+    renderScreen();
+    const removed = rows().find((row) => row.textContent?.includes('Recibido 1'))!;
+    expectCancelledPresentation(removed);
+    expect(screen.getByText('Operación cancelada')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelado' }));
+    expect(rows()).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Cancelado' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('paginates twelve records, resets after search/filter/sort and clamps after removals', async () => {
@@ -219,6 +242,15 @@ describe('Trade-ins on a phone', () => {
 
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
+  });
+
+  it('shows the same cancelled state and removed-sale reference in the mobile timeline', async () => {
+    state.tradeIns = [trade(1, { status: 'CANCELADO', confirmationStatus: 'CANCELLED', removedFromSaleNumber: 42 }), trade(2)];
+    renderScreen();
+    expectCancelledPresentation(screen.getByTestId('tradeins-timeline'));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelado' }));
+    expect(screen.queryByText('Recibido: Recibido 2')).not.toBeInTheDocument();
+    expect(screen.getByText('1 de 2')).toBeInTheDocument();
   });
 
   it('shows the timeline, the counter and the dock without the desktop table', async () => {

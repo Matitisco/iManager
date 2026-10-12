@@ -47,7 +47,7 @@ describe("integrated operation API", () => {
       ],
     });
     expect(notice("clients")).toMatchObject({ recordId: client.id, title: "Nuevo cliente", message: "Nuevo cliente: Draft Customer. Debe $ 900" });
-    expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
+    expect(confirmed.json().summary).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · estado técnico del recibido: Pendiente");
     expect(new Set(confirmed.json().notifications.map((item: { message: string }) => item.message)).size).toBe(4);
     expect(Number(client.totalSpent)).toBe(1500);
     expect(Number(client.pendingBalance)).toBe(900);
@@ -63,6 +63,7 @@ describe("integrated operation API", () => {
 
     const cancelled = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/cancel`, headers, payload: {} });
     expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json().summary).toBe("Operación cancelada · equipo recibido archivado · salida restaurada · saldo revertido");
     expect(cancelled.json().inventory).toHaveLength(2);
     expect(cancelled.json().inventory.some((item: { archivedAt: string | null }) => item.archivedAt)).toBe(true);
     expect((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).pendingBalance.toNumber()).toBe(0);
@@ -397,7 +398,7 @@ describe("integrated operation API", () => {
     expect(confirmed.statusCode).toBe(200);
     expect(confirmed.json().sale.categoryId).toBe(fixture.saleCategory.id);
     expect(confirmed.json()).toMatchObject({ sale: { amount: 1300 }, tradeIn: { categoryId: fixture.tradeInCategory.id, takeValue: 500, differencePaid: 800 } });
-    expect(confirmed.json().summary).toBe("Canje · total $ 1.300 · toma $ 500 · diferencia $ 800 · pagada · recibido en revisión");
+    expect(confirmed.json().summary).toBe("Canje · total $ 1.300 · toma $ 500 · diferencia $ 800 · pagada · estado técnico del recibido: Pendiente");
     const reopened = await app.inject({ method: "GET", url: `/api/operations/sales/trades/${tradeId}`, headers });
     expect(reopened.json()).toMatchObject({ sale: { amount: 1300, status: "COMPLETADA" }, tradeIn: { operationSource: "sales" } });
     expect((await app.inject({ method: "GET", url: "/api/operations/sales/drafts", headers })).json().tradeIns).toHaveLength(0);

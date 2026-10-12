@@ -67,7 +67,7 @@ test.describe('desktop stays on the sidebar', () => {
 test.describe('phone patterns', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('pins the dock and the sheet above the tab bar, and keeps chips in one row', async ({ page, request }, testInfo) => {
+  test('pins the dock above the tab bar, covers it with sheets, and keeps chips in one row', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'patterns-phone');
     const model = `iPhone patron ${testInfo.parallelIndex}`;
     await mockDollar(page);
@@ -105,19 +105,26 @@ test.describe('phone patterns', () => {
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Cancelar' })).toBeVisible();
     await settleMotion(page, '.sheet');
     const placed = await page.evaluate(() => {
-      const sheet = document.querySelector('.sheet')!.getBoundingClientRect();
-      const tab = document.querySelector('.mtab')!.getBoundingClientRect();
+      const sheetNode = document.querySelector('.sheet')!;
+      const sheet = sheetNode.getBoundingClientRect();
+      const tabNode = document.querySelector('.mtab')!;
+      const tab = tabNode.getBoundingClientRect();
       const foot = document.querySelector('.sheet-foot')!.getBoundingClientRect();
+      const hit = document.elementsFromPoint(tab.left + tab.width / 2, tab.top + tab.height / 2);
       return {
         sheetBottom: sheet.bottom,
-        tabTop: tab.top,
+        height: window.innerHeight,
         footBottom: foot.bottom,
+        sheetIndex: hit.findIndex((node) => node === sheetNode || sheetNode.contains(node)),
+        tabIndex: hit.findIndex((node) => node === tabNode || tabNode.contains(node)),
         grab: document.querySelector('.sheet-grab')!.getBoundingClientRect().height,
       };
     });
     expect(placed.grab).toBeGreaterThan(0);
-    expect(placed.sheetBottom).toBeLessThanOrEqual(placed.tabTop + 1);
-    expect(placed.footBottom).toBeLessThanOrEqual(placed.tabTop + 1);
+    expect(placed.sheetBottom).toBe(placed.height);
+    expect(placed.footBottom).toBe(placed.height);
+    expect(placed.sheetIndex).toBeGreaterThanOrEqual(0);
+    expect(placed.tabIndex).toBeGreaterThan(placed.sheetIndex);
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/patterns-390-sheet.png` });
     await form.getByRole('button', { name: 'Cerrar' }).click();

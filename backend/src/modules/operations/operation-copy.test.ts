@@ -41,13 +41,22 @@ describe("section operation copy", () => {
   });
 
   it("shows the trade difference and the remaining debt separately", () => {
-    expect(operationSummary({ trade: true, amount: 950_000, takeValue: 350_000, status: "COMPLETADA", hasInventory: true, received: true })).toBe("Canje · total $ 950.000 · toma $ 350.000 · diferencia $ 600.000 · pagada · recibido en revisión");
+    expect(operationSummary({ trade: true, amount: 950_000, takeValue: 350_000, status: "COMPLETADA", hasInventory: true, received: true })).toBe("Canje · total $ 950.000 · toma $ 350.000 · diferencia $ 600.000 · pagada · estado técnico del recibido: Pendiente");
     expect(operationSummary({ trade: true, amount: 950_000, takeValue: 350_000, status: "PENDIENTE", hasInventory: false })).toBe("Canje · total $ 950.000 · toma $ 350.000 · diferencia $ 600.000 · debe $ 600.000");
+  });
+
+  it.each([
+    ["PENDIENTE", "Pendiente"], ["PERITAJE TÉC.", "Peritaje téc."], ["EN REVISIÓN", "En revisión"],
+    ["APROBADO", "Aprobado"], ["LISTO", "Completado"], ["RECHAZADO", "Rechazado"], ["DIAGNÓSTICO", "DIAGNÓSTICO"],
+  ])("uses the actual technical state %s in the summary", (receivedStatus, label) => {
+    const summary = operationSummary({ trade: true, amount: 1500, takeValue: 500, status: "COMPLETADA", hasInventory: true, received: true, receivedStatus });
+    expect(summary).toContain(`estado técnico del recibido: ${label}`);
+    expect(summary).not.toContain("recibido en revisión");
   });
 
   it("formats the operation toast in es-AR and marks an archived trade receipt", () => {
     expect(operationSummary({ trade: false, amount: 1200, status: "COMPLETADA", hasInventory: true })).toBe("Venta $ 1.200 · deuda $ 0 · stock vendido");
-    expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
+    expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · estado técnico del recibido: Pendiente");
     expect(operationSummary({ trade: true, amount: 1075, takeValue: 200, status: "COMPLETADA", hasInventory: false, currency: "USD" })).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada");
     expect(operationSummary({ trade: false, amount: 1075, status: "COMPLETADA", hasInventory: true, currency: "USD" })).toBe("Venta US$ 1.075 · deuda US$ 0 · stock vendido");
     const [notice] = sectionRecords(["inventory"], { action: "cancelled", archivedDevice: "iPhone 11" }, { inventory: "trade-1", tradeins: "trade-1" }, { archiveReceived: true });

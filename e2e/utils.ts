@@ -242,7 +242,7 @@ export async function fetchSales(request: APIRequestContext, email: string) {
   });
   const body = await assertOk(response, 'Fetch sales');
   return JSON.parse(body) as {
-    sales: Array<{ id: string; clientId: string; productId: string; deviceLabel?: string; status: string; amount: number }>;
+    sales: Array<{ id: string; saleNumber: number; clientId: string; productId: string; deviceLabel?: string; status: string; amount: number; tradeInId?: string | null }>;
   };
 }
 
@@ -252,7 +252,7 @@ export async function fetchTradeIns(request: APIRequestContext, email: string) {
   });
   const body = await assertOk(response, 'Fetch trade-ins');
   return JSON.parse(body) as {
-    tradeIns: Array<{ id: string; clientId: string; clientName: string; deviceReceived: string; deviceGiven?: string; status: string; confirmationStatus?: string | null; differencePaid: number }>;
+    tradeIns: Array<{ id: string; clientId: string; clientName: string; deviceReceived: string; deviceGiven?: string; status: string; confirmationStatus?: string | null; differencePaid: number; removedFromSaleNumber?: number | null }>;
   };
 }
 

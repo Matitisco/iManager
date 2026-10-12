@@ -168,6 +168,7 @@ test('a linked canje edit updates both records and cancellation keeps the client
   await detail.getByRole('button', { name: 'Cancelar operación' }).click();
   await expect(page.getByRole('dialog', { name: 'Cancelar operación' })).toBeVisible();
   await page.getByRole('dialog', { name: 'Cancelar operación' }).getByRole('button', { name: 'Cancelar operación' }).click();
+  await expect(page.locator('.toast.show')).toContainText('Operación cancelada');
   await expect(page.getByText(/Operación cancelada/).last()).toBeVisible();
   const afterCancelSales = await fetchSales(request, email);
   expect(afterCancelSales.sales[0]?.status).toBe('CANCELADA');
