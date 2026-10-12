@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-12**
 
+## Issue #286 — Seguimiento QA del detalle de venta — 2026-10-12
+
+- `SaleDetail` entrega sus acciones al footer explícito de `Sheet`; el cuerpo conserva scroll propio y el footer no encoge. La misma vista atiende Ventas, Reportes («Ventas del período»), Dashboard y notificaciones, también para ventas iniciadas desde la ficha del cliente.
+- Grilla de dos columnas iguales con separación de 10 px para dos, tres o cuatro acciones; la última acción impar ocupa toda la fila. Canje agrupado en «Canje como parte de pago», botones de al menos 48 px y safe areas de iPhone.
+- Validación: lint frontend/backend, build solicitado y 497 tests Vitest aprobados. Suite E2E completa: 116 casos aprobados con `--workers=1`; pasada final del detalle: 12 casos aprobados, con geometría y scroll a 1280×640, 1280×800, 1440×900 e iPhone 13 (WebKit). La ejecución secuencial evita los conflictos de serialización de los fixtures observados con cuatro workers.
+- Las cuatro capturas `docs/pr-shots/issue-286-fix-{desktop,mobile-iphone}-{canje,sin-canje}.png` fueron generadas e inspeccionadas. Regenerar con `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/imanager_issue286_fix_test ISSUE_286_SHOTS=docs/pr-shots npm run test:e2e -- e2e/sale-detail-layout.spec.ts --workers=1`. La evidencia con canje se abre desde Reportes y muestra todo el bloque después del scroll; la venta histórica sin canje se importa por API para ejercitar tres botones reales.
+- El test de menú de filas guarda sus capturas en `test-results/row-actions-shots` (o `ROW_ACTIONS_SHOTS`) para funcionar sin permisos sobre `/opt/cursor/artifacts`. Commit en la rama actual, sin push y sin incluir `.qa`, según el pedido.
+
 ## Issue #287 — Desplegable propio de Reportes — 2026-10-12
 
 - `DeskSelect` reemplaza el selector nativo de Desglose en todos los reportes y se reutiliza en moneda/cotización de Configuración. Conserva valores, permisos y validación; no modifica backend ni AppContext.

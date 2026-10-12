@@ -1,15 +1,36 @@
 import { mkdirSync } from 'node:fs';
-import { devices, expect, test, type Locator } from '@playwright/test';
-import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchSales } from './utils';
+import { devices, expect, test, type Locator, type Page } from '@playwright/test';
+import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, importSalesViaApi, fetchSales } from './utils';
 
 const shots = process.env.ISSUE_286_SHOTS?.trim();
-const actions = ['Cerrar', 'Cancelar operación', 'Editar', 'Compartir comprobante'];
+const tradeActions = ['Cerrar', 'Cancelar operación', 'Editar', 'Compartir comprobante'];
+const tradeLabels = ['Equipo recibido', 'Calidad recibida', 'Valor tomado', 'Diferencia del canje', 'Estado técnico', 'Confirmación'];
 const { defaultBrowserType: iphoneBrowser, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType: iphoneBrowser });
 
-async function expectReachableActions(detail: Locator, width: number, height: number) {
-  for (const name of actions) {
-    const button = detail.locator('.sheet-foot').getByRole('button', { name, exact: true });
+async function mockDollar(page: Page) {
+  await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: { compra: 1280, venta: 1300, fechaActualizacion: new Date().toISOString() } }));
+  await page.route('https://api.bluelytics.com.ar/**', (route) => route.fulfill({ json: { blue: { value_buy: 1280, value_sell: 1300 } } }));
+  await page.route('https://mercados.ambito.com/**', (route) => route.fulfill({ json: { venta: '1300,00' } }));
+}
+
+async function navigate(page: Page, tab: string, phone: boolean) {
+  const target = page.getByTestId(`sidebar-tab-${tab}`);
+  if (phone && !(await target.isVisible())) await page.getByTestId('sidebar-tab-more').click();
+  await target.click();
+}
+
+async function settle(detail: Locator) {
+  await detail.evaluate(async (node) => {
+    await Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
+  });
+}
+
+async function expectReachableActions(detail: Locator, names: string[], width: number, height: number) {
+  const footer = detail.locator('.sheet-foot');
+  await expect(footer.getByRole('button')).toHaveCount(names.length);
+  for (const name of names) {
+    const button = footer.getByRole('button', { name, exact: true });
     await expect(button).toBeInViewport({ ratio: 1 });
     const box = (await button.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(48);
@@ -18,78 +39,162 @@ async function expectReachableActions(detail: Locator, width: number, height: nu
     expect(box.y + box.height).toBeLessThanOrEqual(height);
     await button.click({ trial: true });
   }
+  const boxes = await footer.getByRole('button').evaluateAll((buttons) => buttons.map((button) => {
+    const { x, y, width, height } = button.getBoundingClientRect();
+    return { x, y, width, height };
+  }));
+  const grid = footer.locator('.sacts');
+  await expect(grid).toHaveCSS('display', 'grid');
+  await expect(grid).toHaveCSS('gap', '10px');
+  await expect(grid).toHaveCSS('margin-top', '0px');
+  expect(boxes[0].width).toBeCloseTo(boxes[1].width, 0);
+  expect(boxes[0].y).toBeCloseTo(boxes[1].y, 0);
+  expect(boxes[1].x - boxes[0].x - boxes[0].width).toBeCloseTo(10, 0);
+  if (names.length > 2) {
+    expect(boxes[2].y - boxes[0].y - boxes[0].height).toBeCloseTo(10, 0);
+    expect(boxes[2].x).toBeCloseTo(boxes[0].x, 0);
+    if (names.length % 2) expect(boxes[2].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
+    else {
+      expect(boxes[2].width).toBeCloseTo(boxes[0].width, 0);
+      expect(boxes[3].width).toBeCloseTo(boxes[1].width, 0);
+      expect(boxes[2].y).toBeCloseTo(boxes[3].y, 0);
+    }
+  }
+}
+
+async function expectSharedLayout(page: Page, detail: Locator, names: string[], hasTrade: boolean) {
+  await expect(detail).toHaveClass(/sale-detail-sheet/);
+  await settle(detail);
+  const body = detail.locator('.sheet-scroll');
+  const footer = detail.locator('.sheet-foot');
+  await expect(detail).toHaveCSS('overflow', 'hidden');
+  await expect(body).toHaveCSS('overflow-y', 'auto');
+  await expect(footer).toHaveCSS('flex-shrink', '0');
+  expect(await footer.evaluate((node) => node.parentElement?.classList.contains('sale-detail-sheet'))).toBe(true);
+  expect(await body.locator('.sacts').count()).toBe(0);
+  expect(await detail.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  const trade = detail.getByRole('region', { name: 'Canje como parte de pago' });
+  if (hasTrade) {
+    await expect(trade).toHaveCount(1);
+    await expect(trade.getByRole('heading', { name: 'Canje como parte de pago' })).toBeAttached();
+    for (const label of tradeLabels) await expect(trade.getByText(label, { exact: true })).toBeAttached();
+    expect(await trade.locator('.kv').evaluateAll((rows) => rows[0].getBoundingClientRect().top - rows[1].getBoundingClientRect().top)).toBe(0);
+  } else await expect(trade).toHaveCount(0);
+  const viewport = page.viewportSize()!;
+  await expectReachableActions(detail, names, viewport.width, viewport.height);
+  const before = (await footer.boundingBox())!;
+  await body.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+  const after = (await footer.boundingBox())!;
+  expect(after.y).toBeCloseTo(before.y, 0);
+  await expectReachableActions(detail, names, viewport.width, viewport.height);
+  await body.evaluate((node) => { node.scrollTop = 0; });
+}
+
+async function screenshot(page: Page, name: string) {
+  if (!shots) return;
+  mkdirSync(shots, { recursive: true });
+  await expect(page.locator('.toast.show')).toBeHidden();
+  await page.screenshot({ path: `${shots}/${name}`, animations: 'disabled' });
 }
 
 for (const device of [
-  { name: 'desktop', phone: false, options: { viewport: { width: 1440, height: 900 } } },
-  { name: 'mobile-iphone', phone: true, options: { ...iphone, viewport: { width: 390, height: 844 } } },
+  { name: 'desktop-640', phone: false, options: { viewport: { width: 1280, height: 640 } } },
+  { name: 'desktop-800', phone: false, options: { viewport: { width: 1280, height: 800 } } },
+  { name: 'desktop-900', phone: false, options: { viewport: { width: 1440, height: 900 } } },
+  { name: 'mobile-iphone', phone: true, options: { ...iphone } },
 ]) {
   test.describe(`sale detail ${device.name}`, () => {
     test.use(device.options);
 
-    test('keeps trade-in actions visible before and after scrolling', async ({ page, request }, testInfo) => {
+    test('shares grouped trade data and fixed actions across Reportes, Ventas, Dashboard and notifications', async ({ page, request }, testInfo) => {
+      test.setTimeout(120_000);
       const email = buildTestEmail(testInfo, `sale-detail-${device.name}`);
-      await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: { compra: 1280, venta: 1300, fechaActualizacion: new Date().toISOString() } }));
-      await page.route('https://api.bluelytics.com.ar/**', (route) => route.fulfill({ json: { blue: { value_buy: 1280, value_sell: 1300 } } }));
-      await page.route('https://mercados.ambito.com/**', (route) => route.fulfill({ json: { venta: '1300,00' } }));
+      await mockDollar(page);
       await bootstrapStoreViaApi(page, request, email, 'iManager · Ventas');
-      await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 14', capacity: '128GB', price: 650000, condition: 'USADO', grade: 'A' });
+      const buyer = 'Ana María Pérez · Cuenta corriente del local';
+      const { client } = await createClientViaApi(request, email, { name: buyer });
+      await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 14 Pro Max · Violeta profundo', capacity: '256GB', price: 650000, condition: 'USADO', grade: 'A' });
       await page.reload();
-      await page.getByTestId('sidebar-tab-sales').click();
-      await (device.phone ? page.getByTestId('mobile-dock') : page).getByRole('button', { name: 'Registrar venta', exact: true }).click();
+      await navigate(page, 'clients', device.phone);
+      await page.getByTestId(`client-row-${client.id}`).click();
+      await page.getByRole('dialog', { name: buyer }).getByRole('button', { name: 'Nueva venta' }).click();
       const form = page.getByRole('dialog', { name: 'Registrar venta' });
-      await form.getByLabel('Cliente').fill('Ana Pérez');
+      await expect(form.getByLabel('Cliente')).toHaveValue(buyer);
       await form.getByRole('combobox', { name: 'Equipo', exact: true }).fill('iPhone 14');
       await form.getByRole('option', { name: /iPhone 14/ }).click();
-      if (device.phone) await form.getByTestId('sale-trade-fold').locator('summary').click();
       await form.getByRole('checkbox', { name: 'Tiene canje' }).check();
       const tradeForm = page.getByRole('dialog', { name: 'Nuevo canje' });
-      await tradeForm.getByLabel('Equipo recibido').fill('iPhone 11 64GB');
+      await tradeForm.getByLabel('Equipo recibido').fill('iPhone 11 Pro Max 256GB · Verde medianoche · Equipo recibido con caja y accesorios');
       await tradeForm.getByLabel('Valor tomado').fill('200000');
       await tradeForm.getByRole('button', { name: 'Confirmar canje', exact: true }).click();
       await expect(tradeForm).toBeHidden();
       const sale = (await fetchSales(request, email)).sales[0];
       expect(sale.tradeInId).toBeTruthy();
+      expect(sale.clientId).toBe(client.id);
       const code = `V-${String(sale.saleNumber).padStart(4, '0')}`;
-      if (device.phone) await page.getByTestId('sales-timeline').getByRole('button').filter({ hasText: code }).first().click();
-      else await page.getByRole('row').filter({ hasText: code }).click();
-      const detail = page.getByRole('dialog', { name: code });
-      const body = detail.locator('.sheet-scroll');
-      await expect(detail.getByRole('region', { name: 'Canje como parte de pago' })).toBeVisible();
       await expect(page.locator('.toast.show')).toBeHidden();
-      await detail.evaluate(async (node) => {
-        await Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)));
-      });
-      expect(await body.evaluate((node) => node.scrollTop)).toBe(0);
-      const viewport = page.viewportSize()!;
-      await expectReachableActions(detail, viewport.width, viewport.height);
-      await expect(detail).toHaveCSS('overflow', 'hidden');
-      await expect(body).toHaveCSS('overflow-y', 'auto');
-      const footer = detail.locator('.sheet-foot');
-      await expect(footer).toHaveCSS('flex-shrink', '0');
-      expect(await detail.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-      expect(await detail.getByRole('region').locator('.kv').evaluateAll((rows) => rows[0].getBoundingClientRect().top - rows[1].getBoundingClientRect().top)).toBe(0);
-      if (shots) {
-        mkdirSync(shots, { recursive: true });
-        await page.screenshot({ path: `${shots}/issue-286-${device.name}.png`, animations: 'disabled' });
-      }
 
-      // A shorter viewport forces actual body scrolling while the footer stays put.
-      await page.setViewportSize({ width: viewport.width, height: 500 });
-      await expectReachableActions(detail, viewport.width, 500);
-      const before = (await footer.boundingBox())!;
-      const scroll = await body.evaluate((node) => {
-        node.scrollTop = node.scrollHeight;
-        return node.scrollTop;
-      });
-      expect(scroll).toBeGreaterThan(0);
-      const after = (await footer.boundingBox())!;
-      expect(after.y).toBeCloseTo(before.y, 0);
-      await expectReachableActions(detail, viewport.width, 500);
-      await page.setViewportSize(viewport);
-      await footer.getByRole('button', { name: 'Editar', exact: true }).click();
-      await expect(page.getByRole('dialog', { name: 'Editar operación' })).toBeVisible();
+      for (const path of ['reports', 'sales', 'dashboard', 'notifications']) {
+        await navigate(page, path, device.phone);
+        if (path === 'reports') await page.locator('.gtk').filter({ hasText: code }).click();
+        else if (path === 'sales') {
+          if (device.phone) await page.getByTestId('sales-timeline').getByRole('button').filter({ hasText: code }).first().click();
+          else await page.getByRole('row').filter({ hasText: code }).click();
+        } else if (path === 'dashboard') {
+          const recent = page.getByTestId('dashboard-sales');
+          await recent.getByRole(device.phone ? 'button' : 'row').filter({ hasText: code }).first().click();
+        } else await page.getByRole('button', { name: /Venta registrada/ }).click();
+        const detail = page.getByRole('dialog', { name: code });
+        await expectSharedLayout(page, detail, tradeActions, true);
+        if (path === 'reports') {
+          // Capture the whole trade block with the fixed actions after scrolling.
+          await detail.locator('.sheet-scroll').evaluate((node) => { node.scrollTop = node.scrollHeight; });
+          if (device.name === 'desktop-640') await screenshot(page, 'issue-286-fix-desktop-canje.png');
+          if (device.phone) await screenshot(page, 'issue-286-fix-mobile-iphone-canje.png');
+          const viewport = page.viewportSize()!;
+          await page.setViewportSize({ width: viewport.width, height: 500 });
+          await expectSharedLayout(page, detail, tradeActions, true);
+          expect(await detail.locator('.sheet-scroll').evaluate((node) => node.scrollHeight - node.clientHeight)).toBeGreaterThan(0);
+          await page.setViewportSize(viewport);
+        }
+        await detail.locator('.sheet-foot').getByRole('button', { name: 'Cerrar', exact: true }).click();
+        await expect(detail).toBeHidden();
+      }
     });
+
+    for (const pending of [false, true]) {
+      test(`keeps ${pending ? 2 : 3} actions evenly spaced for a sale without trade-in from Reportes`, async ({ page, request }, testInfo) => {
+        const email = buildTestEmail(testInfo, `sale-no-trade-${device.name}`);
+        await mockDollar(page);
+        await bootstrapStoreViaApi(page, request, email, 'iManager · Reportes');
+        const date = new Date().toLocaleDateString('es-AR');
+        const imported = await importSalesViaApi(request, email, [{
+          date, clientName: 'Juan Domínguez', device: 'iPhone 16 Pro 256GB', amount: '8000000',
+          status: pending ? 'PENDIENTE' : 'COMPLETADA',
+        }]);
+        expect(imported).toEqual(expect.objectContaining({ imported: 1, errors: [] }));
+        const sale = (await fetchSales(request, email)).sales[0];
+        expect(sale.integratedOperation).toBe(false);
+        expect(sale.tradeInId).toBeNull();
+        const code = `V-${String(sale.saleNumber).padStart(4, '0')}`;
+        await page.reload();
+        await navigate(page, 'reports', device.phone);
+        await page.locator('.gtk').filter({ hasText: code }).click();
+        const detail = page.getByRole('dialog', { name: code });
+        const names = pending ? ['Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Compartir comprobante'];
+        await expectSharedLayout(page, detail, names, false);
+        if (!pending) {
+          if (device.name === 'desktop-800') await screenshot(page, 'issue-286-fix-desktop-sin-canje.png');
+          if (device.phone) await screenshot(page, 'issue-286-fix-mobile-iphone-sin-canje.png');
+          await detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true }).click();
+          await expect(page.getByRole('dialog', { name: 'Editar operación' })).toBeVisible();
+        } else {
+          await detail.locator('.sheet-foot').getByRole('button', { name: 'Marcar cobrada' }).click();
+          await expect(detail).toBeHidden();
+          expect((await fetchSales(request, email)).sales[0].status).toBe('COMPLETADA');
+        }
+      });
+    }
   });
 }

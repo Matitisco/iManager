@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
 import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
+import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
 
 const ctx = vi.hoisted(() => ({
@@ -70,6 +72,14 @@ function renderOverlay(overlay: Overlay, canManageSensitive = true) {
   );
 }
 
+function ReportsWithOverlay() {
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  return <DeskProvider value={{ tab: 'reports', go: vi.fn(), open: setOverlay, openRecord: vi.fn(), close: () => setOverlay(null), toast, isStaff: false, canManageSensitive: true }}>
+    <ReportsScreen />
+    <DeskOverlays overlay={overlay} />
+  </DeskProvider>;
+}
+
 describe('operation detail', () => {
   beforeEach(() => {
     ctx.sales = [sale()];
@@ -116,6 +126,52 @@ describe('operation detail', () => {
       window.matchMedia = original;
       cleanup();
     }
+  });
+
+  it.each([2, 3, 4])('keeps all %s sale actions together in the shared footer grid', (count) => {
+    ctx.sales = [sale(count === 2 ? { status: 'PENDIENTE' } : count === 3 ? { integratedOperation: false, tradeInId: null } : {})];
+    renderOverlay({ type: 'sale', id: 's1' }, count !== 2);
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
+    const grid = footer.querySelector('.sacts') as HTMLElement;
+    const buttons = within(footer).getAllByRole('button');
+    expect(buttons).toHaveLength(count);
+    for (const button of buttons) expect(button.parentElement).toBe(grid);
+    expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+    if (count === 3) {
+      expect(buttons.map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Compartir comprobante']);
+      expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
+    }
+  });
+
+  it.each(['COMPLETADA', 'PENDIENTE'])('opens the shared compact sale detail from Reportes with grouped trade data (%s)', async (status) => {
+    ctx.sales = [sale({ date: new Date().toISOString(), status })];
+    render(<ReportsWithOverlay />);
+    await userEvent.click(screen.getByRole('button', { name: /V-0004.*Ana Pérez/ }));
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    expect(dialog).toHaveClass('sale-detail-sheet');
+    const tradeBlock = within(dialog).getByRole('region', { name: 'Canje como parte de pago' });
+    expect(within(tradeBlock).getByRole('heading', { name: 'Canje como parte de pago' })).toBeInTheDocument();
+    for (const label of ['Equipo recibido', 'Calidad recibida', 'Valor tomado', 'Diferencia del canje', 'Estado técnico', 'Confirmación']) {
+      expect(within(dialog).getByText(label).closest('section')).toBe(tradeBlock);
+    }
+    const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
+    expect(footer.parentElement).toBe(dialog);
+    expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+    expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+  });
+
+  it('opens a three-action sale without trade-in from Reportes and closes from its footer', async () => {
+    ctx.sales = [sale({ date: new Date().toISOString(), integratedOperation: false, tradeInId: null })];
+    render(<ReportsWithOverlay />);
+    await userEvent.click(screen.getByRole('button', { name: /V-0004.*Ana Pérez/ }));
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
+    expect(within(footer).getAllByRole('button').map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Compartir comprobante']);
+    expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+    expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
+    await userEvent.click(within(footer).getByRole('button', { name: 'Cerrar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('keeps pending sale actions in the footer and respects cancellation permissions', () => {

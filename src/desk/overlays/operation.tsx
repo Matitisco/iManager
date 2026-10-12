@@ -390,7 +390,26 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const sold = inventory.find((item) => item.id === sale.productId);
   const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
   return (
-    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet">
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet" footer={
+      sale.status === 'PENDIENTE' ? (
+        <div className="sacts">
+          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
+          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
+          {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+        </div>
+      ) : (
+        <div className="sacts">
+          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+          {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+          <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
+          <button className="btn2 p" type="button" onClick={() => {
+            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)}${soldQuality ? ` · Calidad ${soldQuality}` : ''} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
+            const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
+            shareOrCopy({ title: saleCode(sale), text }, copy);
+          }}>Compartir comprobante</button>
+        </div>
+      )
+    }>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
@@ -410,24 +429,6 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
           <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
         </div>
       </section> : null}
-      {sale.status === 'PENDIENTE' ? (
-        <div className="sacts">
-          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
-          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
-          {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
-        </div>
-      ) : (
-        <div className="sacts">
-          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-          <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
-          <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)}${soldQuality ? ` · Calidad ${soldQuality}` : ''} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
-            const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
-            shareOrCopy({ title: saleCode(sale), text }, copy);
-          }}>Compartir comprobante</button>
-        </div>
-      )}
     </Sheet>
   );
 }

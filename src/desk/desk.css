@@ -1593,6 +1593,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   flex-direction: column;
   overflow: hidden;
   padding: 0;
+  min-height: 0;
   max-height: min(88dvh, calc(100dvh - 48px));
 }
 .sale-detail-sheet .sheet-scroll {
@@ -1610,11 +1611,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   background: #fff;
   padding: 14px 28px calc(18px + env(safe-area-inset-bottom, 0px));
 }
-.sheet.sale-detail-sheet .sacts,
-.sheet.sale-detail-sheet .sacts:has(> .btn2:nth-child(3)) {
+.sheet.sale-detail-sheet .sheet-foot > .sacts,
+.sheet.sale-detail-sheet .sheet-foot > .sacts:has(> .btn2:nth-child(3)) {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 0;
+  gap: 10px;
+  margin: 0;
 }
+.sheet.sale-detail-sheet .sheet-foot > .sacts > .btn2:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .sheet.sale-detail-sheet .btn2 {
   height: auto;
   min-height: 48px;

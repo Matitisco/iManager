@@ -384,12 +384,12 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, subtitle, children, onClose, wide, className }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; wide?: boolean; className?: string }) {
+export function Sheet({ title, subtitle, children, onClose, wide, className, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; wide?: boolean; className?: string }) {
   useEscape(onClose);
   const phone = usePhoneLayout();
   const nodes = Children.toArray(children);
-  const foot = nodes.filter(isSheetFooter);
-  const body = nodes.filter((node) => !isSheetFooter(node));
+  const foot = footer !== undefined ? Children.toArray(footer) : nodes.filter(isSheetFooter);
+  const body = footer !== undefined ? nodes : nodes.filter((node) => !isSheetFooter(node));
 
   return (
     <div className="ov" onMouseDown={onClose}>
