@@ -237,7 +237,7 @@ describe('Reports custom period', () => {
     expect(total()).toBe('$ 0');
     expect(screen.getByText('No hay ventas para este período y filtro.')).toBeInTheDocument();
     expect(document.querySelectorAll('.gcol')).toHaveLength(1);
-    expect(await exportedCsv()).toBe('"detalle","importe","estado"');
+    expect(await exportedCsv()).toBe('"detalle","importe","Moneda","estado"');
   });
 });
 

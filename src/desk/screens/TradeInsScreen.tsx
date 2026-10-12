@@ -143,7 +143,11 @@ export function TradeInsScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length} name="canjes"
         headers={['Canje', 'Fecha', 'Cliente', 'Recibido', 'IMEI', 'Entregado', 'Valor tomado', 'Diferencia', 'Moneda', 'Estado', 'Confirmación']}
-        cells={(item) => [tradeCode(tradeIns, item.id), item.date, tradeClientLabel(item, clients), item.deviceReceived, item.deviceReceivedImei, item.deviceGiven, String(item.takeValue), String(item.differencePaid), item.currency || 'ARS', item.status, item.confirmationStatus === 'CANCELLED' ? 'Cancelado' : item.confirmationStatus === 'CONFIRMED' ? 'Confirmado' : item.confirmationStatus === 'PENDING' ? 'Pendiente' : 'Histórico']}
+        cells={(item) => {
+          const take = money.shown(item.takeValue, item.currency);
+          const difference = money.shown(item.differencePaid, item.currency);
+          return [tradeCode(tradeIns, item.id), item.date, tradeClientLabel(item, clients), item.deviceReceived, item.deviceReceivedImei, item.deviceGiven, take.text, difference.text, take.currency, item.status, item.confirmationStatus === 'CANCELLED' ? 'Cancelado' : item.confirmationStatus === 'CONFIRMED' ? 'Confirmado' : item.confirmationStatus === 'PENDING' ? 'Pendiente' : 'Histórico'];
+        }}
         label={(item) => tradeCode(tradeIns, item.id)}
         action={{ label: 'Cancelar canjes', explanation: 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.', execute: (item) => cancelTradeOperation('tradeins', item.id), unavailable: (item) => !item.confirmationStatus || item.confirmationStatus === 'CANCELLED' ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados se pueden exportar.' : undefined }}
       />

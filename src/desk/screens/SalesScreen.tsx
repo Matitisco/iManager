@@ -157,7 +157,10 @@ export function SalesScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={shown.length} name="ventas"
         headers={['Venta', 'Fecha', 'Cliente', 'Equipo', 'Pago', 'Total', 'Moneda', 'Estado']}
-        cells={(sale) => [saleCode(sale), sale.date, saleBuyer(sale, clients), saleEquipment(sale, inventory), paymentLabel(sale.paymentMethod), String(sale.amount), sale.amountCurrency || 'ARS', statusLabel(sale.status)]}
+        cells={(sale) => {
+          const total = money.shown(sale.amount, sale.amountCurrency);
+          return [saleCode(sale), sale.date, saleBuyer(sale, clients), saleEquipment(sale, inventory), paymentLabel(sale.paymentMethod), total.text, total.currency, statusLabel(sale.status)];
+        }}
         label={saleCode}
         action={{ label: 'Cancelar ventas', explanation: 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.', execute: (sale) => updateSale({ ...sale, status: 'CANCELADA' }), unavailable: (sale) => sale.status === 'CANCELADA' ? 'Quitá de la selección las ventas ya canceladas.' : !sale.integratedOperation && !sale.tradeInId ? 'Las ventas históricas sin operación asociada se pueden exportar. Seleccioná solo ventas con operación para cancelar.' : undefined }}
       />
@@ -250,12 +253,12 @@ export function SalesScreen() {
                     onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                   >
-                    <td><b>#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
+                    <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
-                    <td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td>
+                    <td className="r"><b className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
                   </PressTarget>
                 );

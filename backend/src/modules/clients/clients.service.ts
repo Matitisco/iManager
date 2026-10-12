@@ -293,18 +293,19 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
   const activeTrade = await clientsRepository.findActiveTrade(storeId, id);
   if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
 
-  await clientsRepository.deleteById(id);
-
-  if (actor) {
-    await writeAudit(prisma, {
-      storeId,
-      actor,
-      action: "client.deleted",
-      entityType: "client",
-      entityId: id,
-      detail: existing.name,
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.client.delete({ where: { id } });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "client.deleted",
+        entityType: "client",
+        entityId: id,
+        detail: existing.name,
+      });
+    }
+  });
 
   return true;
 }

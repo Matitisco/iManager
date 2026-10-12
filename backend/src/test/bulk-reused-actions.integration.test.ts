@@ -66,4 +66,61 @@ describe('per-item endpoints reused by bulk tables', () => {
       if (source === 'tradeins') expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: operation.tradeIn.receivedInventoryItemId } })).archivedAt).not.toBeNull();
     }
   });
+
+  it('writes one audit event per item when bulk deletes and cancellations run', async () => {
+    const app = getApp();
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const fixture = await seedCatalogFixture(storeId);
+    const headers = { ...buildAuthHeaders(), 'content-type': 'application/json' };
+    const spareItems = await Promise.all([0, 1].map((index) => prisma.inventoryItem.create({
+      data: { storeId, imei: `35900000000000${index}`, model: `Bulk ${index}`, capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '', price: 100 + index, cost: 40, status: 'DISPONIBLE' },
+    })));
+    const spareClients = await Promise.all([0, 1].map((index) => prisma.client.create({
+      data: { storeId, name: `Bulk cliente ${index}`, dni: `880${index}` },
+    })));
+    const products = await Promise.all([0, 1, 2, 3].map((index) => prisma.inventoryItem.create({
+      data: { storeId, imei: `35910000000000${index}`, model: `Operación ${index}`, capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '', price: 900, cost: 400, status: 'DISPONIBLE' },
+    })));
+    const saleIds: string[] = [];
+    const tradeIds: string[] = [];
+    for (const [index, product] of products.entries()) {
+      const source = index < 2 ? 'sales' : 'tradeins';
+      const created = await app.inject({
+        method: 'POST',
+        url: `/api/operations/${source}`,
+        headers,
+        payload: {
+          clientId: fixture.client.id,
+          productId: product.id,
+          amount: 1200,
+          paymentMethod: 'EFECTIVO',
+          status: 'COMPLETADA',
+          ...(source === 'tradeins' ? { tradeIn: { deviceReceived: `Recibido ${index}`, takeValue: 400 } } : {}),
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const operation = created.json();
+      if (source === 'sales') saleIds.push(operation.sale.id);
+      else tradeIds.push(operation.tradeIn.id);
+    }
+    expect(await prisma.auditEvent.count({ where: { storeId, action: { in: ['sale.cancelled', 'trade.cancelled', 'inventory.deleted', 'client.deleted'] } } })).toBe(0);
+    for (const id of saleIds) {
+      expect((await app.inject({ method: 'POST', url: `/api/operations/sales/sales/${id}/cancel`, headers, payload: {} })).statusCode).toBe(200);
+    }
+    for (const id of tradeIds) {
+      expect((await app.inject({ method: 'POST', url: `/api/operations/tradeins/trades/${id}/cancel`, headers, payload: {} })).statusCode).toBe(200);
+    }
+    const inventoryIds = [fixture.inventoryItem.id, ...spareItems.map((item) => item.id)];
+    const clientIds = spareClients.map((client) => client.id);
+    for (const id of inventoryIds) expect((await app.inject({ method: 'DELETE', url: `/api/inventory/${id}`, headers: buildAuthHeaders() })).statusCode).toBe(204);
+    for (const id of clientIds) expect((await app.inject({ method: 'DELETE', url: `/api/clients/${id}`, headers: buildAuthHeaders() })).statusCode).toBe(204);
+    const audits = await prisma.auditEvent.findMany({ where: { storeId, actorUserId: owner.user.id }, select: { action: true, entityId: true } });
+    const idsFor = (action: string) => audits.filter((event) => event.action === action).map((event) => event.entityId).sort();
+    expect(idsFor('inventory.deleted')).toEqual([...inventoryIds].sort());
+    expect(idsFor('client.deleted')).toEqual([...clientIds].sort());
+    expect(idsFor('trade.cancelled')).toEqual([...tradeIds].sort());
+    for (const id of saleIds) expect(audits.filter((event) => event.action === 'sale.cancelled' && event.entityId === id)).toHaveLength(1);
+    for (const id of tradeIds) expect(audits.filter((event) => event.action === 'trade.cancelled' && event.entityId === id)).toHaveLength(1);
+  });
 });

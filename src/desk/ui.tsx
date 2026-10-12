@@ -232,15 +232,29 @@ export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
   return { x: left, y: top };
 }
 
+function blockCallout(node: HTMLElement) {
+  node.style.userSelect = 'none';
+  node.style.setProperty('-webkit-user-select', 'none');
+  node.style.setProperty('-webkit-touch-callout', 'none');
+  window.getSelection()?.removeAllRanges();
+}
+
 function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void, onLongPress?: () => void) {
   const timer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const firedAt = useRef(0);
   const target = useRef<HTMLElement | null>(null);
+  const held = useRef(false);
+  const swallowClick = useRef(false);
   const stop = () => {
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = null;
     target.current?.classList.remove('holding');
+  };
+  const selectOnly = () => {
+    if (held.current) return;
+    held.current = true;
+    onLongPress?.();
   };
   useEffect(() => {
     const onScroll = () => stop();
@@ -250,9 +264,11 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   return {
     onPointerDown(event: React.PointerEvent<HTMLElement>) {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      held.current = false;
       origin.current = { x: event.clientX, y: event.clientY };
       target.current = event.currentTarget;
       event.currentTarget.classList.add('holding');
+      blockCallout(event.currentTarget);
       const node = event.currentTarget;
       const x = event.clientX;
       const y = event.clientY;
@@ -260,7 +276,8 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
         timer.current = null;
         node.classList.remove('holding');
         firedAt.current = Date.now();
-        if (onLongPress) onLongPress();
+        swallowClick.current = true;
+        if (onLongPress) selectOnly();
         else onMenu(menuPosition(x, y, node.getBoundingClientRect()));
       }, 480);
     },
@@ -274,13 +291,20 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
     onPointerCancel() { stop(); },
     onContextMenu(event: React.MouseEvent<HTMLElement>) {
       event.preventDefault();
+      blockCallout(event.currentTarget);
       stop();
       firedAt.current = Date.now();
+      swallowClick.current = true;
+      if (onLongPress) {
+        selectOnly();
+        return;
+      }
       onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
     },
     onDragStart() { stop(); },
     onClick(event: React.MouseEvent) {
-      if (Date.now() - firedAt.current < 700) {
+      if (swallowClick.current || Date.now() - firedAt.current < 700) {
+        swallowClick.current = false;
         event.preventDefault();
         event.stopPropagation();
         return;
