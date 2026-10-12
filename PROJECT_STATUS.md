@@ -3,6 +3,16 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-12**
 
+## Issue #303 — Selección móvil explícita y retiro de exportaciones por tabla — 2026-10-12
+
+- Restaurado `usePress` desde `bf8318a`, previo a PR #295: toque largo de 480 ms abre la hoja Editar/Eliminar sin seleccionar; movimiento de más de 8 px, scroll y cancelación abortan el gesto, y el clic posterior se suprime por 700 ms. Se conserva limpieza del timer al desmontar.
+- Inventario, Ventas, Canjes y Clientes muestran «Seleccionar» sobre la lista móvil. Los checkboxes solo aparecen en modo selección; la hoja suma «Seleccionar varios» con esa fila seleccionada. Barra inferior con cantidad, acción destructiva confirmada y «Listo», incluso con cero seleccionados. Desktop conserva selección visible, rango con Shift y barra existente, sin exportar.
+- Retirados CSV de selección, campos destinados a exportación y Lista de precios/copia de filas. Eliminados sus tests; CSV compartido y exportaciones de Reportes se conservan. No había endpoints de exportación de tablas en el backend actual. Permisos sensibles, aislamiento por tienda y auditoría se verifican con los tres tests de integración existentes, en PG local exclusivo `imanager_issue303_security_test`.
+- `skipWaiting()` se solicita al comenzar `install`, independiente del precache. Test unitario mantiene precache pendiente; regresión de producción usa dos pestañas, recarga y actualización y comprueba la versión del worker que controla ambas mediante un mensaje disponible solo en el servidor de QA. No queda worker en espera en Chromium/WebKit.
+- Se conservan padding de Canjes, layout de Clientes y nowrap en Ventas. Las regresiones verifican filas normales sobre el dock y checkboxes seleccionables sobre la barra móvil. Las capturas de tests de layout se guardan en `test-results` por defecto para conservar evidencia histórica.
+- Evidencia revisada: `docs/pr-shots/issue-303-mobile-list.png`, `issue-303-mobile-longpress-sheet.png`, `issue-303-mobile-selection.png`, `issue-303-desktop.png`. Regenerar con `ISSUE_303_SHOTS=docs/pr-shots npm run test:e2e -- e2e/bulk-actions.spec.ts --workers=1` usando PG local y puertos libres.
+- Validación final: lint frontend/backend, build solicitado, 548 unitarios frontend, 14 pruebas de worker, 132 E2E y 48 PWA E2E aprobados (36 omisiones por plataforma/offline WebKit), sin retries ni fallos en las corridas finales. También 212 unitarios backend (20 fixtures de IA en vivo omitidos sin API key) y tres integraciones de permisos/auditoría aprobados. E2E completo usa un worker, PG local exclusivo `imanager_issue303_final_test` y puertos 3304/4304; PWA de producción usa 4395. Commit en `feat/bulk-redo-303`, sin push, según el pedido específico.
+
 ## Issue #300/#299 — Correcciones de QA móvil — 2026-10-12
 
 - El toast de actualización móvil se ubica arriba con `safe-area-inset-top`, dejando libres Registrar venta, Importar y las barras inferiores. Desktop conserva su ubicación. Los tests de producción comprueban recarga automática sin tocar Actualizar al cerrar y después de terminar un guardado; la respuesta POST se retiene más que el debounce para verificar que no interrumpe la persistencia.

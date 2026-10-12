@@ -143,13 +143,7 @@ export function ClientsScreen() {
         ) : null}
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={ordered.length} name="clientes"
-        headers={['Nombre', 'DNI', 'Teléfono', 'Email', 'Etiqueta', 'Gastado', 'Saldo', 'Moneda']}
-        cells={(client) => {
-          const spent = money.shown(client.totalSpent, client.balanceCurrency);
-          const balance = money.shown(client.pendingBalance, client.balanceCurrency);
-          return [client.name, client.dni, client.phone, client.email, client.tag || '', spent.text, balance.text, spent.currency];
-        }}
+      <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
         action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id) }}
       />
@@ -173,7 +167,7 @@ export function ClientsScreen() {
                       reason={reason}
                       testId={`client-row-${client.id}`}
                       onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
-                      onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
+                      onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                     >
                       <ClientCard client={client} money={money} />
                     </PhoneRecord>
@@ -235,7 +229,7 @@ export function ClientsScreen() {
                   className={notices.reasonFor(client.id) ? 'novedad' : undefined}
                   testId={`client-row-${client.id}`}
                   onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                 >
                   <td>
                     <div className="dcell">

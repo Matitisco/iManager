@@ -232,29 +232,15 @@ export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
   return { x: left, y: top };
 }
 
-function blockCallout(node: HTMLElement) {
-  node.style.userSelect = 'none';
-  node.style.setProperty('-webkit-user-select', 'none');
-  node.style.setProperty('-webkit-touch-callout', 'none');
-  window.getSelection()?.removeAllRanges();
-}
-
-function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void, onLongPress?: () => void) {
+function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void) {
   const timer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const firedAt = useRef(0);
   const target = useRef<HTMLElement | null>(null);
-  const held = useRef(false);
-  const swallowClick = useRef(false);
   const stop = () => {
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = null;
     target.current?.classList.remove('holding');
-  };
-  const selectOnly = () => {
-    if (held.current) return;
-    held.current = true;
-    onLongPress?.();
   };
   useEffect(() => {
     const onScroll = () => stop();
@@ -264,11 +250,9 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   return {
     onPointerDown(event: React.PointerEvent<HTMLElement>) {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      held.current = false;
       origin.current = { x: event.clientX, y: event.clientY };
       target.current = event.currentTarget;
       event.currentTarget.classList.add('holding');
-      blockCallout(event.currentTarget);
       const node = event.currentTarget;
       const x = event.clientX;
       const y = event.clientY;
@@ -276,9 +260,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
         timer.current = null;
         node.classList.remove('holding');
         firedAt.current = Date.now();
-        swallowClick.current = true;
-        if (onLongPress) selectOnly();
-        else onMenu(menuPosition(x, y, node.getBoundingClientRect()));
+        onMenu(menuPosition(x, y, node.getBoundingClientRect()));
       }, 480);
     },
     onPointerMove(event: React.PointerEvent<HTMLElement>) {
@@ -291,20 +273,13 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
     onPointerCancel() { stop(); },
     onContextMenu(event: React.MouseEvent<HTMLElement>) {
       event.preventDefault();
-      blockCallout(event.currentTarget);
       stop();
       firedAt.current = Date.now();
-      swallowClick.current = true;
-      if (onLongPress) {
-        selectOnly();
-        return;
-      }
       onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
     },
     onDragStart() { stop(); },
     onClick(event: React.MouseEvent) {
-      if (swallowClick.current || Date.now() - firedAt.current < 700) {
-        swallowClick.current = false;
+      if (Date.now() - firedAt.current < 700) {
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -347,9 +322,9 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   selection?: RowSelection;
   children: React.ReactNode;
 }) {
-  const bind = usePress(onMenu, () => as === 'button' && selection?.active ? selection.toggle() : onActivate(),
-    as === 'button' && selection ? () => selection.toggle() : undefined);
-  const checkbox = selection ? <SelectionCheckbox checked={selection.checked} disabled={selection.disabled} label={selection.label} onToggle={selection.toggle} /> : null;
+  const bind = usePress(onMenu, () => as === 'button' && selection?.active ? selection.toggle() : onActivate());
+  const visible = selection && selection.visible !== false;
+  const checkbox = visible ? <SelectionCheckbox checked={selection.checked} disabled={selection.disabled} label={selection.label} onToggle={selection.toggle} /> : null;
   const rowClass = `${className ?? ''}${selection?.checked ? ' bulk-selected' : ''}`.trim() || undefined;
   const drag = draggable ? {
     draggable: true as const,
@@ -362,7 +337,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   } : {};
   if (as === 'button') {
     return (
-      <div className={`press-host${selection ? ' bulk-row' : ''}${selection?.checked ? ' bulk-selected' : ''}`}>
+      <div className={`press-host${visible ? ' bulk-row' : ''}${selection?.checked ? ' bulk-selected' : ''}`}>
         {checkbox}
         <button className={rowClass} type="button" data-testid={testId} disabled={selection?.disabled} {...bind} {...drag}>{children}</button>
         {selection?.active ? null : <RowMenu onMenu={onMenu} />}

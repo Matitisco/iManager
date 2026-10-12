@@ -1,6 +1,6 @@
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
@@ -24,7 +24,6 @@ import {
 import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
-import { priceListMessage } from '../price-list';
 import { ImanagerIcon } from '../icons';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
@@ -66,23 +65,20 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, appSession, deleteProduct, operationDrafts = [] } = useAppContext();
+  const { inventory, deleteProduct, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const { sell } = useDisplayQuote();
   const catalogs = useCatalogs();
-  const { open, toast, back } = useDesk();
+  const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
   const notices = useSectionNotices('inventory');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
-  const [listOpen, setListOpen] = useState(false);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
@@ -94,15 +90,6 @@ export function InventoryScreen() {
     window.addEventListener('desk-eq-saved', reset);
     return () => window.removeEventListener('desk-eq-saved', reset);
   }, []);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onPointer = (event: PointerEvent) => {
-      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
-    };
-    window.addEventListener('pointerdown', onPointer);
-    return () => window.removeEventListener('pointerdown', onPointer);
-  }, [moreOpen]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -126,7 +113,6 @@ export function InventoryScreen() {
   const selection = useBulkSelection(listed, scope);
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
-  const priceMessage = priceListMessage(rows, appSession?.store?.name, (item) => money.show(item.price, item.currency));
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const statusOptions = useMemo(() => {
@@ -166,7 +152,6 @@ export function InventoryScreen() {
   const openFilters = () => {
     setDraftFilters(columns);
     setFiltersOpen(true);
-    setMoreOpen(false);
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
@@ -183,26 +168,11 @@ export function InventoryScreen() {
               <IconButton label="Filtros" name="filtrar" pressed={filterCount > 0} onClick={openFilters} />
               {filterCount > 0 ? <span className="rbadge">{filterCount}</span> : null}
             </span>
-            <div className="htools" ref={moreRef}>
-              <IconButton label="Más opciones" name="mas" pressed={moreOpen} onClick={() => setMoreOpen((current) => !current)} />
-              {moreOpen ? (
-                <div className="menu">
-                  <button type="button" disabled={rows.length === 0} onClick={() => { setMoreOpen(false); setListOpen(true); }}>
-                    <ImanagerIcon name="lista-de-precios" size={16} />
-                    Lista de precios
-                  </button>
-                </div>
-              ) : null}
-            </div>
           </>
         )}
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
-            <button className="dbtn s" type="button" onClick={() => setListOpen(true)} disabled={rows.length === 0}>
-              <ImanagerIcon name="lista-de-precios" size={16} />
-              Lista de precios
-            </button>
             <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
             <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
           </div>
@@ -216,12 +186,7 @@ export function InventoryScreen() {
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={listed.length} name="inventario"
-        headers={['Equipo', 'IMEI', 'Color', 'Condición', 'Calidad', 'Batería', 'Precio', 'Moneda', 'Estado']}
-        cells={(item) => {
-          const price = money.shown(item.price, item.currency);
-          return [equipmentTitle(item.model, item.capacity), item.imei, item.color, conditionLabel(item.condition), displayQuality(item.condition, item.grade), item.batteryHealth, price.text, price.currency, statusLabel(item.status)];
-        }}
+      <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
         action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (item) => deleteProduct(item.id) }}
       />
@@ -242,7 +207,7 @@ export function InventoryScreen() {
                   key={item.id}
                   reason={reason}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
@@ -386,7 +351,7 @@ export function InventoryScreen() {
                   as="tr"
                   className={notices.reasonFor(item.id) ? 'novedad' : undefined}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >
                   <td>
                     <div className="dcell">
@@ -522,29 +487,6 @@ export function InventoryScreen() {
             onSecondary={() => setDraftFilters(EMPTY_COLUMN_FILTERS)}
             primary="Aplicar filtros"
             onPrimary={() => { setColumns(draftFilters); setFiltersOpen(false); }}
-          />
-        </Sheet>
-      ) : null}
-      {listOpen ? (
-        <Sheet
-          title="Lista de precios"
-          subtitle={`${rows.length} ${rows.length === 1 ? 'equipo' : 'equipos'} con el filtro actual. Copiá el mensaje y mandalo.`}
-          onClose={() => setListOpen(false)}
-        >
-          <label className="fl">
-            <span>Mensaje</span>
-            <textarea className="plist" readOnly value={priceMessage} />
-          </label>
-          <Actions
-            secondary="Cerrar"
-            onSecondary={() => setListOpen(false)}
-            primary="Copiar mensaje"
-            onPrimary={() => {
-              void navigator.clipboard.writeText(priceMessage).then(
-                () => { toast('Mensaje copiado'); setListOpen(false); },
-                () => toast('No se pudo copiar el mensaje'),
-              );
-            }}
           />
         </Sheet>
       ) : null}

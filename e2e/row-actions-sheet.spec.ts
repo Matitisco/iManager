@@ -209,15 +209,38 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
 
   for (const target of phoneTargets) {
     await openSection(page, target.id, target.heading);
+    const bulkList = ['inventory', 'sales', 'tradeins', 'clients'].includes(target.id);
+    if (bulkList) {
+      await expect(page.getByRole('checkbox', { name: /^Seleccionar/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Seleccionar', exact: true })).toBeVisible();
+    }
     const menus = page.getByRole('button', { name: 'Más acciones' });
     await expect(menus.first()).toBeVisible();
     const count = await menus.count();
     expect(count).toBeGreaterThan(0);
     for (let index = 0; index < Math.min(count, target.id === 'dashboard' ? 2 : 1); index += 1) {
-      await menus.nth(index).click();
+      if (bulkList) {
+        const row = page.locator('.phone-row').first();
+        await row.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 100, clientY: 300, button: 0 });
+        await expect(page.locator('.ctx')).toBeVisible();
+        await row.dispatchEvent('pointerup', { pointerType: 'touch' });
+        await expect(page.getByRole('checkbox', { name: /^Seleccionar/ })).toHaveCount(0);
+      } else await menus.nth(index).click();
       await expectPhoneMenuCoversFooter(page);
       if (SHOTS && index === 0) await page.screenshot({ path: `${SHOTS}/${target.shot}` });
       await closeMenu(page);
+    }
+    if (bulkList) {
+      await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+      const bar = page.getByTestId('bulk-action-bar');
+      await expect(bar).toContainText('0 seleccionados');
+      await expect(page.getByRole('checkbox', { name: /^Seleccionar/ }).first()).toBeVisible();
+      await page.getByRole('checkbox', { name: /^Seleccionar todos/ }).check();
+      const selectedCount = await page.getByRole('checkbox', { name: /^Seleccionar/ }).count() - 1;
+      await expect(bar).toContainText(`${selectedCount} ${selectedCount === 1 ? 'seleccionado' : 'seleccionados'}`);
+      await bar.getByRole('button', { name: 'Listo', exact: true }).click();
+      await expect(page.getByRole('checkbox', { name: /^Seleccionar/ })).toHaveCount(0);
+      await expect(bar).toHaveCount(0);
     }
   }
 });

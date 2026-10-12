@@ -17,8 +17,9 @@ async function session(page: Page) {
 }
 
 async function shot(page: Page, name: string) {
-  await mkdir('docs/pr-shots', { recursive: true });
-  await page.screenshot({ path: `docs/pr-shots/${name}`, animations: 'disabled' });
+  const shots = process.env.PWA_LAYOUT_SHOTS?.trim() || 'test-results/pwa-layout-shots';
+  await mkdir(shots, { recursive: true });
+  await page.screenshot({ path: `${shots}/${name}`, animations: 'disabled' });
 }
 
 test('canjes list clears the Nuevo canje bar without scrolling', async ({ page }, info) => {
@@ -33,7 +34,8 @@ test('canjes list clears the Nuevo canje bar without scrolling', async ({ page }
   await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
   const dock = page.getByTestId('mobile-dock');
   await expect(dock).toContainText('Nuevo canje');
-  await expect(page.locator('.sale-line .bulk-check').first()).toBeVisible();
+  await expect(page.locator('.sale-line .bulk-check')).toHaveCount(0);
+  await expect(page.locator('.sale-line .phone-row').first()).toBeVisible();
   const metrics = await page.evaluate(() => {
     const line = document.querySelector('.sale-line');
     const bar = document.querySelector('.mdock');
@@ -45,7 +47,7 @@ test('canjes list clears the Nuevo canje bar without scrolling', async ({ page }
     probe.remove();
     const dockBox = bar!.getBoundingClientRect();
     const stageBox = stage!.getBoundingClientRect();
-    const checks = [...document.querySelectorAll('.sale-line .bulk-check')].map((node) => {
+    const checks = [...document.querySelectorAll('.sale-line .phone-row')].map((node) => {
       const box = node.getBoundingClientRect();
       const top = Math.max(box.top, stageBox.top);
       const bottom = Math.min(box.bottom, stageBox.bottom);

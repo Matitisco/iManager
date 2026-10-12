@@ -155,14 +155,9 @@ export function SalesScreen() {
       </div>
       )}
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={shown.length} name="ventas"
-        headers={['Venta', 'Fecha', 'Cliente', 'Equipo', 'Pago', 'Total', 'Moneda', 'Estado']}
-        cells={(sale) => {
-          const total = money.shown(sale.amount, sale.amountCurrency);
-          return [saleCode(sale), sale.date, saleBuyer(sale, clients), saleEquipment(sale, inventory), paymentLabel(sale.paymentMethod), total.text, total.currency, statusLabel(sale.status)];
-        }}
+      <BulkActions key={scope} selection={selection} total={shown.length}
         label={saleCode}
-        action={{ label: 'Cancelar ventas', explanation: 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.', execute: (sale) => updateSale({ ...sale, status: 'CANCELADA' }), unavailable: (sale) => sale.status === 'CANCELADA' ? 'Quitá de la selección las ventas ya canceladas.' : !sale.integratedOperation && !sale.tradeInId ? 'Las ventas históricas sin operación asociada se pueden exportar. Seleccioná solo ventas con operación para cancelar.' : undefined }}
+        action={{ label: 'Cancelar ventas', explanation: 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.', execute: (sale) => updateSale({ ...sale, status: 'CANCELADA' }), unavailable: (sale) => sale.status === 'CANCELADA' ? 'Quitá de la selección las ventas ya canceladas.' : !sale.integratedOperation && !sale.tradeInId ? 'Las ventas históricas sin operación asociada no se pueden cancelar. Seleccioná solo ventas con operación para cancelar.' : undefined }}
       />
       {phone ? (
         shown.length === 0 ? (
@@ -179,7 +174,7 @@ export function SalesScreen() {
                       selection={selection.row(sale.id, saleCode(sale))}
                       reason={reason}
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
-                      onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
+                      onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
                       <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
@@ -251,7 +246,7 @@ export function SalesScreen() {
                     as="tr"
                     className={notices.reasonFor(sale.id) ? 'novedad' : undefined}
                     onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
-                    onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
+                    onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                   >
                     <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>

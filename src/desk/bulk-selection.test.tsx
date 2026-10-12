@@ -54,48 +54,34 @@ describe('filtered bulk selection', () => {
     expect(screen.getByRole('status')).toHaveTextContent('1');
   });
 
-  it('selects on long press without opening detail/menu; tapping then toggles selection', () => {
+  it.each(['timer', 'contextmenu'])('opens the original menu on %s without selecting or opening detail', (gesture) => {
     vi.useFakeTimers();
-    const activate = vi.fn(); const menu = vi.fn();
-    function Card() {
-      const selection = useBulkSelection(rows, 's');
-      return <PressTarget as="button" className="phone-row" onActivate={activate} onMenu={menu} selection={selection.row('1', 'Equipo 1')}>Equipo 1</PressTarget>;
-    }
-    render(<Card />);
+    const activate = vi.fn(); const menu = vi.fn(); const toggle = vi.fn();
+    render(<PressTarget as="button" className="phone-row" onActivate={activate} onMenu={menu}
+      selection={{ active: false, visible: false, checked: false, disabled: false, label: 'Seleccionar Equipo 1', toggle }}>Equipo 1</PressTarget>);
     const card = screen.getByRole('button', { name: 'Equipo 1' });
     fireEvent.pointerDown(card, { pointerType: 'touch', clientX: 50, clientY: 50 });
-    act(() => vi.advanceTimersByTime(500));
+    act(() => vi.advanceTimersByTime(479));
+    expect(menu).not.toHaveBeenCalled();
+    if (gesture === 'contextmenu') fireEvent.contextMenu(card);
+    else act(() => vi.advanceTimersByTime(1));
     fireEvent.pointerUp(card); fireEvent.click(card);
-    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1' })).toBeChecked();
-    expect(activate).not.toHaveBeenCalled(); expect(menu).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(800));
-    fireEvent.click(card);
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(menu).toHaveBeenCalledOnce();
+    expect(toggle).not.toHaveBeenCalled(); expect(activate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(701)); fireEvent.click(card);
+    expect(activate).toHaveBeenCalledOnce();
   });
 
-  it('treats the iOS context menu as selection and swallows the click that follows', () => {
-    vi.useFakeTimers();
-    const activate = vi.fn(); const menu = vi.fn();
-    function Card() {
-      const selection = useBulkSelection(rows, 's');
-      return <PressTarget as="button" className="phone-row" onActivate={activate} onMenu={menu} selection={selection.row('1', 'Equipo 1')}>Equipo 1</PressTarget>;
-    }
-    render(<Card />);
-    const card = screen.getByRole('button', { name: 'Equipo 1' });
-    fireEvent.pointerDown(card, { pointerType: 'touch', clientX: 40, clientY: 40 });
-    expect(card.style.userSelect).toBe('none');
-    expect(card.style.getPropertyValue('-webkit-user-select')).toBe('none');
-    expect(card).toHaveClass('holding');
-    fireEvent.contextMenu(card);
-    act(() => vi.advanceTimersByTime(500));
-    fireEvent.pointerUp(card);
-    fireEvent.click(card);
-    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1' })).toBeChecked();
-    expect(menu).not.toHaveBeenCalled();
-    expect(activate).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(800));
-    fireEvent.click(card);
-    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1' })).not.toBeChecked();
+  it('starts with one selected row, keeps mode when empty and clears mode on exit/scope change', () => {
+    const { result, rerender } = renderHook(({ scope }) => useBulkSelection(rows, scope), { initialProps: { scope: 's' } });
+    act(() => result.current.start('1'));
+    expect(result.current.mode).toBe(true); expect(result.current.selected.map((row) => row.id)).toEqual(['1']);
+    act(() => result.current.row('1', '1').toggle());
+    expect(result.current.mode).toBe(true); expect(result.current.selected).toEqual([]);
+    act(() => result.current.clear()); expect(result.current.mode).toBe(false);
+    act(() => result.current.start('1')); rerender({ scope: 'other' });
+    expect(result.current.mode).toBe(false); expect(result.current.selected).toEqual([]);
   });
 
   it('keeps the desktop row menu on right click', () => {

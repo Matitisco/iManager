@@ -332,3 +332,34 @@ test('mobile Desglose backdrop consumes pointerdown and click over report tabs',
   await expect(select).toHaveText('Medio de pago');
   await expect(tab).toHaveAttribute('aria-pressed', 'false');
 });
+
+
+test('new worker activates after a hard reload with multiple controlled tabs open', async ({ page, context }) => {
+  await session(page); await controlled(page);
+  const second = await context.newPage();
+  await second.goto('/', { waitUntil: 'domcontentloaded' }); await controlled(second);
+  // An open form keeps both clients alive while controllerchange occurs.
+  await page.getByRole('button', { name: 'Inventario', exact: true }).click();
+  await page.getByRole('button', { name: 'Registrar equipo', exact: true }).click();
+  const before = await page.evaluate(() => caches.keys());
+  const release = Number(await (await page.request.post('/__test__/deploy?mode=sw')).text());
+  await second.reload({ waitUntil: 'domcontentloaded' });
+  await second.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+  await expect.poll(() => page.evaluate(async (previous) => {
+    const registration = (await navigator.serviceWorker.getRegistration())!;
+    const cacheKeys = await caches.keys();
+    return { active: registration.active?.state, waiting: !!registration.waiting, installing: !!registration.installing,
+      release: cacheKeys.some((key) => key.startsWith('imanager-static-e2e-') && !previous.includes(key)) };
+  }, before), { timeout: 30_000 }).toEqual({ active: 'activated', waiting: false, installing: false, release: true });
+  // Query the actual controlling worker in both tabs. WebKit can retain an
+  // 'activating' snapshot on its ServiceWorker objects after activation.
+  for (const tab of [page, second]) {
+    await expect.poll(() => tab.evaluate(() => new Promise<number>((resolve) => {
+      const channel = new MessageChannel();
+      const timeout = window.setTimeout(() => { channel.port1.close(); resolve(-1); }, 1000);
+      channel.port1.onmessage = (event) => { window.clearTimeout(timeout); channel.port1.close(); resolve(event.data); };
+      navigator.serviceWorker.controller?.postMessage('TEST_RELEASE', [channel.port2]);
+    }))).toBe(release);
+  }
+  await second.close();
+});

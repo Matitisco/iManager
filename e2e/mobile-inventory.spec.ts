@@ -49,14 +49,13 @@ async function expectFits(page: Page) {
 }
 
 test.describe('desktop inventory stays put', () => {
-  test('shows the empty store state, the table and the price list button', async ({ page, request }, testInfo) => {
+  test('shows the empty store state and the table', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'inv-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Inventario desk ${testInfo.parallelIndex}`);
     await page.getByTestId('sidebar-tab-inventory').click();
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Lista de precios' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toHaveCount(0);
     const empty = page.getByTestId('inventory-empty');
     await expect(empty).toContainText('Todavía no cargaste equipos');
@@ -127,10 +126,6 @@ test.describe('inventory on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-import.png` });
     await importer.getByRole('button', { name: 'Cerrar' }).click();
-
-    await page.getByRole('button', { name: 'Más opciones' }).click();
-    await expect(page.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Más opciones' }).click();
 
     await createInventoryItemViaApi(request, email, {
       imei: '350000000000010',
@@ -250,11 +245,6 @@ test.describe('inventory on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-detail.png` });
     await detail.getByRole('button', { name: 'Cerrar' }).click();
-
-    await page.getByRole('button', { name: 'Más opciones' }).click();
-    await page.getByRole('button', { name: 'Lista de precios' }).click();
-    await expect(page.getByRole('dialog', { name: 'Lista de precios' })).toBeVisible();
-    await page.getByRole('dialog', { name: 'Lista de precios' }).locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
 
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(page.getByTestId('mobile-dock')).toBeVisible();

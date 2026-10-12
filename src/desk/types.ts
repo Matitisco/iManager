@@ -27,7 +27,7 @@ export type Overlay =
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
   | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string }
-  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number }
+  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number; onSelect?: () => void }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' }
   | { type: 'store' }
   | { type: 'contact' }

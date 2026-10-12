@@ -5,11 +5,11 @@ const STATIC_ASSETS = __STATIC_ASSETS__;
 const ALLOWED = new Set([...PRECACHE, ...STATIC_ASSETS]);
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
+  const activation = self.skipWaiting();
+  event.waitUntil(Promise.all([activation, (async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(PRECACHE);
-    await self.skipWaiting();
-  })());
+  })()]));
 });
 
 self.addEventListener('activate', (event) => {
