@@ -11,6 +11,11 @@ import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+
+async function copyCurrency(db: Prisma.TransactionClient, storeId: string, explicit?: string | null) {
+  if (explicit === "ARS" || explicit === "USD") return explicit;
+  return storeCurrency(storeId, db);
+}
 import { cancelledInventoryRecord, noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 import { MISSING_OUTGOING_PRICE, outgoingTradeDifference } from "./outgoing-difference.js";
 import { parseQuality } from "../inventory/quality.js";
@@ -411,6 +416,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
+    const labelCurrency = await copyCurrency(tx, storeId, currency);
     if (input.tradeIn) await assertCategory(tx, storeId, "tradeins", input.categoryId);
     else if (source === "tradeins") await assertCategory(tx, storeId, "tradeins", input.categoryId);
     else await assertCategory(tx, storeId, "sales", input.saleCategoryId ?? input.categoryId);
@@ -475,6 +481,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         receivedDevice: trade.deviceReceived,
         takeValue: toNum(trade.takeValue),
         difference: input.amount === undefined ? null : input.amount - input.tradeIn.takeValue,
+        currency: labelCurrency,
       }, { tradeins: trade.id }));
       return { tradeIn: serializeTrade(trade), inventory: [], clients: [], notifications, summary: "Borrador de canje guardado" };
     }
@@ -613,6 +620,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         difference: trade ? toNum(trade.differencePaid) : null,
         receivedDevice: incoming?.model ?? null,
         soldDevice: product ? saleLabel : null,
+        currency: labelCurrency,
       },
       { sales: sale.id, inventory: incoming?.id ?? product?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: client?.id ?? sale.id },
       { targets: { inventory: noticeTargets([
@@ -620,7 +628,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
       ]) } },
     ));
-    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming }) };
+    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, status: input.status ?? "COMPLETADA", hasInventory: !!product, received: !!incoming, currency: labelCurrency }) };
   });
 }
 
@@ -632,6 +640,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     if (priorSale) return replaySaleResult(tx, storeId, priorSale, "Canje ya confirmado");
     if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje no esta pendiente", 409);
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
+    const labelCurrency = await copyCurrency(tx, storeId, currency);
     const saleCategoryId = input.saleCategoryId !== undefined ? input.saleCategoryId : trade.draftSaleCategoryId;
     await assertCategory(tx, storeId, "sales", saleCategoryId);
     if (input.categoryId !== undefined) await assertCategory(tx, storeId, "tradeins", input.categoryId);
@@ -771,6 +780,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       difference: outgoingAmount - takeValue,
       receivedDevice: received.model,
       soldDevice: product ? saleLabel : null,
+      currency: labelCurrency,
     }, {
       tradeins: trade.id,
       sales: sale.id,
@@ -786,7 +796,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       inventory: [outputState, received].filter(present).map(serializeProduct),
       clients: updatedClient ? [serializeClient(updatedClient)] : [],
       notifications,
-      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, status: paymentStatus, hasInventory: !!product, received: true }),
+      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, status: paymentStatus, hasInventory: !!product, received: true, currency: labelCurrency }),
     };
   });
 }
@@ -807,6 +817,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const amountChanges = input.amount !== undefined && moneyChanged(sale.amount, input.amount);
     const takeChanges = Boolean(trade && nextTradeInput?.takeValue !== undefined && moneyChanged(trade.takeValue, nextTradeInput.takeValue));
     const nextCurrency = currencyOnWrite(input.currency, amountChanges || takeChanges, amountChanges || takeChanges ? await storeCurrency(storeId, tx) : "ARS");
+    const labelCurrency = await copyCurrency(tx, storeId, nextCurrency ?? sale.amountCurrency ?? trade?.currency);
     if (trade && nextAmount < nextTakeValue) {
       assertTradeDifference({
         registered: Boolean(input.productId === undefined ? sale.inventoryItemId : input.productId?.trim()),
@@ -942,6 +953,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       receivedDevice: incoming?.model ?? null,
       soldDevice: output?.status === "VENDIDO" ? fullDeviceLabel(output) : null,
       releasedDevice: released ? fullDeviceLabel(released) : null,
+      currency: labelCurrency,
     }, { sales: sale.id, inventory: incoming?.id ?? output?.id ?? released?.id ?? sale.id, tradeins: trade?.id ?? sale.id, clients: nextClientId ?? sale.id }, {
       targets: { inventory: noticeTargets([
         { recordId: output?.status === "VENDIDO" ? output.id : null, reason: "Vendido" },
@@ -949,7 +961,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
       ]) },
     }));
-    return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : {}), inventory: [output, released, incoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: !!trade, amount: nextAmount, takeValue: trade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: !!trade })} · operación actualizada` };
+    return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : {}), inventory: [output, released, incoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: !!trade, amount: nextAmount, takeValue: trade ? nextTakeValue : undefined, status: nextStatus, hasInventory: !!nextProduct, received: !!trade, currency: labelCurrency })} · operación actualizada` };
   });
 }
 
@@ -1000,11 +1012,13 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
         dateLabel: input.date ? formatArDate(parseArDateOr(input.date)) : trade.dateLabel, tradeAt: input.date ? parseArDateOr(input.date) : trade.tradeAt,
       } });
+      const labelCurrency = await copyCurrency(tx, storeId, trade.currency);
       const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
         action: "draft-updated",
         receivedDevice: updated.deviceReceived,
         takeValue: toNum(updated.takeValue),
         difference: updated.draftAmount == null ? null : toNum(updated.draftAmount) - toNum(updated.takeValue),
+        currency: labelCurrency,
       }, { tradeins: trade.id }));
       return { tradeIn: serializeTrade(updated), inventory: [], clients: [], notifications, summary: "Borrador de canje actualizado" };
     });
@@ -1084,8 +1098,8 @@ async function recordCancellationRefund(
   return refund.toNumber();
 }
 
-function refundSummary(refund: number) {
-  return refund > 0 ? ` · devolución ${formatArMoney(refund)}` : "";
+function refundSummary(refund: number, currency?: string | null) {
+  return refund > 0 ? ` · devolución ${formatArMoney(refund, currency)}` : "";
 }
 
 export async function cancelSaleOperation(storeId: string, saleId: string, actor?: Actor | null) {
@@ -1095,6 +1109,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     if (!sale.integratedOperation) throw new OperationError("Esta venta no pertenece a una operación integrada", 409);
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
     if (sale.status === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
+    const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
     const refund = await recordCancellationRefund(tx, storeId, sale.clientId, {
       status: sale.status,
       cash: toNum(sale.amount),
@@ -1105,7 +1120,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
     const stamp = cancellationStamp(actor);
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
-    const detail = refund > 0 ? `Devolución ${formatArMoney(refund)}` : null;
+    const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
     const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1) : null;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
@@ -1119,10 +1134,11 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
         pendingBalance: client ? toNum(client.pendingBalance) : null,
         refund,
         releasedDevice: product ? fullDeviceLabel(product) : null,
+        currency: labelCurrency,
       },
       { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id },
     ));
-    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}${refundSummary(refund)}` };
+    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
   });
 }
 
@@ -1149,6 +1165,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     if (trade.confirmationStatus == null) throw new OperationError("Este canje histórico no pertenece a una operación integrada", 409);
     if (trade.confirmationStatus === "CANCELLED") return { tradeIn: serializeTrade(trade), inventory: [], clients: [], notifications: [], summary: "Canje ya cancelado" };
     const sale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
+    const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
     if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
     const refund = sale
@@ -1164,7 +1181,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", ...stamp } });
-    const detail = refund > 0 ? `Devolución ${formatArMoney(refund)}` : null;
+    const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
     if (actor) {
       await writeAudit(tx, { storeId, actor, action: "trade.cancelled", entityType: "trade", entityId: trade.id, detail });
       if (sale) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
@@ -1191,6 +1208,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         receivedDevice: trade.deviceReceived,
         archivedDevice: archivedReceived?.model ?? received?.model ?? null,
         releasedDevice: output ? fullDeviceLabel(output) : null,
+        currency: labelCurrency,
       },
       { tradeins: trade.id, sales: sale?.id ?? trade.id, inventory: cancelledInventoryRecord(trade.id, output), clients: client?.id ?? trade.id },
       {
@@ -1201,7 +1219,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         ]) } } : {}),
       },
     ));
-    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund)}` };
+    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
   });
 }
 

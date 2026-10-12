@@ -15,7 +15,11 @@ function detail(item: Product): string {
   return parts.join(' · ');
 }
 
-export function priceListMessage(items: Product[], storeName?: string, formatPrice: (item: Product) => string = (item) => formatMoney(item.price)): string {
+function listedPrice(item: Product) {
+  return formatMoney(item.price, item.currency === 'USD' ? 'USD' : 'ARS');
+}
+
+export function priceListMessage(items: Product[], storeName?: string, formatPrice: (item: Product) => string = listedPrice): string {
   const store = storeName?.trim();
   const title = store ? `Lista de precios — ${store}` : 'Lista de precios';
   if (items.length === 0) return `${title}\n\nNo hay equipos para mostrar.`;

@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../../services/operations-api';
 import { DeskProvider } from '../ui';
 import { NotificationsScreen } from './AccountScreens';
@@ -168,5 +168,50 @@ describe('Notifications on a phone', () => {
 
     await user.click(screen.getByRole('button', { name: /Equipo vendido/ }));
     expect(context.markNotificationRead).toHaveBeenCalledWith('inv');
+  });
+});
+
+function installMatchMedia(phone: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: phone && String(query).includes('760'),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+describe('Notifications keep the store currency', () => {
+  beforeEach(() => {
+    installMatchMedia(false);
+  });
+
+  afterEach(() => {
+    context.operationNotifications = [];
+  });
+
+  function dollarNotices() {
+    context.operationNotifications = [
+      note({ id: 'trade', section: 'tradeins', title: 'Canje confirmado', message: 'iPhone 11 · toma US$ 200 · diferencia US$ 875' }),
+      note({ id: 'client', section: 'clients', title: 'Cliente', message: 'Ana Pérez compró por US$ 1.075' }),
+    ];
+  }
+
+  it('shows dollar trade and purchase notices on desktop', () => {
+    dollarNotices();
+    renderScreen();
+    expect(screen.getByRole('button', { name: /toma US\$ 200 · diferencia US\$ 875/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /compró por US\$ 1\.075/ })).toBeInTheDocument();
+  });
+
+  it('shows dollar trade and purchase notices on a phone', () => {
+    installMatchMedia(true);
+    dollarNotices();
+    renderScreen();
+    expect(screen.getByTestId('notification-groups')).toHaveTextContent('toma US$ 200');
+    expect(screen.getByTestId('notification-groups')).toHaveTextContent('compró por US$ 1.075');
   });
 });

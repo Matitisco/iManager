@@ -10,6 +10,10 @@ describe("section operation copy", () => {
     expect(sectionCopy("clients", { action: "cancelled", clientName: "Juan Pérez", pendingBalance: 0, refund: 300 }).message).toBe("Juan Pérez quedó al día. Devolución $ 300");
     expect(sectionCopy("sales", { action: "created", deviceLabel: "iPhone 13", clientName: "Juan Pérez", amount: 50000 }).message).toBe("iPhone 13 · Juan Pérez · $ 50.000");
     expect(sectionCopy("tradeins", { action: "confirmed", receivedDevice: "iPhone 13", takeValue: 20000, difference: 30000 }).message).toBe("iPhone 13 · toma $ 20.000 · diferencia $ 30.000");
+    expect(sectionCopy("clients", { action: "created", clientName: "Ana Pérez", amount: 1075, currency: "USD" }).message).toBe("Ana Pérez compró por US$ 1.075");
+    expect(sectionCopy("tradeins", { action: "confirmed", receivedDevice: "iPhone 11", takeValue: 200, difference: 875, currency: "USD" }).message).toBe("iPhone 11 · toma US$ 200 · diferencia US$ 875");
+    expect(sectionCopy("sales", { action: "created", deviceLabel: "iPhone 14", clientName: "Ana Pérez", amount: 1075, currency: "USD" }).message).toBe("iPhone 14 · Ana Pérez · US$ 1.075");
+    expect(sectionReason("clients", { action: "created", pendingBalance: 875, currency: "USD" })).toBe("Debe US$ 875");
   });
 
   it("keeps a distinct title and message on every section of the same operation", () => {
@@ -44,6 +48,8 @@ describe("section operation copy", () => {
   it("formats the operation toast in es-AR and marks an archived trade receipt", () => {
     expect(operationSummary({ trade: false, amount: 1200, status: "COMPLETADA", hasInventory: true })).toBe("Venta $ 1.200 · deuda $ 0 · stock vendido");
     expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · recibido en revisión");
+    expect(operationSummary({ trade: true, amount: 1075, takeValue: 200, status: "COMPLETADA", hasInventory: false, currency: "USD" })).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada");
+    expect(operationSummary({ trade: false, amount: 1075, status: "COMPLETADA", hasInventory: true, currency: "USD" })).toBe("Venta US$ 1.075 · deuda US$ 0 · stock vendido");
     const [notice] = sectionRecords(["inventory"], { action: "cancelled", archivedDevice: "iPhone 11" }, { inventory: "trade-1", tradeins: "trade-1" }, { archiveReceived: true });
     expect(notice).toMatchObject({ message: "iPhone 11 archivado", kind: "ARCHIVED_TRADE_IN_RECEIVED" });
     expect(cancelledInventoryRecord("trade-1", null)).toBe("trade-1");

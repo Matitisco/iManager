@@ -58,6 +58,11 @@ describe('priceListMessage', () => {
     ].join('\n'));
   });
 
+  it('prints a dollar price with the store mark', () => {
+    const message = priceListMessage([product({ price: 1075, currency: 'USD' })]);
+    expect(message).toContain('US$ 1.075');
+  });
+
   it('says the list is empty', () => {
     expect(priceListMessage([])).toBe('Lista de precios\n\nNo hay equipos para mostrar.');
   });

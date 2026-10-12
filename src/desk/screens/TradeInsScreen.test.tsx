@@ -4,6 +4,7 @@ import { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TradeIn } from '../../types';
 import type { CatalogOption } from '../../services/catalogs-api';
+import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { TradeInsScreen } from './TradeInsScreen';
 
@@ -299,5 +300,65 @@ describe('Trade-ins on a phone', () => {
     expect(screen.getByText('Canjes pendientes de confirmar')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Retomar/ }));
     expect(open).toHaveBeenLastCalledWith({ type: 'edit-cj', id: '4', source: 'tradeins' });
+  });
+});
+
+const USD_STORE = { currency: 'USD' as const, exchangeMode: 'manual' as const, exchangeSource: 'blue' as const, manualBuy: 1000, manualSell: 1000 };
+
+function renderDollarStore() {
+  return render(
+    <ExchangeProvider settings={USD_STORE}>
+      <DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false, back: vi.fn() }}>
+        <TradeInsScreen />
+      </DeskProvider>
+    </ExchangeProvider>,
+  );
+}
+
+function installMatchMedia(phone: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: phone && String(query).includes('760'),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+describe('Trade-ins in a dollar store', () => {
+  beforeEach(() => {
+    installMatchMedia(false);
+    state.tradeIns = [trade(1, {
+      clientName: 'Ana Pérez',
+      deviceReceived: 'iPhone 11',
+      deviceGiven: 'iPhone 14',
+      takeValue: 200,
+      differencePaid: 875,
+      status: 'APROBADO',
+      confirmationStatus: 'CONFIRMED',
+    })];
+    state.operationDrafts = [];
+    state.catalog = { ready: true, options: [
+      { id: 'approved', kind: 'TRADE_IN_STATUS', value: 'APROBADO', label: 'Aprobado', color: '#25A66A', isSystem: true, sortOrder: 0, count: 1 },
+    ] };
+  });
+
+  it('shows US$ with Argentine grouping on the desktop table', () => {
+    renderDollarStore();
+    const table = screen.getByRole('table', { name: 'Canjes' });
+    expect(table).toHaveTextContent('US$ 200');
+    expect(table).toHaveTextContent('Dif. US$ 875');
+  });
+
+  it('shows US$ with Argentine grouping on the phone timeline', () => {
+    installMatchMedia(true);
+    renderDollarStore();
+    const timeline = screen.getByTestId('tradeins-timeline');
+    expect(timeline).toHaveTextContent('US$ 200');
+    expect(timeline).toHaveTextContent('dif. US$ 875');
+    expect(screen.queryByRole('columnheader', { name: /Canje/ })).not.toBeInTheDocument();
   });
 });
