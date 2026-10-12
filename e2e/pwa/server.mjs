@@ -48,4 +48,4 @@ createServer((req, res) => {
     return;
   }
   return spa(req, res);
-}).listen(4192, '127.0.0.1');
+}).listen(Number(process.env.PLAYWRIGHT_PWA_PORT || 4192), '127.0.0.1');

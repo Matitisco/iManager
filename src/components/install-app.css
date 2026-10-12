@@ -31,7 +31,7 @@
 
 .pwa-install.compact { left: auto; padding: 0; border-radius: 14px; }
 .desk-app .pwa-install.compact .pwa-action { margin: 0; width: auto; min-height: 44px; padding: 12px 18px; }
-/* Android's install action stays in the page flow, above the header, so it never covers Importar or the dock. */
+/* Android installation stays in the page flow, above the content heading. */
 .pwa-install.banner {
   position: relative;
   top: auto;
@@ -48,15 +48,27 @@
   border-left: 0;
   border-right: 0;
   border-top: 0;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 12px;
+  padding: 10px 12px 12px;
 }
 .pwa-install.banner.compact {
   left: auto;
   right: auto;
   width: auto;
   border-radius: 0;
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+  padding: 8px 12px;
 }
 .desk-app .pwa-install.banner .pwa-action { margin-top: 12px; }
 .desk-app .pwa-install.banner.compact .pwa-action { margin: 0; width: 100%; }
-.desk-app:has(.pwa-install.banner) .mhead { padding-top: 8px; }
+
+/* Manual Android invitation belongs to the Dashboard content, before its heading. */
+.pwa-install.manual {
+  margin: 12px 16px 4px; padding: 16px 46px 16px 12px;
+  border: 0; border-radius: 20px; background: #16181D; color: #fff;
+  box-shadow: 0 10px 24px rgb(22 24 29 / 16%);
+}
+.pwa-install.manual .pwa-heading { padding: 0; }
+.pwa-install.manual .pwa-heading h2 { font-size: 16px; }
+.pwa-install.manual .pwa-heading p { font-size: 14px; color: #D1D4D9; line-height: 1.4; }
+.pwa-install.manual .pwa-heading b { color: #FFD000; }
+.pwa-install.manual .pwa-close { color: #9CA2AD; top: 4px; right: 4px; min-width: 44px; min-height: 44px; }
+.pwa-menu { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 22px; border-radius: 7px; background: #FFD000; color: #16181D; font-size: 22px; font-weight: 800; vertical-align: middle; }

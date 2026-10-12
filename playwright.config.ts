@@ -41,7 +41,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         ...process.env,
-        PORT: '3100',
+        PORT: new URL(DEFAULT_BACKEND_URL).port || '3100',
         NODE_ENV: 'test',
         DATABASE_URL: DEFAULT_DATABASE_URL,
         ENABLE_TEST_AUTH_BYPASS: 'true',
@@ -51,7 +51,7 @@ export default defineConfig({
       },
     },
     {
-      command: `${resolveBin('npx')} vite --host 127.0.0.1 --port 4173`,
+      command: `${resolveBin('npx')} vite --host 127.0.0.1 --port ${new URL(DEFAULT_FRONTEND_URL).port || '4173'}`,
       cwd: repoRoot,
       url: DEFAULT_FRONTEND_URL,
       reuseExistingServer: false,

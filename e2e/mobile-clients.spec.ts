@@ -235,6 +235,8 @@ test.describe('clients on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/clients-390-detail.png` });
     await detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' }).click();
+    // The payment is async; wait for persisted state before opening the editor.
+    await expect(detail.locator('.dhero .big')).toHaveText('US$ 0');
     await expect(detail.getByText('Efectivo')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
 

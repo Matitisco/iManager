@@ -105,7 +105,7 @@ describe('mobile installation invitation', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Instalar app' })));
     expect(screen.getByRole('alert')).toHaveTextContent('menú de tu navegador');
     expect(screen.queryByRole('button', { name: 'Instalar app' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Ahora no, no volver a mostrar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'No volver a mostrar la instalación' }));
     expect(screen.queryByTestId('install-app')).toBeNull();
   });
   it('resets the delay while a business overlay is open', () => {
@@ -152,4 +152,34 @@ it('does not suppress the iOS guide when Android was dismissed', () => {
   localStorage.setItem(pwa.INSTALL_DISMISSED_KEYS.android, 'yes');
   render(<InstallApp />); elapsed();
   expect(screen.getByTestId('install-app')).toContainHTML('Compartir');
+});
+
+for (const browser of ['Android Chrome/130', 'Android Firefox/130']) {
+  it(`shows a delayed manual dashboard card without a native prompt in ${browser}`, () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(browser);
+    const view = render(<InstallApp />);
+    elapsed(29_999); expect(screen.queryByTestId('install-app')).toBeNull();
+    elapsed(1);
+    expect(screen.getByTestId('install-app')).toHaveTextContent('Instalá iManager');
+    expect(screen.getByTestId('install-app')).toHaveTextContent('Agregar a pantalla principal');
+    expect(screen.queryByRole('button', { name: 'Instalar app' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'No volver a mostrar la instalación' }));
+    view.unmount(); render(<InstallApp />); elapsed();
+    expect(screen.queryByTestId('install-app')).toBeNull();
+  });
+}
+it('does not invite manually outside Dashboard or on a desktop browser with a phone viewport', () => {
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android Chrome/130');
+  const view = render(<InstallApp dashboard={false} />); elapsed();
+  expect(screen.queryByTestId('install-app')).toBeNull();
+  view.unmount(); vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Windows Chrome/130');
+  render(<InstallApp />); elapsed(); expect(screen.queryByTestId('install-app')).toBeNull();
+});
+it('switches from manual instructions to the installer when the deferred event arrives late', () => {
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android Chrome/130');
+  pwa.initializeInstallEvents(); render(<InstallApp />); elapsed();
+  expect(screen.getByTestId('install-app')).toHaveTextContent('Agregar a pantalla principal');
+  promptEvent();
+  expect(screen.getByRole('button', { name: 'Instalar app' })).toBeVisible();
+  expect(screen.getByTestId('install-app')).not.toHaveTextContent('Agregar a pantalla principal');
 });
