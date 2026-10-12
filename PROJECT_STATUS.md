@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-04-19**
 
+## Issue #286 — Detalle de venta compacto — 2026-10-12
+
+- El detalle agrupa los datos del canje en dos columnas. El cuerpo tiene scroll propio y las acciones permanecen visibles en el footer en desktop y mobile, con botones de al menos 48 px y safe area inferior. Conserva textos, permisos y operaciones existentes; solo frontend.
+- Validación: lint frontend/backend, build y 478 tests frontend aprobados. Seis escenarios Playwright aprobados, incluidas regresiones de ventas/canjes y layout en WebKit a 1440×900 e iPhone 13 con viewport 390×844. El footer permanece fijo también al forzar scroll con 500 px de altura; sin overflow horizontal.
+- Capturas generadas e inspeccionadas en `docs/pr-shots/issue-286-desktop.png` y `docs/pr-shots/issue-286-mobile-iphone.png`: las cuatro acciones visibles sin scroll. Regenerar con `ISSUE_286_SHOTS=docs/pr-shots npm run test:e2e -- e2e/sale-detail-layout.spec.ts` usando una base local de pruebas. Validación local en `imanager_issue286_test`, con puertos temporales 3119/4189 por colisión con los habituales.
+- Commit en la rama actual, sin push, según el pedido de esta issue.
+
 ## Issue #290 — PWA instalable — 2026-10-12
 
 - Manifest completo y assets del logo propuesta 3: íconos normales/maskable, Apple touch y 26 splash screens de iPhone. Guía Safari ilustrada y prompt Android después de 30 s con sesión/tienda lista; descarte persistente, sin invitación en desktop/standalone.

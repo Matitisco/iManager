@@ -390,7 +390,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const sold = inventory.find((item) => item.id === sale.productId);
   const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
   return (
-    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet">
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet">
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
@@ -399,14 +399,17 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
-      {linkedTrade ? <>
-        <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
-        <div className="kv"><span>Calidad recibida</span><b>{tradeQuality(linkedTrade.grade) ? qualityDetail(tradeQuality(linkedTrade.grade)) : '—'}</b></div>
-        <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
-        <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
-        <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
-        <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
-      </> : null}
+      {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
+        <h4>Canje como parte de pago</h4>
+        <div className="sale-detail-trade-grid">
+          <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
+          <div className="kv"><span>Calidad recibida</span><b>{tradeQuality(linkedTrade.grade) ? qualityDetail(tradeQuality(linkedTrade.grade)) : '—'}</b></div>
+          <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
+          <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
+          <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
+          <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
+        </div>
+      </section> : null}
       {sale.status === 'PENDIENTE' ? (
         <div className="sacts">
           {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
