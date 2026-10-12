@@ -1,3 +1,4 @@
+import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import {
   bootstrapStoreViaApi,
@@ -316,7 +317,7 @@ test.describe('reports breakdown for clients and service', () => {
     await openReports(page);
 
     await expect(page.getByRole('combobox', { name: 'Columna de desglose' })).toBeVisible();
-    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Modelo' });
+    await selectDeskOption(page, page.getByRole('combobox', { name: 'Columna de desglose' }), 'Modelo');
     await expect(page.getByRole('heading', { name: 'Por modelo' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Pixel 8: 40%' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'iPhone 13: 60%' })).toBeVisible();
@@ -345,7 +346,7 @@ test.describe('reports breakdown for clients and service', () => {
     await expect(page.getByRole('heading', { name: 'Por estado' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Recibido: 1' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entregado: 1' })).toBeVisible();
-    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Técnico' });
+    await selectDeskOption(page, page.getByRole('combobox', { name: 'Columna de desglose' }), 'Técnico');
     await expect(page.getByRole('button', { name: 'Mora: 1' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Teo: 1' })).toBeVisible();
     if (shots) await page.screenshot({ path: `${shots}/reports-1440-servicio.png`, fullPage: true });
@@ -353,7 +354,7 @@ test.describe('reports breakdown for clients and service', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
     await reportTabs(page).getByRole('button', { name: 'Ventas' }).click();
-    await page.getByRole('combobox', { name: 'Columna de desglose' }).selectOption({ label: 'Modelo' });
+    await selectDeskOption(page, page.getByRole('combobox', { name: 'Columna de desglose' }), 'Modelo');
     await expect(page.getByRole('heading', { name: 'Por modelo' })).toBeVisible();
     expect(await page.locator('.repgrid').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length)).toBe(1);
     expect(await page.locator('.gcomp').evaluate((node) => getComputedStyle(node).flexDirection)).toBe('column');

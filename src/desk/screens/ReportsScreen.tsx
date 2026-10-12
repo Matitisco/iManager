@@ -52,6 +52,7 @@ import { usePhoneLayout } from '../section-notices';
 import { canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { ReportDatePicker } from '../report-date-picker';
+import { DeskSelect } from '../select';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
 const PERIOD_LABEL: Record<PeriodKey, string> = {
@@ -288,20 +289,19 @@ export function ReportsScreen() {
         <div className="gcard">
           <div className="ghd">
             <h3>{model.donutTitle}</h3>
-            <label className="gdim">
+            <div className="gdim">
               <span>Desglose</span>
-              <select
-                aria-label="Columna de desglose"
+              <DeskSelect
+                label="Columna de desglose"
+                sheetTitle="Desglose"
+                options={dimensions.map((item) => ({ value: item.id, label: item.label }))}
                 value={dimension}
-                onChange={(event) => {
-                  const value = event.target.value;
+                onChange={(value) => {
                   setDimensionByTab((current) => ({ ...current, [activeTab]: value }));
                   setCat(null);
                 }}
-              >
-                {dimensions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </label>
+              />
+            </div>
           </div>
           <Donut parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>

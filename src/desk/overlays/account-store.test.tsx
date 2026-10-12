@@ -56,7 +56,8 @@ function renderStore() {
 
 async function fillManualQuote(buy: string, sell: string) {
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByTestId('store-exchange-mode'), 'manual');
+  await user.click(screen.getByTestId('store-exchange-mode'));
+  await user.click(screen.getByRole('option', { name: 'Manual, la carga la tienda' }));
   fireEvent.change(screen.getByTestId('store-manual-buy'), { target: { value: buy } });
   fireEvent.change(screen.getByTestId('store-manual-sell'), { target: { value: sell } });
   await user.click(screen.getByRole('button', { name: 'Guardar' }));

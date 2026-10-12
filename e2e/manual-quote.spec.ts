@@ -1,3 +1,4 @@
+import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail } from './utils';
 
@@ -19,7 +20,7 @@ async function mockDollar(page: Page) {
 async function rejectInvertedQuote(page: Page, dialogName: string) {
   const editor = page.getByRole('dialog', { name: dialogName });
   await expect(editor).toBeVisible();
-  await editor.getByTestId('store-exchange-mode').selectOption('manual');
+  await selectDeskOption(page, editor.getByTestId('store-exchange-mode'), 'Manual, la carga la tienda');
   await editor.getByTestId('store-manual-buy').fill('1400');
   await editor.getByTestId('store-manual-sell').fill('1300');
   await editor.getByTestId('store-manual-sell').scrollIntoViewIfNeeded();

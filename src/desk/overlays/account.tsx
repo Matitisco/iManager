@@ -4,13 +4,13 @@ import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../../services/invitations-api';
 import { formatInputMoney, formatArDate, initials, parseMoney } from '../format';
-import { ImanagerIcon } from '../icons';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { manualQuoteOrderError } from '../../lib/manual-quote';
 import { clearStoreContactOffer, normalizeInstagram, storeContactErrors } from '../../lib/store-contact';
 import { clearBad, shareOrCopy, type FormProps } from './shared';
 import { ROLE_LABEL } from '../../lib/roles';
+import { DeskSelect } from '../select';
 
 export function StoreForm({ run, busy, error }: FormProps) {
   const { appSession, updateStore } = useAppContext();
@@ -39,24 +39,16 @@ export function StoreForm({ run, busy, error }: FormProps) {
       <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       {isPhone ? <h4 className="cfg-h">Moneda y dólar</h4> : null}
       <Field label="Moneda principal">
-        <span className="money-row">
-          <ImanagerIcon name="dolar" size={16} active={currency === 'USD'} />
-          <select data-testid="store-currency" value={currency} onChange={(event) => setCurrency(event.target.value === 'USD' ? 'USD' : 'ARS')}><option value="ARS">ARS</option><option value="USD">USD</option></select>
-        </span>
+        <DeskSelect label="Moneda principal" data-testid="store-currency" value={currency} disabled={busy} onChange={(value) => setCurrency(value === 'USD' ? 'USD' : 'ARS')} options={[{ value: 'ARS', label: 'ARS' }, { value: 'USD', label: 'USD' }]} />
       </Field>
       <Field label="Cotización del dólar">
-        <select data-testid="store-exchange-mode" value={exchangeMode} onChange={(event) => setExchangeMode(event.target.value as 'auto' | 'manual')}>
-          <option value="auto">Automática desde DolarApi</option>
-          <option value="manual">Manual, la carga la tienda</option>
-        </select>
+        <DeskSelect label="Cotización del dólar" data-testid="store-exchange-mode" value={exchangeMode} disabled={busy} onChange={(value) => setExchangeMode(value as 'auto' | 'manual')}
+          options={[{ value: 'auto', label: 'Automática desde DolarApi' }, { value: 'manual', label: 'Manual, la carga la tienda' }]} />
       </Field>
       {exchangeMode === 'auto' ? (
         <Field label="Tipo de dólar">
-          <select data-testid="store-exchange-source" value={exchangeSource} onChange={(event) => setExchangeSource(event.target.value as 'blue' | 'oficial' | 'mep')}>
-            <option value="blue">Blue</option>
-            <option value="oficial">Oficial</option>
-            <option value="mep">MEP</option>
-          </select>
+          <DeskSelect label="Tipo de dólar" data-testid="store-exchange-source" value={exchangeSource} disabled={busy} onChange={(value) => setExchangeSource(value as 'blue' | 'oficial' | 'mep')}
+            options={[{ value: 'blue', label: 'Blue' }, { value: 'oficial', label: 'Oficial' }, { value: 'mep', label: 'MEP' }]} />
         </Field>
       ) : (
         <div className="frow">
