@@ -287,7 +287,11 @@ test.describe('settings on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
 
     await page.setViewportSize({ width: 360, height: 800 });
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.evaluate(() => {
+      const stage = document.querySelector('.stage');
+      if (stage instanceof HTMLElement) stage.scrollTop = stage.scrollHeight;
+      window.scrollTo(0, Math.max(document.body.scrollHeight, document.documentElement.scrollHeight));
+    });
     const logoutBox = await page.getByTestId('settings-logout').boundingBox();
     const logoutTab = await page.getByTestId('mobile-tab-bar').boundingBox();
     expect(logoutBox && logoutTab && logoutBox.y + logoutBox.height <= logoutTab.y + 1).toBeTruthy();

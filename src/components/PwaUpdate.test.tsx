@@ -4,7 +4,9 @@ import { PwaUpdate } from './PwaUpdate';
 
 const watcher = vi.hoisted(() => ({ update: () => {}, safe: false }));
 vi.mock('../lib/pwa-update', () => ({
+  appBuildId: () => 'test-build',
   watchControllerUpdates: (_worker: unknown, update: () => void) => { watcher.update = update; return vi.fn(); },
+  watchVersionUpdates: () => vi.fn(),
   watchUpdateSafety: () => ({ isSafe: () => watcher.safe, dispose: vi.fn() }),
 }));
 afterEach(() => vi.unstubAllGlobals());

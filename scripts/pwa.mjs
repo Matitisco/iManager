@@ -11,10 +11,14 @@ export function createServiceWorker(version, precache, staticAssets) {
 
 /** @returns {import('vite').Plugin} */
 export function pwaPlugin() {
+  const buildId = createHash('sha256').update(`${Date.now()}:${Math.random()}`).digest('hex').slice(0, 16);
   return {
     name: 'imanager-pwa',
     apply: 'build',
     enforce: 'post',
+    config() {
+      return { define: { __IMANAGER_BUILD_ID__: JSON.stringify(buildId) } };
+    },
     generateBundle(_, bundle) {
       const hash = createHash('sha256');
       hash.update(readFileSync(new URL('./service-worker.js', import.meta.url)));
@@ -29,6 +33,7 @@ export function pwaPlugin() {
       }
       for (const name of staticAssets) hash.update(readFileSync(join('public', name)));
       const assets = bundled.filter((name) => name.startsWith('assets/') && !name.endsWith('.map')).map((name) => `/${name}`);
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId }) });
       this.emitFile({
         type: 'asset', fileName: 'sw.js',
         source: createServiceWorker(hash.digest('hex').slice(0, 16), ['/', ...assets], staticAssets),

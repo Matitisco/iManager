@@ -169,9 +169,10 @@ async function controlled(page: Page) {
     return !!navigator.serviceWorker.controller;
   }), { timeout: 30_000 }).toBe(true);
 }
-async function deploy(page: Page) {
-  await page.request.post('/__test__/deploy');
-  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+async function deploy(page: Page, mode = 'all') {
+  await page.request.post(`/__test__/deploy?mode=${mode}`);
+  if (mode !== 'version') await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+  else await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 }
 
 test('new worker preserves modal input, shows update toast and reloads automatically when the modal closes', async ({ page }, info) => {
@@ -204,6 +205,37 @@ test('a new release reloads an idle tab without a hard refresh', async ({ page }
   await deploy(page); await navigation;
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(page.getByTestId('pwa-update-toast')).toHaveCount(0);
+});
+
+test('version.json reloads an idle tab when the worker never claims the open page', async ({ page }) => {
+  await session(page);
+  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
+  await deploy(page, 'version');
+  await navigation;
+  await expect(page.locator('.desk-app')).toBeVisible();
+  await expect(page.getByTestId('pwa-update-toast')).toHaveCount(0);
+});
+
+test('version.json keeps an open draft and reloads once the form closes', async ({ page }) => {
+  await session(page);
+  await page.goto('/#/ven');
+  await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+  await page.getByRole('button', { name: 'Registrar venta', exact: true }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
+  const draft = dialog.getByRole('combobox', { name: 'Cliente' });
+  await draft.fill('Borrador de venta sin guardar');
+  await deploy(page, 'version');
+  const toast = page.getByTestId('pwa-update-toast');
+  await expect(toast).toContainText('Nueva versión disponible · Actualizar');
+  await expect(draft).toHaveValue('Borrador de venta sin guardar');
+  await toast.getByRole('button', { name: 'Actualizar' }).click();
+  await expect(toast).toContainText('Guardá o cerrá el formulario');
+  await expect(draft).toHaveValue('Borrador de venta sin guardar');
+  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await navigation;
+  await expect(page.locator('.desk-app')).toBeVisible();
+  await expect(toast).toHaveCount(0);
 });
 
 test('mobile Desglose backdrop consumes pointerdown and click over report tabs', async ({ page }, info) => {
