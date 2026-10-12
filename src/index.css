@@ -5,3 +5,16 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
+/* viewport-fit=cover: existing phone headers/docks own top and bottom insets. */
+@media (display-mode: standalone) {
+  html { background: #F7F8FA; }
+  body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  [data-testid="auth-screen"], [data-testid="onboarding-screen"] { padding-top: env(safe-area-inset-top, 0px); }
+}
+/* Older iOS exposes navigator.standalone without the display-mode media query. */
+html.ios-standalone { background: #F7F8FA; }
+html.ios-standalone body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+html.ios-standalone [data-testid="auth-screen"], html.ios-standalone [data-testid="onboarding-screen"] { padding-top: env(safe-area-inset-top, 0px); }
+html.ios-standalone .desk-app { width: 100%; }
+html.ios-standalone .mtab { left: calc(10px + env(safe-area-inset-left, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); }

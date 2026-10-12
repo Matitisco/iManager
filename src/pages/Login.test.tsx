@@ -5,6 +5,11 @@ import { markPasswordResetNotice } from '../lib/password-reset-notice';
 import { Login } from './Login';
 
 const sendPasswordResetEmail = vi.hoisted(() => vi.fn());
+const completeGoogleRedirect = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('../services/auth-adapter', () => ({
+  getAuthAdapter: () => ({ completeGoogleRedirect }),
+}));
 
 vi.mock('firebase/auth', () => ({
   sendPasswordResetEmail,
@@ -59,6 +64,15 @@ describe('Login', () => {
     mockInvitationState.isLoading = false;
     mockInvitationState.isRetrying = false;
     sendPasswordResetEmail.mockReset();
+    completeGoogleRedirect.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('shows a redirect error after returning from Google and allows email login', async () => {
+    completeGoogleRedirect.mockRejectedValue({ code: 'auth/network-request-failed' });
+    render(<Login />);
+    await waitFor(() => expect(screen.getByTestId('login-error')).toBeVisible());
+    expect(screen.getByTestId('login-submit')).toBeEnabled();
+    expect(screen.getByTestId('login-google')).toBeEnabled();
   });
 
   it('shows a success notice after the password was reset', () => {

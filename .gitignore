@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+.pwa-test-dist/
 coverage/
 playwright-report/
 test-results/

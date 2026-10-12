@@ -168,7 +168,7 @@ function AppContent() {
 
   return (
     <>
-      <DeskApp />
+      <DeskApp installEnabled={!showInviteModal} />
 
       {showInviteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 max-[760px]:items-end max-[760px]:px-0">

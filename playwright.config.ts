@@ -17,6 +17,7 @@ function resolveBin(bin: string) {
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/pwa/**',
   timeout: 60_000,
   expect: {
     timeout: 10_000,
