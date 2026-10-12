@@ -12,3 +12,4 @@
 - [x] Mostrar el estado técnico guardado en el aviso de operación.
 - [x] Corregir cobertura del overlay y footer mobile.
 - [x] Agregar regresiones, ejecutar lint y suites; capturas a 1440×900 y 390×844.
+- [x] Corregir las regresiones CI: copy de cancelación completa, cobertura de Settings y cierre de OT en el walkthrough; validar los specs afectados.

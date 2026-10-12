@@ -1271,7 +1271,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         ]) } } : {}),
       },
     ));
-    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Canje cancelado · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
+    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Operación cancelada · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}` };
   });
 }
 

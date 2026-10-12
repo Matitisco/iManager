@@ -28,7 +28,11 @@ El sistema SHALL mostrar los estados, mensajes y avisos coherentes con la operac
 
 #### Scenario: Canje quitado de una venta
 - **WHEN** se quita un canje de una venta activa y se recarga el historial
-- **THEN** la fila indica Canje quitado de la venta V-XXXX conservando el número de la venta; otras cancelaciones indican Canje cancelado
+- **THEN** la fila indica Canje quitado de la venta V-XXXX conservando el número de la venta; otras cancelaciones indican Operación cancelada
+
+#### Scenario: Cancelar la operación completa
+- **WHEN** se cancela la operación completa de un canje sin quitarlo de una venta activa
+- **THEN** el aviso, la fila del historial y el detalle indican Operación cancelada
 
 #### Scenario: Aviso al guardar canje
 - **WHEN** se guarda una operación con canje

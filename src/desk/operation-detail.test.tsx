@@ -193,6 +193,7 @@ describe('operation detail', () => {
     renderOverlay({ type: 'cj', id: 't1' });
 
     expect(screen.getByText('Aprobado')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Operación cancelada');
     expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();

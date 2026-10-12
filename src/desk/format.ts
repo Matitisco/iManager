@@ -184,7 +184,7 @@ export function tradeClientLabel(trade: { clientId?: string; clientName?: string
 export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumber'>): string {
   return trade.removedFromSaleNumber != null
     ? `Canje quitado de la venta V-${String(trade.removedFromSaleNumber).padStart(4, '0')}`
-    : 'Canje cancelado';
+    : 'Operación cancelada';
 }
 
 export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {

@@ -341,8 +341,14 @@ test.describe('trade-ins on a phone', () => {
     await expect(again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
     await again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' }).click();
     await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
+    await expect(page.locator('.toast.show')).toContainText('Operación cancelada');
     await expect(page.locator('.toast.show')).toBeHidden();
     await expect(card.getByText('Operación cancelada')).toBeVisible();
+    await card.click();
+    const cancelled = page.getByRole('dialog', { name: new RegExp(clientName) });
+    await expect(cancelled).toContainText('Operación cancelada');
+    await cancelled.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
+    await expect(cancelled).toBeHidden();
     await expectFits(page);
 
     await page.setViewportSize({ width: 360, height: 800 });

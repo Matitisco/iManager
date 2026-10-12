@@ -63,6 +63,7 @@ describe("integrated operation API", () => {
 
     const cancelled = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/cancel`, headers, payload: {} });
     expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json().summary).toBe("Operación cancelada · equipo recibido archivado · salida restaurada · saldo revertido");
     expect(cancelled.json().inventory).toHaveLength(2);
     expect(cancelled.json().inventory.some((item: { archivedAt: string | null }) => item.archivedAt)).toBe(true);
     expect((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).pendingBalance.toNumber()).toBe(0);

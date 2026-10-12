@@ -54,7 +54,7 @@ describe('Trade-ins table', () => {
     renderScreen();
     const removed = rows().find((row) => row.textContent?.includes('Recibido 1'))!;
     expectCancelledPresentation(removed);
-    expect(screen.getByText('Canje cancelado')).toBeInTheDocument();
+    expect(screen.getByText('Operación cancelada')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelado' }));
     expect(rows()).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Cancelado' })).toHaveAttribute('aria-pressed', 'true');
