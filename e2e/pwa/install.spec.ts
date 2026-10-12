@@ -8,6 +8,13 @@ async function screenshot(page: Page, name: string) {
   await mkdir(shotDir, { recursive: true });
   await page.screenshot({ path: `${shotDir}/${name}`, animations: 'disabled' });
 }
+async function qaScreenshot(page: Page, name: string) {
+  const dir = process.env.ISSUE_300_QA_SHOTS;
+  if (!dir) return;
+  await mkdir(dir, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${dir}/issue-300-qa-${name}.png`, animations: 'disabled' });
+}
 
 async function session(page: Page) {
   await page.route('**/api/**', async (route) => {
@@ -230,14 +237,77 @@ test('version.json keeps an open draft and reloads once the form closes', async 
   const toast = page.getByTestId('pwa-update-toast');
   await expect(toast).toContainText('Nueva versión disponible · Actualizar');
   await expect(draft).toHaveValue('Borrador de venta sin guardar');
-  await toast.getByRole('button', { name: 'Actualizar' }).click();
-  await expect(toast).toContainText('Guardá o cerrá el formulario');
-  await expect(draft).toHaveValue('Borrador de venta sin guardar');
   const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
   await dialog.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
   await navigation;
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(toast).toHaveCount(0);
+});
+
+test.describe('update after persistence', () => {
+  // Keep the delayed POST in Playwright's router. WebKit can otherwise hand it
+  // directly to the worker/server; worker-driven updates are covered above.
+  test.use({ serviceWorkers: 'block' });
+  test('a pending update reloads automatically only after the client save finishes', async ({ page }) => {
+    await session(page);
+    await page.evaluate(() => { window.location.hash = '#/clientes'; });
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
+    let releaseSave!: () => void;
+    let receivedSave!: () => void;
+    const saving = new Promise<void>((resolve) => { receivedSave = resolve; });
+    const gate = new Promise<void>((resolve) => { releaseSave = resolve; });
+    let saved: typeof data.clients[number] | undefined;
+    await page.route('**/api/clients', async (route) => {
+      if (route.request().method() === 'POST') {
+        saved = { ...data.clients[0], ...route.request().postDataJSON(), id: 'qa-saved-client' };
+        receivedSave();
+        await gate;
+        await route.fulfill({ json: { client: saved } });
+      } else await route.fulfill({ json: { clients: saved ? [saved, ...data.clients] : data.clients } });
+    });
+    await page.getByRole('button', { name: 'Nuevo cliente', exact: true }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Nuevo cliente' });
+    await dialog.getByRole('textbox', { name: 'Nombre y apellido', exact: true }).fill('Cliente guardado antes de actualizar');
+    await deploy(page, 'version');
+    const toast = page.getByTestId('pwa-update-toast');
+    await expect(toast).toContainText('Nueva versión disponible · Actualizar');
+    let navigations = 0;
+    page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
+    await dialog.getByRole('button', { name: 'Guardar cliente', exact: true }).click();
+    await saving;
+    // Hold persistence longer than the safety observer's 100 ms debounce.
+    await page.waitForTimeout(300);
+    await expect(dialog).toBeVisible(); await expect(toast).toBeVisible();
+    expect(navigations).toBe(0);
+    const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
+    releaseSave(); await navigation;
+    await expect(page.locator('.desk-app')).toBeVisible();
+    await expect(toast).toHaveCount(0);
+    await expect(page.getByText('Cliente guardado antes de actualizar', { exact: true }).first()).toBeVisible();
+    expect(navigations).toBe(1);
+  });
+});
+
+test('mobile update toast stays above the sales bottom actions', async ({ page }, info) => {
+  test.skip(info.project.name === 'desktop-chromium', 'Mobile geometry');
+  await session(page); await controlled(page);
+  await page.getByTestId('sidebar-tab-sales').tap();
+  await page.getByRole('button', { name: 'Buscar', exact: true }).tap();
+  const search = page.getByPlaceholder('Buscar cliente, equipo o número');
+  await search.fill('Lucía'); await search.blur();
+  await deploy(page, 'version');
+  const toast = page.getByTestId('pwa-update-toast'); await expect(toast).toBeVisible();
+  const dock = page.getByTestId('mobile-dock'); await expect(dock).toBeVisible();
+  const toastBox = (await toast.boundingBox())!;
+  const dockBox = (await dock.boundingBox())!;
+  expect(toastBox.y).toBeGreaterThanOrEqual(12);
+  expect(toastBox.y).toBeLessThan(100);
+  expect(toastBox.y + toastBox.height).toBeLessThan(dockBox.y);
+  await expect(dock.getByRole('button', { name: 'Registrar venta', exact: true })).toBeVisible();
+  await expect(dock.getByRole('button', { name: 'Importar', exact: true })).toBeVisible();
+  if (info.project.name === 'iphone-webkit') await qaScreenshot(page, 'toast-mobile');
+  await dock.getByRole('button', { name: 'Registrar venta', exact: true }).tap();
+  await expect(page.getByRole('dialog', { name: 'Registrar venta' })).toBeVisible();
 });
 
 test('mobile Desglose backdrop consumes pointerdown and click over report tabs', async ({ page }, info) => {

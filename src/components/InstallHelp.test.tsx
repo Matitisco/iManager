@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { useLayoutEffect } from 'react';
 import type * as PWA from '../lib/pwa';
 
 let pwa: typeof PWA;
@@ -96,4 +97,53 @@ it('hides the card on desktop and standalone and after appinstalled', () => {
   render(<InstallCard />); expect(screen.getByTestId('install-card')).toBeVisible();
   act(() => window.dispatchEvent(new Event('appinstalled')));
   expect(screen.queryByTestId('install-card')).toBeNull();
+});
+
+it('includes the card before the first paint and retains its place when installability arrives late', () => {
+  const firstPaint = vi.fn();
+  function More() {
+    useLayoutEffect(() => {
+      firstPaint(document.querySelector('[data-testid="install-card"]')?.nextElementSibling?.textContent);
+    }, []);
+    return <><InstallCard /><button>Perfil</button></>;
+  }
+  render(<More />);
+  expect(firstPaint).toHaveBeenCalledExactlyOnceWith('Perfil');
+  const card = screen.getByTestId('install-card');
+  native();
+  expect(screen.getByTestId('install-card')).toBe(card);
+  expect(card.nextElementSibling).toBe(screen.getByRole('button', { name: 'Perfil' }));
+});
+
+it('closes the iPhone sheet on the first completed pointer gesture and consumes its trailing click', () => {
+  vi.useFakeTimers();
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone Safari/604');
+  const down = vi.fn(); const up = vi.fn(); const click = vi.fn();
+  render(<div onPointerDown={down} onPointerUp={up} onClick={click}><InstallCard /><button>Perfil</button></div>);
+  const install = screen.getByRole('button', { name: 'Instalar' });
+  install.focus(); fireEvent.click(install); click.mockClear();
+  const close = screen.getByRole('button', { name: 'Cerrar ayuda de instalación' });
+  const pressed = new Event('pointerdown', { bubbles: true, cancelable: true });
+  fireEvent(close.querySelector('svg')!, pressed);
+  expect(pressed.defaultPrevented).toBe(true);
+  expect(screen.getByRole('dialog')).toBeVisible();
+  fireEvent.pointerUp(close.querySelector('svg')!);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(install).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+  expect(down).not.toHaveBeenCalled(); expect(up).not.toHaveBeenCalled(); expect(click).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(400));
+  fireEvent.click(install); expect(screen.getByRole('dialog')).toBeVisible();
+  vi.useRealTimers();
+});
+
+it('consumes backdrop gestures without closing on pointerdown or a canceled gesture', () => {
+  vi.useFakeTimers();
+  render(<InstallCard />); fireEvent.click(screen.getByRole('button', { name: 'Instalar' }));
+  const backdrop = screen.getByRole('dialog').parentElement!;
+  fireEvent.pointerDown(backdrop); fireEvent.pointerCancel(backdrop); fireEvent.pointerUp(backdrop);
+  expect(screen.getByRole('dialog')).toBeVisible();
+  fireEvent.pointerDown(backdrop); expect(screen.getByRole('dialog')).toBeVisible();
+  fireEvent.pointerUp(backdrop); expect(screen.queryByRole('dialog')).toBeNull();
+  act(() => vi.advanceTimersByTime(400)); vi.useRealTimers();
 });

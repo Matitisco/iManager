@@ -3,6 +3,15 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-12**
 
+## Issue #300/#299 — Correcciones de QA móvil — 2026-10-12
+
+- El toast de actualización móvil se ubica arriba con `safe-area-inset-top`, dejando libres Registrar venta, Importar y las barras inferiores. Desktop conserva su ubicación. Los tests de producción comprueban recarga automática sin tocar Actualizar al cerrar y después de terminar un guardado; la respuesta POST se retiene más que el debounce para verificar que no interrumpe la persistencia.
+- Más resuelve la visibilidad de Instalar app con un snapshot síncrono de instalación/media query. Las regresiones comprueban la tarjeta antes del primer paint, la posición estable del perfil y el tap inmediato. El callback de cierre de la guía es estable para conservar foco e inert ante cambios del instalador.
+- La X y el backdrop de la guía consumen la secuencia pointerdown/pointerup y el clic posterior. La hoja cierra con un solo tap en Chromium/WebKit, conserva teclado, restaura foco y permite scroll propio; un gesto cancelado del backdrop no cierra.
+- Android sin `beforeinstallprompt` muestra el banner oscuro a los 30 s elegibles en Dashboard. Al salir se desmonta también el contenedor de `AnimatePresence`: el test anterior recargaba antes de comprobar la ausencia y ocultaba la retención de la animación. Ahora verifica Inventario, Ventas, Reportes y Más sin recargar, además de descarte/standalone.
+- Evidencia QA: `docs/pr-shots/issue-300-qa-{toast-mobile,mas,sheet-iphone,android-banner,desktop}.png`. Regenerar con `ISSUE_300_QA_SHOTS=docs/pr-shots PLAYWRIGHT_PWA_PORT=4393 npm run test:pwa:e2e -- --workers=1`. La prueba del POST diferido bloquea el worker solo en ese contexto para que WebKit entregue la petición al router de Playwright; los demás casos de actualización prueban el worker real y el bundle de producción.
+- Validación final: `lint` frontend/backend, `build`, `test` (549 unitarios), `test:pwa` (13), `test:e2e` (132) y `test:pwa:e2e` (45 aprobados, 36 omisiones por plataforma/offline WebKit), sin fallos ni retries. E2E general usa exclusivamente PG local `imanager_issue300_qa_test` y puertos 3301/4301; PWA de producción usa 4393. Commit en `fix/install-help-qa-300`, sin push, según el pedido específico.
+
 ## Issue #300 — Ayuda para instalar la app — 2026-10-12
 
 - Android sin `beforeinstallprompt`, incluido fuera de Chrome, recibe una tarjeta oscura al inicio del Dashboard después de los mismos 30 s elegibles. Conserva icono, menú amarillo, instrucciones, descarte persistente por plataforma y exclusión de standalone. El evento nativo tardío reemplaza la guía por «Instalar app».

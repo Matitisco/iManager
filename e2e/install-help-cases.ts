@@ -13,11 +13,12 @@ async function session(page: Page) {
   await expect(page.locator('.desk-app')).toBeVisible();
 }
 async function shot(page: Page, name: string) {
-  const dir = process.env.ISSUE_300_SHOTS;
+  const dir = process.env.ISSUE_300_QA_SHOTS || process.env.ISSUE_300_SHOTS;
   if (!dir) return;
+  if (process.env.ISSUE_300_QA_SHOTS && name === 'sheet-android') return;
   await page.evaluate(() => document.fonts.ready);
   await mkdir(dir, { recursive: true });
-  await page.screenshot({ path: `${dir}/issue-300-${name}.png`, animations: 'disabled' });
+  await page.screenshot({ path: `${dir}/issue-300-${process.env.ISSUE_300_QA_SHOTS ? 'qa-' : ''}${name}.png`, animations: 'disabled' });
 }
 async function fits(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -62,6 +63,44 @@ export function installHelpTests(production = false, platforms: readonly ('andro
         });
         return;
       }
+      test('resolves the Más installation card in the first layout without shifting the profile', async ({ page }) => {
+        await session(page);
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          const state = window as typeof window & { moreLayouts: { card: boolean; top: number }[] };
+          state.moreLayouts = [];
+          const sample = () => {
+            const profile = document.querySelector<HTMLElement>('[data-testid="more-profile"]');
+            if (profile) state.moreLayouts.push({ card: !!document.querySelector('[data-testid="install-card"]'), top: profile.offsetTop });
+          };
+          new MutationObserver(sample).observe(document.querySelector('main.stage')!, { childList: true, subtree: true });
+        });
+        await page.getByTestId('sidebar-tab-more').tap();
+        await expect(page.getByTestId('install-card')).toBeVisible();
+        await page.evaluate(async () => {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        });
+        const layouts = await page.evaluate(() => (window as typeof window & { moreLayouts: { card: boolean; top: number }[] }).moreLayouts);
+        expect(layouts.length).toBeGreaterThan(0);
+        expect(layouts.every((layout) => layout.card && layout.top === layouts[0].top)).toBe(true);
+        await page.getByTestId('install-card').getByRole('button', { name: 'Instalar', exact: true }).tap();
+        await expect(page.getByRole('dialog', { name: 'Instalá iManager' })).toBeVisible();
+        expect(await page.getByTestId('more-profile').evaluate((node) => (node as HTMLElement).offsetTop)).toBe(layouts[0].top);
+      });
+      test('a single touch on the sheet X closes it and keeps Más active', async ({ page }) => {
+        await session(page); await page.getByTestId('sidebar-tab-more').tap();
+        const install = page.getByTestId('install-card').getByRole('button', { name: 'Instalar', exact: true });
+        await install.focus(); await install.tap();
+        const sheet = page.getByRole('dialog', { name: 'Instalá iManager' });
+        await expect(sheet).toBeVisible(); await fits(page);
+        if (platform === 'iphone') await shot(page, 'sheet-iphone');
+        const box = (await sheet.getByRole('button', { name: 'Cerrar ayuda de instalación' }).boundingBox())!;
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+        await expect(sheet).toHaveCount(0);
+        await expect(page).toHaveURL(/#\/mas$/);
+        await expect(install).toBeFocused();
+        await expect(page.locator('#root')).not.toHaveAttribute('inert');
+      });
       test('shows the first Más card, platform steps and a working alternate accordion', async ({ page }) => {
         await session(page); await page.getByTestId('sidebar-tab-more').click();
         const card = page.getByTestId('install-card'); await expect(card).toBeVisible();
@@ -92,6 +131,10 @@ export function installHelpTests(production = false, platforms: readonly ('andro
       });
       if (platform === 'android') {
         test('manual banner waits 30s, stays in Dashboard and dismissal leaves Más usable', async ({ page }) => {
+          // Suppress browser-generated installability as well as synthetic prompts.
+          await page.addInitScript(() => window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault(); event.stopImmediatePropagation();
+          }, true));
           await page.clock.install(); await session(page);
           await expect(page.getByTestId('install-app')).toHaveCount(0);
           await page.clock.fastForward(29_000); await expect(page.getByTestId('install-app')).toHaveCount(0);
@@ -102,9 +145,12 @@ export function installHelpTests(production = false, platforms: readonly ('andro
           await fits(page); await shot(page, 'android-banner');
           await page.getByTestId('sidebar-tab-inventory').click();
           await expect(page.getByRole('heading', { level: 1, name: 'Inventario', exact: true })).toBeVisible();
-          // Reload outside Dashboard also avoids Motion's exit RAF under the advanced clock.
-          await page.reload(); await expect(page.locator('.desk-app')).toBeVisible();
-          await page.clock.fastForward(31_000); await expect(banner).toHaveCount(0);
+          await page.clock.runFor(400); await expect(banner).toHaveCount(0);
+          for (const screen of ['sales', 'reports', 'more']) {
+            await page.getByTestId(`sidebar-tab-${screen}`).click();
+            await page.clock.fastForward(31_000); await page.clock.runFor(400);
+            await expect(banner).toHaveCount(0);
+          }
           await page.getByTestId('sidebar-tab-dashboard').click(); await page.clock.fastForward(30_000); await page.clock.runFor(400);
           await banner.getByRole('button', { name: 'No volver a mostrar la instalación' }).click();
           await page.reload(); await expect(page.locator('.desk-app')).toBeVisible(); await page.clock.fastForward(31_000);

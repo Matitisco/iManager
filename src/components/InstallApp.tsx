@@ -45,6 +45,10 @@ export function InstallApp({ enabled = true, dashboard = true }: { enabled?: boo
     } finally { setInstalling(false); }
   };
 
+  // A manual invitation belongs exclusively to Dashboard. Unmount its presence
+  // boundary on navigation so an exit animation cannot retain it on another tab.
+  if (manual && !dashboard) return null;
+
   return (
     <AnimatePresence>
       {eligible && ready ? (
