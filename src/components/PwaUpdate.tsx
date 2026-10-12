@@ -36,7 +36,9 @@ export function PwaUpdate() {
     const stopController = 'serviceWorker' in navigator
       ? watchControllerUpdates(navigator.serviceWorker, () => notice())
       : () => {};
-    const stopVersion = import.meta.env.PROD
+    // Vite's PROD flag follows NODE_ENV. CI builds with NODE_ENV=test, so the
+    // production mode is what decides whether this bundle watches for deploys.
+    const stopVersion = import.meta.env.MODE === 'production'
       ? watchVersionUpdates(appBuildId(), (buildId) => notice(buildId), {
         worker: 'serviceWorker' in navigator ? navigator.serviceWorker : null,
       })

@@ -14,7 +14,7 @@ export default defineConfig({
     { name: 'android-chromium', use: { ...devices['Pixel 5'], browserName: 'chromium' } },
   ],
   webServer: {
-    command: 'npx vite build --outDir .pwa-test-dist && node e2e/pwa/server.mjs',
+    command: 'NODE_ENV=production npx vite build --outDir .pwa-test-dist && node e2e/pwa/server.mjs',
     url: 'http://127.0.0.1:4192',
     reuseExistingServer: false,
     timeout: 120_000,
