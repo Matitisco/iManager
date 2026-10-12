@@ -198,6 +198,17 @@ describe('operation detail', () => {
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();
   });
 
+  it('keeps the removed-sale reference in the read-only trade detail', () => {
+    ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'CANCELADO', saleId: null, removedFromSaleNumber: 4 })];
+    renderOverlay({ type: 'cj', id: 't1' });
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Canje quitado de la venta V-0004');
+    const status = within(dialog).getByText('Cancelado');
+    expect(status.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
+    expect(within(dialog).queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+  });
+
   it('advances a legacy trade along the technical steps', async () => {
     const user = userEvent.setup();
     ctx.tradeIns = [trade({ confirmationStatus: undefined, status: 'PENDIENTE' })];

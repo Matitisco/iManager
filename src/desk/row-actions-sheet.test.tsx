@@ -83,19 +83,26 @@ describe('row action sheet', () => {
     }
   });
 
-  it('keeps the registrar sheet above the footer at 390x844', async () => {
+  it('covers the footer with the registrar sheet at 390x844', async () => {
     const page = await browser.newPage();
     try {
       await mount(page, `${tab}${formSheet}`, 390, 844);
       const placed = await page.evaluate(() => {
-        const sheet = document.querySelector('.sheet')!.getBoundingClientRect();
-        const tabNode = document.querySelector('.mtab')!.getBoundingClientRect();
+        const sheetNode = document.querySelector('.sheet')!;
+        const sheet = sheetNode.getBoundingClientRect();
+        const navigation = document.querySelector('.mtab')!;
+        const tabNode = navigation.getBoundingClientRect();
         const overlay = document.querySelector('.ov')!.getBoundingClientRect();
-        return { sheetBottom: sheet.bottom, tabTop: tabNode.top, overlayBottom: overlay.bottom, height: window.innerHeight };
+        const hit = document.elementsFromPoint(tabNode.left + tabNode.width / 2, tabNode.top + tabNode.height / 2);
+        return { sheetBottom: sheet.bottom, overlayBottom: overlay.bottom, height: window.innerHeight,
+          sheetIndex: hit.findIndex((node) => node === sheetNode || sheetNode.contains(node)),
+          navIndex: hit.findIndex((node) => node === navigation || navigation.contains(node)),
+        };
       });
-      expect(placed.overlayBottom).toBeLessThanOrEqual(placed.tabTop + 1);
-      expect(placed.sheetBottom).toBeLessThanOrEqual(placed.tabTop + 1);
-      expect(placed.overlayBottom).toBeLessThan(placed.height - 40);
+      expect(placed.overlayBottom).toBe(placed.height);
+      expect(placed.sheetBottom).toBe(placed.height);
+      expect(placed.sheetIndex).toBeGreaterThanOrEqual(0);
+      expect(placed.navIndex).toBeGreaterThan(placed.sheetIndex);
     } finally {
       await page.close();
     }

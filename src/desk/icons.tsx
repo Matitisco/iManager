@@ -216,6 +216,8 @@ const STATUS_ICONS: Record<string, ImanagerIconName> = {
   'Peritaje téc.': 'servicio-tecnico',
   CANCELADA: 'cerrar',
   Cancelada: 'cerrar',
+  CANCELADO: 'cerrar',
+  Cancelado: 'cerrar',
   RECHAZADO: 'cerrar',
   Rechazado: 'cerrar',
   EN_DIAGNOSTICO: 'en-revision',

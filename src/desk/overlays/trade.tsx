@@ -4,7 +4,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../..
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
-import { formatShortDate, parseMoney, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
 import { cancellationRefund } from '../cancel-refund';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -178,7 +178,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       );
     }
     return (
-      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Canje confirmado'}`} onClose={close} className="cj-sheet">
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} className="cj-sheet">
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
         {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Cancelada" by={trade.cancelledBy} at={trade.cancelledAt} /> : null}

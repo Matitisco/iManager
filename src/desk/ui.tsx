@@ -57,7 +57,7 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
 }
 
 export function ChipRow({ options, value, onChange, pressed, onToggle }: {
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; color?: string }[];
   value?: string;
   onChange?: (id: string) => void;
   pressed?: (id: string) => boolean;
@@ -71,7 +71,8 @@ export function ChipRow({ options, value, onChange, pressed, onToggle }: {
         return (
           <button
             key={option.id}
-            className={`wchip${on ? ' on' : ''}`}
+            className={`wchip${option.color ? ' semantic' : ''}${on ? ' on' : ''}`}
+            style={option.color ? { ['--chip-color' as string]: option.color } : undefined}
             aria-pressed={on}
             onClick={() => (onToggle ? onToggle(option.id) : onChange?.(option.id))}
             type="button"
@@ -384,7 +385,7 @@ export function Sheet({ title, subtitle, children, onClose, wide, className }: {
 
   return (
     <div className="ov" onMouseDown={onClose}>
-      <div className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <div className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="sheet-scroll">
           <div className="sheet-h">

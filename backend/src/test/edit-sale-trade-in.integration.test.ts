@@ -33,8 +33,10 @@ describe("editing the trade-in on a sale", () => {
     const receivedId = added.json().tradeIn.receivedInventoryItemId as string;
     expect(added.json()).toMatchObject({
       sale: { id: saleId, amount: 1500, status, tradeInId: tradeId, categoryId: fixture.saleCategory.id },
-      tradeIn: { confirmationStatus: "CONFIRMED", takeValue: 500, differencePaid: 1000, categoryId: fixture.tradeInCategory.id },
+      tradeIn: { confirmationStatus: "CONFIRMED", status: "PENDIENTE", takeValue: 500, differencePaid: 1000, categoryId: fixture.tradeInCategory.id },
     });
+    expect(added.json().summary).toContain("estado técnico del recibido: Pendiente");
+    expect(added.json().summary).not.toContain("recibido en revisión");
     expect(added.json().inventory.find((item: { id: string }) => item.id === receivedId)).toMatchObject({ status: "EN_REVISION", cost: 500, model: "iPhone 11" });
     const changed = await edit({ tradeIn: { deviceReceived: "iPhone 12", deviceReceivedImei: "", takeValue: 700 } });
     expect(changed.statusCode).toBe(200);
@@ -47,7 +49,13 @@ describe("editing the trade-in on a sale", () => {
 
     const removed = await edit({ tradeIn: null });
     expect(removed.statusCode).toBe(200);
-    expect(removed.json()).toMatchObject({ sale: { id: saleId, status, amount: 1500, tradeInId: null }, tradeIn: { id: tradeId, confirmationStatus: "CANCELLED", status: "CANCELADO" } });
+    const saleNumber = added.json().sale.saleNumber;
+    expect(removed.json()).toMatchObject({ sale: { id: saleId, status, amount: 1500, tradeInId: null }, tradeIn: { id: tradeId, confirmationStatus: "CANCELLED", status: "CANCELADO", removedFromSaleNumber: saleNumber } });
+    const history = await getApp().inject({ method: "GET", url: "/api/trade-ins", headers });
+    expect(history.json().tradeIns.find((item: { id: string }) => item.id === tradeId)).toMatchObject({ saleId: null, removedFromSaleNumber: saleNumber });
+    const detail = await getApp().inject({ method: "GET", url: `/api/operations/tradeins/trades/${tradeId}`, headers });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().tradeIn.removedFromSaleNumber).toBe(saleNumber);
     expect(removed.json().inventory.find((item: { id: string }) => item.id === receivedId).archivedAt).toEqual(expect.any(String));
     expect(removed.json().notifications.find((note: { section: string }) => note.section === "inventory")).toMatchObject({ kind: "ARCHIVED_TRADE_IN_RECEIVED", recordId: tradeId });
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
@@ -59,8 +67,22 @@ describe("editing the trade-in on a sale", () => {
     const addedAgain = await edit({ tradeIn: tradeInput });
     expect(addedAgain.statusCode).toBe(200);
     expect(addedAgain.json().tradeIn.id).not.toBe(tradeId);
+    expect(addedAgain.json().tradeIn.removedFromSaleNumber).toBeNull();
     expect(await prisma.sale.count({ where: { storeId } })).toBe(1);
     expect(await prisma.tradeIn.count({ where: { storeId } })).toBe(2);
+  });
+
+  it("reports the saved technical status when editing and distinguishes cancelling the whole operation", async () => {
+    const { saleId, edit, headers } = await setup();
+    const added = await edit({ tradeIn: tradeInput });
+    const changed = await edit({ tradeIn: { status: "APROBADO" } });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json().tradeIn.status).toBe("APROBADO");
+    expect(changed.json().summary).toContain("estado técnico del recibido: Aprobado");
+    const cancelled = await getApp().inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers });
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json().tradeIn).toMatchObject({ id: added.json().tradeIn.id, confirmationStatus: "CANCELLED", removedFromSaleNumber: null });
+    expect(cancelled.json().sale.status).toBe("CANCELADA");
   });
 
   it("supports adding/removing through the sales PATCH endpoint on a historical sale", async () => {

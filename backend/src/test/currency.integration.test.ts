@@ -158,6 +158,6 @@ describe("store currency", () => {
     expect(notice("tradeins")?.message).toBe("iPhone 11 · toma US$ 200 · diferencia US$ 875");
     expect(notice("clients")?.message).toBe("Ana Pérez compró por US$ 1.075");
     expect(notice("sales")?.message).toBe("iPhone 14 · Ana Pérez · US$ 1.075");
-    expect(body.summary).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada · recibido en revisión");
+    expect(body.summary).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada · estado técnico del recibido: Pendiente");
   });
 });

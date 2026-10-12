@@ -237,6 +237,8 @@ model TradeIn {
   // Cosmetic quality of the received used device (A+, A, B or C). Null when unset. Same concept as InventoryItem.grade.
   grade              String?          @db.VarChar(20)
   confirmationStatus TradeInConfirmationStatus?
+  // Historical sale number when the trade-in was removed from an active sale.
+  removedFromSaleNumber Int?
   receivedInventoryItemId String?
   previousOutgoingStatus String?      @db.VarChar(20)
   previousOutgoingPendingRegistration Boolean?

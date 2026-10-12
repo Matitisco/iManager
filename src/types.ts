@@ -121,6 +121,7 @@ export interface TradeIn {
   customFields?: Record<string, any>;
   confirmationStatus?: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | null;
   saleId?: string | null;
+  removedFromSaleNumber?: number | null;
   receivedInventoryItemId?: string | null;
   operationSource?: 'inventory' | 'sales' | 'tradeins' | 'clients' | null;
   draftProductId?: string | null;

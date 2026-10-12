@@ -51,6 +51,7 @@ export interface TradeInResponse {
   operationSource: string | null;
   receivedInventoryItemId: string | null;
   saleId: string | null;
+  removedFromSaleNumber: number | null;
   draftProductId: string | null;
   draftDeviceLabel: string | null;
   draftSaleCategoryId: string | null;
@@ -115,6 +116,7 @@ type TradeInRecord = {
   cancelledBy?: string | null;
   cancelledAt?: Date | null;
   sale?: { id: string } | null;
+  removedFromSaleNumber?: number | null;
 };
 
 function requiredTradeImei(value: string | null | undefined) {
@@ -181,6 +183,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     operationSource: tradeIn.operationSource,
     receivedInventoryItemId: tradeIn.receivedInventoryItemId,
     saleId: tradeIn.sale?.id ?? null,
+    removedFromSaleNumber: tradeIn.removedFromSaleNumber ?? null,
     draftProductId: tradeIn.draftProductId,
     draftDeviceLabel: tradeIn.draftDeviceLabel,
     draftSaleCategoryId: tradeIn.draftSaleCategoryId,

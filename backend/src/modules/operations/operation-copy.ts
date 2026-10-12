@@ -208,7 +208,7 @@ export function sectionRecords(
   }));
 }
 
-export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean; currency?: string | null }) {
+export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean; receivedStatus?: string; currency?: string | null }) {
   const format = (value: number) => money(value, input.currency);
   const amount = format(input.amount);
   if (!input.trade) {
@@ -218,5 +218,10 @@ export function operationSummary(input: { trade: boolean; amount: number; takeVa
   const difference = Math.max(0, input.amount - (input.takeValue ?? 0));
   const debtValue = input.status === "PENDIENTE" ? difference : 0;
   const settlement = debtValue > 0 ? `debe ${format(debtValue)}` : "pagada";
-  return `Canje · total ${amount} · toma ${format(input.takeValue ?? 0)} · diferencia ${format(difference)} · ${settlement}${input.received ? " · recibido en revisión" : ""}`;
+  const technicalStatus = input.receivedStatus ?? "PENDIENTE";
+  const technicalLabel = ({
+    PENDIENTE: "Pendiente", "PERITAJE TÉC.": "Peritaje téc.", "EN REVISIÓN": "En revisión",
+    APROBADO: "Aprobado", LISTO: "Completado", RECHAZADO: "Rechazado", CANCELADO: "Cancelado",
+  } as Record<string, string>)[technicalStatus] ?? technicalStatus;
+  return `Canje · total ${amount} · toma ${format(input.takeValue ?? 0)} · diferencia ${format(difference)} · ${settlement}${input.received ? ` · estado técnico del recibido: ${technicalLabel}` : ""}`;
 }

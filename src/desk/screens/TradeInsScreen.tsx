@@ -5,7 +5,7 @@ import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
 import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { useMoney } from '../exchange';
-import { formatShortDate, isInProgressTrade, parseAppDate, statusLabel, tradeClientLabel, tradeCode } from '../format';
+import { formatShortDate, isInProgressTrade, parseAppDate, statusColor, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
 import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
@@ -92,7 +92,9 @@ export function TradeInsScreen() {
     const extra = [...new Set(tradeIns.map((item) => item.status))].filter((status) => !known.some((item) => item.id === status));
     return [...known, ...extra.map((id) => ({ id, label: statusLabel(id) || 'Sin estado' }))];
   }, [catalogs?.ready, catalogs?.options, tradeIns]);
-  const statusOptions = [{ id: 'Todos', label: 'Todos' }, ...statuses];
+  const statusOptions = [{ id: 'Todos', label: 'Todos' }, ...statuses.map((option) => option.id === 'CANCELADO'
+    ? { ...option, label: statusLabel(option.id), color: statusColor(option.id) }
+    : option)];
   const filterCount = activeTradeColumnCount(columns);
   const openFilters = () => {
     setDraftFilters(columns);
@@ -238,7 +240,7 @@ export function TradeInsScreen() {
                     {item.status ? <Pill status={item.status} kind="TRADE_IN_STATUS" /> : '—'}
                     {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
                     {item.confirmationStatus === 'CONFIRMED' ? <small className="trade-confirmation">Canje confirmado</small> : null}
-                    {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">Operación cancelada</small> : null}
+                    {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">{tradeCancellationLabel(item)}</small> : null}
                   </td>
                 </PressTarget>
               ))}
@@ -325,7 +327,7 @@ function TradeCard({ item, code, client, take, difference }: {
       <span className="sale-bot"><span>Entrega: {item.deviceGiven || '—'}</span><b>dif. {difference}</b></span>
       {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
       {item.confirmationStatus === 'CONFIRMED' ? <small className="trade-confirmation">Canje confirmado</small> : null}
-      {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">Operación cancelada</small> : null}
+      {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">{tradeCancellationLabel(item)}</small> : null}
     </span>
   );
 }
