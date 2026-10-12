@@ -1,4 +1,8 @@
 export const INSTALL_DISMISSED_KEY = 'imanager:install-dismissed';
+export const INSTALL_DISMISSED_KEYS = {
+  ios: 'imanager:install-dismissed:ios',
+  android: 'imanager:install-dismissed:android',
+} as const;
 export const INSTALL_DELAY_MS = 30_000;
 
 export interface InstallPromptEvent extends Event {
@@ -21,20 +25,30 @@ export function isIOSSafari() {
     && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/.test(navigator.userAgent);
 }
 
-let dismissed = false;
+const dismissed = new Set<'ios' | 'android'>();
 let pendingPrompt: InstallPromptEvent | null = null;
 let initialized = false;
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((listener) => listener());
 
+const installPlatform = () => isIOS() ? 'ios' : 'android';
+
 export function installDismissed() {
-  try { return dismissed || localStorage.getItem(INSTALL_DISMISSED_KEY) === 'yes'; }
-  catch { return dismissed; }
+  const platform = installPlatform();
+  try {
+    // The legacy guide flag belongs to iOS. Never suppress Android's native action.
+    if (localStorage.getItem(INSTALL_DISMISSED_KEY) === 'yes') {
+      localStorage.setItem(INSTALL_DISMISSED_KEYS.ios, 'yes');
+      localStorage.removeItem(INSTALL_DISMISSED_KEY);
+    }
+    return dismissed.has(platform) || localStorage.getItem(INSTALL_DISMISSED_KEYS[platform]) === 'yes';
+  } catch { return dismissed.has(platform); }
 }
 
 export function dismissInstall() {
-  dismissed = true;
-  try { localStorage.setItem(INSTALL_DISMISSED_KEY, 'yes'); } catch { /* Private storage may be unavailable. */ }
+  const platform = installPlatform();
+  dismissed.add(platform);
+  try { localStorage.setItem(INSTALL_DISMISSED_KEYS[platform], 'yes'); } catch { /* Private storage may be unavailable. */ }
   changed();
 }
 
@@ -59,7 +73,7 @@ export function initializeInstallEvents() {
   });
   window.matchMedia('(display-mode: standalone)').addEventListener('change', changed);
   window.addEventListener('storage', (event) => {
-    if (event.key === INSTALL_DISMISSED_KEY) changed();
+    if (event.key === null || event.key === INSTALL_DISMISSED_KEY || Object.values(INSTALL_DISMISSED_KEYS).some((key) => key === event.key)) changed();
   });
 }
 
@@ -70,6 +84,12 @@ export function registerServiceWorker() {
     if (registered) return;
     registered = true;
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .then((registration) => {
+        const update = () => { if (document.visibilityState === 'visible' && navigator.onLine) void registration.update().catch(() => {}); };
+        document.addEventListener('visibilitychange', update);
+        window.addEventListener('online', update);
+        window.setInterval(update, 60_000);
+      })
       .catch((error: unknown) => console.warn('No se pudo preparar iManager para instalar:', error));
   };
   if (document.readyState === 'complete') register();

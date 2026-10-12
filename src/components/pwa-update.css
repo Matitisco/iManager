@@ -1,0 +1,20 @@
+.pwa-update {
+  position: fixed;
+  z-index: 500;
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: #16181D;
+  color: #fff;
+  box-shadow: 0 8px 28px rgb(22 24 29 / 18%);
+  font: 600 13px/1.5 'DM Sans', system-ui, sans-serif;
+  pointer-events: none;
+}
+.pwa-update button { border: 0; background: transparent; color: #FFD000; font: inherit; font-weight: 800; cursor: pointer; min-height: 44px; padding: 0 4px; pointer-events: auto; }
+.pwa-update button:focus-visible { outline: 2px solid #FFD000; outline-offset: 2px; border-radius: 4px; }
+.pwa-update small { display: block; max-width: 340px; color: #D1D5DB; font-size: 12px; }
+@media (max-width: 760px) { .pwa-update { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }

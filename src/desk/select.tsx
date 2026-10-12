@@ -94,6 +94,7 @@ export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, o
   useEffect(() => {
     if (!open) return;
     const outside = (event: Event) => {
+      if (phone) return; // Mobile backdrop consumes the full pointer/click sequence.
       if (!popup.current?.contains(event.target as Node) && !trigger.current?.contains(event.target as Node)) close(false);
     };
     const escape = (event: globalThis.KeyboardEvent) => {
@@ -182,8 +183,23 @@ export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, o
       </button>
       {open && createPortal(
         <AnimatePresence>
-          <div className={phone ? 'ds-select-backdrop' : 'ds-select-layer'} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => { if (event.target === event.currentTarget && phone) { event.preventDefault(); close(); } }}>
+          <div className={phone ? 'ds-select-backdrop' : 'ds-select-layer'} onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && phone) event.preventDefault(); }}
+            onPointerUp={(event) => {
+              if (event.target !== event.currentTarget || !phone) return;
+              event.preventDefault();
+              event.stopPropagation();
+              // pointerdown is canceled, but some browsers still emit a click after the sheet unmounts.
+              const swallow = (click: Event) => {
+                click.preventDefault();
+                click.stopPropagation();
+                document.removeEventListener('click', swallow, true);
+              };
+              document.addEventListener('click', swallow, true);
+              window.setTimeout(() => document.removeEventListener('click', swallow, true), 400);
+              close();
+            }}
+            onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && phone) { event.preventDefault(); close(); } }}>
             <motion.div ref={popup} id={`${id}-popup`} className={`ds-select-popup${phone ? ' phone' : ''}`} style={phone ? undefined : position}
               role={phone ? 'dialog' : undefined} aria-modal={phone ? true : undefined} aria-label={phone ? sheetTitle : undefined}
               initial={{ opacity: 0, y: reducedMotion ? 0 : phone ? 18 : 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : .16 }} onKeyDown={phone ? keys : undefined}>

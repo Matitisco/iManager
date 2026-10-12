@@ -28,3 +28,6 @@
 .pwa-action:disabled { opacity: .6; }
 .desk-app .pwa-dismiss { padding: 12px 4px 0; width: 100%; color: #737984; font-size: 12px; text-align: center; }
 @media (min-width: 761px) { .pwa-install { display: none; } }
+
+.pwa-install.compact { left: auto; padding: 0; border-radius: 14px; }
+.desk-app .pwa-install.compact .pwa-action { margin: 0; width: auto; min-height: 44px; padding: 12px 18px; }

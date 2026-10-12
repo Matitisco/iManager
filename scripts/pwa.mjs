@@ -17,13 +17,14 @@ export function pwaPlugin() {
     enforce: 'post',
     generateBundle(_, bundle) {
       const hash = createHash('sha256');
+      hash.update(readFileSync(new URL('./service-worker.js', import.meta.url)));
       const bundled = Object.keys(bundle).sort();
       for (const name of bundled) {
         const file = bundle[name];
         hash.update(name).update(file.type === 'chunk' ? file.code : file.source);
       }
       const staticAssets = ['/manifest.webmanifest', '/apple-touch-icon.png', '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png'];
-      for (const dir of ['icons', 'brand']) {
+      for (const dir of ['icons', 'brand', 'screenshots']) {
         for (const name of readdirSync(join('public', dir)).sort()) staticAssets.push(`/${dir}/${name}`);
       }
       for (const name of staticAssets) hash.update(readFileSync(join('public', name)));
