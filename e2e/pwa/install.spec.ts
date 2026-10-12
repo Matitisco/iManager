@@ -178,9 +178,11 @@ async function deploy(page: Page, mode = 'all') {
 test('new worker preserves modal input, shows update toast and reloads automatically when the modal closes', async ({ page }, info) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await session(page); await controlled(page);
-  await page.goto('/#/clientes');
-  await expect(page.locator('.desk-app')).toBeVisible();
-  await page.getByRole('button', { name: 'Nuevo cliente', exact: true }).click();
+  await page.evaluate(() => { window.location.hash = '#/clientes'; });
+  await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
+  const dockNuevo = page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo cliente', exact: true });
+  if (await dockNuevo.count()) await dockNuevo.click();
+  else await page.getByRole('button', { name: 'Nuevo cliente', exact: true }).click();
   const draft = page.getByRole('textbox', { name: 'Nombre y apellido', exact: true });
   await draft.fill('Lucía · borrador sin guardar');
   await deploy(page);

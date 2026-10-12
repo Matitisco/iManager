@@ -33,6 +33,7 @@ test('canjes list clears the Nuevo canje bar without scrolling', async ({ page }
   await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
   const dock = page.getByTestId('mobile-dock');
   await expect(dock).toContainText('Nuevo canje');
+  await expect(page.locator('.sale-line .bulk-check').first()).toBeVisible();
   const metrics = await page.evaluate(() => {
     const line = document.querySelector('.sale-line');
     const bar = document.querySelector('.mdock');
