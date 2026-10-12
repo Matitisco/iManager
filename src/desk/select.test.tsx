@@ -200,9 +200,9 @@ describe('DeskSelect', () => {
 it('consumes the mobile backdrop gesture before closing without bubbling to the underlying tab or parent sheet', async () => {
   const media = mobile();
   try {
-    const down = vi.fn(); const click = vi.fn(); const change = vi.fn(); const close = vi.fn();
-    render(<div onPointerDown={down} onClick={click}><Sheet title="Tienda" onClose={close}><Example onChange={change} /></Sheet><button>Ventas</button></div>);
-    await userEvent.click(trigger()); down.mockClear(); click.mockClear();
+    const down = vi.fn(); const up = vi.fn(); const click = vi.fn(); const change = vi.fn(); const close = vi.fn();
+    render(<div onPointerDown={down} onPointerUp={up} onClick={click}><Sheet title="Tienda" onClose={close}><Example onChange={change} /></Sheet><button>Ventas</button></div>);
+    await userEvent.click(trigger()); down.mockClear(); up.mockClear(); click.mockClear();
     const backdrop = document.querySelector('.ds-select-backdrop')!;
     const pointer = new Event('pointerdown', { bubbles: true, cancelable: true });
     fireEvent(backdrop, pointer);
@@ -213,6 +213,17 @@ it('consumes the mobile backdrop gesture before closing without bubbling to the 
     fireEvent(backdrop, release);
     expect(release.defaultPrevented).toBe(true);
     expect(screen.queryByRole('dialog', { name: 'Desglose' })).toBeNull();
-    expect(click).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(change).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled(); expect(up).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(change).not.toHaveBeenCalled();
+    await userEvent.click(trigger()); down.mockClear(); up.mockClear(); click.mockClear();
+    const again = document.querySelector('.ds-select-backdrop')!;
+    fireEvent(again, new Event('pointerdown', { bubbles: true, cancelable: true }));
+    const pointerUp = new Event('pointerup', { bubbles: true, cancelable: true });
+    fireEvent(again, pointerUp);
+    expect(pointerUp.defaultPrevented).toBe(true);
+    expect(screen.queryByRole('dialog', { name: 'Desglose' })).toBeNull();
+    const leaked = new MouseEvent('click', { bubbles: true, cancelable: true });
+    fireEvent(screen.getByRole('button', { name: 'Ventas' }), leaked);
+    expect(leaked.defaultPrevented).toBe(true);
+    expect(up).not.toHaveBeenCalled(); expect(click).not.toHaveBeenCalled(); expect(change).not.toHaveBeenCalled();
   } finally { media.mockRestore(); }
 });

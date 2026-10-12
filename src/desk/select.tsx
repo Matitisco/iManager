@@ -185,6 +185,20 @@ export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, o
         <AnimatePresence>
           <div className={phone ? 'ds-select-backdrop' : 'ds-select-layer'} onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && phone) event.preventDefault(); }}
+            onPointerUp={(event) => {
+              if (event.target !== event.currentTarget || !phone) return;
+              event.preventDefault();
+              event.stopPropagation();
+              // pointerdown is canceled, but some browsers still emit a click after the sheet unmounts.
+              const swallow = (click: Event) => {
+                click.preventDefault();
+                click.stopPropagation();
+                document.removeEventListener('click', swallow, true);
+              };
+              document.addEventListener('click', swallow, true);
+              window.setTimeout(() => document.removeEventListener('click', swallow, true), 400);
+              close();
+            }}
             onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && phone) { event.preventDefault(); close(); } }}>
             <motion.div ref={popup} id={`${id}-popup`} className={`ds-select-popup${phone ? ' phone' : ''}`} style={phone ? undefined : position}
               role={phone ? 'dialog' : undefined} aria-modal={phone ? true : undefined} aria-label={phone ? sheetTitle : undefined}

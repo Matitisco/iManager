@@ -135,7 +135,9 @@ test('Android retains its own install action after the legacy iOS guide and clos
 
 test('standalone dollar uses brand keyboard focus and no tap outline; captures real inventory for the manifest', async ({ page }, info) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
-  await session(page); await page.goto('/#/inv');
+  await session(page);
+  await page.getByRole('button', { name: 'Inventario', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
   await expect(page.getByText(/iPhone 16 Pro/).first()).toBeVisible();
   const dollar = page.locator('.dolar-hit');
   await expect(dollar).toBeVisible();
@@ -148,7 +150,9 @@ test('standalone dollar uses brand keyboard focus and no tap outline; captures r
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   // Explicit pointer modality after the sheet, even on browsers that keep
   // keyboard focus-visible after programmatic focus restoration.
-  await page.locator('.dolar').click({ position: { x: 2, y: 2 } });
+  // The pill sits under the sidebar or the sticky header, so a corner click never lands.
+  // A real pointer hit on the stage switches modality before the programmatic focus.
+  await page.locator('main.stage').click({ position: { x: 8, y: 8 } });
   await dollar.focus();
   expect(await dollar.evaluate((button) => getComputedStyle(button).outlineStyle)).toBe('none');
   if (info.project.name === 'iphone-webkit') await screenshot(page, 'issue-292-mobile-iphone-dolar.png');
@@ -204,11 +208,20 @@ test('a new release reloads an idle tab without a hard refresh', async ({ page }
 
 test('mobile Desglose backdrop consumes pointerdown and click over report tabs', async ({ page }, info) => {
   test.skip(info.project.name === 'desktop-chromium');
-  await session(page); await page.goto('/#/rep');
+  await page.addInitScript(() => {
+    localStorage.setItem('imanager:install-dismissed:ios', 'yes');
+    localStorage.setItem('imanager:install-dismissed:android', 'yes');
+  });
+  await session(page);
+  await page.getByRole('button', { name: 'Reportes', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
   const select = page.getByRole('combobox', { name: 'Columna de desglose' });
-  await select.click();
   const tab = page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Stock', exact: true });
+  await tab.scrollIntoViewIfNeeded();
   const box = await tab.boundingBox();
+  // Opening by event keeps the tabs on screen; a normal click scrolls the selector and the tap misses the backdrop.
+  await select.dispatchEvent('click');
+  await expect(page.getByRole('dialog', { name: 'Desglose' })).toBeVisible();
   await page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await expect(page.getByRole('dialog', { name: 'Desglose' })).toHaveCount(0);
   await expect(page).toHaveURL(/#\/rep$/);
