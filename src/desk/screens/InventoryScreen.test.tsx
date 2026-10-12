@@ -394,6 +394,60 @@ function usePhone() {
   }));
 }
 
+describe('Inventory empty store', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.inventory = [];
+    context.operationNotifications = [];
+  });
+
+  it('shows the onboarding empty state on desktop until a filter or search is active', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const open = vi.fn();
+    render(
+      <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+        <InventoryScreen />
+      </DeskProvider>,
+    );
+
+    const empty = screen.getByTestId('inventory-empty');
+    expect(empty).toHaveTextContent('Todavía no cargaste equipos');
+    expect(empty).toHaveTextContent('Ingresá tu primer equipo o importá tu stock desde una planilla.');
+    expect(empty).toHaveTextContent('0 resultados');
+    expect(within(empty).queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
+    expect(within(empty).queryByRole('button', { name: 'Registrar equipo' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No hay equipos con ese filtro.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/mantené apretada una fila/)).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Equipo/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Importar' }));
+    expect(open).toHaveBeenCalledWith({ type: 'import', kind: 'inv' });
+    await user.click(screen.getByRole('button', { name: 'Registrar equipo' }));
+    expect(open).toHaveBeenCalledWith({ type: 'new-eq' });
+
+    await user.click(screen.getByRole('button', { name: 'Disponible' }));
+    expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Todos' }));
+    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+
+    await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'pixel');
+    expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+  });
+});
+
 describe('Inventory phone list', () => {
   const originalMatchMedia = window.matchMedia;
 
@@ -411,12 +465,34 @@ describe('Inventory phone list', () => {
   it('shows the empty state and keeps the price list inside the header menu', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
-    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+    const empty = screen.getByTestId('inventory-empty');
+    expect(empty).toHaveTextContent('Todavía no cargaste equipos');
+    expect(within(empty).getByRole('button', { name: 'Importar' })).toBeInTheDocument();
+    expect(within(empty).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
     expect(screen.getByText('0 resultados')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Lista de precios' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Más opciones' }));
     expect(screen.getByRole('button', { name: 'Lista de precios' })).toBeDisabled();
+  });
+
+  it('uses the filter copy on an empty store once a chip or the search is active', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+    expect(screen.queryByText(/Tocá ⋯ en una fila/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Vendido' }));
+    expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Todos' }));
+    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await user.type(screen.getByPlaceholderText('Buscar por IMEI, modelo o color'), 'pixel');
+    expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
   });
 
   it('renders the card, searches by IMEI and applies the filter sheet', async () => {
