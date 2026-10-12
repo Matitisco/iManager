@@ -340,7 +340,8 @@ describe('Reports breakdown and new sections', () => {
     context.inventory[1] = { ...context.inventory[1], model: 'Pixel 8', color: 'Blanco', condition: 'USADO' };
     render(<ReportsScreen />);
     await applyRange();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'model' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Modelo' }));
     expect(screen.getByRole('heading', { name: 'Por modelo' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Pixel 8: 50%' }));
     expect(document.querySelectorAll('.gtk')).toHaveLength(2);
@@ -348,16 +349,19 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.getByText('Venta 2')).toBeInTheDocument();
     expect(screen.queryByText('Venta 3')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'condition' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Condición' }));
     expect(screen.getByRole('button', { name: 'Nuevo: 17%' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Usado: 33%' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sin dato: 50%' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'color' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Color' }));
     expect(screen.getByRole('button', { name: 'Negro: 17%' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Blanco: 33%' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'seller' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Vendedor' }));
     expect(screen.getByRole('heading', { name: 'Por vendedor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ana: 17%' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sin vendedor: 83%' })).toBeInTheDocument();
@@ -369,12 +373,14 @@ describe('Reports breakdown and new sections', () => {
     render(<ReportsScreen />);
     await applyRange();
     await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'color' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Color' }));
     expect(screen.getByRole('heading', { name: 'Por color' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Negro: 1' }));
     expect(document.querySelectorAll('.gtk')).toHaveLength(1);
     await userEvent.click(screen.getByRole('button', { name: 'Canjes' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'device' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Equipo recibido' }));
     expect(screen.getByRole('heading', { name: 'Por equipo recibido' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Canje 1: 1' })).toBeInTheDocument();
   });
@@ -408,7 +414,8 @@ describe('Reports breakdown and new sections', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Alta: 1' }));
     expect(document.querySelectorAll('.gtk')).toHaveLength(1);
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'tag' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Etiqueta' }));
     expect(screen.getByRole('button', { name: 'VIP: 1' })).toBeInTheDocument();
   });
 
@@ -434,7 +441,8 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.getByRole('heading', { name: 'Por estado' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recibido: 1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entregado: 1' })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Columna de desglose' }), { target: { value: 'technician' } });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Técnico' }));
     await userEvent.click(screen.getByRole('button', { name: 'Ana: 1' }));
     expect(document.querySelectorAll('.gtk')).toHaveLength(1);
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();

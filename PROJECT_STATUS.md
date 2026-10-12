@@ -1,7 +1,15 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-04-19**
+**Ultima actualizacion: 2026-10-12**
+
+## Issue #287 — Desplegable propio de Reportes — 2026-10-12
+
+- `DeskSelect` reemplaza el selector nativo de Desglose en todos los reportes y se reutiliza en moneda/cotización de Configuración. Conserva valores, permisos y validación; no modifica backend ni AppContext.
+- Combobox/listbox con flechas, Enter/Espacio, Home/End, typeahead, Escape y clic externo; selección amarilla, hover y foco visible. En teléfonos usa sheet modal con safe areas, filas de 52 px, fondo inert y foco contenido/restaurado. Escape cierra el selector antes del modal padre.
+- Validación: lint frontend/backend, build solicitado por el issue y 487 tests frontend (12 nuevos del componente) aprobados. Los 12 escenarios Playwright de Reportes, Configuración, moneda y cotización pasan, incluido WebKit con emulación iPhone 13.
+- Capturas revisadas: `docs/pr-shots/issue-287-desktop.png` (1440×900) y `docs/pr-shots/issue-287-mobile-iphone.png` (iPhone 13, retina). E2E usa exclusivamente Postgres local `imanager_issue287_test`; puertos 3127/4177 por colisión con los habituales mediante configuración temporal retirada. Para regenerar capturas: `ISSUE_287_SHOTS=docs/pr-shots npx playwright test e2e/report-dropdown*.spec.ts` con los servidores/DB de la configuración E2E.
+- Commit en la rama actual y sin push, según la instrucción específica del issue.
 
 ## Issue #286 — Detalle de venta compacto — 2026-10-12
 

@@ -1,3 +1,4 @@
+import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
 
@@ -45,7 +46,7 @@ test('configures the store currency and converts a saved price', async ({ page }
 
   await page.getByRole('button', { name: 'Configuración' }).click();
   await page.getByRole('button', { name: storeName }).click();
-  await page.getByTestId('store-currency').selectOption('ARS');
+  await selectDeskOption(page, page.getByTestId('store-currency'), 'ARS');
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Datos de la tienda' })).toBeHidden();
 
@@ -54,7 +55,7 @@ test('configures the store currency and converts a saved price', async ({ page }
 
   await page.getByRole('button', { name: 'Configuración' }).click();
   await page.getByRole('button', { name: storeName }).click();
-  await page.getByTestId('store-exchange-mode').selectOption('manual');
+  await selectDeskOption(page, page.getByTestId('store-exchange-mode'), 'Manual, la carga la tienda');
   await page.getByTestId('store-manual-buy').fill('500');
   await page.getByTestId('store-manual-sell').fill('700');
   await page.getByRole('button', { name: 'Guardar' }).click();

@@ -1,3 +1,4 @@
+import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import {
   acceptInvitationViaApi,
@@ -172,8 +173,8 @@ test.describe('settings on a phone', () => {
     expect(placement.footBottom).toBe(placement.viewportHeight);
     expect(placement.sheetCoversTab).toBeTruthy();
     expect(placement.buttonsUsable).toBeTruthy();
-    await editor.getByTestId('store-currency').selectOption('USD');
-    await editor.getByTestId('store-exchange-mode').selectOption('manual');
+    await selectDeskOption(page, editor.getByTestId('store-currency'), 'USD');
+    await selectDeskOption(page, editor.getByTestId('store-exchange-mode'), 'Manual, la carga la tienda');
     await editor.getByTestId('store-manual-buy').fill('1200');
     await editor.getByTestId('store-manual-sell').fill('1250');
     await editor.getByTestId('store-manual-sell').scrollIntoViewIfNeeded();
@@ -186,8 +187,8 @@ test.describe('settings on a phone', () => {
 
     await page.getByRole('button', { name: store }).click();
     const savedStore = page.getByRole('dialog', { name: 'Tienda' });
-    await expect(savedStore.getByTestId('store-currency')).toHaveValue('USD');
-    await expect(savedStore.getByTestId('store-exchange-mode')).toHaveValue('manual');
+    await expect(savedStore.getByTestId('store-currency')).toHaveText('USD');
+    await expect(savedStore.getByTestId('store-exchange-mode')).toHaveText('Manual, la carga la tienda');
     await expect(savedStore.getByTestId('store-manual-buy')).not.toHaveValue('');
     await expect(savedStore.getByTestId('store-manual-sell')).not.toHaveValue('');
     await savedStore.getByRole('button', { name: 'Cerrar' }).click();
@@ -294,7 +295,7 @@ test.describe('settings on a phone', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-360.png` });
     await page.getByRole('button', { name: store }).click();
     const narrow = page.getByRole('dialog', { name: 'Tienda' });
-    await narrow.getByTestId('store-exchange-mode').selectOption('manual');
+    await selectDeskOption(page, narrow.getByTestId('store-exchange-mode'), 'Manual, la carga la tienda');
     await expect(narrow.getByTestId('store-manual-buy')).toBeVisible();
     await expect(narrow.getByTestId('store-manual-sell')).toBeVisible();
     await narrow.getByTestId('store-manual-sell').scrollIntoViewIfNeeded();

@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type APIResponse, type Page, type TestInfo } from '@playwright/test';
+import { expect, type APIRequestContext, type APIResponse, type Page, type Locator, type TestInfo } from '@playwright/test';
 
 const DEFAULT_PASSWORD = process.env.VITE_E2E_TEST_PASSWORD?.trim() || 'test123456';
 const DEFAULT_API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
@@ -446,4 +446,11 @@ export async function createInventoryItemViaApi(
   return JSON.parse(body) as {
     inventoryItem: { id: string; imei: string; model: string; status: string; price: number };
   };
+}
+
+/** Interact with the visible custom selector (its listbox is portaled). */
+export async function selectDeskOption(page: Page, control: Locator, label: string) {
+  await control.click();
+  await page.getByRole('option', { name: label, exact: true }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
