@@ -715,7 +715,21 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .svc-views button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--secondary); }
 .svc-views button.on { background: var(--row); color: var(--primary); }
 .dkanban.svc { grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); max-width: 100%; }
+.dkanban.svc .dcol,
+.dkanban.svc .ticket { min-width: 0; }
 .dkanban.svc .wamt { white-space: normal; overflow-wrap: anywhere; }
+.ticket .svc-fault,
+.dtable .svc-fault {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.dtable .svc-fault { max-width: 320px; }
 .svc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 .dcolh span { display: inline-flex; align-items: center; }
 .ticket .date { display: inline-flex; align-items: center; gap: 4px; }
@@ -773,6 +787,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .svc-fault-card { margin-bottom: 8px; }
 .svc-fault-card span, .svc-pair span { display: block; color: var(--secondary); font-size: 12px; font-weight: 700; }
 .svc-fault-card b, .svc-pair b { display: block; margin-top: 4px; font-size: 15px; overflow-wrap: anywhere; }
+.sheet.svc-sheet { min-width: 0; }
+.sheet.svc-sheet .svc-fault-row { display: block; min-width: 0; }
+.svc-fault-full { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.45; }
+.sheet.svc-sheet .svc-fault-row .svc-fault-full { display: block; margin-top: 6px; text-align: left; font-weight: 700; }
 .svc-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
 .svc-pair b.late { color: var(--err); }
 .svc-wa-icon { display: inline-flex; align-items: center; gap: 6px; }

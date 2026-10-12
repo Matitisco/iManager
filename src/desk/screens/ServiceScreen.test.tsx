@@ -249,6 +249,25 @@ describe('servicio técnico', () => {
     expect(device.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('keeps a long fault to three lines on the board and the list, and the full text in the preview', async () => {
+    const user = userEvent.setup();
+    const fault = `${'La pantalla queda negra y el táctil no responde. '.repeat(6)}${'Conector'.repeat(12)}`;
+    state.repairOrders = [order('101', 'RECIBIDO', { fault, faultTags: [] })];
+    desk(<ServiceScreen />);
+    const cardFault = within(screen.getByTestId('repair-card-101')).getByTestId('repair-fault-101');
+    expect(cardFault).toHaveClass('svc-fault');
+    expect(cardFault).toHaveTextContent(fault);
+    await user.click(screen.getByRole('button', { name: 'Lista' }));
+    expect(screen.getByTestId('repair-fault-101')).toHaveClass('svc-fault');
+    expect(screen.getByTestId('repair-fault-101')).toHaveTextContent(fault);
+    cleanup();
+    desk(<RepairOrderDetail id="101" busy={false} />);
+    const preview = screen.getByTestId('repair-fault');
+    expect(preview).toHaveClass('svc-fault-full');
+    expect(preview).not.toHaveClass('svc-fault');
+    expect(preview).toHaveTextContent(fault);
+  });
+
   it('puts the device above the optional client and creates an order without one', async () => {
     const user = userEvent.setup();
     addRepairOrder.mockResolvedValue(order('110', 'RECIBIDO', { clientName: '', clientId: null, device: 'iPhone 13' }));
@@ -652,6 +671,23 @@ describe('servicio técnico en el celular', () => {
     expect(screen.queryByTestId('repair-group-EN_DIAGNOSTICO')).not.toBeInTheDocument();
     expect(screen.queryByTestId('repair-group-ESPERANDO_RESPUESTA')).not.toBeInTheDocument();
     expect(screen.getByTestId('repair-card-95')).not.toHaveAttribute('draggable');
+  });
+
+  it('keeps a long fault to three lines on the phone list and the full text in the preview', () => {
+    const fault = `${'La pantalla queda negra y el táctil no responde. '.repeat(6)}${'Conector'.repeat(12)}`;
+    state.repairOrders = [order('101', 'RECIBIDO', { fault, faultTags: [] })];
+    desk(<ServiceScreen />);
+    const cardFault = within(screen.getByTestId('repair-card-101')).getByTestId('repair-fault-101');
+    expect(cardFault).toHaveClass('svc-fault');
+    expect(cardFault).toHaveTextContent(fault);
+    expect(screen.queryByTestId('repair-board')).not.toBeInTheDocument();
+    cleanup();
+    desk(<RepairOrderDetail id="101" busy={false} />);
+    const preview = screen.getByTestId('repair-fault');
+    expect(preview).toHaveClass('svc-fault-full');
+    expect(preview).not.toHaveClass('svc-fault');
+    expect(preview).toHaveTextContent(fault);
+    expect(preview.closest('.svc-fault-card')).not.toBeNull();
   });
 
   it('shows the phone detail with history, the next step and the sensitive actions', async () => {
