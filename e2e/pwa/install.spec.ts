@@ -79,7 +79,12 @@ test('real service worker reopens the shell offline but never serves API/session
   // Playwright's Linux WebKit fails reloading a worker-controlled page offline ("internal error").
   test.skip(info.project.name === 'iphone-webkit', 'offline reload is unsupported in Playwright WebKit');
   await session(page);
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  const logs: string[] = [];
+  page.on('console', (message) => logs.push(`${message.type()}: ${message.text()}`));
+  await expect.poll(() => page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return registration?.active ? 'active' : registration ? `pending:${registration.installing?.state ?? registration.waiting?.state}` : 'none';
+  }), { timeout: 30_000, message: `service worker never activated; console: ${logs.join(' | ')}` }).toBe('active');
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   const cached = await page.evaluate(async () => {
     const keys = await caches.keys();
