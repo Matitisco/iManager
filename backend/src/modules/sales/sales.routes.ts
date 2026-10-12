@@ -59,6 +59,7 @@ const salePatchSchema = z
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
     customFields: z.record(z.unknown()).optional().nullable(),
+    tradeIn: operationTradeInSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required",
@@ -211,11 +212,11 @@ export async function salesRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "No tenés permiso para esta acción" });
       }
       const actor = body.status === "CANCELADA" ? await loadActor(request.appUser.userId) : null;
-      if (await isIntegratedSale(request.appUser.storeId, params.id)) {
+      if (body.tradeIn !== undefined || await isIntegratedSale(request.appUser.storeId, params.id)) {
         if (body.status === "CANCELADA") {
           return await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
         }
-        return await updateSaleOperation(request.appUser.storeId, params.id, body);
+        return await updateSaleOperation(request.appUser.storeId, params.id, body as Parameters<typeof updateSaleOperation>[2]);
       }
       const sale = await updateSale(request.appUser.storeId, params.id, body, actor);
 

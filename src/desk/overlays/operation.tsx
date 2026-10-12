@@ -43,7 +43,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }) {
   const context = useAppContext();
   const money = useMoney();
-  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, updateSale, fetchSaleOperation, fetchTradeOperation } = context;
+  const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, fetchSaleOperation, fetchTradeOperation } = context;
   const catalogs = useCatalogs();
   const requestKey = useRef(`desk-${crypto.randomUUID()}`);
   const dirty = useRef(new Set<string>());
@@ -98,7 +98,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 
   useEffect(() => {
     let active = true;
-    const loadLinked = currentSale?.integratedOperation && saleId
+    const loadLinked = currentSale && saleId
       ? fetchSaleOperation(saleId)
       : tradeRef ? fetchTradeOperation(source, tradeRef) : null;
     loadLinked?.catch((err: unknown) => {
@@ -182,18 +182,18 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     paymentMethod: payment,
     status: paymentStatus,
     saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
-    categoryId: currentTrade?.categoryId ?? currentSale?.categoryId ?? null,
+    categoryId: hasTrade ? currentTrade?.categoryId ?? null : currentSale?.categoryId ?? null,
     requestKey: requestKey.current,
     draft,
     ...(hasTrade ? { tradeIn: {
       deviceReceived: received.trim(),
-      deviceReceivedImei: imei.trim() || undefined,
+      deviceReceivedImei: imei.trim(),
       takeValue: parseMoney(take),
       status: technicalStatus,
       batteryHealth: battery,
       grade,
       customFields: currentTrade?.customFields,
-    } } : {}),
+    } } : currentSale ? { tradeIn: null } : {}),
   });
 
   const validate = (kind: 'draft' | 'confirm') => {
@@ -254,23 +254,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       }
       if (currentTrade?.confirmationStatus === 'PENDING' && tradeRef) {
         return await confirmTradeOperation(source, tradeRef, input);
-      } else if (currentSale?.integratedOperation && saleId) {
+      } else if (currentSale && saleId) {
         return await updateSaleOperation(saleId, input);
       } else if (hasTrade && hasConfirmedOperation && tradeRef && (source === 'sales' || source === 'tradeins')) {
         return await updateTradeOperation(source, tradeRef, input);
-      } else if (currentSale && !currentSale.integratedOperation) {
-        const updated: Sale = {
-          ...currentSale,
-          clientId: clientId || '',
-          clientName: buyer.trim(),
-          productId: productId || '',
-          deviceLabel: deviceLabel.trim(),
-          amount: amountField?.amount ?? parseMoney(amount),
-          amountCurrency: stampedCurrency(amountField?.currency),
-          paymentMethod: payment,
-          status: paymentStatus,
-        };
-        return await updateSale(updated);
       } else {
         return await createOperation(source, { ...input, draft: false });
       }
@@ -285,7 +272,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   const tradeBlock = (
     <>
-      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={Boolean(currentSale || currentTrade?.confirmationStatus === 'CONFIRMED' || currentTrade?.confirmationStatus === 'PENDING')} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
+      <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={busy || (!saleId && Boolean(currentTrade))} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
+      {currentSale && currentTrade && !hasTrade ? <p className="eqs-note">Al guardar, se quitará el canje de esta venta y se archivará el equipo recibido. El canje quedará en el historial.</p> : null}
       {hasTrade ? (
         <>
           <div className="frow">
@@ -313,7 +301,6 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         value={buyer}
         linked={Boolean(clientId)}
         error={bad.client}
-        readOnly={Boolean(currentSale && !currentSale.integratedOperation)}
         onValue={(value) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
         onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
       />
@@ -362,7 +349,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
         <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
-        {hasTrade && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
+        {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
         <button className="btn2 p" type="button" disabled={busy} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
       </div>
     </Sheet>
