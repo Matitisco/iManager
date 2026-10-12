@@ -3,6 +3,16 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-12**
 
+## Issue #300 — Ayuda para instalar la app — 2026-10-12
+
+- Android sin `beforeinstallprompt`, incluido fuera de Chrome, recibe una tarjeta oscura al inicio del Dashboard después de los mismos 30 s elegibles. Conserva icono, menú amarillo, instrucciones, descarte persistente por plataforma y exclusión de standalone. El evento nativo tardío reemplaza la guía por «Instalar app».
+- Más incorpora como primera tarjeta «Instalar app», amarilla y disponible incluso después del descarte automático. Comparte el consumo de un solo uso del prompt con el banner; sin prompt abre la hoja ilustrada. No agrega Comisiones ni módulos, y no modifica backend, Prisma o AppContext.
+- Hoja «Instalá iManager» con tres beneficios, cuatro pasos por plataforma, «Tu celular» primero y la otra guía colapsada. Safari → Compartir → Agregar a inicio → Agregar para iPhone; Chrome → ⋮ → Instalar app/Agregar a pantalla principal → Instalar para Android. Foco contenido/restaurado, fondo inert, scroll propio y safe areas; entradas ocultas en standalone y después de `appinstalled`.
+- Validación completada: lint frontend/backend, build solicitado, 545 unitarios frontend y 13 pruebas PWA/worker. Suite PWA de producción: 36 casos aprobados (27 omisiones por plataforma/limitación offline WebKit ya existente), sin fallos. Doce unitarios y siete escenarios de navegador nuevos, compartidos entre Vite y la PWA de producción.
+- Suite E2E general final: 128 casos aprobados con un worker, sin utilizar retries. Todos los comandos solicitados (`lint`, `build`, `test`, `test:pwa`, `test:e2e`, `test:pwa:e2e`) completados. Commit en `feat/install-help-300`, sin push, según la instrucción específica del issue.
+- El test existente de Clientes ahora espera el saldo actualizado antes de editar: esperar un toast oculto podía adelantarse al pago async y sobrescribir el saldo con el valor anterior. Pasó tres repeticiones consecutivas. Un timeout previo del toast en el detalle de venta pasó al repetir el caso sin modificar su lógica.
+- Cinco capturas generadas e inspeccionadas en `docs/pr-shots/issue-300-{android-banner,mas,sheet-android,sheet-iphone,desktop}.png`: Android/Más 412×852, iPhone 393×852, desktop 1440×900. Regenerar con `ISSUE_300_SHOTS=docs/pr-shots npm run test:e2e -- e2e/install-help.spec.ts e2e/install-help-iphone.spec.ts --workers=1`. DB local exclusiva `imanager_issue300_test`; puertos 3300/4300 y PWA 4392, configurables sin tocar otros checkouts.
+
 ## Issue #286 — Seguimiento QA del detalle de venta — 2026-10-12
 
 - `SaleDetail` entrega sus acciones al footer explícito de `Sheet`; el cuerpo conserva scroll propio y el footer no encoge. La misma vista atiende Ventas, Reportes («Ventas del período»), Dashboard y notificaciones, también para ventas iniciadas desde la ficha del cliente.

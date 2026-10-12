@@ -28,6 +28,7 @@ import type { NoticeSection } from './unread-count';
 import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
+import { InstallCard } from '../components/InstallHelp';
 
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
@@ -84,6 +85,7 @@ function MoreScreen({
           <div className="wsub">Todo lo que no entra en la barra</div>
         </div>
       </div>
+      <InstallCard />
       <button className="mprofile" type="button" data-testid="more-profile" onClick={() => onOpen('settings')}>
         <div className="av-c b">{initials(name)}</div>
         <span className="info">
@@ -291,7 +293,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     <ExchangeProvider settings={exchangeFromStore(appSession?.store)}>
     <DeskProvider value={ui}>
       <div className="desk-app">
-        <InstallApp enabled={installEnabled && !overlay && !toastOn} />
         {phone ? (
           <header className="mhead" data-testid="mobile-header">
             <div className="mstore">
@@ -342,6 +343,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         </aside>
         )}
         <main className="stage">
+          <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}

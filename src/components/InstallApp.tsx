@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Download, PlusSquare, Share, X } from 'lucide-react';
 import { usePhoneLayout } from '../lib/phone-layout';
 import {
-  clearInstallPrompt, dismissInstall, getInstallPrompt, INSTALL_DELAY_MS,
-  installDismissed, isIOSSafari, isStandalone, subscribeInstall,
+  dismissInstall, getInstallPrompt, INSTALL_DELAY_MS, requestInstall, isAndroid,
+  installDismissed, isIOSSafari, isAppInstalled, subscribeInstall,
 } from '../lib/pwa';
 import './install-app.css';
 
-export function InstallApp({ enabled = true }: { enabled?: boolean }) {
+export function InstallApp({ enabled = true, dashboard = true }: { enabled?: boolean; dashboard?: boolean }) {
   const phone = usePhoneLayout();
   const [, refresh] = useReducer((value: number) => value + 1, 0);
   const [ready, setReady] = useState(false);
@@ -18,7 +18,8 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
   const safari = isIOSSafari();
   const prompt = getInstallPrompt();
   const dismissed = installDismissed();
-  const eligible = enabled && phone && visible && !isStandalone() && (safari ? !dismissed : !!prompt || (!dismissed && !!error));
+  const manual = isAndroid() && !prompt;
+  const eligible = enabled && phone && visible && !isAppInstalled() && (safari ? !dismissed : !!prompt || (!dismissed && (manual && dashboard || !!error)));
 
   useEffect(() => subscribeInstall(refresh), []);
   useEffect(() => {
@@ -38,13 +39,8 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
     setInstalling(true);
     setError('');
     try {
-      await prompt.prompt();
-      await prompt.userChoice;
-      // A native prompt is single-use. Dismissal also suppresses future invitations.
-      clearInstallPrompt();
-      dismissInstall();
+      await requestInstall();
     } catch {
-      clearInstallPrompt();
       setError('No se pudo abrir la instalación. Podés instalar desde el menú de tu navegador.');
     } finally { setInstalling(false); }
   };
@@ -53,14 +49,14 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
     <AnimatePresence>
       {eligible && ready ? (
         <motion.aside
-          className={`pwa-install${!safari ? ' banner' : ''}${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
+          className={`pwa-install${!safari ? manual ? ' banner manual' : ' banner' : ''}${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
           initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 15 }}
         >
           {!dismissed && <motion.button type="button" className="pwa-close" aria-label="No volver a mostrar la instalación" onClick={dismissInstall}
             whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}><X size={18} /></motion.button>}
           {!dismissed && <div className="pwa-heading">
             <img src="/icons/icon-180.png" width="44" height="44" alt="" />
-            <div><h2 id="pwa-install-title">iManager en tu inicio</h2><p>Abrí tu tienda con un toque, como una app.</p></div>
+            <div><h2 id="pwa-install-title">{manual ? 'Instalá iManager' : 'iManager en tu inicio'}</h2>{manual ? <p>Tocá <span className="pwa-menu">⋮</span> y después <b>Agregar a pantalla principal</b></p> : <p>Abrí tu tienda con un toque, como una app.</p>}</div>
           </div>}
           {safari ? (
             <ol className="pwa-steps">
@@ -74,7 +70,7 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
             </motion.button>
           ) : null}
           {error ? <p role="alert">{error}</p> : null}
-          {!dismissed && <motion.button className="pwa-dismiss" type="button" onClick={dismissInstall}
+          {!dismissed && !manual && <motion.button className="pwa-dismiss" type="button" onClick={dismissInstall}
             whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>Ahora no, no volver a mostrar</motion.button>}
         </motion.aside>
       ) : null}

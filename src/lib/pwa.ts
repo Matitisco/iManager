@@ -15,10 +15,14 @@ export function isStandalone() {
     || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+export function isAppInstalled() { return installed || isStandalone(); }
+
 export function isIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
+
+export function isAndroid() { return /Android/i.test(navigator.userAgent); }
 
 export function isIOSSafari() {
   return isIOS() && /Safari/.test(navigator.userAgent)
@@ -28,6 +32,8 @@ export function isIOSSafari() {
 const dismissed = new Set<'ios' | 'android'>();
 let pendingPrompt: InstallPromptEvent | null = null;
 let initialized = false;
+let installed = false;
+let prompting = false;
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((listener) => listener());
 
@@ -52,6 +58,23 @@ export function dismissInstall() {
   changed();
 }
 
+/** Consume the browser's single-use event from either installation entry. */
+export async function requestInstall() {
+  if (!pendingPrompt || prompting) return false;
+  const event = pendingPrompt;
+  prompting = true;
+  try {
+    await event.prompt();
+    await event.userChoice;
+    clearInstallPrompt();
+    dismissInstall();
+    return true;
+  } catch (error) {
+    clearInstallPrompt();
+    throw error;
+  } finally { prompting = false; }
+}
+
 export function getInstallPrompt() { return pendingPrompt; }
 export function clearInstallPrompt() { pendingPrompt = null; changed(); }
 export function subscribeInstall(listener: () => void) {
@@ -68,6 +91,7 @@ export function initializeInstallEvents() {
     changed();
   });
   window.addEventListener('appinstalled', () => {
+    installed = true;
     pendingPrompt = null;
     dismissInstall();
   });
