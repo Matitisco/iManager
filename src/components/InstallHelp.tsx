@@ -1,12 +1,21 @@
-import { useEffect, useId, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Download, MoreVertical, PlusSquare, Share, Smartphone, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getInstallPrompt, isIOS, isAppInstalled, requestInstall, subscribeInstall } from '../lib/pwa';
-import { usePhoneLayout } from '../lib/phone-layout';
+import { PHONE_QUERY } from '../lib/phone-layout';
 import './install-help.css';
 
 type Platform = 'android' | 'iphone';
+// One snapshot decides the card's presence during render, including when Más
+// mounts after a resize. No effect can insert the card beneath an ongoing tap.
+const canShowInstallCard = () => window.matchMedia(PHONE_QUERY).matches && !isAppInstalled();
+function subscribeInstallCard(changed: () => void) {
+  const media = window.matchMedia(PHONE_QUERY);
+  media.addEventListener('change', changed);
+  const stop = subscribeInstall(changed);
+  return () => { media.removeEventListener('change', changed); stop(); };
+}
 const steps = {
   android: [
     ['Abrí la app en Chrome', 'Entrá a app.imanager.com.ar'],
@@ -61,6 +70,22 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
   const own: Platform = isIOS() ? 'iphone' : 'android';
   const other: Platform = own === 'iphone' ? 'android' : 'iphone';
   const [expanded, setExpanded] = useState(false);
+  const backdropPressed = useRef(false);
+  const closePointer = (event: PointerEvent) => {
+    if (event.button > 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    // Close on the completed gesture, even when iOS suppresses its synthetic
+    // click. Consume a trailing click before the background becomes interactive.
+    const swallow = (click: Event) => {
+      click.preventDefault();
+      click.stopPropagation();
+      document.removeEventListener('click', swallow, true);
+    };
+    document.addEventListener('click', swallow, true);
+    window.setTimeout(() => document.removeEventListener('click', swallow, true), 400);
+    onClose();
+  };
 
   useEffect(() => {
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -91,12 +116,24 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
-  return createPortal(<div className="install-help-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(<div className="install-help-backdrop"
+    onPointerDown={(event) => {
+      event.stopPropagation();
+      backdropPressed.current = event.target === event.currentTarget;
+      if (backdropPressed.current) event.preventDefault();
+    }}
+    onPointerUp={(event) => {
+      event.stopPropagation();
+      if (backdropPressed.current && event.target === event.currentTarget) closePointer(event);
+      backdropPressed.current = false;
+    }}
+    onPointerCancel={() => { backdropPressed.current = false; }}
+    onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) onClose(); }}>
     <motion.div ref={dialog} className="install-help-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId}
       initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: .2 }}>
       <div className="install-help-grab" aria-hidden="true" />
       <header className="install-help-header">
-        <div className="install-help-heading"><img src="/icons/icon-180.png" width="46" height="46" alt="" /><div><h2 id={titleId}>Instalá iManager</h2><p>Queda en tu pantalla de inicio y abre como una app.</p></div><button ref={closeButton} type="button" aria-label="Cerrar ayuda de instalación" onClick={onClose}><X size={22} /></button></div>
+        <div className="install-help-heading"><img src="/icons/icon-180.png" width="46" height="46" alt="" /><div><h2 id={titleId}>Instalá iManager</h2><p>Queda en tu pantalla de inicio y abre como una app.</p></div><button ref={closeButton} type="button" aria-label="Cerrar ayuda de instalación" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerUp={closePointer} onClick={onClose}><X size={22} /></button></div>
         <ul className="install-benefits">{['Pantalla completa', 'Abre más rápido', 'Sin tienda de apps'].map((label) => <li key={label}><i aria-hidden="true" />{label}</li>)}</ul>
       </header>
       <div className="install-help-body">
@@ -112,13 +149,12 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
 
 /** Explicit entry remains available after the automatic invitation is dismissed. */
 export function InstallCard() {
-  const phone = usePhoneLayout();
-  const [, refresh] = useReducer((value: number) => value + 1, 0);
+  const visible = useSyncExternalStore(subscribeInstallCard, canShowInstallCard);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => subscribeInstall(refresh), []);
-  if (!phone || isAppInstalled()) return null;
+  const close = useCallback(() => setOpen(false), []);
+  if (!visible) return null;
   const install = async () => {
     if (busy) return;
     if (!getInstallPrompt()) { setOpen(true); return; }
@@ -130,6 +166,6 @@ export function InstallCard() {
   return <>
     <div className="install-more-card" data-testid="install-card"><span className="install-card-icon"><Download size={25} /></span><div><h2>Instalar app</h2><p>Tenela en la pantalla de inicio, como cualquier app</p></div><button type="button" onClick={install} disabled={busy}>{busy ? 'Abriendo…' : 'Instalar'}</button></div>
     {error && <p className="install-card-error" role="alert">{error}</p>}
-    {open && <InstallHelp onClose={() => setOpen(false)} />}
+    {open && <InstallHelp onClose={close} />}
   </>;
 }

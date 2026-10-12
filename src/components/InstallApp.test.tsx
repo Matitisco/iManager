@@ -175,6 +175,17 @@ it('does not invite manually outside Dashboard or on a desktop browser with a ph
   view.unmount(); vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Windows Chrome/130');
   render(<InstallApp />); elapsed(); expect(screen.queryByTestId('install-app')).toBeNull();
 });
+it('removes a visible manual invitation as soon as Dashboard is left', () => {
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android Chrome/130');
+  const view = render(<InstallApp dashboard />); elapsed();
+  expect(screen.getByTestId('install-app')).toBeVisible();
+  view.rerender(<InstallApp dashboard={false} />);
+  expect(screen.queryByTestId('install-app')).toBeNull();
+  elapsed(); expect(screen.queryByTestId('install-app')).toBeNull();
+  view.rerender(<InstallApp dashboard />);
+  elapsed(29_999); expect(screen.queryByTestId('install-app')).toBeNull();
+  elapsed(1); expect(screen.getByTestId('install-app')).toBeVisible();
+});
 it('switches from manual instructions to the installer when the deferred event arrives late', () => {
   vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android Chrome/130');
   pwa.initializeInstallEvents(); render(<InstallApp />); elapsed();
