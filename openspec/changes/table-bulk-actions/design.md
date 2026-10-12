@@ -1,6 +1,8 @@
 ## Approach
 Keep selection local to each screen and scoped to store/user. Derive eligible selection from the complete filtered list, prune rows leaving the filter, retain selection across pages and support Shift+click ranges. Header select-all uses the filtered list rather than the page slice.
 
+Desktop row clicks keep opening the record detail even when selection is active. Only the checkbox and its label toggle selection and stop propagation to the row. The input keeps its record-specific accessible label; the selection cell has the generic name "Selección" so data cells remain uniquely discoverable by their record names. Mobile cards keep toggling selection on tap while selection is active.
+
 Use a shared action bar and confirmation dialog. CSV contains only explicit displayed fields and currencies, never hidden cost data. Reuse the report CSV download helper.
 
 Delete inventory/clients through existing AppContext methods; cancel only integrated or trade-backed sales through updateSale(CANCELADA), which dispatches integrated operations appropriately. Historical sales without an operation remain exportable. Cancel only operation-backed, non-cancelled trade-ins through cancelTradeOperation. Historical trade-ins remain exportable. Backend endpoints already enforce section access, sensitiveAccess, store ownership and audit; cancellation transactions restore stock/balances. No schema or endpoint changes.

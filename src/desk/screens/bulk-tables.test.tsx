@@ -27,6 +27,7 @@ function confirm(action: string) {
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: action }));
 }
 beforeEach(() => {
+  open.mockClear();
   ctx.inventory = [product('1'), product('2')];
   ctx.clients = [{ id: 'c', name: 'Ana', dni: '123', email: '', phone: '', lastPurchaseDate: '', totalSpent: 0, pendingBalance: 0 }];
   ctx.sales = [{ id: 's1', saleNumber: 1, date: new Date().toISOString(), clientId: 'c', productId: '1', amount: 900, amountCurrency: 'USD', paymentMethod: 'EFECTIVO', status: 'COMPLETADA', integratedOperation: true }];
@@ -35,6 +36,34 @@ beforeEach(() => {
 });
 
 describe('bulk table wiring', () => {
+  it.each([
+    { table: 'inventory', Component: InventoryScreen, name: 'Equipo 1', overlay: { type: 'eq', id: '1' } },
+    { table: 'clients', Component: ClientsScreen, name: 'Ana', overlay: { type: 'cl', id: 'c' } },
+    { table: 'sales', Component: SalesScreen, name: 'V-0001', overlay: { type: 'sale', id: 's1' } },
+    { table: 'trades', Component: TradeInsScreen, name: 'C-0001', overlay: { type: 'cj', id: 't1' } },
+  ] as const)('keeps cell names and row activation independent of selection in $table', ({ Component, name, overlay }) => {
+    mount(Component);
+    const cell = screen.getByRole('cell', { name: new RegExp(name) });
+    const row = cell.closest('tr')!;
+    const checkbox = within(row).getByRole('checkbox', { name: new RegExp(`Seleccionar ${name}`) });
+    fireEvent.click(cell);
+    expect(open).toHaveBeenLastCalledWith(overlay);
+    expect(checkbox).not.toBeChecked();
+
+    open.mockClear();
+    fireEvent.click(checkbox.closest('label')!);
+    expect(checkbox).toBeChecked();
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getByRole('cell', { name: new RegExp(name) })).toBe(cell);
+
+    fireEvent.click(row);
+    expect(open).toHaveBeenLastCalledWith(overlay);
+    expect(checkbox).toBeChecked();
+    fireEvent.click(within(row).getAllByRole('cell')[0]);
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(checkbox).toBeChecked();
+  });
+
   it('selects inventory across pages, prunes filters, exports without cost, and reuses deletion', async () => {
     ctx.inventory = Array.from({ length: 10 }, (_, index) => product(String(index)));
     mount(InventoryScreen);

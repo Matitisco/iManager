@@ -7,6 +7,11 @@ The four tables SHALL support row checkboxes, select-all for every currently fil
 - **WHEN** selected rows leave the active filter or the store/user changes
 - **THEN** hidden rows SHALL leave the selection and no actions SHALL target stale store/user records.
 
+#### Scenario: Desktop selection preserves table semantics and activation
+- **WHEN** a user selects records with a row checkbox or its label
+- **THEN** the checkbox SHALL expose a record-specific accessible label without including that label in the selection cell's name or opening the record detail.
+- **AND** clicking the desktop row or its cells outside the checkbox label SHALL open the record detail without toggling selection, including while selection is active.
+
 ### Requirement: Safe actions and partial results
 The system SHALL export only selected explicit fields, delete inventory/clients and cancel eligible sales/trade operations using existing endpoints. Destructive actions SHALL require sensitive permissions and confirmation, with existing server audit and business rules.
 

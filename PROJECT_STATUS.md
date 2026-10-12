@@ -22,6 +22,9 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Capturas generadas e inspeccionadas en `docs/pr-shots/issue-285-desktop.png`, `issue-285-mobile-iphone.png` e `issue-285-desktop-confirm.png`: desktop 1440×900 e iPhone 13/WebKit 390×844, sin overflow, barra/confirmación completas. Regenerar con `ISSUE_285_SHOTS=docs/pr-shots npm run test:e2e -- e2e/bulk-actions.spec.ts` y una base local de pruebas. Esta sesión usó `imanager_issue285_test`/`imanager_issue285_e2e_test` y puertos temporales 3125/4195 por colisión con los habituales.
 - Commit en la rama actual, sin push, según el pedido de la issue.
 
+- Corrección CI #285: la celda de selección usa el nombre genérico «Selección» y el input conserva «Seleccionar …», evitando que los nombres de registros coincidan con dos celdas. Las filas desktop abren el detalle sin cambiar la selección, incluso con selección activa; solo el checkbox y su label seleccionan. Las tarjetas móviles conservan sus gestos. Cuatro regresiones nuevas cubren las tablas; se mantienen las expectativas E2E existentes.
+- Validación de la corrección: lint frontend/backend, build solicitado, 512 tests frontend y los 109 escenarios de la suite E2E completa aprobados. Ejecución final E2E con un worker, sin retries, usando exclusivamente PostgreSQL local `imanager_issue285_regression_test`; se prepararon las carpetas de capturas existentes en `/opt/cursor/artifacts/` sin cambiar tests. Commit en la rama actual, sin push.
+
 ## Issue #286 — Detalle de venta compacto — 2026-10-12
 
 - El detalle agrupa los datos del canje en dos columnas. El cuerpo tiene scroll propio y las acciones permanecen visibles en el footer en desktop y mobile, con botones de al menos 48 px y safe area inferior. Conserva textos, permisos y operaciones existentes; solo frontend.

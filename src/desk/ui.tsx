@@ -323,7 +323,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   selection?: RowSelection;
   children: React.ReactNode;
 }) {
-  const bind = usePress(onMenu, () => selection?.active ? selection.toggle() : onActivate(),
+  const bind = usePress(onMenu, () => as === 'button' && selection?.active ? selection.toggle() : onActivate(),
     as === 'button' && selection ? () => selection.toggle() : undefined);
   const checkbox = selection ? <SelectionCheckbox checked={selection.checked} disabled={selection.disabled} label={selection.label} onToggle={selection.toggle} /> : null;
   const rowClass = `${className ?? ''}${selection?.checked ? ' bulk-selected' : ''}`.trim() || undefined;
@@ -345,7 +345,8 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
       </div>
     );
   }
-  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell">{checkbox}</td> : null}{children}</tr>;
+  // Keep the checkbox's record-specific label out of the cell's accessible name.
+  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className }: {
