@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { OperationProductOption, Product } from '../types';
-import { equipmentTitle, formatMoneyCompact } from './format';
+import { equipmentTitle } from './format';
+import { useMoney } from './exchange';
 import { equipmentSuggestions } from './sale-equipment';
 import { Field } from './ui';
 
@@ -19,6 +20,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   onValue: (value: string) => void;
   onPick: (item: T) => void;
 }) {
+  const money = useMoney();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const suggestions = useMemo(() => equipmentSuggestions(items, value), [items, value]);
@@ -84,7 +86,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
                 }}
               >
                 <b>{equipmentTitle(item.model, item.capacity)}</b>
-                <small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', formatMoneyCompact(item.price)].filter(Boolean).join(' · ')}</small>
+                <small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', money.compact(item.price, item.currency)].filter(Boolean).join(' · ')}</small>
               </button>
             </li>
           ))}

@@ -1,4 +1,5 @@
-export function formatArMoney(value: number): string {
+export function formatArMoney(value: number, currency?: string | null): string {
   const amount = Number.isFinite(value) ? Math.round(value) : 0;
-  return `$ ${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(amount)}`;
+  const formatted = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(amount);
+  return currency === "USD" ? `US$ ${formatted}` : `$ ${formatted}`;
 }

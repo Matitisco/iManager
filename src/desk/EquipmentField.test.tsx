@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Product } from '../types';
+import { ExchangeProvider } from './exchange';
 import { EquipmentField } from './EquipmentField';
 
 function product(id: string, model: string): Product {
@@ -58,5 +59,16 @@ describe('EquipmentField', () => {
 
     await user.click(screen.getByRole('option', { name: /iPhone 13/ }));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'a', model: 'iPhone 13' }));
+  });
+
+  it('prices a suggestion in the store currency', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1000 }}>
+        <Harness onPick={vi.fn()} />
+      </ExchangeProvider>,
+    );
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'iphone 13');
+    expect(screen.getByRole('option', { name: /iPhone 13/ })).toHaveTextContent('US$ 500');
   });
 });

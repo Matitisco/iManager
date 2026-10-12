@@ -114,9 +114,50 @@ describe("store currency", () => {
     });
     expect(sale.statusCode).toBe(201);
     expect(sale.json().sale).toMatchObject({ amount: 100, amountCurrency: "USD" });
+    expect(sale.json().summary).toBe("Venta US$ 100 · deuda US$ 0 · equipo libre");
+    expect(sale.json().notifications.find((item: { section: string }) => item.section === "sales")?.message).toBe("iPhone 13 · Ana · US$ 100");
 
     const storedSale = await prisma.sale.findFirstOrThrow({ where: { storeId } });
     expect(storedSale.amount.toNumber()).toBe(100);
     expect(storedSale.amountCurrency).toBe("USD");
+  });
+
+  it("writes trade and client notices in the store currency", async () => {
+    const app = getApp();
+    const context = await seedStoreContext({
+      firebaseUid: "usd-copy-owner",
+      email: "usd-copy@imanager.test",
+      displayName: "Dueña Dólar",
+    });
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
+    const client = await prisma.client.create({
+      data: { storeId: context.store!.id, name: "Ana Pérez", totalSpent: 0, pendingBalance: 0 },
+    });
+    const headers = {
+      "content-type": "application/json",
+      ...buildAuthHeaders({ uid: context.user.firebaseUid, email: context.user.email ?? undefined, name: "Dueña Dólar" }),
+    };
+
+    const trade = await app.inject({
+      method: "POST",
+      url: "/api/operations/tradeins",
+      headers,
+      payload: {
+        date: "09/10/2026",
+        clientId: client.id,
+        deviceLabel: "iPhone 14",
+        amount: 1075,
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+        tradeIn: { deviceReceived: "iPhone 11", takeValue: 200 },
+      },
+    });
+    expect(trade.statusCode).toBe(201);
+    const body = trade.json();
+    const notice = (section: string) => body.notifications.find((item: { section: string }) => item.section === section);
+    expect(notice("tradeins")?.message).toBe("iPhone 11 · toma US$ 200 · diferencia US$ 875");
+    expect(notice("clients")?.message).toBe("Ana Pérez compró por US$ 1.075");
+    expect(notice("sales")?.message).toBe("iPhone 14 · Ana Pérez · US$ 1.075");
+    expect(body.summary).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada · recibido en revisión");
   });
 });

@@ -16,6 +16,7 @@ export type NoticeFacts = {
   releasedDevice?: string | null;
   archivedDevice?: string | null;
   refund?: number | null;
+  currency?: string | null;
 };
 
 export type NoticeTarget = {
@@ -89,10 +90,10 @@ function inventoryReason(facts: NoticeFacts) {
 
 function clientReason(facts: NoticeFacts) {
   const balance = facts.pendingBalance ?? 0;
-  if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance)}`;
+  if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance, facts.currency)}`;
   if (facts.clientCreated) return "Nuevo cliente";
-  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) return `Devolución ${money(facts.refund ?? 0)}`;
-  if (balance > 0) return `Debe ${money(balance)}`;
+  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) return `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
+  if (balance > 0) return `Debe ${money(balance, facts.currency)}`;
   if (facts.action === "cancelled" || facts.action === "updated") return "Quedó al día";
   return "Cliente";
 }
@@ -102,8 +103,8 @@ function text(value?: string | null) {
   return trimmed || "";
 }
 
-function money(value: number) {
-  return formatArMoney(value);
+function money(value: number, currency?: string | null) {
+  return formatArMoney(value, currency);
 }
 
 export function sectionCopy(section: string, facts: NoticeFacts): { title: string; message: string } {
@@ -115,7 +116,7 @@ export function sectionCopy(section: string, facts: NoticeFacts): { title: strin
 
 function saleCopy(facts: NoticeFacts): { title: string; message: string } {
   const title = facts.action === "cancelled" ? "Venta cancelada" : facts.action === "updated" ? "Venta actualizada" : "Venta registrada";
-  const parts = [text(facts.deviceLabel), text(facts.clientName), facts.amount != null ? money(facts.amount) : ""].filter(Boolean);
+  const parts = [text(facts.deviceLabel), text(facts.clientName), facts.amount != null ? money(facts.amount, facts.currency) : ""].filter(Boolean);
   return { title, message: parts.join(" · ") || "Venta sin detalle" };
 }
 
@@ -130,8 +131,8 @@ function tradeCopy(facts: NoticeFacts): { title: string; message: string } {
           ? "Canje actualizado"
           : "Canje confirmado";
   const parts = [text(facts.receivedDevice) || "Equipo recibido"];
-  if (facts.takeValue != null) parts.push(`toma ${money(facts.takeValue)}`);
-  if (facts.difference != null) parts.push(`diferencia ${money(facts.difference)}`);
+  if (facts.takeValue != null) parts.push(`toma ${money(facts.takeValue, facts.currency)}`);
+  if (facts.difference != null) parts.push(`diferencia ${money(facts.difference, facts.currency)}`);
   return { title, message: parts.join(" · ") };
 }
 
@@ -169,16 +170,16 @@ function inventoryCopy(facts: NoticeFacts): { title: string; message: string } {
 function clientCopy(facts: NoticeFacts): { title: string; message: string } {
   const name = text(facts.clientName) || "Cliente";
   const balance = facts.pendingBalance ?? 0;
-  if (facts.clientCreated && balance > 0) return { title: "Nuevo cliente", message: `Nuevo cliente: ${name}. Debe ${money(balance)}` };
+  if (facts.clientCreated && balance > 0) return { title: "Nuevo cliente", message: `Nuevo cliente: ${name}. Debe ${money(balance, facts.currency)}` };
   if (facts.clientCreated) return { title: "Nuevo cliente", message: `Nuevo cliente: ${name}` };
   if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) {
-    const refundText = `Devolución ${money(facts.refund ?? 0)}`;
-    if (balance > 0) return { title: "Devolución registrada", message: `${name} debe ${money(balance)}. ${refundText}` };
+    const refundText = `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
+    if (balance > 0) return { title: "Devolución registrada", message: `${name} debe ${money(balance, facts.currency)}. ${refundText}` };
     return { title: "Devolución registrada", message: `${name} quedó al día. ${refundText}` };
   }
-  if (balance > 0) return { title: "Saldo pendiente", message: `${name} debe ${money(balance)}` };
+  if (balance > 0) return { title: "Saldo pendiente", message: `${name} debe ${money(balance, facts.currency)}` };
   if (facts.action === "cancelled" || facts.action === "updated") return { title: "Cliente actualizado", message: `${name} quedó al día` };
-  if (facts.amount != null) return { title: "Cliente", message: `${name} compró por ${money(facts.amount)}` };
+  if (facts.amount != null) return { title: "Cliente", message: `${name} compró por ${money(facts.amount, facts.currency)}` };
   return { title: "Cliente", message: name };
 }
 
@@ -207,14 +208,15 @@ export function sectionRecords(
   }));
 }
 
-export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean }) {
-  const amount = money(input.amount);
+export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; status: string; hasInventory: boolean; received?: boolean; currency?: string | null }) {
+  const format = (value: number) => money(value, input.currency);
+  const amount = format(input.amount);
   if (!input.trade) {
     const debtValue = input.status === "PENDIENTE" ? input.amount : 0;
-    return `Venta ${amount} · deuda ${money(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
+    return `Venta ${amount} · deuda ${format(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
   }
   const difference = Math.max(0, input.amount - (input.takeValue ?? 0));
   const debtValue = input.status === "PENDIENTE" ? difference : 0;
-  const settlement = debtValue > 0 ? `debe ${money(debtValue)}` : "pagada";
-  return `Canje · total ${amount} · toma ${money(input.takeValue ?? 0)} · diferencia ${money(difference)} · ${settlement}${input.received ? " · recibido en revisión" : ""}`;
+  const settlement = debtValue > 0 ? `debe ${format(debtValue)}` : "pagada";
+  return `Canje · total ${amount} · toma ${format(input.takeValue ?? 0)} · diferencia ${format(difference)} · ${settlement}${input.received ? " · recibido en revisión" : ""}`;
 }
