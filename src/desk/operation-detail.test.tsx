@@ -92,6 +92,43 @@ describe('operation detail', () => {
     toast.mockReset();
   });
 
+  it.each([false, true])('keeps sale actions outside the scrollable body (phone: %s)', (phone) => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      ...original(query),
+      matches: phone && query.includes('760'),
+    }));
+    try {
+      renderOverlay({ type: 'sale', id: 's1' });
+      const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+      const body = dialog.querySelector('.sheet-scroll');
+      const footer = dialog.querySelector('.sheet-foot');
+      expect(body).not.toBeNull();
+      expect(footer).not.toBeNull();
+      expect(footer?.parentElement).toBe(dialog);
+      expect(body).not.toContainElement(footer as HTMLElement);
+      expect(body).toContainElement(within(dialog).getByRole('region', { name: 'Canje como parte de pago' }));
+      for (const name of ['Cerrar', 'Cancelar operación', 'Editar', 'Compartir comprobante']) {
+        const action = within(footer as HTMLElement).getByRole('button', { name });
+        expect(body).not.toContainElement(action);
+      }
+    } finally {
+      window.matchMedia = original;
+      cleanup();
+    }
+  });
+
+  it('keeps pending sale actions in the footer and respects cancellation permissions', () => {
+    ctx.sales = [sale({ status: 'PENDIENTE' })];
+    renderOverlay({ type: 'sale', id: 's1' }, false);
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
+    expect(within(footer).getByRole('button', { name: 'Marcar cobrada' })).toBeInTheDocument();
+    expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Cancelar venta' })).not.toBeInTheDocument();
+    expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+  });
+
   it('asks before cancelling a trade and only cancels after confirmation', async () => {
     const user = userEvent.setup();
     renderOverlay({ type: 'cj', id: 't1' });
