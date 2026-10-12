@@ -17,7 +17,8 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
   const [error, setError] = useState('');
   const safari = isIOSSafari();
   const prompt = getInstallPrompt();
-  const eligible = enabled && phone && visible && !isStandalone() && !installDismissed() && (safari || !!prompt || !!error);
+  const dismissed = installDismissed();
+  const eligible = enabled && phone && visible && !isStandalone() && (safari ? !dismissed : !!prompt || (!dismissed && !!error));
 
   useEffect(() => subscribeInstall(refresh), []);
   useEffect(() => {
@@ -52,15 +53,15 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
     <AnimatePresence>
       {eligible && ready ? (
         <motion.aside
-          className="pwa-install" role="region" aria-labelledby="pwa-install-title" data-testid="install-app"
+          className={`pwa-install${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
           initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 15 }}
         >
-          <motion.button type="button" className="pwa-close" aria-label="No volver a mostrar la instalación" onClick={dismissInstall}
-            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}><X size={18} /></motion.button>
-          <div className="pwa-heading">
+          {!dismissed && <motion.button type="button" className="pwa-close" aria-label="No volver a mostrar la instalación" onClick={dismissInstall}
+            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}><X size={18} /></motion.button>}
+          {!dismissed && <div className="pwa-heading">
             <img src="/icons/icon-180.png" width="44" height="44" alt="" />
             <div><h2 id="pwa-install-title">iManager en tu inicio</h2><p>Abrí tu tienda con un toque, como una app.</p></div>
-          </div>
+          </div>}
           {safari ? (
             <ol className="pwa-steps">
               <li><span className="pwa-step-icon"><Share size={22} aria-hidden="true" /></span><span>Tocá <b>Compartir</b> en Safari.<small>El cuadrado con la flecha hacia arriba.</small></span></li>
@@ -73,8 +74,8 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
             </motion.button>
           ) : null}
           {error ? <p role="alert">{error}</p> : null}
-          <motion.button className="pwa-dismiss" type="button" onClick={dismissInstall}
-            whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>Ahora no, no volver a mostrar</motion.button>
+          {!dismissed && <motion.button className="pwa-dismiss" type="button" onClick={dismissInstall}
+            whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>Ahora no, no volver a mostrar</motion.button>}
         </motion.aside>
       ) : null}
     </AnimatePresence>

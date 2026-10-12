@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { createServiceWorker, pwaPlugin } from './pwa.mjs';
 import { createSpaHandler } from './serve-spa.mjs';
 
-function worker(version = 'test') {
+function worker(version = 'test', network = {}) {
   const events = {};
   const stores = new Map();
   const fetched = [];
@@ -32,7 +32,8 @@ function worker(version = 'test') {
     }, caches, URL, Set,
     fetch: async (request) => {
       fetched.push(request.url);
-      return { ok: true, type: 'basic', headers: new Headers(), clone: () => 'network-static' };
+      if (network.offline) throw new Error('offline');
+      return { ok: !network.failed, type: 'basic', headers: new Headers(), clone: () => 'network-static' };
     },
   });
   const lifecycle = async (name) => {
@@ -48,13 +49,13 @@ function worker(version = 'test') {
   return { stores, fetched, lifecycle, fetchEvent, claimed: () => claimed, forced: () => forced };
 }
 
-test('worker precaches the atomic shell and never forces a running client to update', async () => {
+test('worker precaches release assets and activates immediately; navigation is network-first', async () => {
   const sw = worker(); await sw.lifecycle('install');
   assert.deepEqual([...sw.stores.get('imanager-static-test').keys()], ['/', '/assets/app-hash.js']);
-  assert.equal(sw.forced(), false);
-  assert.equal(await sw.fetchEvent('/', { mode: 'navigate' }), 'cached:/');
+  assert.equal(sw.forced(), true);
+  assert.equal((await sw.fetchEvent('/', { mode: 'navigate' })).ok, true);
   assert.equal(await sw.fetchEvent('/assets/app-hash.js'), 'cached:/assets/app-hash.js');
-  assert.deepEqual(sw.fetched, []);
+  assert.deepEqual(sw.fetched, ['https://app.test/']);
 });
 test('worker excludes API, session/auth, invite/action queries, cross-origin, POST and authenticated resources', async () => {
   const sw = worker(); await sw.lifecycle('install');
@@ -106,7 +107,7 @@ async function serve(path, options = {}) {
       url: path, method: options.method || 'GET', headers: options.headers || {},
       async *[Symbol.asyncIterator]() { if (options.body) yield Buffer.from(options.body); },
     };
-    await createSpaHandler({ root, ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) })(request, {
+    await createSpaHandler({ root, authDomain: options.authDomain || '', ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}) })(request, {
       writeHead: (s, h) => { status = s; headers = h; }, end: (b) => { body = b?.toString(); },
     });
     return { status, headers, body };
@@ -159,5 +160,40 @@ test('manifest and Apple metadata point to existing images of the declared dimen
   for (const [, path, w, h] of launches) {
     const png = await readFile(join('public', path));
     assert.equal(png.readUInt32BE(16), Number(w)); assert.equal(png.readUInt32BE(20), Number(h));
+  }
+});
+
+test('navigation falls back offline or on server failure and caches successful SPA paths', async () => {
+  const network = {};
+  const sw = worker('offline', network); await sw.lifecycle('install');
+  network.offline = true;
+  assert.equal(await sw.fetchEvent('/', { mode: 'navigate' }), 'cached:/');
+  network.offline = false;
+  await sw.fetchEvent('/inventory', { mode: 'navigate' });
+  assert.equal(sw.stores.get('imanager-static-offline').get('/'), 'network-static');
+  network.failed = true;
+  assert.equal(await sw.fetchEvent('/', { mode: 'navigate' }), 'network-static');
+  assert.equal(sw.fetchEvent('/__/auth/handler', { mode: 'navigate' }), undefined);
+});
+test('custom domain proxy retains internal helper redirects and proxies init JSON to the fixed project', async () => {
+  const result = await serve('/__/auth/handler', {
+    authDomain: 'app.imanager.com.ar',
+    fetchImpl: async () => new Response(null, { status: 302, headers: { location: 'https://gen-lang-client-0137016082.firebaseapp.com/__/auth/iframe?eventId=1' } }),
+  });
+  assert.equal(result.headers.location, '/__/auth/iframe?eventId=1');
+  const init = await serve('/__/firebase/init.json', { authDomain: 'app.imanager.com.ar', fetchImpl: async (url) => {
+    assert.equal(url, 'https://gen-lang-client-0137016082.firebaseapp.com/__/firebase/init.json');
+    return Response.json({ projectId: 'gen-lang-client-0137016082' });
+  } });
+  assert.equal(init.headers['cache-control'], 'no-store');
+  assert.equal(JSON.parse(init.body).projectId, 'gen-lang-client-0137016082');
+});
+test('manifest includes wide and narrow real PNG screenshots with declared sizes', async () => {
+  const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
+  assert.deepEqual(manifest.screenshots.map((shot) => shot.form_factor).sort(), ['narrow', 'wide']);
+  for (const shot of manifest.screenshots) {
+    assert.equal(shot.type, 'image/png'); assert.ok(shot.label);
+    const png = await readFile(join('public', shot.src));
+    assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, shot.sizes);
   }
 });

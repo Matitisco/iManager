@@ -186,6 +186,8 @@ describe('DeskSelect', () => {
       expect(trigger()).toHaveTextContent('Medio de pago');
       await userEvent.click(trigger());
       fireEvent.pointerDown(document.querySelector('.ds-select-backdrop')!);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      fireEvent.click(document.querySelector('.ds-select-backdrop')!);
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       await userEvent.click(trigger());
       await userEvent.keyboard('{Escape}');
@@ -193,4 +195,24 @@ describe('DeskSelect', () => {
       expect(trigger()).toHaveFocus();
     } finally { media.mockRestore(); }
   });
+});
+
+it('consumes the mobile backdrop gesture before closing without bubbling to the underlying tab or parent sheet', async () => {
+  const media = mobile();
+  try {
+    const down = vi.fn(); const click = vi.fn(); const change = vi.fn(); const close = vi.fn();
+    render(<div onPointerDown={down} onClick={click}><Sheet title="Tienda" onClose={close}><Example onChange={change} /></Sheet><button>Ventas</button></div>);
+    await userEvent.click(trigger()); down.mockClear(); click.mockClear();
+    const backdrop = document.querySelector('.ds-select-backdrop')!;
+    const pointer = new Event('pointerdown', { bubbles: true, cancelable: true });
+    fireEvent(backdrop, pointer);
+    expect(pointer.defaultPrevented).toBe(true);
+    expect(screen.getByRole('dialog', { name: 'Desglose' })).toBeVisible();
+    expect(down).not.toHaveBeenCalled();
+    const release = new MouseEvent('click', { bubbles: true, cancelable: true });
+    fireEvent(backdrop, release);
+    expect(release.defaultPrevented).toBe(true);
+    expect(screen.queryByRole('dialog', { name: 'Desglose' })).toBeNull();
+    expect(click).not.toHaveBeenCalled(); expect(close).not.toHaveBeenCalled(); expect(change).not.toHaveBeenCalled();
+  } finally { media.mockRestore(); }
 });

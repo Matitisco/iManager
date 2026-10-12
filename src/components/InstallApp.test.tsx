@@ -51,7 +51,7 @@ describe('mobile installation invitation', () => {
   it('persists dismissal across remounts', () => {
     const view = render(<InstallApp />); elapsed();
     fireEvent.click(screen.getByRole('button', { name: 'Ahora no, no volver a mostrar' }));
-    expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEY)).toBe('yes');
+    expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEYS.ios)).toBe('yes');
     view.unmount(); render(<InstallApp />); elapsed();
     expect(screen.queryByTestId('install-app')).toBeNull();
   });
@@ -131,4 +131,25 @@ describe('mobile installation invitation', () => {
     view.unmount(); render(<InstallApp />); elapsed();
     expect(screen.queryByTestId('install-app')).toBeNull();
   });
+});
+
+it('migrates the old guide dismissal only to iOS and keeps Android install available after closing its guide', () => {
+  localStorage.setItem(pwa.INSTALL_DISMISSED_KEY, 'yes');
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Android Chrome/130');
+  pwa.initializeInstallEvents();
+  const event = promptEvent();
+  render(<InstallApp />); elapsed();
+  expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEYS.ios)).toBe('yes');
+  expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEY)).toBeNull();
+  expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEYS.android)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Ahora no, no volver a mostrar' }));
+  expect(localStorage.getItem(pwa.INSTALL_DISMISSED_KEYS.android)).toBe('yes');
+  expect(screen.getByRole('button', { name: 'Instalar app' })).toBeVisible();
+  expect(screen.queryByText('iManager en tu inicio')).toBeNull();
+  expect(event.prompt).not.toHaveBeenCalled();
+});
+it('does not suppress the iOS guide when Android was dismissed', () => {
+  localStorage.setItem(pwa.INSTALL_DISMISSED_KEYS.android, 'yes');
+  render(<InstallApp />); elapsed();
+  expect(screen.getByTestId('install-app')).toContainHTML('Compartir');
 });
