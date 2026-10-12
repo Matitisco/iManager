@@ -46,7 +46,7 @@ jobs:
         working-directory: backend
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Lint frontend
         run: npm run lint
@@ -57,6 +57,12 @@ jobs:
 
       - name: Test frontend
         run: npm run test:frontend
+
+      - name: Test PWA assets, worker and serving
+        run: npm run test:pwa
+
+      - name: Test PWA on iPhone WebKit and Android Chromium
+        run: npm run test:pwa:e2e
 
       - name: Test backend unit
         run: npm run test:unit

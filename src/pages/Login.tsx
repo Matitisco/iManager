@@ -8,6 +8,7 @@ import { useInvitationPreview } from '../hooks/useInvitationPreview';
 import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { consumePasswordResetNotice, PASSWORD_RESET_LOGIN_NOTICE } from '../lib/password-reset-notice';
 import { ROLE_LABEL } from '../lib/roles';
+import { getAuthAdapter } from '../services/auth-adapter';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -70,6 +71,9 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         return 'No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.';
       case 'auth/popup-blocked':
         return 'El navegador bloqueó la ventana de Google. Permití popups e intentá de nuevo.';
+      case 'auth/unauthorized-domain':
+      case 'auth/auth-domain-config-required':
+        return 'El acceso con Google no está disponible. Ingresá con tu correo y contraseña.';
       case 'auth/email-already-in-use':
         return 'Ya existe una cuenta con este correo electrónico.';
       case 'auth/weak-password':
@@ -84,6 +88,14 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
         return 'No pudimos completar el acceso. Intenta de nuevo.';
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    getAuthAdapter().completeGoogleRedirect?.().catch((err: unknown) => {
+      if (active) setError(getFirebaseErrorMessage(getAuthErrorCode(err)));
+    });
+    return () => { active = false; };
+  }, []);
 
   const handleGoogleLogin = async () => {
     const attempt = ++googleAttempt.current;

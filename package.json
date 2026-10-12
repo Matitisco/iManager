@@ -17,6 +17,8 @@
     "test:backend:integration": "npm --prefix backend run test:integration",
     "test:backend:coverage": "npm --prefix backend run test:coverage",
     "test:e2e": "playwright test",
+    "test:pwa": "node scripts/pwa.test.mjs",
+    "test:pwa:e2e": "playwright test --config playwright.pwa.config.ts",
     "test:ci": "npm run test:frontend && npm run test:backend:unit && npm run test:backend:integration && npm run test:e2e"
   },
   "dependencies": {

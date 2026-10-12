@@ -3,11 +3,14 @@ import {
   onAuthStateChanged as onFirebaseAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   type User,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import type { AuthUserLike } from '../types/auth-user';
+import { isIOS, isStandalone } from '../lib/pwa';
 
 type AuthListener = (user: AuthUserLike | null) => void;
 
@@ -19,6 +22,7 @@ export interface AuthAdapter {
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  completeGoogleRedirect?: () => Promise<void>;
 }
 
 interface TestAuthPayload {
@@ -113,12 +117,20 @@ function persistTestUser(user: AuthUserLike | null) {
   window.dispatchEvent(new Event(TEST_AUTH_EVENT));
 }
 
+let redirectResult: Promise<void> | undefined;
+
 const firebaseAdapter: AuthAdapter = {
   mode: 'firebase',
   getCurrentUser: () => (auth.currentUser ? toFirebaseCompatibleUser(auth.currentUser) : null),
   onAuthStateChanged: (callback) => onFirebaseAuthStateChanged(auth, (user) => callback(user ? toFirebaseCompatibleUser(user) : null)),
   loginWithGoogle: async () => {
-    await signInWithPopup(auth, googleProvider);
+    if (isIOS() && isStandalone()) await signInWithRedirect(auth, googleProvider);
+    else await signInWithPopup(auth, googleProvider);
+  },
+  completeGoogleRedirect: () => {
+    // Firebase processes the redirect once, including React StrictMode remounts.
+    redirectResult ??= getRedirectResult(auth).then(() => undefined);
+    return redirectResult;
   },
   loginWithEmail: async (email, password) => {
     await signInWithEmailAndPassword(auth, email, password);
@@ -171,4 +183,3 @@ const adapter = isE2ETestMode() ? e2eAdapter : firebaseAdapter;
 export function getAuthAdapter() {
   return adapter;
 }
-

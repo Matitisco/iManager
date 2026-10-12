@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-04-19**
 
+## Issue #290 — PWA instalable — 2026-10-12
+
+- Manifest completo y assets del logo propuesta 3: íconos normales/maskable, Apple touch y 26 splash screens de iPhone. Guía Safari ilustrada y prompt Android después de 30 s con sesión/tienda lista; descarte persistente, sin invitación en desktop/standalone.
+- Worker de producción con caché explícita de shell/bundles/branding, excluyendo API, sesión, helpers Firebase y query strings. Actualizaciones esperan el cierre de clientes. Safe areas en login/onboarding, shell y navegación.
+- Google en iOS standalone usa redirect y helpers del mismo origen a través del servidor web; errores visibles en Login. Email/password y popup del navegador conservados. El handler del dominio desplegado debe estar autorizado en Firebase/Google OAuth.
+- Build y TypeScript frontend/backend aprobados, pruebas PWA/worker/servidor aprobadas y unitarios backend aprobados sin tests live. La validación de navegador está bloqueada por sandbox/sockets/DNS; queda suite WebKit/Chromium en CI y checklist de iPhone/OAuth real en `docs/pwa.md`.
+- Commit local bloqueado porque `.git` es solo lectura (`.git/index.lock`). Cambios en la rama existente, sin push ni PR.
+
 ## Iteración hifi-desk — 2026-10-06
 
 - Issue #89: Inventario, Ventas, Clientes y Canjes comparten operaciones atómicas. Venta/canje mantiene el precio total de salida, diferencia y deuda; los borradores persisten y se recuperan, y cancelar restaura la salida, archiva el recibido y revierte saldos sin borrar historia.

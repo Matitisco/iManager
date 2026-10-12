@@ -1,0 +1,30 @@
+.pwa-install {
+  position: fixed;
+  z-index: 60;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 110px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #E6E8EC;
+  border-radius: 22px;
+  background: #fff;
+  color: #16181D;
+  box-shadow: 0 8px 28px rgb(22 24 29 / 12%);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+}
+.pwa-heading { display: flex; align-items: center; gap: 12px; padding-right: 20px; }
+.pwa-heading img { flex: none; border-radius: 12px; }
+.pwa-heading h2 { font-size: 16px; font-weight: 800; margin: 0 0 3px; }
+.pwa-heading p { color: #737984; font-size: 12px; margin: 0; }
+.desk-app .pwa-close { position: absolute; top: 8px; right: 8px; padding: 10px; border-radius: 12px; }
+.pwa-steps { display: flex; flex-direction: column; gap: 12px; list-style: none; padding: 0; margin: 18px 0 8px; }
+.pwa-steps li { display: flex; gap: 12px; align-items: center; }
+.pwa-step-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; background: #FFF4C2; border-radius: 12px; }
+.pwa-steps small { display: block; color: #737984; font-size: 12px; margin-top: 2px; }
+.desk-app .pwa-action { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; padding: 12px; width: 100%; border-radius: 12px; background: #16181D; color: #fff; font-weight: 700; }
+.pwa-action:disabled { opacity: .6; }
+.desk-app .pwa-dismiss { padding: 12px 4px 0; width: 100%; color: #737984; font-size: 12px; text-align: center; }
+@media (min-width: 761px) { .pwa-install { display: none; } }

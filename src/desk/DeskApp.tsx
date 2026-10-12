@@ -27,6 +27,7 @@ import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
 import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
+import { InstallApp } from '../components/InstallApp';
 
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
@@ -148,7 +149,7 @@ function tabFromHash(hash: string): DeskTab {
   return (Object.keys(ROUTE) as DeskTab[]).find((key) => ROUTE[key] === name) ?? 'dashboard';
 }
 
-export function DeskApp() {
+export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
   const { appSession, tradeIns, inventory, user, repairOrders = [] } = useAppContext();
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
@@ -394,6 +395,7 @@ export function DeskApp() {
         ) : null}
         <DeskToast message={message} show={toastOn} />
         <DeskOverlays overlay={overlay} />
+        <InstallApp enabled={installEnabled && !overlay && !toastOn} />
       </div>
     </DeskProvider>
     </ExchangeProvider>
