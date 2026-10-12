@@ -83,7 +83,10 @@ test('real service worker reopens the shell offline but never serves API/session
   page.on('console', (message) => logs.push(`${message.type()}: ${message.text()}`));
   await expect.poll(() => page.evaluate(async () => {
     const registration = await navigator.serviceWorker.getRegistration();
-    return registration?.active ? 'active' : registration ? `pending:${registration.installing?.state ?? registration.waiting?.state}` : 'none';
+    if (registration?.active) return 'active';
+    if (registration) return `pending:${registration.installing?.state ?? registration.waiting?.state}`;
+    try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); return 'none:registered-now'; }
+    catch (error) { return `none:${String(error)}`; }
   }), { timeout: 30_000, message: `service worker never activated; console: ${logs.join(' | ')}` }).toBe('active');
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   const cached = await page.evaluate(async () => {
