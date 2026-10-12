@@ -1716,3 +1716,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 }
 
 @media (max-width: 760px) { .bulk-row:not(:has(.row-more)) .phone-row { padding-right: 14px; } }
+
+/* Tap retains focus without a browser outline; keyboard focus stays visible. */
+.desk-app .dolar button:focus { outline: none; }
+.desk-app .dolar button:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; box-shadow: 0 0 0 4px var(--primary); }

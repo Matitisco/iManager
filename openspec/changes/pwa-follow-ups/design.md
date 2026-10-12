@@ -1,0 +1,3 @@
+# Diseño
+
+Mantener el dominio Firebase actual y el redirect same-origin de iOS standalone; una variable explícita habilita dominio propio. Extender el proxy existente con upstream fijo y no-store. Migrar descarte histórico solamente a la guía iOS, y mantener una acción compacta Android tras cerrar la invitación. Capturar la app real con fixtures usando Playwright. Activar workers inmediatamente, usar navegación network-first y detectar cambios de controller, excluyendo la primera instalación. Bloquear recarga conservadoramente mientras hay formularios, overlays o ediciones conectadas al DOM; mostrar toast y volver a comprobar antes de cualquier recarga. Consumir pointerdown y click del backdrop antes de quitarlo.

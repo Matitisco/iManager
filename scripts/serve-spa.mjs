@@ -18,7 +18,7 @@ const types = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
-export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch } = {}) {
+export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim() } = {}) {
   return async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.
@@ -47,7 +47,14 @@ export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch } = {})
         const outputHeaders = { 'cache-control': 'no-store' };
         for (const name of ['content-type', 'location']) {
           const value = upstream.headers.get(name);
-          if (value) outputHeaders[name] = value;
+          if (value) {
+            // Keep Firebase's internal redirects on the configured helper origin.
+            if (name === 'location' && authDomain) {
+              const target = new URL(value, `https://${firebaseConfig.authDomain}`);
+              outputHeaders[name] = target.hostname === firebaseConfig.authDomain && target.pathname.startsWith('/__/')
+                ? target.pathname + target.search + target.hash : value;
+            } else outputHeaders[name] = value;
+          }
         }
         response.writeHead(upstream.status, outputHeaders);
         response.end(request.method === 'HEAD' ? undefined : Buffer.from(await upstream.arrayBuffer()));
