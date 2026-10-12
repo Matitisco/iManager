@@ -82,10 +82,12 @@ export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDo
       const info = await stat(filePath);
       if (info.isDirectory()) filePath = join(filePath, 'index.html');
       const body = await readFile(filePath);
-      const cacheControl = requested.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+      const cacheControl = requested === '/sw.js' || requested === '/version.json'
+        ? 'no-store'
+        : requested.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
       response.writeHead(200, {
         'content-type': types[extname(filePath)] || 'application/octet-stream',
-        'cache-control': requested === '/sw.js' ? 'no-store' : cacheControl,
+        'cache-control': cacheControl,
         ...(requested === '/sw.js' ? { 'service-worker-allowed': '/' } : {}),
       });
       response.end(request.method === 'HEAD' ? undefined : body);

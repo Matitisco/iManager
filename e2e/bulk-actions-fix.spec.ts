@@ -39,6 +39,7 @@ test.describe('bulk action follow-up on iPhone', () => {
       dni: '30111222333',
       phone: '2615551234',
       email: 'maria.fernanda.lopez@ejemplo-largo.com',
+      pendingBalance: 1250000,
     });
     const today = new Date().toISOString();
     for (let index = 0; index < 8; index += 1) {
@@ -52,14 +53,19 @@ test.describe('bulk action follow-up on iPhone', () => {
     }
     await page.reload();
     await openPhoneSection(page, '#/clientes');
-    const name = page.locator('.cl-clip').first();
+    const name = page.locator('.cl-name').first();
+    const line = page.locator('.cl-line').first();
     await expect(name).toBeVisible();
-    await expect(name).toHaveCSS('white-space', 'nowrap');
-    await expect(name).toHaveCSS('text-overflow', 'ellipsis');
-    await expect(page.locator('.cl-clip').nth(1)).toHaveCSS('white-space', 'nowrap');
-    await expect(page.locator('.cl-clip').nth(2)).toHaveCSS('white-space', 'nowrap');
-    const nameBox = await name.boundingBox();
-    expect(nameBox!.height).toBeLessThan(28);
+    await expect(name).toHaveCSS('white-space', 'normal');
+    await expect(line).toContainText('DNI 30111222333');
+    await expect(line).toContainText('Saldo');
+    const nameBox = (await name.boundingBox())!;
+    const lineBox = (await line.boundingBox())!;
+    expect(lineBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
+    const clipped = await name.evaluate((node) => node.scrollWidth > node.clientWidth + 1 || (node.textContent ?? '').includes('…'));
+    const dniClipped = await line.locator('.cl-dni').evaluate((node) => node.scrollWidth > node.clientWidth + 1);
+    expect(clipped).toBe(false);
+    expect(dniClipped).toBe(false);
     await page.screenshot({ path: `${shots}/issue-285-fix-mobile-iphone-clientes.png`, animations: 'disabled' });
 
     const card = page.locator('.phone-row').first();
@@ -75,9 +81,22 @@ test.describe('bulk action follow-up on iPhone', () => {
     await expect(page.getByTestId('mobile-dock')).toContainText('Nuevo canje');
     const checks = page.getByRole('checkbox', { name: /Seleccionar C-/ });
     await expect(checks).toHaveCount(8);
+    const dock = page.getByTestId('mobile-dock');
+    const visibleAboveDock = async () => {
+      const dockBox = (await dock.boundingBox())!;
+      const stage = (await page.locator('.stage').boundingBox())!;
+      for (const check of await checks.all()) {
+        const box = await check.boundingBox();
+        if (!box) continue;
+        const visibleTop = Math.max(box.y, stage.y);
+        const visibleBottom = Math.min(box.y + box.height, stage.y + stage.height);
+        if (visibleBottom - visibleTop < 8) continue;
+        expect(visibleBottom).toBeLessThanOrEqual(dockBox.y + 1);
+      }
+    };
+    await visibleAboveDock();
     const checkbox = checks.last();
     await scrollToEnd(page, checkbox);
-    const dock = page.getByTestId('mobile-dock');
     await expect(checkbox).toBeInViewport();
     const checkBox = (await checkbox.boundingBox())!;
     const dockBox = (await dock.boundingBox())!;

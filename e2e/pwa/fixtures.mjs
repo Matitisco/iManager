@@ -13,6 +13,25 @@ const products = [
 ];
 export const data = {
   inventory: products.map(([model, capacity, color, condition, batteryHealth, price], index) => ({ id: `pwa-product-${index}`, imei: `35987654321000${index}`, model, capacity, color, condition, batteryHealth, price, cost: price * .75, currency: 'ARS', grade: 'A', status: 'DISPONIBLE', createdAt: '2026-10-12T12:00:00Z' })),
-  clients: [{ id: 'pwa-client', dni: '34567890', name: 'Lucía Martínez', email: 'lucia@example.test', phone: '1144445555', totalSpent: 950000, pendingBalance: 0, lastPurchaseDate: '2026-10-12' }],
-  sales: [], tradeIns: [], notifications: [], repairs: [], categories: [], catalogs: {}, members: [],
+  clients: [
+    { id: 'pwa-client', dni: '34567890', name: 'Lucía Martínez', email: 'lucia@example.test', phone: '1144445555', totalSpent: 950000, pendingBalance: 0, lastPurchaseDate: '2026-10-12' },
+    { id: 'pwa-client-long', dni: '30111222333', name: 'María Fernanda López Gutiérrez', email: 'maria.fernanda.lopez@ejemplo-largo.com', phone: '2615551234', totalSpent: 2400000, pendingBalance: 1250000, balanceCurrency: 'ARS', tag: 'Mayorista', lastPurchaseDate: '2026-10-11' },
+  ],
+  sales: [],
+  tradeIns: Array.from({ length: 6 }, (_, index) => ({
+    id: `pwa-trade-${index}`,
+    tradeNumber: index + 1,
+    date: '2026-10-12',
+    clientId: 'pwa-client',
+    clientName: 'Lucía Martínez',
+    deviceReceived: `iPhone recibido ${index + 1}`,
+    deviceReceivedImei: `35900000000000${index}`,
+    takeValue: 400000 + index * 1000,
+    currency: 'ARS',
+    deviceGiven: `Equipo entregado ${index + 1}`,
+    differencePaid: 50000,
+    status: 'PENDIENTE',
+    confirmationStatus: 'CONFIRMED',
+  })),
+  notifications: [], repairs: [], categories: [], catalogs: {}, members: [],
 };

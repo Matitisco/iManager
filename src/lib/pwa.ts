@@ -78,7 +78,7 @@ export function initializeInstallEvents() {
 }
 
 export function registerServiceWorker() {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  if (import.meta.env.MODE !== 'production' || !('serviceWorker' in navigator)) return;
   let registered = false;
   const register = () => {
     if (registered) return;

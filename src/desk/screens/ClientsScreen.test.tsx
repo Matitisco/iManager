@@ -138,10 +138,13 @@ describe('Clients on a phone', () => {
     expect(rows()[0]).toHaveTextContent('Zoe Díaz');
     expect(rows()[0]).toHaveTextContent('ZD');
     expect(rows()[0]).toHaveTextContent('DNI 30000003');
-    const clips = rows()[0].querySelectorAll('.cl-clip');
-    expect(clips[0]).toHaveTextContent('Zoe Díaz');
-    expect(clips[1]).toHaveTextContent('DNI 30000003');
-    expect(clips[2]).toHaveTextContent('zoe@ejemplo.com');
+    const name = rows()[0].querySelector('.cl-name');
+    const line = rows()[0].querySelector('.cl-line');
+    expect(name).toHaveTextContent('Zoe Díaz');
+    expect(line).toHaveTextContent('DNI 30000003');
+    expect(line).toHaveTextContent('Saldo');
+    expect(name?.compareDocumentPosition(line!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rows()[0].querySelector('.cl-email')).toHaveTextContent('zoe@ejemplo.com');
     expect(rows()[0]).toHaveTextContent('Saldo');
     expect(rows()[0]).toHaveTextContent('Última compra');
     expect(rows()[0]).toHaveTextContent('Total gastado');

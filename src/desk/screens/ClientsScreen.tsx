@@ -327,14 +327,16 @@ function ClientCard({ client, money }: { client: Client; money: MoneyApi }) {
       <span className="cl-top">
         <span className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</span>
         <span className="cl-id">
-          <b className="cl-clip">{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b>
-          {contact ? <small className="cl-clip">{contact}</small> : null}
-          {client.email ? <small className="cl-clip">{client.email}</small> : null}
-        </span>
-        <span className="cl-balance">
-          {client.pendingBalance > 0
-            ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span>
-            : <span className="spill mid">Sin saldo</span>}
+          <b className="cl-name">{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b>
+          <span className="cl-line">
+            {contact ? <small className="cl-dni">{contact}</small> : null}
+            <span className="cl-balance">
+              {client.pendingBalance > 0
+                ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span>
+                : <span className="spill mid">Sin saldo</span>}
+            </span>
+          </span>
+          {client.email ? <small className="cl-email">{client.email}</small> : null}
         </span>
       </span>
       <span className="cl-bot">

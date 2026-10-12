@@ -53,7 +53,7 @@ export function InstallApp({ enabled = true }: { enabled?: boolean }) {
     <AnimatePresence>
       {eligible && ready ? (
         <motion.aside
-          className={`pwa-install${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
+          className={`pwa-install${!safari ? ' banner' : ''}${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
           initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 15 }}
         >
           {!dismissed && <motion.button type="button" className="pwa-close" aria-label="No volver a mostrar la instalación" onClick={dismissInstall}

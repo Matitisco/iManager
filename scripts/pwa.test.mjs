@@ -59,7 +59,7 @@ test('worker precaches release assets and activates immediately; navigation is n
 });
 test('worker excludes API, session/auth, invite/action queries, cross-origin, POST and authenticated resources', async () => {
   const sw = worker(); await sw.lifecycle('install');
-  for (const path of ['/api/me', '/api/inventory', '/__/auth/handler', '/__/auth/iframe', '/__/firebase/init.json', '/invite/secret', '/?mode=resetPassword&oobCode=secret', '/icons/icon-192.png?token=secret', 'https://firebase.test/token']) {
+  for (const path of ['/api/me', '/api/inventory', '/__/auth/handler', '/__/auth/iframe', '/__/firebase/init.json', '/version.json', '/invite/secret', '/?mode=resetPassword&oobCode=secret', '/icons/icon-192.png?token=secret', 'https://firebase.test/token']) {
     assert.equal(sw.fetchEvent(path), undefined, path);
   }
   assert.equal(sw.fetchEvent('/assets/app-hash.js', { method: 'POST' }), undefined);
@@ -83,16 +83,25 @@ test('activation clears only previous iManager static releases', async () => {
 });
 test('build plugin revisions include bundle contents and omit sourcemaps', () => {
   const emit = (code) => {
-    let output;
-    pwaPlugin().generateBundle.call({ emitFile: (file) => { output = file.source; } }, {}, {
+    const plugin = pwaPlugin();
+    const files = [];
+    plugin.generateBundle.call({ emitFile: (file) => { files.push(file); } }, {}, {
       'index.html': { type: 'asset', source: '<html>shell</html>' },
       'assets/app.js': { type: 'chunk', code }, 'assets/app.js.map': { type: 'asset', source: '{}' },
     });
-    return output;
+    return { files, defined: plugin.config().define.__IMANAGER_BUILD_ID__ };
   };
-  assert.notEqual(emit('first'), emit('second'));
-  assert.match(emit('first'), /"\/assets\/app.js"/);
-  assert.doesNotMatch(emit('first'), /"\/assets\/app.js.map"/);
+  const first = emit('first');
+  const second = emit('second');
+  const source = (files, name) => files.find((file) => file.fileName === name).source;
+  assert.notEqual(source(first.files, 'sw.js'), source(second.files, 'sw.js'));
+  assert.match(source(first.files, 'sw.js'), /"\/assets\/app.js"/);
+  assert.doesNotMatch(source(first.files, 'sw.js'), /"\/assets\/app.js.map"/);
+  assert.match(source(first.files, 'sw.js'), /pathname === '\/version.json'/);
+  assert.doesNotMatch(source(first.files, 'sw.js'), /"\/version.json"/);
+  const version = JSON.parse(source(first.files, 'version.json'));
+  assert.equal(version.buildId, JSON.parse(first.defined));
+  assert.notEqual(version.buildId, JSON.parse(second.defined));
 });
 
 async function serve(path, options = {}) {
@@ -100,6 +109,7 @@ async function serve(path, options = {}) {
   try {
     await writeFile(join(root, 'index.html'), '<html>shell</html>');
     await writeFile(join(root, 'sw.js'), 'worker');
+    await writeFile(join(root, 'version.json'), JSON.stringify({ buildId: 'serve-test' }));
     await writeFile(join(root, 'manifest.webmanifest'), '{}');
     await mkdir(join(root, 'assets')); await writeFile(join(root, 'assets', 'app-hash.js'), 'bundle');
     let status; let headers; let body;
@@ -118,6 +128,10 @@ test('server serves worker and manifest with correct types and update-safe heade
   assert.equal(sw.headers['content-type'], 'text/javascript; charset=utf-8');
   assert.equal(sw.headers['cache-control'], 'no-store');
   assert.equal(sw.headers['service-worker-allowed'], '/');
+  const version = await serve('/version.json');
+  assert.equal(version.headers['content-type'], 'application/json');
+  assert.equal(version.headers['cache-control'], 'no-store');
+  assert.equal(JSON.parse(version.body).buildId, 'serve-test');
   assert.equal((await serve('/manifest.webmanifest')).headers['content-type'], 'application/manifest+json; charset=utf-8');
   assert.equal((await serve('/assets/app-hash.js')).headers['cache-control'], 'public, max-age=31536000, immutable');
   assert.equal((await serve('/')).headers['cache-control'], 'no-cache');

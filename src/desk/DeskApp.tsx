@@ -291,6 +291,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     <ExchangeProvider settings={exchangeFromStore(appSession?.store)}>
     <DeskProvider value={ui}>
       <div className="desk-app">
+        <InstallApp enabled={installEnabled && !overlay && !toastOn} />
         {phone ? (
           <header className="mhead" data-testid="mobile-header">
             <div className="mstore">
@@ -395,7 +396,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         ) : null}
         <DeskToast message={message} show={toastOn} />
         <DeskOverlays overlay={overlay} />
-        <InstallApp enabled={installEnabled && !overlay && !toastOn} />
       </div>
     </DeskProvider>
     </ExchangeProvider>
