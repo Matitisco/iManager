@@ -65,10 +65,17 @@ export function initializeInstallEvents() {
 
 export function registerServiceWorker() {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  let registered = false;
   const register = () => {
+    if (registered) return;
+    registered = true;
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .catch((error: unknown) => console.warn('No se pudo preparar iManager para instalar:', error));
   };
   if (document.readyState === 'complete') register();
-  else window.addEventListener('load', register, { once: true });
+  else {
+    // Prefer waiting for load, but a slow third-party frame (e.g. Firebase auth) must not block installation.
+    window.addEventListener('load', register, { once: true });
+    window.setTimeout(register, 4_000);
+  }
 }
