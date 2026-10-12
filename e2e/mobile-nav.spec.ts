@@ -70,8 +70,8 @@ test.describe('phone navigation', () => {
       stage: getComputedStyle(document.querySelector('.stage')!).overflowY,
       desk: getComputedStyle(document.querySelector('.desk-app')!).overflowY,
     }));
-    expect(scrolling.stage).toBe('visible');
-    expect(scrolling.desk).toBe('visible');
+    expect(scrolling.stage).toBe('auto');
+    expect(scrolling.desk).toBe('hidden');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-390-dashboard.png` });
 

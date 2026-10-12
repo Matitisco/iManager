@@ -218,8 +218,8 @@ test('version.json reloads an idle tab when the worker never claims the open pag
 
 test('version.json keeps an open draft and reloads once the form closes', async ({ page }) => {
   await session(page);
-  await page.goto('/#/ven');
-  await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+  await page.evaluate(() => { window.location.hash = '#/ven'; });
+  await expect(page.getByRole('heading', { level: 1, name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   const draft = dialog.getByRole('combobox', { name: 'Cliente' });
@@ -232,7 +232,7 @@ test('version.json keeps an open draft and reloads once the form closes', async 
   await expect(toast).toContainText('Guardá o cerrá el formulario');
   await expect(draft).toHaveValue('Borrador de venta sin guardar');
   const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
-  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
   await navigation;
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(toast).toHaveCount(0);

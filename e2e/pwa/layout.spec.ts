@@ -29,8 +29,8 @@ test('canjes list clears the Nuevo canje bar without scrolling', async ({ page }
     localStorage.setItem('imanager:install-dismissed:android', 'yes');
   });
   await session(page);
-  await page.goto('/#/canjes');
-  await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
+  await page.evaluate(() => { window.location.hash = '#/canjes'; });
+  await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
   const dock = page.getByTestId('mobile-dock');
   await expect(dock).toContainText('Nuevo canje');
   const metrics = await page.evaluate(() => {
@@ -75,7 +75,7 @@ test('client cards keep name, DNI and balance on two lines at 393px', async ({ p
     localStorage.setItem('imanager:install-dismissed:android', 'yes');
   });
   await session(page);
-  await page.goto('/#/clientes');
+  await page.evaluate(() => { window.location.hash = '#/clientes'; });
   const card = page.getByTestId('client-row-pwa-client-long');
   await expect(card).toBeVisible();
   if (info.project.name === 'iphone-webkit') {
@@ -97,11 +97,11 @@ test('client cards keep name, DNI and balance on two lines at 393px', async ({ p
     expect(overflow).toEqual({ name: false, dni: false, balance: false });
     await shot(page, 'qa-mobile-clientes.png');
   } else {
-    await expect(page.getByRole('heading', { name: 'Clientes' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
     await expect(page.getByText('María Fernanda López Gutiérrez')).toBeVisible();
     await shot(page, 'qa-desktop-clientes.png');
     await page.evaluate(() => { window.location.hash = '#/canjes'; });
-    await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
     await shot(page, 'qa-desktop-canjes.png');
   }
 });
@@ -117,7 +117,7 @@ test('Instalar app does not cover Importar on Ventas', async ({ page }, info) =>
   await page.clock.fastForward(30_000);
   await expect(page.getByRole('button', { name: 'Instalar app' })).toBeVisible();
   await page.evaluate(() => { window.location.hash = '#/ven'; });
-  await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ventas', exact: true })).toBeVisible();
   const install = page.getByRole('button', { name: 'Instalar app' });
   const importar = page.getByRole('button', { name: 'Importar' });
   await expect(install).toBeVisible();

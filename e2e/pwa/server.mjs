@@ -30,8 +30,13 @@ createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ buildId })); return;
   }
-  if ((path === '/' || path === '/index.html') && versionRelease > 0 && req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document') {
-    versionRelease = 0;
+  if ((path === '/' || path === '/index.html') && versionRelease > 0) {
+    const mode = req.headers['sec-fetch-mode'];
+    const accept = req.headers.accept || '';
+    // A document navigation stands in for the reloaded bundle. The worker
+    // forwards it with dest "empty"; precache is a cors addAll and must not
+    // clear the pending version before the open page sees it.
+    if (mode === 'navigate' && accept.includes('text/html')) versionRelease = 0;
   }
   if (path === '/sw.js') {
     res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store', 'service-worker-allowed': '/' });
