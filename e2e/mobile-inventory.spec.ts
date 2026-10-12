@@ -60,8 +60,10 @@ test.describe('desktop inventory stays put', () => {
     await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toHaveCount(0);
     const empty = page.getByTestId('inventory-empty');
     await expect(empty).toContainText('Todavía no cargaste equipos');
-    await expect(empty.getByRole('button', { name: 'Importar' })).toBeVisible();
-    await expect(empty.getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
+    await expect(empty.getByRole('button', { name: 'Importar' })).toHaveCount(0);
+    await expect(empty.getByRole('button', { name: 'Registrar equipo' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Importar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
     await expect(page.getByText('No hay equipos con ese filtro.')).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar modelo o color')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /Equipo/ })).toBeVisible();

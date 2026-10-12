@@ -395,7 +395,7 @@ export function InventoryScreen() {
         )}
         {listed.length === 0 ? (
           quietEmpty
-            ? <InventoryEmpty onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
+            ? <InventoryEmpty showActions={phone} onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
             : <div className="wempty">No hay equipos con ese filtro.</div>
         ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
@@ -560,23 +560,25 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
   );
 }
 
-function InventoryEmpty({ onImport, onCreate }: { onImport: () => void; onCreate: () => void }) {
+function InventoryEmpty({ showActions, onImport, onCreate }: { showActions: boolean; onImport: () => void; onCreate: () => void }) {
   return (
     <div className="inv-empty" data-testid="inventory-empty">
       <div className="inv-empty-box">
         <div className="inv-empty-mark"><ImanagerIcon name="equipo" size={24} /></div>
         <b>Todavía no cargaste equipos</b>
         <p>Ingresá tu primer equipo o importá tu stock desde una planilla.</p>
-        <div className="inv-empty-actions">
-          <button className="dbtn s" type="button" onClick={onImport}>
-            <ImanagerIcon name="importar" size={16} />
-            Importar
-          </button>
-          <button className="dbtn p" type="button" onClick={onCreate}>
-            <ImanagerIcon name="agregar" size={16} />
-            Registrar equipo
-          </button>
-        </div>
+        {showActions ? (
+          <div className="inv-empty-actions">
+            <button className="dbtn s" type="button" onClick={onImport}>
+              <ImanagerIcon name="importar" size={16} />
+              Importar
+            </button>
+            <button className="dbtn p" type="button" onClick={onCreate}>
+              <ImanagerIcon name="agregar" size={16} />
+              Registrar equipo
+            </button>
+          </div>
+        ) : null}
       </div>
       <p className="inv-count">0 resultados</p>
     </div>

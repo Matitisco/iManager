@@ -424,13 +424,15 @@ describe('Inventory empty store', () => {
     expect(empty).toHaveTextContent('Todavía no cargaste equipos');
     expect(empty).toHaveTextContent('Ingresá tu primer equipo o importá tu stock desde una planilla.');
     expect(empty).toHaveTextContent('0 resultados');
+    expect(within(empty).queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
+    expect(within(empty).queryByRole('button', { name: 'Registrar equipo' })).not.toBeInTheDocument();
     expect(screen.queryByText('No hay equipos con ese filtro.')).not.toBeInTheDocument();
     expect(screen.queryByText(/mantené apretada una fila/)).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Equipo/ })).toBeInTheDocument();
 
-    await user.click(within(empty).getByRole('button', { name: 'Importar' }));
+    await user.click(screen.getByRole('button', { name: 'Importar' }));
     expect(open).toHaveBeenCalledWith({ type: 'import', kind: 'inv' });
-    await user.click(within(empty).getByRole('button', { name: 'Registrar equipo' }));
+    await user.click(screen.getByRole('button', { name: 'Registrar equipo' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-eq' });
 
     await user.click(screen.getByRole('button', { name: 'Disponible' }));
@@ -463,7 +465,10 @@ describe('Inventory phone list', () => {
   it('shows the empty state and keeps the price list inside the header menu', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
-    expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
+    const empty = screen.getByTestId('inventory-empty');
+    expect(empty).toHaveTextContent('Todavía no cargaste equipos');
+    expect(within(empty).getByRole('button', { name: 'Importar' })).toBeInTheDocument();
+    expect(within(empty).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
     expect(screen.getByText('0 resultados')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Lista de precios' })).not.toBeInTheDocument();
