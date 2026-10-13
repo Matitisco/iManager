@@ -12,10 +12,12 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   inventoryItem: {
     findFirst: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   storeMember: {
     findMany: vi.fn(),
@@ -31,6 +33,8 @@ const prismaMock = vi.hoisted(() => ({
   sale: {
     findFirst: vi.fn(),
     create: vi.fn(),
+    delete: vi.fn(),
+    aggregate: vi.fn(),
   },
   $transaction: vi.fn(),
 }));
@@ -43,7 +47,7 @@ vi.mock("../../lib/store-sequence.js", () => ({
   allocateDocumentNumber,
 }));
 
-import { createCategory, createSale, importSales } from "./sales.service.js";
+import { createCategory, createSale, deleteSale, importSales } from "./sales.service.js";
 
 describe("sales.service", () => {
   beforeEach(() => {
@@ -84,6 +88,29 @@ describe("sales.service", () => {
       statusCode: 404,
       message: "Client not found",
     });
+  });
+
+  it.each([false, true])("deletes cancelled sales without touching stock or client stats (integrated: %s)", async (integratedOperation) => {
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "CANCELADA", integratedOperation, tradeInId: "trade-1", inventoryItemId: "item-1", clientId: "client-1" });
+    await expect(deleteSale("store-1", "sale-1")).resolves.toBe(true);
+    expect(prismaMock.sale.delete).toHaveBeenCalledWith({ where: { id: "sale-1" } });
+    expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.client.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.sale.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("keeps rejecting direct deletion of active linked sales", async () => {
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", integratedOperation: true });
+    await expect(deleteSale("store-1", "sale-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.sale.delete).not.toHaveBeenCalled();
+  });
+
+  it("keeps restoring stock and recomputing client stats for active historical sales", async () => {
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", inventoryItemId: "item-1", clientId: "client-1" });
+    prismaMock.sale.aggregate.mockResolvedValue({ _sum: { amount: new Decimal(500) }, _max: { soldAt: null } });
+    await expect(deleteSale("store-1", "sale-1")).resolves.toBe(true);
+    expect(prismaMock.inventoryItem.updateMany).toHaveBeenCalledWith({ where: { id: "item-1", storeId: "store-1" }, data: { status: "DISPONIBLE" } });
+    expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(500), lastPurchaseAt: null } });
   });
 
   it("fails when the inventory item is not available", async () => {

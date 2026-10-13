@@ -1,0 +1,5 @@
+- [x] Diagnosticar rutas de frontend, backend y catálogo.
+- [x] Diferenciar borrado de cancelación sin repetir efectos.
+- [x] Agregar regresiones backend y frontend.
+- [x] Ejecutar suites, typecheck y capturas desktop/iPhone.
+- [x] Preparar el fix para commit sin push.

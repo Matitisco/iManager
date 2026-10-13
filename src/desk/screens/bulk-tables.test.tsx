@@ -12,7 +12,7 @@ const ctx = vi.hoisted(() => ({
   inventory: [] as Product[], clients: [] as Client[], sales: [] as Sale[], tradeIns: [] as TradeIn[],
   appSession: { store: { id: 's', name: 'Tienda' }, user: { id: 'u' }, membership: { role: 'OWNER' } },
   backendStatus: 'ready', operationNotifications: [], operationDrafts: [],
-  deleteProduct: vi.fn(), deleteClient: vi.fn(), updateSale: vi.fn(), cancelTradeOperation: vi.fn(),
+  deleteProduct: vi.fn(), deleteClient: vi.fn(), deleteSale: vi.fn(), updateSale: vi.fn(), cancelTradeOperation: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 const open = vi.fn();
@@ -33,7 +33,7 @@ beforeEach(() => {
   ctx.clients = [{ id: 'c', name: 'Ana', dni: '123', email: '', phone: '', lastPurchaseDate: '', totalSpent: 0, pendingBalance: 0 }];
   ctx.sales = [{ id: 's1', saleNumber: 1, date: new Date().toISOString(), clientId: 'c', productId: '1', amount: 900, amountCurrency: 'USD', paymentMethod: 'EFECTIVO', status: 'COMPLETADA', integratedOperation: true }];
   ctx.tradeIns = [{ id: 't1', tradeNumber: 1, date: new Date().toISOString(), clientId: 'c', deviceReceived: 'iPhone 11', deviceReceivedImei: '', deviceGiven: 'Equipo 1', takeValue: 100, differencePaid: 800, status: 'PENDIENTE', confirmationStatus: 'CONFIRMED' }];
-  for (const fn of [ctx.deleteProduct, ctx.deleteClient, ctx.updateSale, ctx.cancelTradeOperation]) fn.mockReset().mockResolvedValue(undefined);
+  for (const fn of [ctx.deleteProduct, ctx.deleteClient, ctx.deleteSale, ctx.updateSale, ctx.cancelTradeOperation]) fn.mockReset().mockResolvedValue(undefined);
 });
 
 describe('bulk table wiring', () => {
@@ -114,13 +114,33 @@ describe('bulk table wiring', () => {
     mount(ClientsScreen); fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar Ana' }));
     confirm('Eliminar selección'); await waitFor(() => expect(ctx.deleteClient).toHaveBeenCalledWith('c'));
   });
-  it('cancels integrated sales and refuses already cancelled/historical sales', async () => {
+  it('cancels integrated sales and refuses active historical sales', async () => {
     const { unmount } = mount(SalesScreen); fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
     confirm('Cancelar ventas'); await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
     unmount(); ctx.sales[0].integratedOperation = false; mount(SalesScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
     expect(screen.getByRole('button', { name: 'Cancelar ventas' })).toBeDisabled();
     expect(screen.getByText(/Las ventas históricas/)).toBeInTheDocument();
+  });
+  it('deletes cancelled integrated, linked and historical sales through the existing method', async () => {
+    ctx.sales = [
+      { ...ctx.sales[0], status: 'CANCELADA' },
+      { ...ctx.sales[0], id: 's2', saleNumber: 2, status: 'CANCELADA', integratedOperation: false, tradeInId: 't1' },
+      { ...ctx.sales[0], id: 's3', saleNumber: 3, status: 'CANCELADA', integratedOperation: false },
+    ];
+    mount(SalesScreen);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
+    confirm('Eliminar selección');
+    await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledTimes(3));
+    expect(ctx.deleteSale.mock.calls).toEqual([['s1'], ['s2'], ['s3']]);
+    expect(ctx.updateSale).not.toHaveBeenCalled();
+  });
+  it('requires separate selections for deletion and cancellation', () => {
+    ctx.sales.push({ ...ctx.sales[0], id: 's2', saleNumber: 2, status: 'CANCELADA' });
+    mount(SalesScreen);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
+    expect(screen.getByRole('button', { name: 'Cancelar ventas' })).toBeDisabled();
+    expect(screen.getByText(/Seleccioná solo ventas canceladas/)).toBeInTheDocument();
   });
   it('keeps sales amounts and codes on one line in the displayed currency', () => {
     const settings = { currency: 'USD' as const, exchangeMode: 'manual' as const, exchangeSource: 'blue' as const, manualBuy: 1500, manualSell: 1540 };

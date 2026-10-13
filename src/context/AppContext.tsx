@@ -436,18 +436,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const existingSale = sales.find((sale) => sale.id === id);
-    if (existingSale?.integratedOperation || existingSale?.tradeInId) {
+    const cancelled = existingSale?.status === 'CANCELADA';
+    if (!cancelled && (existingSale?.integratedOperation || existingSale?.tradeInId)) {
       return await runCancelSaleOperation(id);
     }
     await deleteBackendSale(user, id);
 
-    if (existingSale?.productId) {
+    if (!cancelled && existingSale?.productId) {
       setInventory(prev => prev.map(product => (
         product.id === existingSale.productId ? { ...product, status: 'DISPONIBLE' } : product
       )));
     }
 
-    if (existingSale?.clientId) {
+    if (!cancelled && existingSale?.clientId) {
       const remainingClientSales = sales.filter(
         (sale) => sale.clientId === existingSale.clientId && sale.id !== id
       );

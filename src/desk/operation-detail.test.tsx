@@ -14,6 +14,7 @@ const ctx = vi.hoisted(() => ({
   clients: [] as Array<{ id: string; name: string; pendingBalance?: number; totalSpent?: number; phone?: string; email?: string; dni?: string; lastPurchaseDate?: string; balanceCurrency?: string | null }>,
   inventory: [] as { id: string; model: string; capacity: string }[],
   updateSale: vi.fn(),
+  deleteSale: vi.fn(),
   updateTradeIn: vi.fn(),
   updateTradeOperation: vi.fn(),
   cancelTradeOperation: vi.fn(),
@@ -88,6 +89,7 @@ describe('operation detail', () => {
     ctx.inventory = [];
     ctx.updateSale.mockReset();
     ctx.updateSale.mockResolvedValue(undefined);
+    ctx.deleteSale.mockReset().mockResolvedValue(undefined);
     ctx.updateTradeIn.mockReset();
     ctx.updateTradeOperation.mockReset();
     ctx.updateTradeOperation.mockResolvedValue({ summary: 'Operación actualizada' });
@@ -100,6 +102,28 @@ describe('operation detail', () => {
     open.mockReset();
     close.mockReset();
     toast.mockReset();
+  });
+
+  it('confirms deletion of a cancelled linked sale and keeps failures visible', async () => {
+    ctx.sales = [sale({ status: 'CANCELADA' })];
+    ctx.deleteSale.mockRejectedValueOnce(new Error('No se pudo eliminar la venta'));
+    renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004 · Ana Pérez' });
+    const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
+    expect(dialog).toHaveTextContent('se va a borrar y no se puede deshacer');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    expect(await screen.findByText('No se pudo eliminar la venta')).toBeVisible();
+    expect(close).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(ctx.deleteSale).toHaveBeenCalledWith('s1');
+    expect(toast).toHaveBeenCalledWith('Venta eliminada');
+    expect(ctx.updateSale).not.toHaveBeenCalled();
+  });
+
+  it('keeps the active linked sale confirmation as cancellation', () => {
+    renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004' });
+    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('quedará en el historial');
   });
 
   it.each([false, true])('keeps sale actions outside the scrollable body (phone: %s)', (phone) => {

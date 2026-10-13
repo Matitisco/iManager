@@ -239,7 +239,7 @@ export async function salesRoutes(app: FastifyInstance) {
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
-      if (await isIntegratedSale(request.appUser.storeId, params.id)) {
+      if (await isIntegratedSale(request.appUser.storeId, params.id, { excludeCancelled: true })) {
         await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
         return reply.code(204).send();
       }

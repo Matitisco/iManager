@@ -396,18 +396,20 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     if (!existing) {
       return false;
     }
-    if (existing.integratedOperation || existing.tradeInId) {
+    const cancelled = existing.status === "CANCELADA";
+    if (!cancelled && (existing.integratedOperation || existing.tradeInId)) {
       throw new SalesError("Esta venta está vinculada a una operación. Gestioná la operación desde su origen.", 409);
     }
 
-    if (existing.inventoryItemId) {
+    // Cancellation already restored the operation. Its stock may have been sold again.
+    if (!cancelled && existing.inventoryItemId) {
       await tx.inventoryItem.updateMany({
         where: { id: existing.inventoryItemId, storeId },
         data: { status: "DISPONIBLE" },
       });
     }
 
-    if (existing.clientId) {
+    if (!cancelled && existing.clientId) {
       const aggregate = await tx.sale.aggregate({
         where: {
           storeId,
