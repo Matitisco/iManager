@@ -3,6 +3,15 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-12**
 
+## Issue #328 — Eliminar ventas canceladas — 2026-10-12
+
+- Causa: AppContext y DELETE volvían a cancelar cualquier venta integrada, aun si estaba cancelada; el servicio bloqueaba ventas vinculadas y la selección masiva excluía canceladas.
+- Las ventas `CANCELADA` se borran con auditoría `sale.deleted`, sin restaurar stock ni recalcular cliente, canje o pagos. Las ventas activas conservan su comportamiento previo, permisos sensibles y aislamiento por tienda. Sin cambios de Prisma.
+- Desktop y hoja móvil comparten confirmación de eliminación real. Seleccionar solo canceladas ofrece «Eliminar selección»; las activas mantienen «Cancelar ventas» y las selecciones mixtas indican que deben separarse.
+- Validación: 552 unitarios frontend, 216 unitarios backend y 81 integraciones PostgreSQL aprobados; 20 fixtures externos de importación omitidos con la opción existente, después de fallar en la corrida con servicio externo. Ambos typechecks aprobados. Los dos E2E nuevos pasan en desktop e iPhone/WebKit; las cuatro regresiones existentes de selección y menú también pasan.
+- Regresiones comprueban cancelar y eliminar ventas pendientes/cobradas, con/sin canje, pagos y devoluciones conservados, stock vendido nuevamente intacto, permisos, auditoría y persistencia tras recargar. PostgreSQL local exclusivo: `imanager_issue328_integration_test` y `imanager_issue328_test`.
+- Seis capturas en `docs/pr-shots/issue-328-{desktop,mobile-iphone}-{delete,bulk,deleted}.png`. Regenerar con `ISSUE_328_SHOTS=docs/pr-shots npm run test:e2e -- e2e/delete-cancelled-sales.spec.ts --workers=1`, usando la DB de pruebas y puertos libres. Commit en la rama del issue, sin push, según el pedido específico.
+
 ## Issue #303 — Selección móvil explícita y retiro de exportaciones por tabla — 2026-10-12
 
 - Restaurado `usePress` desde `bf8318a`, previo a PR #295: toque largo de 480 ms abre la hoja Editar/Eliminar sin seleccionar; movimiento de más de 8 px, scroll y cancelación abortan el gesto, y el clic posterior se suprime por 700 ms. Se conserva limpieza del timer al desmontar.

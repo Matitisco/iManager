@@ -77,7 +77,8 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   }
 
   if (overlay.type === 'del') {
-    const integratedSale = overlay.kind === 'sale' && Boolean(ctx.sales.find((sale) => sale.id === overlay.id)?.integratedOperation || ctx.sales.find((sale) => sale.id === overlay.id)?.tradeInId);
+    const sale = overlay.kind === 'sale' ? ctx.sales.find((row) => row.id === overlay.id) : undefined;
+    const integratedSale = sale?.status !== 'CANCELADA' && Boolean(sale?.integratedOperation || sale?.tradeInId);
     const copy = {
       eq: ['este equipo', 'Equipo eliminado'],
       sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],

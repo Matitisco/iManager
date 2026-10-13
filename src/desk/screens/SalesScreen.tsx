@@ -37,7 +37,7 @@ import type { Sale } from '../../types';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, updateSale, operationDrafts = [], appSession } = useAppContext();
+  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession } = useAppContext();
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -90,6 +90,8 @@ export function SalesScreen() {
   const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`);
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
+  const deleteCancelled = selection.selected.length > 0 && selection.selected.every((sale) => sale.status === 'CANCELADA');
+  const mixedSelection = selection.selected.some((sale) => sale.status === 'CANCELADA') && !deleteCancelled;
   const visibleKey = page.visible.map((sale) => sale.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
@@ -157,7 +159,17 @@ export function SalesScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={shown.length}
         label={saleCode}
-        action={{ label: 'Cancelar ventas', explanation: 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.', execute: (sale) => updateSale({ ...sale, status: 'CANCELADA' }), unavailable: (sale) => sale.status === 'CANCELADA' ? 'Quitá de la selección las ventas ya canceladas.' : !sale.integratedOperation && !sale.tradeInId ? 'Las ventas históricas sin operación asociada no se pueden cancelar. Seleccioná solo ventas con operación para cancelar.' : undefined }}
+        action={{
+          label: deleteCancelled ? 'Eliminar selección' : 'Cancelar ventas',
+          explanation: deleteCancelled
+            ? 'Se borrarán las ventas canceladas seleccionadas y no se puede deshacer. Se conservan el stock, los canjes, los saldos y los pagos.'
+            : 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.',
+          execute: (sale) => sale.status === 'CANCELADA' ? deleteSale(sale.id) : updateSale({ ...sale, status: 'CANCELADA' }),
+          unavailable: (sale) => mixedSelection
+            ? 'Seleccioná solo ventas canceladas para eliminar, o ventas activas para cancelar.'
+            : sale.status !== 'CANCELADA' && !sale.integratedOperation && !sale.tradeInId
+              ? 'Las ventas históricas sin operación asociada no se pueden cancelar. Seleccioná solo ventas con operación para cancelar.' : undefined,
+        }}
       />
       {phone ? (
         shown.length === 0 ? (

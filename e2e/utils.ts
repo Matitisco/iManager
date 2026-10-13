@@ -56,7 +56,7 @@ async function assertOk(response: APIResponse, action: string) {
   return body;
 }
 
-function authHeaders(email: string) {
+export function authHeaders(email: string) {
   return {
     Authorization: `Bearer ${createTestToken(email)}`,
   };
@@ -200,7 +200,7 @@ export async function fetchInventory(request: APIRequestContext, email: string) 
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch inventory');
-  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cost: number; price: number; pendingSaleRegistration?: boolean; needsCompletion?: boolean }> };
+  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cost: number; price: number; soldAt?: string | null; pendingSaleRegistration?: boolean; needsCompletion?: boolean }> };
 }
 
 export async function fetchClients(request: APIRequestContext, email: string) {
@@ -252,7 +252,7 @@ export async function fetchTradeIns(request: APIRequestContext, email: string) {
   });
   const body = await assertOk(response, 'Fetch trade-ins');
   return JSON.parse(body) as {
-    tradeIns: Array<{ id: string; clientId: string; clientName: string; deviceReceived: string; deviceGiven?: string; status: string; confirmationStatus?: string | null; differencePaid: number; removedFromSaleNumber?: number | null }>;
+    tradeIns: Array<{ id: string; clientId: string; clientName: string; saleId?: string | null; deviceReceived: string; deviceGiven?: string; status: string; confirmationStatus?: string | null; differencePaid: number; removedFromSaleNumber?: number | null }>;
   };
 }
 
