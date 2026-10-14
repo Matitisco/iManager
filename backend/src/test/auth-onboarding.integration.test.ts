@@ -16,6 +16,7 @@ describe("auth and onboarding integration", () => {
 
     expect(health.statusCode).toBe(200);
     expect(health.json()).toEqual({ status: "ok" });
+    expect(health.headers["cache-control"]).toBe("no-store");
 
     const unauthorized = await app.inject({
       method: "GET",

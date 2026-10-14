@@ -41,6 +41,26 @@ for (const device of [
     await context.close();
   });
 
+  test('shows the notice on Más and Clientes after the open screen goes offline, then clears it', async ({ page, request }, testInfo) => {
+    test.skip(!device.mobile, 'Más sólo existe en el teléfono');
+    await page.setViewportSize({ width: 393, height: 852 });
+    const email = buildTestEmail(testInfo, 'offline-phone');
+    await page.route('https://dolarapi.com/**', route => route.fulfill({ json: { compra: 1280, venta: 1300 } }));
+    await bootstrapStoreViaApi(page, request, email, 'Mi Tienda Ejemplo');
+    await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
+    await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0);
+    await page.context().setOffline(true);
+    await expect(page.getByTestId('offline-banner')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('offline-banner')).toHaveText('No hay conexión. Revisá tu internet y probá de nuevo.');
+    await page.getByTestId('sidebar-tab-clients').click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
+    await expect(page.getByTestId('offline-banner')).toBeVisible();
+    await page.context().setOffline(false);
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0, { timeout: 8_000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
+  });
+
   test('hides the Más banner when the connection returns without leaving the screen', async ({ page, request }, testInfo) => {
     test.skip(!device.mobile, 'Más sólo existe en el teléfono');
     const email = buildTestEmail(testInfo, 'offline-more');
