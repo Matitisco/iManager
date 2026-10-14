@@ -54,7 +54,7 @@ describe('inventory text import API with mocked LLM and real PostgreSQL', () => 
     expect((await request('a'.repeat(100001))).statusCode).toBe(400);
     expect(fetch).not.toHaveBeenCalled();
     fetch.mockResolvedValue(new Response(JSON.stringify({ output_text: '{broken' })));
-    expect((await request('iPhone 13 USD420')).statusCode).toBe(502);
+    expect((await request('iPhone 13 USD420')).statusCode).toBe(422);
     expect(fetch).toHaveBeenCalledTimes(2);
     fetch.mockResolvedValue(new Response('{}', { status: 500 }));
     for (let i = 0; i < 4; i++) expect((await request('iPhone 13 USD420')).statusCode).toBe(502);
