@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronRight, Play, X } from "lucide-react";
+import { Check, ChevronRight, X } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
 import { InstallHelp } from "../components/InstallHelp";
 import { isAppInstalled, subscribeInstall } from "../lib/pwa";
 import { toUserMessage } from "../lib/user-message";
-import { onboardingTotals } from "../lib/onboarding-stock";
+import {
+  esCount,
+  gettingStartedOnDashboard,
+  onboardingTotals,
+} from "../lib/onboarding-stock";
 import { deleteSampleStock } from "../services/getting-started-api";
 import { canOpenSection, canViewTeam, canSeeFinancials } from "./sections";
 import { isInStock, parseAppDate } from "./format";
@@ -47,11 +51,11 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
     changed();
     return subscribeInstall(changed);
   }, [updateGettingStarted]);
-  const update = async (dismissed: boolean) => {
+  const update = async (patch: { dismissed: boolean; visible?: boolean }) => {
     setBusy(true);
     setError("");
     try {
-      await updateGettingStarted({ dismissed });
+      await updateGettingStarted(patch);
     } catch (cause) {
       setError(toUserMessage(cause));
     } finally {
@@ -69,7 +73,8 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
         </button>
       </section>
     ) : null;
-  if (!force && (!state.eligible || state.dismissed)) return null;
+  const onDashboard = gettingStartedOnDashboard(state);
+  if (!force && !onDashboard) return null;
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const tasks = [
@@ -124,15 +129,8 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
       done: state.installed,
       action: () => setInstallation(true),
     },
-    {
-      id: "video",
-      title: "Mirá el video de bienvenida",
-      sub: "Cuando quieras · opcional",
-      done: state.videoWatched,
-      action: () => open({ type: "welcome-video" }),
-    },
   ];
-  const required = tasks.filter((task) => task.id !== "video");
+  const required = tasks;
   const done = required.filter((task) => task.done).length;
   return (
     <section
@@ -151,7 +149,7 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
           <button
             aria-label="Cerrar Primeros pasos"
             disabled={busy}
-            onClick={() => void update(true)}
+            onClick={() => void update({ dismissed: true })}
           >
             <X size={18} />
           </button>
@@ -162,6 +160,17 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
         max={required.length}
         aria-label="Progreso de primeros pasos"
       />
+      {force && !onDashboard && (
+        <button
+          className="btn2 p first-show"
+          disabled={busy}
+          onClick={() =>
+            void update({ dismissed: false, visible: true })
+          }
+        >
+          Mostrar en Dashboard
+        </button>
+      )}
       {tasks
         .filter((task) => !task.done)
         .map((task) => (
@@ -171,11 +180,7 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
             data-testid={`first-step-${task.id}`}
             onClick={task.action}
           >
-            <span className="first-check">
-              {task.id === "video" ? (
-                <Play size={12} fill="currentColor" />
-              ) : null}
-            </span>
+            <span className="first-check" />
             <span>
               <b>{task.title}</b>
               <small>{task.sub}</small>
@@ -188,15 +193,6 @@ export function GettingStarted({ force = false }: { force?: boolean }) {
           <Check size={18} />
           ¡Completaste tus primeros pasos!
         </p>
-      )}
-      {force && state.eligible && state.dismissed && (
-        <button
-          className="btn2 s"
-          disabled={busy}
-          onClick={() => void update(false)}
-        >
-          Mostrar en Dashboard
-        </button>
       )}
       {(error || gettingStartedError) && (
         <p className="ferr" role="alert">
@@ -306,7 +302,14 @@ export function GettingStartedDashboard() {
         {inventory.length > 0 && (
           <section className="first-activity">
             <h2>Tu stock, en un solo lugar</h2>
-            <p>{inStock.length} equipos disponibles para tu próxima venta.</p>
+            <p>
+              {esCount(
+                inStock.length,
+                "equipo disponible",
+                "equipos disponibles",
+              )}{" "}
+              para tu próxima venta.
+            </p>
             {canInventory && (
               <button className="btn2 p" onClick={() => go("inventory")}>
                 Ver mi inventario

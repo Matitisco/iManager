@@ -27,8 +27,6 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   await expect(page.getByText('Completá el nombre de la tienda')).toBeVisible();
   await storeNameInput.fill(storeName);
   await page.getByTestId('onboarding-submit').click();
-  await expect(page.getByTestId('onboarding-video')).toBeVisible();
-  await page.getByRole('button', { name: 'Saltar por ahora' }).click();
   await expect(page.getByTestId('onboarding-invite')).toBeVisible();
   await page.getByRole('button', { name: 'Saltar por ahora' }).click();
   await expect(page.getByRole('heading', { name: 'Cargá tu stock' })).toBeVisible();

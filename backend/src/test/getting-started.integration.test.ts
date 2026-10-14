@@ -24,14 +24,15 @@ describe("primeros pasos persistentes y muestras", () => {
       method: "PATCH",
       url: "/api/onboarding/progress",
       headers: headers(ctx.user.firebaseUid),
-      payload: { dismissed: true, videoWatched: true, installed: true },
+      payload: { dismissed: true, visible: true, installed: true },
     });
     expect(patch.json()).toMatchObject({
       dismissed: true,
-      videoWatched: true,
+      visible: true,
       installed: true,
       eligible: false,
     });
+    expect(patch.json().videoWatched).toBeUndefined();
     expect((await get()).json().dismissed).toBe(true);
     const sample = await app.inject({
       method: "POST",
@@ -53,7 +54,7 @@ describe("primeros pasos persistentes y muestras", () => {
     expect(created.json().session.store).toMatchObject({
       currency: "USD",
       exchangeSource: "blue",
-      onboardingStage: "video",
+      onboardingStage: "invite",
       instagram: null,
     });
     for (const stage of ["invite", "stock"]) {
@@ -85,6 +86,15 @@ describe("primeros pasos persistentes y muestras", () => {
         })
       ).json(),
     ).toMatchObject({ active: false, eligible: true });
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/onboarding/samples",
+          headers: auth,
+        })
+      ).statusCode,
+    ).toBe(200);
   });
   it("borra solo muestras propias, incluso con equipos reales y marcas falsas en customFields", async () => {
     const ctx = await seedStoreContext();

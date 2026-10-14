@@ -29,9 +29,16 @@ import {
 } from "../services/import-api";
 import { createSampleStock } from "../services/getting-started-api";
 import {
+  esCount,
   onboardingPayload,
   onboardingTotals,
   prepareOnboardingRows,
+  readingLinesLabel,
+  recognizedLinesHeading,
+  recognizedSlices,
+  unrecognizedNote,
+  withoutCurrencyNote,
+  type RecognizedEquipment,
 } from "../lib/onboarding-stock";
 import { textRowError } from "../lib/text-import-review";
 import { toUserMessage } from "../lib/user-message";
@@ -79,6 +86,11 @@ function StockFlow({
     { line: number; original: string; reason: string }[]
   >([]);
   const [partialRows, setPartialRows] = useState<TextProgressRow[]>([]);
+  const [lineCount, setLineCount] = useState(0);
+  const [analyzeStep, setAnalyzeStep] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [alternative, setAlternative] = useState<"excel" | "manual" | null>(
@@ -128,22 +140,70 @@ function StockFlow({
       setBusy(false);
     }
   };
+  const pause = (ms: number, signal: AbortSignal) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(() => resolve(), ms);
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+    });
+  const reveal = async (slices: RecognizedEquipment[][], signal: AbortSignal) => {
+    for (let index = 0; index < slices.length; index += 1) {
+      if (signal.aborted) return;
+      const slice = slices[index];
+      setPartialRows((current) => [...current, ...slice]);
+      setAnalyzeStep({ done: index + 1, total: slices.length });
+      await pause(50, signal);
+    }
+  };
   const analyze = async () => {
     if (!user || busy) return;
     setBusy(true);
     setError("");
     setPartialRows([]);
+    setAnalyzeStep(null);
+    const lines = text.split("\n").filter((line) => line.trim()).length;
+    setLineCount(lines);
     setStep("analyzing");
     controller.current?.abort();
     const active = new AbortController();
     controller.current = active;
+    let revealed = 0;
     try {
       const result = await analyzeInventoryTextProgress(
         user,
         text,
-        (next) => setPartialRows((current) => [...current, ...next]),
+        async (next) => {
+          if (!next.length || active.signal.aborted) return;
+          revealed += next.reduce((sum, row) => sum + row.quantity, 0);
+          await reveal(
+            recognizedSlices(next, Math.max(next.length, 1), 1),
+            active.signal,
+          );
+        },
         active.signal,
       );
+      if (active.signal.aborted) return;
+      if (revealed === 0 && result.rows.length) {
+        await reveal(
+          recognizedSlices(
+            result.rows.map((row, index) => ({
+              model: row.model,
+              quantity: row.quantity,
+              line: result.review?.[index]?.line,
+            })),
+            lines,
+          ),
+          active.signal,
+        );
+      }
+      if (active.signal.aborted) return;
+      if (result.rows.length) await pause(400, active.signal);
       if (active.signal.aborted) return;
       setRows(prepareOnboardingRows(result));
       setDiscarded(result.discarded ?? []);
@@ -182,8 +242,10 @@ function StockFlow({
         })),
       );
       await reloadInventory();
+      const saved = result.imported + result.updated;
+      const pending = result.errors.length;
       throw new Error(
-        `Guardamos ${result.imported + result.updated} equipos. Quedan ${result.errors.length} para corregir: ${result.errors.map((item) => item.message).join(" · ")}`,
+        `Guardamos ${esCount(saved, "equipo", "equipos")}. ${pending === 1 ? "Queda 1 para corregir" : `Quedan ${pending} para corregir`}: ${result.errors.map((item) => item.message).join(" · ")}`,
       );
     }
     setRows([]);
@@ -222,8 +284,7 @@ function StockFlow({
         )}
       </header>
       <main className={`onb-main${review ? " onb-wide" : ""}`}>
-        <div className="onb-steps" aria-label="Paso 4 de 4">
-          <i className="on" />
+        <div className="onb-steps" aria-label="Paso 3 de 3">
           <i className="on" />
           <i className="on" />
           <i className="on" />
@@ -266,8 +327,7 @@ function StockFlow({
               </button>
             </div>
             {appSession?.membership?.role === "OWNER" &&
-              appSession.store?.onboardingStartedAt &&
-              !appSession.store.onboardingCompletedAt && (
+              appSession.store?.onboardingStartedAt && (
                 <button
                   className="onb-sample"
                   disabled={busy}
@@ -324,16 +384,13 @@ function StockFlow({
             {step === "partial" && (
               <div className="onb-alert" role="status">
                 <b>
-                  Reconocimos{" "}
-                  {text.split("\n").filter((line) => line.trim()).length -
-                    discarded.length}{" "}
-                  de {text.split("\n").filter((line) => line.trim()).length}{" "}
-                  líneas
+                  {recognizedLinesHeading(
+                    text.split("\n").filter((line) => line.trim()).length -
+                      discarded.length,
+                    text.split("\n").filter((line) => line.trim()).length,
+                  )}
                 </b>
-                <p>
-                  Las {discarded.length} sin reconocer no parecen equipos.
-                  Editalas o borralas y volvé a analizar, o seguí sin ellas.
-                </p>
+                <p>{unrecognizedNote(discarded.length)}</p>
               </div>
             )}
             {step === "invalid" && (
@@ -409,7 +466,7 @@ function StockFlow({
           </>
         )}
         {step === "analyzing" && (
-          <section aria-live="polite">
+          <section aria-live="polite" data-testid="onboarding-analyzing">
             <span className="onb-loading">
               <Sparkles size={32} />
             </span>
@@ -418,14 +475,32 @@ function StockFlow({
               Reconocemos los equipos y sus precios. Vos revisás antes de
               guardar.
             </p>
-            <div className="onb-progress-indeterminate" />
-            <b>
-              {partialRows.reduce((sum, row) => sum + row.quantity, 0)} equipos
-              reconocidos
+            {partialRows.length === 0 ? (
+              <div className="onb-progress-indeterminate" />
+            ) : (
+              <progress
+                value={analyzeStep?.done ?? 0}
+                max={analyzeStep?.total ?? 1}
+                aria-label="Avance del análisis"
+              />
+            )}
+            <b data-testid="onboarding-analyze-status">
+              {partialRows.length === 0
+                ? readingLinesLabel(lineCount)
+                : esCount(
+                    partialRows.reduce((sum, row) => sum + row.quantity, 0),
+                    "equipo reconocido",
+                    "equipos reconocidos",
+                  )}
             </b>
+            {analyzeStep && partialRows.length > 0 && (
+              <p data-testid="onboarding-analyze-part">
+                Parte {analyzeStep.done} de {analyzeStep.total}
+              </p>
+            )}
             <ul className="onb-partials">
               {partialRows.map((row, index) => (
-                <li key={index}>
+                <li key={`${row.model}-${index}`}>
                   <Check size={16} />
                   {row.model}
                   {row.quantity > 1 && ` ×${row.quantity}`}
@@ -465,7 +540,10 @@ function StockFlow({
               </span>
               ¡Listo, {appSession?.store?.name}!
             </h1>
-            <p>Armamos {totals.count} equipos. Revisá los marcados y guardá.</p>
+            <p>
+              Armamos {esCount(totals.count, "equipo", "equipos")}. Revisá los
+              marcados y guardá.
+            </p>
             <div className="onb-result-layout">
               <div>
                 <section className="onb-value">
@@ -484,6 +562,11 @@ function StockFlow({
                       La conversión necesita una cotización disponible. No
                       bloquea el guardado.
                     </small>
+                  )}
+                  {totals.withoutCurrency > 0 && (
+                    <p data-testid="onboarding-without-currency" role="note">
+                      {withoutCurrencyNote(totals.withoutCurrency)}
+                    </p>
                   )}
                 </section>
                 <div className="onb-stats">
@@ -504,7 +587,11 @@ function StockFlow({
               </div>
               <section>
                 <div className="onb-review-heading">
-                  REVISIÓN RÁPIDA <span>{totals.review} CON DUDAS</span>
+                  REVISIÓN RÁPIDA{" "}
+                  <span>
+                    {totals.review}{" "}
+                    {totals.review === 1 ? "CON DUDA" : "CON DUDAS"}
+                  </span>
                 </div>
                 <div className="onb-review-list">
                   {rows.map((row, index) => (
@@ -528,9 +615,11 @@ function StockFlow({
                         aria-label={`Revisar ${row.model}, fila ${index + 1}`}
                         onClick={() => setEditing(index)}
                       >
-                        {row._review
-                          ? "Revisar"
-                          : `${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}`}
+                        {row.currency !== "USD" && row.currency !== "ARS"
+                          ? "Sin moneda"
+                          : row._review
+                            ? "Revisar"
+                            : `${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}`}
                       </button>
                     </div>
                   ))}
@@ -550,7 +639,7 @@ function StockFlow({
               >
                 {busy
                   ? "Guardando…"
-                  : `Guardar ${totals.count} equipos e ir al inventario`}
+                  : `Guardar ${esCount(totals.count, "equipo", "equipos")} e ir al inventario`}
               </button>
             </div>
           </>
@@ -676,11 +765,12 @@ function StockFlow({
             <label>
               Moneda
               <select
-                value={rows[editing].currency}
+                value={rows[editing].currency || ""}
                 onChange={(e) => change("currency", e.target.value)}
               >
-                <option>USD</option>
-                <option>ARS</option>
+                <option value="">Sin moneda</option>
+                <option value="USD">USD</option>
+                <option value="ARS">ARS</option>
               </select>
             </label>
             <label>

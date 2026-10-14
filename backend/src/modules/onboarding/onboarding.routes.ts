@@ -73,7 +73,7 @@ export async function gettingStartedRoutes(app: FastifyInstance) {
     const patch = z
       .object({
         dismissed: z.boolean().optional(),
-        videoWatched: z.literal(true).optional(),
+        visible: z.boolean().optional(),
         installed: z.literal(true).optional(),
         complete: z.literal(true).optional(),
         stage: z.enum(["invite", "stock"]).optional(),

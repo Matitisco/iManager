@@ -55,7 +55,7 @@ export async function completeOnboarding(
         data: {
           name: trimmedStoreName,
           onboardingStartedAt: new Date(),
-          onboardingStage: "video",
+          onboardingStage: "invite",
           instagram,
           currency: asCurrency(input.currency ?? "USD"),
           exchangeMode,

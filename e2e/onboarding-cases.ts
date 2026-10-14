@@ -1,9 +1,4 @@
-import {
-  test,
-  expect,
-  type Page,
-  type APIRequestContext,
-} from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   authHeaders,
   buildTestEmail,
@@ -67,14 +62,9 @@ async function start(page: Page, email: string) {
   await loginViaUi(page, email);
   await page.getByTestId("onboarding-store-name").fill("Tienda Palermo");
   await page.getByTestId("onboarding-submit").click();
-  await expect(page.getByTestId("onboarding-video")).toBeVisible();
+  await expect(page.getByTestId("onboarding-invite")).toBeVisible();
 }
 async function toStock(page: Page) {
-  await page
-    .getByTestId("onboarding-video")
-    .getByRole("button", { name: "Saltar por ahora" })
-    .click();
-  await expect(page.getByTestId("onboarding-invite")).toBeVisible();
   await page
     .getByTestId("onboarding-invite")
     .getByRole("button", { name: "Saltar por ahora" })
@@ -95,40 +85,13 @@ async function fits(page: Page) {
     ),
   ).toBe(true);
 }
-async function progress(request: APIRequestContext, email: string) {
-  return (
-    await request.get(`${API}/api/onboarding/progress`, {
-      headers: authHeaders(email),
-    })
-  ).json();
-}
 export function onboardingCases(phone: boolean) {
-  test("nombre → video → invitación → lista → revisión → inventario, sin guardar antes de confirmar", async ({
+  test("nombre → invitación → lista → revisión → inventario, sin guardar antes de confirmar", async ({
     page,
     request,
   }, info) => {
     const email = buildTestEmail(info, "onboarding-happy");
-    let videoRequests = 0;
-    page.on("request", (req) => {
-      if (req.url().endsWith("/test-welcome.mp4")) videoRequests++;
-    });
-    await page.route("**/test-welcome.mp4", (route) =>
-      route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
-    );
     await start(page, email);
-    expect(videoRequests).toBe(0);
-    await page
-      .getByRole("button", { name: "Reproducir video de bienvenida" })
-      .click();
-    await expect(page.locator("video")).toHaveAttribute("preload", "none");
-    await page.locator("video").dispatchEvent("ended");
-    await expect
-      .poll(async () => (await progress(request, email)).videoWatched)
-      .toBe(true);
-    await page
-      .getByTestId("onboarding-video")
-      .getByRole("button", { name: "Seguir", exact: true })
-      .click();
     await page
       .getByRole("button", { name: "Invitar al equipo", exact: true })
       .click();
@@ -212,6 +175,7 @@ export function onboardingCases(phone: boolean) {
     await expect(checklist).toBeVisible();
     await expect(checklist.getByTestId("first-step-stock")).toHaveCount(0);
     await expect(checklist.getByTestId("first-step-video")).toHaveCount(0);
+    await expect(page.getByText("Video de bienvenida")).toHaveCount(0);
     await expect(checklist.getByTestId("first-step-team")).toHaveCount(0);
     await page.reload();
     await expect(page.getByTestId("getting-started")).toBeVisible();
@@ -222,9 +186,6 @@ export function onboardingCases(phone: boolean) {
   }, info) => {
     const email = buildTestEmail(info, "onboarding-skip");
     await start(page, email);
-    await page.reload();
-    await expect(page.getByTestId("onboarding-video")).toBeVisible();
-    await page.getByRole("button", { name: "Saltar por ahora" }).click();
     await page.reload();
     await expect(page.getByTestId("onboarding-invite")).toBeVisible();
     await page.getByRole("button", { name: "Saltar por ahora" }).click();
@@ -242,18 +203,28 @@ export function onboardingCases(phone: boolean) {
       fullPage: true,
     });
     expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
+    await page.getByRole("button", { name: "Cargar mi stock", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: /Probar con datos de ejemplo/ }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Probar con datos de ejemplo/ }).click();
+    await expect(
+      page.getByText("Estás viendo datos de ejemplo", { exact: false }),
+    ).toBeVisible();
+    await fits(page);
     await page.getByRole("button", { name: "Cerrar Primeros pasos" }).click();
     await page.reload();
     await expect(page.getByTestId("getting-started")).toHaveCount(0);
     if (phone) await page.getByTestId("sidebar-tab-more").click();
     await page.getByTestId("sidebar-tab-help").click();
     await expect(page.getByTestId("getting-started")).toBeVisible();
-    await page
-      .getByRole("button", { name: "▶ Ver video de bienvenida" })
-      .click();
     await expect(
-      page.getByRole("dialog", { name: "¡Bienvenido a iManager!" }),
-    ).toBeVisible();
+      page.getByRole("button", { name: "▶ Ver video de bienvenida" }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Mostrar en Dashboard" }).click();
+    await page.getByTestId("sidebar-tab-dashboard").click();
+    await expect(page.getByTestId("getting-started")).toBeVisible();
+    await fits(page);
   });
   test("error parcial permite corregir líneas o seguir solo con las reconocidas", async ({
     page,
@@ -278,6 +249,10 @@ export function onboardingCases(phone: boolean) {
     );
     await paste(page, text + "\nfunda gratis");
     await expect(page.getByText("Reconocimos 2 de 3 líneas")).toBeVisible();
+    await expect(
+      page.getByText("La línea sin reconocer no parece un equipo."),
+    ).toBeVisible();
+    await expect(page.getByText(/Las 1 sin reconocer/)).toHaveCount(0);
     await page.getByRole("textbox", { name: "Línea 3 sin reconocer" }).fill("");
     expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
     await page
@@ -364,7 +339,7 @@ export function onboardingCases(phone: boolean) {
     expect(saved).toHaveLength(1);
     expect(saved[0].model).toBe("Equipo real");
   });
-  test("una cuenta existente entra sin recorrido y abre video/checklist desde Ayuda", async ({
+  test("una cuenta existente entra sin recorrido y muestra Primeros pasos desde Ayuda", async ({
     page,
     request,
   }, info) => {
@@ -381,6 +356,86 @@ export function onboardingCases(phone: boolean) {
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "▶ Ver video de bienvenida" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Mostrar en Dashboard" }).click();
+    await page.getByTestId("sidebar-tab-dashboard").click();
+    await expect(page.getByTestId("getting-started")).toBeVisible();
+    await fits(page);
+  });
+  test("el análisis muestra los equipos antes del resultado y no se queda en cero", async ({
+    page,
+    request,
+  }, info) => {
+    const email = buildTestEmail(info, "onboarding-progress");
+    await start(page, email);
+    await toStock(page);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/import/analyze-text", async (route) => {
+      await gate;
+      await route.fulfill({ json: analysis });
+    });
+    await paste(page);
+    await expect(page.getByTestId("onboarding-analyze-status")).toHaveText(
+      /Leyendo/,
+    );
+    await expect(page.getByText("0 equipos reconocidos")).toHaveCount(0);
+    const appeared = page
+      .getByTestId("onboarding-analyzing")
+      .getByText("iPhone 13")
+      .waitFor();
+    release();
+    await appeared;
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
+    await expect(page.getByTestId("onboarding-equipment-count")).toHaveText("3");
+    await fits(page);
+  });
+  test("una fila sin moneda queda fuera del total en dólares", async ({
+    page,
+    request,
+  }, info) => {
+    const email = buildTestEmail(info, "onboarding-currency");
+    await start(page, email);
+    await toStock(page);
+    await page.route("**/api/import/analyze-text", (route) =>
+      route.fulfill({
+        json: {
+          ...analysis,
+          rows: [
+            { ...analysis.rows[0], quantity: "1", price: "420" },
+            {
+              model: "Libre",
+              capacity: "",
+              color: "",
+              condition: "USADO",
+              price: "100",
+              currency: "",
+              quantity: "1",
+              batteryHealth: "",
+            },
+          ],
+          review: [
+            { line: 1, original: "iPhone 13 USD420", dudas: [] },
+            {
+              line: 2,
+              original: "libre 100",
+              dudas: ["Sin moneda: elegí ARS o USD antes de importar."],
+            },
+          ],
+        },
+      }),
+    );
+    await paste(page, "iPhone 13 USD420\nlibre 100");
+    await expect(page.getByTestId("onboarding-stock-usd")).toHaveText("US$ 420");
+    await expect(page.getByTestId("onboarding-without-currency")).toContainText(
+      "1 equipo sin moneda no entra en el total",
+    );
+    await expect(page.getByRole("button", { name: /Libre/ })).toContainText(
+      "Sin moneda",
+    );
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
+    await fits(page);
   });
 }

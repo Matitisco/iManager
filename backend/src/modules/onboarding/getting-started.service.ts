@@ -12,7 +12,7 @@ type Member = {
 };
 export type GettingStartedPatch = {
   dismissed?: boolean;
-  videoWatched?: true;
+  visible?: boolean;
   installed?: true;
   complete?: true;
   stage?: "invite" | "stock";
@@ -60,7 +60,7 @@ export async function getGettingStarted(member: Member) {
         : 0,
     ]);
   return {
-    stage: store.onboardingStage ?? "stock",
+    stage: store.onboardingStage === "video" ? "invite" : (store.onboardingStage ?? "stock"),
     eligible: store.onboardingStartedAt !== null,
     active:
       store.onboardingStartedAt !== null &&
@@ -72,7 +72,7 @@ export async function getGettingStarted(member: Member) {
     team: employees > 0,
     catalog: Boolean(catalog?.active),
     installed: preferences.appInstalled,
-    videoWatched: preferences.welcomeVideoWatched,
+    visible: preferences.gettingStartedVisible,
     samples,
   };
 }
@@ -120,7 +120,9 @@ export async function patchGettingStarted(
         ...(patch.dismissed !== undefined
           ? { gettingStartedDismissed: patch.dismissed }
           : {}),
-        ...(patch.videoWatched ? { welcomeVideoWatched: true } : {}),
+        ...(patch.visible !== undefined
+          ? { gettingStartedVisible: patch.visible }
+          : {}),
         ...(patch.installed ? { appInstalled: true } : {}),
       },
     });
@@ -132,9 +134,9 @@ export async function createSampleStock(storeId: string) {
   return prisma.$transaction(async (tx) => {
     await lockTransactionKey(tx, `onboarding-samples:${storeId}`);
     const store = await tx.store.findUniqueOrThrow({ where: { id: storeId } });
-    if (!store.onboardingStartedAt || store.onboardingCompletedAt)
+    if (!store.onboardingStartedAt)
       throw new DomainError(
-        "Los ejemplos solo están disponibles durante la configuración inicial.",
+        "Los ejemplos solo están disponibles para una tienda configurada en iManager.",
         409,
       );
     if (

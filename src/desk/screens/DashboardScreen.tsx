@@ -1,4 +1,4 @@
-import { GettingStartedDashboard } from '../getting-started';
+import { GettingStarted, GettingStartedDashboard } from '../getting-started';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
@@ -156,6 +156,7 @@ export function DashboardScreen() {
         ) : people}
         desktop={<div className="dright">{people}<DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div>}
       />
+      <GettingStarted />
 
       <div className="dgrid dash">
         <div className="hero">

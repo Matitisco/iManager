@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GettingStarted } from "./getting-started";
 const state = vi.hoisted(() => ({
@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
     team: true,
     catalog: false,
     installed: false,
-    videoWatched: true,
+    visible: false,
   },
   gettingStartedError: "",
   inventory: [],
@@ -33,6 +33,8 @@ vi.mock("../components/InstallHelp", () => ({
 describe("Primeros pasos pendientes", () => {
   beforeEach(() => {
     state.gettingStarted.dismissed = false;
+    state.gettingStarted.eligible = true;
+    state.gettingStarted.visible = false;
     state.appSession.membership.role = "OWNER";
     state.gettingStarted.team = true;
     vi.clearAllMocks();
@@ -43,6 +45,7 @@ describe("Primeros pasos pendientes", () => {
     expect(screen.queryByTestId("first-step-stock")).toBeNull();
     expect(screen.queryByTestId("first-step-team")).toBeNull();
     expect(screen.queryByTestId("first-step-video")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mostrar en Dashboard" })).toBeNull();
     expect(screen.getByTestId("first-step-catalog")).toBeVisible();
     fireEvent.click(screen.getByTestId("first-step-install"));
     expect(screen.getByText("Guía PWA")).toBeVisible();
@@ -57,13 +60,16 @@ describe("Primeros pasos pendientes", () => {
     expect(screen.queryByTestId("first-step-team")).toBeNull();
     expect(screen.queryByTestId("first-step-catalog")).toBeNull();
   });
-  it("persiste el descarte y Ayuda permite reabrirlo", () => {
+  it("persiste el descarte y Ayuda permite reabrirlo", async () => {
     const view = render(<GettingStarted />);
     fireEvent.click(
       screen.getByRole("button", { name: "Cerrar Primeros pasos" }),
     );
     expect(state.updateGettingStarted).toHaveBeenCalledWith({
       dismissed: true,
+    });
+    await act(async () => {
+      await Promise.resolve();
     });
     state.gettingStarted.dismissed = true;
     view.rerender(<GettingStarted />);
@@ -72,5 +78,26 @@ describe("Primeros pasos pendientes", () => {
     expect(
       screen.getByRole("button", { name: "Mostrar en Dashboard" }),
     ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar en Dashboard" }));
+    expect(state.updateGettingStarted).toHaveBeenCalledWith({
+      dismissed: false,
+      visible: true,
+    });
+  });
+  it("permite mostrar Primeros pasos en el Dashboard de una cuenta existente", async () => {
+    state.gettingStarted.eligible = false;
+    state.gettingStarted.dismissed = false;
+    state.gettingStarted.visible = false;
+    const view = render(<GettingStarted />);
+    expect(screen.queryByTestId("getting-started")).toBeNull();
+    view.rerender(<GettingStarted force />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar en Dashboard" }));
+    expect(state.updateGettingStarted).toHaveBeenCalledWith({
+      dismissed: false,
+      visible: true,
+    });
+    state.gettingStarted.visible = true;
+    view.rerender(<GettingStarted />);
+    expect(screen.getByTestId("getting-started")).toBeVisible();
   });
 });

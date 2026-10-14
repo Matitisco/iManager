@@ -31,7 +31,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await page.getByTestId('onboarding-exchange-mode').selectOption('auto');
   await page.getByTestId('onboarding-exchange-source').selectOption('blue');
   await page.getByTestId('onboarding-submit').click();
-  for (let step = 0; step < 3; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+  for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
   await page.getByTestId('sidebar-tab-inventory').click();
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
@@ -121,7 +121,7 @@ test.describe('phone', () => {
     await page.getByText('Moneda y dólar').click();
     await page.getByTestId('onboarding-currency').selectOption('ARS');
     await page.getByTestId('onboarding-submit').click();
-    for (let step = 0; step < 3; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+    for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     await page.getByTestId('blue-widget').click();

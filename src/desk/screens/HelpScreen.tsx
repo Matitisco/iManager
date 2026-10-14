@@ -4,7 +4,6 @@ import { GettingStarted } from "../getting-started";
 import { canOpenSection, canViewTeam } from "../sections";
 import { useAppContext } from "../../context/AppContext";
 import { useDesk, ScreenTitle } from "../ui";
-import { WELCOME_VIDEO_POSTER } from "../../components/WelcomeVideo";
 
 export function HelpScreen() {
   const { open, back } = useDesk();
@@ -19,27 +18,9 @@ export function HelpScreen() {
       <ScreenTitle
         title="Ayuda"
         desktop={null}
-        subtitle="Videos y guías para usar iManager"
+        subtitle="Guías para usar iManager"
         back={back}
       />
-      <button
-        className="help-video"
-        onClick={() => open({ type: "welcome-video" })}
-      >
-        <img src={WELCOME_VIDEO_POSTER} alt="" loading="lazy" />
-        <span>
-          <b>Video de bienvenida</b>
-          <small>
-            Los pasos para empezar: stock, ventas, equipo e instalación.
-          </small>
-        </span>
-      </button>
-      <button
-        className="btn2 p"
-        onClick={() => open({ type: "welcome-video" })}
-      >
-        ▶ Ver video de bienvenida
-      </button>
       <h2>Guías</h2>
       <div className="card help-guides">
         {can("inventory") && (
