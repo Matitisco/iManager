@@ -33,7 +33,7 @@ export function SaleAccountPanel({ saleId }: { saleId: string }) {
   useEffect(() => {
     if (!user) return;
     let active = true;
-    fetchSaleAccount(user, saleId).then((data) => { if (active) setAccount(data); }).catch(() => { if (active) setAccount(null); });
+    fetchSaleAccount(user, saleId).then((data) => { if (active && Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data); }).catch(() => { if (active) setAccount(null); });
     return () => { active = false; };
   }, [user, saleId]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
@@ -41,7 +41,7 @@ export function SaleAccountPanel({ saleId }: { saleId: string }) {
     <section className="acct-plan" aria-label="Cuotas y pagos">
       {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span><b>{money.show(tender.amount, tender.currency)}</b></div>) : null}
       {account.plan ? <p className="eqs-note">{account.plan.count} cuotas {account.plan.frequency.toLowerCase()} · primer vencimiento {account.plan.firstDueDate.split('-').reverse().join('/')}{account.plan.surcharge ? ` · recargo ${money.show(account.plan.surcharge, null)}` : ''}</p> : null}
-      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {item.dueDate.split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span><b>{money.show(Math.max(0, item.amount - item.paidAmount), null)}</b></div>)}
+      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {(item.dueDate || '').split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span><b>{money.show(Math.max(0, item.amount - item.paidAmount), null)}</b></div>)}
       <p className="eqs-note">El pago se aplica primero a la cuota impaga más antigua.</p>
     </section>
   );
