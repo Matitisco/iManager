@@ -116,7 +116,7 @@ export const ImportModal: React.FC<Props> = ({
       setStep('summary');
     } catch (error) {
       if (requestRef.current !== requestId) return;
-      setFileError(toUserMessage(error, 'No se pudo analizar el listado.'));
+      setFileError(error instanceof Error ? error.message : 'No se pudo analizar el listado.');
       setStep('upload');
     }
   };
