@@ -270,6 +270,7 @@ export async function listClientPayments(storeId: string, clientId: string) {
     method: row.method,
     kind: row.kind,
     note: row.note,
+    saleId: row.saleId,
     paidAt: row.paidAt.toISOString(),
     currency: row.currency ?? null,
   }));

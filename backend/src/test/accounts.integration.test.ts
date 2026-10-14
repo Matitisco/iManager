@@ -111,6 +111,31 @@ describe("cuenta corriente y cuotas", () => {
     expect(Number(deposit.amount)).toBe(200);
   });
 
+  it("confirms the unpaid remainder and ages the line from the oldest overdue installment", async () => {
+    const f = await fixture();
+    const created = await sale(f.headers, {
+      clientId: f.client.id,
+      deviceLabel: "Cuotas vencidas",
+      amount: 300,
+      currency: "ARS",
+      paymentMethod: "EFECTIVO",
+      tenders: [{ amount: 100, currency: "ARS", method: "EFECTIVO" }],
+      installments: { count: 2, frequency: "MENSUAL", firstDueDate: "2020-01-01" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.json().summary).toContain("deuda $ 200");
+    const listed = await getApp().inject({ url: "/api/accounts/debtors", headers: f.headers });
+    const row = listed.json().debtors.find((item: { clientId: string }) => item.clientId === f.client.id);
+    expect(row.lines[0].installments[0].status).toBe("VENCIDA");
+    expect(row.lines[0].days).toBeGreaterThan(100);
+    expect(row.days).toBe(row.lines[0].days);
+    expect(row.tone).toBe("rojo");
+    const history = await getApp().inject({ url: `/api/clients/${f.client.id}/payments`, headers: f.headers });
+    expect(history.json().payments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ amount: 100, kind: "PAGO", note: "Cobro de venta", saleId: created.json().sale.id }),
+    ]));
+  });
+
   it("shows a repair apart from the account and a credit note closes the sale without moving stock", async () => {
     const f = await fixture();
     const sold = await sale(f.headers, { clientId: f.client.id, productId: f.inventoryItem.id, amount: 400, currency: "ARS", paymentMethod: "EFECTIVO", status: "PENDIENTE" });

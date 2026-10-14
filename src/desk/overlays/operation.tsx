@@ -9,7 +9,8 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
 import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
-import { cancellationRefund } from '../cancel-refund';
+import { cancellationRefund, type RefundTarget } from '../cancel-refund';
+import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -427,22 +428,33 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }
 
 export function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
+  const { sales, clients, inventory, tradeIns, user, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
   useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [movements, setMovements] = useState<ClientPaymentRecord[]>([]);
+  useEffect(() => {
+    if (!user || !sale?.clientId) return;
+    let active = true;
+    fetchClientPayments(user, sale.clientId).then((rows) => { if (active) setMovements(rows); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user, sale?.clientId]);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
   if (!sale) return null;
   const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
-  const buyer = clients.find((client) => client.id === sale.clientId);
   const cash = (linkedTrade ? linkedTrade.differencePaid : sale.amount) - (sale.depositAppliedAmount ?? 0);
+  const refundTarget = { id: sale.id, cash, status: sale.status, openBalance: sale.openBalance, soldAt: sale.date };
+  const refundSales = sales.filter((item) => item.clientId && item.clientId === sale.clientId && item.status !== 'CANCELADA').map((item): RefundTarget => {
+    const trade = item.tradeInId ? tradeIns.find((row) => row.id === item.tradeInId) : undefined;
+    return { id: item.id, cash: Math.max(0, (trade ? trade.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
+  });
   const refund = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
-    ? cancellationRefund(sale.status, cash, buyer?.pendingBalance ?? 0)
+    ? cancellationRefund(refundTarget, refundSales, movements)
     : 0;
   if (confirmCancel) {
     return (

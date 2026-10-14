@@ -68,11 +68,11 @@ async function storeClock(storeId: string) {
 
 export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const clock = await storeClock(storeId);
-  const [clients, repairs, plans] = await Promise.all([
+  const [clients, repairs, plans, creditNotes] = await Promise.all([
     prisma.client.findMany({
       where: { storeId },
       include: {
-        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } }, accountPayments: { where: { kind: "NOTA_CREDITO" }, select: { id: true } } } },
+        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
         payments: { where: { kind: "CARGO" }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
@@ -80,7 +80,9 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       where: { storeId, clientId: { not: null }, status: { notIn: CLOSED_REPAIR }, estimate: { not: null } },
     }),
     prisma.saleInstallment.findMany({ where: { storeId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
+    prisma.clientPayment.findMany({ where: { storeId, kind: "NOTA_CREDITO", saleId: { not: null } }, select: { saleId: true } }),
   ]);
+  const creditSales = new Set(creditNotes.map((row) => row.saleId).filter((id): id is string => Boolean(id)));
   const installmentsBySale = new Map<string, InstallmentSlice[]>();
   for (const row of plans) {
     const slice = { sequence: row.sequence, dueDate: ymd(row.dueDate, clock.timeZone), amount: num(row.amount), paidAmount: num(row.paidAmount) };
@@ -102,8 +104,12 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       if (open <= 0) continue;
       openSales = fromCents(cents(openSales) + cents(open));
       const openedAt = ymd(sale.soldAt, clock.timeZone);
-      const age = lineTone(openedAt, clock.today);
       const slices = installmentsBySale.get(sale.id) ?? [];
+      const overdueAt = slices
+        .filter((slice) => installmentStatus(slice, clock.today) === "VENCIDA")
+        .map((slice) => slice.dueDate)
+        .sort()[0];
+      const age = lineTone(overdueAt ?? openedAt, clock.today);
       lines.push({
         id: sale.id,
         source: "VENTA",
@@ -112,7 +118,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
         currency: sale.amountCurrency ?? client.balanceCurrency,
         openedAt,
         ...age,
-        state: sale.accountPayments.length ? "NOTA_CREDITO" : "ABIERTA",
+        state: creditSales.has(sale.id) ? "NOTA_CREDITO" : "ABIERTA",
         saleId: sale.id,
         repairId: null,
         installments: slices.map((slice) => ({ ...slice, status: installmentStatus(slice, clock.today) })),
@@ -157,8 +163,8 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       });
     }
     if (pending <= 0 && repairBalance <= 0) continue;
-    const oldest = lines.reduce((min, item) => (item.openedAt < min ? item.openedAt : min), lines[0]?.openedAt ?? clock.today);
-    const age = lineTone(oldest, clock.today);
+    const days = lines.reduce((max, item) => Math.max(max, item.days), 0);
+    const age = { days, tone: balanceTone(days) };
     const currency = client.balanceCurrency ?? clock.currency;
     const money = (amount: number) => `${currency === "USD" ? "US$" : "$"} ${amount.toLocaleString("es-AR")}`;
     const statement = [

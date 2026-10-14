@@ -9,9 +9,14 @@ import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
 import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
+const paymentsApi = vi.hoisted(() => ({
+  fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null }>),
+}));
+
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
   tradeIns: [] as TradeIn[],
+  user: null as { getIdToken: () => Promise<string> } | null,
   clients: [] as Array<{ id: string; name: string; pendingBalance?: number; totalSpent?: number; phone?: string; email?: string; dni?: string; lastPurchaseDate?: string; balanceCurrency?: string | null }>,
   inventory: [] as { id: string; model: string; capacity: string }[],
   updateSale: vi.fn(),
@@ -25,6 +30,7 @@ const ctx = vi.hoisted(() => ({
 }));
 
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
+vi.mock('../services/clients-api', () => paymentsApi);
 
 const open = vi.fn();
 const close = vi.fn();
@@ -87,7 +93,10 @@ describe('operation detail', () => {
   beforeEach(() => {
     ctx.sales = [sale()];
     ctx.tradeIns = [trade()];
+    ctx.user = null;
     ctx.clients = [];
+    paymentsApi.fetchClientPayments.mockReset();
+    paymentsApi.fetchClientPayments.mockResolvedValue([]);
     ctx.inventory = [];
     ctx.updateSale.mockReset();
     ctx.updateSale.mockResolvedValue(undefined);
@@ -286,6 +295,8 @@ describe('operation detail', () => {
 
   it('shows the cash to return before cancelling a partly paid sale', async () => {
     const user = userEvent.setup();
+    ctx.user = { getIdToken: async () => 'token' };
+    paymentsApi.fetchClientPayments.mockResolvedValue([{ id: 'p1', amount: 300, method: 'TRANSFERENCIA', paidAt: '2026-10-08T12:00:00.000Z', kind: 'PAGO', saleId: 's1' }]);
     ctx.sales = [sale({
       status: 'PENDIENTE',
       amount: 900,
@@ -299,8 +310,8 @@ describe('operation detail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
-    expect(dialog).toHaveTextContent('Se devolverán $ 300.');
+    const dialog = await screen.findByRole('dialog', { name: 'Cancelar operación' });
+    expect(await within(dialog).findByText(/Se devolverán \$ 300/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
 
