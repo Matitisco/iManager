@@ -19,6 +19,7 @@ import { getAuthAdapter } from '../services/auth-adapter';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
+import { creditTotal } from '../desk/client-balance';
 import { isActiveTradeOperation } from '../desk/format';
 
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
@@ -129,16 +130,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!user || !backendReady || !['clients', 'sales', 'service'].some(section => canAccess(section as 'clients' | 'sales' | 'service'))) throw new Error('El backend todavía no está listo o no tenés acceso a señas');
     return user;
   };
+  const rememberCredit = (clientId: string, rows: ClientDeposit[]) => {
+    setClients(old => old.map(client => client.id === clientId ? { ...client, creditBalance: creditTotal(rows, client.balanceCurrency ?? null) } : client));
+  };
   const loadClientDeposits = async (clientId: string) => {
     const rows = await fetchClientDeposits(requireDeposits(), clientId);
-    if (scopeRef.current === currentScope) setDepositState(old => ({ scope: currentScope, rows: { ...(old.scope === currentScope ? old.rows : {}), [clientId]: rows } }));
+    if (scopeRef.current === currentScope) {
+      setDepositState(old => ({ scope: currentScope, rows: { ...(old.scope === currentScope ? old.rows : {}), [clientId]: rows } }));
+      rememberCredit(clientId, rows);
+    }
     return rows;
   };
   const mergeDeposit = (row: ClientDeposit) => {
     if (scopeRef.current !== currentScope) return;
     setDepositState(old => {
       const rows = old.scope === currentScope ? old.rows : {};
-      return { scope: currentScope, rows: { ...rows, [row.clientId]: [row, ...(rows[row.clientId] ?? []).filter(item => item.id !== row.id)] } };
+      const next = [row, ...(rows[row.clientId] ?? []).filter(item => item.id !== row.id)];
+      rememberCredit(row.clientId, next);
+      return { scope: currentScope, rows: { ...rows, [row.clientId]: next } };
     });
     noteLocalMutation();
   };
@@ -699,7 +708,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
     }
     const backendClient = await updateBackendClient(user, updatedClient);
-    setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
+    setClients(prev => prev.map(client => client.id === backendClient.id ? { ...backendClient, creditBalance: backendClient.creditBalance || client.creditBalance } : client));
     noteLocalMutation();
   };
 
@@ -709,7 +718,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
     }
     const updated = await registerBackendClientPayment(user, clientId, input);
-    setClients(prev => prev.map(client => client.id === updated.id ? updated : client));
+    setClients(prev => prev.map(client => client.id === updated.id ? { ...updated, creditBalance: updated.creditBalance || client.creditBalance } : client));
     noteLocalMutation();
     return updated;
   };

@@ -17,7 +17,7 @@ import type { CatalogKind } from '../../services/catalogs-api';
 import { SellerField } from '../SellerField';
 import { ClientField } from '../ClientField';
 import { EquipmentField } from '../EquipmentField';
-import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from '../sale-equipment';
+import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference, reservedForOtherClient } from '../sale-equipment';
 import { usePhoneLayout } from '../section-notices';
 import { QualityField } from '../QualityField';
 import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from '../quality';
@@ -160,10 +160,17 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
     : undefined;
-  const equipmentItems: (OperationProductOption | Product)[] = [
+  const catalogItems: (OperationProductOption | Product)[] = [
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
-  ].filter((item) => item.reservedDepositId ? item.reservedClientId === clientId : item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
+  ];
+  const equipmentItems = catalogItems.filter((item) => item.reservedDepositId ? item.reservedClientId === clientId : item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
+  const reservedPool = [
+    ...catalogItems,
+    ...inventory.filter((item) => item.reservedDepositId && !catalogItems.some((option) => option.id === item.id)),
+  ];
+  const reservedHit = selectedProduct ? null : reservedForOtherClient(reservedPool, deviceLabel, clientId);
+  const reservedName = reservedHit ? (reservedHit.reservedClientName || 'otro cliente') : null;
   const priceEntered = amount.trim() !== '';
   const tradeGap = outgoingTradeDifference({
     registered: Boolean(selectedProduct),
@@ -220,9 +227,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     } else {
       if (hasTrade && !buyer.trim()) next.client = 'Completá el nombre del cliente';
       if (source === 'clients' && !clientId) next.client = 'Elegí un cliente existente de la lista';
-      if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
+      if (reservedName) next.equipment = `Reservado para ${reservedName}`;
+      else if (!deviceLabel.trim()) next.equipment = 'Completá el equipo';
       else if (!selectedProduct && deviceLabel.trim().length > INPUT_LIMITS.model) next.equipment = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
-      if (source === 'inventory' && !productId) next.equipment = 'Elegí un equipo del inventario';
+      if (source === 'inventory' && !productId && !reservedName) next.equipment = 'Elegí un equipo del inventario';
       if (!selectedProduct && outgoingColor.trim().length > INPUT_LIMITS.color) next.outgoingColor = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
       if (!selectedProduct && outgoingCapacity.trim().length > 50) next.outgoingCapacity = 'La capacidad puede tener hasta 50 caracteres';
       if (!selectedProduct && imeiFormatError(outgoingImei)) next.outgoingImei = IMEI_FORMAT_MESSAGE;
@@ -328,11 +336,12 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         items={equipmentItems}
         value={deviceLabel}
         linked={Boolean(selectedProduct)}
+        reservedName={reservedName}
         error={bad.equipment}
         onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
         onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setOutgoingCapacity(''); setOutgoingColor(''); setOutgoingCondition(''); setOutgoingImei(''); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
       />
-      {deviceLabel.trim() && !selectedProduct ? (
+      {deviceLabel.trim() && !selectedProduct && !reservedName ? (
         <div className="unlisted-eq" data-testid="unlisted-equipment">
           <p className="eqs-note">Se crea en el inventario marcado para completar. El texto de arriba es el modelo.</p>
           <div className="frow">

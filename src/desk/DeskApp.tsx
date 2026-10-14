@@ -1,5 +1,6 @@
 import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
 import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
+import { OfflineScope } from './offline-banner';
 import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useEffect, useRef, useState } from 'react';
 import { BrandIsotipo } from '../components/brand-mark';
@@ -373,7 +374,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
-          {commissionCountError && tab === 'more' ? <p className="ferr" role="alert" data-testid={commissionCountError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{commissionCountError}</p> : null}
+          <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
+          {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
@@ -402,6 +404,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
               />
             )}
           </div>
+          </OfflineScope>
         </main>
         {phone ? (
           <MobileTabBar

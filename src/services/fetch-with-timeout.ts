@@ -1,3 +1,4 @@
+import { markOffline, markOnline } from '../lib/online';
 import { NETWORK_ERROR_MESSAGE, TIMEOUT_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -18,11 +19,14 @@ export async function fetchWithTimeout(
   }, timeoutMs);
 
   try {
-    return await fetch(input, {
+    const response = await fetch(input, {
       ...init,
       signal: controller.signal,
     });
+    markOnline();
+    return response;
   } catch (error) {
+    if (!timedOut && error instanceof TypeError) markOffline();
     if (timedOut) throw new DOMException(TIMEOUT_ERROR_MESSAGE, 'TimeoutError');
     // Keep the browser error name so invitation retries still recognize it.
     const message = error instanceof TypeError ? NETWORK_ERROR_MESSAGE : toUserMessage(error);

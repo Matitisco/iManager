@@ -1,4 +1,6 @@
 import { BulkActions, useBulkScope } from '../bulk-actions';
+import { clientNet } from '../client-balance';
+import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -49,9 +51,11 @@ function sortClients(rows: Client[], sort: string) {
   }
   if (sort === 'Gastado') return copy.sort((left, right) => right.totalSpent - left.totalSpent || byName(left, right));
   return copy.sort((left, right) => {
-    const debt = Number(right.pendingBalance > 0) - Number(left.pendingBalance > 0);
+    const leftNet = clientNet(left);
+    const rightNet = clientNet(right);
+    const debt = Number(rightNet > 0) - Number(leftNet > 0);
     if (debt) return debt;
-    if (left.pendingBalance !== right.pendingBalance) return right.pendingBalance - left.pendingBalance;
+    if (leftNet !== rightNet) return rightNet - leftNet;
     return byName(left, right);
   });
 }
@@ -71,15 +75,16 @@ export function ClientsScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
+  const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
-  const withBalance = clients.filter((client) => client.pendingBalance > 0).length;
+  const withBalance = clients.filter((client) => clientNet(client) > 0).length;
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const setDraft = (patch: Partial<ClientColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients.filter((client) => {
-      const matches = filter === 'Todos' || client.pendingBalance > 0;
+      const matches = filter === 'Todos' || clientNet(client) > 0;
       const haystack = `${client.name} ${client.phone} ${client.dni} ${client.email}`.toLowerCase();
       return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
@@ -123,7 +128,7 @@ export function ClientsScreen() {
         )}
       />
       {phone ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
-      {draftError ? <div className="ferr">{draftError}</div> : null}
+      {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar">
         <ChipRow
@@ -145,7 +150,7 @@ export function ClientsScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
-        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id) }}
+        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
       />
       {phone ? (
         listed.length === 0 ? (
@@ -156,9 +161,9 @@ export function ClientsScreen() {
             <PhoneRecords>
               {page.visible.map((client, index) => {
                 const reason = notices.reasonFor(client.id);
-                const group = client.pendingBalance > 0 ? 'Con saldo' : 'Todos';
+                const group = clientNet(client) > 0 ? 'Con saldo' : 'Todos';
                 const previous = index > 0 ? page.visible[index - 1] : null;
-                const showGroup = filter === 'Todos' && sort === 'Deudores' && (!previous || (previous.pendingBalance > 0) !== (client.pendingBalance > 0));
+                const showGroup = filter === 'Todos' && sort === 'Deudores' && (!previous || (clientNet(previous) > 0) !== (clientNet(client) > 0));
                 return (
                   <Fragment key={client.id}>
                     {showGroup ? <div className="cl-sec">{group}</div> : null}
@@ -241,7 +246,7 @@ export function ClientsScreen() {
                   <td>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
                   <td className="r">{money.show(client.totalSpent, client.balanceCurrency)}</td>
-                  <td>{client.pendingBalance > 0 ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
+                  <td>{clientNet(client) > 0 ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span> : clientNet(client) < 0 ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>
               ))}
             </tbody>
@@ -325,8 +330,10 @@ function ClientCard({ client, money }: { client: Client; money: MoneyApi }) {
           <span className="cl-line">
             {contact ? <small className="cl-dni">{contact}</small> : null}
             <span className="cl-balance">
-              {client.pendingBalance > 0
-                ? <span className="spill off">Saldo {money.compact(client.pendingBalance, client.balanceCurrency)}</span>
+              {clientNet(client) > 0
+                ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span>
+                : clientNet(client) < 0
+                  ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span>
                 : <span className="spill mid">Sin saldo</span>}
             </span>
           </span>

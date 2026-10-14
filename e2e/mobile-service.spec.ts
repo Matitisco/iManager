@@ -246,7 +246,7 @@ test.describe('service on a phone', () => {
     await expectFits(page);
     await editor.getByTestId('repair-delete').click();
     const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
-    await expect(confirm).toContainText('no se puede deshacer');
+    await expect(confirm).toContainText('vuelve como saldo a favor del cliente');
     await page.setViewportSize({ width: 360, height: 800 });
     await expectFits(page);
     await page.setViewportSize({ width: 390, height: 844 });

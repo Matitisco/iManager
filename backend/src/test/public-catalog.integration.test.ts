@@ -60,6 +60,16 @@ describe('public catalog API', () => {
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { archivedAt: new Date() } });
     expect((await getApp().inject(url)).json().items).toEqual([]);
   });
+  it('reads the live store phone on the next public request', async () => {
+    const { store, catalog } = await fixture();
+    const url = `/api/public/catalog/${catalog.slug}`;
+    await prisma.store.update({ where: { id: store.id }, data: { phone: '123123' } });
+    expect((await getApp().inject(url)).json().store.phone).toBe('123123');
+    await prisma.store.update({ where: { id: store.id }, data: { phone: '1141722188' } });
+    const next = await getApp().inject(url);
+    expect(next.headers['cache-control']).toBe('no-store');
+    expect(next.json().store.phone).toBe('1141722188');
+  });
   it('deactivates, reactivates and revokes the previous link, with audit', async () => {
     const { item, catalog, store } = await fixture();
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { catalogVisible: true } });

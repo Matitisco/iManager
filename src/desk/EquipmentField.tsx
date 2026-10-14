@@ -12,11 +12,13 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   error,
   onValue,
   onPick,
+  reservedName,
 }: {
   items: T[];
   value: string;
   linked: boolean;
   error?: string;
+  reservedName?: string | null;
   onValue: (value: string) => void;
   onPick: (item: T) => void;
 }) {
@@ -92,7 +94,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           ))}
         </ul>
       ) : null}
-      {value.trim() && !linked ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
+      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
     </div>
   );
 }
