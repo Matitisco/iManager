@@ -129,6 +129,64 @@ describe('sidebar unread counts', () => {
     expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
   });
 
+  it('shows the offline banner across the phone layout when onLine flips without an event, and clears it on Clientes while onLine stays false', async () => {
+    usePhone();
+    const online = { value: true };
+    const previousOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => online.value });
+    const previousFetch = globalThis.fetch;
+    const testGlobal = globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string };
+    testGlobal.__IMANAGER_TEST_API_BASE_URL__ = 'https://api.imanager.test';
+    let releaseHealth = () => {};
+    let healthGate = new Promise<void>((resolve) => { releaseHealth = resolve; });
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/api/health')) {
+        await healthGate;
+        return new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return previousFetch(input, init);
+    }) as typeof fetch;
+    window.location.hash = '#/mas';
+    try {
+      render(<DeskApp />);
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
+
+      online.value = false;
+      expect(await screen.findByTestId('offline-banner', {}, { timeout: 2500 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+      expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
+
+      goHash('#/inv');
+      expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
+
+      goHash('#/clientes');
+      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+
+      releaseHealth();
+      healthGate = Promise.resolve();
+      await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument(), { timeout: 5000 });
+      expect(navigator.onLine).toBe(false);
+      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
+
+      await act(async () => { await new Promise((resolve) => { window.setTimeout(resolve, 2200); }); });
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+    } finally {
+      online.value = true;
+      releaseHealth();
+      if (previousOnLine) Object.defineProperty(window.navigator, 'onLine', previousOnLine);
+      globalThis.fetch = previousFetch;
+      delete testGlobal.__IMANAGER_TEST_API_BASE_URL__;
+      cleanup();
+    }
+  });
+
   it('clears the offline banner on Más when the connection returns without leaving the screen', async () => {
     usePhone();
     window.location.hash = '#/mas';
