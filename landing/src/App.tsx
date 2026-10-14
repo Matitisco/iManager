@@ -1,7 +1,7 @@
 import { Hero } from './hero/Hero';
 import { MobileCards } from './MobileCards';
 import { Nav } from './Nav';
-import { Faq, Features, FinalCta, Footer, HowItWorks, Pricing, Problem, Screens, Testimonials } from './Sections';
+import { Faq, Features, FinalCta, Footer, HowItWorks, Pricing, Problem } from './Sections';
 
 export function App() {
   return (
@@ -13,8 +13,6 @@ export function App() {
         <Problem />
         <Features />
         <HowItWorks />
-        <Screens />
-        <Testimonials />
         <Pricing />
         <Faq />
         <FinalCta />

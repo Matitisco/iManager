@@ -16,21 +16,24 @@ npm run shots     # capturas del hero (requiere `npm run preview` y Chrome; CHRO
 npm run check:layout  # hero en 360–430 mobile y 980–1920 desktop: sin solapes ni bandas vacías (sale con 1 si falla)
 ```
 
+## Estilo
+
+Minimalista: fondo crema `#FBFAF8`, títulos grandes en DM Sans con interletrado negativo, etiquetas chicas en monoespaciada, tarjetas blancas con borde fino y sin sombras decorativas. El amarillo de la marca queda como acento (subrayado de palabras clave, capa activa, logo).
+
+Secciones: hero con scroll · problema («Si tu stock vive en un Excel, no es escalable») · funciones · cómo funciona · precios · preguntas · CTA final · footer. Las opiniones de clientes se suman recién cuando haya reales.
+
+Precios: `PLANS` en `src/content.ts` (Básico US$ 22/mes, Avanzado US$ 87/mes, Completo US$ 246/mes, A medida desde US$ 1.500). `SHOW_PRICING = false` oculta la sección y saca el link del menú y del footer.
+
 ## Hero: teléfono que se desarma con el scroll
 
-- `src/hero/Hero.tsx` — markup de las 5 capas (carcasa, batería, placa, marco, pantalla) como planos CSS 3D (cada plano con su transformación completa bajo una misma perspectiva, sin `preserve-3d`) con borde extruido, etiquetas y riel de progreso.
-- `src/hero/pose.ts` — función pura `pose(p, mobile, fit)` con los rangos y las interpolaciones lineales del JS de los wireframes, y `projectPoint()` / `phoneBounds()`, que proyectan anclajes de etiquetas y la caja del teléfono con la misma cadena de transformaciones CSS (así no se lee layout en cada frame).
+- `src/hero/Hero.tsx` — las 5 capas como planos CSS 3D (cada plano con su transformación completa bajo una misma perspectiva, sin `preserve-3d`), etiquetas y riel de progreso. Piezas de despiece reales: pantalla de vidrio con bisel fino, Dynamic Island y barra de estado; marco de titanio (anillo con máscara, bandas de antena, puerto y botones laterales, con un plano intermedio para que la pared lateral se vea continua); placa lógica en SVG (`Placa.tsx`: blindajes, SoC, conectores, pasivos, tornillos); batería con flex y lengüetas; carcasa por dentro con cámaras, bobina MagSafe e imanes. Cada capa tiene su profundidad de borde (`EDGE_DEPTHS`) y una sombra de contacto la acompaña.
+- `src/hero/pose.ts` — función pura `pose(p, mobile, fit)` y `projectPoint()` / `phoneBounds()`, que proyectan anclajes de etiquetas y la caja del teléfono con la misma cadena de transformaciones CSS (así no se lee layout en cada frame).
 - Layout medido, sin offsets fijos: en mobile el teléfono arranca debajo del copy real (alto variable por ancho, fuentes o escalado de texto del sistema) y sube junto con él, así nunca lo pisa.
-- Desktop siempre en dos columnas, en todos los frames: copy, CTAs y contenido de cada función a la izquierda (columna de 500px), teléfono explotado con sus etiquetas y el riel a la derecha. El teléfono se ubica como en el wireframe (44 % / 54 % del escenario, 270×560, perspectiva 2200px) y el fondo amarillo está centrado en 72 % / 40 % del viewport. Solo se adapta si no entra: escala el escenario en columnas angostas o pantallas bajas y, en pantallas altas (iPad vertical, «Sitio de escritorio» en un celular), separa más las capas y, si aun así sobra alto, el sticky mide lo que el contenido.
-- `npm run check:layout` y la comparación cuadro a cuadro contra `?shot=hero&p=…` del wireframe (p = .05, .15, .25, .36, .48, .60, .72, .84, .99) son la referencia para cualquier cambio del hero.
+- Desktop siempre en dos columnas, en todos los frames: copy, CTAs y contenido de cada función a la izquierda (columna de 500px), teléfono explotado con sus etiquetas y el riel a la derecha (44 % / 54 % del escenario, 270×560, perspectiva 2200px). En pantallas de más de 900px de alto crece hasta 15 %; en columnas angostas o pantallas bajas se achica; en pantallas altas y angostas (iPad vertical, «Sitio de escritorio» en un celular) separa más las capas y, si aun así sobra alto, el sticky mide lo que el contenido.
 - Un único `requestAnimationFrame` lee `scrollY` y escribe solo `transform` / `opacity` (y atributos SVG de las líneas). React solo re-renderiza cuando cambia el estado (caption activo, capa resaltada).
 
-Rangos desktop (sección de 900vh, teléfono sticky): 0–10 entero · 10–20 separando · 20–30 explotado · 30–42 inventario/IMEI (placa) · 42–54 ventas (pantalla) · 54–66 canjes (carcasa + cubito) · 66–78 servicio técnico (batería) · 78–90 dólar (marco) · 90–100 re-armado + CTA.
+Rangos desktop (sección de 500vh, teléfono sticky): 0–8 entero · 8–20 en capas · 20–33 inventario/IMEI (placa) · 33–46 ventas (pantalla) · 46–59 canjes (carcasa) · 59–72 servicio técnico (batería) · 72–85 dólar (marco) · 85–100 re-armado + CTA.
 
-Mobile (≤900px): sticky de 240vh con 3 capas (pantalla, placa, carcasa) y después tarjetas deslizables.
+Mobile (≤900px): sticky de 200vh con 3 capas (pantalla, placa, carcasa) y después tarjetas deslizables.
 
 `prefers-reduced-motion: reduce`: sin sticky ni scroll-jacking; el hero muestra el titular con la vista explotada fija y las funciones se leen como lista.
-
-## Placeholders
-
-Testimonios y precios son de ejemplo y están marcados como tales («Testimonio de ejemplo», «Ejemplo · a definir»).

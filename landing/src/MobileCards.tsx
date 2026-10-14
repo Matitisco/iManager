@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { FEATURES } from './content';
-import { Icon } from './Icon';
 
 /** Tarjetas deslizables con las funciones (mobile; con «reducir movimiento» también en desktop). */
 export function MobileCards() {
@@ -40,13 +39,8 @@ export function MobileCards() {
       <div className="track" ref={trackRef}>
         {FEATURES.map((f) => (
           <article className="mc" key={f.k}>
-            <div className="top">
-              <span className="ico"><Icon name={f.icon} on /></span>
-              <div>
-                <small>{f.capa.split(' · ')[0]}</small>
-                <h4>{f.title}</h4>
-              </div>
-            </div>
+            <small>{f.capa.split(' · ')[0]}</small>
+            <h3>{f.title}</h3>
             <p>{f.text}</p>
             <img src={`/assets/${f.img}`} alt="" loading="lazy" decoding="async" width="780" height="1688" />
           </article>

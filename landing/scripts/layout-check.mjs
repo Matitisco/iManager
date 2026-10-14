@@ -14,7 +14,7 @@ const MOBILE = [[360, 740], [390, 844], [412, 915], [430, 932], [360, 640]];
 const MOBILE_BIGTEXT = [[412, 915], [360, 740]];
 const DESKTOP = [[1280, 800], [1440, 900], [1920, 1080], [1024, 1366], [980, 2000]];
 const MOBILE_SHOTS = [0, 0.3, 0.5, 0.75, 1];
-const DESKTOP_SHOTS = [0, 0.15, 0.36, 0.72, 0.95];
+const DESKTOP_SHOTS = [0, 0.11, 0.26, 0.65, 0.95];
 const BIGTEXT_CSS = '.cap.c-entero .t1{font-size:50px!important}.cap.c-entero p.l{font-size:21px!important}.cap .trust{font-size:17px!important}.cap .ctas .btn{font-size:18px!important}.tag{font-size:15px!important}';
 const MIN_GAP = 12;
 /** Bandas vacías tolerables: lo que deja el propio wireframe (≈18 % del alto a 1440×900). */

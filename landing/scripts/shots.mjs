@@ -11,7 +11,8 @@ const executablePath = process.env.CHROME_PATH || '/usr/local/bin/google-chrome'
 const prefix = useWebkit ? 'webkit-' : '';
 mkdirSync(OUT, { recursive: true });
 
-const DESKTOP = [0.05, 0.15, 0.25, 0.36, 0.48, 0.6, 0.72, 0.84, 0.99];
+/** Un cuadro por estado del recorrido desktop (mitad de cada rango de `STATES`). */
+const DESKTOP = [0.03, 0.14, 0.26, 0.4, 0.52, 0.65, 0.78, 0.97];
 const MOBILE = [0, 0.3, 0.5, 0.75, 1];
 
 const scrollHero = (page, p) =>
@@ -45,6 +46,19 @@ for (const [name, ctx, frames] of modes) {
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${OUT}/${prefix}iphone-cards.png` });
   }
+  // Página completa: el hero se colapsa a su primer cuadro (si no, son 5 pantallas de scroll fijo en blanco).
+  await page.evaluate(async () => {
+    for (const img of document.querySelectorAll('img[loading="lazy"]')) img.loading = 'eager';
+    for (let y = 0; y < document.documentElement.scrollHeight; y += innerHeight) {
+      window.scrollTo({ top: y, behavior: 'instant' });
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    await Promise.all([...document.images].map((i) => i.decode().catch(() => null)));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+  await page.addStyleTag({ content: '.hero{height:auto!important}.hero .stick{position:relative!important}.nav{position:absolute!important}' });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/${prefix}${name}-full.png`, fullPage: true });
   await context.close();
 
   const reduced = await browser.newContext({ ...ctx, reducedMotion: 'reduce' });

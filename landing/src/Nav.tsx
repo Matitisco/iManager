@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { APP_URL, SIGNUP_URL } from './content';
+import { APP_URL, SHOW_PRICING, SIGNUP_URL } from './content';
 import { Icon } from './Icon';
 
 const LINKS = [
   ['#funciones', 'Funciones'],
   ['#como', 'Cómo funciona'],
-  ['#precios', 'Precios'],
+  ...(SHOW_PRICING ? ([['#precios', 'Precios']] as const) : []),
   ['#faq', 'Preguntas'],
 ] as const;
 
@@ -30,7 +30,7 @@ export function Nav() {
         </nav>
         <span className="sp" />
         <a className="enter" href={APP_URL}>Entrar</a>
-        <a className="btn y" href={SIGNUP_URL}>Probar gratis</a>
+        <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
         <button type="button" className="burger" aria-label="Menú" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           <Icon name="mas" />
         </button>
@@ -38,7 +38,7 @@ export function Nav() {
       {open && (
         <div className="menu">
           {LINKS.map(([href, label]) => <a key={href} href={href} onClick={() => setOpen(false)}>{label}</a>)}
-          <a className="btn y" href={SIGNUP_URL}>Probar gratis</a>
+          <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
         </div>
       )}
     </header>

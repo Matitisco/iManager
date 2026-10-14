@@ -19,9 +19,20 @@ const smooth = (t: number) => {
 
 export const PHONE_W = 270;
 export const PHONE_H = 560;
-/** Grosor mínimo entre capas: evita z-fighting en Safari cuando el teléfono está entero. */
-export const LAYER_BASE = 1.5;
-export const EDGE_DEPTH = 7;
+/** Separación mínima entre capas: da el grosor del teléfono armado (≈6 mm a esta escala) y evita z-fighting. */
+export const LAYER_BASE = 4;
+/**
+ * Profundidad del borde extruido de cada capa (px), en el orden de LAYERS. El marco es el más profundo:
+ * con la pantalla encima y la carcasa debajo forma la pared lateral continua del teléfono armado.
+ */
+export const EDGE_DEPTHS = [6, 3, 2, 14, 2];
+
+/** Fases del recorrido desktop: armado → separando → abierto … re-armado. */
+const D_SEP_A = 0.06;
+const D_SEP_B = 0.16;
+const D_OPEN = 0.22;
+const D_RE_A = 0.86;
+const D_RE_B = 0.97;
 
 /** Alto virtual del escenario mobile: la posición vertical real se resuelve con la caja proyectada. */
 export const MOB_VH = 560;
@@ -52,23 +63,23 @@ export function pose(p: number, mob: boolean, fit: PoseFit = {}): Pose {
   }
   const G = 92 * spread;
   let gap: number, rx: number, rz: number, sc = whole;
-  if (p < 0.1) {
+  if (p < D_SEP_A) {
     gap = 0;
     rx = 12;
     rz = -10;
-  } else if (p < 0.2) {
-    const t = (p - 0.1) / 0.1;
+  } else if (p < D_SEP_B) {
+    const t = smooth((p - D_SEP_A) / (D_SEP_B - D_SEP_A));
     sc = lerp(whole, 0.8, t);
     gap = lerp(0, G * 0.55, t);
     rx = lerp(12, 54, t);
     rz = lerp(-10, -32, t);
-  } else if (p < 0.9) {
-    gap = lerp(G * 0.55, G, (p - 0.2) / 0.08);
-    rx = 56;
-    rz = -34;
+  } else if (p < D_RE_A) {
+    gap = lerp(G * 0.55, G, smooth((p - D_SEP_B) / (D_OPEN - D_SEP_B)));
+    rx = lerp(54, 56, (p - D_SEP_B) / (D_OPEN - D_SEP_B));
+    rz = lerp(-32, -34, (p - D_SEP_B) / (D_OPEN - D_SEP_B));
     sc = 0.8;
   } else {
-    const u = (p - 0.9) / 0.08;
+    const u = smooth((p - D_RE_A) / (D_RE_B - D_RE_A));
     gap = lerp(G, 0, u);
     rx = lerp(56, 10, u);
     rz = lerp(-34, -8, u);
@@ -83,7 +94,7 @@ export function stateIndex(p: number, mob: boolean): number {
   return STATES.length - 1;
 }
 
-export const showTagsAt = (p: number, mob: boolean) => (mob ? p > 0.55 : p >= 0.2 && p < 0.9);
+export const showTagsAt = (p: number, mob: boolean) => (mob ? p > 0.55 : p >= D_SEP_B && p < D_RE_A);
 
 export interface StageGeom {
   w: number;
@@ -155,7 +166,7 @@ export function phoneBounds(g: StageGeom, ps: Pose, layerIndexes: number[]): Box
   const hy = PHONE_H / 2;
   for (const i of layerIndexes) {
     const z = layerZ(ps, i);
-    for (const lz of [z, z - EDGE_DEPTH]) {
+    for (const lz of [z, z - EDGE_DEPTHS[i]]) {
       for (const [lx, ly] of [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]]) {
         const q = projectPoint(g, ps, lx, ly, lz);
         if (q.x < x0) x0 = q.x;
