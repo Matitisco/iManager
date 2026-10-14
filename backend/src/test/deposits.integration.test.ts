@@ -114,7 +114,12 @@ describe('client deposits', () => {
     if (status === 'PENDIENTE') expect((await getApp().inject({ method: 'POST', url: `/api/clients/${f.client.id}/payments`, headers: f.headers, payload: { amount: 50, method: 'EFECTIVO', currency: 'USD' } })).statusCode).toBe(201);
     const response = await getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${id}/cancel`, headers: f.headers, payload: {} }); expect(response.statusCode, response.body).toBe(200);
     expect((await prisma.clientDeposit.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('CREDIT');
-    const refund = await prisma.clientPayment.findFirstOrThrow({ where: { kind: 'DEVOLUCION' } }); expect(Number(refund.amount)).toBe(status === 'PENDIENTE' ? 50 : 400);
+    if (status === 'COMPLETADA') {
+      const refund = await prisma.clientPayment.findFirstOrThrow({ where: { kind: 'DEVOLUCION' } }); expect(Number(refund.amount)).toBe(400);
+    } else {
+      expect(await prisma.clientPayment.count({ where: { kind: 'DEVOLUCION' } })).toBe(0);
+      expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { requestKey: `cancel-credit-${id}` } })).amount)).toBe(50);
+    }
     expect(response.json().clients[0].pendingBalance).toBe(0); expect(response.json().inventory[0].status).toBe('DISPONIBLE');
     expect((await getApp().inject({ method: 'DELETE', url: `/api/sales/${id}`, headers: f.headers })).statusCode).toBe(204);
     expect((await prisma.clientDeposit.findUniqueOrThrow({ where: { id: row.id } })).saleId).toBe(id);
@@ -123,7 +128,7 @@ describe('client deposits', () => {
     expect(blocked.json().error).toMatch(/saldo a favor/);
     expect(blocked.json().error).toMatch(/devolución del saldo/);
     const listed = await getApp().inject({ url: '/api/clients', headers: f.headers });
-    expect(listed.json().clients.find((client: { id: string }) => client.id === f.client.id).creditBalance).toBe(100);
+    expect(listed.json().clients.find((client: { id: string }) => client.id === f.client.id).creditBalance).toBe(status === 'PENDIENTE' ? 150 : 100);
   });
   it('applies to a trade-in difference and restores credit on cancellation', async () => {
     const f = await fixture(); const row = await deposit(f, { currency: 'USD', amount: 100 });

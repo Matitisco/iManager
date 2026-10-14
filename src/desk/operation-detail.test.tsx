@@ -27,6 +27,7 @@ const ctx = vi.hoisted(() => ({
   deleteTradeIn: vi.fn(),
   fetchSaleOperation: vi.fn(),
   fetchTradeOperation: vi.fn(),
+  registerClientPayment: vi.fn(),
 }));
 
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
@@ -111,6 +112,8 @@ describe('operation detail', () => {
     ctx.fetchSaleOperation.mockResolvedValue({});
     ctx.fetchTradeOperation.mockReset();
     ctx.fetchTradeOperation.mockResolvedValue({});
+    ctx.registerClientPayment.mockReset();
+    ctx.registerClientPayment.mockResolvedValue({ id: 'c1', pendingBalance: 270, balanceCurrency: 'USD' });
     open.mockReset();
     close.mockReset();
     toast.mockReset();
@@ -451,13 +454,51 @@ describe('operation detail', () => {
       const phone = screen.getByRole('dialog', { name: 'Ana Pérez' });
       expect(phone).toHaveClass('cl-sheet');
       expect(within(phone).getByText('Total gastado')).toBeInTheDocument();
-      expect(within(phone).getByText(/ARS/)).toBeInTheDocument();
+      expect(within(phone).queryByLabelText('Monto')).not.toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Nueva venta' })).toBeInTheDocument();
     } finally {
       window.matchMedia = original;
       cleanup();
+    }
+  });
+
+  it('asks for the amount before saving a payment on a phone', async () => {
+    const user = userEvent.setup();
+    ctx.clients = [{
+      id: 'c1',
+      name: 'Ana Pérez',
+      pendingBalance: 320,
+      totalSpent: 800,
+      phone: '1100000001',
+      lastPurchaseDate: '2026-10-14',
+      balanceCurrency: 'USD',
+    }];
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      renderOverlay({ type: 'cl', id: 'c1' });
+      await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+      expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+      const amount = within(dialog).getByLabelText('Monto');
+      expect(amount).toHaveValue('320');
+      await user.clear(amount);
+      await user.type(amount, '50');
+      await user.click(within(dialog).getByRole('button', { name: 'Confirmar pago' }));
+      await waitFor(() => expect(ctx.registerClientPayment).toHaveBeenCalledWith('c1', expect.objectContaining({ amount: 50, method: 'TRANSFERENCIA', currency: 'USD' })));
+    } finally {
+      window.matchMedia = original;
     }
   });
 

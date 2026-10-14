@@ -78,7 +78,8 @@ describe("cancel refund", () => {
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json().sale).toMatchObject({ status: "CANCELADA", cancelledBy: "Ana Dueña" });
     expect(cancelled.json().sale.cancelledAt).toEqual(expect.any(String));
-    expect(cancelled.json().summary).toContain("devolución $ 300");
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).toContain("saldo a favor $ 300");
 
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
     expect(client.pendingBalance.toNumber()).toBe(0);
@@ -88,8 +89,9 @@ describe("cancel refund", () => {
     expect(stored.cancelledAt).toBeTruthy();
     expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: "sale.cancelled" } })).toMatchObject({
       actorName: "Ana Dueña",
-      detail: "Devolución $ 300",
+      detail: "Saldo a favor $ 300",
     });
+    expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { clientId: fixture.client.id, status: "CREDIT" } })).amount)).toBe(300);
 
     const history = await app.inject({
       method: "GET",
@@ -99,7 +101,7 @@ describe("cancel refund", () => {
     expect(history.statusCode).toBe(200);
     expect(history.json().payments).toEqual(expect.arrayContaining([
       expect.objectContaining({ amount: 300, method: "TRANSFERENCIA", kind: "PAGO" }),
-      expect.objectContaining({ amount: 300, kind: "DEVOLUCION", note: expect.stringContaining("Devolución por cancelación") }),
+      expect.objectContaining({ amount: 300, kind: "CREDITO", note: expect.stringContaining("Saldo a favor por cancelación") }),
     ]));
 
     const reports = await app.inject({
@@ -117,7 +119,8 @@ describe("cancel refund", () => {
       payload: {},
     });
     expect(repeated.statusCode).toBe(200);
-    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(1);
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "CREDITO" } })).toBe(1);
   });
 
   it("records a refund for a partly paid trade and leaves cancelled trades out of report cash", async () => {
@@ -167,7 +170,7 @@ describe("cancel refund", () => {
     const movements = await prisma.clientPayment.findMany({ where: { clientId: fixture.client.id }, orderBy: { createdAt: "asc" } });
     expect(movements.map((row) => ({ amount: row.amount.toNumber(), kind: row.kind }))).toEqual([
       { amount: 300, kind: "PAGO" },
-      { amount: 300, kind: "DEVOLUCION" },
+      { amount: 300, kind: "CREDITO" },
     ]);
     expect((await prisma.tradeIn.findUniqueOrThrow({ where: { id: tradeId } })).cancelledAt).toBeTruthy();
 
@@ -294,10 +297,12 @@ describe("cancel refund", () => {
 
     const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
-    expect(cancelled.json().summary).toContain("devolución US$ 160");
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).toContain("saldo a favor");
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
     expect(client.pendingBalance.toNumber()).toBe(35);
-    expect((await prisma.clientPayment.findFirstOrThrow({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).amount.toNumber()).toBe(160);
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { clientId: fixture.client.id, status: "CREDIT" } })).amount)).toBe(160);
   });
 
   it("refunds the 100 collected when the price was raised to 150 and keeps a manual debt of 15", async () => {
@@ -315,6 +320,7 @@ describe("cancel refund", () => {
     const saleId = created.json().sale.id as string;
     const raised = await app.inject({ method: "PATCH", url: `/api/operations/sales/sales/${saleId}`, headers, payload: { amount: 150 } });
     expect(raised.statusCode, raised.body).toBe(200);
+    expect(raised.json().summary).toMatch(/deuda (US\$|\$) 50/);
     const cargo = await app.inject({
       method: "POST",
       url: `/api/accounts/clients/${fixture.client.id}/movements`,
@@ -383,5 +389,158 @@ describe("cancel refund", () => {
     expect(history.json().payments).toEqual(expect.arrayContaining([
       expect.objectContaining({ amount: 160, method: "TRANSFERENCIA", kind: "PAGO", note: "Cobro de venta", saleId }),
     ]));
+  });
+
+  async function accountOf(headers: Record<string, string>, clientId: string) {
+    const listed = await getApp().inject({ url: "/api/accounts/debtors", headers });
+    expect(listed.statusCode, listed.body).toBe(200);
+    const row = listed.json().debtors.find((item: { clientId: string }) => item.clientId === clientId) as {
+      pendingBalance: number;
+      repairBalance: number;
+      lines: Array<{ source: string; label: string; amount: number }>;
+    };
+    expect(row).toBeTruthy();
+    const account = row.lines.filter((line) => line.source !== "REPARACION").reduce((total, line) => total + line.amount, 0);
+    expect(account).toBe(row.pendingBalance);
+    return row;
+  }
+
+  async function unpaidInstallment(headers: Record<string, string>, clientId: string) {
+    const created = await getApp().inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: {
+        clientId,
+        deviceLabel: "V-0216",
+        amount: 100,
+        currency: "USD",
+        paymentMethod: "EFECTIVO",
+        installments: { count: 2, frequency: "MENSUAL", firstDueDate: "2026-11-14" },
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 100 });
+    const saleId = created.json().sale.id as string;
+    expect(await prisma.saleTender.count({ where: { saleId } })).toBe(0);
+    expect(await prisma.clientPayment.count({ where: { saleId, kind: "PAGO" } })).toBe(0);
+    return saleId;
+  }
+
+  it("turns a general payment that covered an unpaid installment into credit and keeps the manual balance", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const saleId = await unpaidInstallment(headers, fixture.client.id);
+    const cargo = await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 35, currency: "USD", note: "Saldo manual" },
+    });
+    expect(cargo.statusCode, cargo.body).toBe(201);
+    const repair = await app.inject({
+      method: "POST",
+      url: "/api/repairs",
+      headers,
+      payload: { clientId: fixture.client.id, device: "iPhone", fault: "Pantalla", estimate: 200, deposit: 0, currency: "USD" },
+    });
+    expect(repair.statusCode, repair.body).toBe(201);
+    const beforePay = await accountOf(headers, fixture.client.id);
+    expect(beforePay.pendingBalance).toBe(135);
+    expect(beforePay.lines.find((line) => line.source === "VENTA")).toMatchObject({ amount: 100 });
+    expect(beforePay.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35, label: "Saldo manual" });
+    expect(beforePay.repairBalance).toBe(200);
+
+    const payment = await app.inject({
+      method: "POST",
+      url: `/api/clients/${fixture.client.id}/payments`,
+      headers,
+      payload: { amount: 100, method: "EFECTIVO", currency: "USD" },
+    });
+    expect(payment.statusCode, payment.body).toBe(201);
+    const covered = await accountOf(headers, fixture.client.id);
+    expect(covered.pendingBalance).toBe(35);
+    expect(covered.lines.find((line) => line.source === "VENTA")).toBeUndefined();
+    expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+    expect(covered.lines.some((line) => line.source === "REPARACION")).toBe(true);
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).toContain("saldo a favor US$ 100");
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { clientId: fixture.client.id, requestKey: `cancel-credit-${saleId}` } })).amount)).toBe(100);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(35);
+    const after = await accountOf(headers, fixture.client.id);
+    expect(after.pendingBalance).toBe(35);
+    expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+    expect(after.lines.find((line) => line.source === "VENTA")).toBeUndefined();
+    expect((await prisma.clientPayment.findFirstOrThrow({ where: { clientId: fixture.client.id, kind: "CARGO", saleId: null } })).amount.toNumber()).toBe(35);
+  });
+
+  it("does not add a partial general payment to the manual balance when the installment is cancelled", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const saleId = await unpaidInstallment(headers, fixture.client.id);
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 35, currency: "USD", note: "Saldo manual" },
+    })).statusCode).toBe(201);
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/clients/${fixture.client.id}/payments`,
+      headers,
+      payload: { amount: 80, method: "EFECTIVO", currency: "USD" },
+    })).statusCode).toBe(201);
+    const covered = await accountOf(headers, fixture.client.id);
+    expect(covered.pendingBalance).toBe(55);
+    expect(covered.lines.find((line) => line.source === "VENTA")).toMatchObject({ amount: 20 });
+    expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).toContain("saldo a favor US$ 80");
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { requestKey: `cancel-credit-${saleId}` } })).amount)).toBe(80);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(35);
+    const after = await accountOf(headers, fixture.client.id);
+    expect(after.pendingBalance).toBe(35);
+    expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+    expect(after.lines.filter((line) => line.source === "VENTA")).toHaveLength(0);
+  });
+
+  it("removes an unpaid installment and leaves the manual balance untouched", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const saleId = await unpaidInstallment(headers, fixture.client.id);
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 35, currency: "USD", note: "Saldo manual" },
+    })).statusCode).toBe(201);
+    const before = await accountOf(headers, fixture.client.id);
+    expect(before.pendingBalance).toBe(135);
+    expect(before.lines.find((line) => line.source === "MANUAL")?.amount).toBe(35);
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).not.toContain("saldo a favor");
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(await prisma.clientDeposit.count({ where: { clientId: fixture.client.id, status: "CREDIT" } })).toBe(0);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(35);
+    const after = await accountOf(headers, fixture.client.id);
+    expect(after.pendingBalance).toBe(35);
+    expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
   });
 });

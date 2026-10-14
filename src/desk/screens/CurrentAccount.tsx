@@ -26,7 +26,7 @@ function useReload() {
   };
 }
 
-export function SaleAccountPanel({ saleId }: { saleId: string }) {
+export function SaleAccountPanel({ saleId, revision = '' }: { saleId: string; revision?: string }) {
   const { user } = useAppContext();
   const money = useMoney();
   const [account, setAccount] = useState<SaleAccount | null>(null);
@@ -35,7 +35,7 @@ export function SaleAccountPanel({ saleId }: { saleId: string }) {
     let active = true;
     fetchSaleAccount(user, saleId).then((data) => { if (active && Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data); }).catch(() => { if (active) setAccount(null); });
     return () => { active = false; };
-  }, [user, saleId]);
+  }, [user, saleId, revision]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">

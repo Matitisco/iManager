@@ -21,6 +21,12 @@ export type RefundTarget = {
   soldAt?: string | null;
 };
 
+export type CancellationPlan = {
+  refund: Decimal;
+  debtToRemove: Decimal;
+  credit: Decimal;
+};
+
 /**
  * Cash still owed on the sale books.
  * A null open balance means a pending sale owes its whole cash and a completed sale owes nothing.
@@ -44,40 +50,80 @@ function linkedNet(saleId: string, movements: RefundMovement[]): Decimal {
   return Decimal.max(netCollected(movements.filter((row) => row.saleId === saleId)), ZERO);
 }
 
-function unpaidRoom(sale: RefundTarget, movements: RefundMovement[]): Decimal {
-  const open = bookOpen(sale);
-  if (sale.openBalance != null) return open;
-  return Decimal.max(open.minus(linkedNet(sale.id, movements)), ZERO);
+function unlinked(movements: RefundMovement[]): RefundMovement[] {
+  return movements.filter((row) => !row.saleId && !row.repairOrderId);
+}
+
+function manualCharges(movements: RefundMovement[]): Decimal {
+  return unlinked(movements).reduce((total, row) => {
+    const amount = Decimal.max(money(row.amount), ZERO);
+    if (row.kind === "CARGO") return total.plus(amount);
+    if (row.kind === "DESCUENTO" || row.kind === "NOTA_CREDITO") return total.minus(amount);
+    return total;
+  }, ZERO);
+}
+
+function orderedSales(target: RefundTarget, openSales: RefundTarget[]): RefundTarget[] {
+  const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
+  if (!ordered.some((sale) => sale.id === target.id)) ordered.push(target);
+  return ordered;
 }
 
 /**
- * Refund is the cash collected for this sale only: linked payments, an unlinked
- * payment applied to this sale's open balance (oldest sale first), and, for a
- * completed sale with no payment row, the cash that was not left open.
- * A price increase and any other debt stay out of the refund.
- * The balance to remove is only this sale's remaining debt.
+ * How much of each open line is still inside the client's pending balance.
+ * A general payment that already lowered the balance leaves a hole on the
+ * oldest open sale first. That hole is credit, not cash to return.
+ */
+export function balanceStillOwed(openSales: RefundTarget[], movements: RefundMovement[], pendingBalance: number): Map<string, Decimal> {
+  const pending = Decimal.max(money(pendingBalance), ZERO);
+  const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
+  const lineSum = ordered.reduce((total, sale) => total.plus(bookOpen(sale)), ZERO);
+  const surplus = Decimal.max(pending.minus(lineSum), ZERO);
+  const reserved = surplus.greaterThan(ZERO) ? surplus : Decimal.max(manualCharges(movements), ZERO);
+  const forSales = Decimal.max(pending.minus(reserved), ZERO);
+  let coverage = Decimal.max(lineSum.minus(forSales), ZERO);
+  const still = new Map<string, Decimal>();
+  for (const sale of ordered) {
+    const open = bookOpen(sale);
+    const hole = Decimal.min(open, coverage);
+    still.set(sale.id, open.minus(hole));
+    coverage = coverage.minus(hole);
+  }
+  return still;
+}
+
+/**
+ * Cash to return is only what this sale collected: payments tied to it, minus
+ * change, and the cash of a completed sale that never got a payment row.
+ * A general client payment is not cash of this sale. When that payment is what
+ * left the sale's debt out of the pending balance, it becomes credit instead.
+ * The debt removed is only the part of this sale that is still in the balance,
+ * so a manual balance stays where it was.
  */
 export function cancellationSettlement(
   target: RefundTarget,
   openSales: RefundTarget[],
   movements: RefundMovement[],
-): { refund: Decimal; debtToRemove: Decimal } {
+  pendingBalance = 0,
+): CancellationPlan {
   const cash = Decimal.max(money(target.cash), ZERO);
   const linked = linkedNet(target.id, movements);
-  let pool = Decimal.max(netCollected(movements.filter((row) => !row.saleId && !row.repairOrderId)), ZERO);
-  const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
-  if (!ordered.some((sale) => sale.id === target.id)) ordered.push(target);
-  let applied = ZERO;
-  for (const sale of ordered) {
-    if (pool.lessThanOrEqualTo(ZERO)) break;
-    const take = Decimal.min(pool, unpaidRoom(sale, movements));
-    if (sale.id === target.id) applied = take;
-    pool = pool.minus(take);
-  }
   const open = bookOpen(target);
   const legacy = linked.eq(ZERO) && target.status === "COMPLETADA" ? Decimal.max(cash.minus(open), ZERO) : ZERO;
-  const refund = Decimal.min(cash, Decimal.max(legacy.plus(linked).plus(applied), ZERO));
+  const refund = Decimal.min(cash, Decimal.max(legacy.plus(linked), ZERO));
+  const sales = orderedSales(target, openSales);
+  const still = balanceStillOwed(sales, movements, pendingBalance);
+  const saleStill = still.get(target.id) ?? ZERO;
+  let pool = Decimal.max(netCollected(unlinked(movements)), ZERO);
+  let credit = ZERO;
+  for (const sale of sales) {
+    if (pool.lessThanOrEqualTo(ZERO)) break;
+    const hole = Decimal.max(bookOpen(sale).minus(still.get(sale.id) ?? ZERO), ZERO);
+    const take = Decimal.min(pool, hole);
+    if (sale.id === target.id) credit = take;
+    pool = pool.minus(take);
+  }
   const alreadyInBooks = target.openBalance != null ? ZERO : linked;
-  const debtToRemove = Decimal.max(open.minus(applied).minus(alreadyInBooks), ZERO);
-  return { refund, debtToRemove };
+  const debtToRemove = Decimal.max(saleStill.minus(alreadyInBooks), ZERO);
+  return { refund, debtToRemove, credit };
 }

@@ -45,6 +45,7 @@ export function ClientDetail({ id }: { id: string }) {
   const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
   const amountDirty = useRef(false);
 
   const quoteRate = money.rate;
@@ -87,6 +88,7 @@ export function ClientDetail({ id }: { id: string }) {
       const updated = await registerClientPayment(client.id, { amount: stored, method, currency: stampedCurrency(client.balanceCurrency) });
       toast('Pago registrado');
       amountDirty.current = false;
+      setPaying(false);
       setAmount(money.inputValue(updated.pendingBalance, updated.balanceCurrency));
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
@@ -94,6 +96,27 @@ export function ClientDetail({ id }: { id: string }) {
       setBusy(false);
     }
   };
+  if (paying) {
+    return (
+      <Sheet title="Registrar pago" subtitle={client.name} onClose={() => { if (!busy) setPaying(false); }} className="cl-sheet">
+        {error && <div className="ferr">{error}</div>}
+        <Field label="Monto" mark={money.active}><input aria-label="Monto" value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+          amountDirty.current = true;
+          const raw = event.target.value;
+          if (raw.includes('-')) {
+            setAmount(raw);
+            setError('El pago no puede ser negativo');
+            return;
+          }
+          setAmount(formatInputMoney(parseMoney(raw)));
+          setError(null);
+        }} /></Field>
+        <Field label="Forma de pago"><span /></Field>
+        <Segs options={PAYMENTS} value={method} onChange={setMethod} />
+        <Actions busy={busy} primary="Confirmar pago" secondary="Volver" onSecondary={() => { if (!busy) setPaying(false); }} onPrimary={() => { void pay(); }} />
+      </Sheet>
+    );
+  }
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   const credit = !deposits.loading && !deposits.error ? creditTotal(deposits.rows, client.balanceCurrency ?? null) : clientCredit(client);
@@ -112,7 +135,7 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
-      {client.pendingBalance > 0 ? (
+      {client.pendingBalance > 0 && !phone ? (
         <>
           <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
             amountDirty.current = true;
@@ -147,7 +170,7 @@ export function ClientDetail({ id }: { id: string }) {
       ) : null}
       <div className="sacts deposit-actions">
         {client.pendingBalance > 0
-          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { if (phone) setPaying(true); else void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
         {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
