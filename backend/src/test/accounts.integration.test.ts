@@ -68,9 +68,13 @@ describe("cuenta corriente y cuotas", () => {
     const saleId = closed.json().sale.id as string;
     const raised = await getApp().inject({ method: "PATCH", url: `/api/operations/sales/sales/${saleId}`, headers: f.headers, payload: { amount: 1300 } });
     expect(raised.statusCode, raised.body).toBe(200);
-    expect(raised.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 300, amount: 1300 });
+    expect(raised.json().sale).toMatchObject({ status: "COMPLETADA", openBalance: 300, amount: 1300 });
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(300);
     expect(await prisma.clientPayment.findFirst({ where: { saleId, kind: "CARGO", note: "Diferencia por corrección de precio" } })).toBeTruthy();
+    const listed = await getApp().inject({ url: "/api/accounts/debtors", headers: f.headers });
+    expect(listed.json().debtors.find((item: { clientId: string }) => item.clientId === f.client.id).lines[0]).toMatchObject({ amount: 300, state: "ABIERTA" });
+    expect((await getApp().inject({ method: "DELETE", url: `/api/sales/${saleId}`, headers: f.headers })).statusCode).toBe(204);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(0);
 
     const walkIn = await sale(f.headers, { deviceLabel: "Mostrador", amount: 400, currency: "ARS", paymentMethod: "EFECTIVO", status: "COMPLETADA" });
     expect(walkIn.statusCode, walkIn.body).toBe(201);

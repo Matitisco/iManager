@@ -72,7 +72,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
     prisma.client.findMany({
       where: { storeId },
       include: {
-        sales: { where: { status: "PENDIENTE" }, include: { tradeIn: { select: { differencePaid: true } }, accountPayments: { where: { kind: "NOTA_CREDITO" }, select: { id: true } } } },
+        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } }, accountPayments: { where: { kind: "NOTA_CREDITO" }, select: { id: true } } } },
         payments: { where: { kind: "CARGO" }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
@@ -261,7 +261,7 @@ export async function collectAccount(
     }
     const sale = await tx.sale.findFirst({ where: { id: input.saleId!, storeId, clientId: client.id }, include: { tradeIn: { select: { differencePaid: true } } } });
     if (!sale) throw new DomainError("La venta no pertenece al cliente", 404);
-    if (sale.status !== "PENDIENTE") throw new DomainError("La venta no tiene saldo pendiente", 409);
+    if (sale.status !== "PENDIENTE" && !(sale.status === "COMPLETADA" && sale.openBalance != null && num(sale.openBalance) > 0)) throw new DomainError("La venta no tiene saldo pendiente", 409);
     const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
     const open = sale.openBalance != null ? new Decimal(sale.openBalance.toString()) : dec(Math.max(0, cashDue - num(sale.depositAppliedAmount)));
     if (amount.greaterThan(open)) throw new DomainError("El monto supera el saldo de la venta");
@@ -366,4 +366,12 @@ export async function recordPriceRise(
   const updated = await tx.client.update({ where: { id: args.clientId }, data: { pendingBalance: { increment: dec(args.amount) } } });
   if (args.actor) await writeAudit(tx, { storeId: args.storeId, actor: args.actor, action: "account.cargo", entityType: "sale", entityId: args.saleId, detail: `Precio +${args.amount} ${args.currency}` });
   return updated;
+}
+
+export async function releaseCompletedOpenBalance(tx: Prisma.TransactionClient, clientId: string, status: string, openBalance: Decimal | null) {
+  if (status !== "COMPLETADA" || openBalance == null || num(openBalance) <= 0) return null;
+  const client = await tx.client.findFirst({ where: { id: clientId } });
+  if (!client) return null;
+  const next = Decimal.max(new Decimal(0), new Decimal(client.pendingBalance.toString()).minus(openBalance));
+  return tx.client.update({ where: { id: client.id }, data: { pendingBalance: next } });
 }

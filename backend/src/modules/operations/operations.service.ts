@@ -1,6 +1,6 @@
 import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
-import { recordPriceRise } from "../accounts/accounts.service.js";
+import { recordPriceRise, releaseCompletedOpenBalance } from "../accounts/accounts.service.js";
 import { priceRiseDebt } from "../accounts/ledger.js";
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
@@ -937,7 +937,6 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const priorDue = (trade ? toNum(trade.differencePaid) : toNum(sale.amount)) - Number(sale.depositAppliedAmount);
     const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: sale.status, hasClient: Boolean(nextClient) });
     if (rise.error) throw new OperationError(rise.error, 409);
-    if (rise.reopen) nextStatus = "PENDIENTE";
     let archivedIncoming: InventoryItem | null = null;
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
@@ -1273,10 +1272,12 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     await restoreSaleDeposits(tx, storeId, sale.id, actor);
     await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     const stamp = cancellationStamp(actor);
-    const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
+    const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
-    const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(sale.amount) - Number(sale.depositAppliedAmount)) : null;
+    const released = sale.clientId ? await releaseCompletedOpenBalance(tx, sale.clientId, sale.status, sale.openBalance) : null;
+    const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(sale.amount) - Number(sale.depositAppliedAmount)) : null;
+    const client = adjusted ?? released;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const notifications = await notify(tx, storeId, sectionRecords(
       ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])],
@@ -1334,7 +1335,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const stamp = cancellationStamp(actor);
     if (sale) await restoreSaleDeposits(tx, storeId, sale.id, actor);
     if (sale) await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
-    if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
+    if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
     if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", ...stamp } });
@@ -1343,9 +1344,11 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       await writeAudit(tx, { storeId, actor, action: "trade.cancelled", entityType: "trade", entityId: trade.id, detail });
       if (sale) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
     }
-    const client = trade.clientId && sale
+    const released = trade.clientId && sale ? await releaseCompletedOpenBalance(tx, trade.clientId, sale.status, sale.openBalance) : null;
+    const adjusted = trade.clientId && sale
       ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(trade.differencePaid) - Number(sale.depositAppliedAmount))
       : null;
+    const client = adjusted ?? released;
     const [archivedReceived, output] = await Promise.all([
       received ? tx.inventoryItem.findFirst({ where: { id: received.id, storeId } }) : null,
       sale?.inventoryItemId ? tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null,
