@@ -3,6 +3,7 @@ import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
 import type { ClientDeposit } from '../types';
+import { snapshotIsCurrent } from './record-generation';
 import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
@@ -115,6 +116,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
+    recordsGeneration,
   } = useStoreRecords({ user, appSession, backendStatus });
 
   const commissions = useCommissionState(user, appSession, backendStatus);
@@ -450,9 +452,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>, mutate = false) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
+    const seen = recordsGeneration.current;
+    if (mutate) recordsGeneration.current += 1;
     const result = await call(currentUser);
     if (scopeRef.current === requestScope && canAccess(source)) {
-      applyOperationResult(result, requestScope);
+      if (mutate || snapshotIsCurrent(seen, recordsGeneration.current)) applyOperationResult(result, requestScope);
       if (mutate) {
         noteLocalMutation();
         // Invalidate receipts after consumption/restoration; the next sheet loads authoritative state.
@@ -672,14 +676,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const reloadSales = async () => {
     if (!user) return;
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const items = await fetchBackendSales(user);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
     setSales(items);
     noteLocalMutation();
   };
 
   const reloadClients = async () => {
     if (!user) return;
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const items = await fetchBackendClients(user);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
     setClients(items);
     noteLocalMutation();
   };
@@ -723,7 +733,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!backendClientsEnabled) {
       throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
     }
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const updated = await registerBackendClientPayment(user, clientId, input);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return updated;
     setClients(prev => prev.map(client => client.id === updated.id ? { ...updated, creditBalance: updated.creditBalance || client.creditBalance } : client));
     noteLocalMutation();
     return updated;

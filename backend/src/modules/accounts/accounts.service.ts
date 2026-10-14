@@ -5,6 +5,7 @@ import { DomainError } from "../../lib/domain-error.js";
 import { storeCurrency } from "../../lib/money-currency.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient } from "../clients/clients.service.js";
+import { balanceStillOwed, bookOpen, type RefundTarget } from "../../lib/cancel-refund.js";
 import {
   addDaysYmd,
   allocatePayment,
@@ -68,12 +69,12 @@ async function storeClock(storeId: string) {
 
 export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const clock = await storeClock(storeId);
-  const [clients, repairs, plans, creditNotes] = await Promise.all([
+  const [clients, repairs, plans, creditNotes, loosePayments] = await Promise.all([
     prisma.client.findMany({
       where: { storeId },
       include: {
         sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
-        payments: { where: { kind: "CARGO" }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
+        payments: { where: { kind: "CARGO", saleId: null }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
     prisma.repairOrder.findMany({
@@ -81,8 +82,16 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
     }),
     prisma.saleInstallment.findMany({ where: { storeId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
     prisma.clientPayment.findMany({ where: { storeId, kind: "NOTA_CREDITO", saleId: { not: null } }, select: { saleId: true } }),
+    prisma.clientPayment.findMany({
+      where: { storeId, saleId: null, repairOrderId: null },
+      select: { clientId: true, kind: true, amount: true },
+    }),
   ]);
   const creditSales = new Set(creditNotes.map((row) => row.saleId).filter((id): id is string => Boolean(id)));
+  const looseByClient = new Map<string, Array<{ kind: string | null; amount: number }>>();
+  for (const row of loosePayments) {
+    looseByClient.set(row.clientId, [...(looseByClient.get(row.clientId) ?? []), { kind: row.kind, amount: num(row.amount) }]);
+  }
   const installmentsBySale = new Map<string, InstallmentSlice[]>();
   for (const row of plans) {
     const slice = { sequence: row.sequence, dueDate: ymd(row.dueDate, clock.timeZone), amount: num(row.amount), paidAmount: num(row.paidAmount) };
@@ -97,10 +106,20 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const debtors: Debtor[] = [];
   for (const client of clients) {
     const lines: AccountLine[] = [];
+    const targets: RefundTarget[] = client.sales.map((sale) => {
+      const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
+      return {
+        id: sale.id,
+        cash: Math.max(0, cashDue - num(sale.depositAppliedAmount)),
+        status: sale.status,
+        openBalance: sale.openBalance == null ? null : num(sale.openBalance),
+        soldAt: sale.soldAt.toISOString(),
+      };
+    });
+    const still = balanceStillOwed(targets, looseByClient.get(client.id) ?? [], num(client.pendingBalance));
     let openSales = 0;
     for (const sale of client.sales) {
-      const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
-      const open = sale.openBalance != null ? num(sale.openBalance) : Math.max(0, cashDue - num(sale.depositAppliedAmount));
+      const open = (still.get(sale.id) ?? bookOpen(targets.find((row) => row.id === sale.id) ?? { id: sale.id, cash: 0, status: sale.status })).toNumber();
       if (open <= 0) continue;
       openSales = fromCents(cents(openSales) + cents(open));
       const openedAt = ymd(sale.soldAt, clock.timeZone);

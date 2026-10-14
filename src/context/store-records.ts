@@ -11,6 +11,7 @@ import { fetchBackendTradeIns } from '../services/trade-ins-api';
 import { fetchBackendRepairs } from '../services/repairs-api';
 import { fetchNotifications, fetchOperationDrafts, type OperationNotification, type OperationOptions, type OperationSource } from '../services/operations-api';
 import { publishListMutation, useListRefresh } from '../lib/list-sync';
+import { snapshotIsCurrent } from './record-generation';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
 import { canOpenSection } from '../desk/sections';
 
@@ -305,14 +306,14 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     });
     if (loadSalesEnabled) guard('Backend sales refresh failed.', async () => {
       const items = await fetchBackendSales(user);
-      if (current()) setSales(items);
+      if (current() && snapshotIsCurrent(seen, generation.current)) setSales(items);
     });
     if (backendClientsEnabled) guard('Backend clients refresh failed.', async () => {
       const [items, categories] = await Promise.all([
         fetchBackendClients(user),
         fetchClientCategoriesApi(user).catch(() => null),
       ]);
-      if (!current()) return;
+      if (!current() || !snapshotIsCurrent(seen, generation.current)) return;
       setClients(items);
       if (categories) setClientCategories(categories);
     });
@@ -369,5 +370,6 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     backendInventoryEnabled, loadInventoryEnabled, backendClientsEnabled,
     backendSalesEnabled, loadSalesEnabled, backendTradeInsEnabled, loadTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
+    recordsGeneration: generation,
   };
 }

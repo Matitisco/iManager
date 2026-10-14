@@ -5,7 +5,7 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
 import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
-import { cancellationRefund, type RefundTarget } from '../cancel-refund';
+import { cancellationPlan, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -172,20 +172,22 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       const linked = item.tradeInId ? tradeIns.find((row) => row.id === item.tradeInId) : undefined;
       return { id: item.id, cash: Math.max(0, (linked ? linked.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
     });
-    const refund = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
-      ? cancellationRefund({
+    const buyer = clients.find((item) => item.id === trade.clientId);
+    const plan = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
+      ? cancellationPlan({
         id: linkedSaleForRefund.id,
         cash: trade.differencePaid - (linkedSaleForRefund.depositAppliedAmount ?? 0),
         status: linkedSaleForRefund.status,
         openBalance: linkedSaleForRefund.openBalance,
         soldAt: linkedSaleForRefund.date,
-      }, refundSales, movements)
-      : 0;
+      }, refundSales, movements, buyer?.pendingBalance ?? 0)
+      : { refund: 0, credit: 0 };
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
           label={tradeCode(tradeIns, trade.id)}
-          refund={refund}
+          refund={plan.refund}
+          coveredCredit={plan.credit}
         depositCredit={linkedSaleForRefund?.depositAppliedAmount}
           currency={trade.currency}
           busy={busy}

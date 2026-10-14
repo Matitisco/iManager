@@ -226,15 +226,19 @@ test.describe('clients on a phone', () => {
     await expect(detail.getByText('US$ 50.000').first()).toBeVisible();
     await expect(detail.getByText('Total gastado')).toBeVisible();
     await expect(detail.getByText('US$ 650.000')).toBeVisible();
-    await expect(detail.locator('.fl-mark', { hasText: 'USD' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Nueva venta' })).toBeVisible();
-    await detail.getByRole('button', { name: 'Efectivo' }).click();
+    await expect(detail.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(0);
+    await detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' }).click();
+    const payment = page.getByRole('dialog', { name: 'Registrar pago' });
+    await expect(payment.locator('.fl-mark', { hasText: 'USD' })).toBeVisible();
+    await expect(payment.getByLabel('Monto')).toHaveValue('50.000');
+    await payment.getByRole('button', { name: 'Efectivo' }).click();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/clients-390-detail.png` });
-    await detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' }).click();
+    await payment.getByRole('button', { name: 'Confirmar pago' }).click();
     // The payment is async; wait for persisted state before opening the editor.
     await expect(detail.locator('.dhero .big')).toHaveText('US$ 0');
     await expect(detail.getByText('Efectivo')).toBeVisible();
