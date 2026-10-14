@@ -1,5 +1,6 @@
 import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
-import { toUserMessage } from '../lib/user-message';
+import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
+import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useEffect, useRef, useState } from 'react';
 import { BrandIsotipo } from '../components/brand-mark';
 import { hasStoreContactOffer } from '../lib/store-contact';
@@ -168,6 +169,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const commissionAccess = canManageCommissions(sections, role);
   const commissionPeriod = new Intl.DateTimeFormat('sv', { timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit' }).format(new Date());
   const [commissionCountError, setCommissionCountError] = useState('');
+  const [commissionRetry, setCommissionRetry] = useState(0);
+  useOfflineRecovery(commissionCountError, () => setCommissionRetry(value => value + 1));
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
@@ -179,7 +182,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     setCommissionCountError('');
     void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); });
     return () => { active = false; };
-  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus]);
+  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
 
@@ -370,7 +373,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
-          {commissionCountError && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
+          {commissionCountError && tab === 'more' ? <p className="ferr" role="alert" data-testid={commissionCountError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}

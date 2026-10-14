@@ -12,7 +12,7 @@ import { clearBad, shareOrCopy, type FormProps } from './shared';
 import { ROLE_LABEL } from '../../lib/roles';
 import { DeskSelect } from '../select';
 
-export function StoreForm({ run, busy, error }: FormProps) {
+export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & { focusPhone?: boolean }) {
   const { appSession, updateStore } = useAppContext();
   const { close } = useDesk();
   const isPhone = usePhoneLayout();
@@ -36,7 +36,7 @@ export function StoreForm({ run, busy, error }: FormProps) {
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
       <Field label="Dirección"><input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
-      <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
+      <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} focusPhone={focusPhone} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       {isPhone ? <h4 className="cfg-h">Moneda y dólar</h4> : null}
       <Field label="Moneda principal">
         <DeskSelect label="Moneda principal" data-testid="store-currency" value={currency} disabled={busy} onChange={(value) => setCurrency(value === 'USD' ? 'USD' : 'ARS')} options={[{ value: 'ARS', label: 'ARS' }, { value: 'USD', label: 'USD' }]} />
@@ -131,12 +131,13 @@ function clearQuoteErrors(setBad: Parameters<typeof clearBad>[0]) {
   clearBad(setBad, 'manualSell');
 }
 
-function ContactFields({ phone, email, instagram, instagramRequired, bad, onPhone, onEmail, onInstagram, onClear }: {
+function ContactFields({ phone, email, instagram, instagramRequired, bad, focusPhone, onPhone, onEmail, onInstagram, onClear }: {
   phone: string;
   email: string;
   instagram: string;
   instagramRequired?: boolean;
   bad: Record<string, string>;
+  focusPhone?: boolean;
   onPhone: (value: string) => void;
   onEmail: (value: string) => void;
   onInstagram: (value: string) => void;
@@ -144,7 +145,7 @@ function ContactFields({ phone, email, instagram, instagramRequired, bad, onPhon
 }) {
   return (
     <>
-      <Field label="Teléfono"><input value={phone} inputMode="tel" placeholder="Ej. 11 5555 5555" onChange={(event) => onPhone(event.target.value)} /></Field>
+      <Field label="Teléfono"><input id="store-phone" value={phone} inputMode="tel" placeholder="Ej. 11 5555 5555" autoFocus={focusPhone} onChange={(event) => onPhone(event.target.value)} /></Field>
       <Field label="Correo electrónico" error={bad.email}><input type="email" value={email} placeholder="hola@tienda.com" onChange={(event) => { onEmail(event.target.value); onClear('email'); }} /></Field>
       <Field label="Instagram" mark={instagramRequired ? 'obligatorio' : undefined} error={bad.instagram}><input value={instagram} placeholder="@tienda o instagram.com/tienda" onChange={(event) => { onInstagram(event.target.value); onClear('instagram'); }} /></Field>
     </>

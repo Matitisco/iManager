@@ -1,6 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
+import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { DeskApp } from './DeskApp';
 import { MOBILE_TAB_INDICATOR_TRANSITION, clampIndicatorFrame, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
 
@@ -11,7 +12,9 @@ const context = vi.hoisted(() => ({
     membership: { role: 'OWNER' as 'OWNER' | 'MANAGER' | 'STAFF', sections: null as string[] | null },
     onboardingRequired: false,
   },
-  user: null,
+  user: null as { uid: string } | null,
+  backendStatus: 'checking',
+  loadCommissions: undefined as undefined | ReturnType<typeof vi.fn>,
   tradeIns: [{ id: 't1', status: 'EN REVISIÓN' }],
   inventory: [],
   sales: [],
@@ -112,6 +115,23 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByText(/propuesta/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-header')).toHaveTextContent('iManager');
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
+  });
+
+  it('clears the offline banner on Más when the connection returns without leaving the screen', async () => {
+    usePhone();
+    window.location.hash = '#/mas';
+    context.user = { uid: 'u' };
+    context.backendStatus = 'ready';
+    context.loadCommissions = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(undefined);
+    render(<DeskApp />);
+    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
+    expect(window.location.hash).toBe('#/mas');
+    expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
+    context.user = null;
+    context.backendStatus = 'checking';
+    context.loadCommissions = undefined;
   });
 
   it('shows a back arrow on sections that live in Más and a dock on the bar sections', () => {

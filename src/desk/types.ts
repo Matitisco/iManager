@@ -31,7 +31,7 @@ export type Overlay =
   | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string }
   | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number; onSelect?: () => void }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' }
-  | { type: 'store' }
+  | { type: 'store'; focus?: 'phone' }
   | { type: 'contact' }
   | { type: 'profile' }
   | { type: 'password' }

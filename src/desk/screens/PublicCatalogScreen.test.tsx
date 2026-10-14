@@ -28,9 +28,11 @@ function catalog(): ManagedCatalog {
   };
 }
 
+const open = vi.fn();
 function renderScreen() {
+  open.mockReset();
   return render(
-    <DeskProvider value={{ tab: 'publicCatalog', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+    <DeskProvider value={{ tab: 'publicCatalog', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <PublicCatalogScreen />
     </DeskProvider>,
   );
@@ -49,7 +51,8 @@ describe('catalog section', () => {
     expect(await screen.findByText('1 disponible')).toBeInTheDocument();
     expect(screen.queryByText('2 disponibles')).not.toBeInTheDocument();
     expect(screen.getByText(/Cargá un WhatsApp válido para que tus clientes te escriban/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configuración de la tienda' })).toHaveAttribute('href', '#/config');
+    screen.getByRole('button', { name: 'Configuración de la tienda' }).click();
+    expect(open).toHaveBeenCalledWith({ type: 'store', focus: 'phone' });
   });
 
   it('hides the phone warning when the store number can open WhatsApp', async () => {

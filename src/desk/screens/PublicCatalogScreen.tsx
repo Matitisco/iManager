@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogSettings, ManagedCatalog } from '../../types/public-catalog';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { catalogCondition, catalogPrice, whatsappLink } from '../../catalog/presentation';
 import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import type { PublicCatalog } from '../../types/public-catalog';
@@ -18,7 +19,7 @@ export function CatalogToggle({ label, checked, disabled, onChange }: { label: s
 }
 export function PublicCatalogScreen() {
   const { publicCatalog: catalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
-  const { toast } = useDesk();
+  const { toast, open } = useDesk();
   const phone = usePhoneLayout();
   const [tab, setTab] = useState('summary');
   const [query, setQuery] = useState('');
@@ -30,12 +31,8 @@ export function PublicCatalogScreen() {
   const [error, setError] = useState('');
   const pending = useRef(false);
   const load = async () => { setLoading(true); setError(''); try { await loadPublicCatalog(); } catch (cause) { setError(toUserMessage(cause)); } finally { setLoading(false); } };
-  useEffect(() => {
-    void load();
-    const onOnline = () => { void load(); };
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [loadPublicCatalog]);
+  useEffect(() => { void load(); }, [loadPublicCatalog]);
+  useOfflineRecovery(error, () => { void load(); });
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError('');
@@ -55,7 +52,7 @@ export function PublicCatalogScreen() {
   return <div className="dscreen catalog-screen" data-testid="catalog-screen">
     <div className="whead"><div><h1>Catálogo</h1><div className="wsub">Tu lista de precios pública · {catalog?.counts.visible ?? 0} {(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}</div></div>{catalog && !phone && <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div>}</div>
     {error && <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div>}
-    {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <a href="#/config">Configuración de la tienda</a></p>}
+    {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
     {loading ? <p role="status">Cargando catálogo…</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
@@ -114,12 +111,14 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
 function CatalogPreview({ catalog }: { catalog: ManagedCatalog }) {
   const [preview, setPreview] = useState<PublicCatalog | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useOfflineRecovery(error, () => setAttempt(value => value + 1));
   useEffect(() => {
     const controller = new AbortController();
     setPreview(null); setError('');
     void fetchPublicCatalog(catalog.slug, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => { if (!controller.signal.aborted) setError(toUserMessage(cause)); });
     return () => controller.abort();
-  }, [catalog]);
+  }, [catalog, attempt]);
   return <div className="cat-preview public-price-page">
     {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1><small>{[preview.store.address, preview.store.hours].filter(Boolean).join(' · ')}</small></div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : <p className="cat-empty" role={error ? 'alert' : 'status'}>{error || 'Cargando vista previa…'}</p>}
   </div>;

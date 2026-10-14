@@ -124,7 +124,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'edit-ot') return <RepairOrderEditor id={overlay.id} busy={busy} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
-  if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;
+  if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} focusPhone={overlay.focus === 'phone'} />;
   if (overlay.type === 'contact') return <ContactForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'profile') return <ProfileForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'password') return <PasswordForm run={run} busy={busy} error={error} />;

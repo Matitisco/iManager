@@ -63,6 +63,20 @@ export const PRICE_PRESETS = [
 export function pricePresetId(filters: { min: string; max: string }) {
   return PRICE_PRESETS.find(preset => preset.min === filters.min && preset.max === filters.max)?.id ?? '';
 }
+export const BATTERY_FILTERS = [
+  { value: '80', label: '80 %+' },
+  { value: '85', label: '85 %+' },
+  { value: '90', label: '90 %+' },
+] as const;
+export function catalogMoneyPrefix(input: { priceCurrency: string; currency?: string | null }) {
+  return catalogDisplayCurrency(input) === 'ARS' ? '$' : 'US$';
+}
+export function shortCatalogModel(model: string) {
+  return model.replace(/^iPhone\s*/i, '');
+}
+export function activeCatalogFilters(filters: CatalogFilters) {
+  return [filters.model, filters.capacity, filters.condition, filters.battery, filters.min || filters.max].filter(Boolean).length;
+}
 export interface CatalogFilters { query: string; model: string; capacity: string; condition: string; battery: string; min: string; max: string }
 export const EMPTY_FILTERS: CatalogFilters = { query: '', model: '', capacity: '', condition: '', battery: '', min: '', max: '' };
 export function filterCatalog(items: CatalogItem[], filters: CatalogFilters, showPrice: boolean) {

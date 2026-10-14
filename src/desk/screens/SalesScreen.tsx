@@ -1,4 +1,5 @@
 import { toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { monthKey, monthLabel } from '../commissions';
 import { AssignSellerSheet } from '../AssignSellerSheet';
 import { BulkActions, useBulkScope } from '../bulk-actions';
@@ -49,11 +50,19 @@ export function SalesScreen() {
   const phone = usePhoneLayout();
   const [assignOpen, setAssignOpen] = useState(false);
   const [directoryError, setDirectoryError] = useState('');
+  const [sellerRetry, setSellerRetry] = useState(0);
+  useOfflineRecovery(directoryError, () => setSellerRetry(value => value + 1));
   const [unassignedMonth] = useState(() => { const requested = sessionStorage.getItem('commission-unassigned'); return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null; });
   const [onlyUnassigned, setOnlyUnassigned] = useState(Boolean(unassignedMonth));
   useEffect(() => { sessionStorage.removeItem('commission-unassigned'); }, []);
   const manageCommissions = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
-  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDirectoryError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [appSession?.store?.id]);
+  useEffect(() => {
+    if (!loadCommissionSellers) return;
+    let active = true;
+    setDirectoryError('');
+    void loadCommissionSellers().catch((cause: unknown) => { if (active) setDirectoryError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    return () => { active = false; };
+  }, [appSession?.store?.id, sellerRetry]);
   const sellerName = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
   const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('sales');
