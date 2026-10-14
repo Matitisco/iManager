@@ -5,6 +5,7 @@ export type DeskTab =
   | 'tradeins'
   | 'clients'
   | 'service'
+  | 'commissions'
   | 'reports'
   | 'notifications'
   | 'settings'

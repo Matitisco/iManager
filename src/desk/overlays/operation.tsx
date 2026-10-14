@@ -11,6 +11,7 @@ import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
 import type { CatalogKind } from '../../services/catalogs-api';
+import { SellerField } from '../SellerField';
 import { ClientField } from '../ClientField';
 import { EquipmentField } from '../EquipmentField';
 import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from '../sale-equipment';
@@ -70,6 +71,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
   const [amount, setAmount] = useState(seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? '');
+  const [sellerError, setSellerError] = useState('');
+  useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
@@ -110,6 +114,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   useEffect(() => {
     const update = (key: string, action: () => void) => { if (!dirty.current.has(key)) action(); };
     if (currentSale) {
+      update('sellerMemberId', () => setSellerMemberId(currentSale.sellerMemberId ?? ''));
       update('clientId', () => setClientId(currentSale.clientId || ''));
       update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
       update('productId', () => setProductId(currentSale.productId || ''));
@@ -165,6 +170,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
   const buildInput = (draft: boolean): OperationInput => ({
+    sellerMemberId: sellerMemberId || null,
+    ...(!currentSale && money.rate ? { exchangeRate: money.rate } : {}),
     date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
     clientId: clientId || null,
     clientName: buyer.trim() || null,
@@ -346,6 +353,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       <Field label="Cobro"><span /></Field>
       <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
+      {sellerError ? <div className="ferr" role="alert">{sellerError}</div> : null}
+      <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
         <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
@@ -357,11 +366,12 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }
 
 export function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation } = useAppContext();
+  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
+  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
@@ -416,6 +426,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
+      <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">

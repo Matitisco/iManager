@@ -1739,3 +1739,116 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 /* Tap retains focus without a browser outline; keyboard focus stays visible. */
 .desk-app .dolar button:focus { outline: none; }
 .desk-app .dolar button:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; box-shadow: 0 0 0 4px var(--primary); }
+
+/* Comisiones — balances retain their original currency. */
+.commission-period { display: inline-flex; padding: 9px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
+.commission-period input { border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700; min-width: 0; }
+.commission-kpis { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
+.commission-totals { display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
+.commission-totals small { color: var(--secondary); font-size: .85em; font-weight: 700; }
+.commission-kpis .commission-totals { font-size: 27px; margin: 10px 0; }
+.commission-kpis .commission-totals small { font-size: 16px; color: inherit; }
+.commissions-screen .pending { background: var(--lime-soft); }
+.commission-negative,.commission-negative .commission-totals small,.deduction { color: #e74848; }
+.deduction { background: #fcedee; }
+.commission-banner { display: flex; align-items: center; gap: 16px; padding: 14px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin: 16px 0; font-size: 13px; color: var(--secondary); font-weight: 600; }
+.commission-banner .wlink { margin-left: auto; }
+.commission-banner.dashed { border-style: dashed; }
+.commission-table .commission-totals { align-items: flex-end; }
+.commission-table td:nth-child(n+3),.commission-table th:nth-child(n+3) { text-align: right; }
+.commission-name { display: flex; align-items: center; gap: 10px; text-align: left; color: var(--primary); }
+.commission-name small { display: block; color: var(--secondary); font-size: 11px; }
+.commission-name .av-c { width: 34px; height: 34px; font-size: 12px; flex-shrink: 0; }
+.commission-hero { padding: 20px; background: var(--primary); color: white; border-radius: 24px; margin: 14px 0; }
+.commission-hero > div > .commission-totals { font-size: 32px; margin: 8px 0; }
+.commission-hero > div > .commission-totals small { color: var(--lime); font-size: 20px; }
+.commission-hero .eb,.commission-hero-foot span { color: #9a9fa8; }
+.commission-hero-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #303238; font-size: 13px; }
+.commission-hero-foot .commission-totals { color: white; font-size: 17px; margin-top: 4px; }
+.commission-hero-foot .commission-totals small { color: #c6c9cf; }
+.commission-mine { max-width: 860px; margin-inline: auto; }
+.commission-detail.sheet { width: 980px; }
+.commission-form.sheet { width: 540px; }
+.commission-form .commission-info { margin: 14px 0; }
+.commission-detail-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 18px 0 14px; }
+.commission-detail-kpis > div { background: var(--bg); padding: 12px; border-radius: 16px; }
+.commission-detail-kpis > div.pending { background: var(--lime-soft); }
+.commission-detail-kpis > div.deduction { background: #fcedee; }
+.commission-detail-kpis > div > span:first-child { font-size: 11px; font-weight: 700; color: var(--secondary); }
+.commission-detail-kpis .commission-totals { font-size: 17px; margin-top: 3px; }
+.commission-carry { background: var(--lime-soft); border: 1px solid #f1d04d; border-radius: 14px; padding: 13px; font-size: 13px; font-weight: 600; margin: 14px 0 24px; }
+.commission-carry.deduction { background: #fcedee; border-color: #ffb7bb; color: var(--primary); }
+.commission-lines { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; }
+.commission-mine .commission-lines { grid-template-columns: 1fr; }
+.commission-lines .sale-sec { margin: 14px 0 10px; font-size: 11px; }
+.commission-ledger { box-shadow: none; padding: 0 14px; }
+.commission-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.commission-line:last-child { border-bottom: 0; }
+.commission-line small { display: block; color: var(--secondary); font-size: 11px; margin-top: 2px; }
+.commission-line-amount { text-align: right; flex-shrink: 0; }
+.commission-line.cancelled { opacity: .5; }
+.commission-line.commission-adjustment { background: #fcedee; color: #e74848; margin-inline: -14px; padding-inline: 14px; }
+.commission-show-all { margin: 14px 0; }
+.commission-info { padding: 14px; background: var(--bg); border-radius: 16px; color: var(--secondary); font-size: 13px; line-height: 1.5; }
+.commission-permission { background: #fffdf2; }
+.commission-seller-choices { display: grid; gap: 6px; margin-top: 18px; }
+.commission-seller-choice { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 16px; text-align: left; color: var(--primary); width: 100%; }
+.commission-seller-choice .av-c { width: 36px; height: 36px; flex: none; font-size: 12px; }
+.commission-seller-choice small { display: block; color: var(--secondary); font-size: 11px; margin-top: 3px; }
+.commission-seller-choice i { width: 22px; height: 22px; border: 2px solid #cbd0d6; border-radius: 50%; margin-left: auto; flex: none; }
+.commission-seller-choice.selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: #fffdf2; }
+.commission-seller-choice.selected i { border: 7px solid var(--primary); }
+@media (max-width: 767px) {
+  .commission-period { padding: 10px 14px; }
+  .commission-period input { font-size: 14px; }
+  .commission-hero { padding: 20px 18px; }
+  .commission-hero > div > .commission-totals { font-size: 32px; margin: 10px 0; }
+  .commission-banner { font-size: 14px; padding: 13px 16px; }
+  .commission-people { display: grid; gap: 12px; }
+  .commission-person { width: 100%; padding: 12px 14px; text-align: left; color: var(--primary); }
+  .commission-person-head { display: flex; align-items: center; gap: 10px; }
+  .commission-person-head b { font-size: 16px; }
+  .commission-person-head small { display: block; color: var(--secondary); margin-top: 5px; font-size: 13px; }
+  .commission-person-head .chev { margin-left: auto; }
+  .commission-person-values { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 14px; padding-top: 10px; border-top: 1px solid #edeef1; gap: 5px; font-size: 13px; }
+  .commission-person-values > div { padding: 6px; border-radius: 10px; }
+  .commission-person-values > div > span:first-child { color: var(--secondary); font-size: 11px; font-weight: 700; }
+  .commission-person-values .commission-totals { font-size: 14px; margin-top: 4px; }
+  .commission-detail.sheet,.commission-form.sheet { width: 100%; }
+  .commission-detail-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .commission-detail-kpis > div { padding: 12px 10px; }
+  .commission-detail-kpis > div > span:first-child { font-size: 11px; }
+  .commission-detail-kpis .commission-totals { font-size: 17px; }
+  .commission-lines { grid-template-columns: 1fr; gap: 8px; }
+  .commission-lines .sale-sec { font-size: 11px; }
+  .commission-line { padding: 14px 0; font-size: 14px; }
+  .commission-line small { font-size: 12px; }
+  .commission-line > div:first-child { min-width: 0; }
+  .commission-info,.commission-carry { font-size: 14px; }
+}
+.desk-app .commission-seller-choice { border: 1px solid var(--border); }
+.desk-app .commission-seller-choice.selected { border-color: var(--primary); }
+.commission-period { padding: 0 10px 0 14px; gap: 6px; align-items: center; }
+.commission-period .ds-select-trigger { border: 0; height: 36px; padding: 0 4px; font-size: 13px; background: transparent; }
+.commission-rule-chip { background: var(--row); font-size: 11px; padding: 5px 9px; }
+.commission-table td:nth-child(7) { color: #8B6B00; }
+.commission-table tfoot { background: #fafafb; }
+.commission-table tfoot td { padding: 14px 20px; border-top: 1px solid var(--border); font-size: 13px; }
+.commission-detail-kpis > div.deduction > span:first-child { color: var(--err); }
+.commission-info { font-weight: 600; }
+@media (max-width: 760px) {
+  .commission-period .ds-select-trigger { height: 36px; font-size: 14px; }
+}
+.commission-detail-kpis > div { padding: 10px; }
+.commission-detail-kpis > div > span:first-child { display: block; line-height: 1.2; }
+.commission-detail-kpis .commission-totals { font-size: 16px; line-height: 1.15; gap: 2px; }
+.commission-carry { display: flex; align-items: center; gap: 12px; }
+.commission-carry svg { flex: none; }
+.commission-rule-chip::before { content: ''; width: 8px; height: 8px; border-radius: 3px; border: 1px solid var(--primary); background: var(--lime); }
+.commission-form input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.commission-info { color: var(--primary); }
+.commission-report .gcol,.commission-report .gxl span { max-width: 46px; }
+@media (max-width: 760px) {
+  .commission-detail .commission-carry { margin-bottom: 4px; }
+  .commission-detail .commission-line { padding-block: 12px; }
+}

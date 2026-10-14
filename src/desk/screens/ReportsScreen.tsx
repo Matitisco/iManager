@@ -1,5 +1,8 @@
+import { fetchCommissionReport } from '../../services/commissions-api';
+import type { CommissionReport } from '../../types/commissions';
+import { commissionTotal, monthKey } from '../commissions';
 import { downloadCsv } from '../csv';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
@@ -50,7 +53,7 @@ import {
   type ReportPeriod,
 } from '../report-period';
 import { usePhoneLayout } from '../section-notices';
-import { canOpenSection } from '../sections';
+import { canManageCommissions, canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { ReportDatePicker } from '../report-date-picker';
 import { DeskSelect } from '../select';
@@ -73,6 +76,7 @@ export function ReportsScreen() {
     clientCategories = [],
     customColumns = [],
     appSession,
+    user,
   } = useAppContext();
   const money = useMoney();
   const phone = usePhoneLayout();
@@ -80,6 +84,7 @@ export function ReportsScreen() {
   const sections = appSession?.membership?.sections;
   const role = appSession?.membership?.role;
   const tabs = useMemo(() => REPORT_TABS.filter((item) => {
+    if (item === 'Comisiones') return canManageCommissions(sections, role);
     if (item === 'Clientes') return canOpenSection('clients', sections, role);
     if (item === 'Servicio') return canOpenSection('service', sections, role);
     return true;
@@ -121,7 +126,20 @@ export function ReportsScreen() {
   const serviceBilling = money.sum(periodData.repairs.filter((order) => order.estimate != null).map((order) => ({ amount: order.estimate ?? 0, currency: order.currency })));
   const dimensions = dimensionsFor(activeTab, customColumns);
   const dimension = dimensions.some((item) => item.id === dimensionByTab[activeTab]) ? dimensionByTab[activeTab]! : DEFAULT_DIMENSION[activeTab];
-  const model = buildReport(activeTab, period, bounds, dimension, dimensions, {
+  const [commissionReport, setCommissionReport] = useState<{ key: string; data: CommissionReport } | null>(null);
+  const [commissionReportError, setCommissionReportError] = useState('');
+  const [commissionReportLoading, setCommissionReportLoading] = useState(false);
+  const commissionFrom = monthKey(bounds.start, appSession?.store?.timezone);
+  const commissionTo = monthKey(bounds.end, appSession?.store?.timezone);
+  const commissionReportKey = `${appSession?.store?.id}:${appSession?.user?.id}:${role}:${JSON.stringify(sections)}:${commissionFrom}:${commissionTo}`;
+  const commissionRows = commissionReport?.key === commissionReportKey ? commissionReport.data.rows : [];
+  useEffect(() => {
+    if (activeTab !== 'Comisiones' || !user) return;
+    let active = true; setCommissionReportLoading(true); setCommissionReportError('');
+    void fetchCommissionReport(user, commissionFrom, commissionTo).then(data => { if (!Array.isArray(data.rows)) throw new Error('Respuesta inválida del reporte de comisiones'); if (active) setCommissionReport({ key: commissionReportKey, data }); }).catch((cause: unknown) => { if (active) setCommissionReportError(cause instanceof Error ? cause.message : 'No se pudo cargar el reporte de comisiones'); }).finally(() => { if (active) setCommissionReportLoading(false); });
+    return () => { active = false; };
+  }, [activeTab, commissionReportKey, user]);
+  const baseModel = buildReport(activeTab, period, bounds, dimension, dimensions, {
     sales: projectedSales,
     inventory: periodData.inventory,
     tradeIns: periodData.tradeIns,
@@ -137,6 +155,15 @@ export function ReportsScreen() {
     salesValue,
     customColumns,
   }, projectedHistory);
+  const commissionTotalValue = commissionRows.reduce((sum, row) => sum + row.converted.earned[money.active], 0);
+  const commissionMonths = [...new Set(commissionRows.map(row => row.period))].sort();
+  const model = activeTab === 'Comisiones' ? {
+    ...baseModel, eye: 'Comisiones generadas', total: commissionTotalValue, headline: commissionTotalValue,
+    barMoney: true, donutMoney: true, donutTotal: commissionTotalValue, unavailable: commissionReportLoading || Boolean(commissionReportError),
+    delta: 'Liquidación mensual', note: 'Los montos se convierten con la cotización guardada en cada venta; las ventas viejas, con la de hoy. Este resumen incluye los meses del período. Exportás este resumen con el botón de arriba.',
+    bucketLabel: 'Por mes', buckets: commissionMonths.map(period => ({ label: period, value: commissionRows.filter(row => row.period === period).reduce((sum, row) => sum + row.converted.earned[money.active], 0) })),
+    donutTitle: 'Por vendedor', ...groupBreakdown(commissionRows.map(row => ({ label: row.name, value: row.converted.earned[money.active] }))),
+  } : baseModel;
   const active = selected != null && selected < model.buckets.length ? selected : model.buckets.length - 1;
   const max = Math.max(...model.buckets.map((bucket) => bucket.value), 1);
   const saleLabel = (sale: Sale) => saleBreakdownLabel(sale, activeTab === 'Ventas' ? dimension : 'payment', inventory, customColumns);
@@ -179,6 +206,11 @@ export function ReportsScreen() {
       const shown = money.shown(amount, currency);
       return [shown.text, shown.currency];
     };
+    if (activeTab === 'Comisiones') {
+      const rows = [['Período', 'Vendedor', 'Ventas', 'Comisión ARS', 'Comisión USD', 'Pagado ARS', 'Pagado USD', 'Pendiente ARS', 'Pendiente USD', 'Ajustes ARS', 'Ajustes USD']];
+      commissionRows.forEach(row => rows.push([row.period, row.name, String(row.salesCount), String(row.earned.ARS), String(row.earned.USD), String(row.paid.ARS), String(row.paid.USD), String(row.pending.ARS), String(row.pending.USD), String(row.adjustmentsTotal.ARS), String(row.adjustmentsTotal.USD)]));
+      downloadCsv(rows, 'reporte-comisiones.csv'); toast('Reporte de comisiones exportado'); return;
+    }
     if (activeTab === 'Ventas') {
       saleRows.forEach((sale) => {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
@@ -205,7 +237,7 @@ export function ReportsScreen() {
   const figure = (value: number) => (model.barMoney ? (model.unavailable ? '—' : money.compactActive(value)) : value);
   const figureFull = (value: number) => (model.barMoney ? (model.unavailable ? 'sin cotización' : money.showActive(value)) : value);
   const exportButton = (
-    <button className="circ" type="button" aria-label="Exportar" onClick={exportReport}>
+    <button className="circ" type="button" aria-label="Exportar" disabled={activeTab === 'Comisiones' && (commissionReportLoading || Boolean(commissionReportError) || commissionReport?.key !== commissionReportKey)} onClick={exportReport}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
     </button>
   );
@@ -222,7 +254,7 @@ export function ReportsScreen() {
   };
 
   return (
-    <div className="dscreen">
+    <div className={`dscreen${activeTab === 'Comisiones' ? ' commission-report' : ''}`}>
       <ScreenTitle title="Reportes" tools={exportButton} desktop={exportButton} />
       <div className="gfilters">
         <div role="group" aria-label="Tipo de reporte">{tabs.map((item) => <button key={item} className={`gchip${activeTab === item ? ' on' : ''}`} aria-pressed={activeTab === item} type="button" onClick={() => chooseTab(item)}>{item}</button>)}</div>
@@ -247,6 +279,8 @@ export function ReportsScreen() {
           <Actions primary="Aplicar período" onPrimary={commitRange} onSecondary={closeCustom} />
         </Sheet>
       )}
+      {activeTab === 'Comisiones' && commissionReportError ? <p className="ferr" role="alert">{commissionReportError}</p> : null}
+      {activeTab === 'Comisiones' && commissionReportLoading ? <p role="status">Cargando reporte…</p> : null}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
         <div className="gamount">{model.unavailable ? '—' : model.barMoney ? money.showActive(model.headline) : model.total}</div>
@@ -281,7 +315,7 @@ export function ReportsScreen() {
             })}
           </div>
           <div className="gxl">
-            {model.buckets.map((bucket, index) => <span key={`${bucket.label}-${index}`} className={index === active ? 'sel' : ''}>{axisDate(bucket.label)}</span>)}
+            {model.buckets.map((bucket, index) => <span key={`${bucket.label}-${index}`} className={index === active ? 'sel' : ''}>{activeTab === 'Comisiones' ? bucket.label : axisDate(bucket.label)}</span>)}
           </div>
         </div>
         <div className="gcard">
@@ -304,6 +338,7 @@ export function ReportsScreen() {
           <Donut parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
+      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {row.salesCount} ventas</div><div className="gstore">{row.name}</div><div className="gmeta">Pagado {commissionTotal(row.paid)} · pendiente {commissionTotal(row.pending)}</div></div><div className="gr"><div className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
       {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>

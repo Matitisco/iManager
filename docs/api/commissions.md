@@ -6,6 +6,8 @@ Todas las rutas requieren sesión y contexto de tienda. `period` es YYYY-MM en l
 | --- | --- | --- |
 | GET | `/api/commissions?period=YYYY-MM` | Comisiones: resumen del equipo, saldos y ventas sin vendedor |
 | GET | `/api/commissions/members/:id?period=YYYY-MM` | Comisiones: ventas, pagos, ajustes y saldo de un miembro |
+| GET | `/api/commissions/exchange-rate` | Miembro actual: blue vendedor, para guardar la cotización cuando el navegador no pudo obtenerla |
+| GET | `/api/commissions/sellers` | Miembro actual: directorio mínimo de vendedores (id, nombre y rol) de su tienda |
 | GET | `/api/commissions/mine?period=YYYY-MM` | Miembro actual: solo datos propios, sin costos/ganancia |
 | GET, POST | `/api/commissions/rules` | Comisiones |
 | PATCH, DELETE | `/api/commissions/rules/:id` | Comisiones |
@@ -24,3 +26,5 @@ Las altas de ventas/operaciones/importaciones aceptan vendedor opcional y nunca 
 CommissionAccrual conserva snapshots y bajas aunque Sale se borre físicamente. Una venta cancelada/eliminada tiene comisión activa cero. Sin pagos, se anula el crédito. Si su deuda ya recibió pagos, se conserva el crédito histórico y se revierte completo en el mes siguiente a la baja (nunca antes de su período original). En un período parcialmente pagado, el saldo no cobrado y la reversión se compensan, quedando a descontar solo lo efectivamente pagado. La baja repetida no duplica ajustes.
 
 La migración es aditiva. La parte 1 no agrega pantallas ni exportaciones.
+
+Las pantallas de la parte 2 conservan los saldos por moneda, muestran ajustes y pagos parciales y solo exportan desde Reportes. Reportes usa los agregados mensuales del endpoint; no inventa series diarias. La forma de pago se conserva en `note`; la fecha es la fecha real de registro, sin permitir retrofechar.

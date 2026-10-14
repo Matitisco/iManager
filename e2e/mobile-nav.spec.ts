@@ -89,7 +89,7 @@ test.describe('phone navigation', () => {
     await expect(page.getByTestId('sidebar-tab-settings')).toContainText('Configuración');
     await expect(page.getByTestId('more-profile')).toContainText('Propietario');
     await expect(page.getByTestId('sidebar-tab-more')).toHaveClass(/on/);
-    await expect(page.getByText('Comisiones')).toHaveCount(0);
+    await expect(page.getByTestId('sidebar-tab-commissions')).toBeVisible();
     await expect(page.getByText(/Tentativo/)).toHaveCount(0);
     await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
     await expectFits(page);
@@ -139,7 +139,7 @@ test.describe('phone navigation', () => {
       await bar.getByTestId('sidebar-tab-more').click();
       await expect(staff.getByTestId('sidebar-tab-service')).toContainText('Servicio técnico');
       await expect(staff.getByTestId('sidebar-tab-clients')).toBeVisible();
-      await expect(staff.getByText('Comisiones')).toHaveCount(0);
+      await expect(staff.getByTestId('sidebar-tab-commissions')).toBeVisible();
       await expect(staff.getByText(/Tentativo/)).toHaveCount(0);
       await staff.setViewportSize({ width: 360, height: 800 });
       await expectFits(staff);

@@ -88,7 +88,7 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
   });
 
-  it('lists the overflow sections on Más without commissions or a tentative label', () => {
+  it('lists the overflow sections on Más with commissions and without a tentative label', () => {
     usePhone();
     window.location.hash = '#/mas';
     context.operationNotifications = [
@@ -107,7 +107,7 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('sidebar-tab-settings')).toHaveTextContent('Configuración');
     expect(screen.getByTestId('sidebar-tab-more')).toHaveClass('on');
     expect(screen.getByTestId('sidebar-tab-reports')).toBeInTheDocument();
-    expect(screen.queryByText('Comisiones')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-tab-commissions')).toHaveTextContent('Comisiones');
     expect(screen.queryByText(/Tentativo/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/propuesta/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-header')).toHaveTextContent('iManager');

@@ -354,12 +354,20 @@ test('new worker activates after a hard reload with multiple controlled tabs ope
   // Query the actual controlling worker in both tabs. WebKit can retain an
   // 'activating' snapshot on its ServiceWorker objects after activation.
   for (const tab of [page, second]) {
-    await expect.poll(() => tab.evaluate(() => new Promise<number>((resolve) => {
-      const channel = new MessageChannel();
-      const timeout = window.setTimeout(() => { channel.port1.close(); resolve(-1); }, 1000);
-      channel.port1.onmessage = (event) => { window.clearTimeout(timeout); channel.port1.close(); resolve(event.data); };
-      navigator.serviceWorker.controller?.postMessage('TEST_RELEASE', [channel.port2]);
-    }))).toBe(release);
+    await expect.poll(async () => {
+      try {
+        return await tab.evaluate(() => new Promise<number>((resolve) => {
+          const channel = new MessageChannel();
+          const timeout = window.setTimeout(() => { channel.port1.close(); resolve(-1); }, 1000);
+          channel.port1.onmessage = (event) => { window.clearTimeout(timeout); channel.port1.close(); resolve(event.data); };
+          navigator.serviceWorker.controller?.postMessage('TEST_RELEASE', [channel.port2]);
+        }));
+      } catch (error) {
+        // An idle tab reloads on controllerchange; poll its new controlling worker.
+        if (error instanceof Error && error.message.includes('Execution context was destroyed')) return -1;
+        throw error;
+      }
+    }).toBe(release);
   }
   await second.close();
 });

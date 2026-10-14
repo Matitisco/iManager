@@ -10,6 +10,7 @@ import { ClientsScreen } from './screens/ClientsScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
+import { CommissionsScreen } from './screens/CommissionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
@@ -22,7 +23,7 @@ import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
-import { canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
+import { canManageCommissions, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
 import './desk.css';
@@ -33,11 +34,11 @@ import { InstallCard } from '../components/InstallHelp';
 const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
-  more: 'mas',
+  more: 'mas', commissions: 'comisiones',
 };
-const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell'> = {
+const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
   dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
-  clients: 'user', service: 'wrench', reports: 'bars', notifications: 'bell',
+  clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
 const MORE_SUB: Record<DeskSectionId, string> = {
   dashboard: 'Resumen de la tienda',
@@ -47,6 +48,7 @@ const MORE_SUB: Record<DeskSectionId, string> = {
   tradeins: 'Equipos dados y recibidos',
   clients: 'Agenda y saldos',
   service: 'Órdenes de reparación',
+  commissions: 'Vendedores y pagos',
   notifications: 'Avisos de la tienda',
 };
 
@@ -58,7 +60,8 @@ function countWords(count: number, words: string) {
   return `${count} ${words}`;
 }
 
-function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, unreadTotal: number) {
+function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, unreadTotal: number, commissions: number) {
+  if (id === 'commissions') return countWords(commissions, 'pendientes');
   if (id === 'tradeins') return countWords(openTrades, 'en curso');
   if (id === 'service') return countWords(openRepairs, openRepairs === 1 ? 'abierta' : 'abiertas');
   if (id === 'notifications') return countWords(unreadTotal, 'sin leer');
@@ -66,7 +69,7 @@ function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, u
 }
 
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, onOpen,
+  name, store, role, rows, openTrades, openRepairs, unread, commissions, ownCommissions, onOpen,
 }: {
   name: string;
   store: string;
@@ -75,6 +78,8 @@ function MoreScreen({
   openTrades: number;
   openRepairs: number;
   unread: number;
+  commissions: number;
+  ownCommissions: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
   return (
@@ -99,12 +104,12 @@ function MoreScreen({
           <div className="mlabel">Módulos</div>
           <div className="card">
             {rows.map((id) => {
-              const count = moreCount(id, openTrades, openRepairs, unread);
+              const count = moreCount(id, openTrades, openRepairs, unread, commissions);
               return (
                 <button key={id} className="member" type="button" data-testid={`sidebar-tab-${id}`} onClick={() => onOpen(id)}>
                   <span className="ico-row"><DeskIcon name={NAV_ICON[id]} size={18} /></span>
                   <span className="info">
-                    <span className="name">{sectionLabel(id)}</span>
+                    <span className="name">{id === 'commissions' && ownCommissions ? 'Mis comisiones' : sectionLabel(id)}</span>
                     <span className="role">{MORE_SUB[id]}</span>
                   </span>
                   {count ? <span className="rtxt">{count}</span> : null}
@@ -152,14 +157,27 @@ function tabFromHash(hash: string): DeskTab {
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, tradeIns, inventory, user, repairOrders = [] } = useAppContext();
+  const { appSession, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
+  const commissionAccess = canManageCommissions(sections, role);
+  const commissionPeriod = new Intl.DateTimeFormat('sv', { timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit' }).format(new Date());
+  const [commissionCountError, setCommissionCountError] = useState('');
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
   const allowed = (id: DeskTab) => id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
+  useEffect(() => {
+    if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
+    let active = true;
+    setCommissionCountError('');
+    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(cause instanceof Error ? cause.message : 'No se pudieron cargar las comisiones'); });
+    return () => { active = false; };
+  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus]);
+  const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
+  const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
+
   const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [pendingRecordOpen, setPendingRecordOpen] = useState<{ tab: DeskTab; overlay: Overlay } | null>(null);
@@ -276,7 +294,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars'; size: number }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
@@ -284,6 +302,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
+    { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
   ];
   const items = nav.filter((item) => allowed(item.id));
   const moreActive = !mobile.bar.some((id) => id === tab);
@@ -345,6 +364,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
+          {commissionCountError && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
@@ -352,6 +372,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
             {tab === 'service' && <ServiceScreen />}
+            {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'settings' && <SettingsScreen />}
@@ -363,6 +384,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 rows={mobile.more}
                 openTrades={openTrades}
                 openRepairs={openRepairs}
+                commissions={pendingCommissions}
+                ownCommissions={!commissionAccess}
                 unread={unread.total}
                 onOpen={go}
               />

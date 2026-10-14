@@ -49,6 +49,16 @@ describe('Sales column filters', () => {
     context.appSession = null;
   });
 
+  it('opens unassigned sales from the selected commission month, including historical periods', () => {
+    context.sales.push(sale(13, { date: '2026-09-01', clientName: 'Venta histórica sin vendedor' }));
+    sessionStorage.setItem('commission-unassigned', '2026-09');
+    renderScreen();
+    expect(screen.getByText('Venta histórica sin vendedor')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
+    expect(screen.getByText(/Ventas sin vendedor de septiembre/)).toBeInTheDocument();
+    expect(sessionStorage.getItem('commission-unassigned')).toBeNull();
+  });
+
   it('filters with the search, resets to page 1 and keeps the header when nothing matches', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();

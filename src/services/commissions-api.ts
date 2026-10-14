@@ -52,3 +52,15 @@ export function assignSalesSeller(user: AuthUserLike, saleIds: string[], sellerM
 export function fetchCommissionReport(user: AuthUserLike, from: string, to: string) {
   return apiRequest<CommissionReport>(user, `/api/reports/commissions${query({ from, to })}`, { fallback });
 }
+
+export async function fetchCommissionSellers(user: AuthUserLike): Promise<import('../types/commissions').CommissionSeller[]> {
+  const data = await apiRequest<{ sellers: import('../types/commissions').CommissionSeller[] }>(user, '/api/commissions/sellers', { fallback });
+  if (!Array.isArray(data.sellers)) throw new Error('Respuesta inválida de vendedores');
+  return data.sellers;
+}
+
+export async function fetchCommissionExchangeRate(user: AuthUserLike): Promise<number> {
+  const data = await apiRequest<{ exchangeRate: number }>(user, '/api/commissions/exchange-rate', { fallback });
+  if (!Number.isFinite(data.exchangeRate) || data.exchangeRate <= 0) throw new Error('No se pudo obtener la cotización blue');
+  return data.exchangeRate;
+}

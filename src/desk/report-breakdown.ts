@@ -3,7 +3,7 @@ import { conditionLabel, paymentLabel, statusLabel } from './format';
 import { inReportPeriod, parseReportDate, type ReportBounds } from './report-period';
 import { repairFault } from './repairs';
 
-export const REPORT_TABS = ['Ventas', 'Stock', 'Canjes', 'Clientes', 'Servicio'] as const;
+export const REPORT_TABS = ['Ventas', 'Stock', 'Canjes', 'Clientes', 'Servicio', 'Comisiones'] as const;
 export type ReportTab = (typeof REPORT_TABS)[number];
 
 export interface BreakdownDimension {
@@ -17,6 +17,7 @@ export const DEFAULT_DIMENSION: Record<ReportTab, string> = {
   Canjes: 'status',
   Clientes: 'kind',
   Servicio: 'status',
+  Comisiones: 'seller',
 };
 
 const ENTITY: Partial<Record<ReportTab, CustomColumn['entity']>> = {
@@ -27,6 +28,7 @@ const ENTITY: Partial<Record<ReportTab, CustomColumn['entity']>> = {
 };
 
 const BUILTIN: Record<ReportTab, BreakdownDimension[]> = {
+  Comisiones: [{ id: 'seller', label: 'Vendedor' }],
   Ventas: [
     { id: 'payment', label: 'Medio de pago' },
     { id: 'model', label: 'Modelo' },

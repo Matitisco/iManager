@@ -179,12 +179,12 @@ test.describe('phone patterns', () => {
     await expect(page.getByTestId('page-back')).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Nueva orden' })).toBeVisible();
     await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
-    await expect(page.getByText('Comisiones')).toHaveCount(0);
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/patterns-390-service.png`, fullPage: true });
     await page.getByTestId('page-back').click();
     await expect(page).toHaveURL(/#\/mas/);
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
+    await expect(page.getByTestId('sidebar-tab-commissions')).toBeVisible();
 
     await page.getByTestId('sidebar-tab-inventory').click();
     await page.setViewportSize({ width: 360, height: 800 });

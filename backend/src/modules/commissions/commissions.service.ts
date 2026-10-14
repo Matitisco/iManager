@@ -231,3 +231,9 @@ export async function getMyCommissions(storeId: string, userId: string, period?:
   if (!member) throw new DomainError("Store membership required", 403);
   return getCommissionPerson(storeId, member.id, period, false);
 }
+
+/** Minimal directory for manual seller selection, including staff creating sales. */
+export async function listCommissionSellers(storeId: string) {
+  const members = await prisma.storeMember.findMany({ where: { storeId }, select: { id: true, role: true, user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } });
+  return members.map(member => ({ id: member.id, role: member.role, name: member.user.displayName || member.user.email || "Miembro" }));
+}

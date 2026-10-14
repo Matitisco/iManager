@@ -46,6 +46,20 @@ async function pay(memberId: string, extra: Record<string, unknown> = {}) {
 }
 
 describe("commissions API (adapted from #122)", () => {
+  it("lets staff select a seller using only the current store's minimal directory", async () => {
+    const f = await fixture();
+    const other = await prisma.store.create({ data: { name: "Otra tienda" } });
+    await prisma.storeMember.create({ data: { storeId: other.id, userId: f.user.id, role: "OWNER" } });
+    const response = await getApp().inject({ url: "/api/commissions/sellers", headers: f.headers });
+    expect(response.statusCode, response.body).toBe(200);
+    const quote = await getApp().inject({ url: "/api/commissions/exchange-rate", headers: f.headers });
+    expect(quote.statusCode).toBe(200);
+    expect(quote.json()).toEqual({ exchangeRate: 1000 });
+    const sellers = response.json().sellers;
+    expect(sellers).toEqual(expect.arrayContaining([{ id: f.member.id, name: "Vendedor", role: "STAFF" }]));
+    expect(sellers).toHaveLength(2);
+    expect(Object.keys(sellers[0]).sort()).toEqual(["id", "name", "role"]);
+  });
   it("stores current registrator and quote without defaulting a seller, including /sales", async () => {
     const f = await fixture();
     await rule();

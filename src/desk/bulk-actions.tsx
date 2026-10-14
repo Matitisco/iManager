@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { BulkSelection } from './bulk-selection';
 import { SelectFiltered } from './bulk-selection';
@@ -17,8 +17,8 @@ export function useBulkScope() {
   return `${appSession?.store?.id ?? ''}|${appSession?.user?.id ?? ''}`;
 }
 
-export function BulkActions<T extends { id: string }>({ selection, total, label, action }: {
-  selection: BulkSelection<T>; total: number; label: (row: T) => string; action: BulkAction<T>;
+export function BulkActions<T extends { id: string }>({ selection, total, label, action, children }: {
+  selection: BulkSelection<T>; total: number; label: (row: T) => string; action: BulkAction<T>; children?: ReactNode;
 }) {
   const { canManageSensitive, toast } = useDesk();
   const { backendStatus, appSession } = useAppContext();
@@ -76,6 +76,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
       <div className={`bulk-bar${phone ? ' mobile' : ''}`} role="region" aria-label="Acciones masivas" data-testid="bulk-action-bar" aria-busy={busy}>
         <div className="bulk-count"><b aria-live="polite">{selection.selected.length} {selection.selected.length === 1 ? 'seleccionado' : 'seleccionados'}</b><button type="button" disabled={selection.locked} onClick={selection.clear}>{phone ? 'Listo' : 'Limpiar selección'}</button></div>
         <div className="bulk-buttons">
+          {children}
           {canManageSensitive ? <button type="button" className="dbtn bulk-danger" disabled={selection.locked || !ready || selection.selected.length === 0 || Boolean(unavailable)} onClick={() => {
             setError(''); setConfirmation([...selection.selected]); selection.setLocked(true);
           }}>{action.label}</button> : null}

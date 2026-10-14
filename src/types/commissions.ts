@@ -98,3 +98,5 @@ export interface CommissionReport {
   to: string;
   rows: Array<Pick<CommissionPerson, 'memberId' | 'name' | 'salesCount' | 'earned' | 'paid' | 'pending' | 'adjustmentsTotal' | 'converted'> & { period: string }>;
 }
+
+export interface CommissionSeller { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' }
