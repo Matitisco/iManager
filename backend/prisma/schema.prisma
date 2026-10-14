@@ -164,7 +164,8 @@ model InventoryItem {
   pendingSaleRegistration Boolean  @default(false)
   // Sale of a device that was not in stock. Battery, cost and quality still need to be filled in.
   needsCompletion Boolean          @default(false)
-  reservedDepositId String?       @unique
+  // One item per deposit is enforced in the deposits service transaction, not with a unique constraint.
+  reservedDepositId String?
   reservedClientId String?
   reservedClientName String?      @db.VarChar(120)
   reservedAt    DateTime?
@@ -183,6 +184,7 @@ model InventoryItem {
 
   @@index([storeId])
   @@index([storeId, catalogVisible])
+  @@index([reservedDepositId])
   @@unique([storeId, imei])
 }
 

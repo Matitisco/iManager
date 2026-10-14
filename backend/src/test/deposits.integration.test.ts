@@ -36,6 +36,13 @@ describe('client deposits', () => {
     expect(JSON.stringify(list.json())).toContain(f.client.name);
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(0);
   });
+  it('does not reserve an item that already has an active deposit', async () => {
+    const f = await fixture(); const row = await deposit(f, { productId: f.inventoryItem.id });
+    const second = await getApp().inject({ method: 'POST', url: `/api/clients/${f.client.id}/deposits`, headers: f.headers, payload: { amount: 1000, currency: 'ARS', exchangeRate: 1000, method: 'EFECTIVO', requestKey: crypto.randomUUID(), productId: f.inventoryItem.id } });
+    expect(second.statusCode, second.body).toBe(409);
+    expect(await prisma.inventoryItem.count({ where: { reservedDepositId: row.id } })).toBe(1);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } })).reservedDepositId).toBe(row.id);
+  });
   it('blocks other buyers, legacy sales, manual release, imports, stock deletion and mismatched reserved application', async () => {
     const f = await fixture(); const row = await deposit(f, { productId: f.inventoryItem.id });
     const other = await prisma.client.create({ data: { storeId: f.storeId, name: 'Otra persona' } });
