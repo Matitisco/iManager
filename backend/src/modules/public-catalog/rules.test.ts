@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batteryMinimum, convertCatalogPrice, ruleReason } from './rules.js';
+import { batteryMinimum, convertCatalogPrice, countAvailable, ruleReason } from './rules.js';
 import { settingsSchema } from './schema.js';
 import { catalogPreviewPng, escapeXml } from './preview.js';
 import sharp from 'sharp';
@@ -12,6 +12,9 @@ describe('catalog rules', () => {
     expect(ruleReason(item, config)).toBeNull();
     for (const data of [{ status: 'VENDIDO' }, { quantity: 0 }, { status: 'RESERVADO' }, { batteryHealth: '79-85%' }, { batteryHealth: 'N/A' }, { needsCompletion: true }, { archivedAt: new Date() }]) expect(ruleReason({ ...item, ...data }, config)).not.toBeNull();
     expect(ruleReason({ ...item, status: 'RESERVADO', quantity: 0, batteryHealth: 'N/A' }, { hideWithoutStock: false, hideReserved: false, minBattery: null })).toBeNull();
+  });
+  it('counts only in-stock devices as available', () => {
+    expect(countAvailable([{ status: 'DISPONIBLE' }, { status: 'VENDIDO' }, { status: 'RESERVADO' }, { status: '' }])).toBe(2);
   });
   it('converts prices in either direction and rounds cents', () => {
     expect(convertCatalogPrice(130000, 'ARS', 'USD', 1300)).toBe(100);
@@ -26,7 +29,7 @@ describe('catalog rules', () => {
   });
   it('renders a 1200x630 PNG from escaped public model names', async () => {
     expect(escapeXml('<&"')).toBe('&lt;&amp;&quot;');
-    const png = await catalogPreviewPng({ store: { name: 'Tienda <&>', phone: null, address: null, logoUrl: null, hours: null }, active: true, showPrice: false, priceCurrency: 'USD', items: [{ model: 'iPhone <15>', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%' }] });
+    const png = await catalogPreviewPng({ store: { name: 'Tienda <&>', phone: null, address: null, logoUrl: null, hours: null, currency: 'USD' }, active: true, showPrice: false, priceCurrency: 'USD', items: [{ model: 'iPhone <15>', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%' }] });
     const metadata = await sharp(png).metadata();
     expect([metadata.width, metadata.height, metadata.format]).toEqual([1200, 630, 'png']);
   });

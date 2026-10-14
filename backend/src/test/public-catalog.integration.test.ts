@@ -24,7 +24,8 @@ describe('public catalog API', () => {
     expect(publicResponse.headers['cache-control']).toBe('no-store');
     expect(publicResponse.json().items).toHaveLength(1);
     expect(Object.keys(publicResponse.json().items[0]).sort()).toEqual(['model', 'capacity', 'color', 'condition', 'grade', 'batteryHealth', 'price', 'currency'].sort());
-    expect(Object.keys(publicResponse.json().store).sort()).toEqual(['name', 'phone', 'address', 'logoUrl', 'hours'].sort());
+    expect(Object.keys(publicResponse.json().store).sort()).toEqual(['name', 'phone', 'address', 'logoUrl', 'hours', 'currency'].sort());
+    expect(catalog.counts.available).toBe(1);
     const forbidden = ['cost', 'imei', 'serial', 'supplier', 'provider', 'id', 'storeId', 'customFields', 'taxId', 'legalName'];
     function check(value: unknown) {
       if (!value || typeof value !== 'object') return;
@@ -52,6 +53,7 @@ describe('public catalog API', () => {
     await patch({ hideReserved: false });
     expect((await getApp().inject(url)).json().items).toHaveLength(1);
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { status: 'VENDIDO' } });
+    expect((await getApp().inject({ url: '/api/catalog', headers: buildAuthHeaders() })).json().catalog.counts.available).toBe(0);
     expect((await getApp().inject(url)).json().items).toEqual([]);
     await patch({ hideWithoutStock: false });
     expect((await getApp().inject(url)).json().items).toHaveLength(1);

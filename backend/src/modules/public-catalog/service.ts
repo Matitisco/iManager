@@ -4,7 +4,7 @@ import { DomainError } from '../../lib/domain-error.js';
 import { currentBlueRate } from '../../lib/blue-rate.js';
 import { writeAudit, type Actor } from '../audit/audit.js';
 import type { CatalogSettingsInput } from './schema.js';
-import { convertCatalogPrice, ruleReason } from './rules.js';
+import { convertCatalogPrice, countAvailable, ruleReason } from './rules.js';
 
 // Deliberate allowlist: never fetch private inventory fields for public sharing.
 const itemSelect = { model: true, capacity: true, color: true, condition: true, grade: true, batteryHealth: true, price: true, currency: true, status: true, quantity: true, archivedAt: true, needsCompletion: true } as const;
@@ -17,7 +17,7 @@ export async function getSettings(storeId: string) {
   if (!config) return null;
   const items = await prisma.inventoryItem.findMany({ where: { storeId, archivedAt: null }, select: { ...itemSelect, id: true, catalogVisible: true }, orderBy: [{ model: 'desc' }, { id: 'asc' }] });
   const rows = items.map(item => ({ id: item.id, model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, price: Number(item.price), currency: item.currency, catalogVisible: item.catalogVisible, reason: ruleReason(item, config) ?? (item.catalogVisible ? null : 'Oculto a mano') }));
-  return { slug: config.slug, active: config.active, hideWithoutStock: config.hideWithoutStock, hideReserved: config.hideReserved, minBattery: config.minBattery, showPrice: config.showPrice, priceCurrency: config.priceCurrency, logoUrl: config.logoUrl, hours: config.hours, items: rows, counts: { visible: rows.filter(item => !item.reason).length, rules: rows.filter(item => item.reason && item.reason !== 'Oculto a mano').length, manual: rows.filter(item => item.reason === 'Oculto a mano').length } };
+  return { slug: config.slug, active: config.active, hideWithoutStock: config.hideWithoutStock, hideReserved: config.hideReserved, minBattery: config.minBattery, showPrice: config.showPrice, priceCurrency: config.priceCurrency, logoUrl: config.logoUrl, hours: config.hours, items: rows, counts: { visible: rows.filter(item => !item.reason).length, rules: rows.filter(item => item.reason && item.reason !== 'Oculto a mano').length, manual: rows.filter(item => item.reason === 'Oculto a mano').length, available: countAvailable(items) } };
 }
 export async function saveSettings(storeId: string, input: CatalogSettingsInput, actor: Actor, regenerate = false) {
   await prisma.$transaction(async tx => {
@@ -55,7 +55,7 @@ async function exchangeRate(store: { exchangeMode: string; exchangeSource: strin
 export async function getPublicCatalog(slug: string) {
   const config = await prisma.storePublicCatalog.findUnique({ where: { slug }, include: { store: { select: { name: true, phone: true, address: true, currency: true, exchangeMode: true, exchangeSource: true, manualSell: true } } } });
   if (!config) return null;
-  const store = { name: config.store.name, phone: config.store.phone, address: config.store.address, logoUrl: config.logoUrl, hours: config.hours };
+  const store = { name: config.store.name, phone: config.store.phone, address: config.store.address, logoUrl: config.logoUrl, hours: config.hours, currency: config.store.currency };
   if (!config.active) return { store, active: false, showPrice: false, priceCurrency: config.priceCurrency, items: [] };
   const rows = await prisma.inventoryItem.findMany({ where: { storeId: config.storeId, catalogVisible: true, archivedAt: null, needsCompletion: false }, select: itemSelect, orderBy: [{ model: 'desc' }, { capacity: 'asc' }, { color: 'asc' }] });
   const visible = rows.filter(item => !ruleReason(item, config));

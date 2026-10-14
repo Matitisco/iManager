@@ -15,7 +15,7 @@ Todas las escrituras requieren OWNER y guardan auditoría. Socio/Empleado no pue
 
 `GET /api/public/catalog/:slug` devuelve exclusivamente:
 
-- `store`: nombre, teléfono, dirección, logo y horario.
+- `store`: nombre, teléfono, dirección, logo, horario y moneda configurada de la tienda (sólo para el encabezado «precios en …»).
 - actividad, visibilidad de precio y modo de moneda.
 - equipos: modelo, capacidad, color, condición, calidad y batería; precio y moneda únicamente si están habilitados.
 
@@ -27,7 +27,7 @@ Límite de 60 solicitudes por minuto por IP e instancia de API, compartido entre
 
 ## Página, SEO y PWA
 
-`/c/:slug` monta la lista pública fuera de AppProvider, sin sesión ni login. Lista sin fotos de equipos, un WhatsApp general flotante en móvil/desktop, búsqueda y filtros. Logos opcionales son de la tienda. Teléfonos argentinos locales se normalizan para WhatsApp; números internacionales explícitos conservan su prefijo. Cambios se reflejan en toda nueva lectura inmediatamente; una página ya abierta revalida al volver al foco y cada 15 segundos, borrando datos viejos ante revocación/error.
+`/c/:slug` monta la lista pública fuera de AppProvider, sin sesión ni login. Lista sin fotos de equipos, en dos columnas en desktop y una en el teléfono. En el teléfono los modelos son chips; en desktop los filtros son pastillas (modelo, capacidad, condición, batería y precio). El encabezado dice «precios en» la moneda del catálogo, o la de la tienda cuando el precio queda como está cargado. El WhatsApp general flotante usa `wa.me` con el texto en UTF-8 (`encodeURIComponent`). Un teléfono argentino local se normaliza a `549` más 10 dígitos; un internacional explícito conserva su prefijo. Si el número no es válido, la página pública no muestra el botón y la sección Catálogo avisa con un enlace a Configuración. El conteo «disponibles» de esa sección cuenta sólo equipos en estado disponible. Cambios se reflejan en toda nueva lectura inmediatamente; una página ya abierta revalida al volver al foco, cada 15 segundos y al evento `online`, borrando el aviso de sin conexión y los datos viejos ante revocación/error.
 
 El servidor `npm start` (`scripts/serve-spa.mjs`) genera title/description/canonical/OG en HTML antes de ejecutar JavaScript. Usa `VITE_API_BASE_URL` en runtime o el `catalog-config.json` generado con la URL del build. La preview `GET /api/public/catalog/:slug/preview.png` es un PNG 1200×630 construido sólo con nombre/modelos/cantidades públicos, sin fotos ni precios. Debe usarse ese servidor en producción para que los scrapers reciban OG; el servidor dev de Vite sirve el HTML genérico.
 

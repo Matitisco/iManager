@@ -46,6 +46,11 @@ for (const device of [
     await expect(lead.getByText('US$ 920')).toBeVisible();
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveCount(1);
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toBeInViewport({ ratio: 1 });
+    await expect(lead.getByText(/precios en USD/)).toBeVisible();
+    const href = await lead.getByRole('link', { name: 'Escribinos por WhatsApp' }).getAttribute('href');
+    expect(href).toMatch(/^https:\/\/wa\.me\/5491155551234\?text=/);
+    expect(decodeURIComponent(new URL(href!).searchParams.get('text')!)).toContain('👋');
+    expect(await lead.locator('.price-groups').evaluate(node => getComputedStyle(node).columnCount)).toBe(device.mobile ? '1' : '2');
     await expect(lead.getByRole('img')).toHaveCount(0);
     await expect(lead.getByTestId('login-email')).toHaveCount(0);
     expect(await lead.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);

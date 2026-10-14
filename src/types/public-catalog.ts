@@ -19,10 +19,10 @@ export interface ManagedCatalogItem extends CatalogItem {
 export interface ManagedCatalog extends CatalogSettings {
   slug: string;
   items: ManagedCatalogItem[];
-  counts: { visible: number; rules: number; manual: number };
+  counts: { visible: number; rules: number; manual: number; available: number };
 }
 export interface PublicCatalog {
-  store: { name: string; phone: string | null; address: string | null; logoUrl: string | null; hours: string | null };
+  store: { name: string; phone: string | null; address: string | null; logoUrl: string | null; hours: string | null; currency?: string | null };
   active: boolean; showPrice: boolean; priceCurrency: string;
   items: CatalogItem[];
 }
