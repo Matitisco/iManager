@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicCatalogPage } from './PublicCatalogPage';
 import { ApiError } from '../services/api-client';
@@ -45,6 +45,24 @@ describe('public catalog without session', () => {
     expect(await screen.findByText(/precios en ARS/)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Escribinos por WhatsApp' })).not.toBeInTheDocument();
   });
+  it('filters with chips in the page and inside the mobile sheet', async () => {
+    fetchCatalog.mockResolvedValue({ ...catalog, items: [catalog.items[0], { ...catalog.items[0], model: 'iPhone 14', capacity: '256GB', color: 'Azul', price: 590 }] });
+    render(<PublicCatalogPage slug="mi-tienda" />);
+    expect(await screen.findByText('US$ 920')).toBeInTheDocument();
+    expect(document.querySelector('select')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Capacidad' }));
+    fireEvent.click(screen.getByRole('option', { name: '128GB' }));
+    expect(screen.queryByText('US$ 590')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtros · 1' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros · 1' }));
+    const dialog = screen.getByRole('dialog', { name: 'Filtrar lista' });
+    expect(within(dialog).getByRole('button', { name: '128GB' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(dialog).getByRole('button', { name: 'Cualquiera' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Precio desde')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: '256GB' }));
+    expect(screen.getByText('US$ 590')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Ver 1 equipo' })).toBeInTheDocument();
+  });
   it('clears the offline banner and reloads when the connection returns', async () => {
     fetchCatalog.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(catalog);
     render(<PublicCatalogPage slug="mi-tienda" />);
@@ -52,5 +70,20 @@ describe('public catalog without session', () => {
     await act(async () => window.dispatchEvent(new Event('online')));
     expect(await screen.findByText('US$ 920')).toBeInTheDocument();
     expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+  });
+  it('clears the banner when the phone is online again without an online event', async () => {
+    let online = false;
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online });
+    try {
+      fetchCatalog.mockRejectedValueOnce(new TypeError('Load failed')).mockResolvedValue(catalog);
+      render(<PublicCatalogPage slug="mi-tienda" />);
+      expect(await screen.findByTestId('offline-banner')).toBeInTheDocument();
+      online = true;
+      await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+      expect(await screen.findByText('US$ 920')).toBeInTheDocument();
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(navigator, 'onLine');
+    }
   });
 });

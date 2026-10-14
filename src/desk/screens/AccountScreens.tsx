@@ -1,4 +1,4 @@
-import { toUserMessage } from '../../lib/user-message';
+import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
@@ -109,7 +109,7 @@ export function NotificationsScreen() {
             { id: 'unread', label: 'Sin leer' },
           ]} value={filter} onChange={setFilter} />
         </div>
-        {notificationsError ? <div className="wempty" role="alert" style={{ maxWidth: 860 }}>{notificationsError}</div> : null}
+        {notificationsError ? <div className="wempty" role="alert" style={{ maxWidth: 860 }} data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
         {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Cargando notificaciones...</div> : null}
         {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
           <div className="card" style={{ maxWidth: 860 }}>
@@ -162,7 +162,7 @@ export function NotificationsScreen() {
       <div className="notif-sections" data-testid="notifications-sections">
         <ChipRow options={sectionChips} value={section} onChange={setSection} />
       </div>
-      {notificationsError ? <div className="wempty" role="alert">{notificationsError}</div> : null}
+      {notificationsError ? <div className="wempty" role="alert" data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
       {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty">Cargando notificaciones...</div> : visible.length === 0 ? (
         quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
       ) : (

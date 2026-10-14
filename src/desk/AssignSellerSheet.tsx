@@ -1,4 +1,5 @@
 import { toUserMessage } from '../lib/user-message';
+import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { ROLE_LABEL } from '../lib/roles';
@@ -10,8 +11,15 @@ export function AssignSellerSheet({ saleIds, subtitle, onClose, onSaved }: { sal
   const [member, setMember] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sellerRetry, setSellerRetry] = useState(0);
+  useOfflineRecovery(error, () => setSellerRetry(value => value + 1));
   const submitting = useRef(false);
-  useEffect(() => { void loadCommissionSellers().catch(cause => setError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
+  useEffect(() => {
+    let active = true;
+    setError('');
+    void loadCommissionSellers().catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    return () => { active = false; };
+  }, [sellerRetry]);
   const save = async () => {
     if (submitting.current || member === null) return;
     submitting.current = true; setBusy(true); setError('');

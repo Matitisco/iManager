@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { OperationSource } from '../services/operations-api';
 import { toUserMessage } from '../lib/user-message';
+import { useOfflineRecovery } from '../lib/offline-recovery';
 
 export const DRAFT_LOAD_ERROR_MESSAGE = 'No se pudieron cargar los borradores. Probá de nuevo en un momento.';
 
@@ -13,15 +14,18 @@ export function draftLoadNotice(error: unknown): string | null {
 export function useOperationDraftError(source: OperationSource): string | null {
   const { loadOperationDrafts } = useAppContext();
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useOfflineRecovery(draftError, () => setAttempt(value => value + 1));
 
   useEffect(() => {
     if (typeof loadOperationDrafts !== 'function') return;
     let active = true;
+    setDraftError(null);
     loadOperationDrafts(source).catch((error: unknown) => {
       if (active) setDraftError(draftLoadNotice(error));
     });
     return () => { active = false; };
-  }, [source]);
+  }, [source, attempt]);
 
   return draftError;
 }

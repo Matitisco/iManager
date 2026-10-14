@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #350 — Chips de filtros y aviso offline — 2026-10-14
+
+- El catálogo público ya no usa `<select>`. En desktop los filtros son chips con menú (modelo, capacidad, condición, batería y precio). En el teléfono quedan dentro del sheet «Filtrar lista»: chips de selección única, batería mínima con «Cualquiera» y precio desde/hasta. El botón dice «Filtros · N».
+- El aviso «No hay conexión» de #347 sólo escuchaba `online` dentro del catálogo, así que en Más (y otras lecturas) el texto quedaba en el estado de React. Ahora una suscripción compartida avisa con `online`, al volver a primer plano y si `navigator.onLine` pasa de falso a verdadero; cada lectura reintenta y el aviso se va sin navegar. Un pago no se reenvía solo.
+- «Cargá un WhatsApp válido…» abre el formulario de la tienda con el teléfono enfocado.
+- Sin cambios de Prisma ni exportación de filas.
+- Validación: lint frontend/backend, build, 665 tests frontend, 245 unitarios backend (20 fixtures externos omitidos), 123 integraciones, 148 E2E (1 omitido) y 57 PWA E2E (36 omisiones por plataforma). El E2E nuevo corta la red y comprueba que el aviso desaparece al reconectar, en la lista pública y en Más, sin cambiar de pantalla.
+
 ## Issue #347 — Ajustes del catálogo público — 2026-10-14
 
 - El botón de WhatsApp de `/c/:slug` usa `wa.me` con el texto en UTF-8. Un teléfono argentino local pasa a `549` más 10 dígitos; un internacional explícito conserva su prefijo. Sin un número válido no hay botón, y Catálogo muestra el aviso con enlace a Configuración.

@@ -56,10 +56,16 @@ for (const device of [
     expect(await lead.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     const payload = await (await request.get(`${api}/api/public/catalog/${slug}`)).json();
     expect(JSON.stringify(payload)).not.toMatch(/"(?:cost|imei|serial|supplier|customFields|id|storeId)"/);
-    if (device.mobile) await lead.getByRole('button', { name: 'Filtros', exact: true }).click();
+    await expect(lead.locator('select')).toHaveCount(0);
+    if (device.mobile) await lead.getByRole('button', { name: /^Filtros/ }).click();
     const filters = device.mobile ? lead.getByRole('dialog', { name: 'Filtrar lista' }) : lead.locator('.price-desktop-filters');
-    await filters.getByLabel('Capacidad').selectOption('128GB');
-    if (device.mobile) await filters.getByRole('button', { name: 'Ver 1 equipos' }).click();
+    if (device.mobile) {
+      await filters.getByRole('button', { name: '128GB', exact: true }).click();
+      await filters.getByRole('button', { name: 'Ver 1 equipo' }).click();
+    } else {
+      await filters.getByRole('button', { name: 'Capacidad', exact: true }).click();
+      await lead.getByRole('option', { name: '128GB' }).click();
+    }
     await expect(lead.getByText('US$ 590')).toHaveCount(0);
     await lead.getByRole('textbox', { name: 'Buscar modelo o color' }).fill('no coincide');
     await expect(lead.getByText('No hay equipos con estos filtros')).toBeVisible();

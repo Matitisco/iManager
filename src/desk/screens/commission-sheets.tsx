@@ -1,4 +1,5 @@
 import { toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -20,6 +21,8 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   const [effectiveFrom, setEffectiveFrom] = useState(`${period}-01`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sellerRetry, setSellerRetry] = useState(0);
+  useOfflineRecovery(error, () => setSellerRetry(value => value + 1));
   const submitting = useRef(false);
   const [ruleAction, setRuleAction] = useState<{ id: string; action: 'Eliminar' | 'Desactivar' | 'Activar' } | null>(null);
   const manageRule = async () => {
@@ -32,7 +35,12 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
     } catch (cause) { setError(toUserMessage(cause, 'No se pudo modificar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
-  useEffect(() => { void loadCommissionSellers().catch(cause => setError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
+  useEffect(() => {
+    let active = true;
+    setError('');
+    void loadCommissionSellers().catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    return () => { active = false; };
+  }, [sellerRetry]);
   const save = async () => {
     if (submitting.current) return;
     if (!effectiveFrom || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
@@ -73,6 +81,7 @@ export function CommissionPaymentSheet({ memberId, period, people, onClose }: { 
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  useOfflineRecovery(error, () => setError(''));
   const submitting = useRef(false);
   useEffect(() => { if (!dirtyRate.current && blue.rate) setExchangeRate(String(blue.rate)); }, [blue.rate]);
   const rate = Number(exchangeRate);

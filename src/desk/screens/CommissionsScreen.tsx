@@ -1,4 +1,5 @@
 import { toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -90,6 +91,7 @@ export function CommissionsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  useOfflineRecovery(error, () => setRetry(value => value + 1));
   const summary = commissionSummaries[period];
   const mine = commissionDetails[`mine:${period}`];
   const detail = member ? commissionDetails[`${member}:${period}`] : undefined;
