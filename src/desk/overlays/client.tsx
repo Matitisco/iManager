@@ -19,6 +19,19 @@ import { clientCoverageLines } from '../../lib/warranty';
 import { clientCredit, creditTotal } from '../client-balance';
 import { CoverageBlock } from '../warranty';
 
+function paymentCaption(payment: ClientPaymentRecord) {
+  const label = payment.kind === 'DEVOLUCION' ? 'Devolución'
+    : payment.kind === 'SENA' ? 'Cobro de seña'
+    : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)'
+    : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)'
+    : payment.kind === 'CARGO' ? 'Deuda'
+    : payment.kind === 'DESCUENTO' ? 'Descuento de deuda'
+    : payment.kind === 'NOTA_CREDITO' ? 'Nota de crédito'
+    : payment.kind === 'VUELTO' ? 'Vuelto'
+    : paymentLabel(payment.method);
+  return payment.note && (payment.kind == null || payment.kind === 'PAGO') ? `${label} · ${payment.note}` : label;
+}
+
 export function ClientDetail({ id }: { id: string }) {
   const { clients, user, registerClientPayment, sales = [], repairOrders = [] } = useAppContext();
   const money = useMoney();
@@ -128,7 +141,7 @@ export function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : payment.kind === 'SENA' ? 'Cobro de seña' : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)' : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)' : payment.kind === 'CARGO' ? 'Deuda' : payment.kind === 'DESCUENTO' ? 'Descuento de deuda' : payment.kind === 'NOTA_CREDITO' ? 'Nota de crédito' : payment.kind === 'VUELTO' ? 'Vuelto' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentCaption(payment)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
           ))}
         </>
       ) : null}

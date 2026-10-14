@@ -12,7 +12,7 @@ export function fromCents(value: number): number {
   return value / 100;
 }
 
-/** Day 7 is yellow: the written ranges leave that day unspecified, and warning one day earlier is the safer collection rule. */
+/** Yellow runs from day 7 through day 30. */
 export function balanceTone(days: number): Tone {
   if (!Number.isFinite(days) || days < 7) return "verde";
   if (days <= 30) return "amarillo";

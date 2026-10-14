@@ -263,4 +263,125 @@ describe("cancel refund", () => {
       detail: null,
     });
   });
+
+  it("refunds the 160 collected on a sale and leaves an unrelated balance", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "V-0207", amount: 160, paymentMethod: "EFECTIVO", status: "PENDIENTE", currency: "USD" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const saleId = created.json().sale.id as string;
+    const cargo = await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 35, currency: "USD", note: "Otra deuda" },
+    });
+    expect(cargo.statusCode, cargo.body).toBe(201);
+    const payment = await app.inject({
+      method: "POST",
+      url: `/api/clients/${fixture.client.id}/payments`,
+      headers,
+      payload: { amount: 160, method: "EFECTIVO", currency: "USD" },
+    });
+    expect(payment.statusCode, payment.body).toBe(201);
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).toContain("devolución US$ 160");
+    const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
+    expect(client.pendingBalance.toNumber()).toBe(35);
+    expect((await prisma.clientPayment.findFirstOrThrow({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).amount.toNumber()).toBe(160);
+  });
+
+  it("refunds the 100 collected when the price was raised to 150 and keeps a manual debt of 15", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "V-0208", amount: 100, paymentMethod: "EFECTIVO", status: "COMPLETADA", currency: "USD" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const saleId = created.json().sale.id as string;
+    const raised = await app.inject({ method: "PATCH", url: `/api/operations/sales/sales/${saleId}`, headers, payload: { amount: 150 } });
+    expect(raised.statusCode, raised.body).toBe(200);
+    const cargo = await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 15, currency: "USD", note: "Deuda manual" },
+    });
+    expect(cargo.statusCode, cargo.body).toBe(201);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(65);
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).toMatch(/devolución (US\$|\$) 100/);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(15);
+    expect((await prisma.clientPayment.findFirstOrThrow({ where: { saleId, kind: "DEVOLUCION" } })).amount.toNumber()).toBe(100);
+  });
+
+  it("refunds a payment of 30 on a pending sale without clearing another debt", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "V-0206", amount: 100, paymentMethod: "EFECTIVO", status: "PENDIENTE", currency: "USD" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const saleId = created.json().sale.id as string;
+    const cargo = await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 80, currency: "USD", note: "Otra deuda" },
+    });
+    expect(cargo.statusCode, cargo.body).toBe(201);
+    const payment = await app.inject({
+      method: "POST",
+      url: "/api/accounts/collections",
+      headers,
+      payload: { clientId: fixture.client.id, saleId, amount: 30, method: "EFECTIVO", currency: "USD" },
+    });
+    expect(payment.statusCode, payment.body).toBe(201);
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).toContain("devolución US$ 30");
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(80);
+  });
+
+  it("lists the collection taken when the sale is confirmed", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "Cobro al confirmar", amount: 160, paymentMethod: "TRANSFERENCIA", status: "COMPLETADA", currency: "USD" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const saleId = created.json().sale.id as string;
+    const history = await app.inject({ method: "GET", url: `/api/clients/${fixture.client.id}/payments`, headers });
+    expect(history.statusCode).toBe(200);
+    expect(history.json().payments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ amount: 160, method: "TRANSFERENCIA", kind: "PAGO", note: "Cobro de venta", saleId }),
+    ]));
+  });
 });

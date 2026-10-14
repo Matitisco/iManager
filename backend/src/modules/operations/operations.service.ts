@@ -1,6 +1,6 @@
 import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
-import { recordPriceRise, releaseCompletedOpenBalance } from "../accounts/accounts.service.js";
+import { recordPriceRise } from "../accounts/accounts.service.js";
 import { priceRiseDebt } from "../accounts/ledger.js";
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
@@ -9,7 +9,7 @@ import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { formatArMoney } from "../../lib/ar-money.js";
-import { cancellationRefund } from "../../lib/cancel-refund.js";
+import { cancellationSettlement, type RefundTarget } from "../../lib/cancel-refund.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -666,6 +666,9 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
     const paymentStatus = settlement?.status ?? input.status ?? "COMPLETADA";
     const debt = settlement ? settlement.unpaid : dueAmount - Number(depositAmount);
+    if (!settlement && client && paymentStatus === "COMPLETADA") {
+      await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: Math.max(0, dueAmount - Number(depositAmount)), currency: labelCurrency, method: sale.paymentMethod });
+    }
     const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, paymentStatus, date, 1, debt) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     if (product && !outputState) throw new OperationError("Inventory item not found", 404);
@@ -691,7 +694,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         { recordId: incoming?.id, reason: "Nuevo · entró por canje" },
       ]) } },
     ));
-    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: !!incoming, receivedStatus: trade?.status, currency: labelCurrency }) };
+    return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: !!incoming, receivedStatus: trade?.status, currency: labelCurrency, unpaid: settlement ? settlement.unpaid : undefined }) };
   });
 }
 
@@ -843,6 +846,9 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const settlement = await settleNewSale(tx, { storeId, saleId: sale.id, clientId: client.id, due: outgoingAmount - takeValue - Number(depositAmount), currency: labelCurrency, exchangeRate: exchangeRate == null ? null : Number(exchangeRate), input, actor });
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
     const paymentStatus = settlement?.status ?? input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
+    if (!settlement && paymentStatus === "COMPLETADA") {
+      await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: Math.max(0, outgoingAmount - takeValue - Number(depositAmount)), currency: labelCurrency, method: sale.paymentMethod });
+    }
     const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, settlement ? settlement.unpaid : outgoingAmount - takeValue - Number(depositAmount));
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     const saleLabel = product ? fullDeviceLabel(product) : deviceLabel ?? "";
@@ -873,7 +879,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       inventory: [outputState, received].filter(present).map(serializeProduct),
       clients: updatedClient ? [serializeClient(updatedClient)] : [],
       notifications,
-      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: true, receivedStatus: confirmed.status, currency: labelCurrency }),
+      summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: true, receivedStatus: confirmed.status, currency: labelCurrency, unpaid: settlement ? settlement.unpaid : undefined }),
     };
   });
 }
@@ -1222,22 +1228,92 @@ function documentCode(prefix: "V" | "C", number: number) {
   return `${prefix}-${String(number).padStart(4, "0")}`;
 }
 
+async function recordSaleCollection(
+  tx: Prisma.TransactionClient,
+  args: { storeId: string; clientId: string; saleId: string; amount: number; currency: string; method: string },
+) {
+  if (!(args.amount > 0)) return;
+  await tx.clientPayment.create({
+    data: {
+      storeId: args.storeId,
+      clientId: args.clientId,
+      saleId: args.saleId,
+      amount: dec(args.amount),
+      currency: args.currency,
+      method: args.method.trim() || "EFECTIVO",
+      kind: "PAGO",
+      note: "Cobro de venta",
+    },
+  });
+}
+
+function operationCash(amount: number, deposit: number) {
+  return Math.max(0, amount - deposit);
+}
+
+async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: string, sale: Sale, cash: number) {
+  if (!sale.clientId) return { refund: 0, debtToRemove: 0 };
+  const [rows, siblings] = await Promise.all([
+    tx.clientPayment.findMany({
+      where: { storeId, clientId: sale.clientId },
+      select: { saleId: true, repairOrderId: true, kind: true, amount: true },
+    }),
+    tx.sale.findMany({
+      where: {
+        storeId,
+        clientId: sale.clientId,
+        OR: [{ id: sale.id }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }],
+      },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        openBalance: true,
+        depositAppliedAmount: true,
+        soldAt: true,
+        tradeIn: { select: { differencePaid: true } },
+      },
+    }),
+  ]);
+  const targets: RefundTarget[] = siblings.map((row) => ({
+    id: row.id,
+    cash: operationCash(row.tradeIn ? toNum(row.tradeIn.differencePaid) : toNum(row.amount), Number(row.depositAppliedAmount)),
+    status: row.status,
+    openBalance: row.openBalance == null ? null : toNum(row.openBalance),
+    soldAt: row.soldAt.toISOString(),
+  }));
+  const target = targets.find((row) => row.id === sale.id) ?? {
+    id: sale.id,
+    cash,
+    status: sale.status,
+    openBalance: sale.openBalance == null ? null : toNum(sale.openBalance),
+    soldAt: sale.soldAt.toISOString(),
+  };
+  target.cash = cash;
+  const plan = cancellationSettlement(target, targets, rows.map((row) => ({
+    saleId: row.saleId,
+    repairOrderId: row.repairOrderId,
+    kind: row.kind,
+    amount: toNum(row.amount),
+  })));
+  return { refund: plan.refund.toNumber(), debtToRemove: plan.debtToRemove.toNumber() };
+}
+
 async function recordCancellationRefund(
   tx: Prisma.TransactionClient,
   storeId: string,
   clientId: string | null,
-  input: { status: string; cash: number; method: string; label: string; currency?: string },
+  input: { refund: number; method: string; label: string; currency?: string; saleId?: string },
 ) {
-  if (!clientId) return 0;
-  const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { pendingBalance: true } });
+  if (!clientId || !(input.refund > 0)) return 0;
+  const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { id: true } });
   if (!client) return 0;
-  const refund = cancellationRefund(input.status, input.cash, toNum(client.pendingBalance));
-  if (refund.lessThanOrEqualTo(0)) return 0;
   await tx.clientPayment.create({
     data: {
       storeId,
       clientId,
-      amount: refund,
+      saleId: input.saleId ?? null,
+      amount: dec(input.refund),
       currency: input.currency ?? await storeCurrency(storeId, tx),
       method: input.method.trim() || "EFECTIVO",
       kind: "DEVOLUCION",
@@ -1245,7 +1321,7 @@ async function recordCancellationRefund(
       paidAt: new Date(),
     },
   });
-  return refund.toNumber();
+  return input.refund;
 }
 
 function refundSummary(refund: number, currency?: string | null) {
@@ -1260,12 +1336,13 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
     if (sale.status === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
     const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
+    const plan = await planSaleCancellation(tx, storeId, sale, operationCash(toNum(sale.amount), Number(sale.depositAppliedAmount)));
     const refund = await recordCancellationRefund(tx, storeId, sale.clientId, {
-      status: sale.status,
-      cash: toNum(sale.amount) - Number(sale.depositAppliedAmount),
+      refund: plan.refund,
       currency: labelCurrency,
       method: sale.paymentMethod,
       label: documentCode("V", sale.saleNumber),
+      saleId: sale.id,
     });
     if (sale.inventoryItemId && sale.integratedOperation) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
@@ -1275,9 +1352,8 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
-    const released = sale.clientId ? await releaseCompletedOpenBalance(tx, sale.clientId, sale.status, sale.openBalance) : null;
-    const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(sale.amount) - Number(sale.depositAppliedAmount)) : null;
-    const client = adjusted ?? released;
+    const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove) : null;
+    const client = adjusted;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const notifications = await notify(tx, storeId, sectionRecords(
       ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])],
@@ -1323,13 +1399,14 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
     if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
+    const plan = sale ? await planSaleCancellation(tx, storeId, sale, operationCash(toNum(trade.differencePaid), Number(sale.depositAppliedAmount))) : { refund: 0, debtToRemove: 0 };
     const refund = sale
       ? await recordCancellationRefund(tx, storeId, trade.clientId, {
-        status: sale.status,
-        cash: toNum(trade.differencePaid) - Number(sale.depositAppliedAmount),
+        refund: plan.refund,
         currency: labelCurrency,
         method: sale.paymentMethod,
         label: documentCode("C", trade.tradeNumber),
+        saleId: sale.id,
       })
       : 0;
     const stamp = cancellationStamp(actor);
@@ -1344,11 +1421,10 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       await writeAudit(tx, { storeId, actor, action: "trade.cancelled", entityType: "trade", entityId: trade.id, detail });
       if (sale) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
     }
-    const released = trade.clientId && sale ? await releaseCompletedOpenBalance(tx, trade.clientId, sale.status, sale.openBalance) : null;
     const adjusted = trade.clientId && sale
-      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(trade.differencePaid) - Number(sale.depositAppliedAmount))
+      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove)
       : null;
-    const client = adjusted ?? released;
+    const client = adjusted;
     const [archivedReceived, output] = await Promise.all([
       received ? tx.inventoryItem.findFirst({ where: { id: received.id, storeId } }) : null,
       sale?.inventoryItemId ? tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null,

@@ -68,6 +68,7 @@ describe('cuenta corriente', () => {
     renderAccount();
     expect(await screen.findByText('Ana Pérez')).toBeInTheDocument();
     expect(screen.getByText('Menos de 7 días')).toBeInTheDocument();
+    expect(screen.getByText(/amarillo de 7 a 30/)).toBeInTheDocument();
     expect(screen.getByText('Venta 12')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/csv/i)).not.toBeInTheDocument();
@@ -86,6 +87,31 @@ describe('cuenta corriente', () => {
       saleId: 's1',
       amount: 200,
       method: 'EFECTIVO',
+    })));
+  });
+
+  it('deja elegir la venta de la nota de crédito', async () => {
+    const user = userEvent.setup();
+    const row = debtor();
+    row.lines = [
+      row.lines[0]!,
+      { ...row.lines[0]!, id: 's2', label: 'Venta 20', saleId: 's2', amount: 80 },
+    ];
+    api.fetchDebtors.mockResolvedValue({ debtors: [row] });
+    api.createAccountMovement.mockResolvedValue({ client: { id: 'c1' } });
+    renderAccount();
+    await screen.findByText('Ana Pérez');
+    await user.click(screen.getByRole('button', { name: 'Descontar deuda' }));
+    const sheet = screen.getByRole('dialog', { name: 'Descontar deuda' });
+    expect(within(sheet).getByRole('radio', { name: 'Venta 12' })).toBeChecked();
+    await user.click(within(sheet).getByRole('radio', { name: 'Venta 20' }));
+    await user.click(within(sheet).getByRole('checkbox', { name: /Nota de crédito de la venta elegida/ }));
+    await user.type(within(sheet).getByLabelText('Monto'), '40');
+    await user.click(within(sheet).getByRole('button', { name: 'Descontar deuda' }));
+    await waitFor(() => expect(api.createAccountMovement).toHaveBeenCalledWith(expect.anything(), 'c1', expect.objectContaining({
+      kind: 'NOTA_CREDITO',
+      saleId: 's2',
+      amount: 40,
     })));
   });
 });

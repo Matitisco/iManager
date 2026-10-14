@@ -49,6 +49,7 @@ export type ClientPaymentRecord = {
   paidAt: string;
   kind?: string;
   note?: string | null;
+  saleId?: string | null;
   currency?: string | null;
 };
 

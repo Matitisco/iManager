@@ -102,8 +102,12 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       if (open <= 0) continue;
       openSales = fromCents(cents(openSales) + cents(open));
       const openedAt = ymd(sale.soldAt, clock.timeZone);
-      const age = lineTone(openedAt, clock.today);
       const slices = installmentsBySale.get(sale.id) ?? [];
+      const overdueAt = slices
+        .filter((slice) => installmentStatus(slice, clock.today) === "VENCIDA")
+        .map((slice) => slice.dueDate)
+        .sort()[0];
+      const age = lineTone(overdueAt ?? openedAt, clock.today);
       lines.push({
         id: sale.id,
         source: "VENTA",
@@ -157,8 +161,8 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       });
     }
     if (pending <= 0 && repairBalance <= 0) continue;
-    const oldest = lines.reduce((min, item) => (item.openedAt < min ? item.openedAt : min), lines[0]?.openedAt ?? clock.today);
-    const age = lineTone(oldest, clock.today);
+    const days = lines.reduce((max, item) => Math.max(max, item.days), 0);
+    const age = { days, tone: balanceTone(days) };
     const currency = client.balanceCurrency ?? clock.currency;
     const money = (amount: number) => `${currency === "USD" ? "US$" : "$"} ${amount.toLocaleString("es-AR")}`;
     const statement = [

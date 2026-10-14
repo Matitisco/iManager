@@ -208,16 +208,17 @@ export function sectionRecords(
   }));
 }
 
-export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; depositApplied?: number; status: string; hasInventory: boolean; received?: boolean; receivedStatus?: string; currency?: string | null }) {
+export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; depositApplied?: number; status: string; hasInventory: boolean; received?: boolean; receivedStatus?: string; currency?: string | null; unpaid?: number }) {
   const format = (value: number) => money(value, input.currency);
   const amount = format(input.amount);
   const applied = Math.max(0, input.depositApplied ?? 0);
+  const debtOf = (base: number) => input.unpaid != null ? Math.max(0, input.unpaid) : input.status === "PENDIENTE" ? Math.max(0, base - applied) : 0;
   if (!input.trade) {
-    const debtValue = input.status === "PENDIENTE" ? Math.max(0, input.amount - applied) : 0;
+    const debtValue = debtOf(input.amount);
     return `Venta ${amount} · deuda ${format(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
   }
   const difference = Math.max(0, input.amount - (input.takeValue ?? 0));
-  const debtValue = input.status === "PENDIENTE" ? Math.max(0, difference - applied) : 0;
+  const debtValue = debtOf(difference);
   const settlement = debtValue > 0 ? `debe ${format(debtValue)}` : "pagada";
   const technicalStatus = input.receivedStatus ?? "PENDIENTE";
   const technicalLabel = ({
