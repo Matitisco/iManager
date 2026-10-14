@@ -128,7 +128,7 @@ export function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : payment.kind === 'SENA' ? 'Cobro de seña' : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)' : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : payment.kind === 'SENA' ? 'Cobro de seña' : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)' : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)' : payment.kind === 'CARGO' ? 'Deuda' : payment.kind === 'DESCUENTO' ? 'Descuento de deuda' : payment.kind === 'NOTA_CREDITO' ? 'Nota de crédito' : payment.kind === 'VUELTO' ? 'Vuelto' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
           ))}
         </>
       ) : null}
@@ -160,6 +160,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const [email, setEmail] = useState(current?.email ?? '');
   const [balance, setBalance] = useState(current ? money.inputValue(current.pendingBalance, current.balanceCurrency) : '');
   const [tag, setTag] = useState(current?.tag ?? '');
+  const [birthday, setBirthday] = useState(current?.birthday ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
@@ -175,6 +176,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
         </div>
       )}
       <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
+      <Field label="Cumpleaños"><input type="date" aria-label="Cumpleaños" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field>
       <Field label="Instagram"><input value={instagram} placeholder="@usuario" onChange={(event) => setInstagram(event.target.value)} /></Field>
       {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
       <Field label="Etiqueta"><span /></Field>
@@ -203,6 +205,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
           pendingBalance: priced.amounts[0]?.amount ?? 0,
           balanceCurrency: priced.amounts[0]?.currency ?? null,
           tag: tag || null,
+          birthday: birthday || null,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
         };

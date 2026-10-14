@@ -23,6 +23,7 @@ export interface ClientInput {
   pendingBalance?: number;
   balanceCurrency?: string | null;
   tag?: string | null;
+  birthday?: string | null;
   customFields?: Record<string, unknown> | null;
 }
 
@@ -40,6 +41,7 @@ export interface ClientResponse {
   balanceCurrency: string | null;
   categoryId: string | null;
   tag: string | null;
+  birthday: string | null;
   customFields: Record<string, unknown>;
   createdAt: string | null;
 }
@@ -62,6 +64,7 @@ type ClientRecord = {
   balanceCurrency?: string | null;
   categoryId: string | null;
   tag?: string | null;
+  birthday?: Date | null;
   customFields: Prisma.JsonValue | null;
   createdAt?: Date | null;
 };
@@ -110,9 +113,16 @@ export function serializeClient(client: ClientRecord, creditBalance = 0): Client
     balanceCurrency: client.balanceCurrency ?? null,
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
+    birthday: client.birthday ? client.birthday.toISOString().slice(0, 10) : null,
     customFields: toCustomFields(client.customFields),
     createdAt: client.createdAt ? client.createdAt.toISOString() : null,
   };
+}
+
+function parseBirthday(value?: string | null) {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ClientsError("El cumpleaños tiene que tener formato aaaa-mm-dd");
+  return new Date(`${value}T12:00:00.000Z`);
 }
 
 function parseLastPurchaseDate(value?: string | null) {
@@ -175,6 +185,7 @@ export async function createClient(storeId: string, input: ClientInput) {
       pendingBalance: toDecimal(input.pendingBalance),
       ...(balanceCurrency ? { balanceCurrency } : {}),
       tag: input.tag || null,
+      birthday: parseBirthday(input.birthday),
       customFields: normalizeCustomFields(input.customFields),
   });
 
@@ -229,6 +240,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
         input.pendingBalance !== undefined ? toDecimal(input.pendingBalance) : existing.pendingBalance,
       ...(nextCurrency ? { balanceCurrency: nextCurrency } : {}),
       tag: input.tag !== undefined ? input.tag || null : existing.tag,
+      birthday: input.birthday !== undefined ? parseBirthday(input.birthday) : existing.birthday,
       customFields:
         input.customFields !== undefined
           ? normalizeCustomFields(input.customFields)

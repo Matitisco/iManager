@@ -33,6 +33,7 @@ const clientCreateSchema = z.object({
   pendingBalance: z.number().nonnegative().optional(),
   balanceCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   tag: z.string().trim().max(30).nullable().optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 

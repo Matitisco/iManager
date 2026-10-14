@@ -41,6 +41,17 @@ export interface OperationInput {
     grade?: string;
     customFields?: Record<string, unknown>;
   } | null;
+  tenders?: Array<{ amount: number; currency: 'ARS' | 'USD'; method: string; exchangeRate?: number | null }>;
+  excess?: 'OMIT' | 'CREDIT' | 'CHANGE';
+  changeMethod?: string;
+  installments?: {
+    count: number;
+    frequency: 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
+    firstDueDate: string;
+    surcharge?: number;
+    collectFirstNow?: boolean;
+    firstMethod?: string;
+  } | null;
 }
 
 export interface OperationResult {

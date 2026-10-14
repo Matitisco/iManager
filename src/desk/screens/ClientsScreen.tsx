@@ -23,6 +23,7 @@ import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
 import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Client } from '../../types';
+import { AccountCurrent, FollowUps } from './CurrentAccount';
 
 const SORTS = ['Deudores', 'Nombre', 'Última compra', 'Gastado'];
 
@@ -68,6 +69,7 @@ export function ClientsScreen() {
   const notices = useSectionNotices('clients');
   const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
+  const [view, setView] = useState('lista');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Deudores');
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
@@ -131,11 +133,18 @@ export function ClientsScreen() {
       {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar">
-        <ChipRow
+        <div className="acct-views">
+          <ChipRow
+            options={[{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }]}
+            value={view}
+            onChange={setView}
+          />
+        </div>
+        {view === 'lista' ? <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
           value={filter}
           onChange={setFilter}
-        />
+        /> : null}
         {phone ? (
           <MenuButton
             testId="clients-sort"
@@ -147,12 +156,14 @@ export function ClientsScreen() {
           />
         ) : null}
       </div>
-      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={ordered.length}
+      {view === 'cuenta' ? <AccountCurrent query={query} /> : null}
+      {view === 'seguimientos' ? <FollowUps /> : null}
+      {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
+      {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
         action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
-      />
-      {phone ? (
+      /> : null}
+      {view === 'lista' && phone ? (
         listed.length === 0 ? (
           quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="wempty">No hay clientes con ese filtro.</div>
         ) : (
@@ -183,7 +194,7 @@ export function ClientsScreen() {
             <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
           </>
         )
-      ) : (
+      ) : view === 'lista' ? (
       <div className="dcard flush">
         <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
         <table className="dtable">
@@ -254,8 +265,8 @@ export function ClientsScreen() {
         {listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
-      )}
-      {phone && selection.selected.length === 0 ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
+      ) : null}
+      {view === 'lista' && phone && selection.selected.length === 0 ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cl-sheet">
           <div className="inv-filters">

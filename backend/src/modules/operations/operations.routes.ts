@@ -69,6 +69,22 @@ const inputSchema = z.object({
     price: z.number().nonnegative().optional(),
   }).optional(),
   tradeIn: tradeSchema,
+  tenders: z.array(z.object({
+    amount: z.number().positive(),
+    currency: z.enum(["ARS", "USD"]),
+    method: z.string().trim().min(1).max(50),
+    exchangeRate: z.number().finite().positive().nullable().optional(),
+  })).max(8).optional(),
+  excess: z.enum(["OMIT", "CREDIT", "CHANGE"]).optional(),
+  changeMethod: z.string().trim().min(1).max(50).optional(),
+  installments: z.object({
+    count: z.number().int().min(2).max(36),
+    frequency: z.enum(["SEMANAL", "QUINCENAL", "MENSUAL"]),
+    firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    surcharge: z.number().nonnegative().optional(),
+    collectFirstNow: z.boolean().optional(),
+    firstMethod: z.string().trim().min(1).max(50).optional(),
+  }).nullable().optional(),
 });
 
 function getSource(value: unknown): OperationSource | null {
