@@ -36,6 +36,7 @@ describe('import-api', () => {
     expect(await analyzeInventoryText(mockUser, text)).toEqual(analysis);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze-text', {
       method: 'POST',
+      cache: 'no-store',
       headers: { Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     }, 190_000);
