@@ -45,9 +45,15 @@ export async function mockCommissions(page: Page, issue334 = false) {
   await page.route('https://dolarapi.com/**', route => route.fulfill({ json: { compra: 1280, venta: 1300, fechaActualizacion: '2026-10-13T21:30:00Z' } }));
   await page.route('https://api.bluelytics.com.ar/**', route => route.fulfill({ json: {} }));
   await page.route('https://mercados.ambito.com/**', route => route.fulfill({ json: {} }));
-  await page.route('**/api/**', async route => {
-    const request = route.request(); const url = new URL(request.url()); const path = url.pathname; state.calls.push(path);
-    const json = async (value: unknown, status = 200) => route.fulfill({ json: value, status });
+  // WebKit drops page.route after reload. The staff reload then requests
+  // /api/inventory from the API origin, Safari emits a CORS page error, and
+  // "Mis comisiones" never paints. A context route still intercepts it.
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS' };
+  await page.context().route('**/api/**', async route => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const url = new URL(request.url()); const path = url.pathname; state.calls.push(path);
+    const json = async (value: unknown, status = 200) => route.fulfill({ json: value, status, headers: cors });
     if (path === '/api/me') return json({ ...me, user: { ...me.user, id: state.staff ? 'sofia-user' : 'owner-user', displayName: state.staff ? 'Sofía Pérez' : 'Usuario Ejemplo' }, store: { ...me.store, id: 'commission-store', name: 'Mi Tienda Ejemplo' }, membership: { role: state.staff ? 'STAFF' : 'OWNER', sections: state.staff ? ['dashboard', 'inventory', 'sales', 'tradeins', 'clients', 'notifications'] : null, isDefault: true } });
     if (path === '/api/commissions/exchange-rate') return json({ exchangeRate: 1300 });
     if (path === '/api/commissions/sellers') return json({ sellers });

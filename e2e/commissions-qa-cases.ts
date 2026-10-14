@@ -76,7 +76,10 @@ export function commissionsQaTests(phone: boolean) {
     await page.getByRole('dialog', { name: 'Registrar venta', exact: true }).getByRole('button', { name: 'Cerrar', exact: true }).last().click();
     await navigate('#/comisiones');
     await expect(page.getByRole('button', { name: /exportar|descargar|csv/i })).toHaveCount(0);
-    state.staff = true; await page.reload(); await navigate('#/comisiones');
+    state.staff = true;
+    await page.reload();
+    await expect(page.locator('.desk-app')).toBeVisible();
+    await navigate('#/comisiones');
     await expect(page.getByRole('heading', { name: 'Mis comisiones', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Anular pago|Reglas|Registrar pago/ })).toHaveCount(0);
   });
