@@ -16,6 +16,7 @@ import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
 import { clientCoverageLines } from '../../lib/warranty';
+import { clientCredit, creditTotal } from '../client-balance';
 import { CoverageBlock } from '../warranty';
 
 export function ClientDetail({ id }: { id: string }) {
@@ -82,10 +83,18 @@ export function ClientDetail({ id }: { id: string }) {
   };
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
+  const credit = !deposits.loading && !deposits.error ? creditTotal(deposits.rows, client.balanceCurrency ?? null) : clientCredit(client);
+  const net = client.pendingBalance - credit;
   return (
     <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
-      <div className="dhero"><div className="eb">Saldo pendiente</div><div className="big">{money.show(client.pendingBalance, client.balanceCurrency)}</div></div>
+      <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
+      {credit > 0 ? (
+        <>
+          <div className="kv"><span>Deuda</span><b>{money.show(client.pendingBalance, client.balanceCurrency)}</b></div>
+          <div className="kv"><span>Saldo a favor</span><b>{money.show(credit, client.balanceCurrency)}</b></div>
+        </>
+      ) : null}
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>

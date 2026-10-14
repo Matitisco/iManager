@@ -20,7 +20,7 @@ export async function changeCatalogVisibility(user: AuthUserLike, ids: string[],
 export async function fetchPublicCatalog(slug: string, signal?: AbortSignal): Promise<PublicCatalog> {
   const base = getBackendBaseUrl();
   if (!base) throw new Error('Backend no configurado');
-  const response = await fetchWithTimeout(`${base}/api/public/catalog/${encodeURIComponent(slug)}`, { cache: 'no-store', signal });
+  const response = await fetchWithTimeout(`${base}/api/public/catalog/${encodeURIComponent(slug)}?_=${Date.now()}`, { cache: 'no-store', signal, headers: { 'Cache-Control': 'no-store' } });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new ApiError(response.status, readApiErrorMessage(body, 'No se pudo cargar el catálogo'));

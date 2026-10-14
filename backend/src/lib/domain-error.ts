@@ -9,8 +9,11 @@ export class DomainError extends Error {
 }
 
 export function domainErrorFrom(error: unknown): DomainError | null {
-  if (error instanceof DomainError) return error;
-  if (!error || typeof error !== "object" || !("cause" in error)) return null;
-  const cause = (error as { cause?: unknown }).cause;
-  return cause instanceof DomainError ? cause : null;
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current && typeof current === "object"; depth += 1) {
+    if (current instanceof DomainError) return current;
+    if (!("cause" in current)) return null;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return current instanceof DomainError ? current : null;
 }

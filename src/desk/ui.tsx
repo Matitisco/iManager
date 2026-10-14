@@ -348,7 +348,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{children}</tr>;
 }
 
-export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className }: {
+export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className, extra }: {
   title: string;
   text: string;
   ok: string;
@@ -359,6 +359,7 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, ca
   error?: string | null;
   cancel?: string;
   className?: string;
+  extra?: { label: string; onClick: () => void } | null;
 }) {
   useEscape(onClose);
   return (
@@ -369,6 +370,7 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, ca
         {error ? <div className="ferr">{error}</div> : null}
         <div className="row">
           <button type="button" className="cancel" onClick={onClose} disabled={busy}>{cancel}</button>
+          {extra ? <button type="button" className="ok" onClick={extra.onClick} disabled={busy}>{extra.label}</button> : null}
           <button type="button" className={`ok${danger ? ' danger' : ''}`} onClick={onOk} disabled={busy}>{ok}</button>
         </div>
       </div>

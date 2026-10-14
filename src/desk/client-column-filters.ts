@@ -1,4 +1,5 @@
 import type { Client } from '../types';
+import { clientNet } from './client-balance';
 import { includesText, matchesDateRange, matchesMoney } from './column-filters';
 
 export type ClientColumnFilters = {
@@ -62,6 +63,6 @@ export function matchesClientColumns(client: Client, filters: ClientColumnFilter
   if (!includesText(client.phone, filters.phone)) return false;
   if (!matchesDateRange(client.lastPurchaseDate === 'N/A' ? '' : client.lastPurchaseDate, filters.dateFrom, filters.dateTo)) return false;
   if (!matchesMoney(client.totalSpent, filters.spentMin, filters.spentMax)) return false;
-  if (!matchesMoney(client.pendingBalance, filters.balanceMin, filters.balanceMax)) return false;
+  if (!matchesMoney(clientNet(client), filters.balanceMin, filters.balanceMax)) return false;
   return true;
 }

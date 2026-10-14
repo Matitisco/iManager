@@ -518,7 +518,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
       {confirmDelete ? (
         <Dialog
           title="Eliminar orden"
-          text={`#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
+          text={order.deposit > 0 ? `#${order.code} · ${order.device} se va a borrar. Si tenía una seña aplicada, vuelve como saldo a favor del cliente.` : `#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
           ok="Eliminar"
           danger
           busy={saving}

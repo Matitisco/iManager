@@ -11,6 +11,7 @@ export type BulkAction<T> = {
   explanation: string;
   execute: (row: T) => Promise<unknown>;
   unavailable?: (row: T) => string | undefined;
+  recover?: (row: T) => void;
 };
 
 export function useBulkScope() {
@@ -86,6 +87,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
       </div>
     ) : null}
     {confirmation ? <Dialog title={`${action.label}: ${confirmation.length} ${confirmation.length === 1 ? 'registro' : 'registros'}`} text={`${action.explanation} Se procesan uno por uno; si alguno falla, se detiene la acción y se conservan los pendientes.`}
-      ok={busy ? 'Procesando…' : action.label} onOk={() => { void confirm(); }} onClose={dismiss} busy={busy} danger error={error} className="bulk-confirm" /> : null}
+      ok={busy ? 'Procesando…' : action.label} onOk={() => { void confirm(); }} onClose={dismiss} busy={busy} danger error={error} className="bulk-confirm"
+      extra={error.includes('saldo a favor') && action.recover && confirmation[0] ? { label: 'Registrar devolución', onClick: () => { const row = confirmation[0]; dismiss(); if (row) action.recover?.(row); } } : null} /> : null}
   </>;
 }

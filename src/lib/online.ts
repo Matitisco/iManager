@@ -1,9 +1,33 @@
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+const connectionListeners = new Set<(online: boolean) => void>();
 let listening = false;
 let offlineSeen = false;
+let reportedOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
 let timer: number | undefined;
+
+function emitConnection(online: boolean) {
+  connectionListeners.forEach((listener) => listener(online));
+}
+
+export function markOffline() {
+  if (reportedOnline) {
+    reportedOnline = false;
+    emitConnection(false);
+  }
+}
+
+export function markOnline() {
+  const wasOffline = !reportedOnline;
+  reportedOnline = true;
+  if (wasOffline) emitConnection(true);
+}
+
+export function subscribeConnection(listener: (online: boolean) => void) {
+  connectionListeners.add(listener);
+  return () => connectionListeners.delete(listener);
+}
 
 function notify() {
   offlineSeen = false;
