@@ -162,13 +162,14 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     const refundClient = clients.find((client) => client.id === trade.clientId)
       ?? loadedOperation?.clients?.find((client) => client.id === trade.clientId);
     const refund = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
-      ? cancellationRefund(linkedSaleForRefund.status, trade.differencePaid, refundClient?.pendingBalance ?? 0)
+      ? cancellationRefund(linkedSaleForRefund.status, trade.differencePaid - (linkedSaleForRefund.depositAppliedAmount ?? 0), refundClient?.pendingBalance ?? 0)
       : 0;
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
           label={tradeCode(tradeIns, trade.id)}
           refund={refund}
+        depositCredit={linkedSaleForRefund?.depositAppliedAmount}
           currency={trade.currency}
           busy={busy}
           error={error}
@@ -195,7 +196,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         {trade.confirmationStatus === 'CONFIRMED' ? <>
             <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div>
           <div className="kv"><span>Diferencia</span><b>{money.show(trade.differencePaid, trade.currency)}</b></div>
-            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? money.show(trade.differencePaid, trade.currency) : money.showActive(0)}</b></div>
+            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? money.show(trade.differencePaid - (linkedSale?.depositAppliedAmount ?? 0), trade.currency) : money.showActive(0)}</b></div>
         </> : null}
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>

@@ -1,3 +1,4 @@
+import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
@@ -257,7 +258,14 @@ export async function updateRepair(
   if (nextCurrency) data.currency = nextCurrency;
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await withSerializableRetry(async (tx) => {
+    const applications = await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } });
+    const latest = await tx.repairOrder.findFirstOrThrow({ where: { id, storeId } });
+    if (applications && (input.deposit !== undefined && moneyChanged(latest.deposit, input.deposit) || input.currency != null && input.currency !== latest.currency || input.clientId !== undefined && input.clientId !== latest.clientId || input.clientName !== undefined && input.clientName !== latest.clientName)) throw new RepairError('La orden tiene señas aplicadas. Conservá cliente, moneda y anticipo', 409);
+    if (applications) {
+      if (input.estimate !== undefined && (input.estimate == null || input.estimate < Number(latest.deposit))) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
+      if (latest.currency) data.currency = latest.currency;
+    }
     if (touchesClient) {
       const client = await resolveRepairClient(tx, storeId, input);
       data.clientId = client.clientId;
@@ -302,7 +310,8 @@ export async function changeRepairStatus(storeId: string, id: string, status: st
 export async function deleteRepair(storeId: string, id: string, actor?: Actor | null) {
   const current = await prisma.repairOrder.findFirst({ where: { id, storeId }, select: { id: true, orderNumber: true, device: true } });
   if (!current) return false;
-  await prisma.$transaction(async (tx) => {
+  await withSerializableRetry(async (tx) => {
+    if (await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } })) throw new RepairError('La orden tiene señas aplicadas y debe conservar su historial', 409);
     await tx.repairOrder.delete({ where: { id } });
     if (actor) {
       await writeAudit(tx, {

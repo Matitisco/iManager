@@ -1,3 +1,5 @@
+import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
+import { depositAmount, depositAvailable } from '../deposits';
 import { toUserMessage } from '../../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -68,6 +70,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [productId, setProductId] = useState(linkedProductId);
   const [deviceLabel, setDeviceLabel] = useState(currentSale?.deviceLabel || currentTrade?.draftDeviceLabel || (linkedProduct ? equipmentTitle(linkedProduct.model, linkedProduct.capacity) : ''));
   const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
+  const receipts = useClientDeposits(currentSale ? '' : clientId);
+  const [depositIds, setDepositIds] = useState<string[]>([]);
+  useEffect(() => { setDepositIds([]); }, [clientId, productId]);
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
@@ -158,7 +163,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const equipmentItems: (OperationProductOption | Product)[] = [
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
-  ].filter((item) => item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
+  ].filter((item) => item.reservedDepositId ? item.reservedClientId === clientId : item.id === productId || (item.pendingSaleRegistration ? !currentSale : (!('status' in item) || isInStock(item.status))));
   const priceEntered = amount.trim() !== '';
   const tradeGap = outgoingTradeDifference({
     registered: Boolean(selectedProduct),
@@ -171,6 +176,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
   const buildInput = (draft: boolean): OperationInput => ({
+    ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     sellerMemberId: sellerMemberId || null,
     ...(!currentSale && money.rate ? { exchangeRate: money.rate } : {}),
     date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
@@ -227,6 +233,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
     }
+    if (kind === 'confirm' && selectedProduct?.reservedDepositId && !depositIds.includes(selectedProduct.reservedDepositId)) next.equipment = 'Aplicá la seña que reservó este equipo antes de confirmar';
+    if (kind === 'draft' && depositIds.length) next.amount = 'Quitá las señas para guardar pendiente; aplicalas al confirmar';
+    if (kind === 'confirm' && depositIds.length && receipts.loading) next.amount = 'Esperá a que se carguen las señas';
+    if (kind === 'confirm' && depositIds.length && appliedDeposits > cashDue) next.amount = 'Las señas superan el importe que falta pagar';
     setBad(next);
     return Object.keys(next).length === 0;
   };
@@ -275,7 +285,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
   const sheetClass = [source === 'sales' || source === 'clients' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
-  const dueCopy = hasTrade
+  const cashDue = hasTrade ? difference ?? 0 : parseMoney(amount);
+  const appliedDeposits = currentSale?.depositAppliedAmount ?? receipts.rows.filter(row => depositIds.includes(row.id) && depositAvailable(row)).reduce((sum, row) => sum + (depositAmount(row, typedCurrency ?? money.active, money.rate) ?? 0), 0);
+  const dueCopy = appliedDeposits > 0 ? `Señas aplicadas: ${receiptMoney(appliedDeposits, typedCurrency ?? money.active)} · ${paymentStatus === 'PENDIENTE' ? 'Deuda pendiente' : 'Restante a cobrar'}: ${receiptMoney(Math.max(0, cashDue - appliedDeposits), typedCurrency ?? money.active)}` : hasTrade
     ? (difference == null ? (tradeGap.warning ?? 'Completá el precio de salida para calcular la diferencia') : `Diferencia a cobrar: ${money.show(difference, typedCurrency)}`)
     : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
   const tradeBlock = (
@@ -344,6 +356,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
+      {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
       <Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
       {foldTrade ? (
@@ -380,7 +393,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   if (!sale) return null;
   const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
   const buyer = clients.find((client) => client.id === sale.clientId);
-  const cash = linkedTrade ? linkedTrade.differencePaid : sale.amount;
+  const cash = (linkedTrade ? linkedTrade.differencePaid : sale.amount) - (sale.depositAppliedAmount ?? 0);
   const refund = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
     ? cancellationRefund(sale.status, cash, buyer?.pendingBalance ?? 0)
     : 0;
@@ -389,6 +402,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <ConfirmOperationDialog
         label={saleCode(sale)}
         refund={refund}
+        depositCredit={sale.depositAppliedAmount}
         busy={busy}
         error={error}
         onClose={() => { if (!busy) setConfirmCancel(false); }}
@@ -429,7 +443,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${linkedTrade ? money.show(linkedTrade.differencePaid, linkedTrade.currency) : money.show(sale.amount, sale.amountCurrency)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

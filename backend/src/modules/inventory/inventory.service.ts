@@ -1,5 +1,6 @@
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
+import { lockInventory } from '../deposits/deposits.service.js';
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -31,6 +32,10 @@ export interface InventoryItemInput {
 export interface InventoryItemResponse {
   catalogVisible: boolean;
   catalogIncluded: boolean;
+  reservedDepositId?: string | null;
+  reservedClientId?: string | null;
+  reservedClientName?: string | null;
+  reservedAt?: string | null;
   id: string;
   imei: string;
   model: string;
@@ -65,6 +70,10 @@ type InventoryRecord = {
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
   quantity?: number;
+  reservedDepositId?: string | null;
+  reservedClientId?: string | null;
+  reservedClientName?: string | null;
+  reservedAt?: Date | null;
   id: string;
   imei: string | null;
   model: string;
@@ -139,6 +148,10 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     price: item.price.toNumber(),
     currency: item.currency ?? null,
     status: item.status as InventoryItemResponse["status"],
+    reservedDepositId: item.reservedDepositId ?? null,
+    reservedClientId: item.reservedClientId ?? null,
+    reservedClientName: item.reservedClientName ?? null,
+    reservedAt: item.reservedAt?.toISOString() ?? null,
     categoryId: item.categoryId ?? null,
     customFields: toCustomFields(item.customFields),
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
@@ -235,6 +248,7 @@ type RawInventoryRow = {
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   currency: string | null;
+  reservedDepositId: string | null; reservedClientId: string | null; reservedClientName: string | null; reservedAt: Date | null;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
   createdAt: Date | string | null;
   archivedAt: Date | string | null;
@@ -262,6 +276,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     price: Number(row.price),
     currency: row.currency ?? null,
     status: row.status as InventoryItemResponse['status'],
+    reservedDepositId: row.reservedDepositId, reservedClientId: row.reservedClientId, reservedClientName: row.reservedClientName, reservedAt: row.reservedAt?.toISOString() ?? null,
     categoryId: row.categoryId ?? null,
     customFields: toCustomFields(row.customFields),
     soldAt: null,
@@ -286,7 +301,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "catalogVisible", "quantity", "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
+             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
       FROM "InventoryItem"
       WHERE ${where}
@@ -404,10 +419,12 @@ export async function updateInventoryItem(
   options?: { actor?: Actor | null; enforcePriceCost?: boolean },
 ) {
   const updated = await withSerializableRetry(async (tx) => {
+    await lockInventory(tx, storeId, id);
     const existing = await tx.inventoryItem.findFirst({
       where: { id, storeId, archivedAt: null },
     });
     if (!existing) return null;
+    if (existing.reservedDepositId && input.status !== undefined && input.status !== existing.status) throw new InventoryError("Cancelá la seña para liberar o vender este equipo", 409);
 
     const priceChanges = input.price !== undefined && moneyChanged(existing.price, input.price);
     const costChanges = input.cost !== undefined && moneyChanged(existing.cost, input.cost);
@@ -534,7 +551,10 @@ export async function deleteInventoryItem(storeId: string, id: string, actor?: A
   const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED" }, select: { id: true } });
   if (linkedSale || activeReceivedTrade) throw new InventoryError("El equipo pertenece a una operación activa", 409);
 
-  await prisma.$transaction(async (tx) => {
+  await withSerializableRetry(async (tx) => {
+    await lockInventory(tx, storeId, id);
+    const reserved = await tx.inventoryItem.findFirst({ where: { id, storeId, reservedDepositId: { not: null } } });
+    if (reserved) throw new InventoryError("Cancelá la seña antes de eliminar el equipo reservado", 409);
     await tx.inventoryItem.delete({ where: { id } });
     if (actor) {
       await writeAudit(tx, {
@@ -755,8 +775,8 @@ export async function importInventoryItems(
         const applyPrice = !(options?.lockPrice && priceChanges);
         const costChanges = providedCost !== undefined && moneyChanged(existing.cost, providedCost);
         const changedAt = new Date();
-        await inventoryPrisma.inventoryItem.update({
-          where: { id: existing.id },
+        await prisma.inventoryItem.update({
+          where: { id: existing.id, AND: [{ reservedDepositId: null }] },
           data: {
             model: input.model,
             capacity: input.capacity,
@@ -770,7 +790,7 @@ export async function importInventoryItems(
             ...((applyPrice && priceChanges) || costChanges ? { currency: importedCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             status: input.status,
-            customFields: mergedFields,
+            customFields: mergedFields as Prisma.InputJsonValue,
           },
         });
         if (options?.actor && applyPrice && priceChanges) {

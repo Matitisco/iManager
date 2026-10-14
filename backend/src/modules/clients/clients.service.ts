@@ -221,6 +221,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
       },
     });
     if (input.name !== undefined && client.name !== existing.name) {
+      await tx.inventoryItem.updateMany({ where: { storeId, reservedClientId: id }, data: { reservedClientName: client.name } });
       await tx.sale.updateMany({ where: { storeId, clientId: id, integratedOperation: true }, data: { clientName: client.name } });
       await tx.tradeIn.updateMany({ where: { storeId, clientId: id, confirmationStatus: { not: null } }, data: { clientName: client.name } });
     }
@@ -294,6 +295,7 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
   if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
 
   await prisma.$transaction(async (tx) => {
+    if (await tx.clientDeposit.findFirst({ where: { storeId, clientId: id }, select: { id: true } })) throw new ClientsError("El cliente tiene historial de señas y no se puede eliminar", 409);
     await tx.client.delete({ where: { id } });
     if (actor) {
       await writeAudit(tx, {

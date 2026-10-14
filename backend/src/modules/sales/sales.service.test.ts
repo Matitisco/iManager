@@ -41,6 +41,7 @@ const prismaMock = vi.hoisted(() => ({
     delete: vi.fn(),
     aggregate: vi.fn(),
   },
+  $queryRaw: vi.fn().mockResolvedValue([]),
   $transaction: vi.fn(),
 }));
 

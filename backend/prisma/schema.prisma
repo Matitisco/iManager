@@ -51,6 +51,7 @@ model Store {
   tradeInCategories   TradeInCategory[]
   catalogOptions      StoreCatalogOption[]
   clientPayments      ClientPayment[]
+  clientDeposits      ClientDeposit[]
   notifications       StoreNotification[]
   auditEvents         AuditEvent[]
   storeCounter        StoreCounter?
@@ -103,6 +104,7 @@ model Client {
   sales          Sale[]
   tradeIns       TradeIn[]
   payments       ClientPayment[]
+  deposits       ClientDeposit[]
   repairOrders   RepairOrder[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -162,6 +164,10 @@ model InventoryItem {
   pendingSaleRegistration Boolean  @default(false)
   // Sale of a device that was not in stock. Battery, cost and quality still need to be filled in.
   needsCompletion Boolean          @default(false)
+  reservedDepositId String?       @unique
+  reservedClientId String?
+  reservedClientName String?      @db.VarChar(120)
+  reservedAt    DateTime?
   previousSaleStatus String?       @db.VarChar(20)
   priceChangedBy String?          @db.VarChar(255)
   priceChangedAt DateTime?
@@ -209,6 +215,7 @@ model Sale {
   previousPendingSaleRegistration Boolean?
   deviceLabel     String?        @db.VarChar(120)
   dateLabel       String         @db.VarChar(120)
+  depositAppliedAmount Decimal   @default(0) @db.Decimal(12, 2)
   amount          Decimal        @db.Decimal(12, 2)
   amountCurrency  String?        @db.VarChar(3)
   paymentMethod   String         @db.VarChar(50)
@@ -575,4 +582,36 @@ model StorePublicCatalog {
   store        Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// Immutable receipt amounts; applications and refunds never create a second collection.
+model ClientDeposit {
+  id            String   @id @default(cuid())
+  storeId       String
+  clientId      String
+  requestKey    String   @db.VarChar(120)
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @db.VarChar(3)
+  exchangeRate  Decimal  @db.Decimal(12, 2)
+  usdAmount     Decimal  @db.Decimal(12, 2)
+  method        String   @db.VarChar(50)
+  status        String   @default("ACTIVE") @db.VarChar(20)
+  productId     String?
+  productLabel  String?  @db.VarChar(200)
+  previousInventoryStatus String? @db.VarChar(20)
+  saleId        String?
+  repairId      String?
+  appliedAmount Decimal? @db.Decimal(12, 2)
+  appliedCurrency String? @db.VarChar(3)
+  appliedAt     DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([storeId, clientId, status])
+  @@index([storeId, saleId])
+  @@index([storeId, repairId])
+  @@unique([storeId, requestKey])
 }
