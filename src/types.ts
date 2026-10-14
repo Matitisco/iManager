@@ -35,6 +35,9 @@ export interface CustomColumn {
 }
 
 export interface Sale {
+  sellerMemberId?: string | null;
+  registeredByUserId?: string | null;
+  exchangeRate?: number | null;
   id: string;
   saleNumber?: number;
   date: string;
@@ -155,3 +158,5 @@ export interface ClientCategory {
   id: string;
   name: string;
 }
+
+export type * from './types/commissions';

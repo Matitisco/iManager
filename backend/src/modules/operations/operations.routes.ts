@@ -1,3 +1,4 @@
+import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { zodOptionalImei } from "../../lib/imei.js";
@@ -41,6 +42,8 @@ const tradeSchema = z.object({
   customFields: z.record(z.unknown()).nullable().optional(),
 }).partial().nullable().optional();
 const inputSchema = z.object({
+  sellerMemberId: z.string().min(1).nullable().optional(),
+  exchangeRate: z.number().finite().positive().optional(),
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
@@ -121,7 +124,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" && !input.productId) return reply.code(400).send({ error: "Inventory source requires an existing product sale" });
     if (source === "clients" && !input.clientId) return reply.code(400).send({ error: "Clients source requires an existing client sale" });
     if (source === "tradeins" && !input.tradeIn) return reply.code(400).send({ error: "Trade-ins source requires exchange details" });
-    return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input));
+    return reply.code(201).send(await createOperation(request.appUser!.storeId, source, input, await loadActor(request.appUser!.userId)));
   });
 
   app.get("/:source/sales/:id", { preHandler }, async (request, reply) => {
@@ -156,7 +159,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     }
     const input = parseInput(request.body, reply);
     if (!input) return;
-    return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input);
+    return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
   app.patch("/:source/sales/:id", { preHandler }, async (request, reply) => {
@@ -167,7 +170,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
-    return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input);
+    return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
   app.patch("/:source/trades/:id", { preHandler }, async (request, reply) => {

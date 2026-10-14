@@ -1,3 +1,4 @@
+import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { zodOptionalImei } from "../../lib/imei.js";
@@ -121,7 +122,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
           grade: body.grade,
           customFields: body.customFields,
         },
-      });
+      }, await loadActor(request.appUser.userId));
       return reply.code(201).send({ ...operation, tradeIn: operation.tradeIn });
     }
   );

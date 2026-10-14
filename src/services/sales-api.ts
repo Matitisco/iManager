@@ -19,6 +19,8 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
     method: 'PATCH',
     body: {
       clientId: sale.clientId,
+      ...(sale.sellerMemberId !== undefined ? { sellerMemberId: sale.sellerMemberId } : {}),
+      ...(sale.exchangeRate != null ? { exchangeRate: sale.exchangeRate } : {}),
       ...(sale.clientName !== undefined ? { clientName: sale.clientName } : {}),
       productId: sale.productId,
       ...(sale.deviceLabel !== undefined ? { deviceLabel: sale.deviceLabel } : {}),

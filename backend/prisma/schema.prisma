@@ -53,6 +53,9 @@ model Store {
   notifications       StoreNotification[]
   auditEvents         AuditEvent[]
   storeCounter        StoreCounter?
+  commissionRules     CommissionRule[]
+  commissionPayments  CommissionPayment[]
+  commissionAccruals  CommissionAccrual[]
   repairOrders        RepairOrder[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -63,6 +66,10 @@ model StoreMember {
   storeId   String
   userId    String
   role            StoreRole
+  sellerSales     Sale[]
+  commissionRules CommissionRule[]
+  commissionPayments CommissionPayment[]
+  commissionAccruals CommissionAccrual[]
   isDefault       Boolean   @default(false)
   sections        Json?
   sensitiveAccess Boolean?
@@ -182,6 +189,10 @@ model StoreCounter {
 
 model Sale {
   id              String         @id @default(cuid())
+  sellerMemberId  String?
+  registeredByUserId String?
+  exchangeRate    Decimal?       @db.Decimal(12, 2)
+  sellerMember    StoreMember?   @relation(fields: [sellerMemberId], references: [id], onDelete: SetNull)
   saleNumber      Int            @default(autoincrement())
   storeId         String
   clientId        String?
@@ -213,6 +224,7 @@ model Sale {
 
   @@index([storeId])
   @@index([storeId, soldAt])
+  @@index([sellerMemberId])
   @@index([clientId])
   @@index([inventoryItemId])
   @@unique([storeId, requestKey])
@@ -465,3 +477,78 @@ enum InvitationStatus {
   REVOKED
 }
 
+
+enum CommissionBasis {
+  PROFIT_PERCENT
+  SALE_PERCENT
+  FIXED_PER_UNIT
+}
+
+model CommissionRule {
+  id            String          @id @default(cuid())
+  storeId       String
+  memberId      String?
+  basis         CommissionBasis @default(PROFIT_PERCENT)
+  rate          Decimal         @db.Decimal(12, 4)
+  currency      String?         @db.VarChar(3)
+  effectiveFrom DateTime
+  createdBy     String
+  createdAt     DateTime        @default(now())
+  store         Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member        StoreMember?    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([storeId, memberId, effectiveFrom])
+}
+
+model CommissionPayment {
+  id              String      @id @default(cuid())
+  storeId         String
+  memberId        String
+  period          String      @db.VarChar(7)
+  amount          Decimal     @db.Decimal(12, 2)
+  currency        String      @db.VarChar(3)
+  exchangeRate    Decimal     @db.Decimal(12, 2)
+  settlesCurrency String      @db.VarChar(3)
+  note            String?     @db.Text
+  createdBy       String
+  createdAt       DateTime    @default(now())
+  store           Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member          StoreMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([storeId, memberId, period])
+}
+
+// Frozen calculation, including tombstones for physically deleted sales.
+model CommissionAccrual {
+  id               String           @id @default(cuid())
+  storeId          String
+  memberId         String
+  sourceSaleId     String
+  saleNumber       Int
+  soldAt           DateTime
+  period           String           @db.VarChar(7)
+  deviceLabel      String           @db.VarChar(120)
+  currency         String           @db.VarChar(3)
+  exchangeRate     Decimal?         @db.Decimal(12, 2)
+  total            Decimal          @db.Decimal(12, 2)
+  cost             Decimal          @db.Decimal(12, 2)
+  takeValue        Decimal          @db.Decimal(12, 2)
+  grossProfit      Decimal          @db.Decimal(12, 2)
+  commission       Decimal          @db.Decimal(12, 2)
+  ruleId           String?
+  basis            CommissionBasis?
+  rate             Decimal?         @db.Decimal(12, 4)
+  ruleCurrency     String?          @db.VarChar(3)
+  voidedAt         DateTime?
+  voidReason       String?          @db.VarChar(20)
+  adjustmentPeriod String?          @db.VarChar(7)
+  createdAt        DateTime         @default(now())
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member           StoreMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([storeId, sourceSaleId])
+  @@index([storeId, memberId, period])
+}
