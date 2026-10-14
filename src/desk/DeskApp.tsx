@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { BrandIsotipo } from '../components/brand-mark';
 import { hasStoreContactOffer } from '../lib/store-contact';
@@ -172,7 +173,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
     setCommissionCountError('');
-    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(cause instanceof Error ? cause.message : 'No se pudieron cargar las comisiones'); });
+    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); });
     return () => { active = false; };
   }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;

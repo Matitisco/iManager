@@ -9,6 +9,7 @@ import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { consumePasswordResetNotice, PASSWORD_RESET_LOGIN_NOTICE } from '../lib/password-reset-notice';
 import { ROLE_LABEL } from '../lib/roles';
 import { getAuthAdapter } from '../services/auth-adapter';
+import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -68,7 +69,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       case 'auth/operation-not-allowed':
         return 'Este método de acceso no está habilitado en Firebase.';
       case 'auth/network-request-failed':
-        return 'No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.';
+        return NETWORK_ERROR_MESSAGE;
       case 'auth/popup-blocked':
         return 'El navegador bloqueó la ventana de Google. Permití popups e intentá de nuevo.';
       case 'auth/unauthorized-domain':
@@ -92,7 +93,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   useEffect(() => {
     let active = true;
     getAuthAdapter().completeGoogleRedirect?.().catch((err: unknown) => {
-      if (active) setError(getFirebaseErrorMessage(getAuthErrorCode(err)));
+      if (active) setError(toUserMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
     });
     return () => { active = false; };
   }, []);
@@ -108,7 +109,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       const errorCode = getAuthErrorCode(err);
       if (errorCode === 'auth/popup-closed-by-user' || errorCode === 'auth/cancelled-popup-request') return;
       console.error('Login error:', err);
-      setError(getFirebaseErrorMessage(errorCode));
+      setError(toUserMessage(err, getFirebaseErrorMessage(errorCode)));
     } finally {
       if (attempt === googleAttempt.current) setIsGoogleLoading(false);
     }
@@ -137,7 +138,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       }
     } catch (err: unknown) {
       console.error('Email auth error:', err);
-      setError(getFirebaseErrorMessage(getAuthErrorCode(err)));
+      setError(toUserMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
     } finally {
       setIsLoading(false);
     }

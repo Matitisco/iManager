@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { monthKey, monthLabel } from '../commissions';
 import { AssignSellerSheet } from '../AssignSellerSheet';
 import { BulkActions, useBulkScope } from '../bulk-actions';
@@ -52,7 +53,7 @@ export function SalesScreen() {
   const [onlyUnassigned, setOnlyUnassigned] = useState(Boolean(unassignedMonth));
   useEffect(() => { sessionStorage.removeItem('commission-unassigned'); }, []);
   const manageCommissions = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
-  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDirectoryError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, [appSession?.store?.id]);
+  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDirectoryError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [appSession?.store?.id]);
   const sellerName = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
   const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('sales');

@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Client, ClientCategory, CustomColumn, CustomColumnEntity, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
@@ -153,7 +154,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
         setRepairOrdersError(null);
       } catch (error) {
         if (cancelled) return;
-        setRepairOrdersError(error instanceof Error ? error.message : 'No se pudieron cargar las órdenes de servicio.');
+        setRepairOrdersError(toUserMessage(error, 'No se pudieron cargar las órdenes de servicio.'));
       }
     };
     if (loadRepairsEnabled) {
@@ -271,7 +272,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       }));
     }).catch((error: unknown) => {
       if (cancelled) return;
-      setNotificationsError(error instanceof Error ? error.message : String(error));
+      setNotificationsError(toUserMessage(error));
     }).finally(() => {
       if (!cancelled) setNotificationsLoading(false);
     });

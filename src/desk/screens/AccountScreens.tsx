@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listInvitations, type Invitation } from '../../services/invitations-api';
@@ -75,7 +76,7 @@ export function NotificationsScreen() {
       if (recordId) openRecord(section, recordId, kind);
       else if (['inventory', 'sales', 'tradeins', 'clients'].includes(section)) go(section as 'inventory' | 'sales' | 'tradeins' | 'clients');
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'No se pudo abrir la notificaci\u00f3n.');
+      toast(toUserMessage(error, 'No se pudo abrir la notificaci\u00f3n.'));
     }
   };
 
@@ -84,7 +85,7 @@ export function NotificationsScreen() {
       await markAllNotificationsRead();
       toast('Todo le\u00eddo');
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'No se pudieron marcar como le\u00eddas.');
+      toast(toUserMessage(error, 'No se pudieron marcar como le\u00eddas.'));
     }
   };
 

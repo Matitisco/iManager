@@ -1,3 +1,5 @@
+import { NETWORK_ERROR_MESSAGE } from './user-message';
+
 function codeOf(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string') {
     return error.code;
@@ -14,7 +16,7 @@ export function authActionErrorMessage(error: unknown): string {
     case 'auth/weak-password':
       return 'La contraseña es demasiado débil. Usá al menos 6 caracteres.';
     case 'auth/network-request-failed':
-      return 'No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.';
+      return NETWORK_ERROR_MESSAGE;
     case 'auth/too-many-requests':
       return 'Demasiados intentos. Intentá de nuevo más tarde.';
     case 'auth/user-disabled':

@@ -38,7 +38,7 @@ describe('repairs-api', () => {
       .mockResolvedValueOnce(jsonResponse({ error: 'No tenés permiso para esta acción' }, 403));
 
     await expect(createBackendRepair(mockUser, { clientName: 'Ana', device: '' })).rejects.toThrow('Completá el equipo');
-    await expect(createBackendRepair(mockUser, { clientName: 'Ana', device: 'iPhone 13' })).rejects.toThrow('No se pudo guardar la orden (500)');
+    await expect(createBackendRepair(mockUser, { clientName: 'Ana', device: 'iPhone 13' })).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
     await expect(deleteBackendRepair(mockUser, 'order-1')).rejects.toThrow('No tenés permiso para esta acción');
     expect(fetchWithTimeout).toHaveBeenLastCalledWith('https://api.imanager.test/api/repairs/order-1', expect.objectContaining({ method: 'DELETE' }));
   });

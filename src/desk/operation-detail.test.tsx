@@ -7,6 +7,7 @@ import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
 import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
+import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
@@ -144,6 +145,26 @@ describe('operation detail', () => {
     ctx.tradeIns = [trade()];
     renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003' });
     expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('quedará en el historial');
+  });
+
+  it.each([false, true])('keeps the delete-canje dialog open with a translated network error and allows retry (phone: %s)', async (phone) => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({ ...original(query), matches: phone && query.includes('760') }));
+    try {
+      ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'CANCELADO' })];
+      ctx.deleteTradeIn.mockRejectedValueOnce(new TypeError(phone ? 'Load failed' : 'Failed to fetch'));
+      renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
+      const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+      expect(await screen.findByText(NETWORK_ERROR_MESSAGE)).toBeVisible();
+      expect(dialog).toBeVisible();
+      expect(close).not.toHaveBeenCalled();
+      expect(toast).not.toHaveBeenCalled();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+      await waitFor(() => expect(close).toHaveBeenCalledOnce());
+      expect(ctx.deleteTradeIn).toHaveBeenCalledTimes(2);
+      expect(toast).toHaveBeenCalledWith('Canje eliminado');
+    } finally { window.matchMedia = original; }
   });
 
   it('keeps the active linked sale confirmation as cancellation', () => {

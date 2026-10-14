@@ -5,6 +5,9 @@ const GENERIC_STATUSES = new Set([
   "forbidden",
   "not found",
   "unprocessable entity",
+  "unauthenticated",
+  "bad gateway",
+  "service unavailable",
 ]);
 
 export function readApiErrorMessage(body: unknown, fallback: string): string {
@@ -24,6 +27,11 @@ export function readApiErrorMessage(body: unknown, fallback: string): string {
 export function isTechnicalMessage(value: string): boolean {
   const text = value.trim();
   if (!text) return false;
+  // Browser, SDK and runtime diagnostics are not suitable UI messages.
+  if (/\b(?:failed|failure|unexpected|something went wrong|network|timeout|typeerror|referenceerror|syntaxerror|aborterror|cannot read|undefined|is not a function|invalid|expected|could not|unable to|must be|not allowed|not implemented|is required|access denied|too many requests|weak password|permission.denied|missing or insufficient permissions)\b/i.test(text)) return true;
+  if (/^FirebaseError:|^Firebase:|\bauth\/[a-z-]+\b/i.test(text)) return true;
+  if (/\b(?:not found|membership required|missing bearer token|requires|cannot|this source|only sales source|unknown error)\b/i.test(text)) return true;
+  if (/\b(?:ECONN\w+|ENOTFOUND|ETIMEDOUT)\b/.test(text)) return true;
   if (text.includes("\n    at ")) return true;
   if (/"code"\s*:\s*"(too_small|too_big|invalid_type|invalid_enum_value|invalid_string|unrecognized_keys|custom)"/.test(text)) {
     return true;

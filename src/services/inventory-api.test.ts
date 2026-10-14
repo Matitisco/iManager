@@ -103,6 +103,6 @@ describe('inventory-api', () => {
       }, 500));
 
     await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).rejects.toThrow('El precio no puede ser negativo');
-    await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).rejects.toThrow('No se pudo crear el equipo (500)');
+    await expect(createBackendInventoryItem(mockUser, createInventoryPayload)).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
   });
 });

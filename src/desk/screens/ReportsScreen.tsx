@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { fetchCommissionReport } from '../../services/commissions-api';
 import type { CommissionReport } from '../../types/commissions';
 import { commissionTotal, monthKey, saleCount } from '../commissions';
@@ -136,7 +137,7 @@ export function ReportsScreen() {
   useEffect(() => {
     if (activeTab !== 'Comisiones' || !user) return;
     let active = true; setCommissionReportLoading(true); setCommissionReportError('');
-    void fetchCommissionReport(user, commissionFrom, commissionTo).then(data => { if (!Array.isArray(data.rows)) throw new Error('Respuesta inválida del reporte de comisiones'); if (active) setCommissionReport({ key: commissionReportKey, data }); }).catch((cause: unknown) => { if (active) setCommissionReportError(cause instanceof Error ? cause.message : 'No se pudo cargar el reporte de comisiones'); }).finally(() => { if (active) setCommissionReportLoading(false); });
+    void fetchCommissionReport(user, commissionFrom, commissionTo).then(data => { if (!Array.isArray(data.rows)) throw new Error('Respuesta inválida del reporte de comisiones'); if (active) setCommissionReport({ key: commissionReportKey, data }); }).catch((cause: unknown) => { if (active) setCommissionReportError(toUserMessage(cause, 'No se pudo cargar el reporte de comisiones')); }).finally(() => { if (active) setCommissionReportLoading(false); });
     return () => { active = false; };
   }, [activeTab, commissionReportKey, user]);
   const baseModel = buildReport(activeTab, period, bounds, dimension, dimensions, {

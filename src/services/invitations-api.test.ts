@@ -91,8 +91,15 @@ describe('resolveInvitationPreview', () => {
       resolveInvitationPreview('token-5', { fetcher, retryDelayMs: 0, retries: 2 })
     ).resolves.toEqual({
       kind: 'error',
-      message: 'Error al verificar invitación',
+      message: 'Ocurrió un error en el servidor. Probá de nuevo en unos minutos.',
       attempts: 3,
     });
+  });
+
+  it.each(['TypeError', 'NetworkError', 'TimeoutError'])('keeps retrying normalized %s rejections and shows Spanish after exhaustion', async (name) => {
+    const message = name === 'TimeoutError' ? 'La solicitud tardó demasiado. Probá de nuevo.' : 'No hay conexión. Revisá tu internet y probá de nuevo.';
+    const fetcher = vi.fn().mockRejectedValue(Object.assign(new Error(message), { name }));
+    await expect(resolveInvitationPreview('token-6', { fetcher, retryDelayMs: 0 })).resolves.toEqual({ kind: 'error', message, attempts: 3 });
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });
