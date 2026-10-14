@@ -1915,6 +1915,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .acct-actions .btn2, .acct-actions a.btn2, .acct-stack .btn2 { height: auto; min-height: 48px; white-space: normal; text-align: center; line-height: 1.2; padding: 10px 12px; text-decoration: none; }
 .acct-tenders, .acct-stack { display: grid; gap: 8px; min-width: 0; }
 .acct-plan { display: grid; gap: 8px; margin: 8px 0 12px; min-width: 0; }
+.acct-views { min-width: 0; flex: 1 1 100%; }
+@media (max-width: 760px) {
+  .dbar:has(.acct-views) { flex-wrap: wrap; align-items: flex-start; }
+  .acct-views .wchips { flex-wrap: wrap; overflow: visible; }
+  .acct-views .wchip { max-width: 100%; }
+}
 @media (min-width: 760px) {
   .acct-actions { grid-template-columns: 1fr 1fr; }
 }

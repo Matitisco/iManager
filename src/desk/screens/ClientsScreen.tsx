@@ -133,11 +133,13 @@ export function ClientsScreen() {
       {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar">
-        <ChipRow
-          options={[{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }]}
-          value={view}
-          onChange={setView}
-        />
+        <div className="acct-views">
+          <ChipRow
+            options={[{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }]}
+            value={view}
+            onChange={setView}
+          />
+        </div>
         {view === 'lista' ? <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
           value={filter}
