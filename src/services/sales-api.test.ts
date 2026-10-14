@@ -65,6 +65,7 @@ describe('sales-api', () => {
     await expect(fetchBackendSales(mockUser)).resolves.toEqual([saleFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/sales', {
       method: 'GET',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -89,6 +90,7 @@ describe('sales-api', () => {
     await expect(updateBackendSale(mockUser, updatedSale)).resolves.toEqual(updatedSale);
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(2, `https://api.imanager.test/api/sales/${updatedSale.id}`, {
       method: 'PATCH',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -113,6 +115,7 @@ describe('sales-api', () => {
     await expect(deleteBackendSale(mockUser, 'sale-1')).resolves.toBeUndefined();
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/sales/sale-1', {
       method: 'DELETE',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
