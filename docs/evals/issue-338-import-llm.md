@@ -1,16 +1,14 @@
 # Issue #338 — eval real del importador de texto
 
-Fecha UTC: 2026-10-14T12:16:13.842Z. Modelo: `gpt-6-luna`. Prompt SHA256: `6654bff234cf698e`.
+Fecha UTC: 2026-10-14T16:25:59.085Z. Modelo: `gpt-6-luna`. Prompt SHA256: `6654bff234cf698e`.
 
 Corpus: 57 listados sintéticos realistas curados manualmente, más 500 líneas. No se recibieron listados privados reales; este corpus no reemplaza validación con datos reales autorizados. Expectativas independientes, null cuenta como campo ausente; precisión de campos presentes se informa aparte para no inflar métricas.
 
-Resultado del umbral (≥95% en campos clave, 0 IMEIs/precios inventados y 0 filas perdidas/extra): **BLOQUEADO — sin respuestas válidas**.
+Resultado del umbral (≥95% en campos clave, 0 IMEIs/precios inventados y 0 filas perdidas/extra): **APROBADO**.
 
-Bloqueo observado: OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-Importaciones: 58; errores: 58; filas esperadas: 584; perdidas: 584; extra: 0.
+Importaciones: 58; errores: 0; filas esperadas: 584; perdidas: 0; extra: 0.
 IMEIs/precios inventados o asignados incorrectamente (comparación con líneas fuente y etiquetas independientes): crudas IMEI 0, precio 0; tras normalización IMEI 0, precio 0. También se cuentan como críticos los precios tomados de capacidad/batería/costo o de otro equipo, aunque ese número exista en la fuente. Campos ausentes eliminados no se cuentan como inventados, pero penalizan la precisión.
-Latencia acumulada: 5.49 s; media: 0.09 s. Costo estimado de llamadas exitosas: no medible (sin uso válido o modelo sin tarifa conocida). Errores pueden consumir tokens que no fueron devueltos; no se presupone costo cero.
+Latencia acumulada: 262.91 s; media: 4.53 s. Costo estimado de llamadas exitosas: US$ 0.031789. Errores pueden consumir tokens que no fueron devueltos; no se presupone costo cero.
 
 Estimación conservadora sin descuentos de caché: gpt-6-luna $0.10/M entrada y $0.50/M salida, tarifa estándar, [OpenAI pricing](https://developers.openai.com/api/docs/pricing). Los tokens incluyen reintentos que devolvieron usage. CI no llama al modelo real.
 
@@ -18,374 +16,82 @@ Precisión de campos calculada sólo sobre los 57 listados variados (84 filas): 
 
 | Campo | Precisión final | Presentes | Precisión cruda | Muestras |
 |---|---:|---:|---:|---:|
-| model | N/A | N/A | N/A | 84 (84 presentes) |
-| capacity | N/A | N/A | N/A | 84 (82 presentes) |
-| color | N/A | N/A | N/A | 84 (50 presentes) |
-| batteryHealth | N/A | N/A | N/A | 84 (36 presentes) |
-| condition | N/A | N/A | N/A | 84 (76 presentes) |
-| imei | N/A | N/A | N/A | 84 (7 presentes) |
-| serial | N/A | N/A | N/A | 84 (2 presentes) |
-| price | N/A | N/A | N/A | 84 (78 presentes) |
-| currency | N/A | N/A | N/A | 84 (80 presentes) |
-| cost | N/A | N/A | N/A | 84 (5 presentes) |
-| quantity | N/A | N/A | N/A | 84 (84 presentes) |
+| model | 100.00% | 100.00% | 100.00% | 84 (84 presentes) |
+| capacity | 100.00% | 100.00% | 100.00% | 84 (82 presentes) |
+| color | 100.00% | 100.00% | 100.00% | 84 (50 presentes) |
+| batteryHealth | 100.00% | 100.00% | 100.00% | 84 (36 presentes) |
+| condition | 100.00% | 100.00% | 100.00% | 84 (76 presentes) |
+| imei | 100.00% | 100.00% | 100.00% | 84 (7 presentes) |
+| serial | 100.00% | 100.00% | 100.00% | 84 (2 presentes) |
+| price | 100.00% | 100.00% | 100.00% | 84 (78 presentes) |
+| currency | 100.00% | 100.00% | 100.00% | 84 (80 presentes) |
+| cost | 100.00% | 100.00% | 100.00% | 84 (5 presentes) |
+| quantity | 100.00% | 100.00% | 100.00% | 84 (84 presentes) |
 
-500 líneas: OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY..
+500 líneas: 500/500 filas; 77609 ms; 13 llamadas; 26897 tokens entrada / 35747 salida; US$ 0.020563.
 
 | Listado | Filas | Perdidas | Extra | Latencia ms | Costo US$ | Resultado |
 |---|---:|---:|---:|---:|---:|---|
-| 01-whatsapp-midnight | 0/1 | 1 | 0 | 382 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 02-abreviatura-pm | 0/1 | 1 | 0 | 268 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 03-guiones | 0/1 | 1 | 0 | 280 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 05-tabs | 0/1 | 1 | 0 | 83 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 04-barras | 0/1 | 1 | 0 | 96 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 06-comas | 0/1 | 1 | 0 | 96 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 08-imei-ceros | 0/1 | 1 | 0 | 74 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 07-imei | 0/1 | 1 | 0 | 95 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 09-serie | 0/1 | 1 | 0 | 101 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 11-cant-x3 | 0/1 | 1 | 0 | 66 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 10-compra-venta | 0/1 | 1 | 0 | 90 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 12-unidades | 0/1 | 1 | 0 | 72 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 13-sim-fisica | 0/1 | 1 | 0 | 83 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 15-typo-pro | 0/1 | 1 | 0 | 58 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 14-typo-iphone | 0/1 | 1 | 0 | 102 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 16-encabezado-usd | 0/2 | 2 | 0 | 66 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 17-encabezado-cambio | 0/2 | 2 | 0 | 64 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 18-varios-por-linea | 0/2 | 2 | 0 | 133 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 20-basura-entre-equipos | 0/2 | 2 | 0 | 157 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 19-mas-por-linea | 0/2 | 2 | 0 | 162 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 21-pesos-miles | 0/1 | 1 | 0 | 73 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 23-k-pesos | 0/1 | 1 | 0 | 64 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 22-decimal-coma | 0/1 | 1 | 0 | 73 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 24-tb | 0/1 | 1 | 0 | 77 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 25-bateria-rango | 0/1 | 1 | 0 | 76 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 26-bateria-fraccion | 0/1 | 1 | 0 | 67 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 27-sin-precio | 0/1 | 1 | 0 | 73 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 28-sin-moneda | 0/1 | 1 | 0 | 72 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 29-sin-imei | 0/1 | 1 | 0 | 69 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 30-sin-bateria | 0/1 | 1 | 0 | 87 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 32-desconocido | 0/1 | 1 | 0 | 63 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 33-samsung | 0/1 | 1 | 0 | 75 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 34-pixel | 0/1 | 1 | 0 | 74 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 35-multilinea | 0/1 | 1 | 0 | 81 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 36-lista-numerada | 0/2 | 2 | 0 | 63 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 31-minimo | 0/1 | 1 | 0 | 250 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 37-con-guiones-imei | 0/1 | 1 | 0 | 73 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 38-outlet | 0/1 | 1 | 0 | 82 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 39-preowned | 0/1 | 1 | 0 | 85 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 40-seminuevo | 0/1 | 1 | 0 | 77 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 41-mini | 0/1 | 1 | 0 | 64 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 42-plus | 0/1 | 1 | 0 | 81 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 43-pro-vs-max | 0/2 | 2 | 0 | 87 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 44-costo-solo | 0/1 | 1 | 0 | 68 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 45-monedas-costo-distintas | 0/1 | 1 | 0 | 69 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 47-precio-desde | 0/1 | 1 | 0 | 62 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 46-cantidad-imei | 0/1 | 1 | 0 | 77 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 48-precio-rango | 0/1 | 1 | 0 | 80 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 49-xr | 0/1 | 1 | 0 | 69 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 50-se | 0/1 | 1 | 0 | 69 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 51-whatsapp-fecha | 0/2 | 2 | 0 | 79 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 53-no-inventario-receta | 0/0 | 0 | 0 | 66 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 52-accesorios | 0/1 | 1 | 0 | 73 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 54-no-inventario-gastos | 0/0 | 0 | 0 | 63 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 55-no-inventario-charla | 0/0 | 0 | 0 | 72 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 56-no-inventario-instrucciones | 0/0 | 0 | 0 | 65 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| 57-mixto-24-lineas | 0/24 | 24 | 0 | 69 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-| large-500 | 0/500 | 500 | 0 | 91 | — | OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY. |
-
-**Sin respuestas válidas del LLM:** las tasas por campo no son una medición de calidad; no se pueden evaluar alucinaciones, latencia de inferencia ni costo real. Los contadores de filas perdidas reflejan importaciones fallidas, no extracciones incorrectas. Hace falta una clave válida para reejecutar.
+| 01-whatsapp-midnight | 1/1 | 0 | 0 | 3965 | 0.000161 | OK |
+| 02-abreviatura-pm | 1/1 | 0 | 0 | 4140 | 0.000176 | OK |
+| 03-guiones | 1/1 | 0 | 0 | 4363 | 0.000171 | OK |
+| 05-tabs | 1/1 | 0 | 0 | 2245 | 0.000161 | OK |
+| 04-barras | 1/1 | 0 | 0 | 2954 | 0.000168 | OK |
+| 07-imei | 1/1 | 0 | 0 | 2613 | 0.000169 | OK |
+| 06-comas | 1/1 | 0 | 0 | 4746 | 0.000158 | OK |
+| 08-imei-ceros | 1/1 | 0 | 0 | 2594 | 0.000170 | OK |
+| 10-compra-venta | 1/1 | 0 | 0 | 2116 | 0.000160 | OK |
+| 09-serie | 1/1 | 0 | 0 | 2868 | 0.000181 | OK |
+| 11-cant-x3 | 1/1 | 0 | 0 | 3047 | 0.000171 | OK |
+| 12-unidades | 1/1 | 0 | 0 | 2232 | 0.000157 | OK |
+| 13-sim-fisica | 1/1 | 0 | 0 | 3122 | 0.000195 | OK |
+| 14-typo-iphone | 1/1 | 0 | 0 | 2558 | 0.000166 | OK |
+| 15-typo-pro | 1/1 | 0 | 0 | 4862 | 0.000250 | OK |
+| 17-encabezado-cambio | 2/2 | 0 | 0 | 3674 | 0.000228 | OK |
+| 16-encabezado-usd | 2/2 | 0 | 0 | 3818 | 0.000219 | OK |
+| 18-varios-por-linea | 2/2 | 0 | 0 | 3184 | 0.000190 | OK |
+| 20-basura-entre-equipos | 2/2 | 0 | 0 | 3164 | 0.000220 | OK |
+| 19-mas-por-linea | 2/2 | 0 | 0 | 3400 | 0.000207 | OK |
+| 22-decimal-coma | 1/1 | 0 | 0 | 2656 | 0.000166 | OK |
+| 21-pesos-miles | 1/1 | 0 | 0 | 3176 | 0.000170 | OK |
+| 23-k-pesos | 1/1 | 0 | 0 | 3005 | 0.000169 | OK |
+| 24-tb | 1/1 | 0 | 0 | 2636 | 0.000164 | OK |
+| 25-bateria-rango | 1/1 | 0 | 0 | 2726 | 0.000160 | OK |
+| 26-bateria-fraccion | 1/1 | 0 | 0 | 2546 | 0.000161 | OK |
+| 27-sin-precio | 1/1 | 0 | 0 | 2924 | 0.000178 | OK |
+| 28-sin-moneda | 1/1 | 0 | 0 | 2899 | 0.000171 | OK |
+| 29-sin-imei | 1/1 | 0 | 0 | 3051 | 0.000179 | OK |
+| 30-sin-bateria | 1/1 | 0 | 0 | 2825 | 0.000163 | OK |
+| 31-minimo | 1/1 | 0 | 0 | 2806 | 0.000162 | OK |
+| 32-desconocido | 1/1 | 0 | 0 | 2748 | 0.000166 | OK |
+| 33-samsung | 1/1 | 0 | 0 | 2252 | 0.000166 | OK |
+| 34-pixel | 1/1 | 0 | 0 | 2583 | 0.000168 | OK |
+| 35-multilinea | 1/1 | 0 | 0 | 2891 | 0.000176 | OK |
+| 37-con-guiones-imei | 1/1 | 0 | 0 | 3173 | 0.000189 | OK |
+| 36-lista-numerada | 2/2 | 0 | 0 | 4132 | 0.000227 | OK |
+| 38-outlet | 1/1 | 0 | 0 | 3504 | 0.000174 | OK |
+| 39-preowned | 1/1 | 0 | 0 | 2903 | 0.000166 | OK |
+| 40-seminuevo | 1/1 | 0 | 0 | 2965 | 0.000170 | OK |
+| 41-mini | 1/1 | 0 | 0 | 2619 | 0.000158 | OK |
+| 42-plus | 1/1 | 0 | 0 | 2344 | 0.000166 | OK |
+| 43-pro-vs-max | 2/2 | 0 | 0 | 3361 | 0.000195 | OK |
+| 44-costo-solo | 1/1 | 0 | 0 | 3272 | 0.000205 | OK |
+| 45-monedas-costo-distintas | 1/1 | 0 | 0 | 3630 | 0.000173 | OK |
+| 47-precio-desde | 1/1 | 0 | 0 | 2414 | 0.000186 | OK |
+| 46-cantidad-imei | 1/1 | 0 | 0 | 3322 | 0.000199 | OK |
+| 49-xr | 1/1 | 0 | 0 | 1939 | 0.000151 | OK |
+| 48-precio-rango | 1/1 | 0 | 0 | 2466 | 0.000177 | OK |
+| 50-se | 1/1 | 0 | 0 | 2372 | 0.000171 | OK |
+| 51-whatsapp-fecha | 2/2 | 0 | 0 | 3617 | 0.000215 | OK |
+| 53-no-inventario-receta | 0/0 | 0 | 0 | 2406 | 0.000168 | OK |
+| 52-accesorios | 1/1 | 0 | 0 | 4019 | 0.000201 | OK |
+| 55-no-inventario-charla | 0/0 | 0 | 0 | 1772 | 0.000145 | OK |
+| 56-no-inventario-instrucciones | 0/0 | 0 | 0 | 2008 | 0.000132 | OK |
+| 54-no-inventario-gastos | 0/0 | 0 | 0 | 2729 | 0.000160 | OK |
+| 57-mixto-24-lineas | 24/24 | 0 | 0 | 16942 | 0.001302 | OK |
+| large-500 | 500/500 | 0 | 0 | 77609 | 0.020563 | OK |
 
 ## Diferencias y errores
-
-### 01-whatsapp-midnight
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 02-abreviatura-pm
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 03-guiones
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 05-tabs
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 04-barras
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 06-comas
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 08-imei-ceros
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 07-imei
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 09-serie
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 11-cant-x3
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 10-compra-venta
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 12-unidades
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 13-sim-fisica
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 15-typo-pro
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 14-typo-iphone
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 16-encabezado-usd
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 17-encabezado-cambio
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 18-varios-por-linea
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 20-basura-entre-equipos
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 19-mas-por-linea
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 21-pesos-miles
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 23-k-pesos
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 22-decimal-coma
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 24-tb
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 25-bateria-rango
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 26-bateria-fraccion
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 27-sin-precio
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 28-sin-moneda
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 29-sin-imei
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 30-sin-bateria
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 32-desconocido
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 33-samsung
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 34-pixel
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 35-multilinea
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 36-lista-numerada
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 31-minimo
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 37-con-guiones-imei
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 38-outlet
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 39-preowned
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 40-seminuevo
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 41-mini
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 42-plus
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 43-pro-vs-max
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 44-costo-solo
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 45-monedas-costo-distintas
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 47-precio-desde
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 46-cantidad-imei
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 48-precio-rango
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 49-xr
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 50-se
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 51-whatsapp-fecha
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 53-no-inventario-receta
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 52-accesorios
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 54-no-inventario-gastos
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 55-no-inventario-charla
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 56-no-inventario-instrucciones
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### 57-mixto-24-lineas
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
-
-### large-500
-
-OpenAI HTTP 401 (invalid_api_key): La clave del servicio de análisis no es válida. Pedile al administrador que revise OPENAI_API_KEY.
-
 
 ## Reproducir
 
