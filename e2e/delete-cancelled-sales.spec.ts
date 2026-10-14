@@ -66,8 +66,13 @@ for (const device of [
       if (!(await page.getByTestId('sidebar-tab-clients').isVisible())) await page.getByTestId('sidebar-tab-more').click();
       await page.getByTestId('sidebar-tab-clients').click();
       const clientRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Ana Pérez' });
-      const balance = before.clients.clients.find((row) => row.id === client.id)!.pendingBalance;
-      await expect(clientRow).toContainText(balance > 0 ? `Saldo $ ${balance}` : 'Sin saldo');
+      const clientRecord = before.clients.clients.find((row) => row.id === client.id)!;
+      // The pending sale had no collection of its own. The general payment stays as credit, and the 50 typed on the client stays.
+      expect(clientRecord.pendingBalance).toBe(50);
+      expect(clientRecord.creditBalance).toBe(300000);
+      const net = clientRecord.pendingBalance - (clientRecord.creditBalance ?? 0);
+      const formatted = new Intl.NumberFormat('es-AR').format(Math.abs(Math.round(net)));
+      await expect(clientRow).toContainText(net > 0 ? `Saldo $ ${formatted}` : net < 0 ? `A favor $ ${formatted}` : 'Sin saldo');
       await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total gastado' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
       await page.getByTestId('sidebar-tab-sales').click();
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();

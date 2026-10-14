@@ -24,6 +24,11 @@ describe('cancellationRefund', () => {
     expect(plan.credit).toBe(100);
   });
 
+  it('keeps a balance typed on the client out of the cash refund', () => {
+    const target = sale({ cash: 950, openBalance: null, status: 'PENDIENTE' });
+    expect(cancellationPlan(target, [target], [{ kind: 'PAGO', amount: 300 }], 700)).toEqual({ refund: 0, credit: 300 });
+  });
+
   it('assigns a general payment to the oldest open sale', () => {
     const older = sale({ id: 'older', cash: 80, openBalance: 80, soldAt: '2026-09-01' });
     const newer = sale({ id: 'newer', cash: 100, openBalance: 100, soldAt: '2026-10-01' });

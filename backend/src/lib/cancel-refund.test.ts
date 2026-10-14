@@ -10,6 +10,22 @@ function pay(amount: number, overrides: Partial<RefundMovement> = {}): RefundMov
 }
 
 describe("cancellationSettlement", () => {
+  it("keeps a balance typed on the client when a general payment covered part of the sale", () => {
+    const target = sale({ cash: 950, openBalance: null, status: "PENDIENTE" });
+    const result = cancellationSettlement(target, [target], [pay(300)], 700);
+    expect(result.refund.toNumber()).toBe(0);
+    expect(result.credit.toNumber()).toBe(300);
+    expect(result.debtToRemove.toNumber()).toBe(650);
+  });
+
+  it("does not turn a discount into credit", () => {
+    const target = sale({ cash: 100, openBalance: 100 });
+    const result = cancellationSettlement(target, [target], [pay(20, { kind: "DESCUENTO" })], 80);
+    expect(result.refund.toNumber()).toBe(0);
+    expect(result.credit.toNumber()).toBe(0);
+    expect(result.debtToRemove.toNumber()).toBe(80);
+  });
+
   it("keeps a general payment as credit and does not touch a manual balance", () => {
     const target = sale({ cash: 100, openBalance: 100 });
     const result = cancellationSettlement(target, [target], [pay(100), pay(35, { kind: "CARGO" })], 35);

@@ -54,15 +54,6 @@ function unlinked(movements: RefundMovement[]): RefundMovement[] {
   return movements.filter((row) => !row.saleId && !row.repairOrderId);
 }
 
-function manualCharges(movements: RefundMovement[]): Decimal {
-  return unlinked(movements).reduce((total, row) => {
-    const amount = Decimal.max(money(row.amount), ZERO);
-    if (row.kind === "CARGO") return total.plus(amount);
-    if (row.kind === "DESCUENTO" || row.kind === "NOTA_CREDITO") return total.minus(amount);
-    return total;
-  }, ZERO);
-}
-
 function orderedSales(target: RefundTarget, openSales: RefundTarget[]): RefundTarget[] {
   const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
   if (!ordered.some((sale) => sale.id === target.id)) ordered.push(target);
@@ -71,23 +62,31 @@ function orderedSales(target: RefundTarget, openSales: RefundTarget[]): RefundTa
 
 /**
  * How much of each open line is still inside the client's pending balance.
- * A general payment that already lowered the balance leaves a hole on the
- * oldest open sale first. That hole is credit, not cash to return.
+ * A general payment covers the oldest open sale first. That hole is credit,
+ * not cash. Any pending left above those lines is the manual balance, even
+ * when it was typed on the client and has no charge row.
  */
 export function balanceStillOwed(openSales: RefundTarget[], movements: RefundMovement[], pendingBalance: number): Map<string, Decimal> {
   const pending = Decimal.max(money(pendingBalance), ZERO);
   const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
   const lineSum = ordered.reduce((total, sale) => total.plus(bookOpen(sale)), ZERO);
-  const surplus = Decimal.max(pending.minus(lineSum), ZERO);
-  const reserved = surplus.greaterThan(ZERO) ? surplus : Decimal.max(manualCharges(movements), ZERO);
-  const forSales = Decimal.max(pending.minus(reserved), ZERO);
-  let coverage = Decimal.max(lineSum.minus(forSales), ZERO);
+  let coverage = Decimal.min(Decimal.max(netCollected(unlinked(movements)), ZERO), lineSum);
   const still = new Map<string, Decimal>();
   for (const sale of ordered) {
     const open = bookOpen(sale);
     const hole = Decimal.min(open, coverage);
     still.set(sale.id, open.minus(hole));
     coverage = coverage.minus(hole);
+  }
+  let extra = Decimal.max(lineSum.minus(Decimal.max(netCollected(unlinked(movements)), ZERO)).minus(pending), ZERO);
+  if (extra.greaterThan(ZERO)) {
+    for (const sale of ordered) {
+      if (extra.lessThanOrEqualTo(ZERO)) break;
+      const current = still.get(sale.id) ?? ZERO;
+      const cut = Decimal.min(current, extra);
+      still.set(sale.id, current.minus(cut));
+      extra = extra.minus(cut);
+    }
   }
   return still;
 }

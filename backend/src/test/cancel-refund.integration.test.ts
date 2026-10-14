@@ -543,4 +543,42 @@ describe("cancel refund", () => {
     expect(after.pendingBalance).toBe(35);
     expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
   });
+
+  it("keeps a balance typed on the client when a general payment covered part of the sale", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    await prisma.client.update({ where: { id: fixture.client.id }, data: { pendingBalance: 50 } });
+    const headers = headersFor(context.user.firebaseUid);
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "V-0216", amount: 950, paymentMethod: "EFECTIVO", status: "PENDIENTE", currency: "USD" },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const saleId = created.json().sale.id as string;
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/clients/${fixture.client.id}/payments`,
+      headers,
+      payload: { amount: 300, method: "EFECTIVO", currency: "USD" },
+    })).statusCode).toBe(201);
+    const covered = await accountOf(headers, fixture.client.id);
+    expect(covered.pendingBalance).toBe(700);
+    expect(covered.lines.find((line) => line.source === "VENTA")).toMatchObject({ amount: 650 });
+    expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 50 });
+
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(cancelled.json().summary).not.toContain("devolución");
+    expect(cancelled.json().summary).toContain("saldo a favor US$ 300");
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } })).toBe(0);
+    expect(Number((await prisma.clientDeposit.findFirstOrThrow({ where: { requestKey: `cancel-credit-${saleId}` } })).amount)).toBe(300);
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(50);
+    const after = await accountOf(headers, fixture.client.id);
+    expect(after.pendingBalance).toBe(50);
+    expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 50 });
+    expect(after.lines.find((line) => line.source === "VENTA")).toBeUndefined();
+  });
 });

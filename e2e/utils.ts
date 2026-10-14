@@ -176,7 +176,7 @@ export async function fetchClients(request: APIRequestContext, email: string) {
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch clients');
-  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string; phone: string; pendingBalance: number; totalSpent: number }> };
+  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string; phone: string; pendingBalance: number; creditBalance?: number; totalSpent: number }> };
 }
 
 export async function createClientViaApi(

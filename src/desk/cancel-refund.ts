@@ -49,15 +49,6 @@ function unlinked(movements: RefundMovement[]): RefundMovement[] {
   return movements.filter((row) => !row.saleId && !row.repairOrderId);
 }
 
-function manualCents(movements: RefundMovement[]): number {
-  return unlinked(movements).reduce((total, row) => {
-    const amount = Math.max(0, cents(row.amount));
-    if (row.kind === 'CARGO') return total + amount;
-    if (row.kind === 'DESCUENTO' || row.kind === 'NOTA_CREDITO') return total - amount;
-    return total;
-  }, 0);
-}
-
 function ordered(target: RefundTarget, openSales: RefundTarget[]): RefundTarget[] {
   const rows = [...openSales].sort((left, right) => (left.soldAt ?? '').localeCompare(right.soldAt ?? '') || left.id.localeCompare(right.id));
   if (!rows.some((sale) => sale.id === target.id)) rows.push(target);
@@ -68,16 +59,22 @@ function stillOwed(openSales: RefundTarget[], movements: RefundMovement[], pendi
   const pending = Math.max(0, cents(pendingBalance));
   const rows = [...openSales].sort((left, right) => (left.soldAt ?? '').localeCompare(right.soldAt ?? '') || left.id.localeCompare(right.id));
   const lineSum = rows.reduce((total, sale) => total + bookOpenCents(sale), 0);
-  const surplus = Math.max(0, pending - lineSum);
-  const reserved = surplus > 0 ? surplus : Math.max(0, manualCents(movements));
-  const forSales = Math.max(0, pending - reserved);
-  let coverage = Math.max(0, lineSum - forSales);
+  const paid = Math.max(0, netCents(unlinked(movements)));
+  let coverage = Math.min(paid, lineSum);
   const still = new Map<string, number>();
   for (const sale of rows) {
     const open = bookOpenCents(sale);
     const hole = Math.min(open, coverage);
     still.set(sale.id, open - hole);
     coverage -= hole;
+  }
+  let extra = Math.max(0, lineSum - paid - pending);
+  for (const sale of rows) {
+    if (extra <= 0) break;
+    const current = still.get(sale.id) ?? 0;
+    const cut = Math.min(current, extra);
+    still.set(sale.id, current - cut);
+    extra -= cut;
   }
   return still;
 }
