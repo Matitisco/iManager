@@ -1,3 +1,4 @@
+import { toUserMessage } from './lib/user-message';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -90,7 +91,7 @@ function AppContent() {
       await acceptStoreInvitation(inviteToken);
       clearInvite();
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
+      setInviteError(toUserMessage(err, 'No se pudo aceptar la invitación'));
     } finally {
       setInviteAccepting(false);
     }

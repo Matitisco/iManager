@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
@@ -160,7 +161,7 @@ export const ImportModal: React.FC<Props> = ({
       setStep('summary');
     } catch (error: unknown) {
       if (requestRef.current !== requestId) return;
-      setFileError(error instanceof Error ? error.message : 'Error al leer el archivo');
+      setFileError(toUserMessage(error, 'Error al leer el archivo'));
       setStep('upload');
     }
   };
@@ -177,7 +178,7 @@ export const ImportModal: React.FC<Props> = ({
       applyResult(analysis);
     } catch (error: unknown) {
       if (requestRef.current !== requestId) return;
-      setFileError(error instanceof Error ? error.message : 'No se pudo actualizar la importación.');
+      setFileError(toUserMessage(error, 'No se pudo actualizar la importación.'));
     } finally {
       if (requestRef.current === requestId) setApplying(false);
     }
@@ -204,7 +205,7 @@ export const ImportModal: React.FC<Props> = ({
       setResult(response);
       setStep('result');
     } catch (error: unknown) {
-      setFileError(error instanceof Error ? error.message : 'Error al importar');
+      setFileError(toUserMessage(error, 'Error al importar'));
     } finally {
       setImporting(false);
     }
@@ -448,7 +449,7 @@ export const ImportModal: React.FC<Props> = ({
                   {result.errors.map((error, index) => (
                     <tr key={index}>
                       <td className="px-3 py-2 text-gray-500">{error.row}</td>
-                      <td className="px-3 py-2 text-red-600">{error.message}</td>
+                      <td className="px-3 py-2 text-red-600">{toUserMessage(error, 'No se pudo importar esta fila.')}</td>
                     </tr>
                   ))}
                 </tbody>

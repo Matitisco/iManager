@@ -1,3 +1,4 @@
+import { formatShortDate } from '../format';
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
@@ -67,6 +68,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
+      {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -74,7 +76,7 @@ export function EquipmentDetail({ id }: { id: string }) {
         {isInStock(item.status)
           ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 p" type="button" disabled={busy} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
+        <button className="btn2 p" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
       </div>
     </Sheet>
   );

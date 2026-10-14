@@ -6,6 +6,7 @@ export type OperationSource = 'inventory' | 'sales' | 'tradeins' | 'clients';
 export type OperationSaleStatus = 'COMPLETADA' | 'PENDIENTE';
 
 export interface OperationInput {
+  depositIds?: string[];
   sellerMemberId?: string | null;
   exchangeRate?: number;
   date?: string;

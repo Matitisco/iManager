@@ -1,3 +1,7 @@
+import { usePublicCatalogState } from './public-catalog-state';
+import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
+import type { ClientDeposit } from '../types';
+import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
@@ -20,7 +24,7 @@ import { isActiveTradeOperation } from '../desk/format';
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 
-interface AppState extends ReturnType<typeof useCommissionState> {
+interface AppState extends ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -31,6 +35,11 @@ interface AppState extends ReturnType<typeof useCommissionState> {
   sales: Sale[];
   tradeIns: TradeIn[];
   clients: Client[];
+  clientDeposits: Record<string, ClientDeposit[]>;
+  loadClientDeposits: (clientId: string) => Promise<ClientDeposit[]>;
+  addClientDeposit: (clientId: string, input: DepositInput) => Promise<ClientDeposit>;
+  cancelClientDeposit: (clientId: string, id: string, mode: 'REFUND' | 'CREDIT') => Promise<ClientDeposit>;
+  applyClientDepositToRepair: (clientId: string, id: string, repairId: string, exchangeRate?: number) => Promise<void>;
   customColumns: CustomColumn[];
   operationOptions: Partial<Record<OperationSource, OperationOptions>>;
   operationDrafts: TradeIn[];
@@ -107,6 +116,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   } = useStoreRecords({ user, appSession, backendStatus });
 
   const commissions = useCommissionState(user, appSession, backendStatus);
+  const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
+    const visibility = new Map(catalog?.items.map(item => [item.id, item]));
+    setInventory(items => items.map(item => {
+      const managed = visibility.get(item.id);
+      return managed ? { ...item, catalogVisible: managed.catalogVisible, catalogIncluded: Boolean(catalog?.active && !managed.reason) } : item;
+    }));
+  });
+  const [depositState, setDepositState] = useState<{ scope: string; rows: Record<string, ClientDeposit[]> }>({ scope: currentScope, rows: {} });
+  const clientDeposits = depositState.scope === currentScope ? depositState.rows : {};
+  const requireDeposits = () => {
+    if (!user || !backendReady || !['clients', 'sales', 'service'].some(section => canAccess(section as 'clients' | 'sales' | 'service'))) throw new Error('El backend todavía no está listo o no tenés acceso a señas');
+    return user;
+  };
+  const loadClientDeposits = async (clientId: string) => {
+    const rows = await fetchClientDeposits(requireDeposits(), clientId);
+    if (scopeRef.current === currentScope) setDepositState(old => ({ scope: currentScope, rows: { ...(old.scope === currentScope ? old.rows : {}), [clientId]: rows } }));
+    return rows;
+  };
+  const mergeDeposit = (row: ClientDeposit) => {
+    if (scopeRef.current !== currentScope) return;
+    setDepositState(old => {
+      const rows = old.scope === currentScope ? old.rows : {};
+      return { scope: currentScope, rows: { ...rows, [row.clientId]: [row, ...(rows[row.clientId] ?? []).filter(item => item.id !== row.id)] } };
+    });
+    noteLocalMutation();
+  };
+  const addClientDeposit = async (clientId: string, input: DepositInput) => {
+    const row = await createClientDeposit(requireDeposits(), clientId, input);
+    if (scopeRef.current === currentScope) {
+      mergeDeposit(row);
+      if (row.productId && row.status === 'ACTIVE') setInventory(old => old.map(item => item.id === row.productId ? { ...item, status: 'RESERVADO', reservedDepositId: row.id, reservedClientId: clientId, reservedClientName: clients.find(client => client.id === clientId)?.name, reservedAt: row.createdAt } : item));
+    }
+    return row;
+  };
+  const runCancelClientDeposit = async (clientId: string, id: string, mode: 'REFUND' | 'CREDIT') => {
+    const row = await cancelClientDeposit(requireDeposits(), clientId, id, mode);
+    if (scopeRef.current === currentScope) {
+      mergeDeposit(row);
+      setInventory(old => old.map(item => item.reservedDepositId === id ? { ...item, status: row.previousInventoryStatus ?? 'DISPONIBLE', reservedDepositId: null, reservedClientId: null, reservedClientName: null, reservedAt: null } : item));
+    }
+    return row;
+  };
+  const runApplyClientDepositToRepair = async (clientId: string, id: string, repairId: string, exchangeRate?: number) => {
+    const result = await applyClientDepositToRepair(requireDeposits(), clientId, id, repairId, exchangeRate);
+    if (scopeRef.current === currentScope) {
+      mergeDeposit(result.deposit);
+      setRepairOrders(old => old.map(order => order.id === repairId ? { ...order, deposit: result.repairDeposit, currency: result.repairCurrency } : order));
+    }
+  };
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -162,7 +220,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (error) {
         if (cancelled) return;
         setBackendStatus('offline');
-        setBackendMessage(error instanceof Error ? error.message : String(error));
+        setBackendMessage(toUserMessage(error));
 
         retryTimeout = window.setTimeout(() => {
           if (!cancelled) {
@@ -321,7 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           && canAccess(notification.section as OperationSource);
       }));
     } catch (error) {
-      if (scopeRef.current === requestScope) setNotificationsError(error instanceof Error ? error.message : String(error));
+      if (scopeRef.current === requestScope) setNotificationsError(toUserMessage(error));
       throw error;
     } finally {
       if (scopeRef.current === requestScope) setNotificationsLoading(false);
@@ -380,7 +438,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const result = await call(currentUser);
     if (scopeRef.current === requestScope && canAccess(source)) {
       applyOperationResult(result, requestScope);
-      if (mutate) noteLocalMutation();
+      if (mutate) {
+        noteLocalMutation();
+        // Invalidate receipts after consumption/restoration; the next sheet loads authoritative state.
+        setDepositState({ scope: currentScope, rows: {} });
+      }
     }
     return result;
   };
@@ -724,6 +786,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       ...commissions,
+      ...catalogState,
       inventory, sales, tradeIns, clients, customColumns,
       repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder,
       operationOptions, operationDrafts,
@@ -740,6 +803,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateSale, deleteSale,
       addProduct, updateProduct, deleteProduct,
       addClient, updateClient, registerClientPayment, deleteClient,
+      clientDeposits, loadClientDeposits, addClientDeposit, cancelClientDeposit: runCancelClientDeposit, applyClientDepositToRepair: runApplyClientDepositToRepair,
       updateTradeIn, deleteTradeIn,
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       clientCategories,

@@ -1,3 +1,5 @@
+import { toUserMessage } from '../lib/user-message';
+import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Client, ClientCategory, CustomColumn, CustomColumnEntity, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
@@ -73,6 +75,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [inventory, setInventory] = useState<Product[]>([]);
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
   const [repairOrdersError, setRepairOrdersError] = useState<string | null>(null);
+  const [repairRetry, setRepairRetry] = useState(0);
   const [sales, setSales] = useState<Sale[]>([]);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -81,6 +84,9 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [operationNotifications, setOperationNotifications] = useState<OperationNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [notificationRetry, setNotificationRetry] = useState(0);
+  useOfflineRecovery(repairOrdersError, () => setRepairRetry(value => value + 1));
+  useOfflineRecovery(notificationsError, () => setNotificationRetry(value => value + 1));
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const scopeRef = useRef('');
@@ -153,7 +159,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
         setRepairOrdersError(null);
       } catch (error) {
         if (cancelled) return;
-        setRepairOrdersError(error instanceof Error ? error.message : 'No se pudieron cargar las órdenes de servicio.');
+        setRepairOrdersError(toUserMessage(error, 'No se pudieron cargar las órdenes de servicio.'));
       }
     };
     if (loadRepairsEnabled) {
@@ -162,7 +168,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       void load();
     }
     return () => { cancelled = true; };
-  }, [activeStoreId, loadRepairsEnabled, user]);
+  }, [activeStoreId, loadRepairsEnabled, user, repairRetry]);
 
   useEffect(() => {
     if (!user) {
@@ -271,12 +277,12 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       }));
     }).catch((error: unknown) => {
       if (cancelled) return;
-      setNotificationsError(error instanceof Error ? error.message : String(error));
+      setNotificationsError(toUserMessage(error));
     }).finally(() => {
       if (!cancelled) setNotificationsLoading(false);
     });
     return () => { cancelled = true; };
-  }, [currentScope, user]);
+  }, [currentScope, user, notificationRetry]);
 
   const noteLocalMutation = useCallback(() => {
     generation.current += 1;
@@ -342,6 +348,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
         return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
           && canAccess(notification.section as OperationSource);
       }));
+      setNotificationsError(null);
     });
     await Promise.all(jobs);
   }, [backendClientsEnabled, backendReady, currentScope, loadInventoryEnabled, loadRepairsEnabled, loadSalesEnabled, loadTradeInsEnabled, user]);

@@ -54,9 +54,10 @@ export function stampedCurrency(value: string | null | undefined): 'ARS' | 'USD'
   return value === 'ARS' || value === 'USD' ? value : undefined;
 }
 
-export function ConfirmOperationDialog({ label, refund, currency, busy, error, onClose, onOk }: {
+export function ConfirmOperationDialog({ label, refund, depositCredit, currency, busy, error, onClose, onOk }: {
   label: string;
   refund: number;
+  depositCredit?: number;
   currency?: string | null;
   busy: boolean;
   error: string | null;
@@ -64,9 +65,9 @@ export function ConfirmOperationDialog({ label, refund, currency, busy, error, o
   onOk: () => void;
 }) {
   const money = useMoney();
-  const text = refund > 0
+  const text = (refund > 0
     ? `${label} se cancelará y quedará en el historial. Se devolverán ${money.show(refund, currency)}.`
-    : `${label} se cancelará y quedará en el historial.`;
+    : `${label} se cancelará y quedará en el historial.`) + (depositCredit ? " Las señas aplicadas vuelven como saldo a favor, sin devolución de ese anticipo." : "");
   return (
     <Dialog
       title="Cancelar operación"

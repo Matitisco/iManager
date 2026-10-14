@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import React, { useMemo, useState } from 'react';
 import { BrandLockup } from '../components/brand-mark';
 import { useAppContext } from '../context/AppContext';
@@ -187,7 +188,7 @@ export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
       await acceptStoreInvitation(inviteToken);
       onInviteAccepted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo aceptar la invitación');
+      setError(toUserMessage(err, 'No se pudo aceptar la invitación'));
     } finally {
       setIsSubmitting(false);
     }

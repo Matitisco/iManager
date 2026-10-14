@@ -1,3 +1,5 @@
+import { toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -36,7 +38,7 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
     if (!paymentToVoid || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
     try { await voidCommissionPayment(paymentToVoid.id, person.memberId, period); setPaymentToVoid(null); onConfirmChange?.(false); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo anular el pago'); }
+    catch (cause) { setError(toUserMessage(cause, 'No se pudo anular el pago')); }
     finally { submitting.current = false; setBusy(false); }
   };
   const [all, setAll] = useState(false);
@@ -89,17 +91,18 @@ export function CommissionsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  useOfflineRecovery(error, () => setRetry(value => value + 1));
   const summary = commissionSummaries[period];
   const mine = commissionDetails[`mine:${period}`];
   const detail = member ? commissionDetails[`${member}:${period}`] : undefined;
   useEffect(() => {
     let active = true; setLoading(true); setError(''); setMember(null); setSheet(null);
-    loadCommissions(period).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'No se pudieron cargar las comisiones'); }).finally(() => { if (active) setLoading(false); });
+    loadCommissions(period).catch((cause: unknown) => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [period, manage, appSession?.store?.id, appSession?.user?.id, retry]);
   const openMember = async (id: string) => {
     setError('');
-    try { await loadCommissionDetail(id, period); setMember(id); } catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo cargar el detalle'); }
+    try { await loadCommissionDetail(id, period); setMember(id); } catch (cause) { setError(toUserMessage(cause, 'No se pudo cargar el detalle')); }
   };
   const label = monthLabel(period);
   const periodPicker = <CommissionMonthPicker value={period} onChange={setPeriod} />;

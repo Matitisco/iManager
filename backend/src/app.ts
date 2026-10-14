@@ -1,3 +1,5 @@
+import { catalogManagementRoutes, publicCatalogRoutes } from './modules/public-catalog/routes.js';
+import { depositsRoutes } from './modules/deposits/deposits.routes.js';
 import { commissionsRoutes } from "./modules/commissions/commissions.routes.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -52,9 +54,12 @@ export function buildApp() {
     return redactFinancials(payload);
   });
 
+  app.register(catalogManagementRoutes, { prefix: "/api/catalog" });
+  app.register(publicCatalogRoutes, { prefix: "/api/public/catalog" });
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
+  app.register(depositsRoutes, { prefix: '/api/clients' });
   app.register(clientsRoutes, { prefix: "/api/clients" });
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
   app.register(commissionsRoutes, { prefix: "/api/commissions" });

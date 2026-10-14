@@ -110,7 +110,7 @@ describe('clients-api', () => {
       .mockResolvedValueOnce(jsonResponse({ error: 'boom' }, 500));
 
     await expect(deleteBackendClient(mockUser, 'client-1')).resolves.toBeUndefined();
-    await expect(deleteBackendClient(mockUser, 'client-1')).rejects.toThrow('boom');
+    await expect(deleteBackendClient(mockUser, 'client-1')).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
   });
 
   it('deletes without a JSON content type so Fastify accepts the empty body', async () => {
@@ -151,6 +151,6 @@ describe('clients-api', () => {
 
     await expect(createBackendClient(mockUser, createClientPayload)).rejects.toThrow('El nombre puede tener hasta 120 caracteres');
     await expect(registerBackendClientPayment(mockUser, 'client-1', { amount: -1, method: 'EFECTIVO' })).rejects.toThrow('El pago no puede ser negativo');
-    await expect(registerBackendClientPayment(mockUser, 'client-1', { amount: -1, method: 'EFECTIVO' })).rejects.toThrow('No se pudo registrar el pago');
+    await expect(registerBackendClientPayment(mockUser, 'client-1', { amount: -1, method: 'EFECTIVO' })).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
   });
 });

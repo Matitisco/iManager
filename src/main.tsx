@@ -1,3 +1,4 @@
+import { PublicCatalogPage } from './catalog/PublicCatalogPage';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
@@ -6,15 +7,15 @@ import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { initializeInstallEvents, isStandalone, registerServiceWorker } from './lib/pwa';
 
-initializeInstallEvents();
+const catalogMatch = window.location.pathname.match(/^\/c\/([a-z0-9-]{1,160})\/?$/);
+if (!catalogMatch) initializeInstallEvents();
 document.documentElement.classList.toggle('ios-standalone', isStandalone());
-registerServiceWorker();
+if (!catalogMatch) registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
-      <PwaUpdate />
+      {catalogMatch ? <PublicCatalogPage slug={catalogMatch[1]} /> : <><App /><PwaUpdate /></>}
     </ErrorBoundary>
   </StrictMode>,
 );

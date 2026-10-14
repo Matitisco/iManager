@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { updateMemberSections, type TeamMember } from '../../services/members-api';
@@ -36,7 +37,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
       onSaved(saved);
       onBack();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron guardar los permisos');
+      setError(toUserMessage(err, 'No se pudieron guardar los permisos'));
     } finally {
       setBusy(false);
     }
@@ -57,7 +58,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
       <div className="settings-grid">
         <div className="sec">Secciones</div>
         <div className="card">
-          {DESK_SECTIONS.map((section) => {
+          {DESK_SECTIONS.filter(section => section.id !== 'publicCatalog').map((section) => {
             const on = sections.includes(section.id);
             return (
               <div className={`perm${section.id === 'commissions' ? ' commission-permission' : ''}`} key={section.id}>

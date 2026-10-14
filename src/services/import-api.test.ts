@@ -70,7 +70,7 @@ describe('import-api', () => {
       .mockResolvedValueOnce(new Response(null, { status: 500 }));
 
     await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('Producto inexistente');
-    await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow(/Error al importar \(500\)/);
+    await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
   });
 
   it('asks the backend to read the workbook and keeps the OpenAI key off the client', async () => {

@@ -11,6 +11,12 @@ const originalWorker = await readFile(new URL('../../.pwa-test-dist/sw.js', impo
 const embeddedBuildId = JSON.parse(await readFile(new URL('../../.pwa-test-dist/version.json', import.meta.url), 'utf8')).buildId;
 let swRelease = 0;
 let versionRelease = 0;
+let publicCatalogActive = true;
+const publicCatalog = {
+  store: { name: 'Tienda pública QA', phone: '5491155551234', address: 'Av. Corrientes 1234', logoUrl: null, hours: 'Lun a sáb 10–19', currency: 'USD' },
+  showPrice: true, priceCurrency: 'USD',
+  items: [{ model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', price: 920, currency: 'USD' }],
+};
 const spa = createSpaHandler({ root: fileURLToPath(new URL('../../.pwa-test-dist', import.meta.url)) });
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
@@ -42,6 +48,14 @@ createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store', 'service-worker-allowed': '/' });
     res.end(originalWorker.replace(/const CACHE = [^;]+;/, `const CACHE = 'imanager-static-e2e-${swRelease}';`)
       + `\nself.addEventListener('message', (event) => { if (event.data === 'TEST_RELEASE') event.ports[0].postMessage(${swRelease}); });`); return;
+  }
+  if (path === '/__test__/catalog' && req.method === 'POST') {
+    publicCatalogActive = url.searchParams.get('active') !== 'false';
+    res.writeHead(200, { 'cache-control': 'no-store' }); res.end('ok'); return;
+  }
+  if (path === '/api/public/catalog/tienda-publica-qa') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ...publicCatalog, active: publicCatalogActive, items: publicCatalogActive ? publicCatalog.items : [] })); return;
   }
   if (path.startsWith('/api/')) {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });

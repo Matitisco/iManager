@@ -1,3 +1,6 @@
+import { CancelDeposit, DepositReceipt, useClientDeposits } from './deposits';
+import { depositAvailable } from '../deposits';
+import type { ClientDeposit } from '../../types';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
@@ -16,8 +19,10 @@ import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from '
 export function ClientDetail({ id }: { id: string }) {
   const { clients, user, registerClientPayment } = useAppContext();
   const money = useMoney();
-  const { close, open, toast } = useDesk();
+  const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
+  const deposits = useClientDeposits(id);
+  const [cancelTarget, setCancelTarget] = useState<ClientDeposit | null>(null);
   const client = clients.find((item) => item.id === id);
   const [method, setMethod] = useState('TRANSFERENCIA');
   const [amount, setAmount] = useState('');
@@ -38,11 +43,12 @@ export function ClientDetail({ id }: { id: string }) {
     let cancelled = false;
     fetchClientPayments(user, id)
       .then((rows) => { if (!cancelled) setPayments(rows); })
-      .catch(() => { if (!cancelled) setPayments([]); });
+      .catch(cause => { if (!cancelled) setError(getFriendlyErrorMessage(cause, 'No se pudo cargar el historial de pagos')); });
     return () => { cancelled = true; };
-  }, [user, id, client?.pendingBalance]);
+  }, [user, id, client?.pendingBalance, deposits.rows]);
 
   if (!client) return null;
+  if (cancelTarget) return <CancelDeposit row={cancelTarget} onClose={() => setCancelTarget(null)} />;
   const pay = async () => {
     const value = parseMoney(amount);
     const projected = money.number(client.pendingBalance, client.balanceCurrency);
@@ -99,18 +105,26 @@ export function ClientDetail({ id }: { id: string }) {
           <Segs options={PAYMENTS} value={method} onChange={setMethod} />
         </>
       ) : null}
+      <section className="deposit-list" aria-label="Historial de señas">
+        <h4>Señas y saldo a favor</h4>
+        {deposits.loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}
+        {deposits.error ? <div className="ferr" role="alert">{deposits.error}<button type="button" className="wlink" onClick={deposits.retry}>Reintentar señas</button></div> : null}
+        {!deposits.loading && !deposits.error && !deposits.rows.length ? <p className="eqs-note">Todavía no tiene señas.</p> : null}
+        {deposits.rows.map(row => <div className="deposit-card" key={row.id}><DepositReceipt row={row} />{canManageSensitive && depositAvailable(row) ? <button className="btn2 s" type="button" onClick={() => setCancelTarget(row)}>{row.status === 'CREDIT' ? 'Devolver saldo a favor' : 'Cancelar seña'}</button> : null}</div>)}
+      </section>
       {payments.length > 0 ? (
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : payment.kind === 'SENA' ? 'Cobro de seña' : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)' : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
           ))}
         </>
       ) : null}
-      <div className="sacts">
+      <div className="sacts deposit-actions">
         {client.pendingBalance > 0
           ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
+        <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
         {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
         <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>
       </div>

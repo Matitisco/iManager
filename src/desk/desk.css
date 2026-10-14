@@ -1859,3 +1859,25 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .commission-saved-rule > div { display: flex; gap: 8px; }
 .commission-saved-rule button { min-height: 44px; flex: 1; }
 .commission-payment-void { display: block; min-height: 44px; margin-left: auto; }
+
+/* Client receipts share the current desk sheets and safe-area footers. */
+.deposit-list { margin-top: 20px; min-width: 0; }
+.deposit-list h4 { margin: 0 0 10px; font-size: 14px; font-weight: 800; }
+.deposit-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin: 10px 0; min-width: 0; }
+.deposit-card .btn2 { min-height: 48px; width: 100%; margin-top: 10px; }
+.deposit-receipt { display: grid; gap: 7px; min-width: 0; }
+.deposit-receipt > div { display: grid; gap: 5px; }
+.deposit-receipt b { font-size: 16px; }
+.deposit-receipt span, .deposit-receipt small, .deposit-card > small { color: var(--secondary); font-size: 12px; overflow-wrap: anywhere; }
+.deposit-receipt small { line-height: 1.5; }
+.reservation-label { display: block; margin-top: 6px; color: var(--secondary); font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+.sacts.deposit-actions { grid-template-columns: 1fr 1fr; }
+.deposit-sheet .btn2, .deposit-sheet .sg { min-height: 48px; }
+.deposit-sheet .sgs { flex-wrap: wrap; }
+.deposit-sheet .sg { flex: 1 1 120px; }
+@media (max-width: 760px) {
+  .sheet.deposit-sheet { width: 100%; max-width: none; }
+  .sheet.deposit-sheet input { font-size: 16px; min-height: 48px; }
+  .sheet.deposit-sheet .frow { grid-template-columns: 1fr; }
+  .sheet.svc-sheet .sacts:has(> .btn2:nth-child(4)) { grid-template-columns: 1fr 1fr; }
+}

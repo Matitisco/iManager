@@ -115,7 +115,7 @@ describe('Onboarding', () => {
     await user.type(screen.getByLabelText(/Instagram/), '@norte');
     await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
 
-    expect(await screen.findByText('No se pudo completar el onboarding')).toBeInTheDocument();
+    expect(await screen.findByText('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.')).toBeInTheDocument();
     expect(screen.queryByText(/too_small/)).not.toBeInTheDocument();
   });
 

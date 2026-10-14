@@ -1,4 +1,10 @@
 export interface Product {
+  catalogVisible?: boolean;
+  catalogIncluded?: boolean;
+  reservedDepositId?: string | null;
+  reservedClientId?: string | null;
+  reservedClientName?: string | null;
+  reservedAt?: string | null;
   id: string;
   imei: string;
   model: string;
@@ -35,6 +41,7 @@ export interface CustomColumn {
 }
 
 export interface Sale {
+  depositAppliedAmount?: number;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: number | null;
@@ -88,6 +95,11 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
+  reservedDepositId?: string | null;
+  reservedClientId?: string | null;
+  reservedClientName?: string | null;
+  reservedAt?: string | null;
+
   id: string;
   model: string;
   capacity: string;
@@ -160,3 +172,24 @@ export interface ClientCategory {
 }
 
 export type * from './types/commissions';
+
+export interface ClientDeposit {
+  id: string;
+  clientId: string;
+  amount: number;
+  currency: 'ARS' | 'USD';
+  exchangeRate: number;
+  usdAmount: number;
+  method: string;
+  status: 'ACTIVE' | 'CREDIT' | 'APPLIED' | 'REFUNDED';
+  productId: string | null;
+  productLabel: string | null;
+  previousInventoryStatus: string | null;
+  saleId: string | null;
+  repairId: string | null;
+  appliedAmount: number | null;
+  appliedCurrency: string | null;
+  appliedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+}

@@ -1,3 +1,5 @@
+import { toUserMessage } from '../../lib/user-message';
+import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -19,6 +21,8 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   const [effectiveFrom, setEffectiveFrom] = useState(`${period}-01`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sellerRetry, setSellerRetry] = useState(0);
+  useOfflineRecovery(error, () => setSellerRetry(value => value + 1));
   const submitting = useRef(false);
   const [ruleAction, setRuleAction] = useState<{ id: string; action: 'Eliminar' | 'Desactivar' | 'Activar' } | null>(null);
   const manageRule = async () => {
@@ -28,16 +32,21 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
       if (ruleAction.action === 'Eliminar') await deleteCommissionRule(ruleAction.id);
       else await setCommissionRuleActive(ruleAction.id, ruleAction.action === 'Activar');
       setRuleAction(null);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo modificar la regla'); }
+    } catch (cause) { setError(toUserMessage(cause, 'No se pudo modificar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
-  useEffect(() => { void loadCommissionSellers().catch(cause => setError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, []);
+  useEffect(() => {
+    let active = true;
+    setError('');
+    void loadCommissionSellers().catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    return () => { active = false; };
+  }, [sellerRetry]);
   const save = async () => {
     if (submitting.current) return;
     if (!effectiveFrom || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
     submitting.current = true; setBusy(true); setError('');
     try { await saveCommissionRule({ memberId: scope === 'team' ? null : person, basis, rate: Number(rate), currency: basis === 'FIXED_PER_UNIT' ? currency : null, effectiveFrom }); await loadCommissions(period); onClose(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo guardar la regla'); }
+    catch (cause) { setError(toUserMessage(cause, 'No se pudo guardar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
   return <Sheet title={scope === 'team' ? 'Regla del equipo' : 'Regla personal'} subtitle={scope === 'team' ? 'Vale para todos los que no tengan una regla personal' : 'Comisión para una persona del equipo'} onClose={() => { if (!busy && !ruleAction) onClose(); }} className="commission-form">
@@ -72,6 +81,7 @@ export function CommissionPaymentSheet({ memberId, period, people, onClose }: { 
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  useOfflineRecovery(error, () => setError(''));
   const submitting = useRef(false);
   useEffect(() => { if (!dirtyRate.current && blue.rate) setExchangeRate(String(blue.rate)); }, [blue.rate]);
   const rate = Number(exchangeRate);
@@ -88,7 +98,7 @@ export function CommissionPaymentSheet({ memberId, period, people, onClose }: { 
     try { const result = await payCommission({ memberId: member, period, amount: Number(amount), currency, exchangeRate: rate, settlesCurrency: settles, note: method });
       if (result?.refreshError) { setSaved(true); setError(result.refreshError); } else onClose();
     }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo registrar el pago'); }
+    catch (cause) { setError(toUserMessage(cause, 'No se pudo registrar el pago')); }
     finally { submitting.current = false; setBusy(false); }
   };
   return <Sheet title="Registrar pago" subtitle="Podés pagar una parte; el resto queda pendiente." onClose={() => { if (!busy) onClose(); }} className="commission-form">
