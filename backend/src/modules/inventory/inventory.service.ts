@@ -1,3 +1,5 @@
+import { ruleReason } from '../public-catalog/rules.js';
+import type { StorePublicCatalog } from '@prisma/client';
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -27,6 +29,8 @@ export interface InventoryItemInput {
 }
 
 export interface InventoryItemResponse {
+  catalogVisible: boolean;
+  catalogIncluded: boolean;
   id: string;
   imei: string;
   model: string;
@@ -58,6 +62,9 @@ export interface InventoryCategoryResponse {
 }
 
 type InventoryRecord = {
+  catalogVisible?: boolean;
+  catalogIncluded?: boolean;
+  quantity?: number;
   id: string;
   imei: string | null;
   model: string;
@@ -112,8 +119,14 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
   return value as Record<string, unknown>;
 };
 
+function inPublicCatalog(item: { catalogVisible?: boolean; quantity?: number; status: string; batteryHealth: string; archivedAt?: Date | string | null; needsCompletion?: boolean }, catalog: StorePublicCatalog | null) {
+  return Boolean(catalog?.active && item.catalogVisible && !ruleReason({ ...item, quantity: item.quantity ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog));
+}
+
 export function serializeInventoryItem(item: InventoryRecord): InventoryItemResponse {
   return {
+    catalogVisible: item.catalogVisible ?? false,
+    catalogIncluded: item.catalogIncluded ?? false,
     id: item.id,
     imei: item.imei ?? "",
     model: item.model,
@@ -216,6 +229,9 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 }
 
 type RawInventoryRow = {
+  catalogVisible?: boolean;
+  catalogIncluded?: boolean;
+  quantity?: number;
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   currency: string | null;
@@ -232,6 +248,8 @@ type RawInventoryRow = {
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
   return {
+    catalogVisible: row.catalogVisible ?? false,
+    catalogIncluded: row.catalogIncluded ?? false,
     id: row.id,
     imei: row.imei ?? "",
     model: row.model,
@@ -267,7 +285,7 @@ export async function listInventoryPaged(
 
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
-      SELECT "id", "imei", "model", "capacity", "color", "condition", "grade",
+      SELECT "catalogVisible", "quantity", "id", "imei", "model", "capacity", "color", "condition", "grade",
              "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
       FROM "InventoryItem"
@@ -280,8 +298,9 @@ export async function listInventoryPaged(
     `,
   ]);
 
+  const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
   return {
-    items: rows.map(deserializeRawRow),
+    items: rows.map(row => deserializeRawRow({ ...row, catalogIncluded: inPublicCatalog(row, catalog) })),
     total: Number(countResult[0].count),
   };
 }
@@ -312,7 +331,8 @@ export async function listInventory(storeId: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  return inventory.map(serializeInventoryItem);
+  const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
+  return inventory.map((item: InventoryRecord) => serializeInventoryItem({ ...item, catalogIncluded: inPublicCatalog(item, catalog) }));
 }
 
 function storedImei(value: string | null | undefined) {
@@ -496,7 +516,9 @@ export async function updateInventoryItem(
     return updated;
   });
 
-  return updated ? serializeInventoryItem(updated) : null;
+  if (!updated) return null;
+  const catalog = updated.catalogVisible ? await prisma.storePublicCatalog.findUnique({ where: { storeId } }) : null;
+  return serializeInventoryItem({ ...updated, catalogIncluded: inPublicCatalog(updated, catalog) });
 }
 
 export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null) {

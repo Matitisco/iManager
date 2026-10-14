@@ -1,3 +1,4 @@
+import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
 import { toUserMessage } from '../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { BrandIsotipo } from '../components/brand-mark';
@@ -33,17 +34,18 @@ import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
 const ROUTE: Record<DeskTab, string> = {
-  dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
+  publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
   more: 'mas', commissions: 'comisiones',
 };
 const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
-  dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
+  publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
 const MORE_SUB: Record<DeskSectionId, string> = {
   dashboard: 'Resumen de la tienda',
   inventory: 'Equipos y stock',
+  publicCatalog: 'Tu lista de precios pública',
   sales: 'Registro de ventas',
   reports: 'Ventas, stock, canjes, clientes y servicio',
   tradeins: 'Equipos dados y recibidos',
@@ -61,7 +63,8 @@ function countWords(count: number, words: string) {
   return `${count} ${words}`;
 }
 
-function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, unreadTotal: number, commissions: number) {
+function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, unreadTotal: number, commissions: number, catalogCount: number) {
+  if (id === 'publicCatalog') return countWords(catalogCount, catalogCount === 1 ? 'visible' : 'visibles');
   if (id === 'commissions') return countWords(commissions, 'pendientes');
   if (id === 'tradeins') return countWords(openTrades, 'en curso');
   if (id === 'service') return countWords(openRepairs, openRepairs === 1 ? 'abierta' : 'abiertas');
@@ -70,7 +73,7 @@ function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, u
 }
 
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, commissions, ownCommissions, onOpen,
+  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, onOpen,
 }: {
   name: string;
   store: string;
@@ -80,6 +83,7 @@ function MoreScreen({
   openRepairs: number;
   unread: number;
   commissions: number;
+  catalogCount: number;
   ownCommissions: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
@@ -105,7 +109,7 @@ function MoreScreen({
           <div className="mlabel">Módulos</div>
           <div className="card">
             {rows.map((id) => {
-              const count = moreCount(id, openTrades, openRepairs, unread, commissions);
+              const count = moreCount(id, openTrades, openRepairs, unread, commissions, catalogCount);
               return (
                 <button key={id} className="member" type="button" data-testid={`sidebar-tab-${id}`} onClick={() => onOpen(id)}>
                   <span className="ico-row"><DeskIcon name={NAV_ICON[id]} size={18} /></span>
@@ -298,6 +302,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
+    { id: 'publicCatalog', label: 'Catálogo', icon: 'list', size: 18 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
@@ -369,6 +374,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
+            {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
@@ -386,6 +392,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 openTrades={openTrades}
                 openRepairs={openRepairs}
                 commissions={pendingCommissions}
+                catalogCount={inventory.filter(item => item.catalogIncluded).length}
                 ownCommissions={!commissionAccess}
                 unread={unread.total}
                 onOpen={go}

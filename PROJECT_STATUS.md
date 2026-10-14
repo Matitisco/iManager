@@ -3,6 +3,17 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #341 — Catálogo público de tienda — 2026-10-14
+
+- Diseño v2: sección Catálogo después de Inventario en desktop y primero en Más/Módulos móvil; Resumen/Equipos, selección individual/masiva, reglas de stock/reserva/batería, precio/moneda, enlace compartible, regeneración y desactivación. Inventario sólo incorpora la marca y cantidad efectiva «En catálogo».
+- `/c/:slug` abre fuera de la sesión, sin login. Lista por modelo, sin fotos de equipos; filtros/búsqueda, logo/ubicación/horario opcionales y un único WhatsApp general flotante en móvil/desktop. Vista previa privada usa la misma API pública y conversión real.
+- API anónima con proyección explícita: no costo, IMEI, serial, proveedor, customFields ni IDs internos. Precio/moneda omitidos al ocultar precios. Rate limit 60/min por IP e instancia, 429/Retry-After, no-store y sin exportaciones. Configuración y selección sólo OWNER, aisladas por tienda, atómicas y auditadas. Slugs con sufijo aleatorio, anterior revocado al regenerar.
+- Prisma aditivo: visibilidad default false y StorePublicCatalog. Migración aplicada al schema anterior con equipo existente: importes/IMEI conservados, visibilidad apagada y Prisma diff sin diferencias. PostgreSQL local exclusivo `imanager_issue341_test`, `imanager_issue341_integration_test`, `imanager_issue341_migration_test`; sin operaciones sobre producción.
+- SEO/OG en HTML del servidor SPA y PNG 1200×630 generado con nombre/modelos/cantidades públicos. Worker excluye /c/ y API pública. Página abierta revalida al foco y cada 15 segundos; no conserva filas ante revocación/error. Detalles y límites de operación en `docs/api/public-catalog.md`.
+- Validación: lint frontend/backend y build solicitado aprobados; 653 tests frontend, 244 unitarios backend locales, 123 integraciones y 17 tests de servidor/worker/SEO. Suite backend completa: 20 fixtures live externos de importación fallan con Decisions/Responses, igual a los fallos previamente documentados; suite local aprobada excluyendo `**/*.live.test.ts`.
+- E2E general: 144/145 aprobados en la corrida completa. La prueba restante medía el indicador móvil durante la transición al redimensionar 390→360; ahora espera la geometría estable. Repetición de patrones móvil/desktop y catálogo: 4/4 aprobados. PWA completo: 57 aprobados y 36 omisiones por plataforma, sin fallos; incluye OG antes de JavaScript, navegación pública anónima y revocación con worker real en desktop, iPhone/WebKit y Android.
+- Capturas v2 reales: `docs/pr-shots/issue-341-{desktop,iphone}-{public,manage,rules}.png`. Reproducir con `ISSUE_341_SHOTS=docs/pr-shots npm run test:e2e -- e2e/public-catalog.spec.ts --workers=1`, con DB local y puertos libres. Cambios sin commit ni push por pedido explícito.
+
 ## Issue #342 — Errores de solicitudes en español — 2026-10-14
 
 - `toUserMessage` centraliza los mensajes exactos de conexión, timeout y servidor. `fetchWithTimeout` distingue el vencimiento del timer y conserva nombres de error para los reintentos de invitaciones; el cliente HTTP conserva status y validaciones 4xx en español y oculta diagnósticos 5xx incluso con respuestas HTML.

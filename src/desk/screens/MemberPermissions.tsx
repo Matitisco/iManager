@@ -58,7 +58,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
       <div className="settings-grid">
         <div className="sec">Secciones</div>
         <div className="card">
-          {DESK_SECTIONS.map((section) => {
+          {DESK_SECTIONS.filter(section => section.id !== 'publicCatalog').map((section) => {
             const on = sections.includes(section.id);
             return (
               <div className={`perm${section.id === 'commissions' ? ' commission-permission' : ''}`} key={section.id}>

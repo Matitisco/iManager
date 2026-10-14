@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { canManageCommissions, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
+  it('offers catalog after Inventory to OWNER and first in More only to OWNER', () => {
+    expect(visibleSections(null, 'OWNER').slice(0, 3)).toEqual(['dashboard', 'inventory', 'publicCatalog']);
+    expect(mobileTabs(null, 'OWNER').more[0]).toBe('publicCatalog');
+    expect(canOpenSection('publicCatalog', ['publicCatalog'], 'STAFF')).toBe(false);
+    expect(canOpenSection('publicCatalog', null, 'MANAGER')).toBe(false);
+  });
   it('grants commissions administration only to owners by default, and always allows own data', () => {
     expect(canManageCommissions(null, 'OWNER')).toBe(true);
     for (const role of ['MANAGER', 'STAFF']) {
@@ -48,7 +54,7 @@ describe('desk sections', () => {
   it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {
     expect(mobileTabs(null, 'OWNER')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['tradeins', 'clients', 'service', 'commissions', 'notifications'],
+      more: ['publicCatalog', 'tradeins', 'clients', 'service', 'commissions', 'notifications'],
     });
     expect(mobileTabs(null, 'STAFF')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'tradeins'],

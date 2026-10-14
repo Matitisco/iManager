@@ -1,3 +1,4 @@
+import { usePublicCatalogState } from './public-catalog-state';
 import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
@@ -21,7 +22,7 @@ import { isActiveTradeOperation } from '../desk/format';
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 
-interface AppState extends ReturnType<typeof useCommissionState> {
+interface AppState extends ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -108,6 +109,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   } = useStoreRecords({ user, appSession, backendStatus });
 
   const commissions = useCommissionState(user, appSession, backendStatus);
+  const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
+    const visibility = new Map(catalog?.items.map(item => [item.id, item]));
+    setInventory(items => items.map(item => {
+      const managed = visibility.get(item.id);
+      return managed ? { ...item, catalogVisible: managed.catalogVisible, catalogIncluded: Boolean(catalog?.active && !managed.reason) } : item;
+    }));
+  });
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -725,6 +733,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       ...commissions,
+      ...catalogState,
       inventory, sales, tradeIns, clients, customColumns,
       repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder,
       operationOptions, operationDrafts,

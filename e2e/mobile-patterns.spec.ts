@@ -23,7 +23,7 @@ async function settleMotion(page: Page, selector: string) {
 }
 
 async function expectFits(page: Page) {
-  const report = await page.evaluate(() => {
+  const readReport = () => page.evaluate(() => {
     const width = document.documentElement.clientWidth;
     const extra = document.documentElement.scrollWidth - width;
     const outside: string[] = [];
@@ -44,8 +44,10 @@ async function expectFits(page: Page) {
     }
     return { extra, outside };
   });
-  expect(report.outside).toEqual([]);
-  expect(report.extra).toBeLessThanOrEqual(1);
+  // Section changes and viewport resizing can overlap the tab pill transition.
+  // Assert the settled geometry without mistaking an animation frame for overflow.
+  await expect.poll(async () => (await readReport()).outside).toEqual([]);
+  await expect.poll(async () => (await readReport()).extra).toBeLessThanOrEqual(1);
 }
 
 test.describe('desktop stays on the sidebar', () => {

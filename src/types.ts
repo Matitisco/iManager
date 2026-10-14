@@ -1,4 +1,6 @@
 export interface Product {
+  catalogVisible?: boolean;
+  catalogIncluded?: boolean;
   id: string;
   imei: string;
   model: string;
