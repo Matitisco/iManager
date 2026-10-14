@@ -36,6 +36,7 @@ describe('import-api', () => {
     expect(await analyzeInventoryText(mockUser, text)).toEqual(analysis);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze-text', {
       method: 'POST',
+      cache: 'no-store',
       headers: { Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     }, 190_000);
@@ -55,6 +56,7 @@ describe('import-api', () => {
     await expect(importBackendRows(mockUser, section, rows)).resolves.toEqual({ imported: 1, updated: 0, errors: [] });
     expect(fetchWithTimeout).toHaveBeenCalledWith(`https://api.imanager.test/api/${section}/import`, {
       method: 'POST',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -88,6 +90,7 @@ describe('import-api', () => {
     await expect(analyzeImport(mockUser, 'inventory', sheets)).resolves.toEqual(analysis);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze', {
       method: 'POST',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',

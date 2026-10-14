@@ -1,4 +1,5 @@
 import { usePublicCatalogState } from './public-catalog-state';
+import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
 import type { ClientDeposit } from '../types';
 import { toUserMessage } from '../lib/user-message';
@@ -125,6 +126,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   });
   const [depositState, setDepositState] = useState<{ scope: string; rows: Record<string, ClientDeposit[]> }>({ scope: currentScope, rows: {} });
+  const depositGenerations = React.useRef<Record<string, number>>({});
   const clientDeposits = depositState.scope === currentScope ? depositState.rows : {};
   const requireDeposits = () => {
     if (!user || !backendReady || !['clients', 'sales', 'service'].some(section => canAccess(section as 'clients' | 'sales' | 'service'))) throw new Error('El backend todavía no está listo o no tenés acceso a señas');
@@ -134,8 +136,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(old => old.map(client => client.id === clientId ? { ...client, creditBalance: creditTotal(rows, client.balanceCurrency ?? null) } : client));
   };
   const loadClientDeposits = async (clientId: string) => {
+    const ticket = depositLoadTicket(depositGenerations.current, clientId);
     const rows = await fetchClientDeposits(requireDeposits(), clientId);
-    if (scopeRef.current === currentScope) {
+    if (scopeRef.current === currentScope && depositLoadIsCurrent(depositGenerations.current, clientId, ticket)) {
       setDepositState(old => ({ scope: currentScope, rows: { ...(old.scope === currentScope ? old.rows : {}), [clientId]: rows } }));
       rememberCredit(clientId, rows);
     }
@@ -143,6 +146,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   const mergeDeposit = (row: ClientDeposit) => {
     if (scopeRef.current !== currentScope) return;
+    depositGenerations.current = noteDepositMutation(depositGenerations.current, row.clientId);
     setDepositState(old => {
       const rows = old.scope === currentScope ? old.rows : {};
       const next = [row, ...(rows[row.clientId] ?? []).filter(item => item.id !== row.id)];

@@ -45,6 +45,7 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
   const hasBody = body !== undefined;
   const init: RequestInit = {
     method,
+    cache: 'no-store',
     // Fastify rejects an empty body sent with Content-Type: application/json.
     headers: {
       Authorization: `Bearer ${token}`,

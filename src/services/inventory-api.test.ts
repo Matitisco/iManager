@@ -62,6 +62,7 @@ describe('inventory-api', () => {
     await expect(fetchBackendInventory(mockUser)).resolves.toEqual([inventoryItem]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/inventory', {
       method: 'GET',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',

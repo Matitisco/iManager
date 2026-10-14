@@ -187,6 +187,47 @@ describe('sidebar unread counts', () => {
     }
   });
 
+  it('shows the offline banner on Más and Clientes when the network fails while onLine stays true', async () => {
+    usePhone();
+    const previousFetch = globalThis.fetch;
+    const testGlobal = globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string };
+    testGlobal.__IMANAGER_TEST_API_BASE_URL__ = 'https://api.imanager.test';
+    let reachable = false;
+    const probes: { url: string; cache: RequestCache | undefined }[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/api/health')) {
+        probes.push({ url, cache: init?.cache });
+        if (!reachable) throw new TypeError('Failed to fetch');
+        return new Response('{"status":"ok"}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return previousFetch(input, init);
+    }) as typeof fetch;
+    window.location.hash = '#/mas';
+    try {
+      render(<DeskApp />);
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(navigator.onLine).not.toBe(false);
+      expect(await screen.findByTestId('offline-banner', {}, { timeout: 4000 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+      expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true);
+      expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
+
+      goHash('#/clientes');
+      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+
+      reachable = true;
+      await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument(), { timeout: 5000 });
+      expect(navigator.onLine).not.toBe(false);
+      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+    } finally {
+      globalThis.fetch = previousFetch;
+      delete testGlobal.__IMANAGER_TEST_API_BASE_URL__;
+      cleanup();
+    }
+  });
+
   it('clears the offline banner on Más when the connection returns without leaving the screen', async () => {
     usePhone();
     window.location.hash = '#/mas';

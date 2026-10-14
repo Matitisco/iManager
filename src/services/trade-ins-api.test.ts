@@ -59,6 +59,7 @@ describe('trade-ins-api', () => {
     await expect(fetchBackendTradeIns(mockUser)).resolves.toEqual([tradeInFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/trade-ins', {
       method: 'GET',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -86,6 +87,7 @@ describe('trade-ins-api', () => {
     await expect(updateBackendTradeIn(mockUser, updatedTradeIn)).resolves.toEqual(updatedTradeIn);
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(1, `https://api.imanager.test/api/trade-ins/${updatedTradeIn.id}`, {
       method: 'PATCH',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -97,6 +99,7 @@ describe('trade-ins-api', () => {
     await expect(deleteBackendTradeIn(mockUser, updatedTradeIn.id)).resolves.toBeUndefined();
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(2, `https://api.imanager.test/api/trade-ins/${updatedTradeIn.id}`, {
       method: 'DELETE',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',

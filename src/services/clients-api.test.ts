@@ -61,6 +61,7 @@ describe('clients-api', () => {
     await expect(fetchBackendClients(mockUser)).resolves.toEqual([clientFixture]);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients', {
       method: 'GET',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -95,6 +96,7 @@ describe('clients-api', () => {
     await expect(updateBackendClient(mockUser, updatedClient)).resolves.toEqual(updatedClient);
     expect(fetchWithTimeout).toHaveBeenCalledWith(`https://api.imanager.test/api/clients/${updatedClient.id}`, {
       method: 'PATCH',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
@@ -119,6 +121,7 @@ describe('clients-api', () => {
     await deleteBackendClient(mockUser, 'client-1');
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients/client-1', {
       method: 'DELETE',
+      cache: 'no-store',
       headers: {
         Authorization: 'Bearer token-123',
         Accept: 'application/json',

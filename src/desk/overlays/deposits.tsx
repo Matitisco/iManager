@@ -89,7 +89,7 @@ export function DepositForm({ clientId }: { clientId: string }) {
 export function CancelDeposit({ row, onClose }: { row: ClientDeposit; onClose: () => void }) {
   const { cancelClientDeposit } = useAppContext();
   const { toast } = useDesk();
-  const [mode, setMode] = useState('CREDIT');
+  const [mode, setMode] = useState(row.status === 'CREDIT' ? 'REFUND' : 'CREDIT');
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState('');
@@ -97,7 +97,15 @@ export function CancelDeposit({ row, onClose }: { row: ClientDeposit; onClose: (
   const save = async () => {
     if (saving.current) return;
     saving.current = true; setBusy(true); setError('');
-    try { await cancelClientDeposit(row.clientId, row.id, mode as 'REFUND' | 'CREDIT'); toast(mode === 'REFUND' ? 'Seña devuelta · equipo liberado' : 'Saldo a favor guardado · equipo liberado'); onClose(); }
+    try {
+      const saved = await cancelClientDeposit(row.clientId, row.id, mode as 'REFUND' | 'CREDIT');
+      if (saved.status === row.status) {
+        setError(row.status === 'CREDIT' ? 'Ese saldo ya está a favor. Elegí devolver el dinero para registrarlo.' : 'Esa seña ya estaba resuelta.');
+        return;
+      }
+      toast(mode === 'REFUND' ? 'Seña devuelta · equipo liberado' : 'Saldo a favor guardado · equipo liberado');
+      onClose();
+    }
     catch (cause) { setError(toUserMessage(cause, 'No se pudo cancelar la seña')); }
     finally { saving.current = false; setBusy(false); }
   };

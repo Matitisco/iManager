@@ -19,9 +19,10 @@ export function OfflineScope({ children, forced = false }: { children: ReactNode
   visibleRef.current = down || forced;
   useEffect(() => {
     let alive = true;
-    // iPhone often flips navigator.onLine without an `offline` event, and can leave it
-    // false for several seconds after the network is back. A successful /api/health
-    // hides the banner and ignores that stale flag until a new outage or onLine is true.
+    // iPhone can leave navigator.onLine false after the network is back.
+    // DevTools "Offline" does the opposite: onLine stays true and no event fires.
+    // A live /api/health probe is what shows and hides the banner in both cases.
+    // A successful cached GET must not clear it.
     let ignoreStaleOffline = false;
     const show = () => {
       ignoreStaleOffline = false;
@@ -33,17 +34,14 @@ export function OfflineScope({ children, forced = false }: { children: ReactNode
     };
     if (typeof navigator !== 'undefined' && navigator.onLine === false) show();
     const stop = subscribeConnection((online) => {
-      if (!alive) return;
-      if (online) {
-        ignoreStaleOffline = navigator.onLine === false;
-        setDown(false);
-      } else show();
+      if (alive && !online) show();
     });
     const onOffline = () => show();
     const onOnline = () => {
       ignoreStaleOffline = false;
       void pingHealth().then((ok) => {
-        if (alive && (ok || navigator.onLine !== false)) hideAfterHealth();
+        if (!alive || ok === false) return;
+        if (ok === true || navigator.onLine !== false) hideAfterHealth();
       });
     };
     window.addEventListener('offline', onOffline);
@@ -57,8 +55,11 @@ export function OfflineScope({ children, forced = false }: { children: ReactNode
       if (!ignoreStaleOffline) show();
     }, 1000);
     const health = window.setInterval(() => {
-      if (!visibleRef.current && navigator.onLine !== false) return;
-      void pingHealth().then((ok) => { if (alive && ok) hideAfterHealth(); });
+      void pingHealth().then((ok) => {
+        if (!alive) return;
+        if (ok === true) hideAfterHealth();
+        else if (ok === false) show();
+      });
     }, 2000);
     return () => {
       alive = false;
