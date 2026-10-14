@@ -1,3 +1,4 @@
+import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
 import { Prisma } from "@prisma/client";
@@ -28,6 +29,7 @@ const toJson = (value?: unknown) => (value ?? {}) as Prisma.InputJsonValue;
 
 export type OperationSource = "inventory" | "sales" | "tradeins" | "clients";
 export type OperationInput = {
+  depositIds?: string[];
   sellerMemberId?: string | null;
   exchangeRate?: number;
   date?: string;
@@ -112,6 +114,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || (product ? fullDeviceLabel(product) : ""),
+    depositAppliedAmount: toNum(sale.depositAppliedAmount),
     amount: toNum(sale.amount),
     amountCurrency: sale.amountCurrency ?? null,
     sellerMemberId: sale.sellerMemberId,
@@ -177,6 +180,10 @@ function serializeProduct(product: InventoryItem) {
     price: toNum(product.price),
     currency: product.currency ?? null,
     status: product.status,
+    reservedDepositId: product.reservedDepositId,
+    reservedClientId: product.reservedClientId,
+    reservedClientName: product.reservedClientName,
+    reservedAt: product.reservedAt?.toISOString() ?? null,
     categoryId: product.categoryId ?? null,
     customFields: product.customFields ?? {},
     soldAt: null,
@@ -250,6 +257,12 @@ export async function writeOperationNotifications(
 }
 async function notify(tx: Prisma.TransactionClient, storeId: string, records: ReturnType<typeof sectionRecords>) {
   return writeOperationNotifications(tx, storeId, records);
+}
+async function stampDepositClientCurrency(tx: Prisma.TransactionClient, storeId: string, client: Client | null, currency: string, applied: Decimal) {
+  if (!client || !applied.gt(0)) return;
+  const original = client.balanceCurrency ?? await storeCurrency(storeId, tx);
+  if (original !== currency && (Number(client.pendingBalance) !== 0 || Number(client.totalSpent) !== 0)) throw new OperationError(`El cliente tiene saldos en ${original}. Registrá esta venta en esa moneda para conservar su cuenta corriente`, 409);
+  await tx.client.update({ where: { id: client.id }, data: { balanceCurrency: currency } });
 }
 async function applyClientOperation(tx: Prisma.TransactionClient, storeId: string, clientId: string, amount: number, paymentStatus: string, date: Date, direction: 1 | -1, debtAmount = amount) {
   const client = await tx.client.findUnique({ where: { id: clientId } });
@@ -349,7 +362,8 @@ function fullDeviceLabel(product: Pick<InventoryItem, "model" | "capacity">) {
   return [product.model, product.capacity].filter(Boolean).join(" ").slice(0, 120);
 }
 
-function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistration: boolean }) {
+function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistration: boolean; reservedDepositId?: string | null; reservedClientId?: string | null }, input?: OperationInput) {
+  if (product.reservedDepositId) return product.status === "RESERVADO" && product.reservedClientId === input?.clientId && Boolean(input?.depositIds?.includes(product.reservedDepositId));
   return !product.status || product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
 }
 
@@ -382,6 +396,7 @@ export async function getOperationOptions(storeId: string) {
         archivedAt: null,
         OR: [
           { status: { in: ["", "DISPONIBLE"] } },
+          { status: "RESERVADO", reservedDepositId: { not: null } },
           { status: "VENDIDO", pendingSaleRegistration: true },
         ],
       },
@@ -396,6 +411,10 @@ export async function getOperationOptions(storeId: string) {
         condition: true,
         grade: true,
         pendingSaleRegistration: true,
+        reservedDepositId: true,
+        reservedClientId: true,
+        reservedClientName: true,
+        reservedAt: true,
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -429,6 +448,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     else if (source === "tradeins") await assertCategory(tx, storeId, "tradeins", input.categoryId);
     else await assertCategory(tx, storeId, "sales", input.saleCategoryId ?? input.categoryId);
     if (input.saleCategoryId !== undefined) await assertCategory(tx, storeId, "sales", input.saleCategoryId);
+    if (input.draft && input.depositIds?.length) throw new OperationError("Aplicá la seña al confirmar, no al guardar pendiente");
     if (input.tradeIn && input.draft) {
       if (!input.tradeIn.deviceReceived?.trim() || !Number.isFinite(input.tradeIn.takeValue) || input.tradeIn.takeValue < 0) throw new OperationError("Datos del equipo recibido invalidos");
       if (input.amount !== undefined && input.amount < input.tradeIn.takeValue) {
@@ -507,9 +527,10 @@ export async function createOperation(storeId: string, source: OperationSource, 
       });
     }
     const productId = input.productId?.trim() || null;
+    if (productId) await lockInventory(tx, storeId, productId);
     let product = productId ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } }) : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
-    if (product && !canRegisterOutgoingSale(product)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
+    if (product && !canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     if (!product && input.unlistedEquipment) {
@@ -586,7 +607,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-    const sale = await tx.sale.create({
+    let sale = await tx.sale.create({
       data: {
         storeId,
         saleNumber,
@@ -608,7 +629,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         tradeInId: trade?.id ?? null,
         requestKey: input.requestKey ?? null,
         integratedOperation: true,
-        previousInventoryStatus: product?.previousSaleStatus ?? product?.status ?? null,
+        previousInventoryStatus: product?.status === "RESERVADO" ? "DISPONIBLE" : product?.previousSaleStatus ?? product?.status ?? null,
         previousPendingSaleRegistration:
           product?.status === "VENDIDO" && product?.pendingSaleRegistration
             ? false
@@ -617,7 +638,10 @@ export async function createOperation(storeId: string, source: OperationSource, 
     });
     await recordSaleCommission(tx, storeId, sale.id);
     const dueAmount = trade ? input.amount! - tradeInput!.takeValue : input.amount!;
-    const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, input.status ?? "COMPLETADA", date, 1, dueAmount) : null;
+    const depositAmount = await applyDeposits(tx, { storeId, clientId: client?.id ?? null, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: dueAmount, productId: product?.id, saleId: sale.id, actor });
+    await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
+    if (depositAmount.gt(0)) sale = await tx.sale.update({ where: { id: sale.id }, data: { depositAppliedAmount: depositAmount } });
+    const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, input.status ?? "COMPLETADA", date, 1, dueAmount - Number(depositAmount)) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     if (product && !outputState) throw new OperationError("Inventory item not found", 404);
     const saleLabel = sale.deviceLabel ?? "";
@@ -679,11 +703,12 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       : input.tradeIn.customFields;
 
     if (!productId && !deviceLabel && !input.unlistedEquipment?.model?.trim()) throw new OperationError("Indica el equipo de salida");
+    if (productId) await lockInventory(tx, storeId, productId);
     let product = productId
       ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } })
       : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
-    if (product && !canRegisterOutgoingSale(product)) {
+    if (product && !canRegisterOutgoingSale(product, { ...input, clientId: input.clientId ?? trade.clientId })) {
       throw new OperationError("El equipo no esta disponible", 409);
     }
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) {
@@ -745,7 +770,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       differencePaid: dec(outgoingAmount - takeValue),
       confirmationStatus: "CONFIRMED",
       receivedInventoryItemId: received.id,
-      previousOutgoingStatus: product?.previousSaleStatus ?? product?.status ?? null,
+      previousOutgoingStatus: product?.status === "RESERVADO" ? "DISPONIBLE" : product?.previousSaleStatus ?? product?.status ?? null,
       previousOutgoingPendingRegistration: product?.status === "VENDIDO" && product?.pendingSaleRegistration
         ? false
         : product?.pendingSaleRegistration ?? false,
@@ -759,7 +784,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-    const sale = await tx.sale.create({ data: {
+    let sale = await tx.sale.create({ data: {
       storeId,
       saleNumber,
       sellerMemberId: input.sellerMemberId ?? null,
@@ -779,14 +804,17 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       tradeInId: trade.id,
       customFields: toJson(input.customFields),
       integratedOperation: true,
-      previousInventoryStatus: product?.previousSaleStatus ?? product?.status ?? null,
+      previousInventoryStatus: product?.status === "RESERVADO" ? "DISPONIBLE" : product?.previousSaleStatus ?? product?.status ?? null,
       previousPendingSaleRegistration: product?.status === "VENDIDO" && product?.pendingSaleRegistration
         ? false
         : product?.pendingSaleRegistration ?? false,
     } });
     await recordSaleCommission(tx, storeId, sale.id);
     const paymentStatus = input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
-    const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, outgoingAmount - takeValue);
+    const depositAmount = await applyDeposits(tx, { storeId, clientId: client.id, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: outgoingAmount - takeValue, productId: product?.id, saleId: sale.id, actor });
+    await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
+    if (depositAmount.gt(0)) sale = await tx.sale.update({ where: { id: sale.id }, data: { depositAppliedAmount: depositAmount } });
+    const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, outgoingAmount - takeValue - Number(depositAmount));
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     const saleLabel = product ? fullDeviceLabel(product) : deviceLabel ?? "";
     const notifications = await notify(tx, storeId, sectionRecords(["tradeins", "sales", "inventory", "clients"], {
@@ -853,6 +881,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const nextDate = input.date ? parseArDateOr(input.date) : sale.soldAt;
     let nextProductId = input.productId === undefined ? sale.inventoryItemId : input.productId?.trim() || null;
     const nextDeviceLabel = input.deviceLabel === undefined ? sale.deviceLabel : input.deviceLabel?.trim() || null;
+    if (nextProductId && nextProductId !== sale.inventoryItemId) await lockInventory(tx, storeId, nextProductId);
     let nextProduct = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId, archivedAt: null } }) : null;
     if (!nextProduct && input.unlistedEquipment) {
       nextProduct = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, nextAmount, nextCurrency);
@@ -871,8 +900,10 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const clientCreated = resolvedNextClient.created;
     const nextClientId = nextClient?.id ?? null;
     const nextStatus = input.status ?? sale.status;
+    if (input.depositIds?.length) throw new OperationError("Las señas se aplican al crear una venta", 409);
+    if (Number(sale.depositAppliedAmount) > 0 && (nextClientId !== sale.clientId || nextProductId !== sale.inventoryItemId || nextAmount !== Number(sale.amount) || nextCurrency && nextCurrency !== sale.amountCurrency || hasTrade !== Boolean(trade) || nextTakeValue !== Number(trade?.takeValue ?? 0))) throw new OperationError("Esta venta tiene señas aplicadas. Para cambiar cliente, equipo o importes, cancelala y registrá una nueva", 409);
     if (hasTrade && !nextClient) throw new OperationError("El canje confirmado requiere un cliente", 400);
-    const nextDebt = hasTrade ? Math.max(0, nextAmount - nextTakeValue) : nextAmount;
+    const nextDebt = Math.max(0, nextAmount - nextTakeValue - Number(sale.depositAppliedAmount));
     let archivedIncoming: InventoryItem | null = null;
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
@@ -1008,7 +1039,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     await refreshSaleCommission(tx, storeId, sale.id);
     if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id });
-    const updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, nextStatus, trade ? toNum(trade.differencePaid) : toNum(sale.amount), nextDebt, nextDate)).filter(present);
+    const updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, nextStatus, (trade ? toNum(trade.differencePaid) : toNum(sale.amount)) - Number(sale.depositAppliedAmount), nextDebt, nextDate)).filter(present);
     const output = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId } }) : null;
     const released = sale.inventoryItemId && sale.inventoryItemId !== nextProductId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const sections = ["sales", ...(output || released || incoming || archivedIncoming ? ["inventory"] : []), ...(updatedTrade || removedTrade ? ["tradeins"] : []), ...(updatedClients.length ? ["clients"] : [])];
@@ -1071,7 +1102,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       if (input.productId) {
         const product = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
         if (!product) throw new OperationError("Inventory item not found", 404);
-        if (!canRegisterOutgoingSale(product)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
+        if (!canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
       const updated = await tx.tradeIn.update({ where: { id: tradeId }, data: {
         clientId, clientName: client ? client.name : input.clientName === undefined ? trade.clientName : input.clientName?.trim() ?? "",
@@ -1153,7 +1184,7 @@ async function recordCancellationRefund(
   tx: Prisma.TransactionClient,
   storeId: string,
   clientId: string | null,
-  input: { status: string; cash: number; method: string; label: string },
+  input: { status: string; cash: number; method: string; label: string; currency?: string },
 ) {
   if (!clientId) return 0;
   const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { pendingBalance: true } });
@@ -1165,6 +1196,7 @@ async function recordCancellationRefund(
       storeId,
       clientId,
       amount: refund,
+      currency: input.currency ?? await storeCurrency(storeId, tx),
       method: input.method.trim() || "EFECTIVO",
       kind: "DEVOLUCION",
       note: `Devolución por cancelación de ${input.label}`.slice(0, 200),
@@ -1188,18 +1220,20 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
     const refund = await recordCancellationRefund(tx, storeId, sale.clientId, {
       status: sale.status,
-      cash: toNum(sale.amount),
+      cash: toNum(sale.amount) - Number(sale.depositAppliedAmount),
+      currency: labelCurrency,
       method: sale.paymentMethod,
       label: documentCode("V", sale.saleNumber),
     });
     if (sale.inventoryItemId && sale.integratedOperation) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
+    await restoreSaleDeposits(tx, storeId, sale.id, actor);
     await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     const stamp = cancellationStamp(actor);
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
-    const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1) : null;
+    const client = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(sale.amount) - Number(sale.depositAppliedAmount)) : null;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const notifications = await notify(tx, storeId, sectionRecords(
       ["sales", ...(product ? ["inventory"] : []), ...(client ? ["clients"] : [])],
@@ -1248,12 +1282,14 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const refund = sale
       ? await recordCancellationRefund(tx, storeId, trade.clientId, {
         status: sale.status,
-        cash: toNum(trade.differencePaid),
+        cash: toNum(trade.differencePaid) - Number(sale.depositAppliedAmount),
+        currency: labelCurrency,
         method: sale.paymentMethod,
         label: documentCode("C", trade.tradeNumber),
       })
       : 0;
     const stamp = cancellationStamp(actor);
+    if (sale) await restoreSaleDeposits(tx, storeId, sale.id, actor);
     if (sale) await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
     if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
@@ -1265,7 +1301,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       if (sale) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
     }
     const client = trade.clientId && sale
-      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(trade.differencePaid))
+      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), sale.status, sale.soldAt, -1, toNum(trade.differencePaid) - Number(sale.depositAppliedAmount))
       : null;
     const [archivedReceived, output] = await Promise.all([
       received ? tx.inventoryItem.findFirst({ where: { id: received.id, storeId } }) : null,

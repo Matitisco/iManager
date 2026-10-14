@@ -211,6 +211,7 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   {item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : null}
+                  {item.reservedClientName ? <small className="reservation-label">Reservado para {item.reservedClientName}</small> : null}
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
               );
@@ -368,6 +369,7 @@ export function InventoryScreen() {
                   <td className="r"><b>{item.price > 0 ? money.show(item.price, item.currency) : '-'}</b></td>
                   <td>
                     {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
+                    {item.reservedClientName ? <small className="reservation-label">Para {item.reservedClientName}</small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
                   <td>{item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : '—'}</td>

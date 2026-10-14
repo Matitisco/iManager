@@ -25,6 +25,8 @@ export type Overlay =
   | { type: 'new-ot' }
   | { type: 'ot'; id: string }
   | { type: 'edit-ot'; id: string }
+  | { type: 'new-deposit'; id: string }
+  | { type: 'repair-deposit'; id: string }
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }

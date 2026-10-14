@@ -42,6 +42,7 @@ const tradeSchema = z.object({
   customFields: z.record(z.unknown()).nullable().optional(),
 }).partial().nullable().optional();
 const inputSchema = z.object({
+  depositIds: z.array(z.string().min(1)).max(20).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
   exchangeRate: z.number().finite().positive().optional(),
   date: z.string().trim().max(120).optional(),

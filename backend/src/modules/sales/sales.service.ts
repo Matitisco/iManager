@@ -1,3 +1,4 @@
+import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
@@ -47,6 +48,7 @@ export interface SalePatchInput {
 }
 
 export interface SaleResponse {
+  depositAppliedAmount?: number;
   sellerMemberId: string | null;
   registeredByUserId: string | null;
   exchangeRate: number | null;
@@ -70,6 +72,7 @@ export interface SaleResponse {
 }
 
 type SaleRecord = {
+  depositAppliedAmount?: Decimal;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: Decimal | null;
@@ -162,6 +165,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     clientName: sale.clientName ?? "",
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(" "),
+    depositAppliedAmount: Number(sale.depositAppliedAmount ?? 0),
     amount: sale.amount.toNumber(),
     amountCurrency: sale.amountCurrency ?? null,
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
@@ -201,6 +205,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
 
     const productId = input.productId?.trim() || "";
     const deviceLabel = input.deviceLabel?.trim() || null;
+    if (productId) await lockInventory(tx, storeId, productId);
     const inventoryItem = productId
       ? await tx.inventoryItem.findFirst({
           where: { id: productId, storeId },
@@ -313,6 +318,7 @@ export async function updateSale(
     }
 
     if (nextInventoryItemId && nextInventoryItemId !== existing.inventoryItemId) {
+      await lockInventory(tx, storeId, nextInventoryItemId);
       const inventoryItem = await tx.inventoryItem.findFirst({
         where: { id: nextInventoryItemId, storeId },
       });
@@ -582,9 +588,11 @@ export async function importSales(
         const item = imei
           ? await tx.inventoryItem.findFirst({
             where: { storeId, imei },
-            select: { id: true, status: true, archivedAt: true },
+            select: { id: true, status: true, archivedAt: true, reservedDepositId: true },
           })
           : null;
+        if (item?.reservedDepositId) throw new SalesError("El equipo está reservado. Registrá la venta aplicando la seña desde Nueva venta", 409);
+        if (item) await lockInventory(tx, storeId, item.id);
         const activeSale = item
           ? await tx.sale.findFirst({
             where: { storeId, inventoryItemId: item.id, status: { not: "CANCELADA" } },

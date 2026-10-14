@@ -205,6 +205,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const footer = (
     <div className={`sacts${next ? ' svc-acts' : ''}`}>
       <button type="button" className="btn2 s" onClick={close}>Cerrar</button>
+      {order.clientId ? <button type="button" className="btn2 s" disabled={busy || saving} onClick={() => open({ type: 'repair-deposit', id: order.id })}>Aplicar seña</button> : null}
       <button type="button" className="btn2 s" data-testid="repair-open-edit" onClick={() => open({ type: 'edit-ot', id: order.id })}>Editar</button>
       {next ? <button type="button" className="btn2 p" disabled={busy || saving} onClick={() => { void advance(); }}>{saving ? 'Guardando…' : `Pasar a ${next.label}`}</button> : null}
     </div>

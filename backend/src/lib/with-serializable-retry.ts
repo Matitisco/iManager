@@ -1,4 +1,4 @@
-﻿import { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../plugins/prisma.js";
 
 type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -9,7 +9,9 @@ export async function withSerializableRetry<T>(work: (tx: TransactionClient) => 
     try {
       return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 20_000 });
     } catch (error) {
-      if (!RETRYABLE.has((error as { code?: string })?.code ?? "") || attempt + 1 >= attempts) throw error;
+      const failure = error as { code?: string; meta?: { code?: string } };
+      const code = failure?.code === "P2010" ? failure.meta?.code : failure?.code;
+      if (!RETRYABLE.has(code ?? "") || attempt + 1 >= attempts) throw error;
     }
   }
 }

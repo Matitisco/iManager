@@ -1,3 +1,4 @@
+import { DepositForm, RepairDepositSheet } from './overlays/deposits';
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
@@ -122,6 +123,8 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
   if (overlay.type === 'new-ot') return <RepairOrderForm busy={busy} error={error} />;
   if (overlay.type === 'ot') return <RepairOrderDetail id={overlay.id} busy={busy} />;
   if (overlay.type === 'edit-ot') return <RepairOrderEditor id={overlay.id} busy={busy} />;
+  if (overlay.type === 'new-deposit') return <DepositForm clientId={overlay.id} />;
+  if (overlay.type === 'repair-deposit') return <RepairDepositSheet repairId={overlay.id} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} />;
