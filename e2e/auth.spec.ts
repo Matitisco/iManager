@@ -27,30 +27,12 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   await expect(page.getByText('Completá el nombre de la tienda')).toBeVisible();
   await storeNameInput.fill(storeName);
   await page.getByTestId('onboarding-submit').click();
-  await expect(page.getByTestId('onboarding-instagram-error')).toHaveText('Completá el Instagram de la tienda');
-
-  await page.getByTestId('onboarding-instagram').fill('https://www.instagram.com/mitienda/');
-
-  const onboardingResponse = page.waitForResponse(
-    (response) =>
-      response.url().includes('/api/onboarding') &&
-      response.request().method() === 'POST' &&
-      response.ok(),
-  );
-  await page.getByTestId('onboarding-submit').click({ noWaitAfter: true });
-
-  const onboardingPayload = await (await onboardingResponse).json();
-  expect(onboardingPayload.session.onboardingRequired).toBeFalsy();
-  expect(onboardingPayload.session.store?.name).toBe(storeName);
-  expect(onboardingPayload.session.store?.instagram).toBe('mitienda');
-
-  const contact = page.getByRole('dialog', { name: 'Datos de contacto' });
-  await expect(contact).toBeVisible();
-  await contact.getByLabel('Teléfono').fill('2614001122');
-  await contact.getByLabel('Correo electrónico').fill('hola@tienda.test');
-  await contact.getByLabel('Instagram').fill('@mitienda');
-  await contact.getByRole('button', { name: 'Guardar' }).click();
-  await expect(contact).toBeHidden();
+  await expect(page.getByTestId('onboarding-video')).toBeVisible();
+  await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+  await expect(page.getByTestId('onboarding-invite')).toBeVisible();
+  await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+  await expect(page.getByRole('heading', { name: 'Cargá tu stock' })).toBeVisible();
+  await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
   await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
@@ -58,8 +40,8 @@ test('completes onboarding and bootstraps the backend session', async ({ page, r
   const session = await fetchSession(request, email);
   expect(session.onboardingRequired).toBeFalsy();
   expect(session.store?.name).toBe(storeName);
-  expect(session.store?.phone).toBe('2614001122');
-  expect(session.store?.email).toBe('hola@tienda.test');
-  expect(session.store?.instagram).toBe('mitienda');
+  expect(session.store?.phone).toBeNull();
+  expect(session.store?.email).toBeNull();
+  expect(session.store?.instagram).toBeNull();
   expect(session.membership?.role).toBe('OWNER');
 });

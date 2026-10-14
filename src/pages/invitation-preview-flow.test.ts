@@ -16,8 +16,8 @@ describe('invitation preview flow surfaces technical errors without marking link
   });
 
   it('keeps onboarding on a recoverable technical error branch instead of invalidating the invite', () => {
-    expect(onboardingSource).toContain("if (inviteToken && inviteState.error)");
+    expect(onboardingSource).toContain("invite.error &&");
     expect(onboardingSource).toContain('Reintentar verificación');
-    expect(onboardingSource).toContain("if (inviteToken && inviteState.invalid)");
+    expect(onboardingSource).toContain("inviteToken && !invite.invalid");
   });
 });

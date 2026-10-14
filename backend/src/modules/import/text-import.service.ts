@@ -70,7 +70,7 @@ export function normalizeTextModel(raw: string, catalog: string[] = INVENTORY_MO
 
 /** Financial values must occur as whole numeric tokens in the originating lines. */
 export function amountInSource(amount: number, source: string): boolean {
-  const tokens = source.match(/\d+(?:[.,]\d+)*(?:\s*[kK](?![a-zA-Z]))?/g) ?? [];
+  const tokens: string[] = source.match(/\d+(?:[.,]\d+)*(?:\s*[kK](?![a-zA-Z]))?/g) ?? [];
   return tokens.some((token) => {
     let value = token.replace(/\s/g, '');
     const multiplier = /k$/i.test(value) ? 1000 : 1;

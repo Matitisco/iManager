@@ -14,7 +14,7 @@ export function textRowError(row: Record<string, string>): string | null {
   return null;
 }
 
-export function expandTextRows(rows: Record<string, string>[]) {
+export function expandTextRows(rows: Record<string, string>[]): Record<string, string>[] {
   const count = rows.reduce((sum, row) => sum + Number(row.quantity), 0);
   if (!Number.isFinite(count) || count > 2000) throw new Error('El listado supera los 2000 equipos.');
   return rows.flatMap((row) => {

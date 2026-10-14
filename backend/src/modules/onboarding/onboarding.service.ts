@@ -9,7 +9,7 @@ import { requireInstagram } from "../stores/store-contact.js";
 
 export interface CompleteOnboardingInput {
   storeName: string;
-  instagram: string;
+  instagram?: string;
   currency?: string;
   exchangeMode?: string;
   exchangeSource?: string;
@@ -28,7 +28,7 @@ export async function completeOnboarding(
     throw new Error("Completá el nombre de la tienda");
   }
 
-  const instagram = requireInstagram(input.instagram);
+  const instagram = input.instagram === undefined ? null : requireInstagram(input.instagram);
   const exchangeMode = asExchangeMode(input.exchangeMode);
   const manualBuy = positiveRate(input.manualBuy);
   const manualSell = positiveRate(input.manualSell);
@@ -54,8 +54,10 @@ export async function completeOnboarding(
       const store = await tx.store.create({
         data: {
           name: trimmedStoreName,
+          onboardingStartedAt: new Date(),
+          onboardingStage: "video",
           instagram,
-          currency: asCurrency(input.currency),
+          currency: asCurrency(input.currency ?? "USD"),
           exchangeMode,
           exchangeSource: asExchangeSource(input.exchangeSource),
           manualBuy,

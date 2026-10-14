@@ -18,5 +18,13 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "backend/dist",
+    ".pwa-test-dist",
+    "coverage",
+    "playwright-report",
+    "test-results"
+  ]
 }

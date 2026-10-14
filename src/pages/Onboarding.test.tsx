@@ -68,13 +68,13 @@ describe('Onboarding', () => {
 
     const input = screen.getByLabelText('Nombre de la tienda');
     expect(input).toHaveValue('');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
     expect(await screen.findByText('Completá el nombre de la tienda')).toBeInTheDocument();
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
 
     await user.type(input, '   ');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
     expect(await screen.findByText('Completá el nombre de la tienda')).toBeInTheDocument();
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe('Onboarding', () => {
     const input = screen.getByLabelText('Nombre de la tienda');
     await user.click(input);
     await user.paste('a'.repeat(121));
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
     expect(await screen.findByText('El nombre puede tener hasta 120 caracteres')).toBeInTheDocument();
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
@@ -112,8 +112,7 @@ describe('Onboarding', () => {
 
     const input = screen.getByLabelText('Nombre de la tienda');
     await user.type(input, 'Sucursal Norte');
-    await user.type(screen.getByLabelText(/Instagram/), '@norte');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
     expect(await screen.findByText('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.')).toBeInTheDocument();
     expect(screen.queryByText(/too_small/)).not.toBeInTheDocument();
@@ -125,18 +124,11 @@ describe('Onboarding', () => {
 
     const input = screen.getByLabelText('Nombre de la tienda');
     await user.type(input, 'Sucursal Norte');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
-    expect(await screen.findByText('Completá el Instagram de la tienda')).toBeInTheDocument();
-    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
-
-    await user.type(screen.getByLabelText(/Instagram/), 'https://instagram.com/@sucursal.norte/');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
-
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
     await waitFor(() => {
       expect(mockAppContext.completeOnboarding).toHaveBeenCalledWith({
         storeName: 'Sucursal Norte',
-        instagram: 'sucursal.norte',
-        currency: 'ARS',
+        currency: 'USD',
         exchangeMode: 'auto',
         exchangeSource: 'blue',
         manualBuy: null,
@@ -150,26 +142,21 @@ describe('Onboarding', () => {
     render(<Onboarding />);
 
     await user.type(screen.getByLabelText('Nombre de la tienda'), 'Sucursal Norte');
-    await user.type(screen.getByLabelText(/Instagram/), '@norte');
+    await user.click(screen.getByText('Moneda y dólar'));
     await user.selectOptions(screen.getByTestId('onboarding-exchange-mode'), 'manual');
     await user.type(screen.getByTestId('onboarding-manual-buy'), '1400');
     await user.type(screen.getByTestId('onboarding-manual-sell'), '1300');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
     expect(await screen.findByText(MANUAL_QUOTE_ORDER_ERROR)).toBeInTheDocument();
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
   });
 
-  it('rejects an instagram that is not a handle or a profile URL', async () => {
-    const user = userEvent.setup();
+  it('keeps currency settings folded and asks only for the store name', () => {
     render(<Onboarding />);
-
-    await user.type(screen.getByLabelText('Nombre de la tienda'), 'Sucursal Norte');
-    await user.type(screen.getByLabelText(/Instagram/), 'mi tienda');
-    await user.click(screen.getByRole('button', { name: 'Crear tienda y continuar' }));
-
-    expect(await screen.findByText('Usá @usuario o el link del perfil')).toBeInTheDocument();
-    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/Instagram/)).toBeNull();
+    expect(screen.getByText('Moneda y dólar').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('onboarding-currency')).toHaveValue('USD');
   });
 
   it('accepts a valid invitation and notifies the caller', async () => {

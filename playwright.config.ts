@@ -60,6 +60,7 @@ export default defineConfig({
         ...process.env,
         VITE_API_BASE_URL: DEFAULT_BACKEND_URL,
         VITE_TEST_AUTH_MODE: 'e2e',
+        VITE_WELCOME_VIDEO_SRC: '/test-welcome.mp4',
         VITE_E2E_TEST_PASSWORD: DEFAULT_E2E_PASSWORD,
         DISABLE_HMR: 'true',
       },

@@ -63,14 +63,15 @@ test.describe('desktop auth stays put', () => {
 
     const email = buildTestEmail(testInfo, 'auth-desk');
     await loginViaUi(page, email);
+    await expect(page.getByTestId('onboarding-currency')).toBeHidden();
+    await page.getByText('Moneda y dólar').click();
     await expect(page.getByTestId('onboarding-currency')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-mode')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
     await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
-    const cardDisplay = await page.locator('.onb-card').evaluate((el) => getComputedStyle(el).display);
-    expect(cardDisplay).toBe('block');
+    await expect(page.locator('.onb-main form')).toBeVisible();
     const onboardingColor = await page.getByTestId('onboarding-submit').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(onboardingColor).toBe('rgb(0, 0, 0)');
+    expect(onboardingColor).toBe('rgb(22, 24, 29)');
   });
 });
 
@@ -207,12 +208,14 @@ test.describe('phone login, invite and onboarding', () => {
     test.setTimeout(180_000);
     const email = buildTestEmail(testInfo, 'auth-onb');
     await loginViaUi(page, email);
+    await expect(page.getByTestId('onboarding-currency')).toBeHidden();
+    await page.getByText('Moneda y dólar').click();
     await expect(page.getByTestId('onboarding-currency')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-mode')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
     await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     const yellow = await page.getByTestId('onboarding-submit').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(yellow).toBe('rgb(255, 208, 0)');
+    expect(yellow).toBe('rgb(22, 24, 29)');
 
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
@@ -231,10 +234,11 @@ test.describe('phone login, invite and onboarding', () => {
       if (width === 390) await shot(page, 'm10-onboarding-manual-390');
     }
 
+    await page.getByText('Moneda y dólar').click();
     await page.setViewportSize({ width: 390, height: 520 });
     await page.getByTestId('onboarding-store-name').focus();
     await expectInViewport(page, 'onboarding-submit');
-    await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(0);
     await expectFits(page);
     await page.setViewportSize({ width: 360, height: 520 });
     await expectInViewport(page, 'onboarding-submit');
@@ -291,7 +295,9 @@ test.describe('phone login, invite and onboarding', () => {
 
     await page.unroute('**/api/invitations/preview/**');
     await page.goto(`/invite/onboarding-vencida-${Date.now()}`);
-    await expect(page.getByRole('heading', { name: 'Invitación inválida' })).toBeVisible();
+    await expect(page.getByText('Invitación inválida. Podés crear tu propia tienda.')).toBeVisible();
+    await expect(page.getByTestId('onboarding-currency')).toBeHidden();
+    await page.getByText('Moneda y dólar').click();
     await expect(page.getByTestId('onboarding-currency')).toBeVisible();
     await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
     await expect(page.getByTestId('onboarding-submit')).toBeVisible();

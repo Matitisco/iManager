@@ -23,7 +23,7 @@ export function visibleSections(stored: string[] | null | undefined, role?: stri
 
 export function canOpenSection(id: string, stored: string[] | null | undefined, role?: string | null) {
   if (id === 'publicCatalog') return role === 'OWNER';
-  if (id === 'settings') return true;
+  if (id === 'settings' || id === 'help') return true;
   if (id === 'commissions') return true; // La sección incluye la vista propia.
   // Un empleado sin permisos guardados no ve Reportes. Si el dueño lo activa, sí.
   if (role === 'STAFF' && id === 'reports' && stored == null) return false;
