@@ -14,6 +14,9 @@ export function ruleReason(item: { status: string; quantity: number; batteryHeal
   if (config.minBattery != null && (battery == null || battery < config.minBattery)) return `Regla: batería < ${config.minBattery} %`;
   return null;
 }
+export function countAvailable(items: { status: string }[]) {
+  return items.filter(item => !item.status || item.status === 'DISPONIBLE').length;
+}
 export function convertCatalogPrice(price: number, from: string, to: string, rate: number): number {
   if (from === to) return price;
   return Math.round((to === 'USD' ? price / rate : price * rate) * 100) / 100;

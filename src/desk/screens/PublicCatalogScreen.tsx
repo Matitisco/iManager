@@ -3,8 +3,8 @@ import { ExternalLink, Eye, EyeOff, Link, MessageCircle, RefreshCw, Settings2 } 
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogSettings, ManagedCatalog } from '../../types/public-catalog';
-import { toUserMessage } from '../../lib/user-message';
-import { catalogCondition, catalogPrice } from '../../catalog/presentation';
+import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
+import { catalogCondition, catalogPrice, whatsappLink } from '../../catalog/presentation';
 import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import type { PublicCatalog } from '../../types/public-catalog';
 import { PriceList } from '../../catalog/PriceList';
@@ -30,7 +30,12 @@ export function PublicCatalogScreen() {
   const [error, setError] = useState('');
   const pending = useRef(false);
   const load = async () => { setLoading(true); setError(''); try { await loadPublicCatalog(); } catch (cause) { setError(toUserMessage(cause)); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [loadPublicCatalog]);
+  useEffect(() => {
+    void load();
+    const onOnline = () => { void load(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [loadPublicCatalog]);
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError('');
@@ -42,17 +47,20 @@ export function PublicCatalogScreen() {
     try { await navigator.clipboard.writeText(link); toast('Link copiado'); }
     catch { setError('No se pudo copiar el link. Podés seleccionarlo y copiarlo.'); }
   };
-  const share = `https://wa.me/?text=${encodeURIComponent(`Te paso nuestra lista de precios 👉 ${link}`)}`;
+  const share = `https://wa.me/?text=${encodeURIComponent(`Te paso nuestra lista de precios \u{1F449} ${link}`)}`;
+  const storePhone = whatsappLink(appSession?.store?.phone ?? null, 'Hola');
+  const available = catalog?.counts.available ?? 0;
   const counts = <div className="cat-counts">{[['En la lista', catalog?.counts.visible], ['Ocultos por reglas', catalog?.counts.rules], ['Ocultos a mano', catalog?.counts.manual]].map(([label, value]) => <div key={label}><small>{label}</small><b>{value ?? 0}</b></div>)}</div>;
   const rows = catalog?.items.filter(item => `${item.model} ${item.color} ${item.capacity}`.toLowerCase().includes(query.toLowerCase())) ?? [];
   return <div className="dscreen catalog-screen" data-testid="catalog-screen">
     <div className="whead"><div><h1>Catálogo</h1><div className="wsub">Tu lista de precios pública · {catalog?.counts.visible ?? 0} {(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}</div></div>{catalog && !phone && <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div>}</div>
-    {error && <div className="ferr" role="alert">{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div>}
+    {error && <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div>}
+    {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <a href="#/config">Configuración de la tienda</a></p>}
     {loading ? <p role="status">Cargando catálogo…</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
-        {(!phone || tab === 'items') && <section className="cat-card cat-equipment"><div className="cat-card-title"><h2>Equipos</h2><small>{catalog.items.length} disponibles</small></div><div className="cat-search"><input aria-label="Buscar equipo" placeholder="Buscar equipo" value={query} onChange={e => setQuery(e.target.value)} /><button className="cat-button" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>{selecting ? 'Listo' : 'Seleccionar'}</button></div>
+        {(!phone || tab === 'items') && <section className="cat-card cat-equipment"><div className="cat-card-title"><h2>Equipos</h2><small>{available} {available === 1 ? 'disponible' : 'disponibles'}</small></div><div className="cat-search"><input aria-label="Buscar equipo" placeholder="Buscar equipo" value={query} onChange={e => setQuery(e.target.value)} /><button className="cat-button" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>{selecting ? 'Listo' : 'Seleccionar'}</button></div>
           {selecting && <div className="cat-bulk"><b>{selected.size} seleccionados</b><div><button className="cat-button" disabled={busy || !selected.size} onClick={() => void run(async () => { await setCatalogVisibility([...selected], true); setSelected(new Set()); })}><Eye size={16} />Mostrar</button><button className="cat-button" disabled={busy || !selected.size} onClick={() => void run(async () => { await setCatalogVisibility([...selected], false); setSelected(new Set()); })}><EyeOff size={16} />Ocultar</button></div></div>}
           {rows.map(item => <div className={`cat-equipment-row${selected.has(item.id) ? ' selected' : ''}`} key={item.id}>
             {selecting && <input type="checkbox" aria-label={`Seleccionar ${item.model} ${item.capacity}`} checked={selected.has(item.id)} onChange={() => setSelected(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} />}

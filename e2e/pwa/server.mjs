@@ -13,7 +13,7 @@ let swRelease = 0;
 let versionRelease = 0;
 let publicCatalogActive = true;
 const publicCatalog = {
-  store: { name: 'Tienda pública QA', phone: '5491155551234', address: 'Av. Corrientes 1234', logoUrl: null, hours: 'Lun a sáb 10–19' },
+  store: { name: 'Tienda pública QA', phone: '5491155551234', address: 'Av. Corrientes 1234', logoUrl: null, hours: 'Lun a sáb 10–19', currency: 'USD' },
   showPrice: true, priceCurrency: 'USD',
   items: [{ model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', price: 920, currency: 'USD' }],
 };

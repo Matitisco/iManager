@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #347 — Ajustes del catálogo público — 2026-10-14
+
+- El botón de WhatsApp de `/c/:slug` usa `wa.me` con el texto en UTF-8. Un teléfono argentino local pasa a `549` más 10 dígitos; un internacional explícito conserva su prefijo. Sin un número válido no hay botón, y Catálogo muestra el aviso con enlace a Configuración.
+- «Disponibles» cuenta sólo equipos en estado disponible. El encabezado dice «precios en» la moneda del catálogo o la de la tienda. En el teléfono los modelos son chips; en desktop los filtros son pastillas y la lista queda en dos columnas. El aviso «No hay conexión» se limpia y reintenta con el evento `online`.
+- Sin cambios de Prisma ni exportación de filas. La respuesta pública suma `store.currency` para el encabezado.
+
 ## Issue #341 — Catálogo público de tienda — 2026-10-14
 
 - Diseño v2: sección Catálogo después de Inventario en desktop y primero en Más/Módulos móvil; Resumen/Equipos, selección individual/masiva, reglas de stock/reserva/batería, precio/moneda, enlace compartible, regeneración y desactivación. Inventario sólo incorpora la marca y cantidad efectiva «En catálogo».
