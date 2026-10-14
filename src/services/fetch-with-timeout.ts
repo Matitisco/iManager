@@ -8,6 +8,9 @@ export async function fetchWithTimeout(
   timeoutMs: number = DEFAULT_TIMEOUT_MS
 ) {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(init.signal?.reason);
+  if (init.signal?.aborted) abortFromCaller();
+  else init.signal?.addEventListener('abort', abortFromCaller, { once: true });
   let timedOut = false;
   const timeoutId = globalThis.setTimeout(() => {
     timedOut = true;
@@ -28,5 +31,6 @@ export async function fetchWithTimeout(
     throw friendlyError;
   } finally {
     globalThis.clearTimeout(timeoutId);
+    init.signal?.removeEventListener('abort', abortFromCaller);
   }
 }

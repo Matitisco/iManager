@@ -42,6 +42,7 @@ model Store {
   invitations         StoreInvitation[]
   clients             Client[]
   clientCategories    ClientCategory[]
+  publicCatalog       StorePublicCatalog?
   inventory           InventoryItem[]
   inventoryCategories InventoryCategory[]
   saleCategories      SaleCategory[]
@@ -137,6 +138,7 @@ model InventoryCategory {
 }
 
 model InventoryItem {
+  catalogVisible Boolean @default(false)
   id            String             @id @default(cuid())
   storeId       String
   categoryId    String?
@@ -174,6 +176,7 @@ model InventoryItem {
   updatedAt     DateTime           @updatedAt
 
   @@index([storeId])
+  @@index([storeId, catalogVisible])
   @@unique([storeId, imei])
 }
 
@@ -555,4 +558,21 @@ model CommissionAccrual {
   @@index([storeId])
   @@index([storeId, sourceSaleId])
   @@index([storeId, memberId, period])
+}
+
+// Public sharing is opt-in. No existing inventory is published by migration.
+model StorePublicCatalog {
+  storeId      String @id
+  slug         String @unique @db.VarChar(160)
+  active       Boolean @default(false)
+  hideWithoutStock Boolean @default(true)
+  hideReserved Boolean @default(true)
+  minBattery   Int?
+  showPrice    Boolean @default(true)
+  priceCurrency String @default("ORIGINAL") @db.VarChar(10)
+  logoUrl      String? @db.VarChar(2000)
+  hours        String? @db.VarChar(120)
+  store        Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

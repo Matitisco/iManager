@@ -24,7 +24,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || request.headers.has('authorization')) return;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/__/') || url.pathname === '/version.json' || url.search) return;
+  if (url.pathname.startsWith('/c/') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/__/') || url.pathname === '/version.json' || url.search) return;
   const navigation = request.mode === 'navigate';
   if (!navigation && !ALLOWED.has(url.pathname)) return;
 

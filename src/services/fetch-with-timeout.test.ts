@@ -8,6 +8,17 @@ afterEach(() => {
 });
 
 describe('fetchWithTimeout', () => {
+  it('honors caller cancellation and clears the timeout', async () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init.signal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+    })));
+    const result = expect(fetchWithTimeout('/api/public/catalog/store', { signal: caller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+    caller.abort(); await result;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each(['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.'])('normalizes %s at the fetch boundary and keeps the name for retries', async (message) => {
     const cause = new TypeError(message);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(cause));

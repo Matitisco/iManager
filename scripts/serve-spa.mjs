@@ -18,7 +18,7 @@ const types = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
-export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim() } = {}) {
+export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim() } = {}) {
   return async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.
@@ -70,6 +70,35 @@ export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDo
     catch { response.writeHead(400); response.end(); return; }
     if (requested.startsWith('/api/') || requested.startsWith('/__/')) {
       response.writeHead(404, { 'cache-control': 'no-store' }); response.end(); return;
+    }
+    const catalogMatch = requested.match(/^\/c\/([a-z0-9-]{1,160})\/?$/);
+    if (catalogMatch) {
+      let apiBase = catalogApiBase;
+      if (!apiBase) {
+        try { apiBase = JSON.parse(await readFile(join(root, 'catalog-config.json'), 'utf8')).apiBase; } catch { /* runtime config may be supplied instead */ }
+      }
+      let catalog = null;
+      let status = 200;
+      if (apiBase) {
+        try {
+          const upstream = await fetchImpl(`${apiBase.replace(/\/$/, '')}/api/public/catalog/${catalogMatch[1]}`, { signal: AbortSignal.timeout(10000), headers: { Accept: 'application/json' }, cache: 'no-store' });
+          if (upstream.ok) catalog = await upstream.json();
+          else status = upstream.status === 404 ? 404 : upstream.status === 429 ? 429 : 503;
+        } catch { status = 503; }
+      }
+      const title = catalog ? `${catalog.store.name} · Lista de precios` : 'Catálogo no disponible · iManager';
+      const description = catalog?.active ? `${catalog.items.length} equipos nuevos y usados, con condición y batería. Consultá por WhatsApp.` : 'Esta lista de precios no está disponible. Consultá con la tienda.';
+      const escape = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+      // Host is only used as escaped metadata; never as a fetch destination.
+      const forwardedProto = request.headers['x-forwarded-proto'];
+      const protocol = forwardedProto === 'https' ? 'https' : request.socket.encrypted ? 'https' : 'http';
+      const canonical = `${protocol}://${request.headers.host}${requested}`;
+      const imageUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/api/public/catalog/${catalogMatch[1]}/preview.png` : '';
+      const head = `<title>${escape(title)}</title><meta name="description" content="${escape(description)}"><link rel="canonical" href="${escape(canonical)}"><meta property="og:type" content="website"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(canonical)}"><meta property="og:image" content="${escape(imageUrl)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">${!catalog?.active ? '<meta name="robots" content="noindex">' : ''}`;
+      const html = (await readFile(join(root, 'index.html'), 'utf8')).replace(/<title>[^<]*<\/title>/, '').replace(/<meta name="description"[^>]*>/, '').replace('</head>', `${head}</head>`);
+      response.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(request.method === 'HEAD' ? undefined : html);
+      return;
     }
     let filePath = normalize(join(root, requested));
     if (filePath !== root && !filePath.startsWith(root + sep)) {

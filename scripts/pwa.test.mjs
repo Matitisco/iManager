@@ -69,6 +69,15 @@ test('worker excludes API, session/auth, invite/action queries, cross-origin, PO
   assert.equal(sw.fetchEvent('/assets/app-hash.js', { headers: new Headers({ authorization: 'Bearer private' }) }), undefined);
   assert.deepEqual(sw.fetched, []);
 });
+test('worker never caches public catalog navigations or previews, including when offline', async () => {
+  for (const network of [{}, { offline: true }]) {
+    const sw = worker('test', network); await sw.lifecycle('install');
+    assert.equal(sw.fetchEvent('/c/mi-tienda', { mode: 'navigate' }), undefined);
+    assert.equal(sw.fetchEvent('/api/public/catalog/mi-tienda/preview.png'), undefined);
+    assert.equal(sw.stores.get('imanager-static-test').get('/'), 'cached:/');
+    assert.deepEqual(sw.fetched, []);
+  }
+});
 test('worker caches only allowlisted public static assets on demand', async () => {
   const sw = worker(); await sw.lifecycle('install');
   await sw.fetchEvent('/icons/icon-192.png');

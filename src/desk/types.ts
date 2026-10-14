@@ -1,6 +1,7 @@
 export type DeskTab =
   | 'dashboard'
   | 'inventory'
+  | 'publicCatalog'
   | 'sales'
   | 'tradeins'
   | 'clients'
