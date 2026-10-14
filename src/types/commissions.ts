@@ -3,6 +3,7 @@ export type CommissionBasis = 'PROFIT_PERCENT' | 'SALE_PERCENT' | 'FIXED_PER_UNI
 export type CommissionTotals = Record<CommissionCurrency, number>;
 export interface CommissionRuleInput {
   memberId: string | null;
+  active?: boolean;
   basis?: CommissionBasis;
   rate: number;
   currency?: CommissionCurrency | null;
@@ -27,6 +28,8 @@ export interface CommissionPaymentInput {
   note?: string | null;
 }
 export interface CommissionPayment extends CommissionPaymentInput {
+  voidedAt?: string | null;
+  voidedBy?: string | null;
   id: string;
   storeId: string;
   settledAmount: number;

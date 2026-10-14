@@ -80,7 +80,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
             );
           })}
         </div>
-        <p className="perm-note">Sin el permiso de Comisiones, cada persona ve igual «Mis comisiones», solo con lo suyo y sin costos. Por defecto lo tiene solo el Dueño.</p>
+        <p className="perm-note">Sin el permiso de Comisiones, cada persona ve igual «Mis comisiones», solo con lo suyo y sin costos. Por defecto lo tiene solo el Propietario.</p>
         <div className="sec">Acciones</div>
         <div className="card">
           <div className="perm">

@@ -485,6 +485,8 @@ enum CommissionBasis {
 }
 
 model CommissionRule {
+  active        Boolean         @default(true)
+  deletedAt     DateTime?
   id            String          @id @default(cuid())
   storeId       String
   memberId      String?
@@ -502,6 +504,8 @@ model CommissionRule {
 }
 
 model CommissionPayment {
+  voidedAt        DateTime?
+  voidedBy        String?
   id              String      @id @default(cuid())
   storeId         String
   memberId        String

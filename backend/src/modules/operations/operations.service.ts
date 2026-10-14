@@ -350,7 +350,7 @@ function fullDeviceLabel(product: Pick<InventoryItem, "model" | "capacity">) {
 }
 
 function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistration: boolean }) {
-  return product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
+  return !product.status || product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
 }
 
 function salePricePatch(price: { toNumber(): number }, amount: number, currency?: string): { price?: Decimal; currency?: string } {
@@ -381,7 +381,7 @@ export async function getOperationOptions(storeId: string) {
         storeId,
         archivedAt: null,
         OR: [
-          { status: "DISPONIBLE" },
+          { status: { in: ["", "DISPONIBLE"] } },
           { status: "VENDIDO", pendingSaleRegistration: true },
         ],
       },

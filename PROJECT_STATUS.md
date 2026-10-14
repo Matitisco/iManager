@@ -1,7 +1,16 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-13**
+**Ultima actualizacion: 2026-10-14**
+
+## Issue #334 — Ajustes de comisiones — 2026-10-14
+
+- Causa raíz: `getCommissionPeriod` conservaba el crédito completo del snapshot anulado cuando existía `adjustmentPeriod`, sumándolo a ganado y pendiente hasta el siguiente mes. El detalle anulaba la línea individual pero los agregados, incluida la API de Reportes/CSV, seguían contando el crédito. DELETE ya conservaba el snapshot y su anulación previa, por lo que borrar físicamente Sale no retiraba ese crédito del cálculo.
+- Las bajas aportan cero ganado/conteo inmediatamente. Pagos efectivos se asignan por orden de venta, persona y moneda de liquidación, sólo antes de la baja y hasta el monto del snapshot. El ajuste del siguiente mes contiene sólo lo pagado; reclasifica el débito del saldo anterior sin descontarlo dos veces. Borrar tras cancelar conserva fecha y período y marca DELETED. Anular un pago lo excluye también de asignaciones/ajustes.
+- Reglas: `active` y `deletedAt`; activar/desactivar y borrado lógico sólo afectan nuevas aplicaciones. Pagos: `voidedAt`/`voidedBy`, registro histórico y endpoint idempotente. Guards OWNER/commissions y writeAudit en transacciones, independientes del permiso de acciones sensibles. Migración SQL aditiva probada sobre el schema previo con reglas y pagos existentes, importes conservados y Prisma diff sin diferencias.
+- Desktop y móvil comparten acciones confirmadas en reglas/pagos, conservan errores de persistencia y bloquean doble envío. El selector incluye el próximo mes para revisar A descontar. Corregidos icono Reglas, venta/ventas y Propietario. La búsqueda de equipos sin Estado fallaba en `getOperationOptions` y en la validación al crear la venta; ambos aceptan Estado vacío conservando exclusiones de vendidos, reservados y archivados.
+- Validación: lint frontend/backend, build solicitado, 580 tests frontend, 229 unitarios backend (20 fixtures externos de importación omitidos tras confirmar los fallos previamente documentados), 114 integraciones PostgreSQL y 14 pruebas de worker. PWA: 48 aprobados, 36 omisiones por plataforma/offline WebKit. Suite E2E general: 139 aprobados con un worker, sin retries ni fallos en la corrida final.
+- Evidencia en `docs/pr-shots/issue-334-{mobile,desktop}-*.png`, reproducible con `npm run test:e2e -- e2e/commissions-qa.spec.ts e2e/commissions-qa-iphone.spec.ts --workers=1`. PostgreSQL local exclusivo `imanager_issue334_test`, `imanager_issue334_e2e_test` y `imanager_issue334_migration_test`; puertos 3334/4334 y PWA 4434. Exportación sólo en Reportes. Commit en `fix/comisiones-qa`, sin push, según el pedido específico; sin operaciones sobre producción.
 
 ## Issue #330 — Comisiones, parte 1: datos y API — 2026-10-13
 

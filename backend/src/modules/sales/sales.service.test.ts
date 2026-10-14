@@ -34,6 +34,7 @@ const prismaMock = vi.hoisted(() => ({
     count: vi.fn(),
     create: vi.fn(),
   },
+  commissionAccrual: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   sale: {
     findFirst: vi.fn(),
     create: vi.fn(),

@@ -1852,3 +1852,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .commission-detail .commission-carry { margin-bottom: 4px; }
   .commission-detail .commission-line { padding-block: 12px; }
 }
+
+.commission-saved-rules { margin-bottom: 20px; }
+.commission-saved-rule { padding: 12px; margin-top: 8px; }
+.commission-saved-rule > small { display: block; color: var(--secondary); margin: 4px 0 10px; }
+.commission-saved-rule > div { display: flex; gap: 8px; }
+.commission-saved-rule button { min-height: 44px; flex: 1; }
+.commission-payment-void { display: block; min-height: 44px; margin-left: auto; }

@@ -1,0 +1,2 @@
+ALTER TABLE "CommissionRule" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT true, ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "CommissionPayment" ADD COLUMN "voidedAt" TIMESTAMP(3), ADD COLUMN "voidedBy" TEXT;

@@ -3,7 +3,10 @@ import { DeskSelect } from './select';
 import { DeskIcon } from './ui';
 export function CommissionMonthPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const now = monthKey();
-  const latest = value > now ? value : now;
+  // Show the upcoming liquidation month so deductions can be reviewed after a cancellation.
+  const [currentYear, currentMonth] = now.split('-').map(Number);
+  const upcoming = monthKey(new Date(Date.UTC(currentYear, currentMonth, 15)), 'UTC');
+  const latest = value > upcoming ? value : upcoming;
   const [year, month] = latest.split('-').map(Number);
   const options = Array.from({ length: 121 }, (_, index) => {
     const date = new Date(Date.UTC(year, month - 1 - index, 15));
