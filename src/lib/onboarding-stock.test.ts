@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  esCount,
   onboardingPayload,
   onboardingTotals,
   prepareOnboardingRows,
+  recognizedLinesHeading,
+  recognizedSlices,
+  unrecognizedNote,
+  withoutCurrencyNote,
 } from "./onboarding-stock";
 import type { ImportAnalysis } from "../services/import-api";
 
@@ -41,6 +46,7 @@ describe("stock del onboarding", () => {
       review: 2,
       usd: 1540,
       ars: 2002000,
+      withoutCurrency: 0,
     });
     const payload = onboardingPayload(rows);
     expect(payload).toHaveLength(3);
@@ -58,7 +64,7 @@ describe("stock del onboarding", () => {
           model: "iPhone 13",
           price: "",
           quantity: "1",
-          currency: "",
+          currency: "USD",
           condition: "",
         },
       ],
@@ -66,8 +72,77 @@ describe("stock del onboarding", () => {
     expect(onboardingPayload(rows)[0]).toMatchObject({
       price: 0,
       currency: "USD",
+      condition: "USADO",
       customFields: { onboardingReview: "Falta capacidad" },
     });
+  });
+  it("deja afuera del total en dólares las filas sin moneda", () => {
+    const rows = prepareOnboardingRows({
+      ...analysis,
+      rows: [
+        analysis.rows[0],
+        {
+          model: "iPhone 14",
+          price: "100",
+          currency: "",
+          quantity: "1",
+          condition: "USADO",
+        },
+      ],
+      review: [
+        analysis.review![0],
+        {
+          line: 2,
+          original: "14",
+          dudas: ["Sin moneda: elegí ARS o USD antes de importar."],
+        },
+      ],
+    });
+    expect(rows[1].currency).toBe("");
+    expect(onboardingTotals(rows, 1300)).toMatchObject({
+      usd: 1040,
+      ars: 1352000,
+      count: 3,
+      withoutCurrency: 1,
+    });
+    expect(onboardingTotals(rows, null)).toMatchObject({
+      usd: 1040,
+      ars: null,
+      withoutCurrency: 1,
+    });
+    expect(withoutCurrencyNote(1)).toBe(
+      "1 equipo sin moneda no entra en el total. Elegí ARS o USD al revisar.",
+    );
+    expect(withoutCurrencyNote(2)).toContain("2 equipos sin moneda");
+  });
+  it("parte el resultado de una sola respuesta y acuerda singular y plural", () => {
+    expect(
+      recognizedSlices(
+        [
+          { model: "iPhone 13", quantity: "1", line: 1 },
+          { model: "iPhone 14", quantity: "2", line: 9 },
+        ],
+        12,
+      ),
+    ).toEqual([
+      [{ model: "iPhone 13", quantity: 1 }],
+      [{ model: "iPhone 14", quantity: 2 }],
+    ]);
+    expect(
+      recognizedSlices(
+        [
+          { model: "iPhone 13", quantity: 1 },
+          { model: "iPhone 14", quantity: 1 },
+        ],
+        2,
+      ),
+    ).toHaveLength(2);
+    expect(unrecognizedNote(1)).toBe(
+      "La línea sin reconocer no parece un equipo. Editala o borrala y volvé a analizar, o seguí sin ella.",
+    );
+    expect(unrecognizedNote(2)).toContain("Las 2 sin reconocer");
+    expect(recognizedLinesHeading(1, 1)).toBe("Reconocimos 1 de 1 línea");
+    expect(esCount(1, "equipo", "equipos")).toBe("1 equipo");
   });
   it("no muestra una conversión falsa sin cotización", () => {
     expect(

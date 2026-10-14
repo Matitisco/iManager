@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Users } from "lucide-react";
 import { BrandLockup } from "../components/brand-mark";
-import { WelcomeVideo } from "../components/WelcomeVideo";
 import { useAppContext } from "../context/AppContext";
 import { DeskOverlays } from "../desk/DeskOverlays";
 import { DeskProvider } from "../desk/ui";
@@ -22,15 +21,14 @@ export function OnboardingJourney() {
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const stage =
-    gettingStarted?.stage ?? appSession?.store?.onboardingStage ?? "video";
+  const raw =
+    gettingStarted?.stage ?? appSession?.store?.onboardingStage ?? "invite";
+  const stage = raw === "stock" ? "stock" : "invite";
   const next = async () => {
     setBusy(true);
     setError("");
     try {
-      await updateGettingStarted({
-        stage: stage === "video" ? "invite" : "stock",
-      });
+      await updateGettingStarted({ stage: "stock" });
       await reloadSession();
     } catch (cause) {
       setError(toUserMessage(cause));
@@ -39,7 +37,6 @@ export function OnboardingJourney() {
     }
   };
   if (stage === "stock") return <StockOnboarding onFinish={() => undefined} />;
-  const video = stage === "video";
   return (
     <DeskProvider
       value={{
@@ -55,47 +52,40 @@ export function OnboardingJourney() {
         isStaff: false,
       }}
     >
-      <div className="onb journey-onb" data-testid={`onboarding-${stage}`}>
+      <div className="onb journey-onb" data-testid="onboarding-invite">
         <header className="onb-header">
           <BrandLockup variant="horizontal" className="onb-logo" />
         </header>
         <main className="onb-main">
-          <div className="onb-steps" aria-label={`Paso ${video ? 2 : 3} de 4`}>
-            {[0, 1, 2, 3].map((i) => (
-              <i key={i} className={i <= (video ? 1 : 2) ? "on" : ""} />
+          <div className="onb-steps" aria-label="Paso 2 de 3">
+            {[0, 1, 2].map((i) => (
+              <i key={i} className={i <= 1 ? "on" : ""} />
             ))}
           </div>
-          <h1>
-            {video ? "Tu tienda, lista para empezar" : "Mejor con tu equipo"}
-          </h1>
+          <h1>Mejor con tu equipo</h1>
           <p>
-            {video
-              ? "Un video corto para conocer iManager. Podés verlo ahora o cuando quieras desde Ayuda."
-              : "Sumá a quienes trabajan con vos. Cada persona entra con su cuenta y su rol."}
+            Sumá a quienes trabajan con vos. Cada persona entra con su cuenta y
+            su rol.
           </p>
-          {video ? (
-            <WelcomeVideo />
-          ) : (
-            <section className="onb-invite-card">
-              <Users size={42} />
-              <h2>Invitá a tus empleados</h2>
-              <p>
-                Compartí un link de invitación y elegí su rol. No necesitan
-                crear otra tienda.
-              </p>
-              <button
-                className="onb-yellow"
-                onClick={() => setOverlay({ type: "invite" })}
-              >
-                Invitar al equipo
-              </button>
-              <small>
-                {gettingStarted?.team
-                  ? "✓ Ya se sumó alguien a tu equipo."
-                  : "El paso se completa cuando se suma al menos una persona."}
-              </small>
-            </section>
-          )}
+          <section className="onb-invite-card">
+            <Users size={42} />
+            <h2>Invitá a tus empleados</h2>
+            <p>
+              Compartí un link de invitación y elegí su rol. No necesitan crear
+              otra tienda.
+            </p>
+            <button
+              className="onb-yellow"
+              onClick={() => setOverlay({ type: "invite" })}
+            >
+              Invitar al equipo
+            </button>
+            <small>
+              {gettingStarted?.team
+                ? "✓ Ya se sumó alguien a tu equipo."
+                : "El paso se completa cuando se suma al menos una persona."}
+            </small>
+          </section>
           {error && (
             <p className="onb-error" role="alert">
               {error}

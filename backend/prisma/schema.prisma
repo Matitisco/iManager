@@ -77,6 +77,7 @@ model Store {
 
 model StoreMember {
   gettingStartedDismissed Boolean @default(false)
+  gettingStartedVisible   Boolean @default(false)
   welcomeVideoWatched      Boolean @default(false)
   appInstalled            Boolean @default(false)
   id        String    @id @default(cuid())

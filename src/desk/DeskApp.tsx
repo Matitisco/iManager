@@ -132,7 +132,7 @@ function MoreScreen({
       ) : null}
       <div className="mlabel">Cuenta</div>
       <div className="card">
-        <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Video y primeros pasos</span></span><span className="chev">›</span></button>
+        <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Guías y primeros pasos</span></span><span className="chev">›</span></button>
         <button className="member" type="button" data-testid="sidebar-tab-settings" onClick={() => onOpen('settings')}>
           <span className="ico-row"><DeskIcon name="gear" size={18} /></span>
           <span className="info">

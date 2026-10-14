@@ -11,12 +11,12 @@ export interface GettingStartedProgress {
   team: boolean;
   catalog: boolean;
   installed: boolean;
-  videoWatched: boolean;
+  visible: boolean;
   samples: number;
 }
 export type ProgressPatch = {
   dismissed?: boolean;
-  videoWatched?: true;
+  visible?: boolean;
   installed?: true;
   complete?: true;
   stage?: "invite" | "stock";

@@ -32,6 +32,16 @@
   border-radius: 50%;
   cursor: pointer;
 }
+.first-steps .first-show {
+  width: 100%;
+  height: auto;
+  min-height: 48px;
+  margin: 12px 0 4px;
+  white-space: normal;
+  text-align: center;
+  padding: 12px 16px;
+  line-height: 1.25;
+}
 .first-steps progress {
   display: block;
   width: 100%;
@@ -208,37 +218,6 @@
   letter-spacing: 0.8px;
   margin: 24px 2px 12px;
 }
-.help-video {
-  display: flex;
-  gap: 16px;
-  padding: 20px;
-  background: #16181d;
-  border: 0;
-  border-radius: 24px;
-  color: white;
-  align-items: center;
-  text-align: left;
-  margin-bottom: 12px;
-  width: 100%;
-  cursor: pointer;
-}
-.help-video img {
-  width: 32%;
-  border-radius: 18px;
-  aspect-ratio: 16/9;
-  object-fit: cover;
-}
-.help-video b {
-  display: block;
-  font-size: 22px;
-  line-height: 1.2;
-  margin-bottom: 6px;
-}
-.help-video small {
-  display: block;
-  font-size: 14px;
-  color: #c7cad1;
-}
 .help-screen > .btn2 {
   width: 100%;
   min-height: 52px;
@@ -261,26 +240,6 @@
   background: white;
   border-bottom: 1px solid #e1e4e9;
   cursor: pointer;
-}
-.welcome-sheet .welcome-video {
-  margin-bottom: 18px;
-}
-.welcome-sheet h2 {
-  font-size: 23px;
-  font-weight: 750;
-}
-.welcome-sheet .welcome-chapters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 16px 0;
-}
-.welcome-chapters span {
-  padding: 9px;
-  background: #f7f8fa;
-  border-radius: 10px;
-  font-size: 12px;
-  flex: 1;
 }
 .first-task:focus-visible,
 .sample-banner button:focus-visible,
@@ -334,20 +293,6 @@
   }
   .first-dashboard > h1 {
     font-size: 28px;
-  }
-  .help-video {
-    padding: 14px;
-    gap: 12px;
-  }
-  .help-video img {
-    width: 35%;
-    min-height: 85px;
-  }
-  .help-video b {
-    font-size: 18px;
-  }
-  .help-video small {
-    font-size: 13px;
   }
   .help-guides button {
     font-size: 15px;

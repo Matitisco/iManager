@@ -117,7 +117,7 @@ export type TextProgressRow = { model: string; quantity: number };
 export async function analyzeInventoryTextProgress(
   user: AuthUserLike,
   text: string,
-  onProgress: (rows: TextProgressRow[]) => void,
+  onProgress: (rows: TextProgressRow[]) => void | Promise<void>,
   signal: AbortSignal,
 ): Promise<ImportAnalysis> {
   const controller = new AbortController();
@@ -145,7 +145,7 @@ export async function analyzeInventoryTextProgress(
         const decoder = new TextDecoder();
         let buffer = "";
         let result: ImportAnalysis | undefined;
-        const consume = (line: string) => {
+        const consume = async (line: string) => {
           if (!line.trim()) return;
           const event = JSON.parse(line) as {
             type: string;
@@ -154,7 +154,7 @@ export async function analyzeInventoryTextProgress(
             message: string;
           };
           if (event.type === "error") throw new Error(event.message);
-          if (event.type === "progress") onProgress(event.rows);
+          if (event.type === "progress") await onProgress(event.rows);
           if (event.type === "result") result = event.analysis;
         };
         try {
@@ -164,9 +164,9 @@ export async function analyzeInventoryTextProgress(
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
-            lines.forEach(consume);
+            for (const line of lines) await consume(line);
           }
-          consume(buffer + decoder.decode());
+          await consume(buffer + decoder.decode());
           if (!result)
             throw new Error("El análisis se interrumpió. Volvé a intentarlo.");
           return result;

@@ -273,9 +273,8 @@ export function Onboarding({
           </section>
         ) : (
           <form onSubmit={submit} noValidate>
-            <div className="onb-steps" aria-label="Paso 1 de 4">
+            <div className="onb-steps" aria-label="Paso 1 de 3">
               <i className="on" />
-              <i />
               <i />
               <i />
             </div>

@@ -14,7 +14,6 @@ export type DeskTab =
   | 'help';
 
 export type Overlay =
-  | { type: 'welcome-video' }
   | { type: 'onboarding-stock' }
   | { type: 'new-eq' }
   | { type: 'eq'; id: string }
