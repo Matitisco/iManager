@@ -117,6 +117,18 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
   });
 
+  it('shows the offline banner on every section and clears it when the browser is back online', async () => {
+    usePhone();
+    window.location.hash = '#/dash';
+    render(<DeskApp />);
+    expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+    await act(async () => { window.dispatchEvent(new Event('offline')); });
+    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
+    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+  });
+
   it('clears the offline banner on Más when the connection returns without leaving the screen', async () => {
     usePhone();
     window.location.hash = '#/mas';

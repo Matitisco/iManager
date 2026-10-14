@@ -461,7 +461,7 @@ describe('servicio técnico', () => {
 
     await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));
     const confirm = screen.getByRole('dialog', { name: 'Eliminar orden' });
-    expect(confirm).toHaveTextContent('no se puede deshacer');
+    expect(confirm).toHaveTextContent('vuelve como saldo a favor del cliente');
     await user.click(within(confirm).getByRole('button', { name: 'Cancelar' }));
     expect(deleteRepairOrder).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));

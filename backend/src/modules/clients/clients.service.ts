@@ -9,6 +9,7 @@ import { clientsRepository } from "./clients.repository.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { blankFieldsToFill, decideClientLink } from "../import/link-imported-sale.js";
 import { normalizeImportedDni, normalizeImportedEmail, normalizeImportedInstagram, normalizeImportedPhone } from "../import/normalize-import.js";
+import { clientDeleteRefusal, creditAmount, type DepositBalanceRow } from "./client-balance.js";
 
 export interface ClientInput {
   dni?: string | null;
@@ -35,6 +36,7 @@ export interface ClientResponse {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  creditBalance: number;
   balanceCurrency: string | null;
   categoryId: string | null;
   tag: string | null;
@@ -93,7 +95,7 @@ const formatDate = (value: Date | null) => {
   return formatArDate(value);
 };
 
-export function serializeClient(client: ClientRecord): ClientResponse {
+export function serializeClient(client: ClientRecord, creditBalance = 0): ClientResponse {
   return {
     id: client.id,
     dni: client.dni ?? "",
@@ -104,6 +106,7 @@ export function serializeClient(client: ClientRecord): ClientResponse {
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
     pendingBalance: client.pendingBalance.toNumber(),
+    creditBalance,
     balanceCurrency: client.balanceCurrency ?? null,
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
@@ -121,9 +124,21 @@ function parseLastPurchaseDate(value?: string | null) {
 }
 
 export async function listClients(storeId: string) {
-  const clients = await clientsRepository.list(storeId);
+  const [clients, credits] = await Promise.all([
+    clientsRepository.list(storeId),
+    prisma.clientDeposit.findMany({
+      where: { storeId, status: "CREDIT" },
+      select: { clientId: true, status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
+    }),
+  ]);
+  const byClient = new Map<string, DepositBalanceRow[]>();
+  for (const row of credits) {
+    const list = byClient.get(row.clientId) ?? [];
+    list.push(row);
+    byClient.set(row.clientId, list);
+  }
 
-  return clients.map(serializeClient);
+  return clients.map((client) => serializeClient(client, creditAmount(byClient.get(client.id) ?? [], client.balanceCurrency ?? null)));
 }
 
 function normalizeDni(value?: string | null) {
@@ -295,7 +310,16 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
   if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
 
   await prisma.$transaction(async (tx) => {
-    if (await tx.clientDeposit.findFirst({ where: { storeId, clientId: id }, select: { id: true } })) throw new ClientsError("El cliente tiene historial de señas y no se puede eliminar", 409);
+    const [client, deposits] = await Promise.all([
+      tx.client.findFirst({ where: { id, storeId }, select: { balanceCurrency: true } }),
+      tx.clientDeposit.findMany({
+        where: { storeId, clientId: id },
+        select: { status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
+      }),
+    ]);
+    const refusal = clientDeleteRefusal(deposits, client?.balanceCurrency ?? null);
+    if (refusal) throw new ClientsError(refusal, 409);
+    if (deposits.length) await tx.clientDeposit.deleteMany({ where: { storeId, clientId: id } });
     await tx.client.delete({ where: { id } });
     if (actor) {
       await writeAudit(tx, {

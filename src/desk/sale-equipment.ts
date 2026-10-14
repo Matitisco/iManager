@@ -27,6 +27,11 @@ export function outgoingTradeDifference(input: {
   return { difference, warning: null };
 }
 
+export function reservedForOtherClient<T extends Product | OperationProductOption>(items: T[], query: string, clientId: string): T | null {
+  const reserved = items.filter((item) => item.reservedDepositId && item.reservedClientId !== clientId);
+  return equipmentSuggestions(reserved, query, 1)[0] ?? null;
+}
+
 export function equipmentSuggestions<T extends Product | OperationProductOption>(items: T[], query: string, limit = EQUIPMENT_SUGGESTION_LIMIT): T[] {
   const needle = query.trim().toLowerCase();
   if (!needle || limit <= 0) return [];

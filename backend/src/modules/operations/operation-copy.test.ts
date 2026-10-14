@@ -59,6 +59,8 @@ describe("section operation copy", () => {
     expect(operationSummary({ trade: true, amount: 1500, takeValue: 600, status: "PENDIENTE", hasInventory: true, received: true })).toBe("Canje · total $ 1.500 · toma $ 600 · diferencia $ 900 · debe $ 900 · estado técnico del recibido: Pendiente");
     expect(operationSummary({ trade: true, amount: 1075, takeValue: 200, status: "COMPLETADA", hasInventory: false, currency: "USD" })).toBe("Canje · total US$ 1.075 · toma US$ 200 · diferencia US$ 875 · pagada");
     expect(operationSummary({ trade: false, amount: 1075, status: "COMPLETADA", hasInventory: true, currency: "USD" })).toBe("Venta US$ 1.075 · deuda US$ 0 · stock vendido");
+    expect(operationSummary({ trade: false, amount: 100, depositApplied: 10, status: "PENDIENTE", hasInventory: true, currency: "USD" })).toBe("Venta US$ 100 · deuda US$ 90 · stock vendido");
+    expect(operationSummary({ trade: true, amount: 500, takeValue: 200, depositApplied: 100, status: "PENDIENTE", hasInventory: true, currency: "USD" })).toBe("Canje · total US$ 500 · toma US$ 200 · diferencia US$ 300 · debe US$ 200");
     const [notice] = sectionRecords(["inventory"], { action: "cancelled", archivedDevice: "iPhone 11" }, { inventory: "trade-1", tradeins: "trade-1" }, { archiveReceived: true });
     expect(notice).toMatchObject({ message: "iPhone 11 archivado", kind: "ARCHIVED_TRADE_IN_RECEIVED" });
     expect(cancelledInventoryRecord("trade-1", null)).toBe("trade-1");

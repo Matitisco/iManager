@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { equipmentSuggestions, EQUIPMENT_SUGGESTION_LIMIT, MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference } from './sale-equipment';
+import { equipmentSuggestions, EQUIPMENT_SUGGESTION_LIMIT, MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDifference, reservedForOtherClient } from './sale-equipment';
 
 function product(id: string, model: string, extra: Partial<Product> = {}): Product {
   return {
@@ -15,6 +15,7 @@ function product(id: string, model: string, extra: Partial<Product> = {}): Produ
     cost: 100,
     price: extra.price ?? 500,
     status: 'DISPONIBLE',
+    ...extra,
   };
 }
 
@@ -35,6 +36,13 @@ describe('equipmentSuggestions', () => {
     expect(equipmentSuggestions(items, '64gb').map((item) => item.id)).toEqual(['c']);
     expect(equipmentSuggestions(items, 'negro').map((item) => item.id)).toEqual(['b']);
     expect(equipmentSuggestions(items, '3333444').map((item) => item.id)).toEqual(['a']);
+  });
+
+  it('names a device reserved for someone else and ignores the current client', () => {
+    const reserved = product('r', 'iPhone 13', { reservedDepositId: 'dep', reservedClientId: 'other', reservedClientName: 'Ana Pérez' });
+    const own = product('o', 'iPhone 13', { reservedDepositId: 'mine', reservedClientId: 'me', reservedClientName: 'Yo' });
+    expect(reservedForOtherClient([reserved, ...items], 'iphone 13', 'me')?.reservedClientName).toBe('Ana Pérez');
+    expect(reservedForOtherClient([own], 'iphone 13', 'me')).toBeNull();
   });
 
   it('returns a bounded list even when thousands of items match', () => {

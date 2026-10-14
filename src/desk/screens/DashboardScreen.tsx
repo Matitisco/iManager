@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
+import { clientNet } from '../client-balance';
 import { useMoney } from '../exchange';
 import {
   saleBuyer,
@@ -112,8 +113,8 @@ export function DashboardScreen() {
   const monthDelta = monthTotal != null && prevTotal != null && prevTotal > 0 ? Math.round(((monthTotal - prevTotal) / prevTotal) * 100) : null;
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status));
-  const balance = clients.filter((client) => client.pendingBalance > 0);
-  const balanceTotal = money.sum(balance.map((client) => ({ amount: client.pendingBalance, currency: client.balanceCurrency })));
+  const balance = clients.filter((client) => clientNet(client) > 0);
+  const balanceTotal = money.sum(balance.map((client) => ({ amount: clientNet(client), currency: client.balanceCurrency })));
   const recent = useMemo(() => [...sales].sort((a, b) => {
     const left = parseAppDate(b.date)?.getTime() ?? 0;
     const right = parseAppDate(a.date)?.getTime() ?? 0;

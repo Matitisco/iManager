@@ -61,6 +61,27 @@ describe('EquipmentField', () => {
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'a', model: 'iPhone 13' }));
   });
 
+  it('says who reserved the device and does not offer to create a duplicate', async () => {
+    const user = userEvent.setup();
+    function Reserved() {
+      const [value, setValue] = useState('');
+      return (
+        <EquipmentField
+          items={items}
+          value={value}
+          linked={false}
+          reservedName={value.toLowerCase().includes('iphone 13') ? 'Ana Pérez' : null}
+          onValue={setValue}
+          onPick={vi.fn()}
+        />
+      );
+    }
+    render(<Reserved />);
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'iPhone 13');
+    expect(screen.getByText('Reservado para Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText(/Completá los datos básicos para crearlo/)).not.toBeInTheDocument();
+  });
+
   it('prices a suggestion in the store currency', async () => {
     const user = userEvent.setup();
     render(

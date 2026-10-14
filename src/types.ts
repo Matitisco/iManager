@@ -159,6 +159,7 @@ export interface Client {
   lastPurchaseDate: string;
   totalSpent: number;
   pendingBalance: number;
+  creditBalance?: number;
   balanceCurrency?: string | null;
   categoryId?: string | null;
   tag?: string | null;

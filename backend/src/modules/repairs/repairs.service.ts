@@ -7,6 +7,7 @@ import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
+import { restoreRepairDeposits } from "../deposits/deposits.service.js";
 import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
 import { isRetiredRepairStatus, retireRepairStatuses } from "./retire-repair-statuses.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
@@ -311,7 +312,7 @@ export async function deleteRepair(storeId: string, id: string, actor?: Actor | 
   const current = await prisma.repairOrder.findFirst({ where: { id, storeId }, select: { id: true, orderNumber: true, device: true } });
   if (!current) return false;
   await withSerializableRetry(async (tx) => {
-    if (await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } })) throw new RepairError('La orden tiene señas aplicadas y debe conservar su historial', 409);
+    await restoreRepairDeposits(tx, storeId, id, actor);
     await tx.repairOrder.delete({ where: { id } });
     if (actor) {
       await writeAudit(tx, {

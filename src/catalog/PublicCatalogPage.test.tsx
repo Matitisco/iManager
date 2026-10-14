@@ -39,6 +39,19 @@ describe('public catalog without session', () => {
     await waitFor(() => expect(screen.queryByText('US$ 920')).not.toBeInTheDocument());
     expect(screen.getByText('Esta lista de precios no está disponible')).toBeInTheDocument();
   });
+  it('keeps the header phone and the WhatsApp link on the same current number', async () => {
+    let phone = '123123';
+    fetchCatalog.mockImplementation(async () => ({ ...catalog, store: { ...catalog.store, phone } }));
+    const view = render(<PublicCatalogPage slug="mi-tienda" />);
+    expect(await screen.findByTestId('catalog-store-phone')).toHaveTextContent('123123');
+    expect(screen.queryByRole('link', { name: 'Escribinos por WhatsApp' })).not.toBeInTheDocument();
+    phone = '11 4172 2188';
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    expect(await screen.findByTestId('catalog-store-phone')).toHaveTextContent('11 4172 2188');
+    expect(screen.getByTestId('catalog-store-phone')).not.toHaveTextContent('123123');
+    expect(screen.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveAttribute('href', expect.stringContaining('https://wa.me/5491141722188?text='));
+    view.unmount();
+  });
   it('hides WhatsApp without a valid phone and names the store currency when prices stay as loaded', async () => {
     fetchCatalog.mockResolvedValue({ ...catalog, priceCurrency: 'ORIGINAL', store: { ...catalog.store, phone: '123123', currency: 'ARS' } });
     render(<PublicCatalogPage slug="mi-tienda" />);

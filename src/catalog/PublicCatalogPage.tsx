@@ -55,12 +55,14 @@ export function PublicCatalogPage({ slug }: { slug: string }) {
   const prices = (min: string, max: string) => setFilters(current => ({ ...current, min, max }));
   const active = activeCatalogFilters(filters);
   const showPrice = catalog?.showPrice ?? false;
-  const contact = catalog ? whatsappLink(catalog.store.phone, `Hola ${catalog.store.name} \u{1F44B} Vi la lista de precios y quería consultar por un equipo. ${window.location.origin}/c/${slug}`) : null;
+  const storePhone = catalog?.store.phone?.trim() || null;
+  const contact = catalog ? whatsappLink(storePhone, `Hola ${catalog.store.name} \u{1F44B} Vi la lista de precios y quería consultar por un equipo. ${window.location.origin}/c/${slug}`) : null;
+  const storeLine = catalog ? [catalog.store.address, catalog.store.hours, storePhone].filter(Boolean).join(' · ') : '';
   const offline = error === NETWORK_ERROR_MESSAGE;
   return <main className="public-price-page" data-testid="public-catalog">
     <header className="price-header"><div className="price-container"><div className="price-store">
       {catalog?.store.logoUrl ? <img className="price-logo" src={catalog.store.logoUrl} alt={`Logo de ${catalog.store.name}`} /> : <div className="price-logo">{catalog?.store.name.split(' ').map(word => word[0]).slice(0, 2).join('') || 'iM'}</div>}
-      <div><h1>{catalog?.store.name || 'Lista de precios'}</h1>{catalog?.store.address || catalog?.store.hours ? <p><MapPin size={13} />{[catalog.store.address, catalog.store.hours].filter(Boolean).join(' · ')}</p> : null}</div>
+      <div><h1>{catalog?.store.name || 'Lista de precios'}</h1>{storeLine ? <p data-testid="catalog-store-phone"><MapPin size={13} />{storeLine}</p> : null}</div>
     </div>{catalog?.active && <div className="price-header-meta"><b>LISTA DE PRECIOS</b><small>{catalogPriceCaption({ showPrice: catalog.showPrice, priceCurrency: catalog.priceCurrency, currency: catalog.store.currency })}</small></div>}</div></header>
     {loading ? <p className="price-message" role="status">Cargando lista…</p> : error ? <div className={`price-message${offline ? ' offline' : ''}`} role="alert" data-testid={offline ? 'offline-banner' : undefined}>{error}<button onClick={() => window.location.reload()}>Reintentar</button></div> : unavailable || !catalog?.active ? <div className="price-message"><small>LISTA PAUSADA</small><h2>Esta lista de precios no está disponible</h2><p>La tienda la pausó o cambió el link. Escribile para que te pase la lista actualizada.</p></div> : <>
       <div className="price-search-area"><div className="price-container"><div className="price-search"><label><Search size={18} /><input aria-label="Buscar modelo o color" placeholder="Buscar modelo o color" value={filters.query} onChange={e => field('query', e.target.value)} /></label><button className="price-filter-button" onClick={() => setFilterOpen(true)}><SlidersHorizontal size={17} />Filtros{active ? ` · ${active}` : ''}</button></div>
