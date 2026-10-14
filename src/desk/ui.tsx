@@ -495,9 +495,10 @@ export function ImportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-type DeskIconName = 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal';
+type DeskIconName = 'comisiones' | 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal';
 
 export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIconName; size?: number; strokeWidth?: number }) {
+  if (name === 'comisiones') return <ImanagerIcon name="comisiones" size={nearestIconSize(size)} />;
   if (name === 'logo') return <ImanagerIcon name="equipo" size={nearestIconSize(size)} />;
   if (name === 'edit') return <ImanagerIcon name="editar" size={nearestIconSize(size)} />;
   if (name === 'trash') return <ImanagerIcon name="borrar" size={nearestIconSize(size)} />;

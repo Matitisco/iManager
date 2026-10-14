@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
+import { canManageCommissions, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
+  it('grants commissions administration only to owners by default, and always allows own data', () => {
+    expect(canManageCommissions(null, 'OWNER')).toBe(true);
+    for (const role of ['MANAGER', 'STAFF']) {
+      expect(canManageCommissions(null, role)).toBe(false);
+      expect(grantedSections(null, role)).not.toContain('commissions');
+      expect(canManageCommissions(['commissions'], role)).toBe(true);
+      expect(canOpenSection('commissions', [], role)).toBe(true);
+    }
+  });
   it('keeps every section when access was never customized, and settings always', () => {
-    expect(visibleSections(null, 'STAFF')).toHaveLength(8);
+    expect(visibleSections(null, 'STAFF')).toHaveLength(9);
     expect(grantedSections(null, 'STAFF')).not.toContain('reports');
     expect(grantedSections(null, 'MANAGER')).toContain('reports');
     expect(grantedSections(['sales', 'reports'], 'STAFF')).toEqual(['sales', 'reports']);
@@ -39,27 +48,27 @@ describe('desk sections', () => {
   it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {
     expect(mobileTabs(null, 'OWNER')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['tradeins', 'clients', 'service', 'notifications'],
+      more: ['tradeins', 'clients', 'service', 'commissions', 'notifications'],
     });
     expect(mobileTabs(null, 'STAFF')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'tradeins'],
-      more: ['clients', 'service', 'notifications'],
+      more: ['clients', 'service', 'commissions', 'notifications'],
     });
     expect(mobileTabs(['reports', 'sales'], 'STAFF')).toEqual({
       bar: ['sales', 'reports'],
-      more: [],
+      more: ['commissions'],
     });
     expect(mobileTabs(['dashboard', 'inventory', 'sales', 'reports', 'tradeins'], 'STAFF')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['tradeins'],
+      more: ['tradeins', 'commissions'],
     });
     expect(mobileTabs(['dashboard', 'sales', 'reports', 'service'], 'MANAGER')).toEqual({
       bar: ['dashboard', 'sales', 'reports', 'service'],
-      more: [],
+      more: ['commissions'],
     });
     expect(mobileTabs(['clients'], 'MANAGER')).toEqual({
       bar: ['clients'],
-      more: [],
+      more: ['commissions'],
     });
   });
 });

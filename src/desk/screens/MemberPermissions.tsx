@@ -60,10 +60,10 @@ export function MemberPermissions({ member, onBack, onSaved }: {
           {DESK_SECTIONS.map((section) => {
             const on = sections.includes(section.id);
             return (
-              <div className="perm" key={section.id}>
+              <div className={`perm${section.id === 'commissions' ? ' commission-permission' : ''}`} key={section.id}>
                 <div>
                   <b>{section.label}</b>
-                  <small>{on ? 'Puede ver esta sección' : 'Sin acceso'}</small>
+                  <small>{section.id === 'commissions' ? (on ? 'Ve a todo el equipo, configura reglas y registra pagos' : 'Solo ve Mis comisiones') : on ? 'Puede ver esta sección' : 'Sin acceso'}</small>
                 </div>
                 <button
                   type="button"
@@ -80,6 +80,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
             );
           })}
         </div>
+        <p className="perm-note">Sin el permiso de Comisiones, cada persona ve igual «Mis comisiones», solo con lo suyo y sin costos. Por defecto lo tiene solo el Dueño.</p>
         <div className="sec">Acciones</div>
         <div className="card">
           <div className="perm">

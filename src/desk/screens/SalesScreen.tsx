@@ -1,3 +1,5 @@
+import { monthKey, monthLabel } from '../commissions';
+import { AssignSellerSheet } from '../AssignSellerSheet';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,6 +9,7 @@ import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { ColumnFilter, DateRange, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { approxActive, approxUsd, useDisplayQuote, useMoney } from '../exchange';
 import {
+  parseAppDate,
   saleBuyer,
   formatShortDate,
   inPeriod,
@@ -29,7 +32,7 @@ import {
   saleFiltersActive,
   type SaleColumnFilters,
 } from '../sale-column-filters';
-import { canSeeFinancials } from '../sections';
+import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 import type { Sale } from '../../types';
@@ -37,12 +40,20 @@ import type { Sale } from '../../types';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession } = useAppContext();
+  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [directoryError, setDirectoryError] = useState('');
+  const [unassignedMonth] = useState(() => { const requested = sessionStorage.getItem('commission-unassigned'); return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null; });
+  const [onlyUnassigned, setOnlyUnassigned] = useState(Boolean(unassignedMonth));
+  useEffect(() => { sessionStorage.removeItem('commission-unassigned'); }, []);
+  const manageCommissions = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
+  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDirectoryError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, [appSession?.store?.id]);
+  const sellerName = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
   const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('sales');
   const [onlyNotices, setOnlyNotices] = useState(false);
@@ -55,12 +66,18 @@ export function SalesScreen() {
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
   const bounds = periodBounds(period);
 
-  const inWindow = (sale: { date: string }) => (parseOk(sale.date) ? inPeriod(sale.date, bounds.start, bounds.end) : period === 'Mes');
+  const inWindow = (sale: { date: string }) => {
+    if (onlyUnassigned && unassignedMonth) {
+      const date = parseAppDate(sale.date);
+      return date ? monthKey(date, appSession?.store?.timezone) === unassignedMonth : false;
+    }
+    return parseOk(sale.date) ? inPeriod(sale.date, bounds.start, bounds.end) : period === 'Mes';
+  };
   const periodSales = useMemo(
     () => sales.filter((sale) => sale.status !== 'CANCELADA' && inWindow(sale)),
-    [sales, bounds.start, bounds.end, period],
+    [sales, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone],
   );
-  const listed = useMemo(() => sales.filter((sale) => inWindow(sale)), [sales, bounds.start, bounds.end, period]);
+  const listed = useMemo(() => sales.filter((sale) => inWindow(sale)), [sales, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
   const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
@@ -79,6 +96,7 @@ export function SalesScreen() {
     [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value],
   }));
   const rows = listed.filter((sale) => {
+    if (onlyUnassigned && sale.sellerMemberId) return false;
     const q = query.trim().toLowerCase();
     const labels = { client: saleBuyer(sale, clients), equipment: saleEquipment(sale, inventory) };
     if (q && !`${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q)) return false;
@@ -97,7 +115,7 @@ export function SalesScreen() {
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA'])].filter(Boolean);
 
-  const subtitle = period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
+  const subtitle = onlyUnassigned && unassignedMonth ? monthLabel(unassignedMonth) : period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
   const quiet = !query.trim() && !saleFiltersActive(columns) && !onlyNotices && !statusOn;
   const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
@@ -124,9 +142,11 @@ export function SalesScreen() {
           <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Cancelada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
         </div>
       ) : null}
+      {directoryError ? <div className="ferr" role="alert">{directoryError}</div> : null}
+      {onlyUnassigned ? <div className="commission-banner">Ventas sin vendedor{unassignedMonth ? ` de ${monthLabel(unassignedMonth)}` : ''}<button className="wlink" type="button" onClick={() => setOnlyUnassigned(false)}>Ver todas</button></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos aunque hayas recargado la página." onOpen={(id) => open({ type: 'edit-cj', id, source: 'sales' })} />
-      {phone ? (
+      {phone && !selection.mode ? (
         <SalesHero
           seeFinancials={seeFinancials}
           total={total == null ? '—' : money.showActive(total)}
@@ -138,7 +158,7 @@ export function SalesScreen() {
           marginNote={hasCost ? (marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`) : 'Cargá el costo en el equipo'}
           delta={delta}
         />
-      ) : (
+      ) : phone ? null : (
       <div className="dstats">
         {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
         <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
@@ -170,7 +190,10 @@ export function SalesScreen() {
             : sale.status !== 'CANCELADA' && !sale.integratedOperation && !sale.tradeInId
               ? 'Las ventas históricas sin operación asociada no se pueden cancelar. Seleccioná solo ventas con operación para cancelar.' : undefined,
         }}
-      />
+      >
+        {manageCommissions ? <button type="button" className="dbtn s" disabled={selection.locked || selection.selected.length === 0} onClick={() => setAssignOpen(true)}>Asignar vendedor</button> : null}
+      </BulkActions>
+      {assignOpen && manageCommissions ? <AssignSellerSheet saleIds={selection.selected.map(sale => sale.id)} subtitle={`${selection.selected.length} ventas: ${selection.selected.map(saleCode).join(', ')}`} onClose={() => setAssignOpen(false)} onSaved={() => { setAssignOpen(false); selection.clear(); }} /> : null}
       {phone ? (
         shown.length === 0 ? (
           listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="wempty">No hay ventas con ese filtro.</div>
@@ -188,7 +211,7 @@ export function SalesScreen() {
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory), sellerName(sale)].filter(Boolean).join(' · ')} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
                   </div>
                 );
@@ -224,6 +247,7 @@ export function SalesScreen() {
                     <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
+                <th>Vendedor</th>
                 <th><span className="thf">Pago
                   <ColumnFilter label="pago" {...menu('pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
                     <div className="opts">
@@ -264,6 +288,7 @@ export function SalesScreen() {
                     <td>{formatShortDate(sale.date)}</td>
                     <td>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
+                    <td>{sellerName(sale)}</td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     <td><Pill status={sale.status} kind="SALE_STATUS" /></td>

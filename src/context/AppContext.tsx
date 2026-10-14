@@ -16,7 +16,10 @@ import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, creat
 import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
 
-interface AppState {
+import { fetchCommissionExchangeRate } from '../services/commissions-api';
+import { useCommissionState } from './commission-state';
+
+interface AppState extends ReturnType<typeof useCommissionState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -100,6 +103,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
   } = useStoreRecords({ user, appSession, backendStatus });
+
+  const commissions = useCommissionState(user, appSession, backendStatus);
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
@@ -376,13 +381,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const runCreateOperation = (source: OperationSource, input: OperationInput) =>
-    runOperation(source, (currentUser) => createOperation(currentUser, source, input));
+    runOperation(source, async (currentUser) => {
+      const exchangeRate = !input.draft ? input.exchangeRate ?? await fetchCommissionExchangeRate(currentUser) : input.exchangeRate;
+      if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
+      return createOperation(currentUser, source, { ...input, ...(exchangeRate ? { exchangeRate } : {}) });
+    });
   const runUpdateSaleOperation = (id: string, input: OperationInput) =>
     runOperation('sales', (currentUser) => updateSaleOperation(currentUser, id, input));
   const runUpdateTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
     runOperation(source, (currentUser) => updateTradeOperation(currentUser, source, id, input));
   const runConfirmTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
-    runOperation(source, (currentUser) => confirmTradeOperation(currentUser, source, id, input));
+    runOperation(source, async (currentUser) => {
+      const exchangeRate = input.exchangeRate ?? await fetchCommissionExchangeRate(currentUser);
+      if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
+      return confirmTradeOperation(currentUser, source, id, { ...input, exchangeRate });
+    });
   const runCancelSaleOperation = (id: string) =>
     runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id));
   const runCancelTradeOperation = (source: OperationSource, id: string) =>
@@ -686,6 +699,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
+      ...commissions,
       inventory, sales, tradeIns, clients, customColumns,
       repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder,
       operationOptions, operationDrafts,

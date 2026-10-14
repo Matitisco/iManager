@@ -105,7 +105,7 @@ export function installHelpTests(production = false, platforms: readonly ('andro
         await session(page); await page.getByTestId('sidebar-tab-more').click();
         const card = page.getByTestId('install-card'); await expect(card).toBeVisible();
         expect(await card.evaluate((node) => node.nextElementSibling?.getAttribute('data-testid'))).toBe('more-profile');
-        await expect(page.getByTestId('more-screen')).not.toContainText('Comisiones');
+        await expect(page.getByTestId('more-screen')).toContainText('Comisiones');
         if (platform === 'android') await shot(page, 'mas');
         const install = card.getByRole('button', { name: 'Instalar', exact: true });
         await install.click();

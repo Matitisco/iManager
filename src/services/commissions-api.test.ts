@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from './fetch-with-timeout';
-import { assignSalesSeller, createCommissionPayment, createCommissionRule, deleteCommissionRule, fetchCommissionMember,
+import { fetchCommissionSellers, fetchCommissionExchangeRate, assignSalesSeller, createCommissionPayment, createCommissionRule, deleteCommissionRule, fetchCommissionMember,
   fetchCommissionPayments, fetchCommissionReport, fetchCommissionRules, fetchCommissionSummary, fetchMyCommissions, updateCommissionRule } from './commissions-api';
 
 vi.mock('./fetch-with-timeout', () => ({ fetchWithTimeout: vi.fn() }));
@@ -9,6 +9,17 @@ const response = (data: unknown, status = 200) => new Response(JSON.stringify(da
 const lastRequest = () => vi.mocked(fetchWithTimeout).mock.calls.at(-1)!;
 
 describe('commissions HTTP client', () => {
+  it('loads the minimal seller directory and rejects invalid exchange rates', async () => {
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ sellers: [{ id: 'm', name: 'Vendedora', role: 'STAFF' }] }));
+    await expect(fetchCommissionSellers(user)).resolves.toEqual([{ id: 'm', name: 'Vendedora', role: 'STAFF' }]);
+    expect(lastRequest()[0]).toContain('/commissions/sellers');
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ exchangeRate: 1300 }));
+    await expect(fetchCommissionExchangeRate(user)).resolves.toBe(1300);
+    for (const exchangeRate of [0, -1, null, '1300']) {
+      vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ exchangeRate }));
+      await expect(fetchCommissionExchangeRate(user)).rejects.toThrow('cotización');
+    }
+  });
   beforeEach(() => {
     vi.mocked(fetchWithTimeout).mockReset();
     (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__ = 'https://api.imanager.test';

@@ -17,6 +17,8 @@ export const data = {
     { id: 'pwa-client', dni: '34567890', name: 'Lucía Martínez', email: 'lucia@example.test', phone: '1144445555', totalSpent: 950000, pendingBalance: 0, lastPurchaseDate: '2026-10-12' },
     { id: 'pwa-client-long', dni: '30111222333', name: 'María Fernanda López Gutiérrez', email: 'maria.fernanda.lopez@ejemplo-largo.com', phone: '2615551234', totalSpent: 2400000, pendingBalance: 1250000, balanceCurrency: 'ARS', tag: 'Mayorista', lastPurchaseDate: '2026-10-11' },
   ],
+  period: { key: '2026-10', label: 'octubre 2026', timezone: 'America/Argentina/Buenos_Aires' },
+  summary: { earned: { ARS: 0, USD: 0 }, paid: { ARS: 0, USD: 0 }, pending: { ARS: 0, USD: 0 }, unassignedSalesCount: 0, salesCount: 0 }, people: [], rules: [], sellers: [], rows: [],
   sales: [],
   tradeIns: Array.from({ length: 6 }, (_, index) => ({
     id: `pwa-trade-${index}`,

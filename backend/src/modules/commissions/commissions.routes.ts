@@ -3,10 +3,11 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
+import { currentBlueRate } from "../../lib/blue-rate.js";
 import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { COMMISSION_BASES } from "./commission-math.js";
-import { bulkAssignSeller, createCommissionPayment, deleteCommissionRule, getCommissionPeriod, getCommissionPerson,
+import { listCommissionSellers, bulkAssignSeller, createCommissionPayment, deleteCommissionRule, getCommissionPeriod, getCommissionPerson,
   getMyCommissions, listCommissionPayments, listCommissionRules, saveCommissionRule, type CommissionRuleInput, type CommissionPaymentInput } from "./commissions.service.js";
 
 export const commissionPeriodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
@@ -27,6 +28,14 @@ export async function commissionsRoutes(app: FastifyInstance) {
     requireMember(request);
     const data = await getCommissionPeriod(request.appUser.storeId, querySchema.parse(request.query).period);
     return { ...data, people: data.people.map(({ sales: _sales, payments: _payments, adjustments: _adjustments, ...person }) => person) };
+  });
+  app.get("/exchange-rate", { preHandler: session }, async request => {
+    requireMember(request);
+    return { exchangeRate: await currentBlueRate() };
+  });
+  app.get("/sellers", { preHandler: session }, async request => {
+    requireMember(request);
+    return { sellers: await listCommissionSellers(request.appUser.storeId) };
   });
   app.get("/mine", { preHandler: session }, async request => {
     requireMember(request);
