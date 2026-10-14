@@ -151,7 +151,7 @@ export async function analyzeTextImport(input: { text: string; currency: 'ARS' |
         catch (error) {
           if (signal.aborted) throw error;
           if (attempt === 0) continue;
-          throw new DomainError('El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.', 502);
+          throw new DomainError('El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.', 422);
         }
       } catch (error) {
         if (error instanceof DomainError) throw error;
@@ -172,7 +172,7 @@ export async function analyzeTextImport(input: { text: string; currency: 'ARS' |
         return result;
       } catch (error) {
         if (error instanceof DomainError) throw error;
-        if (attempt === 1) throw new DomainError('El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.', 502);
+        if (attempt === 1) throw new DomainError('El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.', 422);
       }
     }
     throw new Error('Unreachable');

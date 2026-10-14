@@ -105,7 +105,7 @@ export function importTextCases(phone: boolean) {
     await page.route('**/api/import/analyze-text', async (route) => {
       attempts++;
       if (attempts === 1) await route.fulfill({ json: { ...analysis, rows: [], review: [], notice: 'Este texto no parece tener equipos para importar' } });
-      else await route.fulfill({ status: 502, json: { error: 'El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.' } });
+      else await route.fulfill({ status: 422, json: { error: 'El análisis devolvió datos inválidos después de dos intentos. Revisá el texto y probá de nuevo.' } });
     });
     const dialog = await openImport(page, phone);
     await dialog.getByRole('button', { name: 'Pegar listado' }).click();
