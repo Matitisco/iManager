@@ -52,11 +52,7 @@ describe("delete cancelled sales", () => {
     expect(before.payments.filter((row) => row.kind === "DEVOLUCION")).toHaveLength(1);
     expect((await app.inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers })).statusCode).toBe(204);
     expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
-    const detached = {
-      ...before,
-      payments: before.payments.map((row) => (row.saleId === sale.id ? { ...row, saleId: null } : row)),
-    };
-    expect(await snapshot()).toEqual(detached);
+    expect(await snapshot()).toEqual(before);
     expect(await prisma.sale.findUnique({ where: { id: resale.json().sale.id } })).not.toBeNull();
     expect(await prisma.auditEvent.findFirst({ where: { storeId, entityId: sale.id, action: "sale.deleted" } })).toMatchObject({ actorUserId: owner.user.id });
     expect(await prisma.auditEvent.count({ where: { entityId: sale.id, action: "sale.cancelled" } })).toBe(1);

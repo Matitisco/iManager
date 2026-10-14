@@ -241,7 +241,6 @@ model Sale {
   customFields    Json?
   tenders         SaleTender[]
   installmentPlans SaleInstallmentPlan[]
-  accountPayments ClientPayment[]
   soldAt          DateTime
   store           Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
@@ -451,11 +450,11 @@ model ClientPayment {
   kind      String   @default("PAGO") @db.VarChar(20)
   paidAt    DateTime @default(now())
   note      String?  @db.VarChar(200)
+  // Reference kept after the sale row is deleted, so a collection or a refund stays tied to that sale.
   saleId    String?
   repairOrderId String?
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  sale      Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
   repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 

@@ -68,11 +68,11 @@ async function storeClock(storeId: string) {
 
 export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const clock = await storeClock(storeId);
-  const [clients, repairs, plans] = await Promise.all([
+  const [clients, repairs, plans, creditNotes] = await Promise.all([
     prisma.client.findMany({
       where: { storeId },
       include: {
-        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } }, accountPayments: { where: { kind: "NOTA_CREDITO" }, select: { id: true } } } },
+        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
         payments: { where: { kind: "CARGO" }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
@@ -80,7 +80,9 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       where: { storeId, clientId: { not: null }, status: { notIn: CLOSED_REPAIR }, estimate: { not: null } },
     }),
     prisma.saleInstallment.findMany({ where: { storeId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
+    prisma.clientPayment.findMany({ where: { storeId, kind: "NOTA_CREDITO", saleId: { not: null } }, select: { saleId: true } }),
   ]);
+  const creditSales = new Set(creditNotes.map((row) => row.saleId).filter((id): id is string => Boolean(id)));
   const installmentsBySale = new Map<string, InstallmentSlice[]>();
   for (const row of plans) {
     const slice = { sequence: row.sequence, dueDate: ymd(row.dueDate, clock.timeZone), amount: num(row.amount), paidAmount: num(row.paidAmount) };
@@ -116,7 +118,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
         currency: sale.amountCurrency ?? client.balanceCurrency,
         openedAt,
         ...age,
-        state: sale.accountPayments.length ? "NOTA_CREDITO" : "ABIERTA",
+        state: creditSales.has(sale.id) ? "NOTA_CREDITO" : "ABIERTA",
         saleId: sale.id,
         repairId: null,
         installments: slices.map((slice) => ({ ...slice, status: installmentStatus(slice, clock.today) })),
