@@ -91,10 +91,14 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
       cl: ['este cliente', 'Cliente eliminado'],
       ot: ['esta orden', 'Orden eliminada'],
     }[overlay.kind];
+    const repair = overlay.kind === 'ot' ? (ctx.repairOrders ?? []).find((row) => row.id === overlay.id) : undefined;
+    const returnsCredit = Boolean(repair && repair.deposit > 0);
+    const creditDelete = overlay.kind === 'cl' && Boolean(error?.includes('saldo a favor'));
     return (
       <Dialog
         title={cancelling ? 'Cancelar operaci\u00f3n' : overlay.kind === 'ot' ? 'Eliminar orden' : 'Eliminar registro'}
-        text={cancelling ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
+        text={cancelling ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : returnsCredit ? `${overlay.label} se va a borrar. Si tenía una seña aplicada, vuelve como saldo a favor del cliente.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
+        extra={creditDelete ? { label: 'Registrar devolución', onClick: () => { setError(null); desk.open({ type: 'cl', id: overlay.id }); } } : null}
         ok={cancelling ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
         cancel={cancelling ? 'Volver' : 'Cancelar'}
         danger

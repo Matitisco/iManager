@@ -10,6 +10,7 @@ import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import type { PublicCatalog } from '../../types/public-catalog';
 import { PriceList } from '../../catalog/PriceList';
 import { usePhoneLayout } from '../section-notices';
+import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 import { Actions, Dialog, Sheet, useDesk } from '../ui';
 import '../../catalog/catalog.css';
 import './public-catalog.css';
@@ -21,6 +22,7 @@ export function PublicCatalogScreen() {
   const { publicCatalog: catalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
   const { toast, open } = useDesk();
   const phone = usePhoneLayout();
+  const offlineOwned = useOfflineBannerOwned();
   const [tab, setTab] = useState('summary');
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
@@ -51,7 +53,7 @@ export function PublicCatalogScreen() {
   const rows = catalog?.items.filter(item => `${item.model} ${item.color} ${item.capacity}`.toLowerCase().includes(query.toLowerCase())) ?? [];
   return <div className="dscreen catalog-screen" data-testid="catalog-screen">
     <div className="whead"><div><h1>Catálogo</h1><div className="wsub">Tu lista de precios pública · {catalog?.counts.visible ?? 0} {(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}</div></div>{catalog && !phone && <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div>}</div>
-    {error && <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div>}
+    {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div> : null}
     {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
     {loading ? <p role="status">Cargando catálogo…</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
@@ -70,7 +72,7 @@ export function PublicCatalogScreen() {
           <section className="cat-card cat-link"><div className="cat-card-title"><h2>Link público</h2><span className={`cat-active${catalog.active ? ' on' : ''}`}>● {catalog.active ? 'Activo' : 'Pausado'}</span></div><div className="cat-link-box"><Link size={16} /><input aria-label="Link público" readOnly value={link} /><button className="cat-button dark" onClick={() => void copy()}>Copiar</button></div><div className="cat-share-actions"><a href={share} target="_blank" rel="noopener noreferrer"><span className="green"><MessageCircle size={20} /></span>WhatsApp</a><button onClick={() => void copy()}><span className="yellow"><Link size={20} /></span>Copiar link</button><a href={link} target="_blank" rel="noopener noreferrer"><span><ExternalLink size={20} /></span>Abrir</a></div></section>
           {phone && counts}
           <section className="cat-card"><div className="cat-card-title"><h2>Reglas y precio</h2><button className="cat-edit" onClick={() => setRules(true)}>Editar ›</button></div><div className="cat-rule-chips">{catalog.hideWithoutStock && <span>Oculta sin stock</span>}{catalog.hideReserved && <span>Oculta reservados</span>}{catalog.minBattery != null && <span>Oculta batería &lt; {catalog.minBattery} %</span>}<span>{catalog.showPrice ? `Precio visible · ${catalog.priceCurrency === 'ORIGINAL' ? 'Como está cargado' : catalog.priceCurrency}` : 'Precio oculto'}</span></div></section>
-          <section className="cat-card"><div className="cat-card-title"><h2>Así lo ven tus clientes</h2><a className="cat-edit" href={link} target="_blank" rel="noopener noreferrer">Abrir ›</a></div><CatalogPreview catalog={catalog} /></section>
+          <section className="cat-card"><div className="cat-card-title"><h2>Así lo ven tus clientes</h2><a className="cat-edit" href={link} target="_blank" rel="noopener noreferrer">Abrir ›</a></div><CatalogPreview catalog={catalog} storePhone={appSession?.store?.phone ?? null} /></section>
         </aside>}
       </div>
     </>}
@@ -108,7 +110,7 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
   </Sheet>{confirm && <Dialog title={confirm === 'regenerate' ? '¿Regenerar el link?' : '¿Desactivar el catálogo?'} text={confirm === 'regenerate' ? 'El link anterior deja de funcionar. Vas a tener que compartir el nuevo con tus clientes. Los equipos y las reglas se conservan.' : 'Tus clientes van a ver «Catálogo no disponible». Podés volver a activarlo cuando quieras y conservar el mismo link.'} ok={confirm === 'regenerate' ? 'Regenerar link' : 'Desactivar catálogo'} danger={confirm === 'deactivate'} busy={busy} error={error} onClose={() => { if (!busy) { setConfirm(null); setError(''); } }} onOk={() => void save(confirm)} />}</>;
 }
 
-function CatalogPreview({ catalog }: { catalog: ManagedCatalog }) {
+function CatalogPreview({ catalog, storePhone }: { catalog: ManagedCatalog; storePhone: string | null }) {
   const [preview, setPreview] = useState<PublicCatalog | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -118,8 +120,10 @@ function CatalogPreview({ catalog }: { catalog: ManagedCatalog }) {
     setPreview(null); setError('');
     void fetchPublicCatalog(catalog.slug, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => { if (!controller.signal.aborted) setError(toUserMessage(cause)); });
     return () => controller.abort();
-  }, [catalog, attempt]);
+  }, [catalog.slug, storePhone, attempt]);
+  const phone = preview?.store.phone?.trim() || null;
+  const line = [preview?.store.address, preview?.store.hours, phone].filter(Boolean).join(' · ');
   return <div className="cat-preview public-price-page">
-    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1><small>{[preview.store.address, preview.store.hours].filter(Boolean).join(' · ')}</small></div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : <p className="cat-empty" role={error ? 'alert' : 'status'}>{error || 'Cargando vista previa…'}</p>}
+    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1>{line ? <small data-testid="catalog-store-phone">{line}</small> : null}</div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : <p className="cat-empty" role={error ? 'alert' : 'status'}>{error || 'Cargando vista previa…'}</p>}
   </div>;
 }

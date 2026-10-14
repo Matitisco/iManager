@@ -102,6 +102,14 @@ export async function restoreSaleDeposits(tx: Prisma.TransactionClient, storeId:
     await audit(tx, row, actor ?? undefined, 'restored', `Venta ${saleId} cancelada · saldo a favor ${row.amount} ${row.currency}`);
   }
 }
+export async function restoreRepairDeposits(tx: Prisma.TransactionClient, storeId: string, repairId: string, actor?: Actor | null) {
+  const rows = await tx.clientDeposit.findMany({ where: { storeId, repairId, status: 'APPLIED' } });
+  for (const row of rows) {
+    await tx.clientDeposit.update({ where: { id: row.id }, data: { status: 'CREDIT', repairId: null, cancelledAt: new Date() } });
+    await movement(tx, row, 'CREDITO', 'Saldo a favor por eliminación de la orden (sin devolución)');
+    await audit(tx, row, actor ?? undefined, 'restored', `Orden ${repairId} eliminada · saldo a favor ${row.amount} ${row.currency}`);
+  }
+}
 export async function applyDepositToRepair(storeId: string, clientId: string, id: string, repairId: string, exchangeRate: number | undefined, actor: Actor) {
   return withSerializableRetry(async (tx) => {
     const repair = await tx.repairOrder.findFirst({ where: { id: repairId, storeId, clientId } });

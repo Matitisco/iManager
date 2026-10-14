@@ -114,7 +114,7 @@ test('the owner edits the budget and deletes the order, and an employee without 
   await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });
   await page.getByRole('button', { name: 'Eliminar' }).click();
   const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
-  await expect(confirm).toContainText('no se puede deshacer');
+  await expect(confirm).toContainText('vuelve como saldo a favor del cliente');
   await confirm.getByRole('button', { name: 'Cancelar' }).click();
   await expect(confirm).toBeHidden();
   await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });

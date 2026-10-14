@@ -12,6 +12,7 @@ import { ImanagerIcon, notificationIcon } from '../icons';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
 import { canViewTeam } from '../sections';
+import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 
 const SECTION_LABEL: Record<NoticeSection, string> = {
   inventory: 'Inventario',
@@ -45,6 +46,7 @@ export function NotificationsScreen() {
   const { operationNotifications, notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead } = useAppContext();
   const { go, toast, openRecord, back } = useDesk();
   const phone = usePhoneLayout();
+  const offlineOwned = useOfflineBannerOwned();
   const [filter, setFilter] = useState('Todas');
   const [scope, setScope] = useState<'all' | 'unread'>('all');
   const [section, setSection] = useState('Todas');
@@ -109,7 +111,7 @@ export function NotificationsScreen() {
             { id: 'unread', label: 'Sin leer' },
           ]} value={filter} onChange={setFilter} />
         </div>
-        {notificationsError ? <div className="wempty" role="alert" style={{ maxWidth: 860 }} data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
+        {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" style={{ maxWidth: 860 }} data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
         {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Cargando notificaciones...</div> : null}
         {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
           <div className="card" style={{ maxWidth: 860 }}>
@@ -162,7 +164,7 @@ export function NotificationsScreen() {
       <div className="notif-sections" data-testid="notifications-sections">
         <ChipRow options={sectionChips} value={section} onChange={setSection} />
       </div>
-      {notificationsError ? <div className="wempty" role="alert" data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
+      {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
       {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty">Cargando notificaciones...</div> : visible.length === 0 ? (
         quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
       ) : (

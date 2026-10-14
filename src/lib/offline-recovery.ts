@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { subscribeReconnect } from './online';
+import { pingHealth } from './connection';
+import { subscribeConnection, subscribeReconnect } from './online';
 import { NETWORK_ERROR_MESSAGE } from './user-message';
 
 /**
@@ -15,19 +16,28 @@ export function useOfflineRecovery(message: string | null | undefined, retry: ()
   messageRef.current = message;
 
   useEffect(() => {
+    let alive = true;
     let followUp = 0;
     const retryIfOffline = () => {
-      if (messageRef.current !== NETWORK_ERROR_MESSAGE) return;
+      if (!alive || messageRef.current !== NETWORK_ERROR_MESSAGE) return;
       retryRef.current();
       window.clearTimeout(followUp);
       // The first fetch after `online` can still fail on iPhone; try once more.
       followUp = window.setTimeout(() => {
-        if (messageRef.current === NETWORK_ERROR_MESSAGE && navigator.onLine) retryRef.current();
+        if (alive && messageRef.current === NETWORK_ERROR_MESSAGE) retryRef.current();
       }, 800);
     };
     const stop = subscribeReconnect(retryIfOffline);
+    const stopConnection = subscribeConnection((online) => { if (online) retryIfOffline(); });
+    const health = window.setInterval(() => {
+      if (messageRef.current !== NETWORK_ERROR_MESSAGE) return;
+      void pingHealth().then((ok) => { if (ok) retryIfOffline(); });
+    }, 2000);
     return () => {
+      alive = false;
       stop();
+      stopConnection();
+      window.clearInterval(health);
       window.clearTimeout(followUp);
     };
   }, []);
