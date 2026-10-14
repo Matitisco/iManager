@@ -1,3 +1,4 @@
+import { OnboardingJourney } from './pages/OnboardingJourney';
 import { toUserMessage } from './lib/user-message';
 /**
  * @license
@@ -134,6 +135,10 @@ function AppContent() {
 
   if (backendStatus === 'ready' && appSession?.onboardingRequired) {
     return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
+  }
+
+  if (backendStatus === 'ready' && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt) {
+    return <OnboardingJourney />;
   }
 
   if (backendStatus === 'checking') {

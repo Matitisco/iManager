@@ -10,9 +10,12 @@ export type DeskTab =
   | 'reports'
   | 'notifications'
   | 'settings'
-  | 'more';
+  | 'more'
+  | 'help';
 
 export type Overlay =
+  | { type: 'welcome-video' }
+  | { type: 'onboarding-stock' }
   | { type: 'new-eq' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }

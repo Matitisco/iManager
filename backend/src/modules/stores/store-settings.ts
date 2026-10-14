@@ -9,6 +9,9 @@ import {
 } from "../../lib/money-currency.js";
 
 export interface StoreSettings {
+  onboardingStage?: string | null;
+  onboardingStartedAt?: string | null;
+  onboardingCompletedAt?: string | null;
   id: string;
   name: string;
   legalName: string | null;
@@ -29,6 +32,9 @@ export interface StoreSettings {
 }
 
 type StoreRow = {
+  onboardingStage?: string | null;
+  onboardingStartedAt?: Date | null;
+  onboardingCompletedAt?: Date | null;
   id: string;
   name: string;
   legalName: string | null;
@@ -51,6 +57,9 @@ type StoreRow = {
 export function serializeStore(store: StoreRow): StoreSettings {
   return {
     id: store.id,
+    onboardingStage: store.onboardingStage ?? null,
+    onboardingStartedAt: store.onboardingStartedAt?.toISOString() ?? null,
+    onboardingCompletedAt: store.onboardingCompletedAt?.toISOString() ?? null,
     name: store.name,
     legalName: store.legalName,
     taxId: store.taxId,

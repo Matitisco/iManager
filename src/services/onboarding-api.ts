@@ -4,7 +4,7 @@ import { apiRequest } from './api-client';
 
 export type OnboardingInput = {
   storeName: string;
-  instagram: string;
+  instagram?: string;
   currency?: 'ARS' | 'USD';
   exchangeMode?: 'auto' | 'manual';
   exchangeSource?: 'blue' | 'oficial' | 'mep';

@@ -106,3 +106,15 @@ it('prevents staff from changing shared currency through a cost update', async (
   expect(item.currency).toBe('USD');
   expect(Number(item.cost)).toBe(0);
 });
+
+it('publica avances reales y el resultado final por NDJSON sin escribir stock', async () => {
+  const ctx = await seedStoreContext();
+  mockLLM([{ ...row, cost: null }]);
+  const response = await getApp().inject({ method: 'POST', url: '/api/import/analyze-text', headers: { ...headers(ctx), accept: 'application/x-ndjson' }, payload: { text: 'iPhone 13 128GB azul usado 89% USD420' } });
+  expect(response.statusCode).toBe(200);
+  expect(response.headers['content-type']).toContain('application/x-ndjson');
+  const events = response.body.trim().split('\n').map(line => JSON.parse(line));
+  expect(events[0]).toMatchObject({ type: 'progress', rows: [{ model: 'iPhone 13', quantity: 1 }] });
+  expect(events[1]).toMatchObject({ type: 'result', analysis: { rows: [{ model: 'iPhone 13' }] } });
+  expect(await prisma.inventoryItem.count()).toBe(0);
+});

@@ -1,3 +1,4 @@
+import { useGettingStartedState } from './getting-started-state';
 import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
@@ -12,7 +13,6 @@ import { deleteBackendSale, fetchBackendSales, updateBackendSale } from '../serv
 import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
-import { markStoreContactOffer } from '../lib/store-contact';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
@@ -26,7 +26,7 @@ import { isActiveTradeOperation } from '../desk/format';
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 
-interface AppState extends ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
+interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -83,7 +83,7 @@ interface AppState extends ReturnType<typeof useCommissionState>, ReturnType<typ
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
-  completeOnboarding: (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
+  completeOnboarding: (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   reloadSession: () => Promise<void>;
   login: () => Promise<void>;
@@ -303,13 +303,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
-  const completeOnboarding = async (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
+  const gettingStartedState = useGettingStartedState(user, backendStatus === 'ready' ? appSession?.store?.id : undefined);
+
+  const completeOnboarding = async (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
     if (!user) {
       throw new Error('No authenticated user');
     }
 
     const session = await completeBackendOnboarding(user, input);
-    if (session.store?.id) markStoreContactOffer(session.store.id);
+    // Contact details can be completed later from settings.
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -798,6 +800,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
+      ...gettingStartedState,
       ...commissions,
       ...catalogState,
       inventory, sales, tradeIns, clients, customColumns,

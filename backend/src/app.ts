@@ -7,7 +7,7 @@ import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
-import { onboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
+import { onboardingRoutes, gettingStartedRoutes } from "./modules/onboarding/onboarding.routes.js";
 import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { reportsRoutes } from "./modules/reports/reports.routes.js";
@@ -59,6 +59,7 @@ export function buildApp() {
   app.register(publicCatalogRoutes, { prefix: "/api/public/catalog" });
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
+  app.register(gettingStartedRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
   app.register(depositsRoutes, { prefix: '/api/clients' });
   app.register(accountsRoutes, { prefix: "/api/accounts" });

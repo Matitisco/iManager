@@ -24,6 +24,10 @@ model User {
 }
 
 model Store {
+  // Null dates keep existing stores out of the new-account journey.
+  onboardingStage       String?   @db.VarChar(16)
+  onboardingStartedAt   DateTime?
+  onboardingCompletedAt DateTime?
   id                  String               @id @default(cuid())
   name                String               @db.VarChar(120)
   legalName           String?              @db.VarChar(160)
@@ -72,6 +76,9 @@ model Store {
 }
 
 model StoreMember {
+  gettingStartedDismissed Boolean @default(false)
+  welcomeVideoWatched      Boolean @default(false)
+  appInstalled            Boolean @default(false)
   id        String    @id @default(cuid())
   storeId   String
   userId    String
@@ -150,6 +157,8 @@ model InventoryCategory {
 }
 
 model InventoryItem {
+  // Server-managed provenance; never accepted by inventory create/import/update.
+  sampleBatchId String? @db.VarChar(80)
   catalogVisible Boolean @default(false)
   id            String             @id @default(cuid())
   storeId       String

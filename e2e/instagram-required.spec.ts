@@ -30,33 +30,16 @@ async function expectFits(page: Page) {
   expect(extra).toBeLessThanOrEqual(1);
 }
 
-test('requires instagram while creating the store', async ({ page }, testInfo) => {
-  const email = buildTestEmail(testInfo, 'ig-onboarding');
+test('asks only for a name and keeps optional currency folded on desktop and mobile', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await loginViaUi(page, email);
-  const name = page.getByTestId('onboarding-store-name');
-  await expect(name).toBeVisible();
-  await expect(page.getByTestId('onboarding-instagram')).toBeVisible();
-  await name.fill('Casa Norte');
-  await page.getByTestId('onboarding-submit').click();
-  await expect(page.getByTestId('onboarding-instagram-error')).toHaveText('Completá el Instagram de la tienda');
-  const submit = page.getByTestId('onboarding-submit');
-  await submit.scrollIntoViewIfNeeded();
-  const submitBox = await submit.boundingBox();
-  const viewport = page.viewportSize();
-  expect(submitBox && viewport && submitBox.y >= 0 && submitBox.y + submitBox.height <= viewport.height + 1).toBeTruthy();
+  await loginViaUi(page, buildTestEmail(testInfo, 'name-only'));
+  await expect(page.getByTestId('onboarding-store-name')).toBeVisible();
+  await expect(page.getByTestId('onboarding-instagram')).toHaveCount(0);
+  await expect(page.locator('.onb-currency')).not.toHaveAttribute('open');
   await shot(page, 'onboarding-1440');
-
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId('onboarding-instagram').scrollIntoViewIfNeeded();
-  await expect(page.getByTestId('onboarding-instagram')).toBeVisible();
   await expectFits(page);
   await shot(page, 'onboarding-390');
-
-  await page.getByTestId('onboarding-instagram').fill('mi tienda');
-  await page.getByTestId('onboarding-submit').click();
-  await expect(page.getByTestId('onboarding-instagram-error')).toHaveText('Usá @usuario o el link del perfil');
-  await shot(page, 'onboarding-390-error');
 });
 
 test('asks existing stores for instagram without blocking the app', async ({ page, request }, testInfo) => {

@@ -59,6 +59,12 @@ export function EquipmentDetail({ id }: { id: string }) {
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+      {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {
+        setBusy(true); setError(null);
+        try { await updateProduct({ ...item, customFields: { ...item.customFields, onboardingReview: null } }); toast('Equipo revisado'); }
+        catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo guardar la revisión.')); }
+        finally { setBusy(false); }
+      }}>Marcar revisado</button></div>}
       {item.needsCompletion ? <p className="needs-completion-label" data-testid="needs-completion">Para completar</p> : null}
       <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
       <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />

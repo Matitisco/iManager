@@ -1,3 +1,4 @@
+import { GettingStartedDashboard } from '../getting-started';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
@@ -31,7 +32,7 @@ const TASKS = [
 ] as const;
 
 export function DashboardScreen() {
-  const { appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
+  const { gettingStarted, appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
   const money = useMoney();
   const { go, open, toast, back } = useDesk();
   const phone = usePhoneLayout();
@@ -139,6 +140,8 @@ export function DashboardScreen() {
       <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
     </div>
   );
+
+  if (appSession?.store?.onboardingStartedAt || gettingStarted?.eligible) return <GettingStartedDashboard />;
 
   return (
     <div className="dscreen">

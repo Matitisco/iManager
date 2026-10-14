@@ -11,6 +11,9 @@ export interface AppUserSummary {
 }
 
 export interface AppStoreSummary {
+  onboardingStage?: string | null;
+  onboardingStartedAt?: string | null;
+  onboardingCompletedAt?: string | null;
   id: string;
   name: string;
   legalName: string | null;

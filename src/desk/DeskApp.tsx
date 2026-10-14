@@ -1,3 +1,6 @@
+import { CircleHelp } from 'lucide-react';
+import { HelpScreen } from './screens/HelpScreen';
+import { SampleStockBanner } from './getting-started';
 import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
 import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { OfflineScope } from './offline-banner';
@@ -38,7 +41,7 @@ import { InstallCard } from '../components/InstallHelp';
 const ROUTE: Record<DeskTab, string> = {
   publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
-  more: 'mas', commissions: 'comisiones',
+  help: 'ayuda', more: 'mas', commissions: 'comisiones',
 };
 const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
   publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
@@ -127,8 +130,9 @@ function MoreScreen({
           </div>
         </>
       ) : null}
-      <div className="mlabel">Ajustes</div>
+      <div className="mlabel">Cuenta</div>
       <div className="card">
+        <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Video y primeros pasos</span></span><span className="chev">›</span></button>
         <button className="member" type="button" data-testid="sidebar-tab-settings" onClick={() => onOpen('settings')}>
           <span className="ico-row"><DeskIcon name="gear" size={18} /></span>
           <span className="info">
@@ -175,7 +179,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
     if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
@@ -355,6 +359,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             </div>
             <div className="dlabel">Cuenta</div>
             <div className="dgroup">
+              <button className={`ditem${tab === 'help' ? ' on' : ''}`} type="button" data-testid="sidebar-tab-help" onClick={() => go('help')}><span className="dic"><CircleHelp size={18} /></span><span>Ayuda</span></button>
               {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" data-testid="sidebar-tab-notifications" onClick={() => go('notifications')}>
                 <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
                 {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
@@ -374,9 +379,11 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
+          <SampleStockBanner />
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
+            {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
