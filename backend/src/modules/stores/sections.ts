@@ -8,6 +8,7 @@ export const SECTION_IDS = [
   "clients",
   "service",
   "reports",
+  "commissions",
   "notifications",
 ] as const;
 
@@ -17,7 +18,7 @@ export function canAccessSection(section: SectionId, member: { role: string; sec
   if (member.role === "OWNER") return true;
   const sections = normalizeSections(member.sections);
   if (sections == null) {
-    return !(section === "reports" && member.role === "STAFF");
+    return section !== "commissions" && !(section === "reports" && member.role === "STAFF");
   }
   return sections.includes(section);
 }

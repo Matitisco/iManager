@@ -32,6 +32,8 @@ const operationTradeInSchema = z.object({
 });
 
 const saleCreateSchema = z.object({
+  sellerMemberId: z.string().min(1).nullable().optional(),
+  exchangeRate: z.number().finite().positive().optional(),
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
@@ -48,6 +50,8 @@ const saleCreateSchema = z.object({
 
 const salePatchSchema = z
   .object({
+    sellerMemberId: z.string().min(1).nullable().optional(),
+    exchangeRate: z.number().finite().positive().optional(),
     clientId: z.string().trim().max(50).nullable().optional(),
     clientName: z.string().trim().max(120).nullable().optional(),
     productId: z.string().trim().max(50).nullable().optional(),
@@ -75,6 +79,8 @@ export async function salesRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const rowSchema = z.object({
+        sellerMemberId: z.string().min(1).nullable().optional(),
+        exchangeRate: z.number().finite().positive().optional(),
         date:          z.string().trim().optional(),
         clientName:    z.string().trim().optional(),
         clientDni:     z.string().trim().optional(),
@@ -89,7 +95,7 @@ export async function salesRoutes(app: FastifyInstance) {
         status:        z.string().trim().optional(),
       });
       const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);
-      const result = await importSales(request.appUser.storeId, rows);
+      const result = await importSales(request.appUser.storeId, rows, await loadActor(request.appUser.userId));
       return reply.code(200).send(result);
     }
   );
@@ -193,7 +199,7 @@ export async function salesRoutes(app: FastifyInstance) {
 
       const body = saleCreateSchema.parse(request.body) as Parameters<typeof createSale>[1];
 
-      const operation = await createOperation(request.appUser.storeId, "sales", body);
+      const operation = await createOperation(request.appUser.storeId, "sales", { ...body, currency: body.amountCurrency }, await loadActor(request.appUser.userId));
       return reply.code(201).send(operation);
     }
   );
@@ -211,12 +217,12 @@ export async function salesRoutes(app: FastifyInstance) {
       if (body.status === "CANCELADA" && !canManageSensitive(request.appUser)) {
         return reply.code(403).send({ error: "No tenés permiso para esta acción" });
       }
-      const actor = body.status === "CANCELADA" ? await loadActor(request.appUser.userId) : null;
+      const actor = await loadActor(request.appUser.userId);
       if (body.tradeIn !== undefined || await isIntegratedSale(request.appUser.storeId, params.id)) {
         if (body.status === "CANCELADA") {
           return await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
         }
-        return await updateSaleOperation(request.appUser.storeId, params.id, body as Parameters<typeof updateSaleOperation>[2]);
+        return await updateSaleOperation(request.appUser.storeId, params.id, { ...body, currency: body.amountCurrency } as Parameters<typeof updateSaleOperation>[2], actor);
       }
       const sale = await updateSale(request.appUser.storeId, params.id, body, actor);
 

@@ -1,3 +1,6 @@
+import { saleExchangeRate } from "../../lib/blue-rate.js";
+import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -12,6 +15,8 @@ import { normalizeCurrencyToken, normalizeImei, normalizeImportDate, normalizeIm
 import { parseMoney } from "../import/sheet-plan.js";
 
 export interface SaleInput {
+  sellerMemberId?: string | null;
+  exchangeRate?: number;
   date: string;
   clientId?: string | null;
   clientName?: string | null;
@@ -26,6 +31,8 @@ export interface SaleInput {
 }
 
 export interface SalePatchInput {
+  sellerMemberId?: string | null;
+  exchangeRate?: number;
   clientId?: string | null;
   clientName?: string | null;
   productId?: string | null;
@@ -40,6 +47,9 @@ export interface SalePatchInput {
 }
 
 export interface SaleResponse {
+  sellerMemberId: string | null;
+  registeredByUserId: string | null;
+  exchangeRate: number | null;
   id: string;
   saleNumber: number;
   date: string;
@@ -60,6 +70,9 @@ export interface SaleResponse {
 }
 
 type SaleRecord = {
+  sellerMemberId?: string | null;
+  registeredByUserId?: string | null;
+  exchangeRate?: Decimal | null;
   id: string;
   saleNumber: number;
   clientId: string | null;
@@ -141,6 +154,9 @@ function serializeSale(sale: SaleRecord): SaleResponse {
   return {
     id: sale.id,
     saleNumber: sale.saleNumber,
+    sellerMemberId: sale.sellerMemberId ?? null,
+    registeredByUserId: sale.registeredByUserId ?? null,
+    exchangeRate: sale.exchangeRate == null ? null : Number(sale.exchangeRate),
     date: formatStoredDate(sale.dateLabel, sale.soldAt),
     clientId: sale.clientId ?? "",
     clientName: sale.clientName ?? "",
@@ -169,7 +185,7 @@ export async function listSales(storeId: string) {
   return sales.map(serializeSale);
 }
 
-export async function createSale(storeId: string, input: SaleInput) {
+export async function createSale(storeId: string, input: SaleInput, actor?: Actor) {
   return prisma.$transaction(async (tx) => {
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
@@ -208,9 +224,14 @@ export async function createSale(storeId: string, input: SaleInput) {
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
 
+    await assertSeller(tx, storeId, input.sellerMemberId);
+    const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const sale = await tx.sale.create({
       data: {
         saleNumber,
+        sellerMemberId: input.sellerMemberId ?? null,
+        registeredByUserId: actor?.userId ?? null,
+        exchangeRate,
         storeId,
         clientId: client?.id ?? null,
         clientName: input.clientName?.trim() || client?.name || "",
@@ -227,6 +248,7 @@ export async function createSale(storeId: string, input: SaleInput) {
       },
     });
 
+    if (input.sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
     if (inventoryItem) {
       await tx.inventoryItem.update({
         where: { id: inventoryItem.id },
@@ -254,18 +276,18 @@ export async function updateSale(
   input: SalePatchInput,
   actor?: Actor | null,
 ) {
-  const existing = await prisma.sale.findFirst({
-    where: { id, storeId },
-  });
+  return withSerializableRetry(async (tx) => {
+    const existing = await tx.sale.findFirst({
+      where: { id, storeId },
+    });
 
-  if (!existing) {
-    return null;
-  }
-  if (existing.integratedOperation || existing.tradeInId) {
-    throw new SalesError("Esta venta está vinculada a una operación. Editala desde Operaciones.", 409);
-  }
+    if (!existing) {
+      return null;
+    }
+    if (existing.integratedOperation || existing.tradeInId) {
+      throw new SalesError("Esta venta está vinculada a una operación. Editala desde Operaciones.", 409);
+    }
 
-  return prisma.$transaction(async (tx) => {
     const nextClientId = input.clientId === undefined ? existing.clientId : (input.clientId || null);
     const nextInventoryItemId = input.productId === undefined
       ? existing.inventoryItemId
@@ -311,9 +333,13 @@ export async function updateSale(
     const nextCurrency = currencyOnWrite(input.amountCurrency, amountChanges, amountChanges ? await storeCurrency(storeId, tx) : "ARS");
     const cancelling = input.status === "CANCELADA" && existing.status !== "CANCELADA";
 
+    await assertSeller(tx, storeId, input.sellerMemberId);
+    if (cancelling) await voidSaleCommission(tx, storeId, id, "CANCELLED");
     const updated = await tx.sale.update({
       where: { id },
       data: {
+        ...(input.sellerMemberId !== undefined ? { sellerMemberId: input.sellerMemberId } : {}),
+        ...(input.exchangeRate !== undefined ? { exchangeRate: await saleExchangeRate(input.exchangeRate) } : {}),
         paymentMethod: input.paymentMethod ?? existing.paymentMethod,
         status: input.status ?? existing.status,
         ...(cancelling ? cancellationStamp(actor) : {}),
@@ -333,6 +359,8 @@ export async function updateSale(
       },
     });
 
+    if (!cancelling) await refreshSaleCommission(tx, storeId, id);
+    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id });
     if (cancelling && actor) {
       await writeAudit(tx, {
         storeId,
@@ -388,7 +416,7 @@ export async function updateSale(
 }
 
 export async function deleteSale(storeId: string, id: string, actor?: Actor | null) {
-  return prisma.$transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
     const existing = await tx.sale.findFirst({
       where: { id, storeId },
     });
@@ -440,6 +468,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
       });
     }
 
+    await voidSaleCommission(tx, storeId, id, "DELETED");
     await tx.sale.delete({
       where: { id },
     });
@@ -451,6 +480,8 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
 // ── Import ────────────────────────────────────────────────────────────────────
 
 export interface SaleImportRow {
+  sellerMemberId?: string | null;
+  exchangeRate?: number;
   date?: string;
   clientName?: string;
   clientDni?: string;
@@ -483,7 +514,8 @@ type ImportClient = {
 
 export async function importSales(
   storeId: string,
-  rows: SaleImportRow[]
+  rows: SaleImportRow[],
+  actor?: Actor,
 ): Promise<SaleImportResult> {
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
@@ -493,7 +525,7 @@ export async function importSales(
   });
   const members = await prisma.storeMember.findMany({
     where: { storeId },
-    select: { userId: true, user: { select: { displayName: true } } },
+    select: { id: true, userId: true, user: { select: { displayName: true } } },
   });
   const sellers = members.map((member) => ({ userId: member.userId, displayName: member.user.displayName }));
 
@@ -577,9 +609,15 @@ export async function importSales(
         const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
         const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
 
-        await tx.sale.create({
+        const sellerMemberId = r.sellerMemberId !== undefined ? r.sellerMemberId : (sellerUserId ? members.find(member => member.userId === sellerUserId)?.id ?? null : null);
+        await assertSeller(tx, storeId, sellerMemberId);
+        const exchangeRate = await saleExchangeRate(r.exchangeRate);
+        const sale = await tx.sale.create({
           data: {
             saleNumber,
+            sellerMemberId,
+            registeredByUserId: actor?.userId ?? null,
+            exchangeRate,
             storeId,
             clientId,
             clientName: clientName || linkedClient?.name || "",
@@ -596,6 +634,7 @@ export async function importSales(
           },
         });
 
+        if (sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
         if (inventoryItemId) {
           await tx.inventoryItem.update({
             where: { id: inventoryItemId },

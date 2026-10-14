@@ -1,3 +1,6 @@
+import { getCommissionReport } from "../commissions/commissions.service.js";
+import { commissionPeriodSchema } from "../commissions/commissions.routes.js";
+import { requireSectionAccess } from "../../middleware/section-access.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -19,6 +22,12 @@ const reportsQuerySchema = z.object({
 });
 
 export async function reportsRoutes(app: FastifyInstance) {
+  app.get("/commissions", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("commissions"), requireSectionAccess("reports")] }, async request => {
+    requireMember(request);
+    const { from, to } = z.object({ from: commissionPeriodSchema, to: commissionPeriodSchema }).strict().parse(request.query);
+    return getCommissionReport(request.appUser.storeId, from, to);
+  });
+
   app.get(
     "/overview",
     { preHandler: [authenticate, resolveAppUser] },

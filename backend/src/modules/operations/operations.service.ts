@@ -1,3 +1,5 @@
+import { saleExchangeRate } from "../../lib/blue-rate.js";
+import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
 import { Prisma } from "@prisma/client";
 import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -26,6 +28,8 @@ const toJson = (value?: unknown) => (value ?? {}) as Prisma.InputJsonValue;
 
 export type OperationSource = "inventory" | "sales" | "tradeins" | "clients";
 export type OperationInput = {
+  sellerMemberId?: string | null;
+  exchangeRate?: number;
   date?: string;
   clientId?: string | null;
   clientName?: string | null;
@@ -110,6 +114,9 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     deviceLabel: sale.deviceLabel || (product ? fullDeviceLabel(product) : ""),
     amount: toNum(sale.amount),
     amountCurrency: sale.amountCurrency ?? null,
+    sellerMemberId: sale.sellerMemberId,
+    registeredByUserId: sale.registeredByUserId,
+    exchangeRate: sale.exchangeRate == null ? null : Number(sale.exchangeRate),
     paymentMethod: sale.paymentMethod,
     status: sale.status,
     categoryId: sale.categoryId ?? null,
@@ -413,7 +420,7 @@ export async function listOperationDrafts(storeId: string, source: OperationSour
   return { tradeIns: tradeIns.map(serializeTrade) };
 }
 
-export async function createOperation(storeId: string, source: OperationSource, input: OperationInput) {
+export async function createOperation(storeId: string, source: OperationSource, input: OperationInput, actor?: Actor) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
@@ -576,11 +583,16 @@ export async function createOperation(storeId: string, source: OperationSource, 
         },
       });
     }
+    await assertSeller(tx, storeId, input.sellerMemberId);
+    const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const sale = await tx.sale.create({
       data: {
         storeId,
         saleNumber,
+        sellerMemberId: input.sellerMemberId ?? null,
+        registeredByUserId: actor?.userId ?? null,
+        exchangeRate,
         clientId: client?.id ?? null,
         clientName: client?.name ?? input.clientName?.trim() ?? "",
         categoryId: trade ? input.saleCategoryId ?? null : input.saleCategoryId ?? input.categoryId ?? null,
@@ -603,6 +615,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
             : product?.pendingSaleRegistration ?? false,
       },
     });
+    await recordSaleCommission(tx, storeId, sale.id);
     const dueAmount = trade ? input.amount! - tradeInput!.takeValue : input.amount!;
     const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, input.status ?? "COMPLETADA", date, 1, dueAmount) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
@@ -633,7 +646,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
   });
 }
 
-export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
+export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
     if (!trade) throw new OperationError("Trade-in not found", 404);
@@ -743,10 +756,15 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       previousSaleStatus: null,
       ...salePricePatch(product.price, outgoingAmount, currency),
     } });
+    await assertSeller(tx, storeId, input.sellerMemberId);
+    const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const sale = await tx.sale.create({ data: {
       storeId,
       saleNumber,
+      sellerMemberId: input.sellerMemberId ?? null,
+      registeredByUserId: actor?.userId ?? null,
+      exchangeRate,
       clientId: client.id,
       clientName: client.name,
       categoryId: saleCategoryId ?? null,
@@ -766,6 +784,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
         ? false
         : product?.pendingSaleRegistration ?? false,
     } });
+    await recordSaleCommission(tx, storeId, sale.id);
     const paymentStatus = input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
     const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, outgoingAmount - takeValue);
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
@@ -802,7 +821,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
   });
 }
 
-export async function updateSaleOperation(storeId: string, saleId: string, input: OperationInput) {
+export async function updateSaleOperation(storeId: string, saleId: string, input: OperationInput, actor?: Actor) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
     if (!sale) throw new OperationError("Sale not found", 404);
@@ -872,10 +891,13 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     } else if (nextProduct && nextProduct.price.toNumber() <= 0 && nextAmount > 0) {
       await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
+    await assertSeller(tx, storeId, input.sellerMemberId);
     let updatedSale = await tx.sale.update({
       where: { id: sale.id },
       data: {
         integratedOperation: true,
+        ...(input.sellerMemberId !== undefined ? { sellerMemberId: input.sellerMemberId } : {}),
+        ...(input.exchangeRate !== undefined ? { exchangeRate: await saleExchangeRate(input.exchangeRate) } : {}),
         ...(hasTrade ? {} : { tradeInId: null }),
         clientId: nextClientId,
         clientName: nextClient?.name ?? input.clientName?.trim() ?? "",
@@ -984,6 +1006,8 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       } });
       updatedTrade = await tx.tradeIn.update({ where: { id: updatedTrade.id }, data: { receivedInventoryItemId: incoming.id } });
     }
+    await refreshSaleCommission(tx, storeId, sale.id);
+    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id });
     const updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, nextStatus, trade ? toNum(trade.differencePaid) : toNum(sale.amount), nextDebt, nextDate)).filter(present);
     const output = nextProductId ? await tx.inventoryItem.findFirst({ where: { id: nextProductId, storeId } }) : null;
     const released = sale.inventoryItemId && sale.inventoryItemId !== nextProductId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
@@ -1170,6 +1194,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     });
     if (sale.inventoryItemId && sale.integratedOperation) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
+    await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     const stamp = cancellationStamp(actor);
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : null;
@@ -1229,6 +1254,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       })
       : 0;
     const stamp = cancellationStamp(actor);
+    if (sale) await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...stamp } });
     if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });

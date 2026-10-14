@@ -1,3 +1,4 @@
+import { commissionsRoutes } from "./modules/commissions/commissions.routes.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
@@ -56,6 +57,7 @@ export function buildApp() {
   app.register(onboardingRoutes, { prefix: "/api" });
   app.register(clientsRoutes, { prefix: "/api/clients" });
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
+  app.register(commissionsRoutes, { prefix: "/api/commissions" });
   app.register(reportsRoutes, { prefix: "/api/reports" });
   app.register(salesRoutes, { prefix: "/api/sales" });
   app.register(tradeInsRoutes, { prefix: "/api/trade-ins" });

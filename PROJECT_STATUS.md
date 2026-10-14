@@ -1,7 +1,15 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-12**
+**Ultima actualizacion: 2026-10-13**
+
+## Issue #330 — Comisiones, parte 1: datos y API — 2026-10-13
+
+- Migración aditiva: vendedor opcional (StoreMember, SetNull), registrador y cotización en Sale; reglas por equipo/persona y pagos parciales sin unique. CommissionAccrual congela la regla/cálculo y conserva bajas tras borrar físicamente la venta. Vendedor sin default en altas, edición e importación; blue vendedor actual o cotización explícita.
+- Backend: períodos en zona horaria de tienda, tres bases (ganancia resta costo y valor tomado), comisión en moneda de venta, saldos separados ARS/USD, pagos cruzados a la cotización del pago y ajustes «A descontar» en el mes siguiente a la baja pagada. Auditoría en reglas, pagos y cambios de vendedor, incluida asignación masiva atómica.
+- Comisiones por defecto solo Dueño. Socio/Empleado necesitan permiso explícito; mine filtra por el miembro de sesión y nunca devuelve costos/ganancia. Detalle financiero requiere Reportes también. Datos del reporte requieren ambos permisos. Endpoints y contratos en `docs/api/commissions.md`; cliente HTTP y tipos listos para las partes 2/3. Sin pantallas ni exportaciones.
+- Validación: 556 tests frontend, 229 unitarios backend y 105 integraciones PostgreSQL; ambos typechecks/lint. Los 20 fixtures live opcionales de importación fallan con el servicio externo (igual que en #328); suite local ejecutada con `npm --prefix backend run test:unit -- --exclude '**/*.live.test.ts'`. Migración SQL aplicada al schema anterior con venta existente, importes conservados y campos nuevos null; Prisma diff sin diferencias. Bases locales exclusivas `imanager_issue330_test` y `imanager_issue330_migration_test`; sin build ni cambios en Railway.
+- Commit en `feat/330-comisiones-backend`, sin push por pedido explícito. Partes 2/3 de interfaz y consumo en Reportes pendientes.
 
 ## Issue #328 — Eliminar ventas canceladas — 2026-10-12
 
