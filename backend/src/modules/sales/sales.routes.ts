@@ -45,6 +45,7 @@ const saleCreateSchema = z.object({
   status: z.string().trim().min(1).max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
+  warrantyDays: z.number().int().min(0).max(3650).optional(),
   tradeIn: operationTradeInSchema.optional(),
 });
 
@@ -63,6 +64,7 @@ const salePatchSchema = z
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
     customFields: z.record(z.unknown()).optional().nullable(),
+    warrantyDays: z.number().int().min(0).max(3650).optional(),
     tradeIn: operationTradeInSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {

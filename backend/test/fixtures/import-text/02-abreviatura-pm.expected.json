@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 13 Pro Max",
+      "capacity": "256GB",
+      "color": "azul",
+      "batteryHealth": "85%",
+      "condition": null,
+      "imei": null,
+      "serial": null,
+      "price": 520,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

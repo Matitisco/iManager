@@ -1,0 +1,7 @@
+- [x] Backend: schema, LLM, límites, chunking, normalización, errores y ruta.
+- [x] Frontend: pegar/.txt, vista previa editable y confirmación.
+- [x] Persistencia: monedas mixtas, cantidad y serie sin migración.
+- [x] Corpus 50+, tests unitarios/integración mock y E2E desktop/iPhone.
+- [x] Lint, build y suites solicitadas; PWA y fallo visual de navegación repetidos.
+- [x] Ejecutar eval real y guardar reporte en docs/evals/issue-338-import-llm.md.
+- [ ] Validar calidad/costo/latencia reales y ajustar prompt si hace falta: bloqueado por OpenAI HTTP 401 invalid_api_key; requiere credencial válida. Corpus real privado también requiere ejemplos autorizados, no provistos en el issue.

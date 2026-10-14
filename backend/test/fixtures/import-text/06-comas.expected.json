@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 11",
+      "capacity": "128GB",
+      "color": "verde",
+      "batteryHealth": "82%",
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 250,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

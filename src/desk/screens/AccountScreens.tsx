@@ -302,6 +302,7 @@ export function SettingsScreen() {
             ) : null}
             <div className="card">
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
+              <MRow icon={<DeskIcon name="cal" size={18} />} title="Garantías" sub="Usados, sellados y reparaciones" onClick={() => open({ type: 'warranty' })} />
             </div>
             <div className="sec" data-testid="settings-team"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
             <div className="card">

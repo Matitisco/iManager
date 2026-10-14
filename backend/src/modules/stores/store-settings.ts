@@ -23,6 +23,9 @@ export interface StoreSettings {
   manualBuy: number | null;
   manualSell: number | null;
   timezone: string;
+  usedWarrantyDays: number;
+  sealedWarrantyDays: number;
+  repairWarrantyDays: number;
 }
 
 type StoreRow = {
@@ -40,6 +43,9 @@ type StoreRow = {
   exchangeSource?: string | null;
   manualBuy?: { toNumber(): number } | number | null;
   manualSell?: { toNumber(): number } | number | null;
+  usedWarrantyDays?: number | null;
+  sealedWarrantyDays?: number | null;
+  repairWarrantyDays?: number | null;
 };
 
 export function serializeStore(store: StoreRow): StoreSettings {
@@ -58,5 +64,8 @@ export function serializeStore(store: StoreRow): StoreSettings {
     manualBuy: positiveRate(store.manualBuy),
     manualSell: positiveRate(store.manualSell),
     timezone: store.timezone,
+    usedWarrantyDays: store.usedWarrantyDays ?? 30,
+    sealedWarrantyDays: store.sealedWarrantyDays ?? 90,
+    repairWarrantyDays: store.repairWarrantyDays ?? 30,
   };
 }

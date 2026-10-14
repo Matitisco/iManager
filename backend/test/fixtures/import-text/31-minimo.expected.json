@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 13",
+      "capacity": null,
+      "color": null,
+      "batteryHealth": null,
+      "condition": null,
+      "imei": null,
+      "serial": null,
+      "price": null,
+      "currency": null,
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

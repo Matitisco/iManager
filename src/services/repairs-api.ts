@@ -15,6 +15,7 @@ export interface RepairOrderInput {
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;
+  warrantyDays?: number;
 }
 
 type RepairResult = {

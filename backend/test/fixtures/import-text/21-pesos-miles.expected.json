@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 15 Pro Max",
+      "capacity": "256GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 1200000,
+      "currency": "ARS",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../..
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
-import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatArDate, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment } from '../format';
+import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
 import { cancellationRefund } from '../cancel-refund';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -23,6 +23,8 @@ import { QualityField } from '../QualityField';
 import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from '../quality';
 import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
+import { ReportDatePicker } from '../report-date-picker';
+import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView } from '../../lib/warranty';
 
 export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string } }) {
   return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
@@ -92,11 +94,21 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [outgoingColor, setOutgoingColor] = useState('');
   const [outgoingCondition, setOutgoingCondition] = useState('');
   const [outgoingImei, setOutgoingImei] = useState('');
+  const [saleDate, setSaleDate] = useState(isoFromAr(currentSale?.date || currentTrade?.date));
+  const usedWarrantyDays = context.appSession?.store?.usedWarrantyDays ?? DEFAULT_USED_WARRANTY_DAYS;
+  const sealedWarrantyDays = context.appSession?.store?.sealedWarrantyDays ?? DEFAULT_SEALED_WARRANTY_DAYS;
+  const [warrantyDays, setWarrantyDays] = useState(currentSale?.warrantyDays == null ? '' : String(currentSale.warrantyDays));
   const [bad, setBad] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (hasTrade) setTradeOpen(true);
   }, [hasTrade]);
+
+  useEffect(() => {
+    if (dirty.current.has('date')) return;
+    const label = currentSale?.date || currentTrade?.date;
+    if (label) setSaleDate(isoFromAr(label));
+  }, [currentSale?.date, currentTrade?.date]);
 
   useEffect(() => {
     let active = true;
@@ -160,6 +172,15 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
     : undefined;
+  useEffect(() => {
+    if (dirty.current.has('warranty')) return;
+    if (currentSale) {
+      setWarrantyDays(currentSale.warrantyDays == null ? '' : String(currentSale.warrantyDays));
+      return;
+    }
+    const condition = selectedProduct?.condition || outgoingCondition;
+    setWarrantyDays(String(defaultSaleWarrantyDays(condition, { usedWarrantyDays, sealedWarrantyDays })));
+  }, [currentSale, selectedProduct?.id, selectedProduct?.condition, outgoingCondition, usedWarrantyDays, sealedWarrantyDays]);
   const catalogItems: (OperationProductOption | Product)[] = [
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
@@ -182,11 +203,13 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const hasConfirmedOperation = Boolean(currentSale?.integratedOperation || currentTrade?.confirmationStatus === 'CONFIRMED');
   const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
+  const typedWarranty = parseWarrantyDaysInput(warrantyDays);
+  const warrantyPreview = saleWarrantyView({ date: arFromIso(saleDate), warrantyDays: typedWarranty.days ?? null, status: 'COMPLETADA' }).phrase;
   const buildInput = (draft: boolean): OperationInput => ({
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     sellerMemberId: sellerMemberId || null,
     ...(!currentSale && money.rate ? { exchangeRate: money.rate } : {}),
-    date: currentSale?.date || currentTrade?.date || formatArDate(new Date()),
+    date: arFromIso(saleDate),
     clientId: clientId || null,
     clientName: buyer.trim() || null,
     productId: productId || null,
@@ -202,6 +225,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
     paymentMethod: payment,
     status: paymentStatus,
+    ...(typedWarranty.days !== undefined ? { warrantyDays: typedWarranty.days } : {}),
     saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
     categoryId: hasTrade ? currentTrade?.categoryId ?? null : currentSale?.categoryId ?? null,
     requestKey: requestKey.current,
@@ -240,6 +264,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
       if (hasTrade && imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
       if (hasTrade && !take.trim()) next.take = 'Completá el valor tomado';
+      const warranty = parseWarrantyDaysInput(warrantyDays);
+      if (warranty.error) next.warranty = warranty.error;
+      else if (!currentSale && warranty.days === undefined) next.warranty = 'Completá los días de garantía';
     }
     if (kind === 'confirm' && selectedProduct?.reservedDepositId && !depositIds.includes(selectedProduct.reservedDepositId)) next.equipment = 'Aplicá la seña que reservó este equipo antes de confirmar';
     if (kind === 'draft' && depositIds.length) next.amount = 'Quitá las señas para guardar pendiente; aplicalas al confirmar';
@@ -291,7 +318,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
-  const sheetClass = [source === 'sales' || source === 'clients' ? 'sale-sheet' : '', source === 'tradeins' ? 'cj-sheet' : ''].filter(Boolean).join(' ');
+  const sheetClass = [source === 'tradeins' ? 'cj-sheet' : 'sale-sheet'].join(' ');
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const cashDue = hasTrade ? difference ?? 0 : parseMoney(amount);
   const appliedDeposits = currentSale?.depositAppliedAmount ?? receipts.rows.filter(row => depositIds.includes(row.id) && depositAvailable(row)).reduce((sum, row) => sum + (depositAmount(row, typedCurrency ?? money.active, money.rate) ?? 0), 0);
@@ -354,6 +381,11 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         </div>
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
+      <ReportDatePicker label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
+      <Field label="Garantía (días)" error={bad.warranty}>
+        <input data-testid="sale-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="0" onChange={(event) => { dirty.current.add('warranty'); setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); clearBad(setBad, 'warranty'); }} />
+      </Field>
+      <p className="eqs-note" data-testid="sale-warranty-until">{warrantyPreview}</p>
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
           <span>No hay equipos disponibles en el inventario.</span>
@@ -423,6 +455,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const integrated = Boolean(sale.integratedOperation || sale.tradeInId);
   const sold = inventory.find((item) => item.id === sale.productId);
   const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
+  const coverage = saleWarrantyView(sale);
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet" footer={
       sale.status === 'PENDIENTE' ? (
@@ -437,7 +470,17 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
           {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
           <button className="btn2 p" type="button" onClick={() => {
-            const text = `${saleCode(sale)} · ${saleBuyer(sale, clients)} · ${saleEquipment(sale, inventory)}${soldQuality ? ` · Calidad ${soldQuality}` : ''} · ${money.show(sale.amount, sale.amountCurrency)} · ${paymentLabel(sale.paymentMethod)}`;
+            const text = [
+              saleCode(sale),
+              saleBuyer(sale, clients),
+              saleEquipment(sale, inventory),
+              sold?.imei ? `IMEI ${formatImei(sold.imei)}` : null,
+              soldQuality ? `Calidad ${soldQuality}` : null,
+              money.show(sale.amount, sale.amountCurrency),
+              paymentLabel(sale.paymentMethod),
+              sale.status === 'PENDIENTE' ? `Debe ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : `Pagó ${money.show(sale.amount, sale.amountCurrency)}`,
+              coverage.phrase,
+            ].filter(Boolean).join(' · ');
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             shareOrCopy({ title: saleCode(sale), text }, copy);
           }}>Compartir comprobante</button>
@@ -453,6 +496,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

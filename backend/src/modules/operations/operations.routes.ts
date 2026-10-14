@@ -59,6 +59,7 @@ const inputSchema = z.object({
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
+  warrantyDays: z.number().int().min(0).max(3650).optional(),
   unlistedEquipment: z.object({
     model: z.string().trim().min(1).max(100),
     capacity: z.string().trim().max(50).optional(),

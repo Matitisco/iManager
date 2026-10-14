@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 14",
+      "capacity": "128GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 500,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    },
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 15",
+      "capacity": "256GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "NUEVO",
+      "imei": null,
+      "serial": null,
+      "price": 750,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

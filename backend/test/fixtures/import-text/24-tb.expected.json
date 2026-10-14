@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 15 Pro Max",
+      "capacity": "1TB",
+      "color": "titanio natural",
+      "batteryHealth": "95%",
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 1000,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 12",
+      "capacity": "64GB",
+      "color": "blanco",
+      "batteryHealth": "80%",
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 320000,
+      "currency": "ARS",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}
