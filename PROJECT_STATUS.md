@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #342 — Errores de solicitudes en español — 2026-10-14
+
+- `toUserMessage` centraliza los mensajes exactos de conexión, timeout y servidor. `fetchWithTimeout` distingue el vencimiento del timer y conserva nombres de error para los reintentos de invitaciones; el cliente HTTP conserva status y validaciones 4xx en español y oculta diagnósticos 5xx incluso con respuestas HTML.
+- Diálogos, formularios, comisiones, toasts, importación, sesión y pantalla de error global usan la traducción compartida. El diálogo de eliminar canje permanece abierto ante un fallo y permite reintentar sin anunciar éxito.
+- Validación: lint frontend/backend, build solicitado, 644 unitarios frontend y 143 E2E generales aprobados. PWA: 53 aprobados, 1 flaky de actualización iPhone aprobado en el reintento y 36 omisiones por plataforma. Los tres fallos iniciales de navegación iPhone pasaron al repetirlos; un timeout aislado de filtros de inventario pasó al repetir los unitarios con dos workers. Las seis regresiones PWA nuevas cubren offline real con service worker, 5xx y 4xx en desktop, iPhone y Android.
+- Base local exclusiva `imanager_issue342_e2e_test`, API 3342 y frontend 4342; sin cambios de Prisma ni operaciones sobre producción. Cambios en el working tree, sin commit ni push, según el pedido explícito.
+
 ## Issue #334 — Ajustes de comisiones — 2026-10-14
 
 - Causa raíz: `getCommissionPeriod` conservaba el crédito completo del snapshot anulado cuando existía `adjustmentPeriod`, sumándolo a ganado y pendiente hasta el siguiente mes. El detalle anulaba la línea individual pero los agregados, incluida la API de Reportes/CSV, seguían contando el crédito. DELETE ya conservaba el snapshot y su anulación previa, por lo que borrar físicamente Sale no retiraba ese crédito del cálculo.

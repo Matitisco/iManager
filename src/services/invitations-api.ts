@@ -3,6 +3,7 @@ import { fetchWithTimeout } from './fetch-with-timeout';
 import { apiRequest } from './api-client';
 import type { AppSession } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
+import { toUserMessage } from '../lib/user-message';
 
 export type InvitationRole = 'MANAGER' | 'STAFF';
 export interface Invitation {
@@ -45,34 +46,16 @@ function getBaseUrl(): string {
   return url.replace(/\/+$/, '');
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof error.message === 'string' &&
-    error.message.trim()
-  ) {
-    return error.message;
-  }
-
-  return DEFAULT_PREVIEW_ERROR_MESSAGE;
-}
-
 function shouldRetryPreview(error: unknown): boolean {
   if (error instanceof Error) {
-    return error.name === 'AbortError' || error.name === 'TypeError';
+    return ['AbortError', 'TimeoutError', 'TypeError', 'NetworkError'].includes(error.name);
   }
 
   return (
     typeof error === 'object' &&
     error !== null &&
     'name' in error &&
-    (error.name === 'AbortError' || error.name === 'TypeError')
+    typeof error.name === 'string' && ['AbortError', 'TimeoutError', 'TypeError', 'NetworkError'].includes(error.name)
   );
 }
 
@@ -143,7 +126,7 @@ export async function resolveInvitationPreview(
       }
 
       if (res.status >= 500 && attempts <= retries) {
-        lastError = new Error(DEFAULT_PREVIEW_ERROR_MESSAGE);
+        lastError = { status: res.status };
         onRetry?.(attempts, lastError);
         await wait(retryDelayMs);
         continue;
@@ -151,7 +134,7 @@ export async function resolveInvitationPreview(
 
       return {
         kind: 'error',
-        message: DEFAULT_PREVIEW_ERROR_MESSAGE,
+        message: toUserMessage({ status: res.status }, DEFAULT_PREVIEW_ERROR_MESSAGE),
         attempts,
       };
     } catch (error) {
@@ -165,7 +148,7 @@ export async function resolveInvitationPreview(
 
       return {
         kind: 'error',
-        message: getErrorMessage(error),
+        message: toUserMessage(error, DEFAULT_PREVIEW_ERROR_MESSAGE),
         attempts,
       };
     }
@@ -173,7 +156,7 @@ export async function resolveInvitationPreview(
 
   return {
     kind: 'error',
-    message: getErrorMessage(lastError),
+    message: toUserMessage(lastError, DEFAULT_PREVIEW_ERROR_MESSAGE),
     attempts,
   };
 }

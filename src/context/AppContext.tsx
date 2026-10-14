@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
@@ -162,7 +163,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (error) {
         if (cancelled) return;
         setBackendStatus('offline');
-        setBackendMessage(error instanceof Error ? error.message : String(error));
+        setBackendMessage(toUserMessage(error));
 
         retryTimeout = window.setTimeout(() => {
           if (!cancelled) {
@@ -321,7 +322,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           && canAccess(notification.section as OperationSource);
       }));
     } catch (error) {
-      if (scopeRef.current === requestScope) setNotificationsError(error instanceof Error ? error.message : String(error));
+      if (scopeRef.current === requestScope) setNotificationsError(toUserMessage(error));
       throw error;
     } finally {
       if (scopeRef.current === requestScope) setNotificationsLoading(false);

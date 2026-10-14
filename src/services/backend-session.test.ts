@@ -104,7 +104,7 @@ describe('backend-session', () => {
     await expect(fetchBackendSession(mockUser)).resolves.toEqual({
       status: 'error',
       session: null,
-      message: 'El backend respondió con un error inesperado. Reintentando.',
+      message: 'Ocurrió un error en el servidor. Probá de nuevo en unos minutos.',
     });
   });
 
@@ -115,7 +115,7 @@ describe('backend-session', () => {
     await expect(fetchBackendSession(mockUser)).resolves.toEqual({
       status: 'offline',
       session: null,
-      message: 'No se pudo conectar al backend: timeout',
+      message: 'La solicitud tardó demasiado. Probá de nuevo.',
     });
   });
 });

@@ -201,7 +201,7 @@ describe('Login', () => {
       else first.reject({ code: 'auth/network-request-failed' });
     });
     expect(screen.getByTestId('login-google')).toBeDisabled();
-    expect(screen.queryByText(/revisá tu conexión/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/revisá tu internet/i)).not.toBeInTheDocument();
 
     await act(async () => retry.reject({ code: 'auth/popup-blocked' }));
     expect(screen.getByTestId('login-google')).toBeEnabled();
@@ -306,7 +306,7 @@ describe('Login', () => {
   });
 
   it.each([
-    ['auth/network-request-failed', /revisá tu conexión/i],
+    ['auth/network-request-failed', /revisá tu internet/i],
     ['auth/too-many-requests', /demasiados intentos/i],
     ['auth/invalid-email', /no es válido/i],
   ])('shows a spanish message for %s and keeps the form open', async (code, message) => {

@@ -16,7 +16,7 @@ describe('friendly validation messages', () => {
       statusCode: 500,
       error: 'Internal Server Error',
       message: zod,
-    })), 'No se pudo guardar.')).toBe('No se pudo guardar.');
+    })), 'No se pudo guardar.')).toBe('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
 
     expect(getFriendlyErrorMessage(new Error(zod), 'No se pudo guardar.')).toBe('No se pudo guardar.');
     expect(getFriendlyErrorMessage(zod, 'No se pudo guardar.')).not.toContain('too_small');

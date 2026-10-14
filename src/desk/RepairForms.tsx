@@ -1,3 +1,4 @@
+import { toUserMessage } from '../lib/user-message';
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { ClientField } from './ClientField';
@@ -88,7 +89,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
       close();
       toast('Orden creada');
     } catch (err) {
-      setBad((current) => ({ ...current, form: err instanceof Error ? err.message : 'No se pudo crear la orden' }));
+      setBad((current) => ({ ...current, form: toUserMessage(err, 'No se pudo crear la orden') }));
     } finally {
       setSaving(false);
     }

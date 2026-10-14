@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
@@ -73,7 +74,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [amount, setAmount] = useState(seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
   const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? '');
   const [sellerError, setSellerError] = useState('');
-  useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, [context.appSession?.store?.id]);
+  useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
@@ -371,7 +372,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
-  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(cause instanceof Error ? cause.message : 'No se pudieron cargar los vendedores')); }, []);
+  useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));

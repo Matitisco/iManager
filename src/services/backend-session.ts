@@ -1,22 +1,11 @@
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { fetchWithTimeout } from './fetch-with-timeout';
+import { toUserMessage } from '../lib/user-message';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-const DEFAULT_BACKEND_ERROR_MESSAGE = 'El backend respondió con un error inesperado. Reintentando.';
-
-function normalizeBackendErrorMessage(status: number, body: any) {
-  const rawMessage = typeof body?.error === 'string' ? body.error.trim() : '';
-
-  if (status >= 500) {
-    return DEFAULT_BACKEND_ERROR_MESSAGE;
-  }
-
-  if (!rawMessage || rawMessage === 'Internal Server Error') {
-    return `Backend respondió ${status}`;
-  }
-
-  return rawMessage;
+function normalizeBackendErrorMessage(status: number, body: unknown) {
+  return toUserMessage({ ...(body && typeof body === 'object' ? body : {}), status }, 'No se pudo iniciar la sesión. Probá de nuevo.');
 }
 
 export function getBackendBaseUrl() {
@@ -70,11 +59,10 @@ export async function fetchBackendSession(user: AuthUserLike): Promise<{
         : null,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     return {
       status: 'offline',
       session: null,
-      message: `No se pudo conectar al backend: ${message}`,
+      message: toUserMessage(error),
     };
   }
 }

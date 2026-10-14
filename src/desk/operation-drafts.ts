@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { OperationSource } from '../services/operations-api';
+import { toUserMessage } from '../lib/user-message';
 
 export const DRAFT_LOAD_ERROR_MESSAGE = 'No se pudieron cargar los borradores. Probá de nuevo en un momento.';
 
 export function draftLoadNotice(error: unknown): string | null {
   if (isMissingDraftsRoute(error)) return null;
-  return DRAFT_LOAD_ERROR_MESSAGE;
+  return toUserMessage(error, DRAFT_LOAD_ERROR_MESSAGE);
 }
 
 export function useOperationDraftError(source: OperationSource): string | null {

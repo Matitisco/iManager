@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/user-message';
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { updateMemberSections, type TeamMember } from '../../services/members-api';
@@ -36,7 +37,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
       onSaved(saved);
       onBack();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron guardar los permisos');
+      setError(toUserMessage(err, 'No se pudieron guardar los permisos'));
     } finally {
       setBusy(false);
     }

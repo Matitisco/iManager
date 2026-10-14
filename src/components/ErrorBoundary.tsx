@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { toUserMessage } from '../lib/user-message';
 
 interface Props {
   children?: ReactNode;
@@ -25,15 +26,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      let errorMessage = this.state.error?.message || 'An unexpected error occurred';
-      try {
-        const parsed = JSON.parse(errorMessage);
-        if (parsed.error) {
-          errorMessage = parsed.error;
-        }
-      } catch (e) {
-        // Not JSON
-      }
+      const errorMessage = toUserMessage(this.state.error, 'Ocurrió un error inesperado. Recargá la página y probá de nuevo.');
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
