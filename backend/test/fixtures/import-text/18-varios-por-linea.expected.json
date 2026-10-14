@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 12",
+      "capacity": "64GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 300,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    },
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 13",
+      "capacity": "128GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "NUEVO",
+      "imei": null,
+      "serial": null,
+      "price": 460,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

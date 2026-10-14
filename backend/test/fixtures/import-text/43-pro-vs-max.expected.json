@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 13 Pro",
+      "capacity": "128GB",
+      "color": "plata",
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 480,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    },
+    {
+      "line": 2,
+      "endLine": 2,
+      "model": "iPhone 13 Pro Max",
+      "capacity": "128GB",
+      "color": "plata",
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 530,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { parseImportNumber } from '../../lib/import-number';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
 import { ImportModal } from '../../components/ImportModal';
-import { analyzeImport, applyImportPlan, importBackendRows, type ImportSection, type InventoryImportRow } from '../../services/import-api';
+import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection, type InventoryImportRow } from '../../services/import-api';
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
@@ -26,7 +27,7 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
     cl: ['cliente importado', 'clientes importados'],
   };
   const section = sectionFor(kind);
-  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
+  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => analyzeInventoryText(user, text) : undefined} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -61,27 +62,18 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
         { key: 'status', label: 'Estado', required: false },
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const parseNum = (value?: string) => {
-          if (!value?.trim()) return undefined;
-          const trimmed = value.trim().replace(/[$\s]/g, '');
-          const normal = /^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(trimmed)
-            ? trimmed.replace(/\./g, '').replace(',', '.')
-            : /^-?\d+,\d+$/.test(trimmed)
-              ? trimmed.replace(',', '.')
-              : trimmed;
-          const amount = Number(normal);
-          return Number.isFinite(amount) ? amount : undefined;
-        };
         const payload: InventoryImportRow[] = rows.map((row) => ({
           imei: row.imei ?? '',
           model: row.model ?? '',
-          price: parseNum(row.price) ?? 0,
+          price: parseImportNumber(row.price) ?? 0,
           capacity: row.capacity,
           color: row.color,
           condition: row.condition,
           grade: row.grade,
-          batteryHealth: row.batteryHealth,
-          cost: parseNum(row.cost),
+          batteryHealth: row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
+          cost: parseImportNumber(row.cost),
+          currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
+          customFields: row.serial ? { serial: row.serial } : undefined,
           status: row.status,
         }));
         const result = await importBackendRows(user, 'inventory', payload);

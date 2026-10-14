@@ -183,7 +183,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
               grade: z.string().optional(),
               batteryHealth: z.coerce.string().optional(),
               cost: z.coerce.number().optional(),
-              price: z.coerce.number(),
+              price: z.coerce.number().finite().nonnegative(),
+              currency: z.enum(["ARS", "USD"]).optional(),
               status: z.string().optional(),
               customFields: z.record(z.unknown()).optional(),
             })

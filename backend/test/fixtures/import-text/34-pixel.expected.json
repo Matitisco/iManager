@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "Google Pixel 8",
+      "capacity": "128GB",
+      "color": "negro",
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 430,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

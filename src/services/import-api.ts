@@ -27,6 +27,8 @@ export type ImportSheetPlan = {
 };
 
 export type ImportAnalysis = {
+  review?: { line: number; original: string; dudas: string[] }[];
+  discarded?: { line: number; original: string; reason: string }[];
   source: 'model' | 'heuristic' | 'manual';
   notice: string | null;
   currency: 'ARS' | 'USD';
@@ -51,6 +53,13 @@ export async function analyzeImport(
     body: { section, sheets },
     fallback: 'No se pudo leer la planilla.',
     timeoutMs: ANALYZE_TIMEOUT_MS,
+  });
+}
+
+export async function analyzeInventoryText(user: AuthUserLike, text: string): Promise<ImportAnalysis> {
+  return apiRequest<ImportAnalysis>(user, '/api/import/analyze-text', {
+    method: 'POST', body: { text },
+    fallback: 'No se pudo analizar el listado. Probá de nuevo.', timeoutMs: 190_000,
   });
 }
 
@@ -79,6 +88,7 @@ export interface InventoryImportRow {
   batteryHealth?: string;
   cost?: number;
   price: number;
+  currency?: 'ARS' | 'USD';
   status?: string;
   customFields?: Record<string, unknown>;
 }

@@ -15,7 +15,8 @@
     "bootstrap:owner": "tsx scripts/bootstrap-owner.ts",
     "migrate:clients": "tsx scripts/migrate-clients.ts",
     "prisma:generate": "prisma generate",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "eval:import": "tsx scripts/eval-import-llm.ts"
   },
   "engines": {
     "node": "22.x"

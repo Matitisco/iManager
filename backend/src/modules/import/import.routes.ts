@@ -11,6 +11,10 @@ import { analyzeImport, applyImportPlan } from "./analyze-import.service.js";
 import { IMPORT_CATALOGS, IMPORT_SECTIONS } from "./import-catalog.js";
 import { CONDITIONS, type ImportSheet, type SheetPlan } from "./sheet-plan.js";
 
+import { analyzeTextImport, chunkText } from "./text-import.service.js";
+import { createTextImportLimiter } from "./text-import-rate-limit.js";
+import { TEXT_LIMITS } from "./text-import.schema.js";
+
 const MAX_IMPORT_ROWS = 5000;
 
 const sheetSchema = z.object({
@@ -45,6 +49,35 @@ const applySchema = sheetsSchema.extend({
 });
 
 export async function importRoutes(app: FastifyInstance) {
+  const acquireTextImport = createTextImportLimiter();
+  app.post("/analyze-text", {
+    bodyLimit: TEXT_LIMITS.bytes * 2,
+    preHandler: [authenticate, resolveAppUser],
+  }, async (request, reply) => {
+    requireMember(request);
+    assertAccess("inventory", request.appUser);
+    const { text } = z.object({ text: z.string().max(TEXT_LIMITS.bytes) }).strict().parse(request.body);
+    chunkText(text); // Reject oversized/invalid input before consuming quota or reading business data.
+    const release = acquireTextImport(request.appUser.storeId);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const disconnected = () => { if (!reply.raw.writableEnded) abort(); };
+    request.raw.on("aborted", abort);
+    reply.raw.on("close", disconnected);
+    try {
+      const [currency, existing] = await Promise.all([
+        storeCurrency(request.appUser.storeId, prisma),
+        prisma.inventoryItem.findMany({ where: { storeId: request.appUser.storeId }, distinct: ["model"], select: { model: true }, take: 2000 }),
+      ]);
+      const result = await analyzeTextImport({ text, currency, models: existing.map((item) => item.model) }, { signal: controller.signal });
+      request.log.info(result.usage, "text import analysis usage");
+      return result;
+    } finally {
+      request.raw.off("aborted", abort);
+      reply.raw.off("close", disconnected);
+      release();
+    }
+  });
   app.post(
     "/analyze",
     { bodyLimit: 6 * 1024 * 1024, preHandler: [authenticate, resolveAppUser] },

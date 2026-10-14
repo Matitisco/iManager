@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 15 Pro",
+      "capacity": "256GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "NUEVO",
+      "imei": null,
+      "serial": "F2LQ9A7BC8",
+      "price": 850,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

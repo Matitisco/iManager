@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 14",
+      "capacity": "128GB",
+      "color": "azul",
+      "batteryHealth": null,
+      "condition": "NUEVO",
+      "imei": null,
+      "serial": null,
+      "price": 550,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 2,
+      "dudas": []
+    }
+  ]
+}

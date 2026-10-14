@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 13",
+      "capacity": "128GB",
+      "color": null,
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": "356789012345678",
+      "serial": null,
+      "price": 430,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

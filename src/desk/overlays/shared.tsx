@@ -32,7 +32,7 @@ export const BASE_TAGS = [
   { id: 'Nuevo', label: 'Nuevo', color: '#E8A33D' },
 ];
 
-export const MODELS = ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15', 'iPhone 16'];
+export { INVENTORY_MODELS as MODELS } from '../../../backend/src/lib/inventory-models';
 
 export const EQ_STATUS = [
   { id: 'DISPONIBLE', label: 'Disponible', color: '#25A66A' },
