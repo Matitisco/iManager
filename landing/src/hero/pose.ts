@@ -23,9 +23,6 @@ export const PHONE_H = 560;
 export const LAYER_BASE = 1.5;
 export const EDGE_DEPTH = 7;
 
-/** Escenario de referencia desktop (columna derecha del wireframe a 1440×900); se escala para encajar. */
-export const REF_W = 780;
-export const REF_H = 828;
 /** Alto virtual del escenario mobile: la posición vertical real se resuelve con la caja proyectada. */
 export const MOB_VH = 560;
 
@@ -60,18 +57,18 @@ export function pose(p: number, mob: boolean, fit: PoseFit = {}): Pose {
     rx = 12;
     rz = -10;
   } else if (p < 0.2) {
-    const t = smooth((p - 0.1) / 0.1);
+    const t = (p - 0.1) / 0.1;
     sc = lerp(whole, 0.8, t);
     gap = lerp(0, G * 0.55, t);
-    rx = lerp(12, 56, t);
-    rz = lerp(-10, -34, t);
+    rx = lerp(12, 54, t);
+    rz = lerp(-10, -32, t);
   } else if (p < 0.9) {
-    gap = lerp(G * 0.55, G, smooth((p - 0.2) / 0.08));
+    gap = lerp(G * 0.55, G, (p - 0.2) / 0.08);
     rx = 56;
     rz = -34;
     sc = 0.8;
   } else {
-    const u = smooth((p - 0.9) / 0.08);
+    const u = (p - 0.9) / 0.08;
     gap = lerp(G, 0, u);
     rx = lerp(56, 10, u);
     rz = lerp(-34, -8, u);

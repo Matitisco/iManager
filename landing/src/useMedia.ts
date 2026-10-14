@@ -13,6 +13,4 @@ export function useMedia(query: string): boolean {
 }
 
 export const MOBILE_HERO_QUERY = '(max-width: 900px)';
-/** Layout ancho pero alto (iPad vertical, “Sitio de escritorio” en un celular): copy arriba, teléfono abajo. */
-export const PORTRAIT_HERO_QUERY = '(min-width: 901px) and (max-aspect-ratio: 6/5)';
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';

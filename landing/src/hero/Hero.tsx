@@ -1,13 +1,11 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { APP_URL, FEATURES, LAYERS, SIGNUP_URL, STATES, type LayerKey } from '../content';
 import { Icon } from '../Icon';
-import { MOBILE_HERO_QUERY, PORTRAIT_HERO_QUERY, REDUCED_MOTION_QUERY, useMedia } from '../useMedia';
+import { MOBILE_HERO_QUERY, REDUCED_MOTION_QUERY, useMedia } from '../useMedia';
 import { Placa } from './Placa';
 import {
   EDGE_DEPTH,
   MOB_VH,
-  REF_H,
-  REF_W,
   fitMobileScale,
   layerZ,
   phoneBounds,
@@ -35,17 +33,21 @@ const MOB_RAIL_SPACE = 40;
 const MOB_K_MAX = 1.15;
 /** Poses representativas del recorrido desktop para calcular la caja que ocupa el teléfono con sus etiquetas. */
 const DESKTOP_SAMPLE_P = [0, 0.15, 0.3, 0.95];
-const PORTRAIT_GAP = 16;
-const PORTRAIT_BOTTOM = 28;
-const PORTRAIT_RAIL_SPACE = 56;
-const MAX_SPREAD = 1.9;
+const MAX_SPREAD = 2;
+/** Margen lateral mínimo (px de referencia) al recortar el escenario en columnas angostas. */
+const SIDE_MIN = 24;
+/** Alto sobrante que se deja como margen (el wireframe deja ≈20 % a 1440×900) antes de separar más las capas. */
+const SPREAD_SLACK = 1.5;
+/** Aire que queda arriba y abajo del contenido cuando el sticky se achica a su medida. */
+const SHRINK_SLACK = 1.15;
+/** Lo que el wireframe deja salir el teléfono por abajo (a 1280×800 la carcasa toca el borde). */
+const V_OVERFLOW = 60;
 const MAX_WHOLE = 1.4;
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
 export function Hero() {
   const mob = useMedia(MOBILE_HERO_QUERY);
-  const portrait = useMedia(PORTRAIT_HERO_QUERY);
   const reduce = useMedia(REDUCED_MOTION_QUERY);
 
   const heroRef = useRef<HTMLElement>(null);
@@ -76,7 +78,7 @@ export function Hero() {
     const ph = phRef.current!;
     const visible = LAYERS.map((l, i) => ({ ...l, i })).filter((l) => !mob || MOBILE_LAYERS.includes(l.key));
     const visibleIdx = visible.map((l) => l.i);
-    const stageGeom: StageGeom = mob ? { w: 1, h: MOB_VH, mob } : { w: REF_W, h: REF_H, mob };
+    const stageGeom: StageGeom = { w: 1, h: mob ? MOB_VH : 1, mob };
 
     /**
      * Layout mobile, en coordenadas del sticky. El teléfono arranca debajo del copy medido
@@ -208,43 +210,54 @@ export function Hero() {
       mobL.endTop = regionTop + Math.max(0, (regionH - end.h) / 2);
     };
 
+    /**
+     * Desktop siempre en dos columnas: copy a la izquierda, teléfono a la derecha. Se ubica igual que
+     * el wireframe (tamaño real del escenario, teléfono al 44 % / 54 %, sin escalar). Solo se achica si
+     * no entra (columna angosta o pantalla baja) y, si sobra mucho alto, separa más las capas; si aun
+     * así sobra, el sticky mide lo que el contenido para no dejar hueco antes de la sección siguiente.
+     */
     const measureDesktop = () => {
-      if (portrait) {
-        const vh = vhRef.current?.offsetHeight || window.innerHeight;
-        const copyBottom = copy.offsetTop + copy.offsetHeight;
-        const Ws = stage.offsetWidth - PORTRAIT_RAIL_SPACE;
-        const availH = vh - copyBottom - PORTRAIT_GAP - PORTRAIT_BOTTOM;
-        fit.spread = 1;
-        fit.whole = 1;
-        fit.wholeDy = 0;
-        let box = desktopContentBox();
-        let k = clamp(Math.min(Ws / box.w, availH / box.h), 0.5, 1.8);
-        for (let n = 0; n < 4 && box.h * k < availH - 4 && fit.spread < MAX_SPREAD; n++) {
-          fit.spread = Math.min(MAX_SPREAD, fit.spread * (1 + (availH / (box.h * k) - 1) * 1.6));
-          box = desktopContentBox();
-          k = clamp(Math.min(Ws / box.w, availH / box.h), 0.5, 1.8);
-        }
+      const vh = vhRef.current?.offsetHeight || window.innerHeight;
+      const padTop = stage.offsetTop;
+      const Ws = stage.offsetWidth;
+      const HsMax = reduce ? stage.offsetHeight : vh - padTop;
+      stageGeom.w = Ws;
+      stageGeom.h = HsMax;
+      fit.spread = fit.whole = 1;
+      fit.wholeDy = 0;
+      let box = desktopContentBox();
+      const k = clamp(Math.min(1, (Ws - 2 * SIDE_MIN) / box.w, (HsMax + V_OVERFLOW) / box.h), 0.5, 1);
+      const target = HsMax / (k * SPREAD_SLACK);
+      for (let n = 0; n < 5 && box.h < target - 2 && fit.spread < MAX_SPREAD; n++) {
+        fit.spread = Math.min(MAX_SPREAD, fit.spread * (1 + (target / box.h - 1) * 1.6));
+        box = desktopContentBox();
+      }
+      if (fit.spread > 1) {
         const armed = phoneBounds(stageGeom, pose(0, false, { spread: fit.spread }), visibleIdx);
-        fit.whole = clamp(Math.min((box.h * 0.9) / armed.h, (box.w * 0.8) / armed.w), 1, MAX_WHOLE);
+        fit.whole = clamp(Math.min(1 + (fit.spread - 1) * 0.5, (box.h * 0.9) / armed.h, (box.w * 0.8) / armed.w), 1, MAX_WHOLE);
         if (fit.whole > 1) {
           const big = phoneBounds(stageGeom, pose(0, false, { spread: fit.spread, whole: fit.whole }), visibleIdx);
           fit.wholeDy = box.y + box.h / 2 - (big.y + big.h / 2);
           box = desktopContentBox();
-          k = clamp(Math.min(Ws / box.w, availH / box.h), 0.5, 1.8);
         }
-        stick.style.height = `${Math.round(Math.min(vh, copyBottom + PORTRAIT_GAP + box.h * k + PORTRAIT_BOTTOM))}px`;
-        const tx = (Ws - box.w * k) / 2 - box.x * k;
-        const ty = PORTRAIT_GAP - box.y * k;
-        rig.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${k.toFixed(4)})`;
+      }
+      const Hs = fit.spread >= MAX_SPREAD ? Math.min(HsMax, Math.max(box.h * k * SHRINK_SLACK, 440)) : HsMax;
+      stick.style.height = Hs < HsMax - 1 ? `${Math.round(padTop + Hs)}px` : '';
+      if (Hs !== HsMax) {
+        stageGeom.h = Hs;
+        box = desktopContentBox();
+      }
+      if (k === 1 && fit.spread === 1 && Hs === HsMax) {
+        rig.style.transform = '';
         return;
       }
-      fit.spread = fit.whole = 1;
-      fit.wholeDy = 0;
-      stick.style.height = '';
-      const Ws = stage.offsetWidth;
-      const Hs = stage.offsetHeight;
-      const k = clamp(Math.min(Ws / REF_W, Hs / REF_H), 0.5, 1.25);
-      rig.style.transform = `translate(${((Ws - REF_W * k) / 2).toFixed(1)}px,${((Hs - REF_H * k) / 2).toFixed(1)}px) scale(${k.toFixed(4)})`;
+      const bw = box.w * k;
+      const cx = clamp(box.x + box.w / 2, SIDE_MIN + bw / 2, Ws - SIDE_MIN - bw / 2);
+      const wfCy = clamp(box.y + box.h / 2, box.h * k / 2, Hs - box.h * k / 2);
+      const cy = wfCy + (Hs / 2 - wfCy) * clamp((fit.spread - 1) / 0.1, 0, 1);
+      const tx = cx - k * (box.x + box.w / 2);
+      const ty = cy - k * (box.y + box.h / 2);
+      rig.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${k.toFixed(4)})`;
     };
 
     const measure = () => {
@@ -344,7 +357,7 @@ export function Hero() {
       if (raf) cancelAnimationFrame(raf);
       cleanup();
     };
-  }, [mob, portrait, reduce]);
+  }, [mob, reduce]);
 
   const goTo = (i: number) => (e: React.MouseEvent) => {
     e.preventDefault();

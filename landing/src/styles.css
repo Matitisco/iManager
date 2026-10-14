@@ -35,10 +35,11 @@ section{position:relative}
 .nav .menu .btn{margin-top:16px;justify-content:center;border:0;padding:0 22px}
 
 /* ---------- hero (scroll 3D) ---------- */
-.hero{height:900vh;background:radial-gradient(1200px 700px at 72% 40%,#FFF8D6 0%,#fff 60%)}
-.hero .stick{position:sticky;top:0;height:100vh;height:100svh;min-height:560px;overflow:hidden}
+/* El brillo va en el sticky (no en la sección de 900vh) para que quede donde lo muestra el storyboard en cada frame. */
+.hero{height:900vh;background:#fff}
+.hero .stick{position:sticky;top:0;height:100vh;height:100svh;min-height:560px;overflow:hidden;background:radial-gradient(1200px 700px at 72% 40%,#FFF8D6 0%,#fff 60%)}
 .vhp{position:absolute;left:0;top:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none}
-.hero .in{position:relative;height:100%;max-width:max(1360px,min(1600px,100vw - 320px));margin:0 auto;padding:72px 40px 0;display:grid;grid-template-columns:500px 1fr;align-items:center}
+.hero .in{position:relative;height:100%;max-width:1360px;margin:0 auto;padding:72px 40px 0;display:grid;grid-template-columns:500px 1fr;align-items:center}
 .copy{position:relative;height:440px;z-index:3}
 .cap{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translate3d(0,16px,0);transition:opacity .35s,transform .35s,visibility 0s .35s;pointer-events:none;visibility:hidden}
 .cap.on{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .35s,transform .35s,visibility 0s}
@@ -50,8 +51,8 @@ section{position:relative}
 .cap .fic{width:56px;height:56px;border-radius:16px;background:var(--ys);display:flex;align-items:center;justify-content:center;flex:none}.cap .fic .ic{width:30px;height:30px}
 .cap ul{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:10px}
 .cap li{display:flex;gap:10px;font-weight:600;font-size:16px}.cap li:before{content:'';width:8px;height:8px;border-radius:2.5px;background:var(--y);margin-top:8px;flex:none;box-shadow:0 0 0 2px var(--k)}
-.chip{margin-top:22px;display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--bd);border-radius:16px;padding:10px 14px;box-shadow:0 8px 24px rgba(22,24,29,.07);font-size:14px;font-weight:700;align-self:flex-start;line-height:1.4}
-.chip small{color:var(--g);font-weight:600;font-size:12px}.pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;background:#E6F5EE;color:#1C7F51}
+.chip{margin-top:22px;display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--bd);border-radius:16px;padding:10px 14px;box-shadow:0 8px 24px rgba(22,24,29,.07);font-size:14px;font-weight:700;align-self:flex-start}
+.chip small{color:var(--g);font-weight:600}.pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;background:#E6F5EE;color:#1C7F51}
 
 .stage{position:relative;height:100%;pointer-events:none}
 /* Teléfono + etiquetas en un escenario de referencia; el JS lo escala y ubica según el lugar disponible. */
@@ -63,6 +64,8 @@ section{position:relative}
 .plane .edge{position:absolute;inset:0;border-radius:inherit}
 .plane .face{position:absolute;inset:0;border-radius:inherit;overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden}
 .ph.focus .plane{opacity:.22;filter:saturate(.3)}.ph.focus .plane.on{opacity:1;filter:none}
+/* El wireframe atenúa cada capa como grupo; acá borde y cara son planos separados y sus opacidades se suman. */
+.ph.focus .plane:not(.ly):not(.on){opacity:.07}
 .ly.on .face{box-shadow:0 0 0 4px var(--y),0 0 60px 6px rgba(255,208,0,.55)}
 /* carcasa */
 .carcasa .face{background:linear-gradient(150deg,#2A2D34,#16181D 60%)}.carcasa .edge{background:#0B0C0E}
@@ -216,16 +219,6 @@ footer a:hover{color:#fff}
 @media (max-width:1100px) and (min-width:901px){
   .hero .in{grid-template-columns:420px 1fr;padding:72px 32px 0}
   .cap .t1{font-size:52px}.cap .t3{font-size:38px}.cap .t3.big{font-size:44px}
-}
-/* Desktop alto (iPad vertical, “Sitio de escritorio” en el celu): copy arriba y teléfono debajo,
-   el sticky mide lo que mide el contenido para no dejar bandas vacías. */
-@media (min-width:901px) and (max-aspect-ratio:6/5){
-  .hero .stick{min-height:0}
-  .hero .in{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);align-items:stretch;padding:72px 40px 0}
-  .copy{max-width:680px;height:auto;margin-top:28px;display:grid}
-  .cap{position:relative;inset:auto;grid-area:1/1;justify-content:flex-start}
-  .stage{height:auto}
-  .scrollhint{display:none}
 }
 @media (max-width:1100px){
   .pgrid{grid-template-columns:1fr 1fr}
