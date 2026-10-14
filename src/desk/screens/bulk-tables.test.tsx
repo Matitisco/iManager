@@ -12,7 +12,7 @@ const ctx = vi.hoisted(() => ({
   inventory: [] as Product[], clients: [] as Client[], sales: [] as Sale[], tradeIns: [] as TradeIn[],
   appSession: { store: { id: 's', name: 'Tienda' }, user: { id: 'u' }, membership: { role: 'OWNER' } },
   backendStatus: 'ready', operationNotifications: [], operationDrafts: [],
-  deleteProduct: vi.fn(), deleteClient: vi.fn(), deleteSale: vi.fn(), updateSale: vi.fn(), cancelTradeOperation: vi.fn(),
+  deleteProduct: vi.fn(), deleteClient: vi.fn(), deleteSale: vi.fn(), updateSale: vi.fn(), cancelTradeOperation: vi.fn(), deleteTradeIn: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 const open = vi.fn();
@@ -33,7 +33,7 @@ beforeEach(() => {
   ctx.clients = [{ id: 'c', name: 'Ana', dni: '123', email: '', phone: '', lastPurchaseDate: '', totalSpent: 0, pendingBalance: 0 }];
   ctx.sales = [{ id: 's1', saleNumber: 1, date: new Date().toISOString(), clientId: 'c', productId: '1', amount: 900, amountCurrency: 'USD', paymentMethod: 'EFECTIVO', status: 'COMPLETADA', integratedOperation: true }];
   ctx.tradeIns = [{ id: 't1', tradeNumber: 1, date: new Date().toISOString(), clientId: 'c', deviceReceived: 'iPhone 11', deviceReceivedImei: '', deviceGiven: 'Equipo 1', takeValue: 100, differencePaid: 800, status: 'PENDIENTE', confirmationStatus: 'CONFIRMED' }];
-  for (const fn of [ctx.deleteProduct, ctx.deleteClient, ctx.deleteSale, ctx.updateSale, ctx.cancelTradeOperation]) fn.mockReset().mockResolvedValue(undefined);
+  for (const fn of [ctx.deleteProduct, ctx.deleteClient, ctx.deleteSale, ctx.updateSale, ctx.cancelTradeOperation, ctx.deleteTradeIn]) fn.mockReset().mockResolvedValue(undefined);
 });
 
 describe('bulk table wiring', () => {
@@ -167,5 +167,17 @@ describe('bulk table wiring', () => {
     unmount(); ctx.tradeIns[0].confirmationStatus = null; mount(TradeInsScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar C-/ }));
     expect(screen.getByRole('button', { name: 'Cancelar canjes' })).toBeDisabled();
+  });
+  it('deletes cancelled trades through the existing method', async () => {
+    ctx.tradeIns = [
+      { ...ctx.tradeIns[0], status: 'CANCELADO', confirmationStatus: 'CANCELLED' },
+      { ...ctx.tradeIns[0], id: 't2', tradeNumber: 2, status: 'CANCELADO', confirmationStatus: 'CANCELLED' },
+    ];
+    mount(TradeInsScreen);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
+    confirm('Eliminar selección');
+    await waitFor(() => expect(ctx.deleteTradeIn).toHaveBeenCalledTimes(2));
+    expect(ctx.deleteTradeIn.mock.calls.map((call) => call[0]).sort()).toEqual(['t1', 't2']);
+    expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
   });
 });

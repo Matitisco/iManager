@@ -18,6 +18,7 @@ const ctx = vi.hoisted(() => ({
   updateTradeIn: vi.fn(),
   updateTradeOperation: vi.fn(),
   cancelTradeOperation: vi.fn(),
+  deleteTradeIn: vi.fn(),
   fetchSaleOperation: vi.fn(),
   fetchTradeOperation: vi.fn(),
 }));
@@ -95,6 +96,7 @@ describe('operation detail', () => {
     ctx.updateTradeOperation.mockResolvedValue({ summary: 'Operación actualizada' });
     ctx.cancelTradeOperation.mockReset();
     ctx.cancelTradeOperation.mockResolvedValue({ summary: 'Operación cancelada' });
+    ctx.deleteTradeIn.mockReset().mockResolvedValue(undefined);
     ctx.fetchSaleOperation.mockReset();
     ctx.fetchSaleOperation.mockResolvedValue({});
     ctx.fetchTradeOperation.mockReset();
@@ -119,6 +121,29 @@ describe('operation detail', () => {
     expect(ctx.deleteSale).toHaveBeenCalledWith('s1');
     expect(toast).toHaveBeenCalledWith('Venta eliminada');
     expect(ctx.updateSale).not.toHaveBeenCalled();
+  });
+
+  it('deletes a cancelled trade and keeps a failed delete on screen', async () => {
+    ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'CANCELADO' })];
+    ctx.deleteTradeIn.mockRejectedValueOnce(new Error('No se pudo eliminar el canje'));
+    renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
+    const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
+    expect(dialog).toHaveTextContent('no se puede deshacer');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    expect(await screen.findByText('No se pudo eliminar el canje')).toBeVisible();
+    expect(close).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(ctx.deleteTradeIn).toHaveBeenCalledWith('t1');
+    expect(toast).toHaveBeenCalledWith('Canje eliminado');
+    expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
+  });
+
+  it('keeps an active trade confirmation as cancellation', () => {
+    ctx.tradeIns = [trade()];
+    renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003' });
+    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('quedará en el historial');
   });
 
   it('keeps the active linked sale confirmation as cancellation', () => {
