@@ -1,6 +1,6 @@
 # Issue #338 — eval real del importador de texto
 
-Fecha UTC: 2026-10-14T16:25:59.085Z. Modelo: `gpt-6-luna`. Prompt SHA256: `6654bff234cf698e`.
+Fecha UTC: 2026-10-14T17:54:16Z (corrida en un servicio temporal de Railway, ya eliminado). Modelo: `gpt-6-luna`. Prompt SHA256: `6654bff234cf698e`.
 
 Corpus: 57 listados sintéticos realistas curados manualmente, más 500 líneas. No se recibieron listados privados reales; este corpus no reemplaza validación con datos reales autorizados. Expectativas independientes, null cuenta como campo ausente; precisión de campos presentes se informa aparte para no inflar métricas.
 
@@ -8,7 +8,7 @@ Resultado del umbral (≥95% en campos clave, 0 IMEIs/precios inventados y 0 fil
 
 Importaciones: 58; errores: 0; filas esperadas: 584; perdidas: 0; extra: 0.
 IMEIs/precios inventados o asignados incorrectamente (comparación con líneas fuente y etiquetas independientes): crudas IMEI 0, precio 0; tras normalización IMEI 0, precio 0. También se cuentan como críticos los precios tomados de capacidad/batería/costo o de otro equipo, aunque ese número exista en la fuente. Campos ausentes eliminados no se cuentan como inventados, pero penalizan la precisión.
-Latencia acumulada: 262.91 s; media: 4.53 s. Costo estimado de llamadas exitosas: US$ 0.031789. Errores pueden consumir tokens que no fueron devueltos; no se presupone costo cero.
+Latencia acumulada: 231.40 s; media: 3.99 s. Costo estimado de llamadas exitosas: US$ 0.032078. Errores pueden consumir tokens que no fueron devueltos; no se presupone costo cero.
 
 Estimación conservadora sin descuentos de caché: gpt-6-luna $0.10/M entrada y $0.50/M salida, tarifa estándar, [OpenAI pricing](https://developers.openai.com/api/docs/pricing). Los tokens incluyen reintentos que devolvieron usage. CI no llama al modelo real.
 
@@ -28,7 +28,7 @@ Precisión de campos calculada sólo sobre los 57 listados variados (84 filas): 
 | cost | 100.00% | 100.00% | 100.00% | 84 (5 presentes) |
 | quantity | 100.00% | 100.00% | 100.00% | 84 (84 presentes) |
 
-500 líneas: 500/500 filas; 77609 ms; 13 llamadas; 26897 tokens entrada / 35747 salida; US$ 0.020563.
+500 líneas: 500/500 filas; 70060 ms; 13 llamadas; 26897 tokens entrada / 35806 salida; US$ 0.020593.
 
 | Listado | Filas | Perdidas | Extra | Latencia ms | Costo US$ | Resultado |
 |---|---:|---:|---:|---:|---:|---|
