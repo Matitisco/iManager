@@ -56,6 +56,7 @@ export interface Sale {
   amountCurrency?: string | null;
   paymentMethod: string;
   status: string;
+  openBalance?: number | null;
   categoryId?: string | null;
   customFields?: Record<string, any>;
   tradeInId?: string | null;
@@ -167,6 +168,7 @@ export interface Client {
   balanceCurrency?: string | null;
   categoryId?: string | null;
   tag?: string | null;
+  birthday?: string | null;
   customFields?: Record<string, any>;
   createdAt?: string | null;
 }

@@ -25,6 +25,8 @@ import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
 import { ReportDatePicker } from '../report-date-picker';
 import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView } from '../../lib/warranty';
+import { SalePaymentsFields, type SettlementState } from './sale-payments';
+import { SaleAccountPanel } from '../screens/CurrentAccount';
 
 export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string } }) {
   return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
@@ -84,6 +86,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [settlement, setSettlement] = useState<SettlementState>({ active: false, error: null, payload: null });
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
   const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
   const [take, setTake] = useState(currentTrade ? (money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0') : '');
@@ -208,7 +211,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const buildInput = (draft: boolean): OperationInput => ({
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     sellerMemberId: sellerMemberId || null,
-    ...(!currentSale && money.rate ? { exchangeRate: money.rate } : {}),
+    ...(!currentSale && (settlement.payload?.exchangeRate || money.rate) ? { exchangeRate: settlement.payload?.exchangeRate || money.rate || undefined } : {}),
     date: arFromIso(saleDate),
     clientId: clientId || null,
     clientName: buyer.trim() || null,
@@ -238,7 +241,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       batteryHealth: battery,
       grade,
       customFields: currentTrade?.customFields,
-    } } : currentSale ? { tradeIn: null } : {}),
+    }     } : currentSale ? { tradeIn: null } : {}),
+    ...(!draft && settlement.active && settlement.payload ? settlement.payload : {}),
   });
 
   const validate = (kind: 'draft' | 'confirm') => {
@@ -272,6 +276,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     if (kind === 'draft' && depositIds.length) next.amount = 'Quitá las señas para guardar pendiente; aplicalas al confirmar';
     if (kind === 'confirm' && depositIds.length && receipts.loading) next.amount = 'Esperá a que se carguen las señas';
     if (kind === 'confirm' && depositIds.length && appliedDeposits > cashDue) next.amount = 'Las señas superan el importe que falta pagar';
+    if (kind === 'confirm' && !currentSale && settlement.error) next.amount = settlement.error;
     setBad(next);
     return Object.keys(next).length === 0;
   };
@@ -398,16 +403,17 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
-      <Field label="Forma de pago"><span /></Field>
-      <Segs options={PAYMENTS} value={payment} onChange={setPayment} />
+      {!currentSale ? <SalePaymentsFields clientId={clientId} due={Math.max(0, cashDue - appliedDeposits)} currency={typedCurrency === 'USD' ? 'USD' : 'ARS'} suggestedRate={money.rate} onChange={setSettlement} /> : null}
+      {settlement.active ? null : <><Field label="Forma de pago"><span /></Field>
+      <Segs options={PAYMENTS} value={payment} onChange={setPayment} /></>}
       {foldTrade ? (
         <details className="op-fold" data-testid="sale-trade-fold" open={tradeOpen} onToggle={(event) => setTradeOpen(event.currentTarget.open)}>
           <summary>Canje como parte de pago</summary>
           <div className="op-fold-body">{tradeBlock}</div>
         </details>
       ) : null}
-      <Field label="Cobro"><span /></Field>
-      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} />
+      {settlement.active ? <p className="eqs-note">El estado de cobro sale de los pagos y las cuotas.</p> : <><Field label="Cobro"><span /></Field>
+      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} /></>}
       {sellerError ? <div className="ferr" role="alert">{sellerError}</div> : null}
       <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -495,8 +501,9 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(sale.openBalance ?? cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
+      <SaleAccountPanel saleId={sale.id} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

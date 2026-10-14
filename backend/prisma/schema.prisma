@@ -63,6 +63,10 @@ model Store {
   commissionPayments  CommissionPayment[]
   commissionAccruals  CommissionAccrual[]
   repairOrders        RepairOrder[]
+  saleTenders         SaleTender[]
+  installmentPlans    SaleInstallmentPlan[]
+  installments        SaleInstallment[]
+  followUpSettings    StoreFollowUpSettings?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -102,6 +106,7 @@ model Client {
   // Null means the stored totals are read in the store currency of the moment.
   balanceCurrency String?        @db.VarChar(3)
   tag            String?         @db.VarChar(30)
+  birthday       DateTime?
   customFields   Json?
   store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category       ClientCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -110,6 +115,7 @@ model Client {
   payments       ClientPayment[]
   deposits       ClientDeposit[]
   repairOrders   RepairOrder[]
+  installmentPlans SaleInstallmentPlan[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -230,7 +236,12 @@ model Sale {
   warrantyDays    Int?
   cancelledBy     String?        @db.VarChar(255)
   cancelledAt     DateTime?
+  // Unpaid remainder after a price increase, partial tender or installment plan. Null keeps the legacy rule: a pending sale owes its full amount.
+  openBalance     Decimal?       @db.Decimal(12, 2)
   customFields    Json?
+  tenders         SaleTender[]
+  installmentPlans SaleInstallmentPlan[]
+  accountPayments ClientPayment[]
   soldAt          DateTime
   store           Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
@@ -408,6 +419,7 @@ model RepairOrder {
   store             Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client            Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
   events            RepairStatusEvent[]
+  accountPayments   ClientPayment[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -439,12 +451,18 @@ model ClientPayment {
   kind      String   @default("PAGO") @db.VarChar(20)
   paidAt    DateTime @default(now())
   note      String?  @db.VarChar(200)
+  saleId    String?
+  repairOrderId String?
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sale      Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([storeId])
   @@index([clientId])
+  @@index([saleId])
+  @@index([repairOrderId])
 }
 
 model StoreCatalogOption {
@@ -624,4 +642,75 @@ model ClientDeposit {
   @@index([storeId, saleId])
   @@index([storeId, repairId])
   @@unique([storeId, requestKey])
+}
+
+// One row per payment instrument on a sale. Several rows are a mixed payment. No unique key: a sale can repeat the same method.
+model SaleTender {
+  id           String   @id @default(cuid())
+  storeId      String
+  saleId       String
+  clientId     String?
+  amount       Decimal  @db.Decimal(12, 2)
+  currency     String   @db.VarChar(3)
+  exchangeRate Decimal? @db.Decimal(12, 2)
+  method       String   @db.VarChar(50)
+  role         String   @default("COBRO") @db.VarChar(20)
+  createdAt    DateTime @default(now())
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale         Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([saleId])
+}
+
+model SaleInstallmentPlan {
+  id             String   @id @default(cuid())
+  storeId        String
+  saleId         String
+  clientId       String
+  count          Int
+  frequency      String   @db.VarChar(20)
+  firstDueDate   DateTime
+  surcharge      Decimal  @default(0) @db.Decimal(12, 2)
+  financedAmount Decimal  @db.Decimal(12, 2)
+  currency       String?  @db.VarChar(3)
+  createdAt      DateTime @default(now())
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  installments   SaleInstallment[]
+
+  @@index([storeId])
+  @@index([saleId])
+  @@index([clientId])
+}
+
+model SaleInstallment {
+  id         String   @id @default(cuid())
+  storeId    String
+  planId     String
+  saleId     String
+  clientId   String
+  sequence   Int
+  dueDate    DateTime
+  amount     Decimal  @db.Decimal(12, 2)
+  paidAmount Decimal  @default(0) @db.Decimal(12, 2)
+  currency   String?  @db.VarChar(3)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan       SaleInstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([saleId])
+  @@index([planId])
+  @@index([clientId, dueDate])
+}
+
+model StoreFollowUpSettings {
+  storeId          String  @id
+  birthdayLeadDays Int     @default(0)
+  warrantyMonths   Int     @default(12)
+  warrantyLeadDays Int     @default(7)
+  inactiveDays     Int     @default(90)
+  includeDebts     Boolean @default(true)
+  store            Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }

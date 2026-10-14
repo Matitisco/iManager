@@ -162,6 +162,7 @@ export function paymentLabel(method: string): string {
     TRANSFERENCIA: 'Transferencia',
     EFECTIVO: 'Efectivo',
     TARJETA: 'Tarjeta',
+    MIXTO: 'Varios medios',
     CRIPTO: 'Cripto',
   } as Record<string, string>)[method] ?? method;
 }

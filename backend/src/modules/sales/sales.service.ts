@@ -52,6 +52,7 @@ export interface SalePatchInput {
 
 export interface SaleResponse {
   depositAppliedAmount?: number;
+  openBalance?: number | null;
   sellerMemberId: string | null;
   registeredByUserId: string | null;
   exchangeRate: number | null;
@@ -77,6 +78,7 @@ export interface SaleResponse {
 
 type SaleRecord = {
   depositAppliedAmount?: Decimal;
+  openBalance?: Decimal | null;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: Decimal | null;
@@ -171,6 +173,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(" "),
     depositAppliedAmount: Number(sale.depositAppliedAmount ?? 0),
+    openBalance: sale.openBalance == null ? null : Number(sale.openBalance),
     amount: sale.amount.toNumber(),
     amountCurrency: sale.amountCurrency ?? null,
     paymentMethod: sale.paymentMethod as SaleResponse["paymentMethod"],
@@ -364,6 +367,7 @@ export async function updateSale(
         dateLabel: newDateLabel,
         soldAt: newSoldAt,
         amount: newAmount,
+        ...(existing.status === "PENDIENTE" && (input.status ?? existing.status) === "COMPLETADA" && existing.openBalance != null ? { openBalance: new Decimal(0) } : {}),
         ...(nextCurrency ? { amountCurrency: nextCurrency } : {}),
         clientId: nextClientId,
         clientName: input.clientName !== undefined ? (input.clientName?.trim() ?? "") : existing.clientName,
@@ -408,7 +412,8 @@ export async function updateSale(
     if (existing.status === "PENDIENTE" && nextStatus === "COMPLETADA" && nextClientId) {
       const payer = await tx.client.findFirst({ where: { id: nextClientId, storeId } });
       if (payer) {
-        const nextBalance = new Decimal(payer.pendingBalance.toString()).minus(newAmount);
+        const owed = existing.openBalance != null ? new Decimal(existing.openBalance.toString()) : new Decimal(newAmount);
+        const nextBalance = new Decimal(payer.pendingBalance.toString()).minus(owed);
         await tx.client.update({
           where: { id: payer.id },
           data: { pendingBalance: nextBalance.lessThan(0) ? new Decimal(0) : nextBalance },
