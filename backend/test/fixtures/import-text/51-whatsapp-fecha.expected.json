@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "line": 2,
+      "endLine": 2,
+      "model": "iPhone 13",
+      "capacity": "128GB",
+      "color": null,
+      "batteryHealth": "89%",
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 420,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    },
+    {
+      "line": 3,
+      "endLine": 3,
+      "model": "iPhone 14",
+      "capacity": "128GB",
+      "color": null,
+      "batteryHealth": "92%",
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 530,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

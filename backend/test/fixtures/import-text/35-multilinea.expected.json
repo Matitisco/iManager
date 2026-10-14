@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 4,
+      "model": "iPhone 13 Pro",
+      "capacity": "256GB",
+      "color": "azul",
+      "batteryHealth": "89%",
+      "condition": "USADO",
+      "imei": "354321098765432",
+      "serial": null,
+      "price": 550,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

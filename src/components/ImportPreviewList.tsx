@@ -48,17 +48,23 @@ export function ImportPreviewList({
   currency,
   layout,
   nouns,
+  review,
+  excluded,
+  onEdit,
 }: {
   rows: Record<string, string>[];
   columns: PreviewColumn[];
   currency: string;
   layout: 'table' | 'cards';
   nouns: { one: string; many: string };
+  review?: { dudas: string[] }[];
+  excluded?: Set<number>;
+  onEdit?: (index: number) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(layout === 'cards' ? 280 : 320);
-  const rowHeight = layout === 'cards' ? CARD_ROW : TABLE_ROW;
+  const rowHeight = (layout === 'cards' ? CARD_ROW : TABLE_ROW) + (onEdit ? 40 : 0);
   const headerHeight = layout === 'table' ? 36 : 0;
   const equipment = columns.some((column) => column.key === 'model');
   const sales = columns.some((column) => column.key === 'amount');
@@ -117,12 +123,18 @@ export function ImportPreviewList({
                   key={index}
                   data-testid="import-preview-row"
                   data-index={index}
-                  className="absolute left-0 right-0 border-b border-gray-100"
+                  className={`absolute left-0 right-0 border-b border-gray-100 ${review?.[index]?.dudas.length ? 'bg-amber-50' : ''} ${excluded?.has(index) ? 'opacity-50' : ''}`}
                   style={{ top: index * rowHeight, height: rowHeight, boxSizing: 'border-box' }}
                 >
-                  {layout === 'table'
-                    ? <TableRow row={row} columns={columns} currency={currency} />
-                    : <CardRow row={row} columns={columns} currency={currency} kind={equipment ? 'equipment' : sales ? 'sales' : clients ? 'clients' : 'generic'} />}
+                  <div style={{ height: layout === 'cards' ? CARD_ROW : TABLE_ROW }}>
+                    {layout === 'table'
+                      ? <TableRow row={row} columns={columns} currency={currency} />
+                      : <CardRow row={row} columns={columns} currency={currency} kind={equipment ? 'equipment' : sales ? 'sales' : clients ? 'clients' : 'generic'} />}
+                  </div>
+                  {onEdit && <button type="button" onClick={() => onEdit(index)} data-testid={`import-edit-row-${index}`} className="w-full h-10 px-3 flex items-center justify-between gap-2 text-xs font-medium text-gray-700 text-left">
+                    <span className="truncate">{excluded?.has(index) ? 'Excluida · ' : ''}{review?.[index]?.dudas.length ? `${review[index].dudas.length} ${review[index].dudas.length === 1 ? 'duda' : 'dudas'} · ` : ''}Cantidad: {row.quantity || '1'}{row.imei ? ` · IMEI ${row.imei}` : ''}{row.serial ? ` · Serie ${row.serial}` : ''}</span>
+                    <span className="shrink-0 underline">Revisar / editar</span>
+                  </button>}
                 </div>
               );
             })}
@@ -163,7 +175,7 @@ function CardRow({
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
-          <p className="text-sm font-medium text-gray-900 shrink-0">{[price, currency].filter(Boolean).join(' ')}</p>
+          <p className="text-sm font-medium text-gray-900 shrink-0">{[price, row.currency || currency].filter(Boolean).join(' ')}</p>
         </div>
         <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>

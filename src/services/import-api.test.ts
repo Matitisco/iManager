@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from './import-api';
+import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from './import-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 vi.mock('./fetch-with-timeout', () => ({
@@ -27,6 +27,18 @@ describe('import-api', () => {
     vi.mocked(fetchWithTimeout).mockReset();
     mockUser.getIdToken.mockResolvedValue('token-123');
     setApiBaseUrl('https://api.imanager.test/');
+  });
+
+  it('sends inventory text only to the authenticated backend with its bounded analysis timeout', async () => {
+    const text = '13pm 256 azul usado bat 85 520usd';
+    const analysis = { source: 'model', rows: [], review: [], discarded: [] };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(analysis));
+    expect(await analyzeInventoryText(mockUser, text)).toEqual(analysis);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze-text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }, 190_000);
   });
 
   it('requires a configured backend url', async () => {

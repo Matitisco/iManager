@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 11",
+      "capacity": "64GB",
+      "color": "blanco",
+      "batteryHealth": "78%",
+      "condition": "OUTLET",
+      "imei": null,
+      "serial": null,
+      "price": 190,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

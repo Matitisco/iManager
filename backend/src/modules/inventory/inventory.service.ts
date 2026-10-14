@@ -642,6 +642,7 @@ export interface ImportRow {
   batteryHealth?: string;
   cost?: number;
   price: number;
+  currency?: "ARS" | "USD";
   status?: string;
   customFields?: Record<string, unknown>;
 }
@@ -704,6 +705,7 @@ export async function importInventoryItems(
   for (let i = 0; i < rows.length; i++) {
     const raw = rows[i];
     const rowNum = i + 1;
+    const rowCurrency = raw.currency ?? importedCurrency;
 
     if (!raw.model?.trim()) {
       result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
@@ -762,18 +764,23 @@ export async function importInventoryItems(
       const existing = input.imei
         ? await inventoryPrisma.inventoryItem.findFirst({
           where: { storeId, imei: input.imei },
-          select: { id: true, customFields: true, price: true, cost: true },
+          select: { id: true, customFields: true, price: true, cost: true, currency: true },
         })
         : null;
 
       if (existing) {
+        const existingCurrency = existing.currency ?? importedCurrency;
+        if (options?.lockPrice && raw.currency !== undefined && existingCurrency !== rowCurrency) {
+          result.errors.push({ row: rowNum, imei: raw.imei, message: "No tenés permiso para cambiar la moneda de este equipo" });
+          continue;
+        }
         const mergedFields = {
           ...(toCustomFields(existing.customFields ?? null)),
           ...(raw.customFields ?? {}),
         };
-        const priceChanges = moneyChanged(existing.price, input.price);
+        const priceChanges = moneyChanged(existing.price, input.price) || (raw.currency !== undefined && existingCurrency !== rowCurrency);
         const applyPrice = !(options?.lockPrice && priceChanges);
-        const costChanges = providedCost !== undefined && moneyChanged(existing.cost, providedCost);
+        const costChanges = providedCost !== undefined && (moneyChanged(existing.cost, providedCost) || (raw.currency !== undefined && existingCurrency !== rowCurrency));
         const changedAt = new Date();
         await prisma.inventoryItem.update({
           where: { id: existing.id, AND: [{ reservedDepositId: null }] },
@@ -787,7 +794,7 @@ export async function importInventoryItems(
             ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
             ...(costChanges && options?.actor ? { costChangedBy: options.actor.name, costChangedAt: changedAt } : {}),
             ...(applyPrice ? { price: toDecimal(input.price) } : {}),
-            ...((applyPrice && priceChanges) || costChanges ? { currency: importedCurrency } : {}),
+            ...((applyPrice && priceChanges) || costChanges ? { currency: rowCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             status: input.status,
             customFields: mergedFields as Prisma.InputJsonValue,
@@ -827,7 +834,7 @@ export async function importInventoryItems(
             batteryHealth: input.batteryHealth,
             cost: toDecimal(input.cost),
             price: toDecimal(input.price),
-            currency: importedCurrency,
+            currency: rowCurrency,
             status: input.status,
             customFields: raw.customFields ?? {},
           },

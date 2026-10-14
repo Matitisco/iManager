@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone 15",
+      "capacity": "128GB",
+      "color": "verde",
+      "batteryHealth": null,
+      "condition": "NUEVO",
+      "imei": null,
+      "serial": null,
+      "price": 740,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}

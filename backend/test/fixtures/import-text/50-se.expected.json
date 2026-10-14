@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "line": 1,
+      "endLine": 1,
+      "model": "iPhone SE",
+      "capacity": "128GB",
+      "color": "rojo",
+      "batteryHealth": null,
+      "condition": "USADO",
+      "imei": null,
+      "serial": null,
+      "price": 220,
+      "currency": "USD",
+      "cost": null,
+      "quantity": 1,
+      "dudas": []
+    }
+  ]
+}
