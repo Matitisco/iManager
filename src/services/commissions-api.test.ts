@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from './fetch-with-timeout';
 import { fetchCommissionSellers, fetchCommissionExchangeRate, assignSalesSeller, createCommissionPayment, createCommissionRule, deleteCommissionRule, fetchCommissionMember,
-  fetchCommissionPayments, fetchCommissionReport, fetchCommissionRules, fetchCommissionSummary, fetchMyCommissions, updateCommissionRule } from './commissions-api';
+  fetchCommissionPayments, fetchCommissionReport, fetchCommissionRules, fetchCommissionSummary, fetchMyCommissions, updateCommissionRule, voidCommissionPayment } from './commissions-api';
 
 vi.mock('./fetch-with-timeout', () => ({ fetchWithTimeout: vi.fn() }));
 const user = { uid: 'u', email: null, displayName: null, getIdToken: vi.fn().mockResolvedValue('token') };
@@ -62,6 +62,15 @@ describe('commissions HTTP client', () => {
     vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ payments: [] }));
     await expect(fetchCommissionPayments(user, '2026-01', 'm')).resolves.toEqual([]);
     expect(lastRequest()[0]).toContain('/payments?period=2026-01&memberId=m');
+  });
+  it('voids payments with authenticated, scoped POST requests and preserves server errors', async () => {
+    const payment = { id: 'p/1', voidedAt: '2026-10-14T12:00:00Z' };
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ payment }));
+    await expect(voidCommissionPayment(user, payment.id)).resolves.toEqual(payment);
+    expect(lastRequest()[0]).toContain('/payments/p%2F1/void');
+    expect(lastRequest()[1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bearer token' } });
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ error: 'No tenés acceso a Comisiones' }, 403));
+    await expect(voidCommissionPayment(user, payment.id)).rejects.toMatchObject({ status: 403 });
   });
   it('surfaces denied writes and malformed persistence responses', async () => {
     vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ error: 'No tenés acceso a Comisiones' }, 403));

@@ -16,6 +16,8 @@ export function ruleLabel(rule?: Pick<CommissionRule, 'basis' | 'rate' | 'curren
   return rule.basis === 'FIXED_PER_UNIT' ? `${commissionAmount(rule.rate, rule.currency ?? 'ARS')} por equipo` : `${rule.rate} % sobre ${rule.basis === 'PROFIT_PERCENT' ? 'ganancia' : 'venta'}`;
 }
 export function effectiveRule(rules: CommissionRule[], memberId: string | null, period: string, timezone = 'America/Argentina/Buenos_Aires') {
-  const eligible = rules.filter(rule => monthKey(new Date(rule.effectiveFrom), timezone) <= period).sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime() || b.createdAt.localeCompare(a.createdAt));
+  const eligible = rules.filter(rule => rule.active !== false && monthKey(new Date(rule.effectiveFrom), timezone) <= period).sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime() || b.createdAt.localeCompare(a.createdAt));
   return eligible.find(rule => rule.memberId === memberId) ?? eligible.find(rule => rule.memberId === null);
 }
+
+export const saleCount = (count: number) => `${count} ${count === 1 ? "venta" : "ventas"}`;

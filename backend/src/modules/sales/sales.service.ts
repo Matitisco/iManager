@@ -469,6 +469,8 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     }
 
     await voidSaleCommission(tx, storeId, id, "DELETED");
+    // A prior cancellation already voided the snapshot. Preserve its date/adjustment month.
+    await tx.commissionAccrual.updateMany({ where: { storeId, sourceSaleId: id, voidReason: "CANCELLED" }, data: { voidReason: "DELETED" } });
     await tx.sale.delete({
       where: { id },
     });

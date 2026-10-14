@@ -1,0 +1,3 @@
+# Diseño
+
+Mantener snapshots de venta después de cancelación y eliminación. Las bajas aportan cero ganado; asignar pagos en moneda de liquidación a los snapshots en orden de venta y limitar el ajuste a lo efectivamente pagado antes de la baja. Presentar el débito en el mes siguiente sin descontarlo nuevamente del saldo acumulado. Pagos anulados quedan registrados y excluidos del cálculo. Reglas con estado activo y borrado lógico conservan historial; cambios afectan sólo futuras aplicaciones. Migración exclusivamente aditiva. Reutilizar guards, writeAudit y confirmaciones del sistema; exportación sólo desde Reportes. Validación en PostgreSQL local dedicado y fixtures de navegador.

@@ -10,14 +10,14 @@ export async function assertSeller(tx: Prisma.TransactionClient, storeId: string
   }
 }
 
-/** Void once, retaining a historical credit if its period has any settlement. */
+/** Void once; retain the snapshot and the month in which paid deductions are shown. */
 export async function voidSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string,
   reason: "CANCELLED" | "DELETED" | "EDITED", now = new Date()) {
   const rows = await tx.commissionAccrual.findMany({ where: { storeId, sourceSaleId: saleId, voidedAt: null } });
   if (!rows.length) return;
   const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true } });
   for (const row of rows) {
-    const paid = await tx.commissionPayment.count({ where: { storeId, memberId: row.memberId, period: { gte: row.period }, createdAt: { lte: now } } });
+    const paid = await tx.commissionPayment.count({ where: { storeId, memberId: row.memberId, period: { gte: row.period }, voidedAt: null, settlesCurrency: row.currency, createdAt: { lte: now } } });
     const adjustmentPeriod = paid ? nextPeriod([row.period, currentPeriodKey(now, store.timezone)].sort().at(-1)!) : null;
     await tx.commissionAccrual.update({ where: { id: row.id }, data: { voidedAt: now, voidReason: reason, adjustmentPeriod } });
   }
@@ -46,8 +46,8 @@ export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId
       rate: Number(existing.rate), currency: existing.ruleCurrency as Currency | null,
       effectiveFrom: existing.soldAt, createdAt: existing.createdAt } : null;
   } else {
-    const personal = await tx.commissionRule.findFirst({ where: { storeId, memberId: sale.sellerMemberId, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
-    const selected = personal ?? await tx.commissionRule.findFirst({ where: { storeId, memberId: null, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
+    const personal = await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, memberId: sale.sellerMemberId, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
+    const selected = personal ?? await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, memberId: null, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
     rule = selected ? { ...selected, rate: Number(selected.rate), currency: selected.currency as Currency | null } : null;
   }
   if (existing) await voidSaleCommission(tx, storeId, saleId, "EDITED");
@@ -64,6 +64,6 @@ export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId
 export async function refreshSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string) {
   const sale = await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { sellerMemberId: true, status: true } });
   if (!sale?.sellerMemberId || ["CANCELADA", "CANCELLED"].includes(sale.status)) {
-    await voidSaleCommission(tx, storeId, saleId, sale?.status === "CANCELADA" ? "CANCELLED" : "EDITED");
+    await voidSaleCommission(tx, storeId, saleId, !sale ? "DELETED" : ["CANCELADA", "CANCELLED"].includes(sale.status) ? "CANCELLED" : "EDITED");
   } else await recordSaleCommission(tx, storeId, saleId);
 }

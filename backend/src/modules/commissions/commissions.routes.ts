@@ -7,12 +7,13 @@ import { currentBlueRate } from "../../lib/blue-rate.js";
 import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { COMMISSION_BASES } from "./commission-math.js";
-import { listCommissionSellers, bulkAssignSeller, createCommissionPayment, deleteCommissionRule, getCommissionPeriod, getCommissionPerson,
+import { voidCommissionPayment, listCommissionSellers, bulkAssignSeller, createCommissionPayment, deleteCommissionRule, getCommissionPeriod, getCommissionPerson,
   getMyCommissions, listCommissionPayments, listCommissionRules, saveCommissionRule, type CommissionRuleInput, type CommissionPaymentInput } from "./commissions.service.js";
 
 export const commissionPeriodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const querySchema = z.object({ period: commissionPeriodSchema.optional() }).strict();
 const ruleSchema = z.object({
+  active: z.boolean().optional(),
   memberId: z.string().min(1).nullable().default(null),
   basis: z.enum(COMMISSION_BASES).default("PROFIT_PERCENT"),
   rate: z.number().finite().nonnegative().max(99999999),
@@ -76,6 +77,10 @@ export async function commissionsRoutes(app: FastifyInstance) {
       currency: z.enum(["ARS", "USD"]), exchangeRate: z.number().finite().positive().max(9999999999),
       settlesCurrency: z.enum(["ARS", "USD"]), note: z.string().trim().max(2000).nullable().optional() }).strict().parse(request.body);
     return reply.code(201).send({ payment: await createCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), input as CommissionPaymentInput) });
+  });
+  app.post("/payments/:id/void", { preHandler: admin }, async request => {
+    requireMember(request);
+    return { payment: await voidCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), idSchema.parse(request.params).id) };
   });
   app.patch("/sales/seller", { preHandler: admin }, async request => {
     requireMember(request);

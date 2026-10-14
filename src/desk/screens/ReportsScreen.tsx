@@ -1,6 +1,6 @@
 import { fetchCommissionReport } from '../../services/commissions-api';
 import type { CommissionReport } from '../../types/commissions';
-import { commissionTotal, monthKey } from '../commissions';
+import { commissionTotal, monthKey, saleCount } from '../commissions';
 import { downloadCsv } from '../csv';
 import { useEffect, useMemo, useState } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
@@ -338,7 +338,7 @@ export function ReportsScreen() {
           <Donut parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
-      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {row.salesCount} ventas</div><div className="gstore">{row.name}</div><div className="gmeta">Pagado {commissionTotal(row.paid)} · pendiente {commissionTotal(row.pending)}</div></div><div className="gr"><div className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
+      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div className="gstore">{row.name}</div><div className="gmeta">Pagado {commissionTotal(row.paid)} · pendiente {commissionTotal(row.pending)}</div></div><div className="gr"><div className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
       {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>

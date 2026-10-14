@@ -13,6 +13,7 @@ export interface CommissionRuleInput {
   rate: number;
   currency?: Currency | null;
   effectiveFrom: string;
+  active?: boolean;
 }
 export interface CommissionPaymentInput {
   memberId: string;
@@ -25,7 +26,7 @@ export interface CommissionPaymentInput {
 }
 export const presentRule = (rule: CommissionRule) => ({ ...rule, rate: Number(rule.rate), effectiveFrom: rule.effectiveFrom.toISOString(), createdAt: rule.createdAt.toISOString() });
 export const presentPayment = (payment: CommissionPayment) => ({ ...payment, amount: Number(payment.amount), exchangeRate: Number(payment.exchangeRate),
-  settledAmount: convert(Number(payment.amount), payment.currency as Currency, payment.settlesCurrency as Currency, Number(payment.exchangeRate)), createdAt: payment.createdAt.toISOString() });
+  settledAmount: convert(Number(payment.amount), payment.currency as Currency, payment.settlesCurrency as Currency, Number(payment.exchangeRate)), createdAt: payment.createdAt.toISOString(), voidedAt: payment.voidedAt?.toISOString() ?? null });
 
 async function periodContext(storeId: string, key?: string, db: Prisma.TransactionClient = prisma) {
   const store = await db.store.findUnique({ where: { id: storeId } });
@@ -52,6 +53,26 @@ function saleLine(row: CommissionAccrual, financials: boolean) {
   };
 }
 
+/** Payments settle a member/currency balance, not a sale. Allocate them FIFO to
+ * snapshots eligible at payment time, capped by earned commission. Voided payments
+ * are excluded so their reversal also removes the corresponding deduction. */
+function paidAccruals(rows: CommissionAccrual[], payments: CommissionPayment[]) {
+  const allocated = new Map<string, number>();
+  for (const payment of [...payments].sort((a, b) => a.period.localeCompare(b.period) || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))) {
+    let remaining = presentPayment(payment).settledAmount;
+    for (const row of rows) {
+      if (row.currency !== payment.settlesCurrency || row.period > payment.period || row.soldAt > payment.createdAt
+        || (row.voidedAt && row.voidedAt < payment.createdAt)) continue;
+      const used = allocated.get(row.id) ?? 0;
+      const amount = Math.min(remaining, Math.max(0, Number(row.commission) - used));
+      allocated.set(row.id, roundMoney(used + amount));
+      remaining = roundMoney(remaining - amount);
+      if (remaining <= 0) break;
+    }
+  }
+  return allocated;
+}
+
 export async function getCommissionPeriod(storeId: string, periodKey?: string, financials = false, memberId?: string) {
   const { period, store } = await periodContext(storeId, periodKey);
   const [members, rows, payments, unassignedSalesCount] = await Promise.all([
@@ -72,18 +93,20 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
     const converted = { earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals() };
     const balanceEvents: Parameters<typeof projectBalance>[0] = [];
     const memberRows = rows.filter(row => row.memberId === member.id);
-    const memberPayments = payments.filter(payment => payment.memberId === member.id);
+    const memberPayments = payments.filter(payment => payment.memberId === member.id && !payment.voidedAt);
+    const allocations = paidAccruals(memberRows, memberPayments);
+    const adjustments = memberRows.filter(row => row.voidedAt && row.adjustmentPeriod === period.key && (allocations.get(row.id) ?? 0) > 0);
     for (const row of memberRows) {
       const rate = Number(row.exchangeRate ?? currentRate);
-      const credit = !row.voidedAt || row.adjustmentPeriod != null ? Number(row.commission) : 0;
-      const adjustment = row.adjustmentPeriod && row.adjustmentPeriod <= period.key ? -Number(row.commission) : 0;
+      const credit = row.voidedAt ? 0 : Number(row.commission);
+      const adjustment = row.voidedAt && row.adjustmentPeriod === period.key ? -(allocations.get(row.id) ?? 0) : 0;
       if (row.period < period.key) plus(previousBalance, row.currency, credit);
-      if (row.adjustmentPeriod && row.adjustmentPeriod < period.key) plus(previousBalance, row.currency, adjustment);
+      // Move the already negative carry into this month’s adjustment line, without a second debit.
+      if (adjustment) plus(previousBalance, row.currency, -adjustment);
       if (row.period === period.key) plus(earned, row.currency, credit);
       if (row.adjustmentPeriod === period.key) plus(adjusted, row.currency, adjustment);
-      plus(pending, row.currency, credit + adjustment);
+      plus(pending, row.currency, credit);
       balanceEvents.push({ period: row.period, at: row.soldAt.getTime(), currency: row.currency as Currency, amount: credit, exchangeRate: rate });
-      if (adjustment) balanceEvents.push({ period: row.adjustmentPeriod!, at: row.voidedAt!.getTime(), currency: row.currency as Currency, amount: adjustment, exchangeRate: rate });
       for (const target of ["ARS", "USD"] as const) {
         if (row.period === period.key) plus(converted.earned, target, convert(credit, row.currency as Currency, target, rate));
         if (row.adjustmentPeriod === period.key) plus(converted.earned, target, convert(adjustment, row.currency as Currency, target, rate));
@@ -107,11 +130,11 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
       salesCount: memberRows.filter(row => row.period === period.key && !row.voidedAt).length,
       previousBalance, earned, adjustmentsTotal: adjusted, paid, pending, carry: { ...pending }, converted,
       sales: memberRows.filter(row => row.period === period.key).map(row => saleLine(row, financials)),
-      adjustments: memberRows.filter(row => row.adjustmentPeriod === period.key).map(row => ({
+      adjustments: adjustments.map(row => ({
         accrualId: row.id, saleId: row.sourceSaleId, saleNumber: row.saleNumber, period: row.adjustmentPeriod!,
-        amount: -Number(row.commission), currency: row.currency, label: "A descontar", reason: row.voidReason,
+        amount: -(allocations.get(row.id) ?? 0), currency: row.currency, label: "A descontar", reason: row.voidReason,
       })),
-      payments: memberPayments.filter(payment => payment.period === period.key).map(presentPayment),
+      payments: payments.filter(payment => payment.memberId === member.id && payment.period === period.key).map(presentPayment),
     };
   });
   const summary = { converted: { earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals() }, earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals(), adjustmentsTotal: emptyTotals(), salesCount: 0, unassignedSalesCount };
@@ -134,12 +157,12 @@ export async function getCommissionPerson(storeId: string, memberId: string, per
 }
 
 export async function listCommissionRules(storeId: string) {
-  return (await prisma.commissionRule.findMany({ where: { storeId }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }] })).map(presentRule);
+  return (await prisma.commissionRule.findMany({ where: { storeId, deletedAt: null }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }] })).map(presentRule);
 }
 
 export async function saveCommissionRule(storeId: string, actor: Actor, input: Partial<CommissionRuleInput>, id?: string) {
   return withSerializableRetry(async tx => {
-    const existing = id ? await tx.commissionRule.findFirst({ where: { id, storeId } }) : null;
+    const existing = id ? await tx.commissionRule.findFirst({ where: { id, storeId, deletedAt: null } }) : null;
     if (id && !existing) throw new DomainError("Regla no encontrada", 404);
     const config = {
       memberId: existing?.memberId ?? null, basis: existing?.basis ?? "PROFIT_PERCENT",
@@ -159,19 +182,33 @@ export async function saveCommissionRule(storeId: string, actor: Actor, input: P
       effectiveFrom = zonedDayStart(year, month, day, store.timezone);
     }
     if (Number.isNaN(effectiveFrom.getTime())) throw new DomainError("Fecha de vigencia inválida");
-    const data = { memberId: config.memberId, basis: config.basis, rate: config.rate,
+    const data = { active: input.active ?? existing?.active ?? true, memberId: config.memberId, basis: config.basis, rate: config.rate,
       currency: config.basis === "FIXED_PER_UNIT" ? config.currency : null, effectiveFrom, createdBy: existing?.createdBy ?? actor.userId };
     const rule = id ? await tx.commissionRule.update({ where: { id }, data }) : await tx.commissionRule.create({ data: { ...data, storeId } });
-    await writeAudit(tx, { storeId, actor, action: id ? "commission.rule.updated" : "commission.rule.created", entityType: "commissionRule", entityId: rule.id });
+    await writeAudit(tx, { storeId, actor, action: id ? (input.active !== undefined && input.active !== existing?.active ? (input.active ? "commission.rule.activated" : "commission.rule.deactivated") : "commission.rule.updated") : "commission.rule.created", entityType: "commissionRule", entityId: rule.id });
     return presentRule(rule);
   });
 }
 
 export async function deleteCommissionRule(storeId: string, actor: Actor, id: string) {
   return withSerializableRetry(async tx => {
-    if (!await tx.commissionRule.findFirst({ where: { id, storeId } })) throw new DomainError("Regla no encontrada", 404);
-    await tx.commissionRule.delete({ where: { id } });
+    const rule = await tx.commissionRule.findFirst({ where: { id, storeId } });
+    if (!rule) throw new DomainError("Regla no encontrada", 404);
+    if (rule.deletedAt) return;
+    await tx.commissionRule.update({ where: { id }, data: { deletedAt: new Date(), active: false } });
     await writeAudit(tx, { storeId, actor, action: "commission.rule.deleted", entityType: "commissionRule", entityId: id });
+  });
+}
+
+export async function voidCommissionPayment(storeId: string, actor: Actor, id: string) {
+  return withSerializableRetry(async tx => {
+    const payment = await tx.commissionPayment.findFirst({ where: { id, storeId } });
+    if (!payment) throw new DomainError("Pago no encontrado", 404);
+    if (payment.voidedAt) return presentPayment(payment);
+    const voided = await tx.commissionPayment.update({ where: { id }, data: { voidedAt: new Date(), voidedBy: actor.userId } });
+    await writeAudit(tx, { storeId, actor, action: "commission.payment.voided", entityType: "commissionPayment", entityId: id,
+      detail: `${payment.amount} ${payment.currency} (${payment.period})` });
+    return presentPayment(voided);
   });
 }
 

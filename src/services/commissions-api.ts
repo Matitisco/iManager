@@ -46,6 +46,11 @@ export async function createCommissionPayment(user: AuthUserLike, input: Commiss
   if (!data.payment) throw new Error('Respuesta inválida al registrar pago');
   return data.payment;
 }
+export async function voidCommissionPayment(user: AuthUserLike, id: string): Promise<CommissionPayment> {
+  const data = await apiRequest<{ payment: CommissionPayment }>(user, `/api/commissions/payments/${encodeURIComponent(id)}/void`, { method: 'POST', fallback });
+  if (!data.payment) throw new Error('Respuesta inválida al anular pago');
+  return data.payment;
+}
 export function assignSalesSeller(user: AuthUserLike, saleIds: string[], sellerMemberId: string | null) {
   return apiRequest<{ updated: number }>(user, '/api/commissions/sales/seller', { method: 'PATCH', body: { saleIds, sellerMemberId }, fallback, errorFrom: 'friendly' });
 }

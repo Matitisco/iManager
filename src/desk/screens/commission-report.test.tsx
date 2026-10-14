@@ -31,3 +31,20 @@ it('does not offer the team commission report without its permission', () => {
   expect(screen.queryByRole('button', { name: 'Comisiones' })).not.toBeInTheDocument();
   expect(fetchReport).not.toHaveBeenCalled();
 });
+
+it('exports cancelled earned zero, paid partial and negative carry, and pluralizes one sale', async () => {
+  fetchReport.mockResolvedValue({ from: '2026-10', to: '2026-11', rows: [
+    { ...commissionFixturePeople[1], period: '2026-10', salesCount: 1, earned: { ARS: 0, USD: 0 }, paid: { ARS: 0, USD: 10 }, pending: { ARS: 0, USD: -10 }, adjustmentsTotal: { ARS: 0, USD: 0 }, converted: { earned: { ARS: 0, USD: 0 }, paid: { ARS: 15500, USD: 10 }, pending: { ARS: -15500, USD: -10 } } },
+    { ...commissionFixturePeople[1], period: '2026-11', salesCount: 0, earned: { ARS: 0, USD: 0 }, paid: { ARS: 0, USD: 0 }, pending: { ARS: 0, USD: -10 }, adjustmentsTotal: { ARS: 0, USD: -10 }, converted: { earned: { ARS: -15500, USD: -10 }, paid: { ARS: 0, USD: 0 }, pending: { ARS: -15500, USD: -10 } } },
+  ] });
+  render(<ReportsScreen />);
+  await userEvent.click(screen.getByRole('button', { name: 'Comisiones' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Exportar' })).toBeEnabled());
+  expect(screen.getByText('2026-10 · 1 venta')).toBeInTheDocument();
+  expect(screen.queryByText(/1 ventas/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Exportar' }));
+  expect(download.mock.calls[0][0].slice(1)).toEqual([
+    ['2026-10', 'Martín Gómez', '1', '0', '0', '0', '10', '0', '-10', '0', '0'],
+    ['2026-11', 'Martín Gómez', '0', '0', '0', '0', '0', '0', '-10', '0', '-10'],
+  ]);
+});

@@ -165,6 +165,131 @@ describe("commissions API (adapted from #122)", () => {
     await deleteSale(f.storeId, sale.id, { userId: f.user.id, name: "Dueño" });
     expect((await detail(f.member.id, nextPeriod(currentPeriodKey()))).pending.USD).toBe(-40);
   });
+  it.each(["ARS", "USD"])("partial settlement, cancel and hard delete preserve only the paid %s deduction in every projection", async currency => {
+    const f = await fixture();
+    await rule(f.member.id, 20, "2025-01-01T00:00:00Z", "FIXED_PER_UNIT", currency);
+    const sale = await sell(f.member.id, { currency });
+    const payment = await pay(f.member.id, { amount: currency === "USD" ? 15500 : 10, currency: "ARS", settlesCurrency: currency, exchangeRate: 1550 });
+    expect(payment.settledAmount).toBe(10);
+    expect((await getApp().inject({ method: "POST", url: `/api/operations/sales/sales/${sale.id}/cancel`, headers: ownerHeaders() })).statusCode).toBe(200);
+    const cancelled = await detail(f.member.id);
+    expect(cancelled.earned[currency]).toBe(0);
+    expect(cancelled.paid[currency]).toBe(10);
+    expect(cancelled.pending[currency]).toBe(-10);
+    expect(cancelled.salesCount).toBe(0);
+    const snapshot = await prisma.commissionAccrual.findFirstOrThrow({ where: { sourceSaleId: sale.id } });
+    expect((await getApp().inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers: ownerHeaders() })).statusCode).toBe(204);
+    expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
+    expect((await detail(f.member.id)).sales[0]).toMatchObject({ commission: 0, originalCommission: 20, voidReason: "DELETED" });
+    const next = await detail(f.member.id, snapshot.adjustmentPeriod!);
+    expect(next.adjustments).toEqual([expect.objectContaining({ saleNumber: sale.saleNumber, amount: -10, currency, label: "A descontar", reason: "DELETED" })]);
+    expect(next.previousBalance[currency]).toBe(0);
+    expect(next.pending[currency]).toBe(-10);
+    expect((await detail(f.member.id, nextPeriod(snapshot.adjustmentPeriod!))).pending[currency]).toBe(-10);
+    const summary = await getApp().inject({ url: `/api/commissions?period=${PERIOD}`, headers: ownerHeaders() });
+    expect(summary.json().summary.earned[currency]).toBe(0);
+    expect(summary.json().summary.pending[currency]).toBe(-10);
+    const report = await getApp().inject({ url: `/api/reports/commissions?from=${PERIOD}&to=${snapshot.adjustmentPeriod}`, headers: ownerHeaders() });
+    expect(report.statusCode).toBe(200);
+    const reportRows = report.json().rows.filter((row: { memberId: string }) => row.memberId === f.member.id);
+    expect(reportRows[0]).toMatchObject({ salesCount: 0, earned: { ARS: 0, USD: 0 }, pending: { [currency]: -10 } });
+    expect(reportRows.at(-1)).toMatchObject({ adjustmentsTotal: { [currency]: -10 }, pending: { [currency]: -10 } });
+    const voided = await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: ownerHeaders() });
+    expect(voided.statusCode).toBe(200);
+    expect(voided.json().payment).toMatchObject({ voidedAt: expect.any(String), voidedBy: f.user.id });
+    const afterVoid = await detail(f.member.id, snapshot.adjustmentPeriod!);
+    expect(afterVoid.pending[currency]).toBe(0);
+    expect(afterVoid.adjustments).toEqual([]);
+    const original = await detail(f.member.id);
+    expect(original.paid[currency]).toBe(0);
+    expect(original.payments[0].voidedAt).toBeTruthy();
+    await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: ownerHeaders() });
+    expect(await prisma.auditEvent.count({ where: { entityId: payment.id, action: "commission.payment.voided" } })).toBe(1);
+  });
+  it("does not allocate payments from another currency or payments made after cancellation to a cancelled sale", async () => {
+    const f = await fixture();
+    await rule();
+    const sale = await sell(f.member.id, { currency: "USD" });
+    await sell(f.member.id, { currency: "ARS" });
+    await pay(f.member.id, { amount: 40 });
+    await getApp().inject({ method: "POST", url: `/api/operations/sales/sales/${sale.id}/cancel`, headers: ownerHeaders() });
+    await pay(f.member.id, { amount: 10, currency: "USD", settlesCurrency: "USD" });
+    const next = await detail(f.member.id, nextPeriod(currentPeriodKey()));
+    expect(next.adjustments).toEqual([]);
+    expect(next.pending).toEqual({ ARS: 60, USD: -10 });
+  });
+  it("allocates multiple partial payments once across multiple cancelled sales", async () => {
+    const f = await fixture();
+    await rule();
+    const a = await sell(f.member.id, { date: "14/01/2026" });
+    const b = await sell(f.member.id);
+    await pay(f.member.id, { amount: 120 });
+    await pay(f.member.id, { amount: 20 });
+    for (const sale of [a, b]) await getApp().inject({ method: "POST", url: `/api/operations/sales/sales/${sale.id}/cancel`, headers: ownerHeaders() });
+    const next = await detail(f.member.id, nextPeriod(currentPeriodKey()));
+    expect(next.adjustments.map((row: { amount: number }) => row.amount).sort((a: number, b: number) => a - b)).toEqual([-100, -40]);
+    expect(next.pending.ARS).toBe(-140);
+    expect(next.adjustmentsTotal.ARS).toBe(-140);
+  });
+  it("rule activation and logical deletion affect new sales without recalculating paid history", async () => {
+    const f = await fixture();
+    const saved = await rule();
+    await sell(f.member.id);
+    await pay(f.member.id);
+    const patch = async (active: boolean) => getApp().inject({ method: "PATCH", url: `/api/commissions/rules/${saved.id}`, headers: ownerHeaders(), payload: { active } });
+    expect((await patch(false)).json().rule.active).toBe(false);
+    await sell(f.member.id);
+    expect((await detail(f.member.id)).earned.ARS).toBe(100);
+    expect((await patch(true)).json().rule.active).toBe(true);
+    await sell(f.member.id);
+    expect((await detail(f.member.id)).earned.ARS).toBe(200);
+    expect((await getApp().inject({ method: "DELETE", url: `/api/commissions/rules/${saved.id}`, headers: ownerHeaders() })).statusCode).toBe(204);
+    await sell(f.member.id);
+    const person = await detail(f.member.id);
+    expect(person.earned.ARS).toBe(200);
+    expect(person.paid.ARS).toBe(40);
+    expect((await getApp().inject({ url: "/api/commissions/rules", headers: ownerHeaders() })).json().rules).toEqual([]);
+    expect((await prisma.commissionRule.findUniqueOrThrow({ where: { id: saved.id } })).deletedAt).not.toBeNull();
+    const events = await prisma.auditEvent.findMany({ where: { entityId: saved.id } });
+    expect(events.map(event => event.action)).toEqual(expect.arrayContaining(["commission.rule.deactivated", "commission.rule.activated", "commission.rule.deleted"]));
+  });
+  it.each(["STAFF", "MANAGER"] as const)("requires commissions permission for %s rule mutations and voids, independently of sensitive access", async role => {
+    const f = await fixture();
+    const saved = await rule();
+    const payment = await pay(f.member.id);
+    await prisma.storeMember.update({ where: { id: f.member.id }, data: { role, sensitiveAccess: true } });
+    for (const request of [
+      { method: "PATCH" as const, url: `/api/commissions/rules/${saved.id}`, payload: { active: false } },
+      { method: "DELETE" as const, url: `/api/commissions/rules/${saved.id}` },
+      { method: "POST" as const, url: `/api/commissions/payments/${payment.id}/void` },
+    ]) expect((await getApp().inject({ ...request, headers: f.headers })).statusCode).toBe(403);
+    await prisma.storeMember.update({ where: { id: f.member.id }, data: { sections: ["commissions"], sensitiveAccess: false } });
+    expect((await getApp().inject({ method: "PATCH", url: `/api/commissions/rules/${saved.id}`, headers: f.headers, payload: { active: false } })).statusCode).toBe(200);
+    expect((await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: f.headers })).statusCode).toBe(200);
+    expect((await getApp().inject({ method: "DELETE", url: `/api/commissions/rules/${saved.id}`, headers: f.headers })).statusCode).toBe(204);
+    const foreign = await seedStoreContext({ firebaseUid: "foreign-owner", email: "foreign@example.com" });
+    const foreignRule = await prisma.commissionRule.create({ data: { storeId: foreign.store!.id, rate: 10, effectiveFrom: new Date(), createdBy: foreign.user.id } });
+    const foreignPayment = await prisma.commissionPayment.create({ data: { storeId: foreign.store!.id, memberId: foreign.membership!.id, period: PERIOD, amount: 10, currency: "ARS", settlesCurrency: "ARS", exchangeRate: 1000, createdBy: foreign.user.id } });
+    expect((await getApp().inject({ method: "PATCH", url: `/api/commissions/rules/${foreignRule.id}`, headers: f.headers, payload: { active: false } })).statusCode).toBe(404);
+    expect((await getApp().inject({ method: "DELETE", url: `/api/commissions/rules/${foreignRule.id}`, headers: f.headers })).statusCode).toBe(404);
+    expect((await getApp().inject({ method: "POST", url: `/api/commissions/payments/${foreignPayment.id}/void`, headers: f.headers })).statusCode).toBe(404);
+    expect(await prisma.auditEvent.count({ where: { storeId: foreign.store!.id } })).toBe(0);
+  });
+  it("finds and sells unarchived inventory without Estado, while excluding reserved and archived devices", async () => {
+    const f = await fixture();
+    const stock = await seedCatalogFixture(f.storeId);
+    await prisma.inventoryItem.createMany({ data: ["RESERVADO", ""].map((status, index) => ({
+      storeId: f.storeId, model: "No elegible", capacity: "128GB", color: "Negro", condition: "USADO",
+      grade: "A", batteryHealth: "90%", cost: 10, price: 20, status, archivedAt: index ? new Date() : null,
+    })) });
+    await prisma.inventoryItem.update({ where: { id: stock.inventoryItem.id }, data: { status: "" } });
+    const options = await getApp().inject({ url: "/api/operations/sales/options", headers: ownerHeaders() });
+    expect(options.statusCode).toBe(200);
+    expect(options.json().products.map((product: { id: string }) => product.id)).toEqual([stock.inventoryItem.id]);
+    await sell(null, { productId: stock.inventoryItem.id });
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: stock.inventoryItem.id } })).status).toBe("VENDIDO");
+    expect((await getApp().inject({ url: "/api/operations/sales/options", headers: ownerHeaders() })).json().products).toEqual([]);
+  });
   it("unpaid cancellations earn zero and do not produce a paid adjustment", async () => {
     const f = await fixture();
     await rule();
