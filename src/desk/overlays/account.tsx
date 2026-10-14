@@ -9,6 +9,7 @@ import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { manualQuoteOrderError } from '../../lib/manual-quote';
 import { clearStoreContactOffer, normalizeInstagram, storeContactErrors } from '../../lib/store-contact';
 import { clearBad, shareOrCopy, type FormProps } from './shared';
+import { DEFAULT_REPAIR_WARRANTY_DAYS, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, parseWarrantyDaysInput } from '../../lib/warranty';
 import { ROLE_LABEL } from '../../lib/roles';
 import { DeskSelect } from '../select';
 
@@ -88,6 +89,51 @@ export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & 
         });
         if (store?.id) clearStoreContactOffer(store.id);
       }, 'Tienda actualizada');
+      }} />
+    </Sheet>
+  );
+}
+
+export function WarrantyForm({ run, busy, error }: FormProps) {
+  const { appSession, updateStore } = useAppContext();
+  const { close } = useDesk();
+  const isPhone = usePhoneLayout();
+  const store = appSession?.store;
+  const [used, setUsed] = useState(String(store?.usedWarrantyDays ?? DEFAULT_USED_WARRANTY_DAYS));
+  const [sealed, setSealed] = useState(String(store?.sealedWarrantyDays ?? DEFAULT_SEALED_WARRANTY_DAYS));
+  const [repair, setRepair] = useState(String(store?.repairWarrantyDays ?? DEFAULT_REPAIR_WARRANTY_DAYS));
+  const [bad, setBad] = useState<Record<string, string>>({});
+  const field = (key: string, label: string, value: string, setValue: (next: string) => void, testId: string) => (
+    <Field label={label} error={bad[key]}>
+      <input data-testid={testId} inputMode="numeric" value={value} onChange={(event) => { setValue(event.target.value.replace(/\D/g, '').slice(0, 4)); clearBad(setBad, key); }} />
+    </Field>
+  );
+  return (
+    <Sheet title={isPhone ? 'Garantías' : 'Garantías'} subtitle={isPhone ? 'Configuración' : 'Días que se precargan al vender o al crear una reparación.'} className="cfg-sheet" onClose={close}>
+      {error && <div className="ferr">{error}</div>}
+      <p className="sheet-note">Cada venta y cada reparación puede cambiar sus propios días. Lo ya cargado no se modifica.</p>
+      {field('used', 'Usados (días)', used, setUsed, 'warranty-used-days')}
+      {field('sealed', 'Sellados (días)', sealed, setSealed, 'warranty-sealed-days')}
+      {field('repair', 'Reparaciones (días)', repair, setRepair, 'warranty-repair-days')}
+      <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
+        const parsed = {
+          used: parseWarrantyDaysInput(used),
+          sealed: parseWarrantyDaysInput(sealed),
+          repair: parseWarrantyDaysInput(repair),
+        };
+        const next: Record<string, string> = {};
+        if (parsed.used.error || parsed.used.days === undefined) next.used = parsed.used.error ?? 'Completá los días';
+        if (parsed.sealed.error || parsed.sealed.days === undefined) next.sealed = parsed.sealed.error ?? 'Completá los días';
+        if (parsed.repair.error || parsed.repair.days === undefined) next.repair = parsed.repair.error ?? 'Completá los días';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        void run(async () => {
+          await updateStore({
+            usedWarrantyDays: parsed.used.days,
+            sealedWarrantyDays: parsed.sealed.days,
+            repairWarrantyDays: parsed.repair.days,
+          });
+        }, 'Garantías actualizadas');
       }} />
     </Sheet>
   );

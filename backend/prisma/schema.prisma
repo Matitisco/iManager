@@ -38,6 +38,10 @@ model Store {
   manualBuy           Decimal?             @db.Decimal(12, 2)
   manualSell          Decimal?             @db.Decimal(12, 2)
   timezone            String               @default("America/Argentina/Buenos_Aires") @db.VarChar(80)
+  // Days prefilled on a new sale or repair. Existing rows receive the default; past sales stay without a warranty.
+  usedWarrantyDays   Int                  @default(30)
+  sealedWarrantyDays Int                  @default(90)
+  repairWarrantyDays Int                  @default(30)
   memberships         StoreMember[]
   invitations         StoreInvitation[]
   clients             Client[]
@@ -222,6 +226,8 @@ model Sale {
   amountCurrency  String?        @db.VarChar(3)
   paymentMethod   String         @db.VarChar(50)
   status          String         @db.VarChar(20)
+  // Null on sales created before warranties. The end date is soldAt plus these days, so editing the sale date moves it.
+  warrantyDays    Int?
   cancelledBy     String?        @db.VarChar(255)
   cancelledAt     DateTime?
   customFields    Json?
@@ -394,6 +400,8 @@ model RepairOrder {
   currency          String?             @db.VarChar(3)
   technician        String              @default("") @db.VarChar(120)
   status            String              @default("RECIBIDO") @db.VarChar(40)
+  // Null on orders created before warranties. Coverage starts when the order is delivered.
+  warrantyDays      Int?
   estimatedDelivery DateTime?
   notifyWhatsapp    Boolean             @default(false)
   receivedAt        DateTime            @default(now())

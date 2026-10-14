@@ -119,6 +119,9 @@ export interface StoreUpdateInput {
   manualBuy?: number | null;
   manualSell?: number | null;
   timezone?: string;
+  usedWarrantyDays?: number;
+  sealedWarrantyDays?: number;
+  repairWarrantyDays?: number;
 }
 
 export async function updateStore(storeId: string, data: StoreUpdateInput) {
@@ -139,6 +142,9 @@ export async function updateStore(storeId: string, data: StoreUpdateInput) {
       ...("legalName" in data ? { legalName: blankToNull(data.legalName) } : {}),
       ...("taxId" in data ? { taxId: blankToNull(data.taxId) } : {}),
       ...("address" in data ? { address: blankToNull(data.address) } : {}),
+      ...("usedWarrantyDays" in data ? { usedWarrantyDays: data.usedWarrantyDays } : {}),
+      ...("sealedWarrantyDays" in data ? { sealedWarrantyDays: data.sealedWarrantyDays } : {}),
+      ...("repairWarrantyDays" in data ? { repairWarrantyDays: data.repairWarrantyDays } : {}),
     },
   });
 }

@@ -13,6 +13,8 @@ import { ReportDatePicker } from './report-date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
+import { DEFAULT_REPAIR_WARRANTY_DAYS, parseWarrantyDaysInput, repairWarrantyView } from '../lib/warranty';
+import { shareOrCopy } from './overlays/shared';
 
 function moneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -33,7 +35,7 @@ function arToIso(value: string | null | undefined) {
 }
 
 export function RepairOrderForm({ busy, error }: { busy: boolean; error: string | null }) {
-  const { clients, addRepairOrder } = useAppContext();
+  const { clients, addRepairOrder, appSession } = useAppContext();
   const money = useMoney();
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
@@ -50,6 +52,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   const [deposit, setDeposit] = useState('0');
   const [delivery, setDelivery] = useState('');
   const [technician, setTechnician] = useState('');
+  const [warrantyDays, setWarrantyDays] = useState(String(appSession?.store?.repairWarrantyDays ?? DEFAULT_REPAIR_WARRANTY_DAYS));
   const [status, setStatus] = useState(REPAIR_RECEIVED);
   const [bad, setBad] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -68,6 +71,9 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
     if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
     if (depositExceedsEstimate(typedEstimate, typedDeposit)) next.deposit = DEPOSIT_OVER_ESTIMATE;
+    const warranty = parseWarrantyDaysInput(warrantyDays);
+    if (warranty.error) next.warranty = warranty.error;
+    else if (warranty.days === undefined) next.warranty = 'Completá los días de garantía';
     setBad(next);
     if (Object.keys(next).length || !addRepairOrder) return;
     setSaving(true);
@@ -85,6 +91,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         technician: technician.trim(),
         status: status || REPAIR_RECEIVED,
         estimatedDelivery: delivery ? isoDate(delivery) : null,
+        ...(warranty.days !== undefined ? { warrantyDays: warranty.days } : {}),
       });
       close();
       toast('Orden creada');
@@ -146,6 +153,10 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
               <input value={technician} maxLength={120} placeholder="Técnico Ejemplo" onChange={(event) => setTechnician(event.target.value)} />
             </Field>
           </div>
+          <Field label="Garantía (días)" error={bad.warranty}>
+            <input data-testid="repair-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="0" onChange={(event) => { setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); setBad((current) => ({ ...current, warranty: '' })); }} />
+          </Field>
+          <p className="eqs-note">La garantía empieza cuando la orden pasa a Entregado.</p>
           <Field label="Estado"><span /></Field>
           <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('REPAIR_STATUS') : undefined} />
         </div>
@@ -202,9 +213,25 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
 
   const clientRow = order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b>{order.clientName}</b></div> : null;
   const received = dayMonth(order.receivedAt) || formatShortDate(order.receivedAt);
+  const coverage = repairWarrantyView(order);
+  const shareReceipt = () => {
+    const text = [
+      `#${order.code}`,
+      order.device,
+      order.imei ? `IMEI ${order.imei}` : null,
+      repairFault(order),
+      `Salió ${repairPrice(order.estimate, 'dash', show)}`,
+      `Pagó ${repairPrice(order.deposit, 'dash', show)}`,
+      coverage.phrase,
+    ].filter(Boolean).join(' · ');
+    const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
+    shareOrCopy({ title: `#${order.code}`, text }, copy);
+  };
+  const warrantyRow = <div className="kv" data-testid="repair-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>;
   const footer = (
     <div className={`sacts${next ? ' svc-acts' : ''}`}>
       <button type="button" className="btn2 s" onClick={close}>Cerrar</button>
+      <button type="button" className="btn2 s" onClick={shareReceipt}>Compartir comprobante</button>
       {order.clientId ? <button type="button" className="btn2 s" disabled={busy || saving} onClick={() => open({ type: 'repair-deposit', id: order.id })}>Aplicar seña</button> : null}
       <button type="button" className="btn2 s" data-testid="repair-open-edit" onClick={() => open({ type: 'edit-ot', id: order.id })}>Editar</button>
       {next ? <button type="button" className="btn2 p" disabled={busy || saving} onClick={() => { void advance(); }}>{saving ? 'Guardando…' : `Pasar a ${next.label}`}</button> : null}
@@ -226,6 +253,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
       <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
       <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       <div className="svc-log">
         <span>Historial</span>
@@ -286,6 +314,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         <div><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
         <div><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
       </div>
+      {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       <div className="svc-log">
         <span>Historial</span>
@@ -339,6 +368,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
   const [deposit, setDeposit] = useState(order ? money.inputValue(order.deposit, order.currency) : '');
   const [delivery, setDelivery] = useState(arToIso(order?.estimatedDelivery));
   const [technician, setTechnician] = useState(order?.technician ?? '');
+  const [warrantyDays, setWarrantyDays] = useState(order?.warrantyDays == null ? '' : String(order.warrantyDays));
   const [bad, setBad] = useState<Record<string, string>>({});
 
   if (!order) {
@@ -359,6 +389,8 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
     if (!device.trim()) nextBad.device = 'Completá este dato';
     if (imeiFormatError(imei)) nextBad.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) nextBad.fault = 'Contá la falla';
+    const warranty = parseWarrantyDaysInput(warrantyDays);
+    if (warranty.error) nextBad.warranty = warranty.error;
     const typedEstimate = estimate.trim() ? parseMoney(estimate) : null;
     const typedDeposit = parseMoney(deposit);
     if (canManageSensitive) {
@@ -388,6 +420,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
         faultTags: tags,
         technician: technician.trim(),
         estimatedDelivery: delivery ? isoDate(delivery) : null,
+        ...(warranty.days !== undefined ? { warrantyDays: warranty.days } : order.warrantyDays != null ? { warrantyDays: 0 } : {}),
         ...(group ? {
           estimate: typedEstimate == null ? null : group.amounts[0]?.amount ?? typedEstimate,
           deposit: group.amounts[1]?.amount ?? typedDeposit,
@@ -465,6 +498,10 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
               </Field>
             </div>
             {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
+            <Field label="Garantía (días)" error={bad.warranty}>
+              <input data-testid="repair-edit-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="Sin garantía cargada" onChange={(event) => { setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); setBad((current) => ({ ...current, warranty: '' })); }} />
+            </Field>
+            <p className="eqs-note">Si la orden ya está entregada, estos días corren desde esa entrega.</p>
             <div className="frow">
               <ReportDatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
               <Field label="Técnico">

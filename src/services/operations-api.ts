@@ -16,6 +16,7 @@ export interface OperationInput {
   deviceLabel?: string;
   amount?: number;
   currency?: 'ARS' | 'USD' | null;
+  warrantyDays?: number;
   unlistedEquipment?: {
     model: string;
     capacity?: string;

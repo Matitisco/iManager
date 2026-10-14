@@ -63,6 +63,7 @@ export interface Sale {
   requestKey?: string | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
+  warrantyDays?: number | null;
 }
 
 export interface RepairStatusEvent {
@@ -91,6 +92,9 @@ export interface RepairOrder {
   notifyWhatsapp: boolean;
   receivedAt: string;
   whatsappUrl: string | null;
+  warrantyDays?: number | null;
+  warrantyUntil?: string | null;
+  warrantyState?: 'sin' | 'pendiente' | 'vigente' | 'vencida';
   events: RepairStatusEvent[];
 }
 

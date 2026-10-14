@@ -14,6 +14,7 @@ import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { decideClientLink, decideInventoryLink, matchOpenTradeIn, matchSellerUserId } from "../import/link-imported-sale.js";
 import { normalizeCurrencyToken, normalizeImei, normalizeImportDate, normalizeImportedDni, normalizeImportedPhone, normalizePayment, normalizeTradeIn } from "../import/normalize-import.js";
 import { parseMoney } from "../import/sheet-plan.js";
+import { saleDaysFromStore } from "../warranty/warranty.js";
 
 export interface SaleInput {
   sellerMemberId?: string | null;
@@ -29,6 +30,7 @@ export interface SaleInput {
   status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
+  warrantyDays?: number;
 }
 
 export interface SalePatchInput {
@@ -45,6 +47,7 @@ export interface SalePatchInput {
   amountCurrency?: string | null;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
+  warrantyDays?: number;
 }
 
 export interface SaleResponse {
@@ -69,6 +72,7 @@ export interface SaleResponse {
   integratedOperation: boolean;
   cancelledBy: string | null;
   cancelledAt: string | null;
+  warrantyDays: number | null;
 }
 
 type SaleRecord = {
@@ -94,7 +98,8 @@ type SaleRecord = {
   integratedOperation: boolean;
   cancelledBy?: string | null;
   cancelledAt?: Date | null;
-  inventoryItem?: { model: string; capacity: string } | null;
+  warrantyDays?: number | null;
+  inventoryItem?: { model: string; capacity: string; condition?: string } | null;
 };
 
 export interface SaleCategoryResponse {
@@ -176,6 +181,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     integratedOperation: sale.integratedOperation,
     cancelledBy: sale.cancelledBy ?? null,
     cancelledAt: sale.cancelledAt ? sale.cancelledAt.toISOString() : null,
+    warrantyDays: sale.warrantyDays ?? null,
   };
 }
 
@@ -226,6 +232,11 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
 
     const soldAt = parseArDateOr(input.date);
     const dateLabel = formatArDate(soldAt);
+    const warrantyStore = await tx.store.findUnique({
+      where: { id: storeId },
+      select: { usedWarrantyDays: true, sealedWarrantyDays: true },
+    });
+    const warrantyDays = saleDaysFromStore(input.warrantyDays, inventoryItem?.condition, warrantyStore);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
 
@@ -250,6 +261,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
         categoryId: input.categoryId ?? null,
         customFields: normalizeCustomFields(input.customFields),
         soldAt,
+        warrantyDays,
       },
     });
 
@@ -358,6 +370,7 @@ export async function updateSale(
         inventoryItemId: nextInventoryItemId,
         deviceLabel: nextDeviceLabel,
         categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
+        ...(input.warrantyDays !== undefined ? { warrantyDays: input.warrantyDays } : {}),
         customFields:
           input.customFields !== undefined
             ? normalizeCustomFields(input.customFields)
@@ -641,6 +654,7 @@ export async function importSales(
             status,
             customFields: normalizeCustomFields(customFields),
             soldAt,
+            warrantyDays: null,
           },
         });
 

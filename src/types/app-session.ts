@@ -25,6 +25,9 @@ export interface AppStoreSummary {
   manualBuy?: number | null;
   manualSell?: number | null;
   timezone: string;
+  usedWarrantyDays?: number;
+  sealedWarrantyDays?: number;
+  repairWarrantyDays?: number;
 }
 
 export interface AppMembershipSummary {
