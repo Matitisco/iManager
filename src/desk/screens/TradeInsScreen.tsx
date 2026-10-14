@@ -7,7 +7,7 @@ import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
 import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { useMoney } from '../exchange';
-import { formatShortDate, isInProgressTrade, parseAppDate, statusColor, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
+import { formatShortDate, isCancelledTrade, isInProgressTrade, parseAppDate, statusColor, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
 import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
 import { useOperationDraftError } from '../operation-drafts';
@@ -43,7 +43,7 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
 }
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, cancelTradeOperation, operationDrafts = [] } = useAppContext();
+  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [] } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back } = useDesk();
@@ -86,6 +86,8 @@ export function TradeInsScreen() {
   const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
+  const deleteCancelled = selection.selected.length > 0 && selection.selected.every((item) => isCancelledTrade(item));
+  const mixedSelection = selection.selected.some((item) => isCancelledTrade(item)) && !deleteCancelled;
   const visibleKey = page.visible.map((item) => item.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
 
@@ -143,7 +145,18 @@ export function TradeInsScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => tradeCode(tradeIns, item.id)}
-        action={{ label: 'Cancelar canjes', explanation: 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.', execute: (item) => cancelTradeOperation('tradeins', item.id), unavailable: (item) => !item.confirmationStatus || item.confirmationStatus === 'CANCELLED' ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados no se pueden cancelar.' : undefined }}
+        action={{
+          label: deleteCancelled ? 'Eliminar selección' : 'Cancelar canjes',
+          explanation: deleteCancelled
+            ? 'Se borrarán los canjes cancelados seleccionados y no se puede deshacer. Se conservan el stock, las ventas, los saldos y los pagos.'
+            : 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.',
+          execute: (item) => isCancelledTrade(item) ? deleteTradeIn(item.id) : cancelTradeOperation('tradeins', item.id),
+          unavailable: (item) => mixedSelection
+            ? 'Seleccioná solo canjes cancelados para eliminar, o canjes activos para cancelar.'
+            : !isCancelledTrade(item) && (!item.confirmationStatus || item.confirmationStatus === 'CANCELLED')
+              ? 'Seleccioná solo canjes con operación pendiente o confirmada. Los históricos y cancelados no se pueden cancelar.'
+              : undefined,
+        }}
       />
       {phone ? (
         <>

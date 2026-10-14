@@ -1304,8 +1304,15 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
 export async function isIntegratedSale(storeId: string, saleId: string, options: { excludeCancelled?: boolean } = {}) {
   return Boolean(await prisma.sale.findFirst({ where: { id: saleId, storeId, integratedOperation: true, ...(options.excludeCancelled ? { status: { not: "CANCELADA" } } : {}) }, select: { id: true } }));
 }
-export async function isIntegratedTradeIn(storeId: string, tradeId: string) {
-  return Boolean(await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId, confirmationStatus: { not: null } }, select: { id: true } }));
+export async function isIntegratedTradeIn(storeId: string, tradeId: string, options: { excludeCancelled?: boolean } = {}) {
+  return Boolean(await prisma.tradeIn.findFirst({
+    where: {
+      id: tradeId,
+      storeId,
+      confirmationStatus: options.excludeCancelled ? { in: ["PENDING", "CONFIRMED"] } : { not: null },
+    },
+    select: { id: true },
+  }));
 }
 
 

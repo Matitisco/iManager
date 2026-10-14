@@ -15,6 +15,7 @@ import { getAuthAdapter } from '../services/auth-adapter';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
+import { isActiveTradeOperation } from '../desk/format';
 
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
@@ -102,6 +103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     scopeRef, currentScope, canAccess, backendReady,
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
+    noteLocalMutation,
   } = useStoreRecords({ user, appSession, backendStatus });
 
   const commissions = useCommissionState(user, appSession, backendStatus);
@@ -372,11 +374,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return drafts;
   };
 
-  const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>) => {
+  const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>, mutate = false) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
     const result = await call(currentUser);
-    if (scopeRef.current === requestScope && canAccess(source)) applyOperationResult(result, requestScope);
+    if (scopeRef.current === requestScope && canAccess(source)) {
+      applyOperationResult(result, requestScope);
+      if (mutate) noteLocalMutation();
+    }
     return result;
   };
 
@@ -385,21 +390,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const exchangeRate = !input.draft ? input.exchangeRate ?? await fetchCommissionExchangeRate(currentUser) : input.exchangeRate;
       if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
       return createOperation(currentUser, source, { ...input, ...(exchangeRate ? { exchangeRate } : {}) });
-    });
+    }, true);
   const runUpdateSaleOperation = (id: string, input: OperationInput) =>
-    runOperation('sales', (currentUser) => updateSaleOperation(currentUser, id, input));
+    runOperation('sales', (currentUser) => updateSaleOperation(currentUser, id, input), true);
   const runUpdateTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
-    runOperation(source, (currentUser) => updateTradeOperation(currentUser, source, id, input));
+    runOperation(source, (currentUser) => updateTradeOperation(currentUser, source, id, input), true);
   const runConfirmTradeOperation = (source: OperationSource, id: string, input: OperationInput) =>
     runOperation(source, async (currentUser) => {
       const exchangeRate = input.exchangeRate ?? await fetchCommissionExchangeRate(currentUser);
       if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
       return confirmTradeOperation(currentUser, source, id, { ...input, exchangeRate });
-    });
+    }, true);
   const runCancelSaleOperation = (id: string) =>
-    runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id));
+    runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id), true);
   const runCancelTradeOperation = (source: OperationSource, id: string) =>
-    runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id));
+    runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id), true);
   const runFetchSaleOperation = (id: string) =>
     runOperation('sales', (currentUser) => fetchSaleOperation(currentUser, id));
   const runFetchTradeOperation = (source: OperationSource, id: string) =>
@@ -431,6 +436,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const backendSale = await updateBackendSale(user, updatedSale);
     setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
+    noteLocalMutation();
     if (previous && previous.productId !== backendSale.productId) {
       setInventory(prev => prev.map(product => {
         if (previous.productId && product.id === previous.productId) return { ...product, status: 'DISPONIBLE' };
@@ -481,6 +487,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     setSales(prev => prev.filter(sale => sale.id !== id));
+    noteLocalMutation();
   };
 
   const rememberClient = (client: Client | null | undefined) => {
@@ -494,6 +501,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const result = await createBackendRepair(user, input);
     setRepairOrders((current) => [result.order, ...current.filter((item) => item.id !== result.order.id)]);
     rememberClient(result.client);
+    noteLocalMutation();
     return result.order;
   };
 
@@ -503,6 +511,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const result = await updateBackendRepair(user, id, input);
     setRepairOrders((current) => current.map((item) => item.id === id ? result.order : item));
     rememberClient(result.client);
+    noteLocalMutation();
     return result.order;
   };
 
@@ -511,6 +520,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
     const order = await changeBackendRepairStatus(user, id, status);
     setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
+    noteLocalMutation();
     return order;
   };
 
@@ -519,6 +529,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
     await deleteBackendRepair(user, id);
     setRepairOrders((current) => current.filter((item) => item.id !== id));
+    noteLocalMutation();
   };
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
@@ -530,6 +541,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData)], canAccess('reports'))[0];
     setInventory(prev => [createdProduct, ...prev]);
+    noteLocalMutation();
     if (createdProduct.status === 'VENDIDO' && canAccess('notifications')) void refreshNotifications().catch(() => undefined);
     return createdProduct;
   };
@@ -550,6 +562,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       const backendProduct = visibleInventory([await updateBackendInventoryItem(user, updatedProduct)], canAccess('reports'))[0];
       setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
+      noteLocalMutation();
       if (backendProduct.status === 'VENDIDO' && previousItem?.status !== 'VENDIDO' && canAccess('notifications')) {
         void refreshNotifications().catch(() => undefined);
       }
@@ -570,30 +583,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     await deleteBackendInventoryItem(user, id);
     setInventory(prev => prev.filter(product => product.id !== id));
+    noteLocalMutation();
   };
 
   const reloadInventory = async () => {
     if (!user) return;
     const items = await fetchBackendInventory(user);
     setInventory(visibleInventory(items, canAccess('reports')));
+    noteLocalMutation();
   };
 
   const reloadSales = async () => {
     if (!user) return;
     const items = await fetchBackendSales(user);
     setSales(items);
+    noteLocalMutation();
   };
 
   const reloadClients = async () => {
     if (!user) return;
     const items = await fetchBackendClients(user);
     setClients(items);
+    noteLocalMutation();
   };
 
   const reloadTradeIns = async () => {
     if (!user) return;
     const items = await fetchBackendTradeIns(user);
     setTradeIns(items);
+    noteLocalMutation();
   };
 
   const addClient = async (clientData: Omit<Client, 'id'>) => {
@@ -607,6 +625,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const createdClient = await createBackendClient(user, clientData);
     setClients(prev => [createdClient, ...prev]);
+    noteLocalMutation();
     return createdClient;
   };
 
@@ -619,6 +638,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const backendClient = await updateBackendClient(user, updatedClient);
     setClients(prev => prev.map(client => client.id === backendClient.id ? backendClient : client));
+    noteLocalMutation();
   };
 
   const registerClientPayment = async (clientId: string, input: { amount: number; method: string; currency?: string | null }) => {
@@ -628,6 +648,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const updated = await registerBackendClientPayment(user, clientId, input);
     setClients(prev => prev.map(client => client.id === updated.id ? updated : client));
+    noteLocalMutation();
     return updated;
   };
 
@@ -640,6 +661,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     await deleteBackendClient(user, id);
     setClients(prev => prev.filter(client => client.id !== id));
+    noteLocalMutation();
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
@@ -674,6 +696,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const backendTradeIn = await updateBackendTradeIn(user, updatedTradeIn);
     setTradeIns(prev => prev.map(t => t.id === backendTradeIn.id ? backendTradeIn : t));
+    noteLocalMutation();
   };
 
   const deleteTradeIn = async (id: string) => {
@@ -684,11 +707,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
     }
     const existing = tradeIns.find((trade) => trade.id === id);
-    if (existing?.confirmationStatus != null) {
+    if (existing && isActiveTradeOperation(existing)) {
       return await runCancelTradeOperation('tradeins', id);
     }
     await deleteBackendTradeIn(user, id);
     setTradeIns(prev => prev.filter(t => t.id !== id));
+    noteLocalMutation();
   };
 
   if (loading) {

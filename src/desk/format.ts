@@ -187,6 +187,14 @@ export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumb
     : 'Operación cancelada';
 }
 
+export function isActiveTradeOperation(trade: { confirmationStatus?: string | null }): boolean {
+  return trade.confirmationStatus === 'PENDING' || trade.confirmationStatus === 'CONFIRMED';
+}
+
+export function isCancelledTrade(trade: { confirmationStatus?: string | null; status?: string }): boolean {
+  return trade.confirmationStatus === 'CANCELLED' || (trade.confirmationStatus == null && trade.status === 'CANCELADO');
+}
+
 export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {
   const typed = sale.clientName?.trim();
   if (typed) return typed;

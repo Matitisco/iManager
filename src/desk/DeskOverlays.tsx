@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
+import { isActiveTradeOperation } from './format';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
 import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
@@ -78,20 +79,23 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
 
   if (overlay.type === 'del') {
     const sale = overlay.kind === 'sale' ? ctx.sales.find((row) => row.id === overlay.id) : undefined;
+    const trade = overlay.kind === 'cj' ? ctx.tradeIns.find((row) => row.id === overlay.id) : undefined;
     const integratedSale = sale?.status !== 'CANCELADA' && Boolean(sale?.integratedOperation || sale?.tradeInId);
+    const integratedTrade = trade ? isActiveTradeOperation(trade) : false;
+    const cancelling = integratedSale || integratedTrade;
     const copy = {
       eq: ['este equipo', 'Equipo eliminado'],
       sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],
-      cj: ['este canje', 'Canje eliminado'],
+      cj: [integratedTrade ? 'la operación' : 'este canje', integratedTrade ? 'Operación cancelada' : 'Canje eliminado'],
       cl: ['este cliente', 'Cliente eliminado'],
       ot: ['esta orden', 'Orden eliminada'],
     }[overlay.kind];
     return (
       <Dialog
-        title={integratedSale ? 'Cancelar operaci\u00f3n' : overlay.kind === 'ot' ? 'Eliminar orden' : 'Eliminar registro'}
-        text={integratedSale ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
-        ok={integratedSale ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
-        cancel={integratedSale ? 'Volver' : 'Cancelar'}
+        title={cancelling ? 'Cancelar operaci\u00f3n' : overlay.kind === 'ot' ? 'Eliminar orden' : 'Eliminar registro'}
+        text={cancelling ? `${overlay.label} se cancelar\u00e1 y quedar\u00e1 en el historial.` : `${overlay.label} se va a borrar y no se puede deshacer.`}
+        ok={cancelling ? 'Cancelar operaci\u00f3n' : 'Eliminar'}
+        cancel={cancelling ? 'Volver' : 'Cancelar'}
         danger
         busy={busy}
         error={error}

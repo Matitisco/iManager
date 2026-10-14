@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -24,11 +24,12 @@ export function ClientDetail({ id }: { id: string }) {
   const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const amountDirty = useRef(false);
 
   const quoteRate = money.rate;
   const activeCurrency = money.active;
   useEffect(() => {
-    if (!client) return;
+    if (!client || amountDirty.current) return;
     setAmount(money.inputValue(client.pendingBalance, client.balanceCurrency));
   }, [client?.id, client?.pendingBalance, client?.balanceCurrency, quoteRate, activeCurrency]);
 
@@ -63,6 +64,7 @@ export function ClientDetail({ id }: { id: string }) {
     try {
       const updated = await registerClientPayment(client.id, { amount: stored, method, currency: stampedCurrency(client.balanceCurrency) });
       toast('Pago registrado');
+      amountDirty.current = false;
       setAmount(money.inputValue(updated.pendingBalance, updated.balanceCurrency));
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
@@ -83,6 +85,7 @@ export function ClientDetail({ id }: { id: string }) {
       {client.pendingBalance > 0 ? (
         <>
           <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+            amountDirty.current = true;
             const raw = event.target.value;
             if (raw.includes('-')) {
               setAmount(raw);

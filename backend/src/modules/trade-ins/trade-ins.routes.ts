@@ -163,7 +163,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
-      if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
+      if (await isIntegratedTradeIn(request.appUser.storeId, params.id, { excludeCancelled: true })) {
         await cancelTradeOperation(request.appUser.storeId, params.id, actor);
         return reply.code(204).send();
       }

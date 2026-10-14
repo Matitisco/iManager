@@ -8,11 +8,24 @@ const prismaMock = vi.hoisted(() => ({
   },
   client: {
     findFirst: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
   },
   tradeIn: {
     create: vi.fn(),
     findFirst: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
+  },
+  sale: {
+    updateMany: vi.fn(),
+  },
+  inventoryItem: {
+    update: vi.fn(),
+    updateMany: vi.fn(),
+  },
+  auditEvent: {
+    create: vi.fn(),
   },
   tradeInCategory: {
     findFirst: vi.fn(),
@@ -33,6 +46,7 @@ vi.mock("../../lib/store-sequence.js", () => ({
 import {
   createTradeIn,
   createTradeInCategory,
+  deleteTradeIn,
   importTradeIns,
   updateTradeIn,
 } from "./trade-ins.service.js";
@@ -221,5 +235,49 @@ describe("trade-ins.service", () => {
     }]);
 
     expect(result.errors).toEqual([{ row: 2, message: "Valor de toma invalido" }]);
+  });
+
+  it("deletes a cancelled trade without touching stock or client balance", async () => {
+    prismaMock.tradeIn.findFirst.mockResolvedValue({
+      id: "trade-1",
+      confirmationStatus: "CANCELLED",
+      status: "CANCELADO",
+      receivedInventoryItemId: "item-received",
+      deviceReceived: "iPhone 11",
+    });
+
+    await expect(deleteTradeIn("store-1", "trade-1", { userId: "user-1", name: "Ana" })).resolves.toBe(true);
+
+    expect(prismaMock.tradeIn.delete).toHaveBeenCalledWith({ where: { id: "trade-1" } });
+    expect(prismaMock.sale.updateMany).toHaveBeenCalledWith({ where: { storeId: "store-1", tradeInId: "trade-1" }, data: { tradeInId: null } });
+    expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.client.update).not.toHaveBeenCalled();
+    expect(prismaMock.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "trade.deleted",
+        entityType: "trade",
+        entityId: "trade-1",
+        actorUserId: "user-1",
+        actorName: "Ana",
+        detail: "iPhone 11",
+      }),
+    });
+  });
+
+  it("keeps rejecting direct deletion of an active linked trade", async () => {
+    prismaMock.tradeIn.findFirst.mockResolvedValue({ id: "trade-1", confirmationStatus: "CONFIRMED", receivedInventoryItemId: "item-received" });
+
+    await expect(deleteTradeIn("store-1", "trade-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.tradeIn.delete).not.toHaveBeenCalled();
+    expect(prismaMock.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("still deletes a historical trade that was never an operation", async () => {
+    prismaMock.tradeIn.findFirst.mockResolvedValue({ id: "trade-1", confirmationStatus: null, status: "PENDIENTE", receivedInventoryItemId: null, deviceReceived: "iPhone 11" });
+
+    await expect(deleteTradeIn("store-1", "trade-1")).resolves.toBe(true);
+    expect(prismaMock.tradeIn.delete).toHaveBeenCalledWith({ where: { id: "trade-1" } });
+    expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
   });
 });

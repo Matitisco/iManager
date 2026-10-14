@@ -4,6 +4,7 @@ import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { parseOptionalImei } from "../../lib/imei.js";
@@ -356,33 +357,42 @@ export async function updateTradeIn(
 }
 
 export async function deleteTradeIn(storeId: string, id: string, actor?: Actor | null) {
-  const existing = await prisma.tradeIn.findFirst({
-    where: { id, storeId },
-  });
-
-  if (!existing) {
-    return false;
-  }
-  if (existing.confirmationStatus != null || existing.receivedInventoryItemId) {
-    throw new TradeInsError("Este canje está vinculado a una operación. Gestioná la operación desde su origen.", 409);
-  }
-
-  await prisma.tradeIn.delete({
-    where: { id },
-  });
-
-  if (actor) {
-    await writeAudit(prisma, {
-      storeId,
-      actor,
-      action: "trade.deleted",
-      entityType: "trade",
-      entityId: id,
-      detail: existing.deviceReceived,
+  return withSerializableRetry(async (tx) => {
+    const existing = await tx.tradeIn.findFirst({
+      where: { id, storeId },
     });
-  }
 
-  return true;
+    if (!existing) {
+      return false;
+    }
+    // An active operation is cancelled by the route, which restores stock and balance once.
+    // A cancelled canje was already reversed; deleting it must not do that again.
+    const alreadyCancelled = existing.confirmationStatus === "CANCELLED";
+    if (!alreadyCancelled && (existing.confirmationStatus != null || existing.receivedInventoryItemId)) {
+      throw new TradeInsError("Este canje está vinculado a una operación. Gestioná la operación desde su origen.", 409);
+    }
+
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "trade.deleted",
+        entityType: "trade",
+        entityId: id,
+        detail: existing.deviceReceived,
+      });
+    }
+
+    await tx.sale.updateMany({
+      where: { storeId, tradeInId: id },
+      data: { tradeInId: null },
+    });
+    await tx.tradeIn.delete({
+      where: { id },
+    });
+
+    return true;
+  });
 }
 
 function parseImportAmount(raw: string | undefined): number | null {
