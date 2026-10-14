@@ -32,6 +32,9 @@ export interface AppSessionResponse {
     manualBuy: number | null;
     manualSell: number | null;
     timezone: string;
+    usedWarrantyDays: number;
+    sealedWarrantyDays: number;
+    repairWarrantyDays: number;
   } | null;
   membership: {
     role: "OWNER" | "MANAGER" | "STAFF";

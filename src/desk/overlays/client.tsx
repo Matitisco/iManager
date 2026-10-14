@@ -15,9 +15,11 @@ import type { CatalogKind } from '../../services/catalogs-api';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
+import { clientCoverageLines } from '../../lib/warranty';
+import { CoverageBlock } from '../warranty';
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [] } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
@@ -105,6 +107,7 @@ export function ClientDetail({ id }: { id: string }) {
           <Segs options={PAYMENTS} value={method} onChange={setMethod} />
         </>
       ) : null}
+      <CoverageBlock testId="client-warranties" lines={clientCoverageLines(client.id, sales, repairOrders)} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}

@@ -22,6 +22,14 @@ async function copyCurrency(db: Prisma.TransactionClient, storeId: string, expli
 import { cancelledInventoryRecord, noticeTargets, operationSummary, sectionRecords } from "./operation-copy.js";
 import { MISSING_OUTGOING_PRICE, outgoingTradeDifference } from "./outgoing-difference.js";
 import { parseQuality } from "../inventory/quality.js";
+import { saleDaysFromStore } from "../warranty/warranty.js";
+
+async function warrantyForSale(tx: Prisma.TransactionClient, storeId: string, explicit: number | undefined, condition: string | null | undefined) {
+  const store = explicit === undefined
+    ? await tx.store.findUnique({ where: { id: storeId }, select: { usedWarrantyDays: true, sealedWarrantyDays: true } })
+    : null;
+  return saleDaysFromStore(explicit, condition, store);
+}
 
 const dec = (value: number | Decimal) => new Decimal(value instanceof Decimal ? value.toString() : value);
 const toNum = (value: number | Decimal) => Number(value instanceof Decimal ? value.toString() : value);
@@ -46,6 +54,7 @@ export type OperationInput = {
   draft?: boolean;
   saleCategoryId?: string | null;
   currency?: string | null;
+  warrantyDays?: number;
   unlistedEquipment?: {
     model: string;
     capacity?: string;
@@ -129,6 +138,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     integratedOperation: sale.integratedOperation,
     cancelledBy: sale.cancelledBy ?? null,
     cancelledAt: sale.cancelledAt?.toISOString() ?? null,
+    warrantyDays: sale.warrantyDays ?? null,
   };
 }
 
@@ -607,6 +617,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
+    const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays, product?.condition ?? input.unlistedEquipment?.condition);
     let sale = await tx.sale.create({
       data: {
         storeId,
@@ -634,6 +645,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           product?.status === "VENDIDO" && product?.pendingSaleRegistration
             ? false
             : product?.pendingSaleRegistration ?? false,
+        warrantyDays,
       },
     });
     await recordSaleCommission(tx, storeId, sale.id);
@@ -784,6 +796,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
+    const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays, product?.condition ?? input.unlistedEquipment?.condition);
     let sale = await tx.sale.create({ data: {
       storeId,
       saleNumber,
@@ -808,6 +821,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       previousPendingSaleRegistration: product?.status === "VENDIDO" && product?.pendingSaleRegistration
         ? false
         : product?.pendingSaleRegistration ?? false,
+      warrantyDays,
     } });
     await recordSaleCommission(tx, storeId, sale.id);
     const paymentStatus = input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
@@ -936,6 +950,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         ...(nextCurrency ? { amountCurrency: nextCurrency } : {}),
         status: nextStatus,
         paymentMethod: input.paymentMethod ?? sale.paymentMethod,
+        ...(input.warrantyDays !== undefined ? { warrantyDays: input.warrantyDays } : {}),
         dateLabel: formatArDate(nextDate),
         soldAt: nextDate,
         inventoryItemId: nextProductId,

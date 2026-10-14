@@ -31,6 +31,9 @@ const storePatchSchema = z.object({
   manualBuy: z.number().positive().nullable().optional(),
   manualSell: z.number().positive().nullable().optional(),
   timezone: z.string().max(80).optional(),
+  usedWarrantyDays: z.number().int().min(0).max(3650).optional(),
+  sealedWarrantyDays: z.number().int().min(0).max(3650).optional(),
+  repairWarrantyDays: z.number().int().min(0).max(3650).optional(),
 });
 
 const memberRoleSchema = z.object({

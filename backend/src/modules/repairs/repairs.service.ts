@@ -12,6 +12,7 @@ import { isRetiredRepairStatus, retireRepairStatuses } from "./retire-repair-sta
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
+import { coverageState, repairDaysFromStore, warrantyUntil } from "../warranty/warranty.js";
 
 export interface RepairOrderInput {
   clientId?: string | null;
@@ -26,6 +27,7 @@ export interface RepairOrderInput {
   technician?: string;
   status?: string;
   estimatedDelivery?: string | null;
+  warrantyDays?: number;
 }
 
 export interface RepairStatusEventResponse {
@@ -54,6 +56,9 @@ export interface RepairOrderResponse {
   notifyWhatsapp: boolean;
   receivedAt: string;
   whatsappUrl: string | null;
+  warrantyDays: number | null;
+  warrantyUntil: string | null;
+  warrantyState: "sin" | "pendiente" | "vigente" | "vencida";
   events: RepairStatusEventResponse[];
 }
 
@@ -86,6 +91,17 @@ function deliveryDate(value: string | null | undefined) {
   return parsed;
 }
 
+function warrantyView(record: RepairRecord) {
+  const days = record.warrantyDays ?? null;
+  if (days == null || days <= 0) return { warrantyDays: days, warrantyUntil: null, warrantyState: "sin" as const };
+  if (record.status !== "ENTREGADO") return { warrantyDays: days, warrantyUntil: null, warrantyState: "pendiente" as const };
+  const delivered = [...record.events].reverse().find((event) => event.status === "ENTREGADO");
+  const start = delivered ? parseArDate(formatArDate(delivered.createdAt)) : null;
+  const until = warrantyUntil(start, days);
+  if (!until) return { warrantyDays: days, warrantyUntil: null, warrantyState: "pendiente" as const };
+  return { warrantyDays: days, warrantyUntil: formatArDate(until), warrantyState: coverageState(until) };
+}
+
 function serialize(record: RepairRecord, storeName: string | null): RepairOrderResponse {
   const code = repairCode(record.orderNumber);
   const phone = record.client?.phone ?? "";
@@ -112,6 +128,7 @@ function serialize(record: RepairRecord, storeName: string | null): RepairOrderR
     notifyWhatsapp: record.notifyWhatsapp,
     receivedAt: formatArDate(record.receivedAt),
     whatsappUrl,
+    ...warrantyView(record),
     events: record.events.map((event) => ({
       id: event.id,
       status: event.status,
@@ -184,6 +201,10 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
     const clientName = client.clientName;
     const orderNumber = await allocateDocumentNumber(tx, storeId, "repair");
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
+    const warrantyStore = input.warrantyDays === undefined
+      ? await tx.store.findUnique({ where: { id: storeId }, select: { repairWarrantyDays: true } })
+      : null;
+    const warrantyDays = repairDaysFromStore(input.warrantyDays, warrantyStore);
     const order = await tx.repairOrder.create({
       data: {
         orderNumber,
@@ -199,6 +220,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
         currency,
         technician: (input.technician ?? "").trim(),
         status,
+        warrantyDays,
         estimatedDelivery: deliveryDate(input.estimatedDelivery),
         notifyWhatsapp: true,
         events: { create: { storeId, status } },
@@ -246,6 +268,7 @@ export async function updateRepair(
     currency?: string;
     technician?: string;
     estimatedDelivery?: Date | null;
+    warrantyDays?: number;
   } = {};
   const touchesClient = input.clientId !== undefined || input.clientName !== undefined;
   if (input.device !== undefined) data.device = input.device.trim();
@@ -258,6 +281,7 @@ export async function updateRepair(
   if (nextCurrency) data.currency = nextCurrency;
   if (input.technician !== undefined) data.technician = input.technician.trim();
   if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
+  if (input.warrantyDays !== undefined) data.warrantyDays = input.warrantyDays;
   const updated = await withSerializableRetry(async (tx) => {
     const applications = await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } });
     const latest = await tx.repairOrder.findFirstOrThrow({ where: { id, storeId } });

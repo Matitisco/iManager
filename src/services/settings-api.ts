@@ -16,6 +16,9 @@ export interface StoreUpdateInput {
   manualBuy?: number | null;
   manualSell?: number | null;
   timezone?: string;
+  usedWarrantyDays?: number;
+  sealedWarrantyDays?: number;
+  repairWarrantyDays?: number;
 }
 
 export async function updateStoreApi(user: AuthUserLike, data: StoreUpdateInput): Promise<AppStoreSummary> {

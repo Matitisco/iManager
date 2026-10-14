@@ -17,6 +17,8 @@ import { QualityField } from '../QualityField';
 import { displayQuality, isUsedCondition, qualityDetail } from '../quality';
 import { Actions, Field, Segs, Sheet, signalDesk, useDesk } from '../ui';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, AuditLine, type FormProps } from './shared';
+import { deviceCoverageLines } from '../../lib/warranty';
+import { CoverageBlock } from '../warranty';
 
 function batteryText(value: string) {
   if (!value.trim()) return '-';
@@ -25,7 +27,7 @@ function batteryText(value: string) {
 }
 
 export function EquipmentDetail({ id }: { id: string }) {
-  const { inventory, updateProduct } = useAppContext();
+  const { inventory, updateProduct, sales = [], repairOrders = [] } = useAppContext();
   const money = useMoney();
   const { close, open, toast } = useDesk();
   const catalogs = useCatalogs();
@@ -68,6 +70,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
+      <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
       {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
