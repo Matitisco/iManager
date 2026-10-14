@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit -p tsconfig.json",
     "start": "node serve.mjs",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "check:layout": "node scripts/layout-check.mjs"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.6",
