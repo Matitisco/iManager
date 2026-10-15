@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-15**
 
+## CI — Limpieza de cotizaciones al desmontar — 2026-10-15
+
+- ExchangeProvider cancela las consultas activas e invalida respuestas pendientes al desmontarse, cambiar de configuración o iniciar otra actualización. Conserva la limpieza del intervalo y evita actualizar React después de destruir el entorno de prueba.
+- Ambas fuentes reciben la señal de cancelación; las respuestas tardías no guardan caché. Ocho regresiones deterministas cubren desmontaje, cambio a manual, cambio de fuente y StrictMode; las ocho fallan con el código original.
+- Validación: lint frontend/backend aprobado y tres ejecuciones completas consecutivas de frontend con 116 archivos y 756 tests aprobados en cada una, sin errores no manejados. Sin build ni push.
+
 ## Corrección de producción #307 / #369 — Caja opcional — 2026-10-15
 
 - Ventas, cobros, cancelaciones y correcciones de precio no exigen caja abierta. Sin configuración compatible por moneda/medio no generan movimientos; con configuración sin apertura quedan persistidos sin caja ni sesión. Se prioriza la predeterminada entre cajas compatibles abiertas hoy.
