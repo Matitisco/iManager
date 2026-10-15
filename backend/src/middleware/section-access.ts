@@ -3,7 +3,7 @@ import { DomainError } from "../lib/domain-error.js";
 import { canAccessSection, type SectionId } from "../modules/stores/sections.js";
 import type { AppUserContext } from "../types/auth.js";
 
-const LABELS: Record<SectionId, string> = { dashboard: "Dashboard", inventory: "Inventario", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", reports: "Reportes", commissions: "Comisiones", notifications: "Notificaciones" };
+const LABELS: Record<SectionId, string> = { cash: "Cajas", cashBalances: "Saldo de cajas", dashboard: "Dashboard", inventory: "Inventario", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", reports: "Reportes", commissions: "Comisiones", notifications: "Notificaciones" };
 
 export function requireSectionAccess(section: SectionId) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -16,7 +16,7 @@ export function requireSectionAccess(section: SectionId) {
       /(?:^|\/)categories\/?$/.test(route) ||
       /^\/api\/(?:inventory|sales|trade-ins|clients)\/?$/.test(route)
     );
-    if (reportRead && section !== "reports" && section !== "commissions" && canAccessSection("reports", member)) return;
+    if (reportRead && section !== "reports" && section !== "commissions" && section !== "cash" && section !== "cashBalances" && canAccessSection("reports", member)) return;
     return reply.code(403).send({ error: `No tenés acceso a ${LABELS[section]}` });
   };
 }

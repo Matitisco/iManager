@@ -6,6 +6,7 @@ export const DESK_SECTIONS = [
   { id: 'tradeins', label: 'Canjes' },
   { id: 'clients', label: 'Clientes' },
   { id: 'service', label: 'Servicio técnico' },
+  { id: 'cash', label: 'Cajas' },
   { id: 'reports', label: 'Reportes' },
   { id: 'commissions', label: 'Comisiones' },
   { id: 'notifications', label: 'Notificaciones' },
@@ -54,6 +55,7 @@ export const MOBILE_BAR_CANDIDATES: DeskSectionId[] = [
   'tradeins',
   'clients',
   'service',
+  'cash',
   'commissions',
   'notifications',
 ];

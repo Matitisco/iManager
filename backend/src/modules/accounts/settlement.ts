@@ -1,3 +1,4 @@
+import { recordCash } from '../cash/service.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { DomainError } from "../../lib/domain-error.js";
@@ -79,7 +80,7 @@ export async function settleNewSale(
     if (recorded <= 0) continue;
     const tender = drafts[index]!;
     methods.add(tender.method.trim());
-    await tx.saleTender.create({
+    await createCashTender(tx, {
       data: {
         storeId: args.storeId,
         saleId: args.saleId,
@@ -109,7 +110,7 @@ export async function settleNewSale(
   if (settled.change > 0 && args.clientId) {
     const method = args.input.changeMethod!.trim();
     methods.add(method);
-    await tx.saleTender.create({
+    await createCashTender(tx, {
       data: {
         storeId: args.storeId,
         saleId: args.saleId,
@@ -204,7 +205,7 @@ export async function settleNewSale(
       const method = planInput.firstMethod!.trim();
       methods.add(method);
       const first = slices[0]!;
-      await tx.saleTender.create({
+      await createCashTender(tx, {
         data: { storeId: args.storeId, saleId: args.saleId, clientId: args.clientId, amount: dec(first.amount), currency: args.currency, method, role: "COBRO" },
       });
       await tx.clientPayment.create({
@@ -216,4 +217,10 @@ export async function settleNewSale(
   if (unpaid > 0 && !args.clientId) throw new DomainError("El saldo pendiente necesita un cliente");
   const method = methods.size > 1 ? "MIXTO" : [...methods][0] ?? "EFECTIVO";
   return { status: unpaid > 0 ? "PENDIENTE" : "COMPLETADA", unpaid: fromCents(cents(unpaid)), method };
+}
+
+async function createCashTender(tx: Prisma.TransactionClient, args: { data: Prisma.SaleTenderUncheckedCreateInput }) {
+  const row = await tx.saleTender.create(args);
+  await recordCash(tx, { storeId: row.storeId, amount: Number(row.amount) * (row.role === 'VUELTO' ? -1 : 1), currency: row.currency, method: row.method, sourceType: 'sale', sourceId: row.saleId, note: row.role === 'VUELTO' ? 'Vuelto de venta' : 'Cobro de venta', requestKey: `tender:${row.id}` });
+  return row;
 }

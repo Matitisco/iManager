@@ -1,3 +1,4 @@
+import { recordCash } from '../cash/service.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../plugins/prisma.js";
@@ -256,6 +257,7 @@ export async function collectAccount(
       if (amount.greaterThan(remainder)) throw new DomainError("El monto supera el saldo de la reparación");
       await tx.repairOrder.update({ where: { id: repair.id }, data: { deposit: repair.deposit.plus(amount), currency } });
       await tx.clientPayment.create({ data: { storeId, clientId: client.id, repairOrderId: repair.id, amount, currency, method: input.method.trim(), kind: "PAGO", note: "Cobro de reparación" } });
+      await recordCash(tx, { storeId, amount: input.amount, currency, method: input.method, sourceType: 'repair', sourceId: repair.id, note: 'Cobro de reparación', actor });
       if (actor) await writeAudit(tx, { storeId, actor, action: "account.collected", entityType: "repair", entityId: repair.id, detail: `${input.amount} ${currency}` });
       return serializeClient(client);
     }
@@ -278,6 +280,7 @@ export async function collectAccount(
     const nextOpen = open.minus(amount);
     await tx.sale.update({ where: { id: sale.id }, data: { openBalance: Decimal.max(new Decimal(0), nextOpen), ...(nextOpen.lessThanOrEqualTo(0) ? { status: "COMPLETADA" } : {}) } });
     await tx.clientPayment.create({ data: { storeId, clientId: client.id, saleId: sale.id, amount, currency, method: input.method.trim(), kind: "PAGO", note: rows.length ? "Cobro de cuota" : "Cobro de venta" } });
+    await recordCash(tx, { storeId, amount: input.amount, currency, method: input.method, sourceType: 'sale', sourceId: sale.id, note: rows.length ? 'Cobro de cuota' : 'Cobro de venta', actor });
     const updated = await tx.client.update({ where: { id: client.id }, data: { pendingBalance: client.pendingBalance.minus(amount), balanceCurrency: currency } });
     if (actor) await writeAudit(tx, { storeId, actor, action: "account.collected", entityType: "sale", entityId: sale.id, detail: `${input.amount} ${currency}` });
     return serializeClient(updated);
