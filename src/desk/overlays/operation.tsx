@@ -9,7 +9,7 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
 import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
-import { cancellationPlan, type RefundTarget } from '../cancel-refund';
+import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -436,12 +436,13 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [movements, setMovements] = useState<ClientPaymentRecord[]>([]);
+  const buyerPending = clients.find((item) => item.id === sale?.clientId)?.pendingBalance;
   useEffect(() => {
     if (!user || !sale?.clientId) return;
     let active = true;
     fetchClientPayments(user, sale.clientId).then((rows) => { if (active) setMovements(rows); }).catch(() => undefined);
     return () => { active = false; };
-  }, [user, sale?.clientId, sale?.openBalance, sale?.status, sale?.amount]);
+  }, [user, sale?.clientId, sale?.openBalance, sale?.status, sale?.amount, buyerPending]);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
@@ -454,6 +455,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
     return { id: item.id, cash: Math.max(0, (trade ? trade.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
   });
   const buyer = clients.find((item) => item.id === sale.clientId);
+  const displayedDue = displayedSaleDue(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0);
   const plan = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
     ? cancellationPlan(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
     : { refund: 0, credit: 0 };
@@ -498,7 +500,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
               soldQuality ? `Calidad ${soldQuality}` : null,
               money.show(sale.amount, sale.amountCurrency),
               paymentLabel(sale.paymentMethod),
-              sale.status === 'PENDIENTE' ? `Debe ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : `Pagó ${money.show(sale.amount, sale.amountCurrency)}`,
+              sale.status === 'PENDIENTE' ? `Debe ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : `Pagó ${money.show(sale.amount, sale.amountCurrency)}`,
               coverage.phrase,
             ].filter(Boolean).join(' · ');
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
@@ -515,9 +517,9 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(sale.openBalance ?? cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
-      <SaleAccountPanel saleId={sale.id} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}`} />
+      <SaleAccountPanel saleId={sale.id} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

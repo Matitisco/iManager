@@ -396,7 +396,9 @@ describe("cancel refund", () => {
     expect(listed.statusCode, listed.body).toBe(200);
     const row = listed.json().debtors.find((item: { clientId: string }) => item.clientId === clientId) as {
       pendingBalance: number;
+      creditBalance: number;
       repairBalance: number;
+      statement: string;
       lines: Array<{ source: string; label: string; amount: number }>;
     };
     expect(row).toBeTruthy();
@@ -420,7 +422,7 @@ describe("cancel refund", () => {
       },
     });
     expect(created.statusCode, created.body).toBe(201);
-    expect(created.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 100 });
+    expect(created.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 100, paymentMethod: "SIN_PAGO" });
     const saleId = created.json().sale.id as string;
     expect(await prisma.saleTender.count({ where: { saleId } })).toBe(0);
     expect(await prisma.clientPayment.count({ where: { saleId, kind: "PAGO" } })).toBe(0);
@@ -580,5 +582,82 @@ describe("cancel refund", () => {
     expect(after.pendingBalance).toBe(50);
     expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 50 });
     expect(after.lines.find((line) => line.source === "VENTA")).toBeUndefined();
+  });
+
+  it("keeps the manual balance and credits a general payment once when later sales are cancelled", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    const headers = headersFor(context.user.firebaseUid);
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/accounts/clients/${fixture.client.id}/movements`,
+      headers,
+      payload: { kind: "CARGO", amount: 35, currency: "USD", note: "Saldo manual" },
+    })).statusCode).toBe(201);
+    const coveredId = await unpaidInstallment(headers, fixture.client.id);
+    const open = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "Accesorio", amount: 30, paymentMethod: "EFECTIVO", status: "PENDIENTE", currency: "USD" },
+    });
+    expect(open.statusCode, open.body).toBe(201);
+    const openId = open.json().sale.id as string;
+    const paid = await app.inject({
+      method: "POST",
+      url: "/api/operations/sales",
+      headers,
+      payload: { clientId: fixture.client.id, deviceLabel: "Cobrado", amount: 40, paymentMethod: "EFECTIVO", status: "COMPLETADA", currency: "USD" },
+    });
+    expect(paid.statusCode, paid.body).toBe(201);
+    const paidId = paid.json().sale.id as string;
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/clients/${fixture.client.id}/payments`,
+      headers,
+      payload: { amount: 30, method: "EFECTIVO", currency: "USD" },
+    })).statusCode).toBe(201);
+
+    const before = await accountOf(headers, fixture.client.id);
+    expect(before.pendingBalance).toBe(135);
+    expect(before.lines.filter((line) => line.source === "VENTA").map((line) => line.amount).sort((a, b) => a - b)).toEqual([30, 70]);
+    expect(before.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+    const account = await app.inject({ method: "GET", url: `/api/accounts/sales/${coveredId}`, headers });
+    expect(account.statusCode, account.body).toBe(200);
+    expect(account.json()).toMatchObject({ due: 70, paymentMethod: "SIN_PAGO" });
+    const first = account.json().installments[0];
+    expect(first.amount - first.paidAmount).toBe(20);
+
+    const cancelCovered = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${coveredId}/cancel`, headers, payload: {} });
+    expect(cancelCovered.statusCode, cancelCovered.body).toBe(200);
+    expect(cancelCovered.json().summary).toContain("saldo a favor US$ 30");
+    expect(cancelCovered.json().summary).not.toContain("devolución");
+    const cancelOpen = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${openId}/cancel`, headers, payload: {} });
+    expect(cancelOpen.statusCode, cancelOpen.body).toBe(200);
+    expect(cancelOpen.json().summary).not.toContain("saldo a favor");
+    expect(cancelOpen.json().summary).not.toContain("devolución");
+    const cancelPaid = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${paidId}/cancel`, headers, payload: {} });
+    expect(cancelPaid.statusCode, cancelPaid.body).toBe(200);
+    expect(cancelPaid.json().summary).toContain("devolución US$ 40");
+    expect(cancelPaid.json().summary).not.toContain("saldo a favor");
+
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(35);
+    const credits = await prisma.clientDeposit.findMany({ where: { clientId: fixture.client.id, status: "CREDIT" } });
+    expect(credits).toHaveLength(1);
+    expect(Number(credits[0]?.amount)).toBe(30);
+    expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id, kind: "CREDITO" } })).toBe(1);
+    const refunds = await prisma.clientPayment.findMany({ where: { clientId: fixture.client.id, kind: "DEVOLUCION" } });
+    expect(refunds).toHaveLength(1);
+    expect(refunds[0]).toMatchObject({ saleId: paidId });
+    expect(refunds[0]?.amount.toNumber()).toBe(40);
+    const after = await accountOf(headers, fixture.client.id);
+    expect(after.pendingBalance).toBe(35);
+    expect(after.creditBalance).toBe(30);
+    expect(after.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
+    expect(after.lines.filter((line) => line.source === "VENTA")).toHaveLength(0);
+    expect(after.statement).toContain("Saldo US$ 5");
+    expect(after.statement).toContain("Saldo a favor: US$ 30");
+    expect(after.statement.match(/Saldo a favor/g)).toHaveLength(1);
   });
 });

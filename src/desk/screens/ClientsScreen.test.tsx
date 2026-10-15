@@ -50,6 +50,7 @@ describe('New client action', () => {
 
     await user.click(button);
     expect(open).toHaveBeenCalledWith({ type: 'new-cl' });
+    expect(screen.getByText('1 cliente · 1 con saldo')).toBeInTheDocument();
   });
 });
 

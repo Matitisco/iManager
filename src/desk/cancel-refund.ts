@@ -49,6 +49,15 @@ function unlinked(movements: RefundMovement[]): RefundMovement[] {
   return movements.filter((row) => !row.saleId && !row.repairOrderId);
 }
 
+function generalPoolCents(movements: RefundMovement[]): number {
+  const loose = Math.max(0, netCents(unlinked(movements)));
+  const credited = movements.reduce((total, row) => {
+    if (row.kind !== 'CREDITO' || !row.saleId) return total;
+    return total + Math.max(0, cents(row.amount));
+  }, 0);
+  return Math.max(0, loose - credited);
+}
+
 function ordered(target: RefundTarget, openSales: RefundTarget[]): RefundTarget[] {
   const rows = [...openSales].sort((left, right) => (left.soldAt ?? '').localeCompare(right.soldAt ?? '') || left.id.localeCompare(right.id));
   if (!rows.some((sale) => sale.id === target.id)) rows.push(target);
@@ -59,7 +68,7 @@ function stillOwed(openSales: RefundTarget[], movements: RefundMovement[], pendi
   const pending = Math.max(0, cents(pendingBalance));
   const rows = [...openSales].sort((left, right) => (left.soldAt ?? '').localeCompare(right.soldAt ?? '') || left.id.localeCompare(right.id));
   const lineSum = rows.reduce((total, sale) => total + bookOpenCents(sale), 0);
-  const paid = Math.max(0, netCents(unlinked(movements)));
+  const paid = generalPoolCents(movements);
   let coverage = Math.min(paid, lineSum);
   const still = new Map<string, number>();
   for (const sale of rows) {
@@ -91,7 +100,7 @@ export function cancellationPlan(target: RefundTarget, openSales: RefundTarget[]
   const refund = Math.min(cash, Math.max(0, legacy + linked));
   const sales = ordered(target, openSales);
   const still = stillOwed(sales, movements, pendingBalance);
-  let pool = Math.max(0, netCents(unlinked(movements)));
+  let pool = generalPoolCents(movements);
   let credit = 0;
   for (const sale of sales) {
     if (pool <= 0) break;
@@ -101,6 +110,11 @@ export function cancellationPlan(target: RefundTarget, openSales: RefundTarget[]
     pool -= take;
   }
   return { refund: fromCents(refund), credit: fromCents(credit) };
+}
+
+export function displayedSaleDue(target: RefundTarget, openSales: RefundTarget[], movements: RefundMovement[] = [], pendingBalance = 0): number {
+  const sales = ordered(target, openSales);
+  return fromCents(stillOwed(sales, movements, pendingBalance).get(target.id) ?? bookOpenCents(target));
 }
 
 export function cancellationRefund(target: RefundTarget, openSales: RefundTarget[], movements: RefundMovement[] = [], pendingBalance = 0): number {

@@ -54,6 +54,16 @@ function unlinked(movements: RefundMovement[]): RefundMovement[] {
   return movements.filter((row) => !row.saleId && !row.repairOrderId);
 }
 
+/** General payments still free to cover an open sale. A credit already issued for one cancelled sale is spent. */
+function generalPool(movements: RefundMovement[]): Decimal {
+  const loose = Decimal.max(netCollected(unlinked(movements)), ZERO);
+  const credited = movements.reduce((total, row) => {
+    if (row.kind !== "CREDITO" || !row.saleId) return total;
+    return total.plus(Decimal.max(money(row.amount), ZERO));
+  }, ZERO);
+  return Decimal.max(loose.minus(credited), ZERO);
+}
+
 function orderedSales(target: RefundTarget, openSales: RefundTarget[]): RefundTarget[] {
   const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
   if (!ordered.some((sale) => sale.id === target.id)) ordered.push(target);
@@ -70,7 +80,8 @@ export function balanceStillOwed(openSales: RefundTarget[], movements: RefundMov
   const pending = Decimal.max(money(pendingBalance), ZERO);
   const ordered = [...openSales].sort((left, right) => (left.soldAt ?? "").localeCompare(right.soldAt ?? "") || left.id.localeCompare(right.id));
   const lineSum = ordered.reduce((total, sale) => total.plus(bookOpen(sale)), ZERO);
-  let coverage = Decimal.min(Decimal.max(netCollected(unlinked(movements)), ZERO), lineSum);
+  const paid = generalPool(movements);
+  let coverage = Decimal.min(paid, lineSum);
   const still = new Map<string, Decimal>();
   for (const sale of ordered) {
     const open = bookOpen(sale);
@@ -78,7 +89,7 @@ export function balanceStillOwed(openSales: RefundTarget[], movements: RefundMov
     still.set(sale.id, open.minus(hole));
     coverage = coverage.minus(hole);
   }
-  let extra = Decimal.max(lineSum.minus(Decimal.max(netCollected(unlinked(movements)), ZERO)).minus(pending), ZERO);
+  let extra = Decimal.max(lineSum.minus(paid).minus(pending), ZERO);
   if (extra.greaterThan(ZERO)) {
     for (const sale of ordered) {
       if (extra.lessThanOrEqualTo(ZERO)) break;
@@ -113,7 +124,7 @@ export function cancellationSettlement(
   const sales = orderedSales(target, openSales);
   const still = balanceStillOwed(sales, movements, pendingBalance);
   const saleStill = still.get(target.id) ?? ZERO;
-  let pool = Decimal.max(netCollected(unlinked(movements)), ZERO);
+  let pool = generalPool(movements);
   let credit = ZERO;
   for (const sale of sales) {
     if (pool.lessThanOrEqualTo(ZERO)) break;

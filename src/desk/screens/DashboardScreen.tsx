@@ -214,7 +214,7 @@ export function DashboardScreen() {
             <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
             <div className="val">{balanceTotal == null ? '—' : money.compactActive(balanceTotal)}</div>
-            <div className="sub">{balance.length} clientes</div>
+            <div className="sub">{balance.length === 1 ? '1 cliente' : `${balance.length} clientes`}</div>
           </button>
         </div>
       </div>
