@@ -22,7 +22,12 @@ Minimalista: fondo crema `#FBFAF8`, títulos grandes en DM Sans con interletrado
 
 Secciones: hero con scroll · problema («Si tu stock vive en un Excel, no es escalable») · funciones · cómo funciona · precios · preguntas · CTA final · footer. Las opiniones de clientes se suman recién cuando haya reales.
 
-Precios: `PLANS` en `src/content.ts` (Básico US$ 22/mes, Avanzado US$ 87/mes, Completo US$ 246/mes, A medida desde US$ 1.500). `SHOW_PRICING = false` oculta la sección y saca el link del menú y del footer.
+Precios: `PLANS` en `src/content.ts`. Mensual: Básico US$ 22, Avanzado US$ 87, Completo US$ 246. Anual (25% menos, por mes con pago anual): US$ 16,50 / 65,25 / 184,50, con el total del año abajo (US$ 198 / 783 / 2.214). A medida no muestra precio. Los montos se escriben ya formateados, tal como los confirmó el dueño.
+
+- `SHOW_PRICING = false` oculta la sección y saca el link del menú y del footer.
+- `SHOW_BILLING_TOGGLE = false` saca el selector Mensual/Anual y deja solo los precios mensuales.
+- Cada plan lista lo que suma sobre el anterior («Todo lo del plan …»). Solo funciones que la app ya tiene; lo que falta va con `soon: true` («Próximamente»).
+- `PRICING_BENEFITS` es la franja debajo de los planes, con el mismo criterio.
 
 ## Hero: teléfono que se desarma con el scroll
 

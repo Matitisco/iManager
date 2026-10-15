@@ -1,4 +1,5 @@
-import { APP_URL, PLANS, SHOW_PRICING, SIGNUP_URL } from './content';
+import { useState } from 'react';
+import { ANNUAL_LABEL, APP_URL, PLANS, PRICING_BENEFITS, SHOW_BILLING_TOGGLE, SHOW_PRICING, SIGNUP_URL, type Plan } from './content';
 
 export function Problem() {
   const excel = [
@@ -104,31 +105,83 @@ export function HowItWorks() {
   );
 }
 
-export function Pricing() {
-  if (!SHOW_PRICING) return null;
+function Arrow({ out }: { out?: boolean }) {
   return (
-    <section className="sec" id="precios">
+    <svg className="arr" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <path d={out ? 'M5 11l6-6M6 5h5v5' : 'M3 8h10M9 4l4 4-4 4'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PlanCard({ p, annual }: { p: Plan; annual: boolean }) {
+  const hot = Boolean(p.badge);
+  return (
+    <div className={`pl${hot ? ' hot' : ''}`}>
+      {p.badge && <span className="badge">{p.badge}</span>}
+      <h3>{p.name}</h3>
+      <p className="d">{p.desc}</p>
+      <div className="amt">
+        {p.price ? (
+          <>
+            <div className="n">
+              <small className="cur">US$</small>
+              {annual ? p.price.annual.perMonth : p.price.monthly}
+              <small className="per">/mes</small>
+            </div>
+            <small className="yr" aria-hidden={!annual}>
+              {annual ? `US$ ${p.price.annual.perYear}/año, pago anual` : '\u00a0'}
+            </small>
+          </>
+        ) : (
+          <div className="n custom">A medida</div>
+        )}
+      </div>
+      <ul className="specs">
+        {p.includes && <li className="inc">Todo lo del plan {p.includes}</li>}
+        {p.specs.map((s) => (
+          <li key={s.t}>
+            {s.t}
+            {s.soon && <span className="soon">Próximamente</span>}
+          </li>
+        ))}
+      </ul>
+      <a className={`btn ${hot ? 'p' : 's'}`} href={p.cta.href}>
+        {p.cta.label}
+        <Arrow out={p.cta.external} />
+      </a>
+    </div>
+  );
+}
+
+export function Pricing() {
+  const [annual, setAnnual] = useState(false);
+  if (!SHOW_PRICING) return null;
+  const isAnnual = SHOW_BILLING_TOGGLE && annual;
+  return (
+    <section className="sec pricing" id="precios">
       <div className="wrap">
         <div className="head">
           <div>
             <span className="kick">Precios</span>
             <h2 className="h2">Un plan para cada tienda.</h2>
           </div>
+          {SHOW_BILLING_TOGGLE && (
+            <div className="bill" role="group" aria-label="Período de facturación">
+              <button type="button" aria-pressed={!isAnnual} onClick={() => setAnnual(false)}>Mensual</button>
+              <button type="button" aria-pressed={isAnnual} onClick={() => setAnnual(true)}>
+                Anual <span className="off">{ANNUAL_LABEL}</span>
+              </button>
+            </div>
+          )}
         </div>
         <div className="plans">
-          {PLANS.map((p) => (
-            <div className={`pl${p.primary ? ' hot' : ''}`} key={p.name}>
-              <h3>{p.name}</h3>
-              <p>{p.desc}</p>
-              <div className="amt">
-                {p.pre && <small className="pre">{p.pre}</small>}
-                {p.amount}
-                {p.per && <small>{p.per}</small>}
-              </div>
-              <a className={`btn ${p.primary ? 'p' : 's'}`} href={p.cta.href}>{p.cta.label}</a>
-            </div>
-          ))}
+          {PLANS.map((p) => <PlanCard key={p.name} p={p} annual={isAnnual} />)}
         </div>
+        {PRICING_BENEFITS.length > 0 && (
+          <ul className="perks">
+            {PRICING_BENEFITS.map((b) => <li key={b}>{b}</li>)}
+          </ul>
+        )}
       </div>
     </section>
   );
