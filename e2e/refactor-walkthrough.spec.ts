@@ -71,16 +71,14 @@ for (const viewport of viewports) {
       await expect(page.getByTestId('onboarding-store-name')).toBeVisible();
       await shot(page, `${prefix}-02-onboarding.png`);
       await page.getByTestId('onboarding-store-name').fill(storeName);
-      await page.getByTestId('onboarding-instagram').fill('@e2etienda');
+      await page.getByText('Moneda y dólar').click();
+      await page.getByTestId('onboarding-currency').selectOption('ARS');
       const onboardingRequest = page.waitForResponse(
         (response) => response.url().includes('/api/onboarding') && response.request().method() === 'POST' && response.ok(),
       );
       await page.getByTestId('onboarding-submit').click({ noWaitAfter: true });
       await onboardingRequest;
-      const skipContact = page.getByRole('button', { name: 'Ahora no' });
-      if (await skipContact.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
-        await skipContact.click();
-      }
+      for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
       await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
 
       await createInventoryItemViaApi(request, email, {

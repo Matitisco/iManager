@@ -69,6 +69,24 @@ export async function importRoutes(app: FastifyInstance) {
         storeCurrency(request.appUser.storeId, prisma),
         prisma.inventoryItem.findMany({ where: { storeId: request.appUser.storeId }, distinct: ["model"], select: { model: true }, take: 2000 }),
       ]);
+      const streaming = request.headers.accept === 'application/x-ndjson';
+      if (streaming) {
+        reply.hijack();
+        for (const [name, value] of Object.entries(reply.getHeaders())) { if (value !== undefined) reply.raw.setHeader(name, value); }
+        reply.raw.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+        const send = (event: unknown) => { if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.write(JSON.stringify(event) + '\n'); };
+        try {
+          const result = await analyzeTextImport({ text, currency, models: existing.map(item => item.model) }, {
+            signal: controller.signal,
+            observe: rows => send({ type: 'progress', rows: rows.map(row => ({ model: row.model, quantity: row.quantity })) }),
+          });
+          request.log.info(result.usage, 'text import analysis usage');
+          send({ type: 'result', analysis: result });
+        } catch (error) {
+          send({ type: 'error', message: error instanceof DomainError ? error.message : 'No se pudo analizar el listado. Probá de nuevo.' });
+        } finally { reply.raw.end(); }
+        return reply;
+      }
       const result = await analyzeTextImport({ text, currency, models: existing.map((item) => item.model) }, { signal: controller.signal });
       request.log.info(result.usage, "text import analysis usage");
       return result;

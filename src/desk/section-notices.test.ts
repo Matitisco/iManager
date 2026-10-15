@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
-import { fallbackNoticeReason, mergePinned, novedadesLabel, rowsForNotice } from './section-notices';
+import { fallbackNoticeReason, mergePinned, novedadesLabel, reasonWithBalance, rowsForNotice } from './section-notices';
 
 function note(partial: Partial<OperationNotification> & Pick<OperationNotification, 'id' | 'section' | 'title' | 'message'>): OperationNotification {
   return {
@@ -13,6 +13,36 @@ function note(partial: Partial<OperationNotification> & Pick<OperationNotificati
 }
 
 describe('section notice reasons', () => {
+  it('keeps a single Debe on the list label', () => {
+    const debt = (id: string, reason: string) => note({
+      id,
+      section: 'clients',
+      title: 'Saldo pendiente',
+      message: reason,
+      recordId: 'c1',
+      targets: [{ recordId: 'c1', reason }],
+    });
+    const pinned = mergePinned([], [debt('a', 'Debe US$ 130')]);
+    expect(mergePinned(pinned, [debt('b', 'Debe US$ 100')])).toEqual([
+      { recordId: 'c1', reason: 'Debe US$ 100', notificationIds: ['a', 'b'] },
+    ]);
+    const named = mergePinned([], [debt('c', 'Nuevo cliente · Debe US$ 130')]);
+    expect(mergePinned(named, [debt('b', 'Debe US$ 100')])).toEqual([
+      { recordId: 'c1', reason: 'Nuevo cliente · Debe US$ 100', notificationIds: ['c', 'b'] },
+    ]);
+    const stale = mergePinned([], [debt('a', 'Debe US$ 65')]);
+    expect(mergePinned(stale, [debt('d', 'Devolución US$ 100 · Debe US$ 35')])).toEqual([
+      { recordId: 'c1', reason: 'Devolución US$ 100 · Debe US$ 35', notificationIds: ['a', 'd'] },
+    ]);
+  });
+
+  it('rewrites the badge debt from the current balance', () => {
+    expect(reasonWithBalance('Devolución US$ 100 · Debe US$ 65', 35, 'USD')).toBe('Devolución US$ 100 · Debe US$ 35');
+    expect(reasonWithBalance('Debe US$ 65', 35, 'USD')).toBe('Debe US$ 35');
+    expect(reasonWithBalance('Devolución US$ 100', 0, 'USD')).toBe('Devolución US$ 100');
+    expect(reasonWithBalance('', 35, 'USD')).toBe('');
+  });
+
   it('labels the examples from the section copy when the record id was already stored', () => {
     expect(fallbackNoticeReason(note({ id: '1', section: 'inventory', title: 'Equipo recibido', message: 'Entró un iPhone 11 por canje, en revisión' }))).toBe('Nuevo · entró por canje');
     expect(fallbackNoticeReason(note({ id: '2', section: 'inventory', title: 'Equipo vendido', message: 'iPhone 13 vendido' }))).toBe('Vendido');

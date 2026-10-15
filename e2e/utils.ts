@@ -139,60 +139,28 @@ export async function bootstrapStoreViaApi(
 
   const currentSession = await fetchSessionEventually(request, email);
   if (currentSession.onboardingRequired) {
-    const response = await request.post(`${DEFAULT_API_BASE_URL}/api/onboarding`, {
+    const response = await request.post(`${DEFAULT_API_BASE_URL}/api/stores`, {
       headers: {
         ...authHeaders(email),
         'Content-Type': 'application/json',
       },
-      data: { storeName, instagram: 'e2etienda' },
+      data: { name: storeName },
     });
-    await assertOk(response, 'Complete onboarding');
+    await assertOk(response, 'Create existing-store fixture');
   }
 
+  const seededSession = await fetchSessionEventually(request, email);
+  if (currentSession.onboardingRequired && seededSession.store) {
+    const contact = await request.patch(`${DEFAULT_API_BASE_URL}/api/stores/current`, { headers: authHeaders(email), data: { instagram: 'e2etienda' } });
+    await assertOk(contact, 'Set fixture store contact');
+  }
   await waitForSessionReady(request, email);
   await page.reload();
   await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
 }
 
-export async function bootstrapStore(
-  page: Page,
-  request: APIRequestContext,
-  email: string,
-  storeName: string,
-) {
-  await loginViaUi(page, email);
-  const onboardingStoreName = page.getByTestId('onboarding-store-name');
-  const sidebarInventory = page.getByTestId('sidebar-tab-inventory');
-
-  await Promise.any([
-    onboardingStoreName.waitFor({ state: 'visible', timeout: 15_000 }),
-    sidebarInventory.waitFor({ state: 'visible', timeout: 15_000 }),
-  ]);
-
-  const onboardingVisible = await onboardingStoreName.isVisible().catch(() => false);
-
-  if (onboardingVisible) {
-    const onboardingSubmit = page.getByTestId('onboarding-submit');
-    await expect(onboardingStoreName).toHaveValue('');
-    await onboardingStoreName.fill(storeName);
-    await page.getByTestId('onboarding-instagram').fill('@e2etienda');
-    await expect(onboardingSubmit).toBeEnabled();
-    const onboardingRequest = page.waitForResponse(
-      (response) =>
-        response.url().includes('/api/onboarding') &&
-        response.request().method() === 'POST' &&
-        response.ok(),
-      { timeout: 15_000 },
-    );
-    await onboardingSubmit.click({ noWaitAfter: true });
-    await onboardingRequest;
-    const skipContact = page.getByRole('button', { name: 'Ahora no' });
-    const contactShown = await skipContact.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
-    if (contactShown) await skipContact.click();
-  }
-
-  await waitForSessionReady(request, email);
-  await expect(sidebarInventory).toBeVisible();
+export async function bootstrapStore(page: Page, request: APIRequestContext, email: string, storeName: string) {
+  await bootstrapStoreViaApi(page, request, email, storeName);
 }
 
 export async function fetchInventory(request: APIRequestContext, email: string) {
@@ -200,7 +168,7 @@ export async function fetchInventory(request: APIRequestContext, email: string) 
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch inventory');
-  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cost: number; price: number; soldAt?: string | null; pendingSaleRegistration?: boolean; needsCompletion?: boolean }> };
+  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cost: number; price: number; soldAt?: string | null; pendingSaleRegistration?: boolean; needsCompletion?: boolean; customFields?: Record<string, unknown> }> };
 }
 
 export async function fetchClients(request: APIRequestContext, email: string) {
@@ -208,7 +176,7 @@ export async function fetchClients(request: APIRequestContext, email: string) {
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch clients');
-  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string; phone: string; pendingBalance: number; totalSpent: number }> };
+  return JSON.parse(body) as { clients: Array<{ id: string; name: string; dni: string; phone: string; pendingBalance: number; creditBalance?: number; totalSpent: number }> };
 }
 
 export async function createClientViaApi(

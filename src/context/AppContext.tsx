@@ -1,8 +1,10 @@
 import { useCashState } from './cash-state';
+import { useGettingStartedState } from './getting-started-state';
 import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
 import type { ClientDeposit } from '../types';
+import { snapshotIsCurrent } from './record-generation';
 import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
@@ -13,7 +15,6 @@ import { deleteBackendSale, fetchBackendSales, updateBackendSale } from '../serv
 import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
 import { completeBackendOnboarding } from '../services/onboarding-api';
 import { acceptInvitation as acceptInvitationApi } from '../services/invitations-api';
-import { markStoreContactOffer } from '../lib/store-contact';
 import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../services/settings-api';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
@@ -27,7 +28,7 @@ import { isActiveTradeOperation } from '../desk/format';
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 
-interface AppState extends ReturnType<typeof useCashState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
+interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -84,7 +85,7 @@ interface AppState extends ReturnType<typeof useCashState>, ReturnType<typeof us
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
-  completeOnboarding: (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
+  completeOnboarding: (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   reloadSession: () => Promise<void>;
   login: () => Promise<void>;
@@ -116,6 +117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
+    recordsGeneration,
   } = useStoreRecords({ user, appSession, backendStatus });
 
   const cashState = useCashState(user, appSession, backendStatus);
@@ -305,13 +307,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
-  const completeOnboarding = async (input: { storeName: string; instagram: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
+  const gettingStartedState = useGettingStartedState(user, backendStatus === 'ready' ? appSession?.store?.id : undefined);
+
+  const completeOnboarding = async (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
     if (!user) {
       throw new Error('No authenticated user');
     }
 
     const session = await completeBackendOnboarding(user, input);
-    if (session.store?.id) markStoreContactOffer(session.store.id);
+    // Contact details can be completed later from settings.
     setBackendStatus('ready');
     setBackendMessage(null);
     setAppSession(session);
@@ -450,9 +454,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>, mutate = false) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
+    const seen = recordsGeneration.current;
+    if (mutate) recordsGeneration.current += 1;
     const result = await call(currentUser);
     if (scopeRef.current === requestScope && canAccess(source)) {
-      applyOperationResult(result, requestScope);
+      if (mutate || snapshotIsCurrent(seen, recordsGeneration.current)) applyOperationResult(result, requestScope);
       if (mutate) {
         noteLocalMutation();
         // Invalidate receipts after consumption/restoration; the next sheet loads authoritative state.
@@ -672,14 +678,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const reloadSales = async () => {
     if (!user) return;
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const items = await fetchBackendSales(user);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
     setSales(items);
     noteLocalMutation();
   };
 
   const reloadClients = async () => {
     if (!user) return;
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const items = await fetchBackendClients(user);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
     setClients(items);
     noteLocalMutation();
   };
@@ -723,7 +735,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!backendClientsEnabled) {
       throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
     }
+    recordsGeneration.current += 1;
+    const seen = recordsGeneration.current;
     const updated = await registerBackendClientPayment(user, clientId, input);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return updated;
     setClients(prev => prev.map(client => client.id === updated.id ? { ...updated, creditBalance: updated.creditBalance || client.creditBalance } : client));
     noteLocalMutation();
     return updated;
@@ -801,6 +816,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       ...cashState,
+      ...gettingStartedState,
       ...commissions,
       ...catalogState,
       inventory, sales, tradeIns, clients, customColumns,

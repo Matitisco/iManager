@@ -9,9 +9,18 @@ import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
 import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
+const paymentsApi = vi.hoisted(() => ({
+  fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null }>),
+}));
+
+const accountsApi = vi.hoisted(() => ({
+  fetchSaleAccount: vi.fn(async () => null as { due?: number; installments?: unknown[]; tenders?: unknown[] } | null),
+}));
+
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
   tradeIns: [] as TradeIn[],
+  user: null as { getIdToken: () => Promise<string> } | null,
   clients: [] as Array<{ id: string; name: string; pendingBalance?: number; totalSpent?: number; phone?: string; email?: string; dni?: string; lastPurchaseDate?: string; balanceCurrency?: string | null }>,
   inventory: [] as { id: string; model: string; capacity: string }[],
   updateSale: vi.fn(),
@@ -22,9 +31,12 @@ const ctx = vi.hoisted(() => ({
   deleteTradeIn: vi.fn(),
   fetchSaleOperation: vi.fn(),
   fetchTradeOperation: vi.fn(),
+  registerClientPayment: vi.fn(),
 }));
 
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
+vi.mock('../services/clients-api', () => paymentsApi);
+vi.mock('../services/accounts-api', () => accountsApi);
 
 const open = vi.fn();
 const close = vi.fn();
@@ -87,7 +99,12 @@ describe('operation detail', () => {
   beforeEach(() => {
     ctx.sales = [sale()];
     ctx.tradeIns = [trade()];
+    ctx.user = null;
     ctx.clients = [];
+    paymentsApi.fetchClientPayments.mockReset();
+    paymentsApi.fetchClientPayments.mockResolvedValue([]);
+    accountsApi.fetchSaleAccount.mockReset();
+    accountsApi.fetchSaleAccount.mockResolvedValue(null);
     ctx.inventory = [];
     ctx.updateSale.mockReset();
     ctx.updateSale.mockResolvedValue(undefined);
@@ -102,6 +119,8 @@ describe('operation detail', () => {
     ctx.fetchSaleOperation.mockResolvedValue({});
     ctx.fetchTradeOperation.mockReset();
     ctx.fetchTradeOperation.mockResolvedValue({});
+    ctx.registerClientPayment.mockReset();
+    ctx.registerClientPayment.mockResolvedValue({ id: 'c1', pendingBalance: 270, balanceCurrency: 'USD' });
     open.mockReset();
     close.mockReset();
     toast.mockReset();
@@ -286,6 +305,8 @@ describe('operation detail', () => {
 
   it('shows the cash to return before cancelling a partly paid sale', async () => {
     const user = userEvent.setup();
+    ctx.user = { getIdToken: async () => 'token' };
+    paymentsApi.fetchClientPayments.mockResolvedValue([{ id: 'p1', amount: 300, method: 'TRANSFERENCIA', paidAt: '2026-10-08T12:00:00.000Z', kind: 'PAGO', saleId: 's1' }]);
     ctx.sales = [sale({
       status: 'PENDIENTE',
       amount: 900,
@@ -299,8 +320,8 @@ describe('operation detail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
-    expect(dialog).toHaveTextContent('Se devolverán $ 300.');
+    const dialog = await screen.findByRole('dialog', { name: 'Cancelar operación' });
+    expect(await within(dialog).findByText(/Se devolverán \$ 300/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
 
@@ -440,13 +461,130 @@ describe('operation detail', () => {
       const phone = screen.getByRole('dialog', { name: 'Ana Pérez' });
       expect(phone).toHaveClass('cl-sheet');
       expect(within(phone).getByText('Total gastado')).toBeInTheDocument();
-      expect(within(phone).getByText(/ARS/)).toBeInTheDocument();
+      expect(within(phone).queryByLabelText('Monto')).not.toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Nueva venta' })).toBeInTheDocument();
     } finally {
       window.matchMedia = original;
       cleanup();
+    }
+  });
+
+  it('asks for the amount before saving a payment on the desk', async () => {
+    const user = userEvent.setup();
+    ctx.clients = [{
+      id: 'c1',
+      name: 'Ana Pérez',
+      pendingBalance: 165,
+      totalSpent: 800,
+      phone: '1100000001',
+      lastPurchaseDate: '2026-10-14',
+      balanceCurrency: 'ARS',
+    }];
+    renderOverlay({ type: 'cl', id: 'c1' });
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+    const amount = within(dialog).getByLabelText('Monto');
+    expect(amount).toHaveValue('165');
+    await user.click(within(dialog).getByRole('button', { name: 'Volver' }));
+    expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Ana Pérez' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    const again = screen.getByRole('dialog', { name: 'Registrar pago' });
+    const edited = within(again).getByLabelText('Monto');
+    await user.clear(edited);
+    await user.type(edited, '40');
+    await user.click(within(again).getByRole('button', { name: 'Confirmar pago' }));
+    await waitFor(() => expect(ctx.registerClientPayment).toHaveBeenCalledWith('c1', expect.objectContaining({ amount: 40, currency: 'ARS' })));
+  });
+
+  it('shows the debt left after a general payment on the sale', async () => {
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 70, balanceCurrency: 'ARS' }];
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 100,
+      openBalance: 100,
+      clientId: 'c1',
+      clientName: 'Ana Pérez',
+      tradeInId: '',
+      integratedOperation: false,
+      paymentMethod: 'SIN_PAGO',
+      amountCurrency: 'ARS',
+    })];
+    renderOverlay({ type: 'sale', id: 's1' });
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    expect(within(dialog).getByText('Sin pago')).toBeInTheDocument();
+    expect(within(dialog).getByText('Deuda $ 70')).toBeInTheDocument();
+  });
+
+  it('uses the sale account due when the loaded balance is still the old debt', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    accountsApi.fetchSaleAccount.mockResolvedValue({
+      due: 70,
+      installments: [
+        { sequence: 1, dueDate: '2026-11-14', status: 'PARCIAL', amount: 50, paidAmount: 30 },
+        { sequence: 2, dueDate: '2026-12-14', status: 'PENDIENTE', amount: 50, paidAmount: 0 },
+      ],
+      tenders: [],
+    });
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 100, balanceCurrency: 'USD' }];
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 100,
+      openBalance: 100,
+      clientId: 'c1',
+      clientName: 'Ana Pérez',
+      tradeInId: '',
+      integratedOperation: false,
+      paymentMethod: 'SIN_PAGO',
+      amountCurrency: 'USD',
+    })];
+    renderOverlay({ type: 'sale', id: 's1' });
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    await waitFor(() => expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument());
+    expect(within(dialog).queryByText('Deuda US$ 100')).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/Cuota 1/)).toBeInTheDocument();
+  });
+
+  it('asks for the amount before saving a payment on a phone', async () => {
+    const user = userEvent.setup();
+    ctx.clients = [{
+      id: 'c1',
+      name: 'Ana Pérez',
+      pendingBalance: 320,
+      totalSpent: 800,
+      phone: '1100000001',
+      lastPurchaseDate: '2026-10-14',
+      balanceCurrency: 'USD',
+    }];
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: String(query).includes('760'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      renderOverlay({ type: 'cl', id: 'c1' });
+      await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+      expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+      const amount = within(dialog).getByLabelText('Monto');
+      expect(amount).toHaveValue('320');
+      await user.clear(amount);
+      await user.type(amount, '50');
+      await user.click(within(dialog).getByRole('button', { name: 'Confirmar pago' }));
+      await waitFor(() => expect(ctx.registerClientPayment).toHaveBeenCalledWith('c1', expect.objectContaining({ amount: 50, method: 'TRANSFERENCIA', currency: 'USD' })));
+    } finally {
+      window.matchMedia = original;
     }
   });
 

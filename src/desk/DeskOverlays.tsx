@@ -1,3 +1,4 @@
+import { StockOnboarding } from '../pages/StockOnboarding';
 import { DepositForm, RepairDepositSheet } from './overlays/deposits';
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
@@ -5,7 +6,7 @@ import { getFriendlyErrorMessage } from '../lib/utils';
 import { isActiveTradeOperation } from './format';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
-import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
+import { DeskIcon, Dialog, Sheet, useDesk, useEscape } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
 import { EquipmentDetail, EquipmentForm } from './overlays/equipment';
@@ -63,6 +64,8 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
       setBusy(false);
     }
   };
+
+  if (overlay.type === 'onboarding-stock') return <StockOnboarding onFinish={destination => { desk.close(); desk.go(destination); }} />;
 
   if (overlay.type === 'logout') {
     const google = ctx.user?.providerData?.some((provider) => provider.providerId === 'google.com');

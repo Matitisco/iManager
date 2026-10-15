@@ -12,6 +12,9 @@ export type ApiRequestOptions = {
   // 'fallback' never shows backend text. All modes normalize 5xx errors.
   errorFrom?: 'error' | 'friendly' | 'fallback';
   timeoutMs?: number;
+  signal?: AbortSignal;
+  accept?: string;
+  readResponse?: (response: Response) => Promise<unknown>;
 };
 
 export class ApiError extends Error {
@@ -45,11 +48,12 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
   const hasBody = body !== undefined;
   const init: RequestInit = {
     method,
+    ...(options.signal ? { signal: options.signal } : {}),
     cache: 'no-store',
     // Fastify rejects an empty body sent with Content-Type: application/json.
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
+      Accept: options.accept ?? 'application/json',
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
@@ -67,5 +71,5 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
   }
 
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return (options.readResponse ? options.readResponse(response) : response.json()) as Promise<T>;
 }

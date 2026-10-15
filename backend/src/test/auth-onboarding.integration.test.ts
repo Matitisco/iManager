@@ -140,7 +140,7 @@ describe("auth and onboarding integration", () => {
     expect(membership.store.instagram).toBe("sucursal.centro");
   });
 
-  it("rejects onboarding without a valid instagram", async () => {
+  it("accepts a name alone but validates an explicitly provided instagram", async () => {
     const app = getApp();
     const newUser = await seedStoreContext({
       firebaseUid: "new-owner-no-ig",
@@ -163,8 +163,8 @@ describe("auth and onboarding integration", () => {
       headers,
       payload: { storeName: "Sin Instagram" },
     });
-    expect(missing.statusCode).toBe(400);
-    expect(missing.json().error).toMatch(/Instagram/);
+    expect(missing.statusCode).toBe(200);
+    expect(missing.json().session.store).toMatchObject({ currency: "USD", instagram: null, onboardingStage: "invite" });
 
     const invalid = await app.inject({
       method: "POST",

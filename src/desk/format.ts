@@ -164,6 +164,7 @@ export function paymentLabel(method: string): string {
     TARJETA: 'Tarjeta',
     MIXTO: 'Varios medios',
     CRIPTO: 'Cripto',
+    SIN_PAGO: 'Sin pago',
   } as Record<string, string>)[method] ?? method;
 }
 

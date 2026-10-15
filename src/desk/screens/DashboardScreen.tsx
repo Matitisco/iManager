@@ -1,3 +1,4 @@
+import { GettingStarted, GettingStartedDashboard } from '../getting-started';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
@@ -31,7 +32,7 @@ const TASKS = [
 ] as const;
 
 export function DashboardScreen() {
-  const { appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
+  const { gettingStarted, appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
   const money = useMoney();
   const { go, open, toast, back } = useDesk();
   const phone = usePhoneLayout();
@@ -140,6 +141,8 @@ export function DashboardScreen() {
     </div>
   );
 
+  if (appSession?.store?.onboardingStartedAt || gettingStarted?.eligible) return <GettingStartedDashboard />;
+
   return (
     <div className="dscreen">
       <ScreenTitle
@@ -153,6 +156,7 @@ export function DashboardScreen() {
         ) : people}
         desktop={<div className="dright">{people}<DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div>}
       />
+      <GettingStarted />
 
       <div className="dgrid dash">
         <div className="hero">
@@ -210,7 +214,7 @@ export function DashboardScreen() {
             <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
             <div className="val">{balanceTotal == null ? '—' : money.compactActive(balanceTotal)}</div>
-            <div className="sub">{balance.length} clientes</div>
+            <div className="sub">{balance.length === 1 ? '1 cliente' : `${balance.length} clientes`}</div>
           </button>
         </div>
       </div>

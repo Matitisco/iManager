@@ -6,9 +6,12 @@ import { DomainError } from "../../lib/domain-error.js";
 import { storeCurrency } from "../../lib/money-currency.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient } from "../clients/clients.service.js";
+import { creditAmount, type DepositBalanceRow } from "../clients/client-balance.js";
+import { balanceStillOwed, bookOpen, type RefundMovement, type RefundTarget } from "../../lib/cancel-refund.js";
 import {
   addDaysYmd,
   allocatePayment,
+  applyCoverage,
   balanceTone,
   calendarDays,
   cents,
@@ -44,6 +47,7 @@ export type Debtor = {
   name: string;
   phone: string;
   pendingBalance: number;
+  creditBalance: number;
   repairBalance: number;
   currency: string | null;
   days: number;
@@ -69,19 +73,37 @@ async function storeClock(storeId: string) {
 
 export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const clock = await storeClock(storeId);
-  const [clients, repairs, plans] = await Promise.all([
+  const [clients, repairs, plans, creditNotes, loosePayments, credits] = await Promise.all([
     prisma.client.findMany({
       where: { storeId },
       include: {
-        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } }, accountPayments: { where: { kind: "NOTA_CREDITO" }, select: { id: true } } } },
-        payments: { where: { kind: "CARGO" }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
+        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
+        payments: { where: { kind: "CARGO", saleId: null }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
     prisma.repairOrder.findMany({
       where: { storeId, clientId: { not: null }, status: { notIn: CLOSED_REPAIR }, estimate: { not: null } },
     }),
     prisma.saleInstallment.findMany({ where: { storeId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
+    prisma.clientPayment.findMany({ where: { storeId, kind: "NOTA_CREDITO", saleId: { not: null } }, select: { saleId: true } }),
+    prisma.clientPayment.findMany({
+      where: { storeId },
+      select: { clientId: true, saleId: true, repairOrderId: true, kind: true, amount: true },
+    }),
+    prisma.clientDeposit.findMany({
+      where: { storeId, status: "CREDIT" },
+      select: { clientId: true, status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
+    }),
   ]);
+  const creditSales = new Set(creditNotes.map((row) => row.saleId).filter((id): id is string => Boolean(id)));
+  const creditByClient = new Map<string, DepositBalanceRow[]>();
+  for (const row of credits) {
+    creditByClient.set(row.clientId, [...(creditByClient.get(row.clientId) ?? []), row]);
+  }
+  const looseByClient = new Map<string, RefundMovement[]>();
+  for (const row of loosePayments) {
+    looseByClient.set(row.clientId, [...(looseByClient.get(row.clientId) ?? []), { saleId: row.saleId, repairOrderId: row.repairOrderId, kind: row.kind, amount: num(row.amount) }]);
+  }
   const installmentsBySale = new Map<string, InstallmentSlice[]>();
   for (const row of plans) {
     const slice = { sequence: row.sequence, dueDate: ymd(row.dueDate, clock.timeZone), amount: num(row.amount), paidAmount: num(row.paidAmount) };
@@ -96,15 +118,30 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
   const debtors: Debtor[] = [];
   for (const client of clients) {
     const lines: AccountLine[] = [];
+    const targets: RefundTarget[] = client.sales.map((sale) => {
+      const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
+      return {
+        id: sale.id,
+        cash: Math.max(0, cashDue - num(sale.depositAppliedAmount)),
+        status: sale.status,
+        openBalance: sale.openBalance == null ? null : num(sale.openBalance),
+        soldAt: sale.soldAt.toISOString(),
+      };
+    });
+    const still = balanceStillOwed(targets, looseByClient.get(client.id) ?? [], num(client.pendingBalance));
     let openSales = 0;
     for (const sale of client.sales) {
-      const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
-      const open = sale.openBalance != null ? num(sale.openBalance) : Math.max(0, cashDue - num(sale.depositAppliedAmount));
+      const booked = bookOpen(targets.find((row) => row.id === sale.id) ?? { id: sale.id, cash: 0, status: sale.status });
+      const open = (still.get(sale.id) ?? booked).toNumber();
       if (open <= 0) continue;
       openSales = fromCents(cents(openSales) + cents(open));
       const openedAt = ymd(sale.soldAt, clock.timeZone);
-      const age = lineTone(openedAt, clock.today);
-      const slices = installmentsBySale.get(sale.id) ?? [];
+      const slices = applyCoverage(installmentsBySale.get(sale.id) ?? [], fromCents(cents(booked.toNumber()) - cents(open)));
+      const overdueAt = slices
+        .filter((slice) => installmentStatus(slice, clock.today) === "VENCIDA")
+        .map((slice) => slice.dueDate)
+        .sort()[0];
+      const age = lineTone(overdueAt ?? openedAt, clock.today);
       lines.push({
         id: sale.id,
         source: "VENTA",
@@ -113,7 +150,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
         currency: sale.amountCurrency ?? client.balanceCurrency,
         openedAt,
         ...age,
-        state: sale.accountPayments.length ? "NOTA_CREDITO" : "ABIERTA",
+        state: creditSales.has(sale.id) ? "NOTA_CREDITO" : "ABIERTA",
         saleId: sale.id,
         repairId: null,
         installments: slices.map((slice) => ({ ...slice, status: installmentStatus(slice, clock.today) })),
@@ -140,6 +177,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       });
     }
     const pending = num(client.pendingBalance);
+    const creditBalance = creditAmount(creditByClient.get(client.id) ?? [], client.balanceCurrency ?? null);
     const manual = fromCents(cents(pending) - cents(openSales));
     if (manual > 0) {
       const openedAt = client.payments[0] ? ymd(client.payments[0].paidAt, clock.timeZone) : ymd(client.createdAt, clock.timeZone);
@@ -157,14 +195,16 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
         installments: [],
       });
     }
-    if (pending <= 0 && repairBalance <= 0) continue;
-    const oldest = lines.reduce((min, item) => (item.openedAt < min ? item.openedAt : min), lines[0]?.openedAt ?? clock.today);
-    const age = lineTone(oldest, clock.today);
+    if (pending <= 0 && repairBalance <= 0 && creditBalance <= 0) continue;
+    const days = lines.reduce((max, item) => Math.max(max, item.days), 0);
+    const age = { days, tone: balanceTone(days) };
     const currency = client.balanceCurrency ?? clock.currency;
+    const net = fromCents(cents(pending) - cents(creditBalance));
     const money = (amount: number) => `${currency === "USD" ? "US$" : "$"} ${amount.toLocaleString("es-AR")}`;
     const statement = [
       `Estado de cuenta · ${client.name}`,
-      `Saldo ${money(pending)}`,
+      net < 0 ? `A favor ${money(Math.abs(net))}` : `Saldo ${money(net)}`,
+      ...(creditBalance > 0 ? [`Saldo a favor: ${money(creditBalance)}`] : []),
       ...lines.map((item) => `${item.label}: ${money(item.amount)} · ${item.days} días`),
     ].join("\n");
     debtors.push({
@@ -172,6 +212,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       name: client.name,
       phone: client.phone ?? "",
       pendingBalance: pending,
+      creditBalance,
       repairBalance,
       currency: client.balanceCurrency,
       ...age,
@@ -287,20 +328,49 @@ export async function collectAccount(
   });
 }
 
+async function saleCoverage(storeId: string, clientId: string, saleId: string) {
+  const [sales, payments, client] = await Promise.all([
+    prisma.sale.findMany({
+      where: { storeId, clientId, OR: [{ id: saleId }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] },
+      include: { tradeIn: { select: { differencePaid: true } } },
+    }),
+    prisma.clientPayment.findMany({
+      where: { storeId, clientId },
+      select: { saleId: true, repairOrderId: true, kind: true, amount: true },
+    }),
+    prisma.client.findFirst({ where: { id: clientId, storeId }, select: { pendingBalance: true } }),
+  ]);
+  const targets: RefundTarget[] = sales.map((row) => ({
+    id: row.id,
+    cash: Math.max(0, (row.tradeIn ? num(row.tradeIn.differencePaid) : num(row.amount)) - num(row.depositAppliedAmount)),
+    status: row.status,
+    openBalance: row.openBalance == null ? null : num(row.openBalance),
+    soldAt: row.soldAt.toISOString(),
+  }));
+  const movements: RefundMovement[] = payments.map((row) => ({ saleId: row.saleId, repairOrderId: row.repairOrderId, kind: row.kind, amount: num(row.amount) }));
+  const still = balanceStillOwed(targets, movements, client ? num(client.pendingBalance) : 0);
+  const target = targets.find((row) => row.id === saleId);
+  const booked = target ? bookOpen(target) : new Decimal(0);
+  const due = (still.get(saleId) ?? booked).toNumber();
+  return { due, hole: fromCents(Math.max(0, cents(booked.toNumber()) - cents(due))) };
+}
+
 export async function getSaleAccount(storeId: string, saleId: string) {
   const clock = await storeClock(storeId);
-  const sale = await prisma.sale.findFirst({ where: { id: saleId, storeId }, select: { id: true, openBalance: true, status: true, paymentMethod: true } });
+  const sale = await prisma.sale.findFirst({ where: { id: saleId, storeId }, select: { id: true, clientId: true, openBalance: true, status: true, paymentMethod: true } });
   if (!sale) return null;
   const [plan, installments, tenders] = await Promise.all([
     prisma.saleInstallmentPlan.findFirst({ where: { storeId, saleId } }),
     prisma.saleInstallment.findMany({ where: { storeId, saleId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
     prisma.saleTender.findMany({ where: { storeId, saleId }, orderBy: { createdAt: "asc" } }),
   ]);
-  const slices = slicesOf(installments, clock.timeZone);
+  const coverage = sale.clientId && sale.status !== "CANCELADA" ? await saleCoverage(storeId, sale.clientId, sale.id) : { due: sale.openBalance == null ? 0 : num(sale.openBalance), hole: 0 };
+  const slices = applyCoverage(slicesOf(installments, clock.timeZone), coverage.hole);
   return {
     saleId,
     status: sale.status,
     openBalance: sale.openBalance == null ? null : num(sale.openBalance),
+    due: coverage.due,
     paymentMethod: sale.paymentMethod,
     plan: plan ? { count: plan.count, frequency: plan.frequency, surcharge: num(plan.surcharge), financedAmount: num(plan.financedAmount), firstDueDate: ymd(plan.firstDueDate, clock.timeZone) } : null,
     installments: slices.map((slice) => ({ ...slice, status: installmentStatus(slice, clock.today) })),

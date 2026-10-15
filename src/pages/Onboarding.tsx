@@ -1,25 +1,19 @@
-import { toUserMessage } from '../lib/user-message';
-import React, { useMemo, useState } from 'react';
-import { BrandLockup } from '../components/brand-mark';
-import { useAppContext } from '../context/AppContext';
-import { useInvitationPreview } from '../hooks/useInvitationPreview';
-import { INPUT_LIMITS, limitedText } from '../lib/input-limits';
-import { manualQuoteOrderError } from '../lib/manual-quote';
-import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
-import { normalizeInstagram, storeContactErrors } from '../lib/store-contact';
-import { getFriendlyErrorMessage, trimToString } from '../lib/utils';
-import { ROLE_LABEL } from '../lib/roles';
-
-type StoreCurrency = 'ARS' | 'USD';
-type ExchangeMode = 'auto' | 'manual';
-type ExchangeSource = 'blue' | 'oficial' | 'mep';
-
+import { useKeyboardInset, usePhoneLayout } from "../lib/phone-layout";
+import { useState, type FormEvent, type CSSProperties } from "react";
+import { useAppContext } from "../context/AppContext";
+import { useInvitationPreview } from "../hooks/useInvitationPreview";
+import { BrandLockup } from "../components/brand-mark";
+import { toUserMessage } from "../lib/user-message";
+import { manualQuoteOrderError } from "../lib/manual-quote";
+import { ROLE_LABEL } from "../lib/roles";
+import "./onboarding.css";
+type StoreCurrency = "ARS" | "USD";
+type ExchangeMode = "auto" | "manual";
+type ExchangeSource = "blue" | "oficial" | "mep";
 function rateOrNull(value: string) {
-  const digits = value.replace(/\D/g, '');
-  const amount = digits ? Number(digits) : 0;
-  return amount > 0 ? amount : null;
+  const n = Number(value.replace(/\D/g, ""));
+  return n > 0 ? n : null;
 }
-
 function CurrencySetup({
   currency,
   mode,
@@ -45,27 +39,64 @@ function CurrencySetup({
   onManualBuy: (value: string) => void;
   onManualSell: (value: string) => void;
 }) {
-  const field = 'w-full max-w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all bg-white max-[760px]:text-base';
+  const field =
+    "w-full max-w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all bg-white max-[760px]:text-base";
   return (
     <>
       <div>
-        <label htmlFor="onboarding-currency" className="block text-sm font-medium text-gray-700 mb-2">Moneda principal</label>
-        <select id="onboarding-currency" data-testid="onboarding-currency" className={field} value={currency} disabled={disabled} onChange={(event) => onCurrency(event.target.value as StoreCurrency)}>
+        <label
+          htmlFor="onboarding-currency"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Moneda principal
+        </label>
+        <select
+          id="onboarding-currency"
+          data-testid="onboarding-currency"
+          className={field}
+          value={currency}
+          disabled={disabled}
+          onChange={(event) => onCurrency(event.target.value as StoreCurrency)}
+        >
           <option value="ARS">Pesos (ARS)</option>
           <option value="USD">Dólares (USD)</option>
         </select>
       </div>
       <div>
-        <label htmlFor="onboarding-exchange-mode" className="block text-sm font-medium text-gray-700 mb-2">Cotización del dólar</label>
-        <select id="onboarding-exchange-mode" data-testid="onboarding-exchange-mode" className={field} value={mode} disabled={disabled} onChange={(event) => onMode(event.target.value as ExchangeMode)}>
+        <label
+          htmlFor="onboarding-exchange-mode"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Cotización del dólar
+        </label>
+        <select
+          id="onboarding-exchange-mode"
+          data-testid="onboarding-exchange-mode"
+          className={field}
+          value={mode}
+          disabled={disabled}
+          onChange={(event) => onMode(event.target.value as ExchangeMode)}
+        >
           <option value="auto">Automática desde DolarApi</option>
           <option value="manual">Manual, la carga la tienda</option>
         </select>
       </div>
-      {mode === 'auto' ? (
+      {mode === "auto" ? (
         <div>
-          <label htmlFor="onboarding-exchange-source" className="block text-sm font-medium text-gray-700 mb-2">Tipo de dólar</label>
-          <select id="onboarding-exchange-source" data-testid="onboarding-exchange-source" className={field} value={source} disabled={disabled} onChange={(event) => onSource(event.target.value as ExchangeSource)}>
+          <label
+            htmlFor="onboarding-exchange-source"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            Tipo de dólar
+          </label>
+          <select
+            id="onboarding-exchange-source"
+            data-testid="onboarding-exchange-source"
+            className={field}
+            value={source}
+            disabled={disabled}
+            onChange={(event) => onSource(event.target.value as ExchangeSource)}
+          >
             <option value="blue">Blue</option>
             <option value="oficial">Oficial</option>
             <option value="mep">MEP</option>
@@ -74,12 +105,44 @@ function CurrencySetup({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-[760px]:grid-cols-1">
           <div>
-            <label htmlFor="onboarding-manual-buy" className="block text-sm font-medium text-gray-700 mb-2">Compra</label>
-            <input id="onboarding-manual-buy" data-testid="onboarding-manual-buy" inputMode="numeric" className={field} value={manualBuy} disabled={disabled} placeholder="Ej. 1200" onChange={(event) => onManualBuy(event.target.value.replace(/\D/g, '').slice(0, 8))} />
+            <label
+              htmlFor="onboarding-manual-buy"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Compra
+            </label>
+            <input
+              id="onboarding-manual-buy"
+              data-testid="onboarding-manual-buy"
+              inputMode="numeric"
+              className={field}
+              value={manualBuy}
+              disabled={disabled}
+              placeholder="Ej. 1200"
+              onChange={(event) =>
+                onManualBuy(event.target.value.replace(/\D/g, "").slice(0, 8))
+              }
+            />
           </div>
           <div>
-            <label htmlFor="onboarding-manual-sell" className="block text-sm font-medium text-gray-700 mb-2">Venta</label>
-            <input id="onboarding-manual-sell" data-testid="onboarding-manual-sell" inputMode="numeric" className={field} value={manualSell} disabled={disabled} placeholder="Ej. 1250" onChange={(event) => onManualSell(event.target.value.replace(/\D/g, '').slice(0, 8))} />
+            <label
+              htmlFor="onboarding-manual-sell"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Venta
+            </label>
+            <input
+              id="onboarding-manual-sell"
+              data-testid="onboarding-manual-sell"
+              inputMode="numeric"
+              className={field}
+              value={manualSell}
+              disabled={disabled}
+              placeholder="Ej. 1250"
+              onChange={(event) =>
+                onManualSell(event.target.value.replace(/\D/g, "").slice(0, 8))
+              }
+            />
           </div>
         </div>
       )}
@@ -87,438 +150,207 @@ function CurrencySetup({
   );
 }
 
-const primaryButton =
-  'w-full py-3.5 bg-black text-white font-semibold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 px-4 text-center max-[760px]:min-h-[52px] max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:opacity-100 max-[760px]:break-words max-[760px]:leading-snug';
-
-const screenClass =
-  'flex h-dvh flex-col overflow-y-auto overflow-x-hidden bg-gray-50 px-4 max-[760px]:min-h-0 max-[760px]:overflow-hidden max-[760px]:overflow-x-clip max-[760px]:bg-[#F7F8FA] max-[760px]:p-0';
-
-const cardClass =
-  'onb-card mx-auto my-auto w-full max-w-xl shrink-0 bg-white border border-gray-200 rounded-[2rem] shadow-sm p-8 md:p-10 max-[760px]:mx-0 max-[760px]:my-0 max-[760px]:flex max-[760px]:h-full max-[760px]:max-w-none max-[760px]:min-w-0 max-[760px]:flex-col max-[760px]:rounded-none max-[760px]:border-0 max-[760px]:bg-transparent max-[760px]:p-0 max-[760px]:shadow-none';
-
-const stackClass = 'max-[760px]:flex max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:flex-col';
-
-const scrollClass =
-  'max-[760px]:mx-4 max-[760px]:mt-4 max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:grow-0 max-[760px]:shrink max-[760px]:basis-auto max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:rounded-[28px] max-[760px]:border max-[760px]:border-[#E6E8EC] max-[760px]:bg-white max-[760px]:p-5 max-[760px]:shadow-sm';
-
-const dockClass = 'mt-4 max-[760px]:mx-0 max-[760px]:mt-auto max-[760px]:w-full max-[760px]:shrink-0 max-[760px]:px-4 max-[760px]:pt-3';
-
-function OnboardingLayout({
-  phone,
-  inset,
-  children,
-  dock,
-  onSubmit,
+export function Onboarding({
+  inviteToken,
+  onInviteAccepted,
 }: {
-  phone: boolean;
-  inset: number;
-  children: React.ReactNode;
-  dock: React.ReactNode;
-  onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void;
-}) {
-  const screenStyle = phone ? { height: `calc(100dvh - ${inset}px)` } : undefined;
-  const dockStyle = phone
-    ? { paddingBottom: inset > 0 ? 12 : 'calc(12px + env(safe-area-inset-bottom, 0px))' }
-    : undefined;
-  const body = (
-    <>
-      <div data-testid="onboarding-scroll" className={scrollClass}>
-        <div className="mb-6 flex justify-center max-[760px]:mb-5">
-          <BrandLockup variant="tagline" className="h-11 w-auto max-w-full" />
-        </div>
-        {children}
-      </div>
-      <div data-testid="onboarding-dock" className={dockClass} style={dockStyle}>{dock}</div>
-    </>
-  );
-
-  return (
-    <div data-testid="onboarding-screen" className={screenClass} style={screenStyle}>
-      <div className={cardClass}>
-        {onSubmit ? (
-          <form className={stackClass} onSubmit={onSubmit}>{body}</form>
-        ) : (
-          <div className={stackClass}>{body}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface OnboardingProps {
   inviteToken?: string | null;
   onInviteAccepted?: () => void;
-}
-
-export function Onboarding({ inviteToken, onInviteAccepted }: OnboardingProps) {
-  const { appSession, completeOnboarding, acceptStoreInvitation, logout } = useAppContext();
-  const [storeName, setStoreName] = useState('');
-  const [instagram, setInstagram] = useState('');
-  const [instagramError, setInstagramError] = useState('');
-  const [currency, setCurrency] = useState<StoreCurrency>('ARS');
-  const [exchangeMode, setExchangeMode] = useState<ExchangeMode>('auto');
-  const [exchangeSource, setExchangeSource] = useState<ExchangeSource>('blue');
-  const [manualBuy, setManualBuy] = useState('');
-  const [manualSell, setManualSell] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const inviteState = useInvitationPreview(inviteToken);
+}) {
+  const { completeOnboarding, acceptStoreInvitation, logout } = useAppContext();
+  const invite = useInvitationPreview(inviteToken);
   const phone = usePhoneLayout();
   const keyboardInset = useKeyboardInset(phone);
-
-  const email = appSession?.user.email ?? '';
-  const avatarUrl = appSession?.user.avatarUrl ?? '';
-
-  const initials = useMemo(() => {
-    const base = trimToString(appSession?.user.displayName) || email || 'iManager';
-    const result = base
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('');
-    return result || 'IM';
-  }, [appSession?.user.displayName, email]);
-
-  const handleAcceptInvite = async () => {
-    if (!inviteToken) return;
-    setError('');
-    setIsSubmitting(true);
+  const [storeName, setStoreName] = useState("");
+  const [currency, setCurrency] = useState<StoreCurrency>("USD");
+  const [mode, setMode] = useState<ExchangeMode>("auto");
+  const [source, setSource] = useState<ExchangeSource>("blue");
+  const [buy, setBuy] = useState("");
+  const [sell, setSell] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
     try {
-      await acceptStoreInvitation(inviteToken);
-      onInviteAccepted?.();
-    } catch (err) {
-      setError(toUserMessage(err, 'No se pudo aceptar la invitación'));
+      await action();
+    } catch (cause) {
+      setError(toUserMessage(cause, "No se pudo crear la tienda."));
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
   };
-
-  const handleCreateStore = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
-    const trimmedStoreName = trimToString(storeName);
-    if (!trimmedStoreName) {
-      setError('Completá el nombre de la tienda');
+    if (!storeName.trim()) {
+      setError("Completá el nombre de la tienda");
       return;
     }
-    const nameError = limitedText('nombre', trimmedStoreName, INPUT_LIMITS.storeName);
-    if (nameError) {
-      setError(nameError);
+    if (storeName.trim().length > 120) {
+      setError("El nombre puede tener hasta 120 caracteres");
       return;
     }
-
-    const instagramCheck = storeContactErrors({ email: '', instagram }, { instagramRequired: true });
-    if (instagramCheck.instagram) {
-      setInstagramError(instagramCheck.instagram);
-      setError('');
-      return;
-    }
-
-    if (exchangeMode === 'manual') {
-      const buy = rateOrNull(manualBuy);
-      const sell = rateOrNull(manualSell);
-      if ((buy && !sell) || (!buy && sell)) {
-        setError('Completá compra y venta, o dejalas vacías.');
+    if (mode === "manual") {
+      if (Boolean(rateOrNull(buy)) !== Boolean(rateOrNull(sell))) {
+        setError("Completá compra y venta, o dejalas vacías.");
         return;
       }
-      const quoteOrder = manualQuoteOrderError(buy ?? 0, sell ?? 0);
-      if (quoteOrder) {
-        setError(quoteOrder);
+      const invalid = manualQuoteOrderError(
+        rateOrNull(buy) ?? 0,
+        rateOrNull(sell) ?? 0,
+      );
+      if (invalid) {
+        setError(invalid);
         return;
       }
     }
-
-    setError('');
-    setInstagramError('');
-    setIsSubmitting(true);
-    try {
-      await completeOnboarding({
-        storeName: trimmedStoreName,
-        instagram: normalizeInstagram(instagram),
+    void run(() =>
+      completeOnboarding({
+        storeName: storeName.trim(),
         currency,
-        exchangeMode,
-        exchangeSource,
-        manualBuy: exchangeMode === 'manual' ? rateOrNull(manualBuy) : null,
-        manualSell: exchangeMode === 'manual' ? rateOrNull(manualSell) : null,
-      });
-    } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'No se pudo completar el onboarding'));
-    } finally {
-      setIsSubmitting(false);
-    }
+        exchangeMode: mode,
+        exchangeSource: source,
+        manualBuy: mode === "manual" ? rateOrNull(buy) : null,
+        manualSell: mode === "manual" ? rateOrNull(sell) : null,
+      }),
+    );
   };
-
-  const userCard = (
-    <div className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-left">
-      <p className="text-sm text-gray-500">Usuario autenticado</p>
-      <p className="font-semibold text-gray-900">{appSession?.user.displayName || 'Sin nombre'}</p>
-      <p className="text-sm text-gray-600 max-[760px]:break-all">{email}</p>
-    </div>
-  );
-
-  const avatar = (
-    <div className="w-16 h-16 rounded-2xl bg-black text-white flex items-center justify-center overflow-hidden max-[760px]:rounded-[22px] max-[760px]:bg-[#FFD000] max-[760px]:text-[#16181D]">
-      {avatarUrl ? (
-        <img src={avatarUrl} alt={appSession?.user.displayName || 'Usuario'} className="w-full h-full object-cover" />
-      ) : (
-        <span className="text-lg font-bold">{initials}</span>
-      )}
-    </div>
-  );
-
-  const logoutLink = (
-    <div className="mt-4 text-center">
-      <button
-        type="button"
-        className="text-sm text-gray-500 hover:text-gray-900 underline"
-        onClick={() => void logout()}
-      >
-        Cerrar sesión
-      </button>
-    </div>
-  );
-
-  const titleClass = 'text-3xl font-bold text-gray-900 max-[760px]:text-2xl max-[760px]:break-words';
-  const storeInputClass = 'w-full max-w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all max-[760px]:text-base';
-  const instagramField = (
-    <div>
-      <label htmlFor="onboarding-instagram" className="block text-sm font-medium text-gray-700 mb-2">
-        Instagram <span className="font-normal text-gray-400">· obligatorio</span>
-      </label>
-      <input
-        id="onboarding-instagram"
-        data-testid="onboarding-instagram"
-        type="text"
-        value={instagram}
-        onChange={(event) => {
-          setInstagram(event.target.value);
-          setInstagramError('');
-        }}
-        placeholder="@tienda o instagram.com/tienda"
-        className={storeInputClass}
-        disabled={isSubmitting}
-        autoComplete="off"
-      />
-      {instagramError ? (
-        <p className="mt-2 text-sm text-red-700" data-testid="onboarding-instagram-error">{instagramError}</p>
-      ) : null}
-    </div>
-  );
-
-  const currencyFields = (
-    <CurrencySetup
-      currency={currency}
-      mode={exchangeMode}
-      source={exchangeSource}
-      manualBuy={manualBuy}
-      manualSell={manualSell}
-      disabled={isSubmitting}
-      onCurrency={setCurrency}
-      onMode={setExchangeMode}
-      onSource={setExchangeSource}
-      onManualBuy={setManualBuy}
-      onManualSell={setManualSell}
-    />
-  );
-
-  if (inviteToken && inviteState.isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 max-[760px]:h-dvh max-[760px]:overflow-hidden max-[760px]:bg-[#F7F8FA]">
-        <div className="flex max-w-full flex-col items-center gap-3 px-2 text-center">
-          <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin" />
-          <div>
-            <p className="text-sm font-medium text-gray-900">
-              {inviteState.isRetrying ? 'Reintentando verificación…' : 'Verificando invitación…'}
+  const invitation = Boolean(inviteToken && !invite.invalid);
+  return (
+    <div
+      className="onb"
+      data-testid="onboarding-screen"
+      style={{ "--onb-keyboard-inset": `${keyboardInset}px` } as CSSProperties}
+    >
+      <header className="onb-header">
+        <BrandLockup variant="horizontal" className="onb-logo" />
+      </header>
+      <main className="onb-main">
+        {invitation ? (
+          <section>
+            <h1>
+              {invite.isLoading
+                ? invite.isRetrying
+                  ? "Reintentando verificación…"
+                  : "Verificando invitación…"
+                : invite.error
+                  ? "No pudimos verificar la invitación todavía"
+                  : "Te invitaron a una tienda"}
+            </h1>
+            {invite.preview && (
+              <p>
+                Vas a unirte a <b>{invite.preview.storeName}</b> como{" "}
+                {ROLE_LABEL[invite.preview.role]}.
+              </p>
+            )}
+            {invite.error && <p role="alert">{invite.error}</p>}
+            <div className="onb-dock" data-testid="onboarding-dock">
+              {invite.error && (
+                <button className="onb-primary" onClick={invite.reload}>
+                  Reintentar verificación
+                </button>
+              )}
+              {invite.preview && (
+                <button
+                  className="onb-primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await acceptStoreInvitation(inviteToken!);
+                      onInviteAccepted?.();
+                    })
+                  }
+                >
+                  {busy
+                    ? "Uniéndote..."
+                    : `Unirme a ${invite.preview.storeName}`}
+                </button>
+              )}
+              <button className="onb-link" onClick={() => void logout()}>
+                Cerrar sesión
+              </button>
+            </div>
+          </section>
+        ) : (
+          <form onSubmit={submit} noValidate>
+            <div className="onb-steps" aria-label="Paso 1 de 3">
+              <i className="on" />
+              <i />
+              <i />
+            </div>
+            {invite.invalid && (
+              <p className="onb-alert">
+                Invitación inválida. Podés crear tu propia tienda.
+              </p>
+            )}
+            <h1>¿Cómo se llama tu tienda?</h1>
+            <p>
+              Es lo único que necesitamos para arrancar. Lo ven tus clientes en
+              el catálogo y los comprobantes.
             </p>
-            <p className="text-sm text-gray-500">
-              {inviteState.isRetrying
-                ? 'La tienda tarda en responder, seguimos intentando antes de mostrarte otras opciones.'
-                : 'Estamos validando el enlace antes de unirte a la tienda.'}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (inviteToken && inviteState.preview && !inviteState.invalid) {
-    return (
-      <OnboardingLayout
-        phone={phone}
-        inset={keyboardInset}
-        dock={(
-          <>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => void handleAcceptInvite()}
-              className={primaryButton}
-            >
-              {isSubmitting ? 'Uniéndote...' : `Unirme a ${inviteState.preview.storeName}`}
-            </button>
-            {logoutLink}
-          </>
-        )}
-      >
-        <div className="flex flex-col items-center text-center gap-4">
-          {avatar}
-          <div className="min-w-0 max-w-full">
-            <h1 className={titleClass}>Te invitaron a una tienda</h1>
-            <p className="mt-2 text-gray-500 break-words">
-              Vas a unirte a <strong className="text-gray-900">{inviteState.preview.storeName}</strong> como{' '}
-              <strong className="text-gray-900">
-                {ROLE_LABEL[inviteState.preview.role] ?? inviteState.preview.role}
-              </strong>.
-            </p>
-          </div>
-          {userCard}
-        </div>
-        {error && (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm break-words">
-            {error}
-          </div>
-        )}
-      </OnboardingLayout>
-    );
-  }
-
-  if (inviteToken && inviteState.error) {
-    return (
-      <OnboardingLayout
-        phone={phone}
-        inset={keyboardInset}
-        dock={(
-          <>
-            <button
-              type="button"
-              onClick={inviteState.reload}
-              disabled={isSubmitting}
-              className={primaryButton}
-            >
-              Reintentar verificación
-            </button>
-            {logoutLink}
-          </>
-        )}
-      >
-        <div className="flex flex-col items-center text-center gap-4">
-          {avatar}
-          <div className="min-w-0 max-w-full">
-            <h1 className={titleClass}>No pudimos verificar la invitación todavía</h1>
-            <p className="mt-2 text-gray-500 break-words">{inviteState.error}</p>
-            <p className="mt-2 text-sm text-gray-500">
-              El enlace puede seguir siendo válido. Volvé a intentar y solo te mostraremos crear una tienda si el backend confirma que la invitación no existe.
-            </p>
-          </div>
-          {userCard}
-        </div>
-      </OnboardingLayout>
-    );
-  }
-
-  if (inviteToken && inviteState.invalid) {
-    return (
-      <OnboardingLayout
-        phone={phone}
-        inset={keyboardInset}
-        onSubmit={(event) => void handleCreateStore(event)}
-        dock={(
-          <>
-            <button data-testid="onboarding-submit" type="submit" disabled={isSubmitting} className={primaryButton}>
-              {isSubmitting ? 'Creando tienda...' : 'Crear tienda y continuar'}
-            </button>
-            {logoutLink}
-          </>
-        )}
-      >
-        <div className="flex flex-col items-center text-center gap-4">
-          {avatar}
-          <div className="min-w-0 max-w-full">
-            <h1 className={titleClass}>Invitación inválida</h1>
-            <p className="mt-2 text-gray-500">Esta invitación no es válida o ya expiró.</p>
-          </div>
-        </div>
-        <p className="mt-6 text-sm text-center text-gray-500">
-          Podés crear tu propia tienda para comenzar.
-        </p>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="sr-only" htmlFor="storeName">
               Nombre de la tienda
             </label>
             <input
               id="storeName"
               data-testid="onboarding-store-name"
-              type="text"
+              className="onb-name"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
               placeholder="iManager Store"
-              className={storeInputClass}
-              disabled={isSubmitting}
-              autoFocus
+              disabled={busy}
+              autoComplete="organization"
             />
-          </div>
-          {instagramField}
-          {currencyFields}
-          {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm break-words">
-              {error}
+            <small>Lo podés cambiar cuando quieras en Configuración.</small>
+            <details className="onb-currency">
+              <summary>
+                <span>
+                  <b>Moneda y dólar</b>
+                  <small>
+                    Precios en {currency} · dólar{" "}
+                    {mode === "auto" ? `${source} automático` : "manual"}
+                  </small>
+                </span>
+                <span>Cambiar ›</span>
+              </summary>
+              <div className="onb-fields">
+                <CurrencySetup
+                  currency={currency}
+                  mode={mode}
+                  source={source}
+                  manualBuy={buy}
+                  manualSell={sell}
+                  disabled={busy}
+                  onCurrency={setCurrency}
+                  onMode={setMode}
+                  onSource={setSource}
+                  onManualBuy={setBuy}
+                  onManualSell={setSell}
+                />
+              </div>
+            </details>
+            {error && (
+              <p className="onb-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="onb-dock" data-testid="onboarding-dock">
+              <button
+                data-testid="onboarding-submit"
+                className="onb-primary"
+                disabled={busy}
+              >
+                {busy ? "Creando tienda…" : "Seguir"}
+              </button>
             </div>
-          )}
-        </div>
-      </OnboardingLayout>
-    );
-  }
-
-  return (
-    <OnboardingLayout
-      phone={phone}
-      inset={keyboardInset}
-      onSubmit={(event) => void handleCreateStore(event)}
-      dock={(
-        <>
-          <button data-testid="onboarding-submit" type="submit" disabled={isSubmitting} className={primaryButton}>
-            {isSubmitting ? 'Creando tienda...' : 'Crear tienda y continuar'}
-          </button>
-          {logoutLink}
-        </>
-      )}
-    >
-      <div className="flex flex-col items-center text-center gap-4">
-        {avatar}
-        <div className="min-w-0 max-w-full">
-          <h1 className={titleClass}>Creá tu tienda</h1>
-          <p className="mt-2 text-gray-500">
-            Ya iniciaste sesión. Ahora necesitamos crear la tienda para activar el contexto de negocio.
+          </form>
+        )}
+        {invitation && error && (
+          <p className="onb-error" role="alert">
+            {error}
           </p>
-        </div>
-        {userCard}
-      </div>
-      {error && (
-        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm break-words">
-          {error}
-        </div>
-      )}
-      <div className="mt-6 space-y-4">
-        <div>
-          <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombre de la tienda
-          </label>
-          <input
-            id="storeName"
-            data-testid="onboarding-store-name"
-            type="text"
-            value={storeName}
-            onChange={(e) => setStoreName(e.target.value)}
-            placeholder="iManager Store"
-            className={storeInputClass}
-            disabled={isSubmitting}
-            autoFocus
-          />
-        </div>
-        {instagramField}
-        {currencyFields}
-      </div>
-    </OnboardingLayout>
+        )}
+      </main>
+    </div>
   );
 }

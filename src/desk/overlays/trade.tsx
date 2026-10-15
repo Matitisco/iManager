@@ -5,7 +5,8 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
 import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
-import { cancellationRefund } from '../cancel-refund';
+import { cancellationPlan, type RefundTarget } from '../cancel-refund';
+import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -93,7 +94,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
 }
 
 export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }: FormProps & { id: string; source?: OperationSource; kind?: string }) {
-  const { tradeIns, sales, clients, updateTradeIn, updateTradeOperation, cancelTradeOperation, fetchTradeOperation } = useAppContext();
+  const { tradeIns, sales, clients, user, updateTradeIn, updateTradeOperation, cancelTradeOperation, fetchTradeOperation } = useAppContext();
   const money = useMoney();
   const { close, open, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
@@ -103,6 +104,14 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   const [detailError, setDetailError] = useState<string | null>(null);
   const [technicalStatus, setTechnicalStatus] = useState(trade?.status || 'PENDIENTE');
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [movements, setMovements] = useState<ClientPaymentRecord[]>([]);
+  useEffect(() => {
+    const clientId = trade?.clientId;
+    if (!user || !clientId) return;
+    let active = true;
+    fetchClientPayments(user, clientId).then((rows) => { if (active) setMovements(rows); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user, trade?.clientId]);
   useEffect(() => {
     if (archivedReceivedLink || !trade || trade.confirmationStatus != null) {
       void fetchTradeOperation(source, id)
@@ -159,16 +168,26 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     const linkedSaleForRefund = trade.saleId
       ? sales.find((item) => item.id === trade.saleId) ?? loadedOperation?.sale
       : loadedOperation?.sale;
-    const refundClient = clients.find((client) => client.id === trade.clientId)
-      ?? loadedOperation?.clients?.find((client) => client.id === trade.clientId);
-    const refund = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
-      ? cancellationRefund(linkedSaleForRefund.status, trade.differencePaid - (linkedSaleForRefund.depositAppliedAmount ?? 0), refundClient?.pendingBalance ?? 0)
-      : 0;
+    const refundSales = sales.filter((item) => item.clientId && item.clientId === trade.clientId && item.status !== 'CANCELADA').map((item): RefundTarget => {
+      const linked = item.tradeInId ? tradeIns.find((row) => row.id === item.tradeInId) : undefined;
+      return { id: item.id, cash: Math.max(0, (linked ? linked.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
+    });
+    const buyer = clients.find((item) => item.id === trade.clientId);
+    const plan = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
+      ? cancellationPlan({
+        id: linkedSaleForRefund.id,
+        cash: trade.differencePaid - (linkedSaleForRefund.depositAppliedAmount ?? 0),
+        status: linkedSaleForRefund.status,
+        openBalance: linkedSaleForRefund.openBalance,
+        soldAt: linkedSaleForRefund.date,
+      }, refundSales, movements, buyer?.pendingBalance ?? 0)
+      : { refund: 0, credit: 0 };
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
           label={tradeCode(tradeIns, trade.id)}
-          refund={refund}
+          refund={plan.refund}
+          coveredCredit={plan.credit}
         depositCredit={linkedSaleForRefund?.depositAppliedAmount}
           currency={trade.currency}
           busy={busy}

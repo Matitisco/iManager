@@ -110,3 +110,74 @@ export async function importBackendRows(
     fallback: (status) => `Error al importar (${status})`,
   });
 }
+
+export type TextProgressRow = { model: string; quantity: number };
+
+/** Same #338 endpoint; NDJSON adds real chunk progress without saving anything. */
+export async function analyzeInventoryTextProgress(
+  user: AuthUserLike,
+  text: string,
+  onProgress: (rows: TextProgressRow[]) => void | Promise<void>,
+  signal: AbortSignal,
+): Promise<ImportAnalysis> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal.aborted) abort();
+  else signal.addEventListener("abort", abort, { once: true });
+  const timeout = globalThis.setTimeout(abort, 190_000);
+  try {
+    return await apiRequest<ImportAnalysis>(user, "/api/import/analyze-text", {
+      method: "POST",
+      body: { text },
+      accept: "application/x-ndjson",
+      signal: controller.signal,
+      timeoutMs: 190_000,
+      fallback: "No se pudo analizar el listado.",
+      readResponse: async (response) => {
+        if (
+          !response.headers
+            .get("Content-Type")
+            ?.includes("application/x-ndjson")
+        )
+          return response.json();
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No se recibió el análisis.");
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result: ImportAnalysis | undefined;
+        const consume = async (line: string) => {
+          if (!line.trim()) return;
+          const event = JSON.parse(line) as {
+            type: string;
+            rows: TextProgressRow[];
+            analysis: ImportAnalysis;
+            message: string;
+          };
+          if (event.type === "error") throw new Error(event.message);
+          if (event.type === "progress") await onProgress(event.rows);
+          if (event.type === "result") result = event.analysis;
+        };
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) await consume(line);
+          }
+          await consume(buffer + decoder.decode());
+          if (!result)
+            throw new Error("El análisis se interrumpió. Volvé a intentarlo.");
+          return result;
+        } finally {
+          await reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+        }
+      },
+    });
+  } finally {
+    globalThis.clearTimeout(timeout);
+    signal.removeEventListener("abort", abort);
+  }
+}

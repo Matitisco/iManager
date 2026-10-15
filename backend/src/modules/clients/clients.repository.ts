@@ -57,7 +57,7 @@ export const clientsRepository = {
     return prisma.clientPayment.findMany({
       where: { storeId, clientId },
       orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-      take: 8,
+      take: 100,
     });
   },
 

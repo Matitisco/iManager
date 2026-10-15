@@ -3,6 +3,15 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #344 — Onboarding y Primeros pasos — 2026-10-14
+
+- Recorrido: nombre de tienda → invitación opcional → stock. Solo pregunta el nombre; USD y dólar blue automático quedan plegados. La etapa se guarda en PostgreSQL y se retoma al recargar. Las tiendas existentes conservan su acceso habitual. Ayuda puede volver a mostrar Primeros pasos en el Dashboard.
+- Reutiliza el análisis de texto de #338. Si la respuesta llega completa, la pantalla muestra los equipos por tandas antes de la revisión y no se queda en «0 equipos». Las filas sin moneda no entran al total en dólares. Las dudas no bloquean y se guardan como «Para revisar». Un guardado parcial reintenta únicamente lo que falló. Excel, carga manual e invitaciones reutilizan los flujos actuales.
+- Primeros pasos muestra solo pendientes. Stock, venta, empleado y catálogo salen de datos reales; el descarte y la instalación se guardan por membresía. La invitación se completa al incorporarse una persona, no al generar el enlace. Los datos de ejemplo también se ofrecen al cargar stock desde el Dashboard.
+- Ayuda en Más y Cuenta, con la guía PWA existente y la opción de mostrar de nuevo Primeros pasos.
+- Muestras con `sampleBatchId` asignado por servidor; creación/borrado transaccionales y confirmación que conserva equipos reales y otras tiendas. Prisma únicamente aditivo, comprobado con `prisma db push` sin aceptar pérdida de datos. Sin exportaciones de filas.
+- Validación: TypeScript frontend/backend, 724 unitarios frontend, 348 unitarios backend, 153 integraciones PostgreSQL, 15 pruebas PWA/worker y builds frontend/backend. E2E general: 173 aprobados y 2 omisiones de plataforma, sin fallos ni retries; los 12 casos nuevos de desktop/iPhone pasan. Capturas en `docs/pr-shots/issue-344-*`. Se excluyen bundles y reportes generados del typecheck. Documentación: `docs/onboarding-344.md`; OpenSpec: `redesign-onboarding`.
+
 ## Issue #338 — Inventario desde texto y .txt — 2026-10-14
 
 - Implementación local, sin commit ni push por pedido explícito. ImportModal agrega Excel / Pegar listado / Subir .txt sólo en inventario; comparte vista previa virtualizada desktop y tarjetas iPhone, dudas resaltadas, edición/exclusión por fila y descartes con motivo. Confirmar es la única operación que persiste.

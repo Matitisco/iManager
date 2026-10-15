@@ -90,10 +90,14 @@ function inventoryReason(facts: NoticeFacts) {
 
 function clientReason(facts: NoticeFacts) {
   const balance = facts.pendingBalance ?? 0;
-  if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance, facts.currency)}`;
+  const debt = balance > 0 ? `Debe ${money(balance, facts.currency)}` : "";
+  if (facts.clientCreated && debt) return `Nuevo cliente · debe ${money(balance, facts.currency)}`;
   if (facts.clientCreated) return "Nuevo cliente";
-  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) return `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
-  if (balance > 0) return `Debe ${money(balance, facts.currency)}`;
+  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) {
+    const refundText = `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
+    return debt ? `${refundText} · ${debt}` : refundText;
+  }
+  if (debt) return debt;
   if (facts.action === "cancelled" || facts.action === "updated") return "Quedó al día";
   return "Cliente";
 }
@@ -208,16 +212,17 @@ export function sectionRecords(
   }));
 }
 
-export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; depositApplied?: number; status: string; hasInventory: boolean; received?: boolean; receivedStatus?: string; currency?: string | null }) {
+export function operationSummary(input: { trade: boolean; amount: number; takeValue?: number; depositApplied?: number; status: string; hasInventory: boolean; received?: boolean; receivedStatus?: string; currency?: string | null; unpaid?: number }) {
   const format = (value: number) => money(value, input.currency);
   const amount = format(input.amount);
   const applied = Math.max(0, input.depositApplied ?? 0);
+  const debtOf = (base: number) => input.unpaid != null ? Math.max(0, input.unpaid) : input.status === "PENDIENTE" ? Math.max(0, base - applied) : 0;
   if (!input.trade) {
-    const debtValue = input.status === "PENDIENTE" ? Math.max(0, input.amount - applied) : 0;
+    const debtValue = debtOf(input.amount);
     return `Venta ${amount} · deuda ${format(debtValue)}${input.hasInventory ? " · stock vendido" : " · equipo libre"}`;
   }
   const difference = Math.max(0, input.amount - (input.takeValue ?? 0));
-  const debtValue = input.status === "PENDIENTE" ? Math.max(0, difference - applied) : 0;
+  const debtValue = debtOf(difference);
   const settlement = debtValue > 0 ? `debe ${format(debtValue)}` : "pagada";
   const technicalStatus = input.receivedStatus ?? "PENDIENTE";
   const technicalLabel = ({

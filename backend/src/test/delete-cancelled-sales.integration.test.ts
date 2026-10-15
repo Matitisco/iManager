@@ -49,7 +49,7 @@ describe("delete cancelled sales", () => {
     });
     const before = await snapshot();
     expect(before.client.pendingBalance.toNumber()).toBe(resale.json().clients[0].pendingBalance);
-    expect(before.payments.filter((row) => row.kind === "DEVOLUCION")).toHaveLength(1);
+    expect(before.payments.filter((row) => row.kind === "DEVOLUCION")).toHaveLength(status === "COMPLETADA" ? 1 : 0);
     expect((await app.inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers })).statusCode).toBe(204);
     expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
     expect(await snapshot()).toEqual(before);

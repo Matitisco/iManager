@@ -132,3 +132,19 @@ describe('import-api', () => {
     }), 45_000);
   });
 });
+
+describe('análisis progresivo', () => {
+  it('entrega chunks partidos, conserva UTF-8 y exige un resultado final', async () => {
+    const { analyzeInventoryTextProgress } = await import('./import-api');
+    setApiBaseUrl('https://api.imanager.test');
+    const encoder = new TextEncoder();
+    const data = encoder.encode(JSON.stringify({ type: 'progress', rows: [{ model: 'Teléfono', quantity: 2 }] }) + '\n' + JSON.stringify({ type: 'result', analysis: { rows: [{ model: 'Teléfono' }] } }) + '\n');
+    const stream = new ReadableStream({ start(controller) { for (let i = 0; i < data.length; i += 3) controller.enqueue(data.slice(i, i + 3)); controller.close(); } });
+    vi.mocked(fetchWithTimeout).mockResolvedValue(new Response(stream, { headers: { 'Content-Type': 'application/x-ndjson' } }));
+    const progress = vi.fn();
+    expect(await analyzeInventoryTextProgress(mockUser, 'texto', progress, new AbortController().signal)).toMatchObject({ rows: [{ model: 'Teléfono' }] });
+    expect(progress).toHaveBeenCalledWith([{ model: 'Teléfono', quantity: 2 }]);
+    vi.mocked(fetchWithTimeout).mockResolvedValue(new Response('{"type":"progress","rows":[]}\n', { headers: { 'Content-Type': 'application/x-ndjson' } }));
+    await expect(analyzeInventoryTextProgress(mockUser, 'texto', progress, new AbortController().signal)).rejects.toThrow(/interrumpió/);
+  });
+});

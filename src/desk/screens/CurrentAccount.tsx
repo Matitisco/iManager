@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
 import { toUserMessage } from '../../lib/user-message';
@@ -8,7 +8,7 @@ import { formatInputMoney, parseMoney, paymentLabel } from '../format';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { PAYMENTS } from '../overlays/shared';
 
-const TONE_LABEL = { verde: 'Menos de 7 días', amarillo: '8 a 30 días', rojo: 'Más de 30 días' };
+const TONE_LABEL = { verde: 'Menos de 7 días', amarillo: '7 a 30 días', rojo: 'Más de 30 días' };
 const STATE_LABEL = { ABIERTA: 'Abierta', NOTA_CREDITO: 'Nota de crédito' };
 const INSTALLMENT_LABEL: Record<string, string> = { PENDIENTE: 'Pendiente', PARCIAL: 'Parcial', PAGADA: 'Pagada', VENCIDA: 'Vencida' };
 const FOLLOW_MESSAGE: Record<FollowUpCard['kind'], (card: FollowUpCard) => string> = {
@@ -26,16 +26,28 @@ function useReload() {
   };
 }
 
-export function SaleAccountPanel({ saleId }: { saleId: string }) {
+export function SaleAccountPanel({ saleId, revision = '', onDue }: { saleId: string; revision?: string; onDue?: (due: number) => void }) {
   const { user } = useAppContext();
   const money = useMoney();
   const [account, setAccount] = useState<SaleAccount | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const onDueRef = useRef(onDue);
+  onDueRef.current = onDue;
+  useEffect(() => {
+    const refreshDue = () => { if (document.visibilityState === 'visible') setRefresh((value) => value + 1); };
+    document.addEventListener('visibilitychange', refreshDue);
+    return () => document.removeEventListener('visibilitychange', refreshDue);
+  }, []);
   useEffect(() => {
     if (!user) return;
     let active = true;
-    fetchSaleAccount(user, saleId).then((data) => { if (active && Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data); }).catch(() => { if (active) setAccount(null); });
+    fetchSaleAccount(user, saleId).then((data) => {
+      if (!active) return;
+      if (typeof data?.due === 'number') onDueRef.current?.(data.due);
+      if (Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data);
+    }).catch(() => { if (active) setAccount(null); });
     return () => { active = false; };
-  }, [user, saleId]);
+  }, [user, saleId, revision, refresh]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">
@@ -69,7 +81,7 @@ export function AccountCurrent({ query }: { query: string }) {
   const visible = rows.filter((row) => !q || row.name.toLowerCase().includes(q) || row.phone.includes(q));
   return (
     <section className="acct-screen" aria-label="Cuenta corriente" data-testid="account-current">
-      <p className="eqs-note">Ventas abiertas, reparaciones con saldo y deudas manuales. El semáforo mira la deuda más antigua: verde menos de 7 días, amarillo desde el día 7 hasta 30, rojo después.</p>
+      <p className="eqs-note">Ventas abiertas, reparaciones con saldo y deudas manuales. El semáforo mira la deuda más antigua: verde menos de 7 días, amarillo de 7 a 30, rojo después.</p>
       {error ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
       {loading ? <p className="eqs-note" role="status">Cargando cuenta corriente…</p> : null}
       {!loading && !visible.length ? <div className="wempty">Nadie tiene saldo pendiente.</div> : null}
@@ -84,9 +96,10 @@ export function AccountCurrent({ query }: { query: string }) {
                   <b>{row.name}</b>
                   <small>{row.days} días</small>
                 </div>
-                <strong>{money.show(row.pendingBalance, row.currency)}</strong>
+                <strong data-testid={`account-balance-${row.clientId}`}>{accountHeadline(row.pendingBalance - (row.creditBalance ?? 0), row.currency, money.show)}</strong>
               </div>
               {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency)}. Ese saldo no se suma al de la cuenta.</p> : null}
+              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency)}</p> : null}
               <div className="acct-lines">
                 {row.lines.map((line) => (
                   <div className="acct-line" key={line.id}>
@@ -112,10 +125,16 @@ export function AccountCurrent({ query }: { query: string }) {
   );
 }
 
+function accountHeadline(net: number, currency: string | null, show: (amount: number, currency?: string | null) => string) {
+  if (net < 0) return `A favor ${show(Math.abs(net), currency)}`;
+  return show(net, currency);
+}
+
 function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pago' | 'deuda' | 'descuento'; onClose: () => void; onSaved: (message: string) => void }) {
   const { user } = useAppContext();
   const payable = row.lines.filter((line) => line.saleId || line.repairId);
-  const [choice, setChoice] = useState(payable[0]?.id ?? '');
+  const sales = payable.filter((line) => line.saleId);
+  const [choice, setChoice] = useState(sales[0]?.id ?? payable[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [method, setMethod] = useState('EFECTIVO');
@@ -157,7 +176,14 @@ function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pa
       ) : null}
       <Field label="Monto"><input aria-label="Monto" inputMode="numeric" value={amount} placeholder="$ 0" onChange={(event) => setAmount(formatInputMoney(parseMoney(event.target.value)))} /></Field>
       {mode === 'pago' ? <><Field label="Medio de pago"><span /></Field><Segs options={PAYMENTS} value={method} onChange={setMethod} /><p className="eqs-note">Medio {paymentLabel(method)}. El pago entra a la cuota impaga más antigua.</p></> : <Field label="Nota"><input aria-label="Nota" value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} /></Field>}
-      {mode === 'descuento' && payable.some((line) => line.saleId) ? <label className="op-check"><input type="checkbox" checked={credit} onChange={(event) => setCredit(event.target.checked)} />Nota de crédito de la venta elegida. No mueve el stock.</label> : null}
+      {mode === 'descuento' && sales.length ? (
+        <>
+          {sales.map((line) => (
+            <label className="op-check" key={line.id}><input type="radio" name="credit-sale" checked={choice === line.id} onChange={() => setChoice(line.id)} />{line.label}</label>
+          ))}
+          <label className="op-check"><input type="checkbox" checked={credit} onChange={(event) => setCredit(event.target.checked)} />Nota de crédito de la venta elegida. No mueve el stock.</label>
+        </>
+      ) : null}
       <Actions busy={busy} primary={title} onPrimary={() => { void save(); }} onSecondary={onClose} secondary="Cerrar" />
     </Sheet>
   );

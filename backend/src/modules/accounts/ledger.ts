@@ -12,7 +12,7 @@ export function fromCents(value: number): number {
   return value / 100;
 }
 
-/** Day 7 is yellow: the written ranges leave that day unspecified, and warning one day earlier is the safer collection rule. */
+/** Yellow runs from day 7 through day 30. */
 export function balanceTone(days: number): Tone {
   if (!Number.isFinite(days) || days < 7) return "verde";
   if (days <= 30) return "amarillo";
@@ -86,6 +86,14 @@ export function installmentStatus(row: InstallmentSlice, today: string): Install
   if (row.dueDate < today) return "VENCIDA";
   if (cents(row.paidAmount) > 0) return "PARCIAL";
   return "PENDIENTE";
+}
+
+/** Show a general payment on the oldest unpaid installments without turning it into a cash collection. */
+export function applyCoverage(rows: InstallmentSlice[], coverage: number): InstallmentSlice[] {
+  if (!(coverage > 0) || rows.length === 0) return rows;
+  const allocated = allocatePayment(rows, coverage);
+  const bySequence = new Map(allocated.rows.map((row) => [row.sequence, row]));
+  return rows.map((row) => bySequence.get(row.sequence) ?? row);
 }
 
 export function allocatePayment(rows: InstallmentSlice[], payment: number): { rows: InstallmentSlice[]; applied: number } {

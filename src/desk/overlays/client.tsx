@@ -19,6 +19,19 @@ import { clientCoverageLines } from '../../lib/warranty';
 import { clientCredit, creditTotal } from '../client-balance';
 import { CoverageBlock } from '../warranty';
 
+function paymentCaption(payment: ClientPaymentRecord) {
+  const label = payment.kind === 'DEVOLUCION' ? 'Devolución'
+    : payment.kind === 'SENA' ? 'Cobro de seña'
+    : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)'
+    : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)'
+    : payment.kind === 'CARGO' ? 'Deuda'
+    : payment.kind === 'DESCUENTO' ? 'Descuento de deuda'
+    : payment.kind === 'NOTA_CREDITO' ? 'Nota de crédito'
+    : payment.kind === 'VUELTO' ? 'Vuelto'
+    : paymentLabel(payment.method);
+  return payment.note && (payment.kind == null || payment.kind === 'PAGO') ? `${label} · ${payment.note}` : label;
+}
+
 export function ClientDetail({ id }: { id: string }) {
   const { clients, user, registerClientPayment, sales = [], repairOrders = [] } = useAppContext();
   const money = useMoney();
@@ -32,6 +45,7 @@ export function ClientDetail({ id }: { id: string }) {
   const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
   const amountDirty = useRef(false);
 
   const quoteRate = money.rate;
@@ -74,6 +88,7 @@ export function ClientDetail({ id }: { id: string }) {
       const updated = await registerClientPayment(client.id, { amount: stored, method, currency: stampedCurrency(client.balanceCurrency) });
       toast('Pago registrado');
       amountDirty.current = false;
+      setPaying(false);
       setAmount(money.inputValue(updated.pendingBalance, updated.balanceCurrency));
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo registrar el pago.'));
@@ -81,6 +96,27 @@ export function ClientDetail({ id }: { id: string }) {
       setBusy(false);
     }
   };
+  if (paying) {
+    return (
+      <Sheet title="Registrar pago" subtitle={client.name} onClose={() => { if (!busy) setPaying(false); }} className="cl-sheet">
+        {error && <div className="ferr">{error}</div>}
+        <Field label="Monto" mark={money.active}><input aria-label="Monto" value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
+          amountDirty.current = true;
+          const raw = event.target.value;
+          if (raw.includes('-')) {
+            setAmount(raw);
+            setError('El pago no puede ser negativo');
+            return;
+          }
+          setAmount(formatInputMoney(parseMoney(raw)));
+          setError(null);
+        }} /></Field>
+        <Field label="Forma de pago"><span /></Field>
+        <Segs options={PAYMENTS} value={method} onChange={setMethod} />
+        <Actions busy={busy} primary="Confirmar pago" secondary="Volver" onSecondary={() => { if (!busy) setPaying(false); }} onPrimary={() => { void pay(); }} />
+      </Sheet>
+    );
+  }
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   const credit = !deposits.loading && !deposits.error ? creditTotal(deposits.rows, client.balanceCurrency ?? null) : clientCredit(client);
@@ -99,23 +135,6 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
-      {client.pendingBalance > 0 ? (
-        <>
-          <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
-            amountDirty.current = true;
-            const raw = event.target.value;
-            if (raw.includes('-')) {
-              setAmount(raw);
-              setError('El pago no puede ser negativo');
-              return;
-            }
-            setAmount(formatInputMoney(parseMoney(raw)));
-            setError(null);
-          }} /></Field>
-          <Field label="Forma de pago"><span /></Field>
-          <Segs options={PAYMENTS} value={method} onChange={setMethod} />
-        </>
-      ) : null}
       <CoverageBlock testId="client-warranties" lines={clientCoverageLines(client.id, sales, repairOrders)} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
@@ -128,13 +147,13 @@ export function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {payment.kind === 'DEVOLUCION' ? 'Devolución' : payment.kind === 'SENA' ? 'Cobro de seña' : payment.kind === 'CREDITO' ? 'Saldo a favor (sin cobro)' : payment.kind === 'APLICACION' ? 'Seña aplicada (sin cobro)' : payment.kind === 'CARGO' ? 'Deuda' : payment.kind === 'DESCUENTO' ? 'Descuento de deuda' : payment.kind === 'NOTA_CREDITO' ? 'Nota de crédito' : payment.kind === 'VUELTO' ? 'Vuelto' : paymentLabel(payment.method)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentCaption(payment)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
           ))}
         </>
       ) : null}
       <div className="sacts deposit-actions">
         {client.pendingBalance > 0
-          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
         {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}

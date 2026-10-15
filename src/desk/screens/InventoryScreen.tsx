@@ -1,3 +1,4 @@
+import { OnboardingInventorySummary } from '../getting-started';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
@@ -178,6 +179,7 @@ export function InventoryScreen() {
           </div>
         )}
       />
+      <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
@@ -359,7 +361,7 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}</div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}</div>
                     </div>
                   </td>
                   <td>{(item.color ?? '').trim() || '—'}</td>
@@ -509,7 +511,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
       <span className="inv-status">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">
         <b>{equipmentTitle(item.model, item.capacity)}</b>
-        {item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
+        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
       </span>
       <span className="inv-meta">
         <small>{condition || '—'}</small>

@@ -8,7 +8,7 @@ import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
-import { onboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
+import { onboardingRoutes, gettingStartedRoutes } from "./modules/onboarding/onboarding.routes.js";
 import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { reportsRoutes } from "./modules/reports/reports.routes.js";
@@ -51,6 +51,10 @@ export function buildApp() {
 
   app.register(sensible);
 
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.url.startsWith("/api")) reply.header("cache-control", "no-store");
+  });
+
   app.addHook("preSerialization", async (request, _reply, payload) => {
     if (!request.appUser || canSeeFinancials(request.appUser)) return payload;
     return redactFinancials(payload);
@@ -60,6 +64,7 @@ export function buildApp() {
   app.register(publicCatalogRoutes, { prefix: "/api/public/catalog" });
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
+  app.register(gettingStartedRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
   app.register(depositsRoutes, { prefix: '/api/clients' });
   app.register(cashRoutes, { prefix: "/api/cash" });

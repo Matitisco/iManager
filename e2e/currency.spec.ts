@@ -26,15 +26,12 @@ test('configures the store currency and converts a saved price', async ({ page }
 
   await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
   await page.getByTestId('onboarding-store-name').fill(storeName);
-  await page.getByTestId('onboarding-instagram').fill('@moneda');
+  await page.getByText('Moneda y dólar').click();
   await page.getByTestId('onboarding-currency').selectOption('USD');
   await page.getByTestId('onboarding-exchange-mode').selectOption('auto');
   await page.getByTestId('onboarding-exchange-source').selectOption('blue');
   await page.getByTestId('onboarding-submit').click();
-  const skipContact = page.getByRole('button', { name: 'Ahora no' });
-  if (await skipContact.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)) {
-    await skipContact.click();
-  }
+  for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
   await page.getByTestId('sidebar-tab-inventory').click();
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
@@ -46,6 +43,7 @@ test('configures the store currency and converts a saved price', async ({ page }
 
   await page.getByRole('button', { name: 'Configuración' }).click();
   await page.getByRole('button', { name: storeName }).click();
+  await page.getByLabel('Instagram', { exact: true }).fill('@moneda');
   await selectDeskOption(page, page.getByTestId('store-currency'), 'ARS');
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Datos de la tienda' })).toBeHidden();
@@ -120,12 +118,10 @@ test.describe('phone', () => {
     await loginViaUi(page, email);
     await expect(page.getByTestId('onboarding-store-name')).toHaveValue('');
     await page.getByTestId('onboarding-store-name').fill(`Celular ${testInfo.parallelIndex}`);
-    await page.getByTestId('onboarding-instagram').fill('@celular');
+    await page.getByText('Moneda y dólar').click();
+    await page.getByTestId('onboarding-currency').selectOption('ARS');
     await page.getByTestId('onboarding-submit').click();
-    const skipContact = page.getByRole('button', { name: 'Ahora no' });
-    if (await skipContact.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)) {
-      await skipContact.click();
-    }
+    for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     await page.getByTestId('blue-widget').click();

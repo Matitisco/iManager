@@ -18,6 +18,9 @@ export interface AppSessionResponse {
     avatarUrl: string | null;
   };
   store: {
+    onboardingStage?: string | null;
+    onboardingStartedAt?: string | null;
+    onboardingCompletedAt?: string | null;
     id: string;
     name: string;
     legalName: string | null;

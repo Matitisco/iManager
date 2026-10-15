@@ -9,7 +9,8 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
 import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
-import { cancellationRefund } from '../cancel-refund';
+import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
+import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -427,28 +428,45 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }
 
 export function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { sales, clients, inventory, tradeIns, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
+  const { sales, clients, inventory, tradeIns, user, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id);
   const [detailError, setDetailError] = useState<string | null>(null);
   useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [movements, setMovements] = useState<ClientPaymentRecord[]>([]);
+  const [accountDue, setAccountDue] = useState<number | null>(null);
+  const buyerPending = clients.find((item) => item.id === sale?.clientId)?.pendingBalance;
+  useEffect(() => {
+    if (!user || !sale?.clientId) return;
+    let active = true;
+    fetchClientPayments(user, sale.clientId).then((rows) => { if (active) setMovements(rows); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user, sale?.clientId, sale?.openBalance, sale?.status, sale?.amount, buyerPending]);
+  useEffect(() => { setAccountDue(null); }, [id]);
   useEffect(() => {
     if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
   if (!sale) return null;
   const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
-  const buyer = clients.find((client) => client.id === sale.clientId);
   const cash = (linkedTrade ? linkedTrade.differencePaid : sale.amount) - (sale.depositAppliedAmount ?? 0);
-  const refund = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
-    ? cancellationRefund(sale.status, cash, buyer?.pendingBalance ?? 0)
-    : 0;
+  const refundTarget = { id: sale.id, cash, status: sale.status, openBalance: sale.openBalance, soldAt: sale.date };
+  const refundSales = sales.filter((item) => item.clientId && item.clientId === sale.clientId && item.status !== 'CANCELADA').map((item): RefundTarget => {
+    const trade = item.tradeInId ? tradeIns.find((row) => row.id === item.tradeInId) : undefined;
+    return { id: item.id, cash: Math.max(0, (trade ? trade.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
+  });
+  const buyer = clients.find((item) => item.id === sale.clientId);
+  const displayedDue = accountDue ?? displayedSaleDue(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0);
+  const plan = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
+    ? cancellationPlan(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
+    : { refund: 0, credit: 0 };
   if (confirmCancel) {
     return (
       <ConfirmOperationDialog
         label={saleCode(sale)}
-        refund={refund}
+        refund={plan.refund}
+        coveredCredit={plan.credit}
         depositCredit={sale.depositAppliedAmount}
         busy={busy}
         error={error}
@@ -484,7 +502,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
               soldQuality ? `Calidad ${soldQuality}` : null,
               money.show(sale.amount, sale.amountCurrency),
               paymentLabel(sale.paymentMethod),
-              sale.status === 'PENDIENTE' ? `Debe ${receiptMoney(cash, sale.amountCurrency ?? money.active)}` : `Pagó ${money.show(sale.amount, sale.amountCurrency)}`,
+              sale.status === 'PENDIENTE' ? `Debe ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : `Pagó ${money.show(sale.amount, sale.amountCurrency)}`,
               coverage.phrase,
             ].filter(Boolean).join(' · ');
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
@@ -501,9 +519,9 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(sale.openBalance ?? cash, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
-      <SaleAccountPanel saleId={sale.id} />
+      <SaleAccountPanel saleId={sale.id} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

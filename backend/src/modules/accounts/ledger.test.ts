@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allocatePayment,
+  applyCoverage,
   balanceTone,
   calendarDays,
   convertTender,
@@ -20,6 +21,18 @@ describe("account ledger", () => {
     expect(balanceTone(30)).toBe("amarillo");
     expect(balanceTone(31)).toBe("rojo");
     expect(calendarDays("2026-10-01", "2026-10-08")).toBe(7);
+  });
+
+  it("shows a general payment on the oldest unpaid installment", () => {
+    const rows = [
+      { sequence: 1, dueDate: "2026-11-14", amount: 50, paidAmount: 0 },
+      { sequence: 2, dueDate: "2026-12-14", amount: 50, paidAmount: 0 },
+    ];
+    expect(applyCoverage(rows, 30)).toEqual([
+      { sequence: 1, dueDate: "2026-11-14", amount: 50, paidAmount: 30 },
+      { sequence: 2, dueDate: "2026-12-14", amount: 50, paidAmount: 0 },
+    ]);
+    expect(rows[0]?.paidAmount).toBe(0);
   });
 
   it("splits a surcharge across installments and can collect the first one", () => {

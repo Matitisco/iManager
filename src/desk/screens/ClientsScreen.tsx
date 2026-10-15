@@ -4,7 +4,7 @@ import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-ba
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { usePhoneLayout, useSectionNotices } from '../section-notices';
+import { reasonWithBalance, usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import {
@@ -80,6 +80,7 @@ export function ClientsScreen() {
   const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
   const withBalance = clients.filter((client) => clientNet(client) > 0).length;
+  const noticeFor = (client: Client) => reasonWithBalance(notices.reasonFor(client.id), client.pendingBalance, client.balanceCurrency);
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const setDraft = (patch: Partial<ClientColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
@@ -110,7 +111,7 @@ export function ClientsScreen() {
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Clientes"
-        subtitle={`${clients.length} clientes · ${withBalance} con saldo`}
+        subtitle={`${clients.length === 1 ? '1 cliente' : `${clients.length} clientes`} · ${withBalance} con saldo`}
         back={back}
         tools={(
           <span className="rslot">
@@ -171,7 +172,7 @@ export function ClientsScreen() {
             {clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}
             <PhoneRecords>
               {page.visible.map((client, index) => {
-                const reason = notices.reasonFor(client.id);
+                const reason = noticeFor(client);
                 const group = clientNet(client) > 0 ? 'Con saldo' : 'Todos';
                 const previous = index > 0 ? page.visible[index - 1] : null;
                 const showGroup = filter === 'Todos' && sort === 'Deudores' && (!previous || (clientNet(previous) > 0) !== (clientNet(client) > 0));
@@ -250,7 +251,7 @@ export function ClientsScreen() {
                   <td>
                     <div className="dcell">
                       <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small><NoticeTag reason={notices.reasonFor(client.id)} /></div>
+                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small><NoticeTag reason={noticeFor(client)} /></div>
                     </div>
                   </td>
                   <td>{client.dni || '-'}</td>
