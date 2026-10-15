@@ -52,6 +52,13 @@ describe('Inventory column filters', () => {
     ];
   });
 
+  it('usa equipo en singular en el resumen de stock', () => {
+    context.inventory = [item('1')];
+    renderScreen();
+    expect(screen.getByText('1 equipo · 1 disponible · 0 en catálogo')).toBeInTheDocument();
+    expect(screen.queryByText(/1 equipos/)).not.toBeInTheDocument();
+  });
+
   it('filters the table by each column, including rows off the first page', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();

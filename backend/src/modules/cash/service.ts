@@ -42,7 +42,7 @@ export async function listSessions(storeId: string, registerId: string) {
 }
 async function append(tx: Tx, box: CashRegister, data: Omit<Prisma.CashMovementUncheckedCreateInput, 'storeId' | 'registerId'>, requireOpen = true) {
   const session = requireOpen ? await openSession(tx, box) : null;
-  const row = await tx.cashMovement.create({ data: { ...data, storeId: box.storeId, registerId: box.id, sessionId: session?.id ?? data.sessionId ?? null } });
+  const row = await tx.cashMovement.create({ data: { ...data, currency: box.currency, method: box.method, storeId: box.storeId, registerId: box.id, sessionId: session?.id ?? data.sessionId ?? null } });
   await tx.cashRegister.update({ where: { id: box.id }, data: { balance: { increment: data.amount } } });
   return row;
 }
@@ -140,11 +140,25 @@ export async function transferFunds(storeId: string, input: { fromId: string; to
     return { id: debit.id };
   });
 }
+/** Business operations never require a session and never change a closed register. */
+async function appendAutomatic(tx: Tx, storeId: string, currency: string, method: string, data: Omit<Prisma.CashMovementUncheckedCreateInput, 'storeId' | 'registerId'>) {
+  const day = await cashDay(tx, storeId);
+  const box = await tx.cashRegister.findFirst({
+    where: { storeId, currency, method, archivedAt: null, sessions: { some: { storeId, day, status: 'OPEN' } } },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  });
+  if (box) return append(tx, box, data);
+  return tx.cashMovement.create({ data: { ...data, storeId, currency, method, registerId: null, sessionId: null } });
+}
 async function reverse(tx: Tx, row: CashMovement, actor?: Actor | null, note = 'Anulación') {
   if (row.voidedAt || row.reversalOf) return;
-  const box = await register(tx, row.storeId, row.registerId);
-  await append(tx, box, { amount: row.amount.neg(), kind: 'ANULACION', category: row.category, note, sourceType: row.sourceType, sourceId: row.sourceId, reversalOf: row.id, transferGroup: row.transferGroup, exchangeRate: row.exchangeRate, createdBy: actor?.userId });
-  await tx.cashMovement.update({ where: { id: row.id }, data: { voidedAt: new Date() } });
+  if (await tx.cashMovement.findFirst({ where: { storeId: row.storeId, reversalOf: row.id } })) return;
+  // Existing movements get their denomination from their register; new unassigned
+  // movements carry it themselves. Preserve the original movement, even after close.
+  const box = row.registerId ? await register(tx, row.storeId, row.registerId) : null;
+  const currency = row.currency ?? box!.currency;
+  const method = row.method ?? box!.method;
+  await appendAutomatic(tx, row.storeId, currency, method, { amount: row.amount.neg(), kind: 'ANULACION', category: row.category, note, sourceType: row.sourceType, sourceId: row.sourceId, reversalOf: row.id, transferGroup: row.transferGroup, exchangeRate: row.exchangeRate, createdBy: actor?.userId });
 }
 export async function voidMovement(storeId: string, id: string, actor: Actor) {
   return prisma.$transaction(async tx => {
@@ -221,25 +235,23 @@ export async function listMovements(storeId: string, id: string, input: { from?:
     prisma.cashMovement.count({ where }),
     prisma.cashMovement.findMany({ where: { ...base, category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } }),
   ]);
-  return { movements: rows.map(movementResponse), total, categories: categories.flatMap(row => row.category ? [row.category] : []) };
+  const reversals = await prisma.cashMovement.findMany({ where: { storeId, reversalOf: { in: rows.map(row => row.id) } }, select: { reversalOf: true, createdAt: true } });
+  const voided = new Map(reversals.map(row => [row.reversalOf, row.createdAt]));
+  return { movements: rows.map(row => movementResponse({ ...row, voidedAt: row.voidedAt ?? voided.get(row.id) ?? null })), total, categories: categories.flatMap(row => row.category ? [row.category] : []) };
 }
 /** Called only for new real money; never for historical imports, deposits applied or accounting adjustments. */
 export async function recordCash(tx: Tx, input: { storeId: string; amount: number; currency: string; method: string; sourceType: string; sourceId: string; note: string; actor?: Actor | null; requestKey?: string }) {
   if (!input.amount) return;
   await lockCash(tx, input.storeId);
-  if (!await tx.cashRegister.findFirst({ where: { storeId: input.storeId }, select: { id: true } })) return;
   const method = cashMethod(input.method);
-  const box = method ? await tx.cashRegister.findFirst({ where: { storeId: input.storeId, currency: input.currency, method, isDefault: true, archivedAt: null } }) : null;
-  if (!box) throw new DomainError(`Configurá una caja predeterminada para ${input.currency} · ${input.method} antes de cobrar`, 409);
+  if (!method) return;
+  const box = await tx.cashRegister.findFirst({ where: { storeId: input.storeId, currency: input.currency, method, archivedAt: null } });
+  if (!box) return;
   if (input.requestKey && await tx.cashMovement.findFirst({ where: { storeId: input.storeId, requestKey: input.requestKey } })) return;
-  await append(tx, box, { amount: money(input.amount), kind: input.amount > 0 ? 'COBRO' : 'DEVOLUCION', sourceType: input.sourceType, sourceId: input.sourceId, note: input.note, createdBy: input.actor?.userId, requestKey: input.requestKey });
+  await appendAutomatic(tx, input.storeId, input.currency, method, { amount: money(input.amount), kind: input.amount > 0 ? 'COBRO' : 'DEVOLUCION', sourceType: input.sourceType, sourceId: input.sourceId, note: input.note, createdBy: input.actor?.userId, requestKey: input.requestKey });
 }
 export async function reverseCashSource(tx: Tx, storeId: string, sourceType: string, sourceId: string, actor?: Actor | null) {
   await lockCash(tx, storeId);
   const rows = await tx.cashMovement.findMany({ where: { storeId, sourceType, sourceId, voidedAt: null, reversalOf: null } });
   for (const row of rows) await reverse(tx, row, actor, 'Devolución desde el origen');
-}
-/** Money edits on a tracked sale must use its cancellation; categories and nonfinancial details remain editable. */
-export async function protectCashSaleEdit(tx: Tx, storeId: string, saleId: string, changed: boolean) {
-  if (changed && tx.cashMovement && await tx.cashMovement.findFirst({ where: { storeId, sourceType: 'sale', sourceId: saleId, voidedAt: null, reversalOf: null } })) throw new DomainError('La venta ya tiene cobros en caja. Anulala y recargala para corregir monto, moneda o medio de pago', 409);
 }

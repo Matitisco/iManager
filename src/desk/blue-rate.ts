@@ -203,8 +203,8 @@ function pruneDays(days: Record<string, BlueDay>, today: string): Record<string,
   return Object.fromEntries(Object.entries(days).filter(([day]) => day >= cutoff && day <= today));
 }
 
-async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetchWithTimeout(url, { cache: 'no-store' });
+async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
+  const response = await fetchWithTimeout(url, { cache: 'no-store', signal });
   if (!response.ok) throw new Error('No se pudo actualizar la cotización');
   return response.json() as Promise<unknown>;
 }
@@ -222,10 +222,11 @@ export function houseFetchedAt(state: BlueState, source: ExchangeSourceId): stri
   return state.houses[source]?.quote.fetchedAt ?? null;
 }
 
-export async function refreshExchangeQuote(source: ExchangeSourceId): Promise<{ quote: BlueQuote; days: Record<string, BlueDay> }> {
+export async function refreshExchangeQuote(source: ExchangeSourceId, signal?: AbortSignal): Promise<{ quote: BlueQuote; days: Record<string, BlueDay> }> {
   const spec = EXCHANGE_HOUSES.find((item) => item.id === source);
   if (!spec) throw new Error('Fuente desconocida');
-  const quote = parseBlueQuote(await fetchJson(spec.url));
+  const quote = parseBlueQuote(await fetchJson(spec.url, signal));
+  signal?.throwIfAborted();
   const today = argentinaDay(new Date());
   const cached = readBlueState();
   const houseDays = cached.houses[source]?.days ?? {};
@@ -235,11 +236,12 @@ export async function refreshExchangeQuote(source: ExchangeSourceId): Promise<{ 
   let previous: number | null = null;
   if (!hadPrior && source === 'blue') {
     try {
-      previous = previousCloseFromAmbito(quote.sell, await fetchJson(AMBITO_PREVIOUS_CLOSE_URL));
+      previous = previousCloseFromAmbito(quote.sell, await fetchJson(AMBITO_PREVIOUS_CLOSE_URL, signal));
     } catch {
       previous = null;
     }
   }
+  signal?.throwIfAborted();
   const days = { ...existing };
   if (previous != null) {
     const day = shiftDay(today, -1);

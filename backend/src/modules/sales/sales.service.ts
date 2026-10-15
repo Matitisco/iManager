@@ -1,4 +1,4 @@
-import { recordCash, reverseCashSource, protectCashSaleEdit } from '../cash/service.js';
+import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
@@ -386,7 +386,6 @@ export async function updateSale(
 
     if (cancelling) await reverseCashSource(tx, storeId, 'sale', id, actor);
     else {
-      await protectCashSaleEdit(tx, storeId, id, Number(updated.amount) !== Number(existing.amount) || updated.amountCurrency !== existing.amountCurrency || updated.paymentMethod !== existing.paymentMethod || updated.status !== existing.status && updated.status !== 'COMPLETADA');
       if (existing.status === 'PENDIENTE' && updated.status === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(existing.openBalance ?? updated.amount), currency: updated.amountCurrency ?? await storeCurrency(storeId, tx), method: updated.paymentMethod, sourceType: 'sale', sourceId: id, note: 'Saldo de venta cobrado', actor });
     }
     if (!cancelling) await refreshSaleCommission(tx, storeId, id);

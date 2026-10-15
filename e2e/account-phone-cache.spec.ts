@@ -42,9 +42,12 @@ for (const device of [
         installments: { count: 2, frequency: 'MENSUAL', firstDueDate: '2026-11-14' },
       });
 
-      const listed = page.waitForResponse((response) => clientsList(response.url(), response.request().method()) && response.ok());
+      // Read the fixture through the request context: WebKit can discard the
+      // previous document's response body while page.reload() is in flight.
+      const listed = await request.get(`${api}/api/clients`, { headers: authHeaders(email) });
+      expect(listed.ok(), await listed.text()).toBeTruthy();
+      const staleClients = await listed.text();
       await page.reload();
-      const staleClients = await (await listed).text();
       await page.getByTestId('sidebar-tab-sales').click();
       const saleRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Cuotas' });
       await expect(saleRow).toBeVisible();

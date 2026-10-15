@@ -178,14 +178,18 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
   const [days, setDays] = useState<Record<string, BlueDay>>(cached?.days ?? {});
   const [phase, setPhase] = useState<Phase>(settings.exchangeMode === 'manual' ? (manualQuote ? 'ready' : 'error') : (cached ? 'ready' : 'loading'));
   const request = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const source = settings.exchangeSource;
 
   const load = useCallback(async (mode: 'silent' | 'visible') => {
     if (settings.exchangeMode !== 'auto') return;
     const id = ++request.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     if (mode === 'visible') setPhase('loading');
     try {
-      const result = await refreshExchangeQuote(source);
+      const result = await refreshExchangeQuote(source, controller.signal);
       if (request.current !== id) return;
       setQuote({ buy: result.quote.buy, sell: result.quote.sell, updatedAt: result.quote.updatedAt });
       setDays(result.days);
@@ -193,6 +197,8 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     } catch {
       if (request.current !== id) return;
       setPhase('error');
+    } finally {
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
   }, [settings.exchangeMode, source]);
 
@@ -216,7 +222,13 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     }
     if (!fetchedAt || !isFreshQuote(fetchedAt)) void load(snap ? 'silent' : 'visible');
     const timer = window.setInterval(() => { void load('silent'); }, BLUE_REFRESH_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      // Invalidate before aborting: either settlement must ignore this effect.
+      request.current += 1;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+      window.clearInterval(timer);
+    };
   }, [settings.exchangeMode, settings.manualBuy, settings.manualSell, source, load, manualQuote?.buy, manualQuote?.sell]);
 
   const convertible = phase === 'ready' && quote != null && quote.sell > 0;
