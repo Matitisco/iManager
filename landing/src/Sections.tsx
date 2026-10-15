@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ANNUAL_LABEL, APP_URL, PLANS, PRICING_BENEFITS, SHOW_BILLING_TOGGLE, SHOW_PRICING, SIGNUP_URL, type Plan } from './content';
+import { ANNUAL_LABEL, APP_URL, PLANS, PRICING_BENEFITS, SHOW_BILLING_TOGGLE, SHOW_PRICING, SIGNUP_URL, TRIAL, type Plan } from './content';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
 
@@ -26,7 +26,7 @@ export function Problem() {
           {cards.map((c) => (
             <div className="pc" key={c.title}>
               <div className="ico"><Icon name={c.icon} on={c.icon === 'dolar'} /></div>
-              <h4>{c.title}</h4>
+              <h3>{c.title}</h3>
               <p>{c.text}</p>
               <div className="q">{c.q}</div>
             </div>
@@ -66,21 +66,21 @@ export function Features() {
         <div className="fgrid">
           <div className="fc big">
             <div className="ico"><Icon name="inventario" on /></div>
-            <h4>Inventario por IMEI</h4>
+            <h3>Inventario por IMEI</h3>
             <p>Modelo, capacidad, color, batería, estado y precio. Filtros por estado y catálogo para compartir por link.</p>
             <img src="/assets/app-desk-inventario.png" alt="Inventario en iManager" loading="lazy" decoding="async" width="2880" height="1640" />
           </div>
           {small.map((f) => (
             <div className="fc" key={f.title}>
               <div className="ico"><Icon name={f.icon} on /></div>
-              <h4>{f.title}</h4>
+              <h3>{f.title}</h3>
               <p>{f.text}</p>
             </div>
           ))}
           <div className="fc wide">
             <div>
               <div className="ico"><Icon name="servicio-tecnico" on /></div>
-              <h4>Servicio técnico</h4>
+              <h3>Servicio técnico</h3>
               <p>Tablero de reparaciones con cada orden en su estado y aviso por WhatsApp cuando está lista.</p>
             </div>
             <div className="kb">
@@ -111,7 +111,7 @@ export function HowItWorks() {
           {steps.map((s, i) => (
             <div className="st" key={s.title}>
               <div className="n">{i + 1}</div>
-              <h4>{s.title}</h4>
+              <h3>{s.title}</h3>
               <p>{s.text}</p>
               <div className="mini"><Icon name={s.icon} on={s.icon === 'ventas'} />{s.mini}</div>
             </div>
@@ -173,7 +173,7 @@ function PlanCard({ p, annual }: { p: Plan; annual: boolean }) {
   return (
     <div className={`pl${hot ? ' hot' : ''}`}>
       {p.badge && <span className="tagp">{p.badge}</span>}
-      <h4>{p.name}</h4>
+      <h3>{p.name}</h3>
       <div className="d">{p.desc}</div>
       <div className="amt">
         {p.price ? (
@@ -200,10 +200,13 @@ function PlanCard({ p, annual }: { p: Plan; annual: boolean }) {
           <li key={s.t}>{s.t}</li>
         ))}
       </ul>
-      <a className={`btn ${hot ? 'y' : 's'}`} href={p.cta.href}>
-        {p.cta.label}
-        <Arrow out={p.cta.external} />
-      </a>
+      <div className="cta-foot">
+        {p.price && <p className="trial">{TRIAL}</p>}
+        <a className={`btn ${hot ? 'y' : 's'}`} href={p.cta.href}>
+          {p.cta.label}
+          <Arrow out={p.cta.external} />
+        </a>
+      </div>
     </div>
   );
 }
@@ -290,6 +293,7 @@ export function FinalCta() {
           <div className="bts">
             <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
             <a className="btn s" href={APP_URL}>Entrar</a>
+            <p className="trial">{TRIAL}</p>
           </div>
         </div>
       </div>
@@ -297,7 +301,8 @@ export function FinalCta() {
   );
 }
 
-export function Footer() {
+export function Footer({ path }: { path: string }) {
+  const to = (href: string) => (path === '/' ? href : `/${href}`);
   return (
     <footer id="footer">
       <div className="wrap">
@@ -307,19 +312,19 @@ export function Footer() {
             <p>Gestión para tiendas de celulares. Hecho en Argentina.</p>
           </div>
           <div>
-            <h5>Producto</h5>
-            <ul><li><a href="#funciones">Funciones</a></li><li><a href="#precios">Precios</a></li><li>Novedades</li></ul>
+            <h2>Producto</h2>
+            <ul><li><a href={to('#funciones')}>Funciones</a></li><li><a href={to('#precios')}>Precios</a></li></ul>
           </div>
           <div>
-            <h5>Ayuda</h5>
-            <ul><li><a href="#faq">Preguntas frecuentes</a></li><li>Guía para importar</li><li><a href="mailto:hola@imanager.com.ar">Contacto</a></li></ul>
+            <h2>Ayuda</h2>
+            <ul><li><a href={to('#faq')}>Preguntas frecuentes</a></li><li><a href="mailto:hola@imanager.com.ar">Contacto</a></li></ul>
           </div>
           <div>
-            <h5>Cuenta</h5>
+            <h2>Cuenta</h2>
             <ul><li><a href={APP_URL}>Entrar</a></li><li><a href={SIGNUP_URL}>Probar gratis</a></li></ul>
           </div>
         </div>
-        <div className="legal"><span>© 2026 iManager · imanager.com.ar</span><span>Términos · Privacidad</span></div>
+        <div className="legal"><span>© 2026 iManager · imanager.com.ar</span><span><a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></span></div>
       </div>
     </footer>
   );

@@ -36,7 +36,7 @@ export function MobileCards() {
 
   return (
     <section className="mcards" id="mcards" aria-label="Funciones, pieza por pieza">
-      <div className="k">Cada pieza, una función<span className="swipe"> · deslizá →</span></div>
+      <h2 className="k">Cada pieza, una función<span className="swipe"> · deslizá →</span></h2>
       <div className="track" ref={trackRef}>
         {FEATURES.map((f) => (
           <article className="mc" key={f.k}>
@@ -44,7 +44,7 @@ export function MobileCards() {
               <span className="ico"><Icon name={f.icon} on /></span>
               <div>
                 <small>{f.capa.split(' · ')[0]}</small>
-                <h4>{f.title}</h4>
+                <h3>{f.title}</h3>
               </div>
             </div>
             <p>{f.text}</p>

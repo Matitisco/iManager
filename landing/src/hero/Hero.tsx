@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { APP_URL, FEATURES, LAYERS, SIGNUP_URL, STATES, type LayerKey } from '../content';
+import { APP_URL, FEATURES, LAYERS, SIGNUP_URL, STATES, TRIAL, type LayerKey } from '../content';
 import { Icon } from '../Icon';
 import { MOBILE_HERO_QUERY, REDUCED_MOTION_QUERY, useMedia } from '../useMedia';
 import { Placa } from './Placa';
@@ -388,7 +388,7 @@ export function Hero() {
                 <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
                 <a className="btn s" href={APP_URL}>Entrar</a>
               </div>
-              <div className="trust">Sin tarjeta · Con tu mail o tu cuenta de Google</div>
+              <div className="trust">{TRIAL} · Con tu mail o tu cuenta de Google</div>
             </div>
             <div className={`cap c-separando${capOn('separando') ? ' on' : ''}`} aria-hidden={!capOn('separando')}>
               <span className="kick"><i />Mirá adentro</span>
@@ -430,6 +430,7 @@ export function Hero() {
                 <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
                 <a className="btn s" href={APP_URL}>Entrar a app.imanager.com.ar</a>
               </div>
+              <div className="trust">{TRIAL}</div>
             </div>
           </div>
 
@@ -479,7 +480,7 @@ export function Hero() {
           <nav className="rail" aria-label="Recorrido del hero">
             <span className="bar"><i ref={barRef} /></span>
             {STATES.map((s, i) => (
-              <a key={s.k} href="#hero" className={i === si ? 'on' : i < si ? 'done' : undefined} onClick={goTo(i)}>
+              <a key={s.k} href="#hero" aria-label={s.t} className={i === si ? 'on' : i < si ? 'done' : undefined} onClick={goTo(i)}>
                 <b />
                 <span>{s.t}</span>
               </a>

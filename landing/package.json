@@ -6,7 +6,7 @@
   "description": "Landing de marketing de iManager (imanager.com.ar)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build && vite build --ssr src/entry-server.tsx && node scripts/prerender.mjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit -p tsconfig.json",
     "start": "node serve.mjs",

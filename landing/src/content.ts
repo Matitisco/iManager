@@ -1,6 +1,9 @@
 import type { IconName } from './icons';
 
+export const SITE_URL = 'https://imanager.com.ar';
 export const APP_URL = 'https://app.imanager.com.ar';
+/** Prueba que arranca en la app, sin pedir tarjeta. */
+export const TRIAL = '7 días gratis, sin tarjeta';
 /** La app no tiene ruta ni deep link de registro: la cuenta se crea desde el login («Crear cuenta» o Google). */
 export const SIGNUP_URL = 'https://app.imanager.com.ar/';
 
@@ -111,7 +114,7 @@ export const PLANS: Plan[] = [
 
 /** Franja debajo de los planes. Solo cosas que la app hace hoy. */
 export const PRICING_BENEFITS: string[] = [
-  'Sin tarjeta para empezar',
+  TRIAL,
   'Importación desde Excel',
   'En la compu y en el celular',
   'Dólar actualizado cada 15 minutos',

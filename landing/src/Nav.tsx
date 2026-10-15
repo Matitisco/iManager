@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { APP_URL, SIGNUP_URL } from './content';
+import { APP_URL, SIGNUP_URL, TRIAL } from './content';
 import { Icon } from './Icon';
 
 const LINKS = [
@@ -9,7 +9,8 @@ const LINKS = [
   ['#faq', 'Preguntas'],
 ] as const;
 
-export function Nav() {
+export function Nav({ path }: { path: string }) {
+  const to = (href: string) => (path === '/' ? href : `/${href}`);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -26,10 +27,11 @@ export function Nav() {
           <img src="/assets/logotipo-horizontal.svg" alt="iManager" width="241" height="64" />
         </a>
         <nav className="links" aria-label="Secciones">
-          {LINKS.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+          {LINKS.map(([href, label]) => <a key={href} href={to(href)}>{label}</a>)}
         </nav>
         <span className="sp" />
         <a className="enter" href={APP_URL}>Entrar</a>
+        <span className="trial-nav">{TRIAL}</span>
         <a className="btn y" href={SIGNUP_URL}>Probar gratis</a>
         <button type="button" className="burger" aria-label="Menú" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           <Icon name="mas" />
@@ -37,8 +39,9 @@ export function Nav() {
       </div>
       {open && (
         <div className="menu">
-          {LINKS.map(([href, label]) => <a key={href} href={href} onClick={() => setOpen(false)}>{label}</a>)}
+          {LINKS.map(([href, label]) => <a key={href} href={to(href)} onClick={() => setOpen(false)}>{label}</a>)}
           <a className="btn y" href={SIGNUP_URL}>Probar gratis</a>
+          <span className="trial-nav">{TRIAL}</span>
         </div>
       )}
     </header>
