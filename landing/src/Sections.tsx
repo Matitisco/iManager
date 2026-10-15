@@ -195,12 +195,9 @@ function PlanCard({ p, annual }: { p: Plan; annual: boolean }) {
         )}
       </div>
       <ul className="specs">
-        {p.includes && <li className="inc">Todo lo del plan {p.includes}</li>}
+        {p.includes && <li className="inc">Todo lo de {p.includes}</li>}
         {p.specs.map((s) => (
-          <li key={s.t}>
-            {s.t}
-            {s.soon && <span className="soon">Próximamente</span>}
-          </li>
+          <li key={s.t}>{s.t}</li>
         ))}
       </ul>
       <a className={`btn ${hot ? 'y' : 's'}`} href={p.cta.href}>

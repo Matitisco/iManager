@@ -33,4 +33,4 @@ Mobile (≤900px): sticky de 240vh con 3 capas (pantalla, placa, carcasa) y desp
 
 ## Precios
 
-Cuatro planes confirmados (Básico, Avanzado, Completo y A medida). A medida no muestra monto. El toggle Anual aplica 25% menos y los CTAs de alta van a https://app.imanager.com.ar/.
+Tres planes: Básico, Negocio y Sistema propio. Sistema propio no muestra monto (la etiqueta es «A medida»). El toggle Anual aplica 25% menos y los CTAs de alta van a https://app.imanager.com.ar/.
