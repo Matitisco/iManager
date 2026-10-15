@@ -68,7 +68,7 @@ export function Features() {
             <div className="ico"><Icon name="inventario" on /></div>
             <h3>Inventario por IMEI</h3>
             <p>Modelo, capacidad, color, batería, estado y precio. Filtros por estado y catálogo para compartir por link.</p>
-            <img src="/assets/app-desk-inventario.png" alt="Inventario en iManager" loading="lazy" decoding="async" width="2880" height="1640" />
+            <img src="/assets/app-desk-inventario.png" alt="Inventario en iManager" loading="lazy" decoding="async" width="2880" height="1800" />
           </div>
           {small.map((f) => (
             <div className="fc" key={f.title}>
@@ -81,7 +81,7 @@ export function Features() {
             <div>
               <div className="ico"><Icon name="servicio-tecnico" on /></div>
               <h3>Servicio técnico</h3>
-              <p>Tablero de reparaciones con cada orden en su estado y aviso por WhatsApp cuando está lista.</p>
+              <p>Tablero de reparaciones con cada orden en su estado, hasta que el cliente lo retira.</p>
             </div>
             <div className="kb">
               <span><i style={{ background: '#737984' }} />Recibido</span>
@@ -122,12 +122,47 @@ export function HowItWorks() {
   );
 }
 
-const TABS: { label: string; m1: [string, string]; m2: [string, string] }[] = [
-  { label: 'Inventario', m1: ['app-mob-servicio.png', 'Servicio técnico en mobile'], m2: ['app-mob-venta.png', 'Venta en mobile'] },
-  { label: 'Ventas', m1: ['app-mob-venta.png', 'Registrar venta en mobile'], m2: ['app-mob-comisiones.png', 'Comisiones en mobile'] },
-  { label: 'Canjes', m1: ['app-mob-dashboard.png', 'Dashboard con canjes en curso'], m2: ['app-mob-inventario.png', 'Inventario en mobile'] },
-  { label: 'Servicio técnico', m1: ['app-mob-servicio.png', 'Servicio técnico en mobile'], m2: ['app-mob-dashboard.png', 'Dashboard en mobile'] },
-  { label: 'Dólar', m1: ['app-mob-dolar.png', 'Dólar blue en mobile'], m2: ['app-mob-venta.png', 'Venta en pesos y dólares'] },
+const TABS: { label: string; path: string; desk: string; mob: string; caps: [string, string]; icons: [IconName, IconName] }[] = [
+  {
+    label: 'Inventario',
+    path: '#/inv',
+    desk: 'app-desk-inventario.png',
+    mob: 'app-mob-inventario.png',
+    caps: ['Cada fila es un equipo, con su IMEI', 'Disponible, reservado, en revisión o vendido'],
+    icons: ['equipo', 'inventario'],
+  },
+  {
+    label: 'Ventas',
+    path: '#/ven',
+    desk: 'app-desk-ventas.png',
+    mob: 'app-mob-venta.png',
+    caps: ['Efectivo, transferencia, tarjeta o cripto', 'El equipo sale del stock solo'],
+    icons: ['ventas', 'equipo'],
+  },
+  {
+    label: 'Canjes',
+    path: '#/canjes',
+    desk: 'app-desk-canjes.png',
+    mob: 'app-mob-canjes.png',
+    caps: ['El usado entra en parte de pago', 'Con batería, calidad y costo real'],
+    icons: ['canjes', 'equipo'],
+  },
+  {
+    label: 'Servicio técnico',
+    path: '#/servicio',
+    desk: 'app-desk-servicio.png',
+    mob: 'app-mob-servicio.png',
+    caps: ['Recibido → En reparación → Listo → Entregado', 'Cada orden queda en su estado'],
+    icons: ['servicio-tecnico', 'servicio-tecnico'],
+  },
+  {
+    label: 'Dólar',
+    path: '#/dash',
+    desk: 'app-desk-dolar.png',
+    mob: 'app-mob-dolar.png',
+    caps: ['Compra y venta con la cotización del momento', 'Precios en dólares y en pesos'],
+    icons: ['dolar', 'dolar'],
+  },
 ];
 
 export function Screens() {
@@ -147,13 +182,13 @@ export function Screens() {
         </div>
         <div className="gal">
           <div className="desk">
-            <div className="bar"><i /><i /><i /><span>app.imanager.com.ar/#/inv</span></div>
-            <img src="/assets/app-desk-inventario.png" alt="Inventario desktop" loading="lazy" decoding="async" width="2880" height="1640" />
+            <div className="bar"><i /><i /><i /><span>app.imanager.com.ar/{t.path}</span></div>
+            <img src={`/assets/${t.desk}`} alt={`${t.label} en el escritorio`} loading="lazy" decoding="async" width="2880" height="1800" />
           </div>
-          <div className="mph m1"><img src={`/assets/${t.m1[0]}`} alt={t.m1[1]} loading="lazy" decoding="async" /></div>
-          <div className="mph m2"><img src={`/assets/${t.m2[0]}`} alt={t.m2[1]} loading="lazy" decoding="async" /></div>
-          <div className="cap2 c-a"><Icon name="servicio-tecnico" on />Reparaciones: Recibido → En reparación → Listo → Entregado</div>
-          <div className="cap2 c-b"><Icon name="equipo" />Cada fila es un equipo, con su IMEI</div>
+          <div className="mph m1"><img src={`/assets/${t.mob}`} alt={`${t.label} en el celular`} loading="lazy" decoding="async" width="780" height="1688" /></div>
+          <div className="mph m2"><img src={`/assets/${t.mob}`} alt={`${t.label} en el celular`} loading="lazy" decoding="async" width="780" height="1688" /></div>
+          <div className="cap2 c-a"><Icon name={t.icons[0]} on />{t.caps[0]}</div>
+          <div className="cap2 c-b"><Icon name={t.icons[1]} />{t.caps[1]}</div>
         </div>
       </div>
     </section>

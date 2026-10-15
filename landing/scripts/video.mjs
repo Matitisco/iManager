@@ -48,17 +48,6 @@ for (const [name, ctx, ms] of runs) {
   );
   console.log(name, JSON.stringify(stats));
   await page.waitForTimeout(800);
-  if (name === 'iphone') {
-    await page.evaluate(() => document.getElementById('mcards').scrollIntoView({ block: 'center', behavior: 'smooth' }));
-    await page.waitForTimeout(900);
-    for (let i = 1; i < 5; i++) {
-      await page.evaluate((i) => {
-        const t = document.querySelector('.track');
-        t.scrollTo({ left: t.children[i].offsetLeft - 20, behavior: 'smooth' });
-      }, i);
-      await page.waitForTimeout(700);
-    }
-  }
   const video = page.video();
   await context.close();
   const webm = `${OUT}/${name}-scroll.webm`;

@@ -44,12 +44,12 @@ export const LAYER_BASE = 4;
  */
 export const EDGE_DEPTHS = [6, 3, 2, 14, 2];
 
-/** Fases del recorrido desktop: armado → separando → abierto … re-armado. */
-const D_SEP_A = 0.06;
-const D_SEP_B = 0.16;
-const D_OPEN = 0.22;
-const D_RE_A = 0.86;
-const D_RE_B = 0.97;
+/** Fases del recorrido desktop: armado → separando → abierto … re-armado. Alineadas a los 4 STATES. */
+const D_SEP_A = 0.16;
+const D_SEP_B = 0.32;
+const D_OPEN = 0.42;
+const D_RE_A = 0.7;
+const D_RE_B = 0.84;
 
 /** Alto virtual del escenario mobile: la posición vertical real se resuelve con la caja proyectada. */
 export const MOB_VH = 560;
@@ -106,12 +106,12 @@ export function pose(p: number, mob: boolean, fit: PoseFit = {}): Pose {
 }
 
 export function stateIndex(p: number, mob: boolean): number {
-  if (mob) return p < 0.3 ? 0 : p < 0.75 ? 1 : 2;
+  if (mob) return p < 0.22 ? 0 : p < 0.48 ? 1 : p < 0.75 ? 2 : 3;
   for (let i = 0; i < STATES.length; i++) if (p < STATES[i].b) return i;
   return STATES.length - 1;
 }
 
-export const showTagsAt = (p: number, mob: boolean) => (mob ? p > 0.55 : p >= D_SEP_B && p < D_RE_A);
+export const showTagsAt = (p: number, mob: boolean) => (mob ? p > 0.45 : p >= 0.4 && p < D_RE_A);
 
 export interface StageGeom {
   w: number;

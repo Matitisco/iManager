@@ -1,6 +1,5 @@
 import { Hero } from './hero/Hero';
 import { NotFound, Privacy, Terms } from './Legal';
-import { MobileCards } from './MobileCards';
 import { Nav } from './Nav';
 import { Faq, Features, FinalCta, Footer, HowItWorks, Pricing, Problem, Screens } from './Sections';
 import { normalizePath } from './paths';
@@ -15,7 +14,6 @@ export function App({ path }: { path?: string }) {
         {page === 'home' && (
           <>
             <Hero />
-            <MobileCards />
             <Problem />
             <Features />
             <HowItWorks />

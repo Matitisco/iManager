@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { APP_URL, FEATURES, LAYERS, SIGNUP_URL, STATES, TRIAL, type LayerKey } from '../content';
+import { APP_URL, LAYERS, SIGNUP_URL, STATES, TRIAL, type LayerKey } from '../content';
 import { MOBILE_HERO_QUERY, REDUCED_MOTION_QUERY, useMedia } from '../useMedia';
 import { Placa, PlacaEdge } from './Placa';
 import {
@@ -23,8 +23,8 @@ import {
 } from './pose';
 
 const MOBILE_LAYERS: LayerKey[] = ['carcasa', 'placa', 'pantalla'];
-const MOBILE_RAIL_TARGETS = [0.12, 0.5, 0.92];
-const REDUCED_P_DESKTOP = 0.28;
+const MOBILE_RAIL_TARGETS = [0.1, 0.35, 0.6, 0.88];
+const REDUCED_P_DESKTOP = 0.55;
 const TAG_W_DESKTOP = 200;
 const TAG_H = 32;
 /** Aire entre el teléfono y lo que lo rodea (copy, nav, bordes). */
@@ -33,7 +33,7 @@ const MOB_GAP = 20;
 const MOB_RAIL_SPACE = 40;
 const MOB_K_MAX = 1.15;
 /** Poses representativas del recorrido desktop para calcular la caja que ocupa el teléfono con sus etiquetas. */
-const DESKTOP_SAMPLE_P = [0, 0.11, 0.25, 0.92];
+const DESKTOP_SAMPLE_P = [0, 0.28, 0.55, 0.95];
 const MARCO_I = LAYERS.findIndex((l) => l.key === 'marco');
 /** Sombra de contacto: plano detrás de la carcasa, más lejos cuanto más se abre el teléfono. */
 const shadeZ = (ps: Pose) => -(18 + ps.gap * 0.6);
@@ -403,19 +403,11 @@ export function Hero() {
               </div>
               <div className="trust">{TRIAL} · Con tu mail o tu cuenta de Google</div>
             </div>
-            <div className={`cap c-capas${capOn('capas') ? ' on' : ''}`} aria-hidden={!capOn('capas')}>
+            <div className={`cap c-capas${capOn('capas') || capOn('piezas') ? ' on' : ''}`} aria-hidden={!(capOn('capas') || capOn('piezas'))}>
               <span className="kick">5 capas · 1 sistema</span>
               <h2 className="t3">Cada capa, una parte de tu negocio.</h2>
               <p className="l">Pantalla, marco, placa, batería y carcasa: ventas, precios, stock, reparaciones y canjes, conectados.</p>
             </div>
-            {FEATURES.map((f) => (
-              <div key={f.k} className={`cap c-${f.k}${capOn(f.k) ? ' on' : ''}`} aria-hidden={!capOn(f.k)}>
-                <span className="kick">{f.capa}</span>
-                <h2 className="t3">{f.title}</h2>
-                <p className="l">{f.text}</p>
-                <ul>{f.bullets.map((b) => <li key={b}>{b}</li>)}</ul>
-              </div>
-            ))}
             <div className={`cap c-listo${capOn('listo') ? ' on' : ''}`} aria-hidden={!capOn('listo')}>
               <span className="kick">Todo encaja</span>
               <h2 className="t3">

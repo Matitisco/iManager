@@ -17,16 +17,12 @@ export interface HeroState {
   layer?: LayerKey;
 }
 
-/** Rangos de scroll del hero desktop (progreso 0..1 dentro de la sección de 500vh). */
+/** Rangos de scroll del hero desktop (progreso 0..1 dentro de la sección de 280vh). */
 export const STATES: HeroState[] = [
-  { k: 'entero', t: 'Entero', a: 0, b: 0.08 },
-  { k: 'capas', t: 'En capas', a: 0.08, b: 0.2 },
-  { k: 'inventario', t: 'Inventario / IMEI', a: 0.2, b: 0.33, layer: 'placa' },
-  { k: 'ventas', t: 'Ventas', a: 0.33, b: 0.46, layer: 'pantalla' },
-  { k: 'canjes', t: 'Canjes', a: 0.46, b: 0.59, layer: 'carcasa' },
-  { k: 'servicio', t: 'Servicio técnico', a: 0.59, b: 0.72, layer: 'bateria' },
-  { k: 'dolar', t: 'Dólar / moneda', a: 0.72, b: 0.85, layer: 'marco' },
-  { k: 'listo', t: 'Todo junto', a: 0.85, b: 1 },
+  { k: 'entero', t: 'Entero', a: 0, b: 0.16 },
+  { k: 'capas', t: 'En capas', a: 0.16, b: 0.42 },
+  { k: 'piezas', t: 'Piezas', a: 0.42, b: 0.7 },
+  { k: 'listo', t: 'Todo junto', a: 0.7, b: 1 },
 ];
 
 /** Orden de apilado de las capas (0 = atrás). */
@@ -92,7 +88,7 @@ export const PLANS: Plan[] = [
     includes: 'Básico',
     specs: [
       { t: 'Catálogo público' },
-      { t: 'Servicio técnico con aviso por WhatsApp' },
+      { t: 'Servicio técnico' },
       { t: 'Señas, reservas y garantías' },
       { t: 'Reportes y comisiones por vendedor' },
     ],
@@ -172,8 +168,8 @@ export const FEATURES: Feature[] = [
     capa: 'La batería · lo que se gasta',
     title: 'Servicio técnico',
     text: 'Órdenes de reparación en un tablero: cada equipo avanza de estado hasta que el cliente lo retira.',
-    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Aviso por WhatsApp cuando está listo', 'Historial de estados de cada orden'],
-    chip: { title: 'Orden · iPhone 12', sub: 'En reparación · aviso por WhatsApp' },
+    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Historial de estados de cada orden'],
+    chip: { title: 'Orden · iPhone 12', sub: 'En reparación' },
     img: 'app-mob-servicio.png',
   },
   {

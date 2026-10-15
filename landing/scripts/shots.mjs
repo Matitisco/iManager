@@ -36,15 +36,6 @@ for (const [name, ctx, frames] of modes) {
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${OUT}/${prefix}${name}-hero-${String(i + 1).padStart(2, '0')}-p${Math.round(p * 100)}.png` });
   }
-  if (name === 'iphone') {
-    await page.evaluate(() => document.getElementById('mcards').scrollIntoView({ block: 'center', behavior: 'instant' }));
-    await page.evaluate(() => {
-      const t = document.querySelector('.track');
-      t.scrollTo({ left: t.children[1].offsetLeft - 20, behavior: 'instant' });
-    });
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: `${OUT}/${prefix}iphone-cards.png` });
-  }
   await context.close();
 
   const reduced = await browser.newContext({ ...ctx, reducedMotion: 'reduce' });
