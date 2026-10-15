@@ -202,7 +202,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
     const money = (amount: number) => `${currency === "USD" ? "US$" : "$"} ${amount.toLocaleString("es-AR")}`;
     const statement = [
       `Estado de cuenta · ${client.name}`,
-      `Saldo ${money(net)}`,
+      net < 0 ? `A favor ${money(Math.abs(net))}` : `Saldo ${money(net)}`,
       ...(creditBalance > 0 ? [`Saldo a favor: ${money(creditBalance)}`] : []),
       ...lines.map((item) => `${item.label}: ${money(item.amount)} · ${item.days} días`),
     ].join("\n");

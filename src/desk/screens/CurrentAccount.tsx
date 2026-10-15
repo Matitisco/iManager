@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
 import { toUserMessage } from '../../lib/user-message';
@@ -26,16 +26,28 @@ function useReload() {
   };
 }
 
-export function SaleAccountPanel({ saleId, revision = '' }: { saleId: string; revision?: string }) {
+export function SaleAccountPanel({ saleId, revision = '', onDue }: { saleId: string; revision?: string; onDue?: (due: number) => void }) {
   const { user } = useAppContext();
   const money = useMoney();
   const [account, setAccount] = useState<SaleAccount | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const onDueRef = useRef(onDue);
+  onDueRef.current = onDue;
+  useEffect(() => {
+    const refreshDue = () => { if (document.visibilityState === 'visible') setRefresh((value) => value + 1); };
+    document.addEventListener('visibilitychange', refreshDue);
+    return () => document.removeEventListener('visibilitychange', refreshDue);
+  }, []);
   useEffect(() => {
     if (!user) return;
     let active = true;
-    fetchSaleAccount(user, saleId).then((data) => { if (active && Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data); }).catch(() => { if (active) setAccount(null); });
+    fetchSaleAccount(user, saleId).then((data) => {
+      if (!active) return;
+      if (typeof data?.due === 'number') onDueRef.current?.(data.due);
+      if (Array.isArray(data?.installments) && Array.isArray(data?.tenders)) setAccount(data);
+    }).catch(() => { if (active) setAccount(null); });
     return () => { active = false; };
-  }, [user, saleId, revision]);
+  }, [user, saleId, revision, refresh]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">
@@ -84,7 +96,7 @@ export function AccountCurrent({ query }: { query: string }) {
                   <b>{row.name}</b>
                   <small>{row.days} días</small>
                 </div>
-                <strong data-testid={`account-balance-${row.clientId}`}>{money.show(row.pendingBalance - (row.creditBalance ?? 0), row.currency)}</strong>
+                <strong data-testid={`account-balance-${row.clientId}`}>{accountHeadline(row.pendingBalance - (row.creditBalance ?? 0), row.currency, money.show)}</strong>
               </div>
               {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency)}. Ese saldo no se suma al de la cuenta.</p> : null}
               {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency)}</p> : null}
@@ -111,6 +123,11 @@ export function AccountCurrent({ query }: { query: string }) {
       {target && mode ? <MovementSheet row={target} mode={mode} onClose={() => setMode(null)} onSaved={(message) => { setMode(null); toast(message); load(); void reload(); }} /> : null}
     </section>
   );
+}
+
+function accountHeadline(net: number, currency: string | null, show: (amount: number, currency?: string | null) => string) {
+  if (net < 0) return `A favor ${show(Math.abs(net), currency)}`;
+  return show(net, currency);
 }
 
 function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pago' | 'deuda' | 'descuento'; onClose: () => void; onSaved: (message: string) => void }) {

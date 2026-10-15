@@ -90,10 +90,14 @@ function inventoryReason(facts: NoticeFacts) {
 
 function clientReason(facts: NoticeFacts) {
   const balance = facts.pendingBalance ?? 0;
-  if (facts.clientCreated && balance > 0) return `Nuevo cliente · debe ${money(balance, facts.currency)}`;
+  const debt = balance > 0 ? `Debe ${money(balance, facts.currency)}` : "";
+  if (facts.clientCreated && debt) return `Nuevo cliente · debe ${money(balance, facts.currency)}`;
   if (facts.clientCreated) return "Nuevo cliente";
-  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) return `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
-  if (balance > 0) return `Debe ${money(balance, facts.currency)}`;
+  if (facts.action === "cancelled" && (facts.refund ?? 0) > 0) {
+    const refundText = `Devolución ${money(facts.refund ?? 0, facts.currency)}`;
+    return debt ? `${refundText} · ${debt}` : refundText;
+  }
+  if (debt) return debt;
   if (facts.action === "cancelled" || facts.action === "updated") return "Quedó al día";
   return "Cliente";
 }
