@@ -8,8 +8,10 @@ import {
   MOB_VH,
   fitMobileScale,
   layerZ,
+  mobileRestBy,
+  mobileRestK,
+  mobileRestTx,
   phoneBounds,
-  phoneBox,
   planeTransform,
   pose,
   projectAnchor,
@@ -47,8 +49,8 @@ const MAX_WHOLE = 1.4;
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
 export function Hero() {
-  const mob = useMedia(MOBILE_HERO_QUERY);
-  const reduce = useMedia(REDUCED_MOTION_QUERY);
+  const mqMobile = useMedia(MOBILE_HERO_QUERY);
+  const mqReduce = useMedia(REDUCED_MOTION_QUERY);
 
   const heroRef = useRef<HTMLElement>(null);
   const stickRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,8 @@ export function Hero() {
   const [tagsOn, setTagsOn] = useState(false);
 
   useLayoutEffect(() => {
+    const mob = window.matchMedia(MOBILE_HERO_QUERY).matches;
+    const reduce = window.matchMedia(REDUCED_MOTION_QUERY).matches;
     const hero = heroRef.current!;
     const stick = stickRef.current!;
     const copy = copyRef.current!;
@@ -85,7 +89,7 @@ export function Hero() {
      * (sea cual sea su alto: fuentes, escalado de texto del sistema, ancho) y termina centrado
      * entre la nav y los indicadores. Copy y teléfono suben juntos, así nunca se pisan.
      */
-    const mobL = { tx: 0, navH: 62, copyBottom: 0, startTop: 0, endTop: 0, w: 0, tagW: 0 };
+    const mobL = { tx: 0, by: 0, navH: 62, copyBottom: 0, startTop: 0, endTop: 0, w: 0, tagW: 0 };
     const fit: PoseFit = {};
     const RESTING_P = mob ? 1 : REDUCED_P_DESKTOP;
 
@@ -146,20 +150,37 @@ export function Hero() {
 
     const apply = (p: number) => {
       const ps = pose(p, mob, fit);
-      for (const l of visible) {
-        const z = layerZ(ps, l.i);
-        const face = layerRefs.current[l.key];
-        const edge = edgeRefs.current[l.key];
-        if (face) face.style.transform = planeTransform(ps, z);
-        if (edge) edge.style.transform = planeTransform(ps, z - EDGE_DEPTH);
+      const cssRest = p < 0.0008 && (mob ? !reduce : fit.spread === 1 && fit.whole === 1 && Math.abs(fit.wholeDy ?? 0) < 0.5);
+      if (cssRest) {
+        for (const l of visible) {
+          const face = layerRefs.current[l.key];
+          const edge = edgeRefs.current[l.key];
+          if (face) face.style.transform = '';
+          if (edge) edge.style.transform = '';
+        }
+      } else {
+        for (const l of visible) {
+          const z = layerZ(ps, l.i);
+          const face = layerRefs.current[l.key];
+          const edge = edgeRefs.current[l.key];
+          if (face) face.style.transform = planeTransform(ps, z);
+          if (edge) edge.style.transform = planeTransform(ps, z - EDGE_DEPTH);
+        }
       }
       if (mob && !reduce) {
         const f = clamp((p - 0.25) / 0.35, 0, 1);
-        const top = mobL.startTop + (mobL.endTop - mobL.startTop) * f;
-        const ty = top - phoneBounds(stageGeom, ps, visibleIdx).y;
-        copy.style.opacity = String(1 - f);
-        copy.style.transform = `translate3d(0,${(-f * Math.max(0, mobL.copyBottom - mobL.navH)).toFixed(2)}px,0)`;
-        rig.style.transform = `translate3d(${mobL.tx.toFixed(1)}px,${ty.toFixed(2)}px,0)`;
+        const desired = mobL.startTop + (mobL.endTop - mobL.startTop) * f;
+        const by = phoneBounds(stageGeom, ps, visibleIdx).y;
+        const ty = desired - mobL.startTop - (by - mobL.by);
+        if (f === 0 && Math.abs(ty) < 0.4) {
+          rig.style.transform = '';
+          copy.style.opacity = '';
+          copy.style.transform = '';
+        } else {
+          copy.style.opacity = String(1 - f);
+          copy.style.transform = `translate3d(0,${(-f * Math.max(0, mobL.copyBottom - mobL.navH)).toFixed(2)}px,0)`;
+          rig.style.transform = `translate3d(${mobL.tx.toFixed(2)}px,${ty.toFixed(2)}px,0)`;
+        }
       }
       if (hintRef.current) hintRef.current.style.opacity = p < 0.1 ? '1' : '0';
       if (barRef.current) barRef.current.style.transform = `scaleY(${p.toFixed(4)})`;
@@ -189,16 +210,17 @@ export function Hero() {
       mobL.navH = nav ? nav.offsetHeight : 62;
       mobL.copyBottom = copy.offsetTop + copy.offsetHeight;
       mobL.tagW = Math.max(0, ...visible.map((l) => tagRefs.current[l.key]?.offsetWidth ?? 0));
-      stageGeom.w = W;
-      const availW = W - 16;
+      stageGeom.w = stage.offsetWidth || W;
+      stageGeom.h = MOB_VH;
+      const availW = stageGeom.w - 16;
       if (reduce) {
         fit.k = fitMobileScale(stageGeom, visibleIdx, availW, Infinity, MOB_K_MAX);
       } else {
-        const availH = H - MOB_RAIL_SPACE - mobL.navH - MOB_GAP;
-        fit.k = fitMobileScale(stageGeom, visibleIdx, availW, availH, MOB_K_MAX);
+        fit.k = mobileRestK(stageGeom.w);
       }
       const end = phoneBounds(stageGeom, pose(1, true, fit), visibleIdx);
-      mobL.tx = end.x < 8 ? 8 - end.x : end.x + end.w > W - 8 ? W - 8 - (end.x + end.w) : 0;
+      mobL.tx = reduce ? (end.x < 8 ? 8 - end.x : end.x + end.w > stageGeom.w - 8 ? stageGeom.w - 8 - (end.x + end.w) : 0) : mobileRestTx(stageGeom.w);
+      mobL.by = mobileRestBy(stageGeom.w);
       if (reduce) {
         stage.style.height = `${Math.ceil(end.h + 2 * MOB_GAP)}px`;
         rig.style.transform = `translate3d(${mobL.tx.toFixed(1)}px,${(MOB_GAP - end.y).toFixed(1)}px,0)`;
@@ -206,7 +228,7 @@ export function Hero() {
       }
       const regionTop = mobL.navH + MOB_GAP;
       const regionH = H - MOB_RAIL_SPACE - regionTop;
-      mobL.startTop = mobL.copyBottom + MOB_GAP;
+      mobL.startTop = stage.getBoundingClientRect().top - stick.getBoundingClientRect().top;
       mobL.endTop = regionTop + Math.max(0, (regionH - end.h) / 2);
     };
 
@@ -263,13 +285,6 @@ export function Hero() {
     const measure = () => {
       if (mob) measureMobile();
       else measureDesktop();
-      rig.style.width = `${stageGeom.w}px`;
-      rig.style.height = `${stageGeom.h}px`;
-      const box = phoneBox(stageGeom);
-      ph.style.left = `${box.left.toFixed(1)}px`;
-      ph.style.top = `${box.top.toFixed(1)}px`;
-      ph.style.perspective = `${box.persp}px`;
-      ph.style.perspectiveOrigin = `${box.originX.toFixed(1)}px ${box.originY.toFixed(1)}px`;
       const rect = hero.getBoundingClientRect();
       geomRef.current = { top: rect.top + window.scrollY, total: Math.max(1, hero.offsetHeight - stick.offsetHeight) };
       lastPoseKey = '';
@@ -357,20 +372,20 @@ export function Hero() {
       if (raf) cancelAnimationFrame(raf);
       cleanup();
     };
-  }, [mob, reduce]);
+  }, [mqMobile, mqReduce]);
 
   const goTo = (i: number) => (e: React.MouseEvent) => {
     e.preventDefault();
-    if (reduce) return;
+    if (window.matchMedia(REDUCED_MOTION_QUERY).matches) return;
     const { top, total } = geomRef.current;
     const s = STATES[i];
-    const mid = mob ? MOBILE_RAIL_TARGETS[i] : (s.a + s.b) / 2;
+    const mid = window.matchMedia(MOBILE_HERO_QUERY).matches ? MOBILE_RAIL_TARGETS[i] : (s.a + s.b) / 2;
     window.scrollTo({ top: top + mid * total, behavior: 'smooth' });
   };
 
-  const active = mob ? undefined : STATES[si]?.layer;
-  const capOn = (k: string) => (mob ? k === 'entero' : STATES[si]?.k === k);
-  const shownLayers = LAYERS.filter((l) => !mob || MOBILE_LAYERS.includes(l.key));
+  const active = STATES[si]?.layer;
+  const capOn = (k: string) => STATES[si]?.k === k;
+  const shownLayers = LAYERS;
 
   return (
     <section className="hero" id="hero" ref={heroRef} aria-label="iManager, pieza por pieza">
@@ -451,7 +466,14 @@ export function Hero() {
                           <div className="bat"><span>BATERÍA</span><b>4.200</b><small>mAh · 100 %</small></div>
                         )}
                         {l.key === 'placa' && <Placa />}
-                        {l.key === 'pantalla' && (<><div className="scr" /><span className="hole" /></>)}
+                        {l.key === 'pantalla' && (
+                          <>
+                            <div className="scr">
+                              <img src="/assets/app-mob-dashboard.png" alt="" width="780" height="1688" fetchPriority="high" decoding="async" />
+                            </div>
+                            <span className="hole" />
+                          </>
+                        )}
                       </div>
                       {l.key === 'marco' && (<><span className="btn1" /><span className="btn2" /></>)}
                     </div>

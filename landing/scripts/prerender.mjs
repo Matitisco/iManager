@@ -6,7 +6,17 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const dist = join(root, 'dist');
-const template = await readFile(join(dist, 'index.html'), 'utf8');
+let template = await readFile(join(dist, 'index.html'), 'utf8');
+const cssHref = template.match(/href="(\/assets\/[^"]+\.css)"/)?.[1];
+if (cssHref) {
+  const css = await readFile(join(dist, cssHref), 'utf8');
+  const fonts = [...new Set([...css.matchAll(/url\((\/assets\/[^)]+\.woff2)\)/g)].map((m) => m[1]))];
+  const preloads = fonts
+    .filter((href) => !template.includes(href))
+    .map((href) => `<link rel="preload" href="${href}" as="font" type="font/woff2" crossorigin />`)
+    .join('\n    ');
+  if (preloads) template = template.replace('</head>', `    ${preloads}\n  </head>`);
+}
 const { render, pageUrl } = await import(new URL('../dist/server/entry-server.js', import.meta.url).href);
 
 const routes = [

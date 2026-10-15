@@ -19,6 +19,23 @@ const smooth = (t: number) => {
 
 export const PHONE_W = 270;
 export const PHONE_H = 560;
+
+/**
+ * Reposo (scroll 0) que el CSS pinta antes de que corra el JS.
+ * Si se cambia la fórmula, hay que actualizar las mismas constantes en styles.css
+ * (--hero-k, --hero-tx, --hero-by y los transform de .plane).
+ */
+export const REST_RX = 12;
+export const REST_RZ = -10;
+export function mobileRestK(width: number): number {
+  return Math.min(1.15, 1.0358 + (width - 340) * 0.002719);
+}
+export function mobileRestTx(width: number): number {
+  return width >= 382 ? Math.max(0, (410 - width) * 0.511) : 20.6 - (width - 320) * 0.0917;
+}
+export function mobileRestBy(width: number): number {
+  return Math.max(62.62, 72.03 - (width - 360) * 0.455);
+}
 /** Grosor mínimo entre capas: evita z-fighting en Safari cuando el teléfono está entero. */
 export const LAYER_BASE = 1.5;
 export const EDGE_DEPTH = 7;

@@ -235,6 +235,7 @@ export function Pricing() {
         <div className="plans">
           {PLANS.map((p) => <PlanCard key={p.name} p={p} annual={isAnnual} />)}
         </div>
+        <p className="price-note">Precios en USD. Se cobra en pesos al tipo de cambio del día.</p>
         {PRICING_BENEFITS.length > 0 && (
           <ul className="perks">
             {PRICING_BENEFITS.map((b) => <li key={b}>{b}</li>)}
