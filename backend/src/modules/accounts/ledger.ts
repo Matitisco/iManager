@@ -88,6 +88,14 @@ export function installmentStatus(row: InstallmentSlice, today: string): Install
   return "PENDIENTE";
 }
 
+/** Show a general payment on the oldest unpaid installments without turning it into a cash collection. */
+export function applyCoverage(rows: InstallmentSlice[], coverage: number): InstallmentSlice[] {
+  if (!(coverage > 0) || rows.length === 0) return rows;
+  const allocated = allocatePayment(rows, coverage);
+  const bySequence = new Map(allocated.rows.map((row) => [row.sequence, row]));
+  return rows.map((row) => bySequence.get(row.sequence) ?? row);
+}
+
 export function allocatePayment(rows: InstallmentSlice[], payment: number): { rows: InstallmentSlice[]; applied: number } {
   let left = Math.max(0, cents(payment));
   const next = rows.map((row) => ({ ...row })).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.sequence - b.sequence);

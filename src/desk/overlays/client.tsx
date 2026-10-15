@@ -135,23 +135,6 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
-      {client.pendingBalance > 0 && !phone ? (
-        <>
-          <Field label="Monto" mark={phone ? money.active : undefined}><input value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
-            amountDirty.current = true;
-            const raw = event.target.value;
-            if (raw.includes('-')) {
-              setAmount(raw);
-              setError('El pago no puede ser negativo');
-              return;
-            }
-            setAmount(formatInputMoney(parseMoney(raw)));
-            setError(null);
-          }} /></Field>
-          <Field label="Forma de pago"><span /></Field>
-          <Segs options={PAYMENTS} value={method} onChange={setMethod} />
-        </>
-      ) : null}
       <CoverageBlock testId="client-warranties" lines={clientCoverageLines(client.id, sales, repairOrders)} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
@@ -170,7 +153,7 @@ export function ClientDetail({ id }: { id: string }) {
       ) : null}
       <div className="sacts deposit-actions">
         {client.pendingBalance > 0
-          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => { if (phone) setPaying(true); else void pay(); }}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
           : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
         <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
         {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}

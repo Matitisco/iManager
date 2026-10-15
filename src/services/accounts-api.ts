@@ -22,6 +22,7 @@ export type Debtor = {
   name: string;
   phone: string;
   pendingBalance: number;
+  creditBalance: number;
   repairBalance: number;
   currency: string | null;
   days: number;
@@ -49,6 +50,7 @@ export type SaleAccount = {
   saleId: string;
   status: string;
   openBalance: number | null;
+  due: number;
   paymentMethod: string;
   plan: { count: number; frequency: string; surcharge: number; financedAmount: number; firstDueDate: string } | null;
   installments: AccountLine['installments'];

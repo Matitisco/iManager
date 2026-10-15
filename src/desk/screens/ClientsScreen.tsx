@@ -110,7 +110,7 @@ export function ClientsScreen() {
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Clientes"
-        subtitle={`${clients.length} clientes · ${withBalance} con saldo`}
+        subtitle={`${clients.length === 1 ? '1 cliente' : `${clients.length} clientes`} · ${withBalance} con saldo`}
         back={back}
         tools={(
           <span className="rslot">

@@ -26,6 +26,7 @@ function debtor(): Debtor {
     name: 'Ana Pérez',
     phone: '5492614000000',
     pendingBalance: 500,
+    creditBalance: 0,
     repairBalance: 0,
     currency: 'ARS',
     days: 2,

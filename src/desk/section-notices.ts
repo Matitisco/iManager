@@ -123,7 +123,11 @@ export function mergePinned(current: PinnedNotice[], incoming: OperationNotifica
       }
       const existing = next[at];
       if (!existing.notificationIds.includes(row.notificationId)) existing.notificationIds.push(row.notificationId);
-      if (!existing.reason.split(' · ').includes(row.reason)) existing.reason = `${existing.reason} · ${row.reason}`;
+      if (row.reason.startsWith('Debe ')) {
+        const kept = existing.reason.split(' · ').filter((part) => !part.startsWith('Debe '));
+        kept.push(row.reason);
+        existing.reason = kept.join(' · ');
+      } else if (!existing.reason.split(' · ').includes(row.reason)) existing.reason = `${existing.reason} · ${row.reason}`;
     }
   }
   return next;

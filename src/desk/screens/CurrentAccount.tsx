@@ -84,9 +84,10 @@ export function AccountCurrent({ query }: { query: string }) {
                   <b>{row.name}</b>
                   <small>{row.days} días</small>
                 </div>
-                <strong>{money.show(row.pendingBalance, row.currency)}</strong>
+                <strong data-testid={`account-balance-${row.clientId}`}>{money.show(row.pendingBalance - (row.creditBalance ?? 0), row.currency)}</strong>
               </div>
               {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency)}. Ese saldo no se suma al de la cuenta.</p> : null}
+              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency)}</p> : null}
               <div className="acct-lines">
                 {row.lines.map((line) => (
                   <div className="acct-line" key={line.id}>

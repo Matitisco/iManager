@@ -51,6 +51,23 @@ describe("cancellationSettlement", () => {
     expect(result.debtToRemove.toNumber()).toBe(100);
   });
 
+  it("does not credit the same general payment again after the covered sale is cancelled", () => {
+    const older = sale({ id: "older", cash: 100, openBalance: 100, soldAt: "2026-09-01" });
+    const newer = sale({ id: "newer", cash: 30, openBalance: 30, soldAt: "2026-10-01" });
+    const first = cancellationSettlement(older, [older, newer], [pay(30), pay(35, { kind: "CARGO" })], 135);
+    expect(first.refund.toNumber()).toBe(0);
+    expect(first.credit.toNumber()).toBe(30);
+    expect(first.debtToRemove.toNumber()).toBe(70);
+    const second = cancellationSettlement(newer, [newer], [
+      pay(30),
+      pay(35, { kind: "CARGO" }),
+      pay(30, { kind: "CREDITO", saleId: "older" }),
+    ], 65);
+    expect(second.refund.toNumber()).toBe(0);
+    expect(second.credit.toNumber()).toBe(0);
+    expect(second.debtToRemove.toNumber()).toBe(30);
+  });
+
   it("turns the general payment that covered the older sale into credit", () => {
     const target = sale({ id: "older", cash: 80, openBalance: 80, soldAt: "2026-09-01" });
     const newer = sale({ id: "newer", cash: 100, openBalance: 100, soldAt: "2026-10-01" });

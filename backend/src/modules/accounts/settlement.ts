@@ -214,6 +214,6 @@ export async function settleNewSale(
     unpaid = unpaidInstallments(slices);
   }
   if (unpaid > 0 && !args.clientId) throw new DomainError("El saldo pendiente necesita un cliente");
-  const method = methods.size > 1 ? "MIXTO" : [...methods][0] ?? "EFECTIVO";
+  const method = methods.size > 1 ? "MIXTO" : [...methods][0] ?? "SIN_PAGO";
   return { status: unpaid > 0 ? "PENDIENTE" : "COMPLETADA", unpaid: fromCents(cents(unpaid)), method };
 }

@@ -464,6 +464,55 @@ describe('operation detail', () => {
     }
   });
 
+  it('asks for the amount before saving a payment on the desk', async () => {
+    const user = userEvent.setup();
+    ctx.clients = [{
+      id: 'c1',
+      name: 'Ana Pérez',
+      pendingBalance: 165,
+      totalSpent: 800,
+      phone: '1100000001',
+      lastPurchaseDate: '2026-10-14',
+      balanceCurrency: 'ARS',
+    }];
+    renderOverlay({ type: 'cl', id: 'c1' });
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+    const amount = within(dialog).getByLabelText('Monto');
+    expect(amount).toHaveValue('165');
+    await user.click(within(dialog).getByRole('button', { name: 'Volver' }));
+    expect(ctx.registerClientPayment).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Ana Pérez' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    const again = screen.getByRole('dialog', { name: 'Registrar pago' });
+    const edited = within(again).getByLabelText('Monto');
+    await user.clear(edited);
+    await user.type(edited, '40');
+    await user.click(within(again).getByRole('button', { name: 'Confirmar pago' }));
+    await waitFor(() => expect(ctx.registerClientPayment).toHaveBeenCalledWith('c1', expect.objectContaining({ amount: 40, currency: 'ARS' })));
+  });
+
+  it('shows the debt left after a general payment on the sale', async () => {
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 70, balanceCurrency: 'ARS' }];
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 100,
+      openBalance: 100,
+      clientId: 'c1',
+      clientName: 'Ana Pérez',
+      tradeInId: '',
+      integratedOperation: false,
+      paymentMethod: 'SIN_PAGO',
+      amountCurrency: 'ARS',
+    })];
+    renderOverlay({ type: 'sale', id: 's1' });
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    expect(within(dialog).getByText('Sin pago')).toBeInTheDocument();
+    expect(within(dialog).getByText('Deuda $ 70')).toBeInTheDocument();
+  });
+
   it('asks for the amount before saving a payment on a phone', async () => {
     const user = userEvent.setup();
     ctx.clients = [{

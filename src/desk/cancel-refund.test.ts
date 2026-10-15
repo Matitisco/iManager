@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancellationPlan, cancellationRefund, type RefundTarget } from './cancel-refund';
+import { cancellationPlan, cancellationRefund, displayedSaleDue, type RefundTarget } from './cancel-refund';
 
 function sale(overrides: Partial<RefundTarget> = {}): RefundTarget {
   return { id: 'sale', cash: 900, status: 'PENDIENTE', openBalance: null, soldAt: '2026-10-01', ...overrides };
@@ -27,6 +27,22 @@ describe('cancellationRefund', () => {
   it('keeps a balance typed on the client out of the cash refund', () => {
     const target = sale({ cash: 950, openBalance: null, status: 'PENDIENTE' });
     expect(cancellationPlan(target, [target], [{ kind: 'PAGO', amount: 300 }], 700)).toEqual({ refund: 0, credit: 300 });
+  });
+
+  it('spends a general payment once and shows the covered sale at the remaining debt', () => {
+    const older = sale({ id: 'older', cash: 100, openBalance: 100, soldAt: '2026-09-01' });
+    const newer = sale({ id: 'newer', cash: 30, openBalance: 30, soldAt: '2026-10-01' });
+    const movements = [{ kind: 'PAGO', amount: 30 }, { kind: 'CARGO', amount: 35 }];
+    expect(displayedSaleDue(older, [older, newer], movements, 135)).toBe(70);
+    expect(cancellationPlan(older, [older, newer], movements, 135)).toEqual({ refund: 0, credit: 30 });
+    expect(cancellationPlan(newer, [newer], [
+      ...movements,
+      { kind: 'CREDITO', amount: 30, saleId: 'older' },
+    ], 65)).toEqual({ refund: 0, credit: 0 });
+    expect(displayedSaleDue(newer, [newer], [
+      ...movements,
+      { kind: 'CREDITO', amount: 30, saleId: 'older' },
+    ], 65)).toBe(30);
   });
 
   it('assigns a general payment to the oldest open sale', () => {
