@@ -31,6 +31,6 @@ Mobile (≤900px): sticky de 240vh con 3 capas (pantalla, placa, carcasa) y desp
 
 `prefers-reduced-motion: reduce`: sin sticky ni scroll-jacking; el hero muestra el titular con la vista explotada fija y las funciones se leen como lista.
 
-## Placeholders
+## Precios
 
-Testimonios y precios son de ejemplo y están marcados como tales («Testimonio de ejemplo», «Ejemplo · a definir»).
+Cuatro planes confirmados (Básico, Avanzado, Completo y A medida). A medida no muestra monto. El toggle Anual aplica 25% menos y los CTAs de alta van a https://app.imanager.com.ar/.

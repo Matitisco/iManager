@@ -1,7 +1,8 @@
 import type { IconName } from './icons';
 
 export const APP_URL = 'https://app.imanager.com.ar';
-export const SIGNUP_URL = 'https://app.imanager.com.ar/registro';
+/** La app no tiene ruta ni deep link de registro: la cuenta se crea desde el login («Crear cuenta» o Google). */
+export const SIGNUP_URL = 'https://app.imanager.com.ar/';
 
 export type LayerKey = 'carcasa' | 'bateria' | 'placa' | 'marco' | 'pantalla';
 
@@ -35,6 +36,99 @@ export const LAYERS: { key: LayerKey; label: string; area: string }[] = [
   { key: 'pantalla', label: 'Pantalla', area: 'Ventas' },
 ];
 
+export interface PlanSpec {
+  t: string;
+  soon?: boolean;
+}
+
+/** Montos ya formateados (coma decimal, punto de miles), tal como los confirmó el dueño. */
+export interface PlanPrice {
+  monthly: string;
+  /** Anual: precio por mes con el descuento y total del año. */
+  annual: { perMonth: string; perYear: string };
+}
+
+export interface Plan {
+  name: string;
+  desc: string;
+  /** Sin `price` el plan es a medida y no muestra monto en ningún modo. */
+  price?: PlanPrice;
+  /** Primer ítem de la lista: «Todo lo del plan …». */
+  includes?: string;
+  specs: PlanSpec[];
+  cta: { label: string; href: string; external?: boolean };
+  badge?: string;
+}
+
+/** Precios confirmados. Para ocultar la sección, `SHOW_PRICING = false` (también saca el link del menú). */
+export const SHOW_PRICING = true;
+
+/** Selector Mensual/Anual. Con `false` se muestran solo los precios mensuales. */
+export const SHOW_BILLING_TOGGLE = true;
+export const ANNUAL_LABEL = '25% menos';
+
+export const PLANS: Plan[] = [
+  {
+    name: 'Básico',
+    desc: 'Para empezar a ordenar ventas y stock.',
+    price: { monthly: '22', annual: { perMonth: '16,50', perYear: '198' } },
+    specs: [
+      { t: 'Inventario por IMEI con estado y batería' },
+      { t: 'Ventas en efectivo, transferencia, tarjeta o cripto' },
+      { t: 'Clientes con saldo e historial de pagos' },
+      { t: 'Caja diaria en pesos y dólares' },
+      { t: 'Importación desde Excel, CSV o texto' },
+      { t: 'Dólar blue, oficial o MEP al día' },
+    ],
+    cta: { label: 'Probalo gratis', href: SIGNUP_URL },
+  },
+  {
+    name: 'Avanzado',
+    desc: 'Para el día a día del local.',
+    price: { monthly: '87', annual: { perMonth: '65,25', perYear: '783' } },
+    includes: 'Básico',
+    specs: [
+      { t: 'Canjes como parte de pago, con batería y calidad' },
+      { t: 'Servicio técnico con aviso por WhatsApp' },
+      { t: 'Señas, reservas y garantías' },
+      { t: 'Cuenta corriente con cuotas' },
+      { t: 'Catálogo público para compartir' },
+      { t: 'Equipo con roles y permisos por sección' },
+      { t: 'Reportes de ventas, stock, canjes, clientes y servicio' },
+    ],
+    cta: { label: 'Probalo gratis', href: SIGNUP_URL },
+    badge: 'Recomendado',
+  },
+  {
+    name: 'Completo',
+    desc: 'Para tiendas con más volumen.',
+    price: { monthly: '246', annual: { perMonth: '184,50', perYear: '2.214' } },
+    includes: 'Avanzado',
+    specs: [
+      { t: 'Comisiones por vendedor' },
+      { t: 'Escaneo de IMEI con la cámara', soon: true },
+    ],
+    cta: { label: 'Probalo gratis', href: SIGNUP_URL },
+  },
+  {
+    name: 'A medida',
+    desc: 'Según lo que necesites.',
+    includes: 'Completo',
+    specs: [
+      { t: 'Desarrollos a pedido' },
+    ],
+    cta: { label: 'Hablemos', href: 'mailto:hola@imanager.com.ar', external: true },
+  },
+];
+
+/** Franja debajo de los planes. Solo cosas que la app hace hoy. */
+export const PRICING_BENEFITS: string[] = [
+  'Sin tarjeta para empezar',
+  'Importación desde Excel',
+  'En la compu y en el celular',
+  'Dólar actualizado cada 15 minutos',
+];
+
 export interface Feature {
   k: string;
   icon: IconName;
@@ -55,8 +149,8 @@ export const FEATURES: Feature[] = [
     capa: 'La placa · el cerebro',
     title: 'Inventario por IMEI',
     text: 'Cada equipo con su IMEI, capacidad, color, batería y estado. Sabés qué tenés y a cuánto.',
-    bullets: ['Alta en segundos, con IMEI validado', 'Disponible, reservado, en revisión o vendido', 'Importá tu planilla de Excel o Sheets'],
-    chip: { title: 'IMEI 35 000000 000001 0', sub: 'iPhone 13 · 128GB · Medianoche', pill: 'Disponible' },
+    bullets: ['IMEI de 15 dígitos, sin duplicados', 'Disponible, reservado, en revisión o vendido', 'Importá tu planilla en Excel, CSV o texto'],
+    chip: { title: 'IMEI de 15 dígitos', sub: 'iPhone 13 · 128GB · Medianoche', pill: 'Disponible' },
     img: 'app-mob-inventario.png',
   },
   {
@@ -64,10 +158,10 @@ export const FEATURES: Feature[] = [
     icon: 'ventas',
     chipIcon: 'ventas',
     capa: 'La pantalla · lo que ve tu cliente',
-    title: 'Ventas en dos toques',
-    text: 'Registrás la venta, el pago y los accesorios. El equipo sale del stock solo.',
-    bullets: ['Efectivo, transferencia, tarjeta o mixto', 'Accesorios en la misma venta', 'Comprobante para mandar por WhatsApp'],
-    chip: { title: 'Venta V-0128 · iPhone 14 Pro', sub: 'US$ 846 · $ 1.100.000 · Transferencia' },
+    title: 'Ventas y cobros',
+    text: 'Registrás la venta y su forma de pago. El equipo sale del stock solo.',
+    bullets: ['Efectivo, transferencia, tarjeta o cripto', 'Cobrada o con saldo pendiente', 'Comprobante para compartir'],
+    chip: { title: 'Venta · iPhone 14 Pro', sub: 'Transferencia · sale del stock' },
     img: 'app-mob-venta.png',
   },
   {
@@ -77,8 +171,8 @@ export const FEATURES: Feature[] = [
     capa: 'La carcasa · el usado que entra',
     title: 'Canjes sin vueltas',
     text: 'Tomás el usado en parte de pago, lo peritás y entra al inventario con su costo real.',
-    bullets: ['Peritaje: batería, pantalla, Face ID', 'Cotización del usado en pesos o dólares', 'Queda atado a la venta y al cliente'],
-    chip: { title: 'Canje: iPhone 12 · 64GB', sub: 'Bat. 84 % · Grado B · toma US$ 260' },
+    bullets: ['Batería y calidad del usado, de A+ a C', 'Cotización del usado en pesos o dólares', 'Queda atado a la venta y al cliente'],
+    chip: { title: 'Canje · iPhone 12 · 64GB', sub: 'Batería y calidad, de A+ a C' },
     img: 'app-mob-dashboard.png',
   },
   {
@@ -88,8 +182,8 @@ export const FEATURES: Feature[] = [
     capa: 'La batería · lo que se gasta',
     title: 'Servicio técnico',
     text: 'Órdenes de reparación en un tablero: cada equipo avanza de estado hasta que el cliente lo retira.',
-    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Aviso al cliente cuando está listo', 'Historial de cada equipo'],
-    chip: { title: '#OT-0101 · iPhone 12', sub: 'Pantalla rota · En reparación · entrega 08/10' },
+    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Aviso por WhatsApp cuando está listo', 'Historial de estados de cada orden'],
+    chip: { title: 'Orden · iPhone 12', sub: 'En reparación · aviso por WhatsApp' },
     img: 'app-mob-servicio.png',
   },
   {
@@ -99,8 +193,8 @@ export const FEATURES: Feature[] = [
     capa: 'El marco · lo que sostiene el precio',
     title: 'Dólar blue al día',
     text: 'Cargás precios en dólares y ves los pesos con la cotización del momento.',
-    bullets: ['Blue, oficial o tu propio tipo de cambio', 'Lista de precios lista para compartir', 'Márgenes reales, sin calcular a mano'],
-    chip: { title: 'Blue $ 1.280 / $ 1.300', sub: 'Actualizado hace 5 min' },
+    bullets: ['Blue, oficial, MEP o tu propio tipo de cambio', 'Catálogo con precios para compartir por link', 'Margen bruto estimado de tus ventas'],
+    chip: { title: 'Blue, oficial o MEP', sub: 'Se actualiza cada 15 minutos' },
     img: 'app-mob-dolar.png',
   },
 ];
