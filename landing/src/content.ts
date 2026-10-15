@@ -71,7 +71,7 @@ export const PLANS: Plan[] = [
     specs: [
       { t: 'Inventario por IMEI con estado y batería' },
       { t: 'Ventas en efectivo, transferencia, tarjeta o cripto' },
-      { t: 'Clientes con historial y saldo pendiente' },
+      { t: 'Clientes con saldo e historial de pagos' },
       { t: 'Caja diaria en pesos y dólares' },
       { t: 'Importación desde Excel, CSV o texto' },
       { t: 'Dólar blue, oficial o MEP al día' },
