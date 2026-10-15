@@ -185,8 +185,7 @@ export function Screens() {
             <div className="bar"><i /><i /><i /><span>app.imanager.com.ar/{t.path}</span></div>
             <img src={`/assets/${t.desk}`} alt={`${t.label} en el escritorio`} loading="lazy" decoding="async" width="2880" height="1800" />
           </div>
-          <div className="mph m1"><img src={`/assets/${t.mob}`} alt={`${t.label} en el celular`} loading="lazy" decoding="async" width="780" height="1688" /></div>
-          <div className="mph m2"><img src={`/assets/${t.mob}`} alt={`${t.label} en el celular`} loading="lazy" decoding="async" width="780" height="1688" /></div>
+          <div className="mph"><img src={`/assets/${t.mob}`} alt={`${t.label} en el celular`} loading="lazy" decoding="async" width="780" height="1688" /></div>
           <div className="cap2 c-a"><Icon name={t.icons[0]} on />{t.caps[0]}</div>
           <div className="cap2 c-b"><Icon name={t.icons[1]} />{t.caps[1]}</div>
         </div>
