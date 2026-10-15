@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { formatMoney } from './format';
 import type { OperationNotification } from '../services/operations-api';
 import type { NoticeSection } from './unread-count';
 
@@ -123,14 +124,37 @@ export function mergePinned(current: PinnedNotice[], incoming: OperationNotifica
       }
       const existing = next[at];
       if (!existing.notificationIds.includes(row.notificationId)) existing.notificationIds.push(row.notificationId);
-      if (row.reason.startsWith('Debe ')) {
-        const kept = existing.reason.split(' · ').filter((part) => !part.startsWith('Debe '));
-        kept.push(row.reason);
-        existing.reason = kept.join(' · ');
-      } else if (!existing.reason.split(' · ').includes(row.reason)) existing.reason = `${existing.reason} · ${row.reason}`;
+      existing.reason = mergeNoticeReason(existing.reason, row.reason);
     }
   }
   return next;
+}
+
+function noticeParts(reason: string) {
+  return reason.split(' · ').map((part) => part.trim()).filter(Boolean);
+}
+
+function mergeNoticeReason(current: string, incoming: string) {
+  const nextParts = noticeParts(incoming);
+  const nextDebt = nextParts.filter((part) => part.startsWith('Debe '));
+  if (!nextDebt.length) {
+    return noticeParts(current).includes(incoming) ? current : `${current} · ${incoming}`;
+  }
+  const kept = noticeParts(current).filter((part) => !part.startsWith('Debe '));
+  for (const part of nextParts) {
+    if (part.startsWith('Debe ') || kept.includes(part)) continue;
+    kept.push(part);
+  }
+  kept.push(nextDebt[nextDebt.length - 1] ?? '');
+  return kept.filter(Boolean).join(' · ');
+}
+
+/** The list badge uses the client's current debt, so an older notice cannot keep a previous Debe. */
+export function reasonWithBalance(reason: string, pendingBalance: number, currency?: string | null) {
+  if (!reason) return '';
+  const parts = noticeParts(reason).filter((part) => !/^debe\s/i.test(part));
+  if (pendingBalance > 0) parts.push(`Debe ${formatMoney(pendingBalance, currency === 'USD' ? 'USD' : 'ARS')}`);
+  return parts.join(' · ');
 }
 
 export function pinnedCount(rows: PinnedNotice[]) {

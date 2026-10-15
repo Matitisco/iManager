@@ -65,6 +65,18 @@ describe('cuenta corriente', () => {
     api.collectAccount.mockResolvedValue({ client: { id: 'c1' } });
   });
 
+  it('muestra un saldo negativo como a favor', async () => {
+    const row = debtor();
+    row.pendingBalance = 0;
+    row.creditBalance = 95;
+    row.currency = 'USD';
+    api.fetchDebtors.mockResolvedValue({ debtors: [row] });
+    renderAccount();
+    expect(await screen.findByTestId('account-balance-c1')).toHaveTextContent('A favor $ 95');
+    expect(screen.queryByText(/US\$ -/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$ -/)).not.toBeInTheDocument();
+  });
+
   it('muestra el semáforo y no ofrece exportar la tabla', async () => {
     renderAccount();
     expect(await screen.findByText('Ana Pérez')).toBeInTheDocument();

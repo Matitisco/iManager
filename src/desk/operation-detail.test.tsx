@@ -13,6 +13,10 @@ const paymentsApi = vi.hoisted(() => ({
   fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null }>),
 }));
 
+const accountsApi = vi.hoisted(() => ({
+  fetchSaleAccount: vi.fn(async () => null as { due?: number; installments?: unknown[]; tenders?: unknown[] } | null),
+}));
+
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[],
   tradeIns: [] as TradeIn[],
@@ -32,6 +36,7 @@ const ctx = vi.hoisted(() => ({
 
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../services/clients-api', () => paymentsApi);
+vi.mock('../services/accounts-api', () => accountsApi);
 
 const open = vi.fn();
 const close = vi.fn();
@@ -98,6 +103,8 @@ describe('operation detail', () => {
     ctx.clients = [];
     paymentsApi.fetchClientPayments.mockReset();
     paymentsApi.fetchClientPayments.mockResolvedValue([]);
+    accountsApi.fetchSaleAccount.mockReset();
+    accountsApi.fetchSaleAccount.mockResolvedValue(null);
     ctx.inventory = [];
     ctx.updateSale.mockReset();
     ctx.updateSale.mockResolvedValue(undefined);
@@ -511,6 +518,36 @@ describe('operation detail', () => {
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     expect(within(dialog).getByText('Sin pago')).toBeInTheDocument();
     expect(within(dialog).getByText('Deuda $ 70')).toBeInTheDocument();
+  });
+
+  it('uses the sale account due when the loaded balance is still the old debt', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    accountsApi.fetchSaleAccount.mockResolvedValue({
+      due: 70,
+      installments: [
+        { sequence: 1, dueDate: '2026-11-14', status: 'PARCIAL', amount: 50, paidAmount: 30 },
+        { sequence: 2, dueDate: '2026-12-14', status: 'PENDIENTE', amount: 50, paidAmount: 0 },
+      ],
+      tenders: [],
+    });
+    ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 100, balanceCurrency: 'USD' }];
+    ctx.sales = [sale({
+      status: 'PENDIENTE',
+      amount: 100,
+      openBalance: 100,
+      clientId: 'c1',
+      clientName: 'Ana Pérez',
+      tradeInId: '',
+      integratedOperation: false,
+      paymentMethod: 'SIN_PAGO',
+      amountCurrency: 'USD',
+    })];
+    renderOverlay({ type: 'sale', id: 's1' });
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    await waitFor(() => expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument());
+    expect(within(dialog).queryByText('Deuda US$ 100')).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/Cuota 1/)).toBeInTheDocument();
   });
 
   it('asks for the amount before saving a payment on a phone', async () => {

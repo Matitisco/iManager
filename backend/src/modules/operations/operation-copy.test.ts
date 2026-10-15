@@ -14,6 +14,8 @@ describe("section operation copy", () => {
     expect(sectionCopy("tradeins", { action: "confirmed", receivedDevice: "iPhone 11", takeValue: 200, difference: 875, currency: "USD" }).message).toBe("iPhone 11 · toma US$ 200 · diferencia US$ 875");
     expect(sectionCopy("sales", { action: "created", deviceLabel: "iPhone 14", clientName: "Ana Pérez", amount: 1075, currency: "USD" }).message).toBe("iPhone 14 · Ana Pérez · US$ 1.075");
     expect(sectionReason("clients", { action: "created", pendingBalance: 875, currency: "USD" })).toBe("Debe US$ 875");
+    expect(sectionReason("clients", { action: "cancelled", refund: 100, pendingBalance: 35, currency: "USD" })).toBe("Devolución US$ 100 · Debe US$ 35");
+    expect(sectionReason("clients", { action: "cancelled", refund: 300, pendingBalance: 0 })).toBe("Devolución $ 300");
   });
 
   it("keeps a distinct title and message on every section of the same operation", () => {

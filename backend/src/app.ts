@@ -50,6 +50,10 @@ export function buildApp() {
 
   app.register(sensible);
 
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.url.startsWith("/api")) reply.header("cache-control", "no-store");
+  });
+
   app.addHook("preSerialization", async (request, _reply, payload) => {
     if (!request.appUser || canSeeFinancials(request.appUser)) return payload;
     return redactFinancials(payload);
