@@ -1,3 +1,4 @@
+import { recordCash } from '../cash/service.js';
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -302,6 +303,7 @@ export async function registerClientPayment(
       },
     });
 
+    await recordCash(tx, { storeId, amount: input.amount, currency: currency ?? await storeCurrency(storeId, tx), method: input.method, sourceType: 'client', sourceId: clientId, note: 'Cobro de cuenta corriente' });
     const updated = await tx.client.update({
       where: { id: clientId },
       data: { pendingBalance: balance.minus(amount) },

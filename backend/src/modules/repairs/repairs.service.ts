@@ -1,3 +1,4 @@
+import { recordCash } from '../cash/service.js';
 import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -228,6 +229,7 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
       },
       include,
     });
+    await recordCash(tx, { storeId, amount: Number(order.deposit), currency: currency ?? 'ARS', method: 'EFECTIVO', sourceType: 'repair', sourceId: order.id, note: 'Anticipo de reparación · efectivo' });
     return order;
   });
   return { order: serialize(created, name), client: clientPayload(created.client) };
@@ -296,6 +298,7 @@ export async function updateRepair(
       data.clientId = client.clientId;
       data.clientName = client.clientName;
     }
+    if (data.deposit !== undefined) await recordCash(tx, { storeId, amount: Number(data.deposit) - Number(latest.deposit), currency: data.currency ?? latest.currency ?? await storeCurrency(storeId, tx), method: 'EFECTIVO', sourceType: 'repair', sourceId: id, note: 'Cambio de anticipo de reparación · efectivo', actor: options.actor });
     const row = await tx.repairOrder.update({ where: { id }, data, include });
     if ((estimateChanged || depositChanged) && options.actor) {
       await writeAudit(tx, {

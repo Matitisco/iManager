@@ -1,3 +1,4 @@
+import { useCashState } from './cash-state';
 import { useGettingStartedState } from './getting-started-state';
 import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
@@ -27,7 +28,7 @@ import { isActiveTradeOperation } from '../desk/format';
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 
-interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
+interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -119,6 +120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     recordsGeneration,
   } = useStoreRecords({ user, appSession, backendStatus });
 
+  const cashState = useCashState(user, appSession, backendStatus);
   const commissions = useCommissionState(user, appSession, backendStatus);
   const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
     const visibility = new Map(catalog?.items.map(item => [item.id, item]));
@@ -813,6 +815,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
+      ...cashState,
       ...gettingStartedState,
       ...commissions,
       ...catalogState,

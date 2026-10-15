@@ -16,7 +16,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
   const { user, appSession, reloadSession } = useAppContext();
   const phone = usePhoneLayout();
   const locked = member.role === 'OWNER';
-  const [sections, setSections] = useState(() => grantedSections(member.sections, member.role));
+  const [sections, setSections] = useState<string[]>(() => [...grantedSections(member.sections, member.role), ...(member.sections?.includes('cashBalances') ? ['cashBalances'] : [])]);
   const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +82,7 @@ export function MemberPermissions({ member, onBack, onSaved }: {
           })}
         </div>
         <p className="perm-note">Sin el permiso de Comisiones, cada persona ve igual «Mis comisiones», solo con lo suyo y sin costos. Por defecto lo tiene solo el Propietario.</p>
+        <div className="card"><div className="perm"><div><b>Ver saldo de cajas</b><small>Permite consultar saldos, movimientos y cierres. Sin este permiso puede cobrar y contar a ciegas.</small></div><button type="button" className={`sw${locked || sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={locked || sections.includes('cashBalances')} disabled={locked || busy} onClick={() => toggle('cashBalances')}><i /></button></div></div>
         <div className="sec">Acciones</div>
         <div className="card">
           <div className="perm">

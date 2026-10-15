@@ -1,4 +1,5 @@
 export type DeskTab =
+  | 'cash'
   | 'dashboard'
   | 'inventory'
   | 'publicCatalog'

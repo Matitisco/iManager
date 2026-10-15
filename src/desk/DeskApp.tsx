@@ -1,3 +1,4 @@
+import { CashScreen } from './screens/CashScreen';
 import { CircleHelp } from 'lucide-react';
 import { HelpScreen } from './screens/HelpScreen';
 import { SampleStockBanner } from './getting-started';
@@ -39,15 +40,16 @@ import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
 const ROUTE: Record<DeskTab, string> = {
-  publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
+  cash: 'cajas', publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
   help: 'ayuda', more: 'mas', commissions: 'comisiones',
 };
 const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
-  publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
+  cash: 'grid', publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
 const MORE_SUB: Record<DeskSectionId, string> = {
+  cash: 'Ingresos, egresos y cierre diario',
   dashboard: 'Resumen de la tienda',
   inventory: 'Equipos y stock',
   publicCatalog: 'Tu lista de precios pública',
@@ -315,6 +317,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
+    { id: 'cash', label: 'Cajas', icon: 'grid', size: 20 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
     { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
   ];
@@ -391,6 +394,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
             {tab === 'service' && <ServiceScreen />}
+            {tab === 'cash' && <CashScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}

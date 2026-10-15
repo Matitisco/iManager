@@ -1,3 +1,4 @@
+import { recordCash, reverseCashSource, protectCashSaleEdit } from '../cash/service.js';
 import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
 import { recordPriceRise } from "../accounts/accounts.service.js";
@@ -665,6 +666,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const settlement = await settleNewSale(tx, { storeId, saleId: sale.id, clientId: client?.id ?? null, due: dueAmount - Number(depositAmount), currency: labelCurrency, exchangeRate: exchangeRate == null ? null : Number(exchangeRate), input, actor });
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
     const paymentStatus = settlement?.status ?? input.status ?? "COMPLETADA";
+    if (!settlement && paymentStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: dueAmount - Number(depositAmount), currency: labelCurrency, method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de venta', actor });
     const debt = settlement ? settlement.unpaid : dueAmount - Number(depositAmount);
     if (!settlement && client && paymentStatus === "COMPLETADA") {
       await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: Math.max(0, dueAmount - Number(depositAmount)), currency: labelCurrency, method: sale.paymentMethod });
@@ -846,6 +848,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const settlement = await settleNewSale(tx, { storeId, saleId: sale.id, clientId: client.id, due: outgoingAmount - takeValue - Number(depositAmount), currency: labelCurrency, exchangeRate: exchangeRate == null ? null : Number(exchangeRate), input, actor });
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
     const paymentStatus = settlement?.status ?? input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
+    if (!settlement && paymentStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: outgoingAmount - takeValue - Number(depositAmount), currency: labelCurrency, method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de canje', actor });
     if (!settlement && paymentStatus === "COMPLETADA") {
       await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: Math.max(0, outgoingAmount - takeValue - Number(depositAmount)), currency: labelCurrency, method: sale.paymentMethod });
     }
@@ -1080,6 +1083,8 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     await refreshSaleCommission(tx, storeId, sale.id);
     if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id });
+    await protectCashSaleEdit(tx, storeId, sale.id, nextAmount !== Number(sale.amount) || nextTakeValue !== Number(trade?.takeValue ?? 0) || updatedSale.paymentMethod !== sale.paymentMethod || updatedSale.amountCurrency !== sale.amountCurrency || nextStatus !== sale.status && nextStatus !== 'COMPLETADA');
+    if (sale.status === 'PENDIENTE' && nextStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.openBalance ?? priorDue), currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
     const balanceStatus = rise.reopen ? "COMPLETADA" : nextStatus;
     const balanceDebt = rise.reopen ? priorDue : nextDebt;
     let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorDue, balanceDebt, nextDate)).filter(present);
@@ -1386,6 +1391,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
     if (sale.status === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
     const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
+    await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
     const plan = await planSaleCancellation(tx, storeId, sale, operationCash(toNum(sale.amount), Number(sale.depositAppliedAmount)));
     const refund = await recordCancellationRefund(tx, storeId, sale.clientId, {
       refund: plan.refund,
@@ -1456,6 +1462,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
     if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
+    if (sale) await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
     const plan = sale ? await planSaleCancellation(tx, storeId, sale, operationCash(toNum(trade.differencePaid), Number(sale.depositAppliedAmount))) : { refund: 0, debtToRemove: 0, credit: 0 };
     const refund = sale
       ? await recordCancellationRefund(tx, storeId, trade.clientId, {

@@ -1,3 +1,4 @@
+import { recordCash, reverseCashSource, protectCashSaleEdit } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
 import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
@@ -268,6 +269,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
       },
     });
 
+    if (sale.status === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.amount), currency: amountCurrency ?? 'ARS', method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de venta', actor });
     if (input.sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
     if (inventoryItem) {
       await tx.inventoryItem.update({
@@ -382,6 +384,11 @@ export async function updateSale(
       },
     });
 
+    if (cancelling) await reverseCashSource(tx, storeId, 'sale', id, actor);
+    else {
+      await protectCashSaleEdit(tx, storeId, id, Number(updated.amount) !== Number(existing.amount) || updated.amountCurrency !== existing.amountCurrency || updated.paymentMethod !== existing.paymentMethod || updated.status !== existing.status && updated.status !== 'COMPLETADA');
+      if (existing.status === 'PENDIENTE' && updated.status === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(existing.openBalance ?? updated.amount), currency: updated.amountCurrency ?? await storeCurrency(storeId, tx), method: updated.paymentMethod, sourceType: 'sale', sourceId: id, note: 'Saldo de venta cobrado', actor });
+    }
     if (!cancelling) await refreshSaleCommission(tx, storeId, id);
     if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id });
     if (cancelling && actor) {

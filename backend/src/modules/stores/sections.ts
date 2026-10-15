@@ -1,6 +1,8 @@
 import { DomainError } from "../../lib/domain-error.js";
 
 export const SECTION_IDS = [
+  "cash",
+  "cashBalances",
   "dashboard",
   "inventory",
   "sales",
@@ -18,7 +20,7 @@ export function canAccessSection(section: SectionId, member: { role: string; sec
   if (member.role === "OWNER") return true;
   const sections = normalizeSections(member.sections);
   if (sections == null) {
-    return section !== "commissions" && !(section === "reports" && member.role === "STAFF");
+    return section !== "cashBalances" && section !== "commissions" && !(section === "reports" && member.role === "STAFF");
   }
   return sections.includes(section);
 }

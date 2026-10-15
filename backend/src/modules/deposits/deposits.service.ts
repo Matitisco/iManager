@@ -1,3 +1,4 @@
+import { recordCash } from '../cash/service.js';
 import { Prisma, type ClientDeposit } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../../plugins/prisma.js';
@@ -52,6 +53,7 @@ export async function createDeposit(storeId: string, clientId: string, input: De
     const row = await tx.clientDeposit.create({ data: { storeId, clientId, requestKey: input.requestKey, amount, currency: input.currency, exchangeRate: rate, usdAmount, method: input.method,
       productId: product?.id, productLabel: product ? [product.model, product.capacity, product.imei].filter(Boolean).join(' · ').slice(0, 200) : null, previousInventoryStatus: product?.status } });
     if (product) await tx.inventoryItem.update({ where: { id: product.id }, data: { status: 'RESERVADO', reservedDepositId: row.id, reservedClientId: client.id, reservedClientName: client.name, reservedAt: row.createdAt } });
+    await recordCash(tx, { storeId, amount: Number(row.amount), currency: row.currency, method: row.method, sourceType: 'deposit', sourceId: row.id, note: 'Cobro de seña', actor, requestKey: `deposit:${row.id}` });
     await movement(tx, row, 'SENA', 'Cobro de seña');
     await audit(tx, row, actor, 'created', `${amount} ${row.currency} · USD ${usdAmount} · cotización ${rate}${row.productLabel ? ` · reserva ${row.productLabel}` : ''}`);
     return serializeDeposit(row);
@@ -67,6 +69,7 @@ export async function cancelDeposit(storeId: string, clientId: string, id: strin
     if (!row) throw new DomainError('Seña no encontrada', 404);
     if (row.status === 'REFUNDED' || row.status === 'CREDIT' && mode === 'CREDIT') return serializeDeposit(row);
     if (!available.includes(row.status)) throw new DomainError('La seña ya fue aplicada; cancelá la venta asociada', 409);
+    if (mode === 'REFUND') await recordCash(tx, { storeId, amount: -Number(row.amount), currency: row.currency, method: row.method, sourceType: 'deposit', sourceId: row.id, note: 'Devolución de seña', actor, requestKey: `deposit-refund:${row.id}` });
     await release(tx, row);
     const saved = await tx.clientDeposit.update({ where: { id }, data: { status: mode === 'REFUND' ? 'REFUNDED' : 'CREDIT', cancelledAt: new Date() } });
     await movement(tx, row, mode === 'REFUND' ? 'DEVOLUCION' : 'CREDITO', mode === 'REFUND' ? 'Devolución de seña' : 'Seña convertida en saldo a favor (sin nuevo cobro)');

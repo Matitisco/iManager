@@ -1,3 +1,4 @@
+import { cashRoutes } from './modules/cash/routes.js';
 import { catalogManagementRoutes, publicCatalogRoutes } from './modules/public-catalog/routes.js';
 import { depositsRoutes } from './modules/deposits/deposits.routes.js';
 import { accountsRoutes } from "./modules/accounts/accounts.routes.js";
@@ -66,6 +67,7 @@ export function buildApp() {
   app.register(gettingStartedRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
   app.register(depositsRoutes, { prefix: '/api/clients' });
+  app.register(cashRoutes, { prefix: "/api/cash" });
   app.register(accountsRoutes, { prefix: "/api/accounts" });
   app.register(clientsRoutes, { prefix: "/api/clients" });
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
