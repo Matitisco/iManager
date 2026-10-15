@@ -18,7 +18,7 @@ describe('desk sections', () => {
     }
   });
   it('keeps every section when access was never customized, and settings always', () => {
-    expect(visibleSections(null, 'STAFF')).toHaveLength(9);
+    expect(visibleSections(null, 'STAFF')).toHaveLength(10);
     expect(grantedSections(null, 'STAFF')).not.toContain('reports');
     expect(grantedSections(null, 'MANAGER')).toContain('reports');
     expect(grantedSections(['sales', 'reports'], 'STAFF')).toEqual(['sales', 'reports']);
@@ -54,11 +54,11 @@ describe('desk sections', () => {
   it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {
     expect(mobileTabs(null, 'OWNER')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['publicCatalog', 'tradeins', 'clients', 'service', 'commissions', 'notifications'],
+      more: ['publicCatalog', 'tradeins', 'clients', 'service', 'cash', 'commissions', 'notifications'],
     });
     expect(mobileTabs(null, 'STAFF')).toEqual({
       bar: ['dashboard', 'inventory', 'sales', 'tradeins'],
-      more: ['clients', 'service', 'commissions', 'notifications'],
+      more: ['clients', 'service', 'cash', 'commissions', 'notifications'],
     });
     expect(mobileTabs(['reports', 'sales'], 'STAFF')).toEqual({
       bar: ['sales', 'reports'],

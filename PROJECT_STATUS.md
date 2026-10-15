@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-14**
 
+## Issue #307 — Caja diaria por moneda y medio — 2026-10-14
+
+- Cajas ARS/USD y Efectivo/Transferencia independientes: fondo, ingresos/egresos categorizados, ajustes sin resultados, archivo y predeterminada. Cambiar dólar o moneda de tienda no convierte saldos; Convertir fondos guarda la cotización y ambas patas. Anulación compensatoria única e historial con filtros locales y paginación en PostgreSQL.
+- Ventas/canjes, pagos mixtos, cuotas, señas y reparaciones impactan caja en la misma transacción. Aplicar señas no duplica cobros. Con cajas configuradas, una caja compatible sin abrir rechaza el cobro completo. Sin backfill histórico. Proveedores: egreso manual categorizado hasta contar con ese módulo.
+- Conteo a ciegas por denominaciones o total bancario, nota por diferencia, aprobación/reconteo del dueño, intentos conservados y ajuste de arqueo vinculado a la sesión. Apertura del próximo día solo con cierre aprobado. Permiso «Ver saldo de cajas» separado del acceso para registrar y contar. Layout desktop e iPhone.
+- Merge de main resuelto conservando Caja, onboarding y cuenta corriente. Prisma aditivo, SQL corregido y `prisma db push` verificado sobre datos previos sin aceptar pérdida ni agregar unicidades en tablas anteriores.
+- Validación: lint/typecheck frontend/backend, 747 unitarios frontend, 380 unitarios backend, 181 integraciones y 23 E2E relevantes aprobados sin retries (incluyen 8 nuevos de Caja desktop/iPhone). Sin build ni push. Documentación: `docs/cash-registers-307.md`; capturas: `docs/pr-shots/issue-307-*.png`; OpenSpec: `daily-cash-registers`.
+
 ## Issue #344 — Onboarding y Primeros pasos — 2026-10-14
 
 - Recorrido: nombre de tienda → invitación opcional → stock. Solo pregunta el nombre; USD y dólar blue automático quedan plegados. La etapa se guarda en PostgreSQL y se retoma al recargar. Las tiendas existentes conservan su acceso habitual. Ayuda puede volver a mostrar Primeros pasos en el Dashboard.

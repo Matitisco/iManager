@@ -69,6 +69,7 @@ export function CashScreen() {
   };
   const rows = cashData?.registers.filter(row => Boolean(row.archivedAt) === archived) ?? [];
   return <div className="dscreen cash-screen" data-testid="cash-screen">
+    <div className="cash-content" hidden={mode?.type === 'count'}>
     <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : 'Ingresos, egresos y cierre diario por moneda y medio'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
     {loading && !cashData ? <p role="status">Cargando cajas…</p> : null}
@@ -116,6 +117,7 @@ export function CashScreen() {
         <div className="card cash-previous">{sessions.filter(session => session.status === 'APPROVED').length ? sessions.filter(session => session.status === 'APPROVED').map(session => <details key={session.id}><summary>{session.day} · Cierre aprobado</summary><CountResult session={session} currency={box.currency} /></details>) : <p>Todavía no hay cierres aprobados.</p>}</div>
       </> : <p className="cash-help">Podés registrar y contar sin ver el saldo. El dueño administra el permiso «Ver saldo de cajas».</p>}
     </> : null}
+    </div>
     {mode ? <CashForm key={mode.type + ('box' in mode ? mode.box.id : '')} mode={mode} boxes={cashData?.registers ?? []} busy={busy} onClose={() => { if (!sending.current) setMode(null); }} onSave={save} /> : null}
   </div>;
 }

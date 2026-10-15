@@ -15,7 +15,7 @@ Permisos: acceso Cajas y permiso separado cashBalances en sections; OWNER ve y a
 En v1 cobros automáticos van a predeterminada, medios distintos de efectivo/transferencia exigen decisión futura; falla explícita al tener cajas activas. Anticipo legacy de reparación no tiene medio: se registra como efectivo y se indica en el formulario. Corrección financiera de ventas con caja vinculada se realiza anulando y recargando; categoría se puede cambiar sin mover plata. Proveedores se cargan manualmente, categoría obligatoria. Cotización blue precargada editable, guardada en ambas patas de conversión; jamás convierte saldos existentes.
 
 ## Migration Plan
-Crear tablas e índices/FKs nuevos con SQL aditivo generado desde schema previo. Verificar migración sobre datos existentes en PostgreSQL local; generar cliente Prisma. Sin producción.
+Crear tablas e índices/FKs nuevos con SQL aditivo generado desde schema previo. Aplicar con `prisma db push` sin aceptar pérdida de datos ni agregar unicidades a tablas anteriores. Verificado en PostgreSQL local sobre el esquema de `origin/main` (`41a91ad`) con una tienda y dos equipos previos que comparten `reservedDepositId`: se conservan registros e importes y no se genera backfill. Sin producción.
 
 ## Open Questions
 Ficha de proveedores/pagos automáticos; tarjeta/otros medios; elección de caja por cobro cuando se necesitan varias del mismo medio; integración de categorías al Estado de Resultados.

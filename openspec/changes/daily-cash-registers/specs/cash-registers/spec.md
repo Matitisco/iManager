@@ -1,7 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Cajas y movimientos por moneda y medio
-El sistema SHALL mantener cajas ARS/USD y Efectivo/Transferencia independientes, permitir ajustes sin resultados y archivar conservando saldo. Ingreso/egreso y conversión SHALL ser atómicos y auditados; egreso requiere categoría, conversión guarda cotización y dos patas.
+El sistema SHALL mantener cajas ARS/USD y Efectivo/Transferencia independientes, con apertura, movimientos, conteo y cierre por moneda, permitir ajustes sin resultados y archivar conservando saldo. El sistema MUST NOT convertir automáticamente saldos al cambiar la cotización o la moneda de tienda. Ingreso/egreso y conversión SHALL ser atómicos y auditados; egreso requiere categoría, conversión guarda cotización y dos patas.
+#### Scenario: Cambio de cotización o moneda de tienda
+- **WHEN** se actualiza el dólar blue o la moneda de la tienda
+- **THEN** los saldos ARS y USD, sus fondos y cierres conservan sus importes originales.
 #### Scenario: Conversión
 - **WHEN** se convierten USD a ARS con una cotización revisada
 - **THEN** las dos cajas registran importes originales y la misma cotización sin ganancia/gasto.
@@ -29,3 +32,9 @@ El sistema SHALL permitir cobrar con acceso Cajas sin exponer saldo/historial a 
 #### Scenario: Empleado sin saldo
 - **WHEN** consulta cajas un empleado sin cashBalances
 - **THEN** recibe nombres y sesión operable sin saldos ni historial y no puede aprobar, ajustar o administrar cajas.
+
+### Requirement: Uso en iPhone y escritorio
+El sistema SHALL permitir administrar cajas, registrar movimientos y completar conteos en escritorio e iPhone, sin desplazamiento horizontal ni acciones fuera del formulario visible.
+#### Scenario: Conteo en iPhone
+- **WHEN** se abre el conteo desde un iPhone
+- **THEN** las denominaciones se muestran en dos columnas, el total usa la moneda de esa caja y Guardar conteo permanece accesible sin mostrar el saldo esperado.

@@ -32,9 +32,17 @@ async function openSession(tx: Tx, box: CashRegister) {
 function movementResponse(row: CashMovement) {
   return { ...row, amount: Number(row.amount), exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate), createdAt: row.createdAt.toISOString(), voidedAt: row.voidedAt?.toISOString() ?? null };
 }
+function countResponse(count: { id: string; expected: Prisma.Decimal; counted: Prisma.Decimal; difference: Prisma.Decimal; note: string | null; denominations: Prisma.JsonValue; countedBy: string; createdAt: Date }) {
+  return { ...count, expected: Number(count.expected), counted: Number(count.counted), difference: Number(count.difference), createdAt: count.createdAt.toISOString() };
+}
+export async function listSessions(storeId: string, registerId: string) {
+  await register(prisma, storeId, registerId);
+  const sessions = await prisma.cashSession.findMany({ where: { storeId, registerId, status: 'APPROVED' }, orderBy: { day: 'desc' }, take: 100, include: { counts: { orderBy: { createdAt: 'asc' } } } });
+  return { sessions: sessions.map(session => ({ id: session.id, day: session.day, status: session.status, reviewNote: session.reviewNote, counts: session.counts.map(countResponse) })) };
+}
 async function append(tx: Tx, box: CashRegister, data: Omit<Prisma.CashMovementUncheckedCreateInput, 'storeId' | 'registerId'>, requireOpen = true) {
   const session = requireOpen ? await openSession(tx, box) : null;
-  const row = await tx.cashMovement.create({ data: { ...data, storeId: box.storeId, registerId: box.id, sessionId: session?.id ?? null } });
+  const row = await tx.cashMovement.create({ data: { ...data, storeId: box.storeId, registerId: box.id, sessionId: session?.id ?? data.sessionId ?? null } });
   await tx.cashRegister.update({ where: { id: box.id }, data: { balance: { increment: data.amount } } });
   return row;
 }
@@ -51,7 +59,7 @@ export async function listRegisters(storeId: string, member: Member) {
     const showCounts = last && ['SUBMITTED', 'APPROVED'].includes(last.status) && (view || last.counts.at(-1)?.countedBy === member.userId);
     return { id: row.id, name: row.name, currency: row.currency, method: row.method, isDefault: row.isDefault, archivedAt: row.archivedAt?.toISOString() ?? null, ...(view ? { balance: Number(row.balance) } : {}), session: last ? {
       id: last.id, day: last.day, status: last.status, reviewNote: last.reviewNote,
-      ...(showCounts ? { counts: last.counts.map(count => ({ id: count.id, expected: Number(count.expected), counted: Number(count.counted), difference: Number(count.difference), note: count.note, denominations: count.denominations, countedBy: count.countedBy, createdAt: count.createdAt.toISOString() })) } : {}),
+      ...(showCounts ? { counts: (view ? last.counts : last.counts.slice(-1)).map(countResponse) } : {}),
     } : null };
   }) };
 }
@@ -188,7 +196,7 @@ export async function reviewSession(storeId: string, id: string, input: { action
     if (input.action === 'RECOUNT' && !input.note?.trim()) throw new DomainError('Explicá qué debe recontarse');
     if (input.action === 'APPROVE') {
       const count = session.counts[0]!;
-      if (!count.difference.eq(0)) await append(tx, session.register, { amount: count.difference, kind: 'ARQUEO', note: count.note, createdBy: actor.userId }, false);
+      if (!count.difference.eq(0)) await append(tx, session.register, { amount: count.difference, sessionId: session.id, kind: 'ARQUEO', note: count.note, createdBy: actor.userId }, false);
     }
     await tx.cashSession.update({ where: { id }, data: { status: input.action === 'APPROVE' ? 'APPROVED' : 'RECOUNT', reviewNote: input.note || null, ...(input.action === 'APPROVE' ? { approvedBy: actor.userId, approvedAt: new Date() } : {}) } });
     await cashAudit(tx, storeId, actor, input.action.toLowerCase(), id, input.note);
@@ -196,16 +204,24 @@ export async function reviewSession(storeId: string, id: string, input: { action
 }
 export async function listMovements(storeId: string, id: string, input: { from?: string; to?: string; category?: string; offset: number }) {
   const box = await register(prisma, storeId, id);
-  const rows = await prisma.cashMovement.findMany({ where: { storeId, registerId: box.id, ...(input.category === '__none__' ? { category: null } : input.category ? { category: input.category } : {}) }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
-  // Inclusive dates follow store timezone, including cash adjustments outside sessions.
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true } });
-  const dateOf = (date: Date) => {
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: store.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-    return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)!.value).join('-');
+  // PostgreSQL resolves local midnight, including DST. Stored timestamps are UTC.
+  const [bounds] = await prisma.$queryRaw<Array<{ start: Date | null; end: Date | null }>>`
+    SELECT (CAST(${input.from ?? null} AS date)::timestamp AT TIME ZONE ${store.timezone}) AT TIME ZONE 'UTC' AS start,
+           ((CAST(${input.to ?? null} AS date) + 1)::timestamp AT TIME ZONE ${store.timezone}) AT TIME ZONE 'UTC' AS end
+  `;
+  const base = { storeId, registerId: box.id };
+  const where: Prisma.CashMovementWhereInput = {
+    ...base,
+    ...(input.category === '__none__' ? { category: null } : input.category ? { category: input.category } : {}),
+    ...(bounds?.start || bounds?.end ? { createdAt: { ...(bounds.start ? { gte: bounds.start } : {}), ...(bounds.end ? { lt: bounds.end } : {}) } } : {}),
   };
-  const filtered = rows.filter(row => { const day = dateOf(row.createdAt); return (!input.from || day >= input.from) && (!input.to || day <= input.to); });
-  const categories = [...new Set(rows.flatMap(row => row.category ? [row.category] : []))].sort();
-  return { movements: filtered.slice(input.offset, input.offset + 50).map(movementResponse), total: filtered.length, categories };
+  const [rows, total, categories] = await Promise.all([
+    prisma.cashMovement.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: input.offset, take: 50 }),
+    prisma.cashMovement.count({ where }),
+    prisma.cashMovement.findMany({ where: { ...base, category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } }),
+  ]);
+  return { movements: rows.map(movementResponse), total, categories: categories.flatMap(row => row.category ? [row.category] : []) };
 }
 /** Called only for new real money; never for historical imports, deposits applied or accounting adjustments. */
 export async function recordCash(tx: Tx, input: { storeId: string; amount: number; currency: string; method: string; sourceType: string; sourceId: string; note: string; actor?: Actor | null; requestKey?: string }) {

@@ -42,6 +42,8 @@ const prismaMock = vi.hoisted(() => ({
     aggregate: vi.fn(),
   },
   $queryRaw: vi.fn().mockResolvedValue([]),
+  $executeRaw: vi.fn().mockResolvedValue(0),
+  cashRegister: { findFirst: vi.fn().mockResolvedValue(null) },
   $transaction: vi.fn(),
 }));
 

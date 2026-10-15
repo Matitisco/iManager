@@ -14,4 +14,4 @@ Issue #307 necesita ingresos/egresos y arqueos reales por moneda y medio, integr
 ### Modified Capabilities
 
 ## Impact
-Prisma aditivo, módulo cash REST, integración de cobros existentes, AppContext y navegación. Proveedores aún no tienen ficha: egreso manual categorizado en v1. Sólo base local de pruebas; sin commit/push.
+Prisma aditivo, módulo cash REST, integración de cobros existentes, AppContext y navegación. Proveedores aún no tienen ficha: egreso manual categorizado en v1. Sólo bases locales de pruebas; commits locales, sin push.
