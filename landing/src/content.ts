@@ -72,7 +72,8 @@ export const PLANS: Plan[] = [
       { t: 'Inventario por IMEI con estado y batería' },
       { t: 'Ventas en efectivo, transferencia, tarjeta o cripto' },
       { t: 'Clientes con historial y saldo pendiente' },
-      { t: 'Importación desde Excel o CSV' },
+      { t: 'Caja diaria en pesos y dólares' },
+      { t: 'Importación desde Excel, CSV o texto' },
       { t: 'Dólar blue, oficial o MEP al día' },
     ],
     cta: { label: 'Probalo gratis', href: SIGNUP_URL },
@@ -85,6 +86,9 @@ export const PLANS: Plan[] = [
     specs: [
       { t: 'Canjes como parte de pago, con batería y calidad' },
       { t: 'Servicio técnico con aviso por WhatsApp' },
+      { t: 'Señas, reservas y garantías' },
+      { t: 'Cuenta corriente con cuotas' },
+      { t: 'Catálogo público para compartir' },
       { t: 'Equipo con roles y permisos por sección' },
       { t: 'Reportes de ventas, stock, canjes, clientes y servicio' },
     ],
@@ -97,6 +101,7 @@ export const PLANS: Plan[] = [
     price: { monthly: '246', annual: { perMonth: '184,50', perYear: '2.214' } },
     includes: 'Avanzado',
     specs: [
+      { t: 'Comisiones por vendedor' },
       { t: 'Escaneo de IMEI con la cámara', soon: true },
     ],
     cta: { label: 'Probalo gratis', href: SIGNUP_URL },
