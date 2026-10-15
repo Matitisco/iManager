@@ -17,22 +17,21 @@ export interface HeroState {
   layer?: LayerKey;
 }
 
-/** Rangos de scroll del hero desktop (progreso 0..1 dentro de la sección de 900vh). */
+/** Rangos de scroll del hero desktop (progreso 0..1 dentro de la sección de 500vh). */
 export const STATES: HeroState[] = [
-  { k: 'entero', t: 'Entero', a: 0, b: 0.1 },
-  { k: 'separando', t: 'Separando', a: 0.1, b: 0.2 },
-  { k: 'capas', t: 'Explotado en capas', a: 0.2, b: 0.3 },
-  { k: 'inventario', t: 'Inventario / IMEI', a: 0.3, b: 0.42, layer: 'placa' },
-  { k: 'ventas', t: 'Ventas', a: 0.42, b: 0.54, layer: 'pantalla' },
-  { k: 'canjes', t: 'Canjes', a: 0.54, b: 0.66, layer: 'carcasa' },
-  { k: 'servicio', t: 'Servicio técnico', a: 0.66, b: 0.78, layer: 'bateria' },
-  { k: 'dolar', t: 'Dólar / moneda', a: 0.78, b: 0.9, layer: 'marco' },
-  { k: 'listo', t: 'Re-armado + CTA', a: 0.9, b: 1 },
+  { k: 'entero', t: 'Entero', a: 0, b: 0.08 },
+  { k: 'capas', t: 'En capas', a: 0.08, b: 0.2 },
+  { k: 'inventario', t: 'Inventario / IMEI', a: 0.2, b: 0.33, layer: 'placa' },
+  { k: 'ventas', t: 'Ventas', a: 0.33, b: 0.46, layer: 'pantalla' },
+  { k: 'canjes', t: 'Canjes', a: 0.46, b: 0.59, layer: 'carcasa' },
+  { k: 'servicio', t: 'Servicio técnico', a: 0.59, b: 0.72, layer: 'bateria' },
+  { k: 'dolar', t: 'Dólar / moneda', a: 0.72, b: 0.85, layer: 'marco' },
+  { k: 'listo', t: 'Todo junto', a: 0.85, b: 1 },
 ];
 
 /** Orden de apilado de las capas (0 = atrás). */
 export const LAYERS: { key: LayerKey; label: string; area: string }[] = [
-  { key: 'carcasa', label: 'Carcasa + cubito', area: 'Canjes' },
+  { key: 'carcasa', label: 'Carcasa y cámaras', area: 'Canjes' },
   { key: 'bateria', label: 'Batería', area: 'Servicio' },
   { key: 'placa', label: 'Placa', area: 'Inventario' },
   { key: 'marco', label: 'Marco', area: 'Dólar' },
@@ -73,7 +72,7 @@ export const ANNUAL_LABEL = '25% menos';
 export const PLANS: Plan[] = [
   {
     name: 'Básico',
-    desc: '1 usuario',
+    desc: 'Hasta 3 personas',
     price: { monthly: '22', annual: { perMonth: '16,50', perYear: '198' } },
     specs: [
       { t: 'Inventario por IMEI con estado y batería' },
@@ -88,7 +87,7 @@ export const PLANS: Plan[] = [
   },
   {
     name: 'Negocio',
-    desc: 'Hasta 3 personas con permisos',
+    desc: 'Hasta 5 personas con permisos',
     price: { monthly: '87', annual: { perMonth: '65,25', perYear: '783' } },
     includes: 'Básico',
     specs: [

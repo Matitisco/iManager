@@ -1,10 +1,9 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { APP_URL, FEATURES, LAYERS, SIGNUP_URL, STATES, TRIAL, type LayerKey } from '../content';
-import { Icon } from '../Icon';
 import { MOBILE_HERO_QUERY, REDUCED_MOTION_QUERY, useMedia } from '../useMedia';
-import { Placa } from './Placa';
+import { Placa, PlacaEdge } from './Placa';
 import {
-  EDGE_DEPTH,
+  EDGE_DEPTHS,
   MOB_VH,
   fitMobileScale,
   layerZ,
@@ -34,7 +33,10 @@ const MOB_GAP = 20;
 const MOB_RAIL_SPACE = 40;
 const MOB_K_MAX = 1.15;
 /** Poses representativas del recorrido desktop para calcular la caja que ocupa el teléfono con sus etiquetas. */
-const DESKTOP_SAMPLE_P = [0, 0.15, 0.3, 0.95];
+const DESKTOP_SAMPLE_P = [0, 0.11, 0.25, 0.92];
+const MARCO_I = LAYERS.findIndex((l) => l.key === 'marco');
+/** Sombra de contacto: plano detrás de la carcasa, más lejos cuanto más se abre el teléfono. */
+const shadeZ = (ps: Pose) => -(18 + ps.gap * 0.6);
 const MAX_SPREAD = 2;
 /** Margen lateral mínimo (px de referencia) al recortar el escenario en columnas angostas. */
 const SIDE_MIN = 24;
@@ -44,7 +46,6 @@ const SPREAD_SLACK = 1.5;
 const SHRINK_SLACK = 1.15;
 /** Lo que el wireframe deja salir el teléfono por abajo (a 1280×800 la carcasa toca el borde). */
 const V_OVERFLOW = 60;
-const MAX_WHOLE = 1.4;
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
@@ -63,6 +64,8 @@ export function Hero() {
   const barRef = useRef<HTMLElement>(null);
   const layerRefs = useRef<Partial<Record<LayerKey, HTMLDivElement | null>>>({});
   const edgeRefs = useRef<Partial<Record<LayerKey, HTMLDivElement | null>>>({});
+  const midRef = useRef<HTMLDivElement>(null);
+  const shadeRef = useRef<HTMLDivElement>(null);
   const tagRefs = useRef<Partial<Record<LayerKey, HTMLDivElement | null>>>({});
   const pathRefs = useRef<Partial<Record<LayerKey, SVGPathElement | null>>>({});
   const dotRefs = useRef<Partial<Record<LayerKey, SVGCircleElement | null>>>({});
@@ -150,7 +153,8 @@ export function Hero() {
 
     const apply = (p: number) => {
       const ps = pose(p, mob, fit);
-      const cssRest = p < 0.0008 && (mob ? !reduce : fit.spread === 1 && fit.whole === 1 && Math.abs(fit.wholeDy ?? 0) < 0.5);
+      const cssRest = p < 0.0008 && (mob ? !reduce : fit.whole === 1 && Math.abs(fit.wholeDy ?? 0) < 0.5);
+      if (!mob && !reduce && p < 0.0008) rig.style.transform = '';
       if (cssRest) {
         for (const l of visible) {
           const face = layerRefs.current[l.key];
@@ -158,14 +162,18 @@ export function Hero() {
           if (face) face.style.transform = '';
           if (edge) edge.style.transform = '';
         }
+        if (midRef.current) midRef.current.style.transform = '';
+        if (shadeRef.current) shadeRef.current.style.transform = '';
       } else {
         for (const l of visible) {
           const z = layerZ(ps, l.i);
           const face = layerRefs.current[l.key];
           const edge = edgeRefs.current[l.key];
           if (face) face.style.transform = planeTransform(ps, z);
-          if (edge) edge.style.transform = planeTransform(ps, z - EDGE_DEPTH);
+          if (edge) edge.style.transform = planeTransform(ps, z - EDGE_DEPTHS[l.i]);
         }
+        if (midRef.current) midRef.current.style.transform = planeTransform(ps, layerZ(ps, MARCO_I) - EDGE_DEPTHS[MARCO_I] / 2);
+        if (shadeRef.current) shadeRef.current.style.transform = planeTransform(ps, shadeZ(ps));
       }
       if (mob && !reduce) {
         const f = clamp((p - 0.25) / 0.35, 0, 1);
@@ -254,32 +262,22 @@ export function Hero() {
         fit.spread = Math.min(MAX_SPREAD, fit.spread * (1 + (target / box.h - 1) * 1.6));
         box = desktopContentBox();
       }
-      if (fit.spread > 1) {
-        const armed = phoneBounds(stageGeom, pose(0, false, { spread: fit.spread }), visibleIdx);
-        fit.whole = clamp(Math.min(1 + (fit.spread - 1) * 0.5, (box.h * 0.9) / armed.h, (box.w * 0.8) / armed.w), 1, MAX_WHOLE);
-        if (fit.whole > 1) {
-          const big = phoneBounds(stageGeom, pose(0, false, { spread: fit.spread, whole: fit.whole }), visibleIdx);
-          fit.wholeDy = box.y + box.h / 2 - (big.y + big.h / 2);
-          box = desktopContentBox();
-        }
-      }
       const Hs = fit.spread >= MAX_SPREAD ? Math.min(HsMax, Math.max(box.h * k * SHRINK_SLACK, 440)) : HsMax;
       stick.style.height = Hs < HsMax - 1 ? `${Math.round(padTop + Hs)}px` : '';
       if (Hs !== HsMax) {
         stageGeom.h = Hs;
         box = desktopContentBox();
       }
-      if (k === 1 && fit.spread === 1 && Hs === HsMax) {
+      if (k < 1 || Hs < HsMax - 1) {
+        const bw = box.w * k;
+        const cx = clamp(box.x + box.w / 2, SIDE_MIN + bw / 2, Ws - SIDE_MIN - bw / 2);
+        const cy = clamp(box.y + box.h / 2, box.h * k / 2, Hs - box.h * k / 2);
+        const tx = cx - k * (box.x + box.w / 2);
+        const ty = cy - k * (box.y + box.h / 2);
+        rig.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${k.toFixed(4)})`;
+      } else {
         rig.style.transform = '';
-        return;
       }
-      const bw = box.w * k;
-      const cx = clamp(box.x + box.w / 2, SIDE_MIN + bw / 2, Ws - SIDE_MIN - bw / 2);
-      const wfCy = clamp(box.y + box.h / 2, box.h * k / 2, Hs - box.h * k / 2);
-      const cy = wfCy + (Hs / 2 - wfCy) * clamp((fit.spread - 1) / 0.1, 0, 1);
-      const tx = cx - k * (box.x + box.w / 2);
-      const ty = cy - k * (box.y + box.h / 2);
-      rig.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${k.toFixed(4)})`;
     };
 
     const measure = () => {
@@ -394,56 +392,39 @@ export function Hero() {
         <div className="in">
           <div className="copy" ref={copyRef}>
             <div className={`cap c-entero${capOn('entero') ? ' on' : ''}`}>
-              <span className="kick"><i />Para tiendas de iPhone en Argentina</span>
+              <span className="kick">Para tiendas de iPhone en Argentina</span>
               <h1 className="t1">
                 Tu tienda de iPhone, ordenada <span className="hl">pieza por pieza</span>.
               </h1>
-              <p className="l">Inventario por IMEI, ventas, canjes, servicio técnico y dólar blue en un solo lugar. Chau planillas.</p>
+              <p className="l">Inventario por IMEI, ventas, canjes, servicio técnico y dólar blue en un solo lugar.</p>
               <div className="ctas">
                 <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
                 <a className="btn s" href={APP_URL}>Entrar</a>
               </div>
               <div className="trust">{TRIAL} · Con tu mail o tu cuenta de Google</div>
             </div>
-            <div className={`cap c-separando${capOn('separando') ? ' on' : ''}`} aria-hidden={!capOn('separando')}>
-              <span className="kick"><i />Mirá adentro</span>
-              <h2 className="t3 big">Todo lo que pasa en tu tienda, en cada pieza.</h2>
-              <p className="l">Seguí bajando: cada capa del equipo es una parte de tu negocio.</p>
-            </div>
             <div className={`cap c-capas${capOn('capas') ? ' on' : ''}`} aria-hidden={!capOn('capas')}>
-              <span className="kick"><i />5 capas · 1 sistema</span>
-              <h2 className="t3 big">Cada capa, una parte de tu negocio.</h2>
+              <span className="kick">5 capas · 1 sistema</span>
+              <h2 className="t3">Cada capa, una parte de tu negocio.</h2>
               <p className="l">Pantalla, marco, placa, batería y carcasa: ventas, precios, stock, reparaciones y canjes, conectados.</p>
             </div>
             {FEATURES.map((f) => (
               <div key={f.k} className={`cap c-${f.k}${capOn(f.k) ? ' on' : ''}`} aria-hidden={!capOn(f.k)}>
-                <span className="kick"><i />{f.capa}</span>
-                <h2 className="t3">
-                  <span className="fic"><Icon name={f.icon} on /></span>
-                  {f.title}
-                </h2>
+                <span className="kick">{f.capa}</span>
+                <h2 className="t3">{f.title}</h2>
                 <p className="l">{f.text}</p>
                 <ul>{f.bullets.map((b) => <li key={b}>{b}</li>)}</ul>
-                <div className="chip">
-                  <Icon name={f.chipIcon} />
-                  <span>
-                    {f.chip.title}
-                    <br />
-                    <small>{f.chip.sub}</small>
-                  </span>
-                  {f.chip.pill && <span className="pill">{f.chip.pill}</span>}
-                </div>
               </div>
             ))}
             <div className={`cap c-listo${capOn('listo') ? ' on' : ''}`} aria-hidden={!capOn('listo')}>
-              <span className="kick"><i />Todo encaja</span>
-              <h2 className="t1" style={{ fontSize: 58 }}>
+              <span className="kick">Todo encaja</span>
+              <h2 className="t3">
                 Todo tu negocio, en <span className="hl">una sola pieza</span>.
               </h2>
               <p className="l">Probalo gratis con tu propio stock. Si ya tenés cuenta, entrá directo.</p>
               <div className="ctas">
                 <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
-                <a className="btn s" href={APP_URL}>Entrar a app.imanager.com.ar</a>
+                <a className="btn s" href={APP_URL}>Entrar</a>
               </div>
               <div className="trust">{TRIAL}</div>
             </div>
@@ -452,30 +433,26 @@ export function Hero() {
           <div className="stage" ref={stageRef} aria-hidden="true">
             <div className="rig" ref={rigRef}>
               <div className={`ph${active ? ' focus' : ''}`} ref={phRef}>
+                <div className="shade" ref={shadeRef}><i /></div>
                 {LAYERS.map((l) => (
                   <Fragment key={l.key}>
                     <div className={`plane ${l.key}${active === l.key ? ' on' : ''}`} ref={(el) => { edgeRefs.current[l.key] = el; }}>
-                      <div className="edge" />
+                      <div className="edge">{l.key === 'placa' && <PlacaEdge />}</div>
                     </div>
+                    {l.key === 'marco' && (
+                      <div className={`plane mid marco${active === l.key ? ' on' : ''}`} ref={midRef}>
+                        <div className="edge" />
+                      </div>
+                    )}
                     <div className={`plane ly ${l.key}${active === l.key ? ' on' : ''}`} ref={(el) => { layerRefs.current[l.key] = el; }}>
                       <div className="face">
-                        {l.key === 'carcasa' && (
-                          <div className="isla"><span className="lens a" /><span className="lens b" /><span className="flash" /></div>
-                        )}
-                        {l.key === 'bateria' && (
-                          <div className="bat"><span>BATERÍA</span><b>4.200</b><small>mAh · 100 %</small></div>
-                        )}
+                        {l.key === 'carcasa' && <Carcasa />}
+                        {l.key === 'bateria' && <Bateria />}
                         {l.key === 'placa' && <Placa />}
-                        {l.key === 'pantalla' && (
-                          <>
-                            <div className="scr">
-                              <img src="/assets/app-mob-dashboard.png" alt="" width="780" height="1688" fetchPriority="high" decoding="async" />
-                            </div>
-                            <span className="hole" />
-                          </>
-                        )}
+                        {l.key === 'marco' && (<><i className="ant a1" /><i className="ant a2" /><i className="ant a3" /><i className="ant a4" /><i className="port" /></>)}
+                        {l.key === 'pantalla' && <Pantalla />}
                       </div>
-                      {l.key === 'marco' && (<><span className="btn1" /><span className="btn2" /></>)}
+                      {l.key === 'marco' && (<><span className="glow" /><span className="sb act" /><span className="sb vup" /><span className="sb vdn" /><span className="sb pwr" /></>)}
                     </div>
                   </Fragment>
                 ))}
@@ -512,5 +489,70 @@ export function Hero() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Interior de la carcasa trasera: módulos de cámara, bobina MagSafe con su anillo de imanes y tornillos. */
+function Carcasa() {
+  return (
+    <>
+      <div className="cams">
+        <span className="cm a" />
+        <span className="cm b" />
+        <span className="cm c" />
+        <span className="fl" />
+        <span className="ld" />
+      </div>
+      <div className="coil"><i /></div>
+      <span className="flex" />
+      <span className="scw s1" />
+      <span className="scw s2" />
+      <span className="scw s3" />
+    </>
+  );
+}
+
+function Bateria() {
+  return (
+    <div className="bat">
+      <span className="tab" />
+      <div className="lbl">
+        <b>Li-ion Polymer Battery</b>
+        <span>3,87 V ⎓ 4.200 mAh · 16,25 Wh</span>
+        <small>iManager</small>
+      </div>
+      <span className="pull p1" />
+      <span className="pull p2" />
+    </div>
+  );
+}
+
+/** Pantalla encendida: la captura va en un img (prerender) y la Dynamic Island queda encima. */
+function Pantalla() {
+  return (
+    <>
+      <div className="scr">
+        <div className="sbar">
+          <b>9:41</b>
+          <svg viewBox="0 0 64 12" width="54" height="10" aria-hidden="true">
+            <g fill="#111214">
+              <rect x="0" y="8" width="3" height="4" rx=".8" />
+              <rect x="4.5" y="6" width="3" height="6" rx=".8" />
+              <rect x="9" y="3.5" width="3" height="8.5" rx=".8" />
+              <rect x="13.5" y="1" width="3" height="11" rx=".8" />
+              <path d="M28 2.2a10 10 0 0 1 7.6 3.4l-1.4 1.4a8 8 0 0 0-12.4 0l-1.4-1.4A10 10 0 0 1 28 2.2zm0 3.8a6 6 0 0 1 4.4 1.9L31 9.3a4 4 0 0 0-6 0l-1.4-1.4A6 6 0 0 1 28 6zm0 3.6a2.4 2.4 0 0 1 1.6.7L28 12l-1.6-1.7a2.4 2.4 0 0 1 1.6-.7z" />
+              <rect x="41" y="1.5" width="19" height="9" rx="2.6" fill="none" stroke="#111214" strokeOpacity=".4" />
+              <rect x="42.6" y="3.1" width="13" height="5.8" rx="1.4" />
+              <rect x="61" y="4.2" width="1.6" height="3.6" rx=".8" fillOpacity=".4" />
+            </g>
+          </svg>
+        </div>
+        <div className="app">
+          <img src="/assets/app-mob-dashboard.png" alt="" width="780" height="1688" fetchPriority="high" decoding="async" />
+        </div>
+      </div>
+      <span className="island" />
+      <span className="glare" />
+    </>
   );
 }
