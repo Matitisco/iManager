@@ -200,8 +200,8 @@ export function DashboardScreen() {
           <button className="mini" type="button" onClick={() => go('inventory')}>
             <div className="ico"><ImanagerIcon name="equipo" size={20} /></div>
             <div className="eyebrow">En stock</div>
-            <div className="val">{inventory.length} equipos</div>
-            <div className="sub">{available} disponibles</div>
+            <div className="val">{inventory.length} {inventory.length === 1 ? 'equipo' : 'equipos'}</div>
+            <div className="sub">{available} {available === 1 ? 'disponible' : 'disponibles'}</div>
             <div className="budget"><i style={{ width: `${stockPct}%` }} /></div>
           </button>
           <button className="mini" type="button" onClick={() => go('tradeins')}>

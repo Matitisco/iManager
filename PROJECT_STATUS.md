@@ -1,7 +1,16 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-14**
+**Ultima actualizacion: 2026-10-15**
+
+## Corrección de producción #307 / #369 — Caja opcional — 2026-10-15
+
+- Ventas, cobros, cancelaciones y correcciones de precio no exigen caja abierta. Sin configuración compatible por moneda/medio no generan movimientos; con configuración sin apertura quedan persistidos sin caja ni sesión. Se prioriza la predeterminada entre cajas compatibles abiertas hoy.
+- Las compensaciones van a una caja compatible abierta o quedan sin asignar, incluso si la caja original está archivada. No modifican movimientos originales, saldos cerrados ni conteos; conservan idempotencia e historial de anulación.
+- Subir el precio pagado conserva el cargo por diferencia de #305 sin duplicar efectivo. Corregidos «1 equipo» en inventario, dashboard, vista previa de catálogo y auditoría. Prueba de caché de iPhone estabilizada evitando leer cuerpos de respuesta de un documento descartado al recargar.
+- Prisma compatible: `registerId` opcional y moneda/medio opcionales, sin nuevas unicidades. `prisma db push` sobre una caja con movimiento y cierre previos conservó importes, relaciones y conteo, sin aceptar pérdida de datos. Sólo bases locales sintéticas.
+- Validación final: lint/typecheck frontend/backend, 748 unitarios frontend, 388 unitarios backend, 192 integraciones y 73 E2E relevantes aprobados sin consumir reintentos. Incluye diez E2E nuevos desktop/iPhone y las regresiones de cuenta corriente / cancel-refund de #305. Incidencias transitorias de corridas previas documentadas.
+- Documentación: `docs/cash-registers-307.md`; OpenSpec: `fix-cash-register-blocking`. Sin build ni push.
 
 ## Issue #307 — Caja diaria por moneda y medio — 2026-10-14
 

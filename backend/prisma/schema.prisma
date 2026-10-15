@@ -770,8 +770,10 @@ model CashSession {
 model CashMovement {
   id            String @id @default(cuid())
   storeId       String
-  registerId    String
+  registerId    String?
   sessionId     String?
+  currency      String? @db.VarChar(3)
+  method        String? @db.VarChar(30)
   amount        Decimal @db.Decimal(12, 2)
   kind          String @db.VarChar(20)
   category      String? @db.VarChar(80)
@@ -786,7 +788,7 @@ model CashMovement {
   createdBy     String?
   createdAt     DateTime @default(now())
   store         Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  register      CashRegister @relation(fields: [registerId], references: [id], onDelete: Restrict)
+  register      CashRegister? @relation(fields: [registerId], references: [id], onDelete: Restrict)
   session       CashSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   @@index([storeId])
   @@index([storeId, registerId, createdAt])

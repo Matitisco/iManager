@@ -160,7 +160,7 @@ export function InventoryScreen() {
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Inventario"
-        subtitle={`${inventory.length} equipos · ${available} disponibles · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
+        subtitle={`${inventory.length} ${inventory.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
         back={back}
         tools={(
           <>

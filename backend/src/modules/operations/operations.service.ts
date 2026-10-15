@@ -1,4 +1,4 @@
-import { recordCash, reverseCashSource, protectCashSaleEdit } from '../cash/service.js';
+import { recordCash, reverseCashSource } from '../cash/service.js';
 import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
 import { recordPriceRise } from "../accounts/accounts.service.js";
@@ -1083,7 +1083,6 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     await refreshSaleCommission(tx, storeId, sale.id);
     if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id });
-    await protectCashSaleEdit(tx, storeId, sale.id, nextAmount !== Number(sale.amount) || nextTakeValue !== Number(trade?.takeValue ?? 0) || updatedSale.paymentMethod !== sale.paymentMethod || updatedSale.amountCurrency !== sale.amountCurrency || nextStatus !== sale.status && nextStatus !== 'COMPLETADA');
     if (sale.status === 'PENDIENTE' && nextStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.openBalance ?? priorDue), currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
     const balanceStatus = rise.reopen ? "COMPLETADA" : nextStatus;
     const balanceDebt = rise.reopen ? priorDue : nextDebt;
