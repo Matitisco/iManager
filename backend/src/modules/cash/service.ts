@@ -158,7 +158,11 @@ async function reverse(tx: Tx, row: CashMovement, actor?: Actor | null, note = '
   const box = row.registerId ? await register(tx, row.storeId, row.registerId) : null;
   const currency = row.currency ?? box!.currency;
   const method = row.method ?? box!.method;
-  await appendAutomatic(tx, row.storeId, currency, method, { amount: row.amount.neg(), kind: 'ANULACION', category: row.category, note, sourceType: row.sourceType, sourceId: row.sourceId, reversalOf: row.id, transferGroup: row.transferGroup, exchangeRate: row.exchangeRate, createdBy: actor?.userId });
+  const data = { amount: row.amount.neg(), kind: 'ANULACION', category: row.category, note, sourceType: row.sourceType, sourceId: row.sourceId, reversalOf: row.id, transferGroup: row.transferGroup, exchangeRate: row.exchangeRate, createdBy: actor?.userId };
+  // A payment made outside registers must also be refunded outside registers,
+  // even if a compatible register has opened since the payment.
+  if (row.registerId) await appendAutomatic(tx, row.storeId, currency, method, data);
+  else await tx.cashMovement.create({ data: { ...data, storeId: row.storeId, currency, method, registerId: null, sessionId: null } });
 }
 export async function voidMovement(storeId: string, id: string, actor: Actor) {
   return prisma.$transaction(async tx => {

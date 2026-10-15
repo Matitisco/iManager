@@ -285,6 +285,86 @@ describe('caja diaria', () => {
   });
 
 
+  it.each(['sin abrir', 'cerrada', 'sin configuración'])('cancela un cobro %s fuera de cajas aunque después se abra otra compatible', async state => {
+    const f = await seedStoreContext(); const c = await seedCatalogFixture(f.store!.id);
+    const originalBox = state === 'sin configuración' ? null : await box('USD');
+    if (state === 'cerrada') await close(originalBox!, 0);
+    const closedSnapshot = await prisma.cashSession.findMany({ include: { counts: true } });
+    const sale = await getApp().inject({ method: 'POST', url: '/api/operations/sales', headers: headers(), payload: { clientId: c.client.id, productId: c.inventoryItem.id, amount: 100, currency: 'USD', paymentMethod: 'EFECTIVO' } });
+    expect(sale.statusCode, sale.body).toBe(201);
+    const saleId = sale.json().sale.id as string;
+    const originals = await prisma.cashMovement.findMany({ where: { sourceId: saleId } });
+    expect(originals).toHaveLength(originalBox ? 1 : 0);
+    if (originalBox) expect(originals[0]).toMatchObject({ registerId: null, sessionId: null, currency: 'USD', method: 'EFECTIVO' });
+    const current = await box('USD'); const session = await open(current);
+    const cancel = () => getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${saleId}/cancel`, headers: headers() });
+    expect((await cancel()).statusCode).toBe(200); expect((await cancel()).statusCode).toBe(200);
+    const refunds = await prisma.cashMovement.findMany({ where: { sourceId: saleId, kind: 'ANULACION' } });
+    expect(refunds).toHaveLength(originals.length);
+    if (originalBox) {
+      expect(refunds[0]).toMatchObject({ registerId: null, sessionId: null, reversalOf: originals[0].id, currency: 'USD', method: 'EFECTIVO' });
+      expect(Number(refunds[0].amount)).toBe(-100);
+      expect(await balance(originalBox)).toBe(0);
+      expect(await prisma.cashMovement.findUniqueOrThrow({ where: { id: originals[0].id } })).toEqual(originals[0]);
+    }
+    expect(await balance(current)).toBe(0);
+    expect(await prisma.cashMovement.count({ where: { registerId: current } })).toBe(0);
+    for (const before of closedSnapshot) expect(await prisma.cashSession.findUniqueOrThrow({ where: { id: before.id }, include: { counts: true } })).toEqual(before);
+    const counted = await post(`/sessions/${session}/count`, { denominations: {} });
+    expect(counted.statusCode, counted.body).toBe(200);
+    expect(counted.json()).toMatchObject({ expected: 0, counted: 0, difference: 0 });
+    expect((await post(`/sessions/${session}/review`, { action: 'APPROVE' })).statusCode).toBe(200);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: c.inventoryItem.id } })).status).toBe('DISPONIBLE');
+    expect(await prisma.clientPayment.count({ where: { saleId, kind: 'DEVOLUCION', amount: 100 } })).toBe(1);
+  });
+
+  it.each([80, 130])('ajusta a %s una venta pagada fuera de cajas sin trasladar el cobro ni su reintegro', async amount => {
+    const f = await seedStoreContext(); const c = await seedCatalogFixture(f.store!.id);
+    const id = await box('USD'); await close(id, 0);
+    const sale = await getApp().inject({ method: 'POST', url: '/api/operations/sales', headers: headers(), payload: { clientId: c.client.id, deviceLabel: 'Ajuste sin caja', amount: 100, currency: 'USD', paymentMethod: 'EFECTIVO' } });
+    expect(sale.statusCode, sale.body).toBe(201);
+    const saleId = sale.json().sale.id as string;
+    const original = await prisma.cashMovement.findFirstOrThrow({ where: { sourceId: saleId } });
+    const current = await box('USD'); await open(current);
+    const raised = await getApp().inject({ method: 'PATCH', url: `/api/operations/sales/sales/${saleId}`, headers: headers(), payload: { amount } });
+    expect(raised.statusCode, raised.body).toBe(200);
+    expect(raised.json().sale).toMatchObject({ amount, status: 'COMPLETADA' });
+    expect(Number(raised.json().sale.openBalance)).toBe(amount > 100 ? 30 : 0);
+    expect(await prisma.cashMovement.count({ where: { sourceId: saleId } })).toBe(1);
+    expect(await balance(current)).toBe(0);
+    const cancelled = await getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${saleId}/cancel`, headers: headers() });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+    expect(await prisma.cashMovement.findFirstOrThrow({ where: { reversalOf: original.id } })).toMatchObject({ registerId: null, sessionId: null, amount: original.amount.neg() });
+    expect(await balance(current)).toBe(0);
+    expect(await balance(id)).toBe(0);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: c.client.id } })).pendingBalance)).toBe(0);
+  });
+
+  it('revierte cada cobro según su propia asignación tras cobrar en caja la diferencia de precio', async () => {
+    const f = await seedStoreContext(); const c = await seedCatalogFixture(f.store!.id);
+    const id = await box('USD');
+    const sale = await getApp().inject({ method: 'POST', url: '/api/operations/sales', headers: headers(), payload: { clientId: c.client.id, deviceLabel: 'Diferencia mixta', amount: 100, currency: 'USD', paymentMethod: 'EFECTIVO' } });
+    expect(sale.statusCode, sale.body).toBe(201);
+    const saleId = sale.json().sale.id as string;
+    const original = await prisma.cashMovement.findFirstOrThrow({ where: { sourceId: saleId } });
+    const session = await open(id);
+    const raised = await getApp().inject({ method: 'PATCH', url: `/api/operations/sales/sales/${saleId}`, headers: headers(), payload: { amount: 130 } });
+    expect(raised.statusCode, raised.body).toBe(200);
+    const payment = await getApp().inject({ method: 'POST', url: '/api/accounts/collections', headers: headers(), payload: { clientId: c.client.id, saleId, amount: 30, currency: 'USD', method: 'EFECTIVO' } });
+    expect(payment.statusCode, payment.body).toBe(201);
+    expect(await balance(id)).toBe(30);
+    const extra = await prisma.cashMovement.findFirstOrThrow({ where: { sourceId: saleId, registerId: id } });
+    const cancel = () => getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${saleId}/cancel`, headers: headers() });
+    expect((await cancel()).statusCode).toBe(200); expect((await cancel()).statusCode).toBe(200);
+    expect(await prisma.cashMovement.findFirstOrThrow({ where: { reversalOf: original.id } })).toMatchObject({ registerId: null, sessionId: null, amount: original.amount.neg() });
+    expect(await prisma.cashMovement.findFirstOrThrow({ where: { reversalOf: extra.id } })).toMatchObject({ registerId: id, sessionId: session, amount: extra.amount.neg() });
+    expect(await prisma.cashMovement.count({ where: { sourceId: saleId, kind: 'ANULACION' } })).toBe(2);
+    expect(await balance(id)).toBe(0);
+    const counted = await post(`/sessions/${session}/count`, { denominations: {} });
+    expect(counted.statusCode, counted.body).toBe(200);
+    expect(counted.json()).toMatchObject({ expected: 0, counted: 0, difference: 0 });
+  });
+
   it('compensa un cobro previo aunque la caja original haya sido archivada', async () => {
     const { id, saleId, original } = await paidSale();
     const archived = await getApp().inject({ method: 'PATCH', url: `/api/cash/${id}`, headers: headers(), payload: { archived: true } });

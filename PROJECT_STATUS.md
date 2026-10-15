@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-15**
 
+## Regresión #307 — Reintegros de cobros fuera de caja — 2026-10-15
+
+- Las compensaciones revisan la asignación del movimiento original: si no tenía caja, quedan sin caja ni sesión aunque ahora haya una compatible abierta. Los cobros originalmente asignados conservan la selección de caja abierta o sin asignar, sin modificar originales ni cierres.
+- La regla se aplica por cobro tras ajustes de precio: el original fuera de caja y una diferencia cobrada dentro se compensan por separado. Sin configuración al cobrar no se inventan movimientos retroactivos; se conserva la devolución del cliente fuera de Cajas.
+- Se agregaron cuatro unitarios, seis integraciones y doce E2E desktop/iPhone para caja sin abrir, cerrada, sin configuración, suba/baja de precio, cobros mixtos, idempotencia y cierre con saldo/diferencia cero. La regresión falló antes de corregir en unitarios, integración y E2E desktop.
+- Validación: lint/typecheck frontend/backend, 756 unitarios frontend, 392 unitarios backend, 198 integraciones y 59 E2E relevantes aprobados, estos últimos sin reintentos. Incluye caja, cuenta corriente #305, cancelaciones/reintegros, señas y edición de operaciones. Los helpers nuevos esperan la navegación y seleccionan cajas dentro de su pantalla.
+- Sin cambios de Prisma ni nuevas unicidades; bases locales separadas sincronizadas mediante `prisma db push`. Sin build ni push.
+
 ## CI — Limpieza de cotizaciones al desmontar — 2026-10-15
 
 - ExchangeProvider cancela las consultas activas e invalida respuestas pendientes al desmontarse, cambiar de configuración o iniciar otra actualización. Conserva la limpieza del intervalo y evita actualizar React después de destruir el entorno de prueba.
