@@ -66,6 +66,35 @@ describe('compensación sin editar el original', () => {
     expect(mocks.cashMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ registerId: null, sessionId: null, reversalOf: 'original', amount: new Decimal(-50), currency: 'USD', method: 'EFECTIVO' }) });
     expect(mocks.cashRegister.update).not.toHaveBeenCalled();
   });
+  it('mantiene el reintegro fuera de cajas aunque ahora exista una compatible abierta', async () => {
+    mocks.cashMovement.findMany.mockResolvedValue([original]);
+    mocks.cashRegister.findFirst.mockResolvedValue(box);
+    mocks.cashSession.findFirst.mockResolvedValue({ id: 'today' });
+    await reverseCashSource(tx, 'store', 'sale', 'sale');
+    expect(mocks.cashMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ registerId: null, sessionId: null, reversalOf: original.id, amount: new Decimal(-50), currency: 'USD', method: 'EFECTIVO' }) });
+    expect(mocks.cashRegister.findFirst).not.toHaveBeenCalled();
+    expect(mocks.cashSession.findFirst).not.toHaveBeenCalled();
+    expect(mocks.cashRegister.update).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('compensa un cobro asignado con caja compatible abierta=%s sin tocar la original', async open => {
+    mocks.cashMovement.findMany.mockResolvedValue([{ ...original, registerId: 'closed', sessionId: 'yesterday', currency: null, method: null }]);
+    mocks.cashRegister.findFirst.mockResolvedValueOnce({ ...box, id: 'closed' }).mockResolvedValueOnce(open ? box : null);
+    mocks.cashSession.findFirst.mockResolvedValue({ id: 'today' });
+    await reverseCashSource(tx, 'store', 'sale', 'sale');
+    expect(mocks.cashMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ registerId: open ? box.id : null, sessionId: open ? 'today' : null, reversalOf: original.id, amount: new Decimal(-50), currency: 'USD', method: 'EFECTIVO' }) });
+    expect(mocks.cashRegister.update).toHaveBeenCalledTimes(open ? 1 : 0);
+    if (open) expect(mocks.cashRegister.update).toHaveBeenCalledWith({ where: { id: box.id }, data: { balance: { increment: new Decimal(-50) } } });
+  });
+
+  it('no inventa un movimiento cuando el cobro original no tenía configuración de caja', async () => {
+    mocks.cashMovement.findMany.mockResolvedValue([]);
+    mocks.cashRegister.findFirst.mockResolvedValue(box);
+    await reverseCashSource(tx, 'store', 'sale', 'sale');
+    expect(mocks.cashMovement.create).not.toHaveBeenCalled();
+    expect(mocks.cashRegister.update).not.toHaveBeenCalled();
+  });
+
   it('no vuelve a compensar un original inmutable ya compensado', async () => {
     mocks.cashMovement.findMany.mockResolvedValue([original]);
     mocks.cashMovement.findFirst.mockResolvedValue({ reversalOf: original.id });

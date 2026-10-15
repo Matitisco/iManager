@@ -14,3 +14,10 @@ El sistema SHALL registrar cobros de ventas, cuotas, señas y reparaciones en su
 #### Scenario: Corrección de precio pagado
 - **WHEN** aumenta el precio de una venta pagada con cliente
 - **THEN** se guarda la diferencia como deuda conforme a #305 sin rechazar por caja ni volver a cobrar el importe; el pago posterior impacta una caja abierta compatible o queda sin asignar.
+
+#### Scenario: Cancelación de un cobro fuera de cajas
+- **WHEN** se cancela una venta cuyo cobro original no tenía caja, aunque ahora haya una compatible abierta
+- **THEN** la compensación MUST quedar sin caja ni sesión; ningún saldo ni cierre incorpora ese reintegro. Si no existía movimiento de caja original, no se crea uno retroactivo.
+#### Scenario: Ajustes de una venta pagada fuera de cajas
+- **WHEN** se corrige el precio de una venta pagada fuera de cajas y luego se cancela, con o sin cobro posterior de la diferencia
+- **THEN** la corrección MUST NOT reasignar ni duplicar el cobro original; cada compensación sigue la asignación de su propio cobro, y sólo los cobros originalmente asignados pueden compensarse en una caja abierta.
