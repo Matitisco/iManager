@@ -397,7 +397,7 @@ export function Hero() {
                 <a className="btn p" href={SIGNUP_URL}>Probar gratis</a>
                 <a className="btn s" href={APP_URL}>Entrar</a>
               </div>
-              <div className="trust">Sin tarjeta · Lo armás en 5 minutos</div>
+              <div className="trust">Sin tarjeta · Con tu mail o tu cuenta de Google</div>
             </div>
             <div className={`cap c-capas${capOn('capas') ? ' on' : ''}`} aria-hidden={!capOn('capas')}>
               <span className="kick">5 capas · 1 sistema</span>

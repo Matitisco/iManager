@@ -44,11 +44,11 @@ export function Problem() {
 export function Features() {
   const items: [string, string][] = [
     ['Inventario por IMEI', 'Modelo, capacidad, color, batería, estado y precio de cada equipo.'],
-    ['Ventas', 'Pagos mixtos y accesorios en la misma venta. El equipo sale del stock solo.'],
+    ['Ventas', 'Efectivo, transferencia, tarjeta o cripto. El equipo sale del stock solo.'],
     ['Canjes', 'El usado entra en parte de pago, con peritaje y costo real.'],
     ['Servicio técnico', 'Cada orden en su estado, hasta que el cliente la retira.'],
     ['Dólar blue al día', 'Precios en dólares y pesos con la cotización del momento.'],
-    ['Clientes y reportes', 'Historial por cliente, márgenes, rotación y comisiones.'],
+    ['Clientes y reportes', 'Saldo y pagos de cada cliente, margen bruto estimado y comisiones.'],
   ];
   return (
     <section className="sec" id="funciones">
@@ -79,7 +79,7 @@ export function Features() {
 export function HowItWorks() {
   const steps: [string, string][] = [
     ['Creá tu tienda', 'Con tu mail o tu cuenta de Google. Nombre, moneda y listo.'],
-    ['Importá tu planilla', 'Subí tu Excel o Google Sheets y tus equipos quedan cargados con su IMEI.'],
+    ['Importá tu planilla', 'Subí tu Excel o CSV, o pegá tu lista, y tus equipos quedan cargados con su IMEI.'],
     ['Vendé y canjeá', 'Desde la compu del mostrador o el celular. Sumá a tu equipo cuando quieras.'],
   ];
   return (
@@ -189,9 +189,9 @@ export function Pricing() {
 
 const FAQS: [string, string][] = [
   ['¿Necesito instalar algo?', 'No. Entrás desde el navegador en app.imanager.com.ar, en la compu o en el celular.'],
-  ['¿Puedo importar mi planilla actual?', 'Sí, desde Excel o Google Sheets.'],
+  ['¿Puedo importar mi planilla actual?', 'Sí, desde un archivo Excel (.xlsx) o CSV, o pegando tu lista de equipos.'],
   ['¿Sirve solo para iPhone?', 'Está pensado para iPhone, pero podés cargar cualquier equipo con IMEI.'],
-  ['¿De dónde sale la cotización del dólar?', 'Mostramos el blue del día y podés usar tu propio tipo de cambio.'],
+  ['¿De dónde sale la cotización del dólar?', 'Se actualiza sola desde DolarApi, con el blue, el oficial o el MEP. También podés cargar tu propio tipo de cambio.'],
   ['¿Sirve si también hago reparaciones?', 'Sí: el servicio técnico lleva cada orden por Recibido, En reparación, Listo para retirar y Entregado.'],
   ['¿Puedo sumar a mi equipo?', 'Sí, con roles de propietario, socio y empleado, y permisos por sección.'],
   ['¿Mis datos están seguros?', 'Cada tienda ve solo sus datos, con acceso por usuario.'],

@@ -1,5 +1,6 @@
 export const APP_URL = 'https://app.imanager.com.ar';
-export const SIGNUP_URL = 'https://app.imanager.com.ar/registro';
+/** La app no tiene ruta ni deep link de registro: la cuenta se crea desde el login («Crear cuenta» o Google). */
+export const SIGNUP_URL = 'https://app.imanager.com.ar/';
 
 export type LayerKey = 'carcasa' | 'bateria' | 'placa' | 'marco' | 'pantalla';
 
@@ -140,15 +141,15 @@ export const FEATURES: Feature[] = [
     capa: 'La placa · el cerebro',
     title: 'Inventario por IMEI',
     text: 'Cada equipo con su IMEI, capacidad, color, batería y estado. Sabés qué tenés y a cuánto.',
-    bullets: ['Alta en segundos, con IMEI validado', 'Disponible, reservado, en revisión o vendido', 'Importá tu planilla de Excel o Sheets'],
+    bullets: ['IMEI de 15 dígitos, sin duplicados', 'Disponible, reservado, en revisión o vendido', 'Importá tu planilla en Excel, CSV o texto'],
     img: 'app-mob-inventario.png',
   },
   {
     k: 'ventas',
     capa: 'La pantalla · lo que ve tu cliente',
-    title: 'Ventas en dos toques',
-    text: 'Registrás la venta, el pago y los accesorios. El equipo sale del stock solo.',
-    bullets: ['Efectivo, transferencia, tarjeta o mixto', 'Accesorios en la misma venta', 'Comprobante para mandar por WhatsApp'],
+    title: 'Ventas y cobros',
+    text: 'Registrás la venta y su forma de pago. El equipo sale del stock solo.',
+    bullets: ['Efectivo, transferencia, tarjeta o cripto', 'Cobrada o con saldo pendiente', 'Comprobante para compartir'],
     img: 'app-mob-venta.png',
   },
   {
@@ -156,7 +157,7 @@ export const FEATURES: Feature[] = [
     capa: 'La carcasa · el usado que entra',
     title: 'Canjes sin vueltas',
     text: 'Tomás el usado en parte de pago, lo peritás y entra al inventario con su costo real.',
-    bullets: ['Peritaje: batería, pantalla, Face ID', 'Cotización del usado en pesos o dólares', 'Queda atado a la venta y al cliente'],
+    bullets: ['Batería y calidad del usado, de A+ a C', 'Cotización del usado en pesos o dólares', 'Queda atado a la venta y al cliente'],
     img: 'app-mob-dashboard.png',
   },
   {
@@ -164,7 +165,7 @@ export const FEATURES: Feature[] = [
     capa: 'La batería · lo que se gasta',
     title: 'Servicio técnico',
     text: 'Órdenes de reparación en un tablero: cada equipo avanza de estado hasta que el cliente lo retira.',
-    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Aviso al cliente cuando está listo', 'Historial de cada equipo'],
+    bullets: ['Recibido → En reparación → Listo para retirar → Entregado', 'Aviso por WhatsApp cuando está listo', 'Historial de estados de cada orden'],
     img: 'app-mob-servicio.png',
   },
   {
@@ -172,7 +173,7 @@ export const FEATURES: Feature[] = [
     capa: 'El marco · lo que sostiene el precio',
     title: 'Dólar blue al día',
     text: 'Cargás precios en dólares y ves los pesos con la cotización del momento.',
-    bullets: ['Blue, oficial o tu propio tipo de cambio', 'Lista de precios lista para compartir', 'Márgenes reales, sin calcular a mano'],
+    bullets: ['Blue, oficial, MEP o tu propio tipo de cambio', 'Catálogo con precios para compartir por link', 'Margen bruto estimado de tus ventas'],
     img: 'app-mob-dolar.png',
   },
 ];
