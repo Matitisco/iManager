@@ -71,12 +71,14 @@ describe('desk validation messages', () => {
     const user = userEvent.setup();
     renderOverlay({ type: 'cl', id: 'client-1' });
 
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    expect(ctx.registerClientPayment).not.toHaveBeenCalled();
     const amount = screen.getByLabelText('Monto');
     await user.clear(amount);
     await user.type(amount, '-');
 
     expect(screen.getByText('El pago no puede ser negativo')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar pago' }));
     expect(ctx.registerClientPayment).not.toHaveBeenCalled();
   });
 });
