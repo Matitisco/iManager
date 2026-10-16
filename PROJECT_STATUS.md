@@ -3,6 +3,16 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-15**
 
+
+## Issue #359 — Suscripciones con Mercado Pago — 2026-10-15
+
+- Catálogo Básico/Negocio mensual/anual en USD, convertido a ARS con blue vendedor. Script `billing:sync` crea cuatro planes idempotentes, conserva IDs y vendedor, recupera altas interrumpidas y actualiza planes/contratos por PUT. Cotización temporal del monto ARS y email antes del checkout hospedado con referencia de tienda.
+- Cuentas existentes internas gratis de por vida, ilimitadas, incluidas las anteriores sin tienda. Nuevas cuentas reciben prueba de siete días sin tarjeta en ambos caminos de alta. Prisma aditivo con defaults seguros; db push comprobado sobre cuenta, tienda, membresía e inventario previos sin aceptar pérdida ni crear unicidades en tablas existentes. Sin exportaciones de filas.
+- Webhook `/webhooks/mercadopago`: HMAC opcional con MP_WEBHOOK_SECRET, reconsulta obligatoria de preapproval, facturas reconsultadas, validación de tienda/plan/moneda/frecuencia/email y períodos por cobros confirmados. Locks y fecha remota evitan regresión por duplicados y concurrencia. Cancelación idempotente conserva el período abonado y un cobro reciente aún sin webhook.
+- Plan y facturación owner en Configuración, con USD, confirmación ARS y cancelación; contador de prueba en Dashboard, aviso de solo lectura y límites 1/3 incluyendo owner (prueba: 3). Backend protege escrituras; aceptación concurrente de invitaciones respeta el último lugar y owner puede quitar exceso tras un cambio de plan. Un onboarding incompleto no impide acceder a facturación cuando vence la prueba.
+- Validación automatizada: lint y builds frontend/backend, 765 tests frontend, 413 unitarios backend, 223 integraciones PostgreSQL (25 nuevas de suscripciones), 15 tests de servidor/worker y 57 PWA E2E aprobados (36 omisiones de plataforma). Corrida final de E2E general en curso. Las pruebas antiguas de capturas usan ahora test-results en vez de una ruta absoluta sin permisos; fallos transitorios iniciales de venta/navegación pasaron al repetir los 13 E2E relevantes.
+- Capturas: `docs/pr-shots/issue-359-*.png`; operación y validación: `docs/subscriptions-359.md`; OpenSpec: `add-mercadopago-subscriptions`. Pendiente externo: el token TEST de Railway no está inyectado en este proceso; no se completó pago real como invitado ni se verificó propagación de referencia/email en MP. No habilitar cobros productivos sin esa validación. No se tocaron datos ni configuración de Railway.
+
 ## Regresión #307 — Reintegros de cobros fuera de caja — 2026-10-15
 
 - Las compensaciones revisan la asignación del movimiento original: si no tenía caja, quedan sin caja ni sesión aunque ahora haya una compatible abierta. Los cobros originalmente asignados conservan la selección de caja abierta o sin asignar, sin modificar originales ni cierres.

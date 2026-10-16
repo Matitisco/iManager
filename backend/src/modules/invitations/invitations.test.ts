@@ -7,6 +7,7 @@ const {
   buildAppSessionForUserMock,
 } = vi.hoisted(() => ({
   prismaMock: {
+    store: { findUniqueOrThrow: vi.fn() },
     user: {
       findFirst: vi.fn(),
     },
@@ -57,6 +58,7 @@ describe("invitations.service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.store.findUniqueOrThrow.mockResolvedValue({ billingPlan: "INTERNAL", trialEndsAt: null, billingPaidThrough: null });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
     prismaMock.storeMember.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.storeInvitation.update.mockResolvedValue({});

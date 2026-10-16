@@ -1,0 +1,97 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BillingSummary } from '../../types/billing';
+import { BillingAccessBanner, BillingScreen } from './BillingScreen';
+import { DeskProvider } from '../ui';
+
+const state = vi.hoisted(() => {
+  const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false };
+  return {
+    summary, appSession: { user: { email: 'owner@example.com' }, store: { id: 's' }, membership: { role: 'OWNER' }, billing: summary },
+    billingDetails: { ...summary, plans: [
+      { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 1 },
+      { key: 'BUSINESS_MONTHLY', name: 'Negocio', plan: 'BUSINESS', period: 'MONTHLY', usd: 87, months: 1, users: 3 },
+      { key: 'BASIC_ANNUAL', name: 'Básico', plan: 'BASIC', period: 'ANNUAL', usd: 198, months: 12, users: 1 },
+      { key: 'BUSINESS_ANNUAL', name: 'Negocio', plan: 'BUSINESS', period: 'ANNUAL', usd: 783, months: 12, users: 3 },
+    ] },
+    loadBilling: vi.fn(), quoteSubscription: vi.fn(), openSubscriptionCheckout: vi.fn(), cancelSubscription: vi.fn(), reloadSession: vi.fn(),
+  };
+});
+vi.mock('../../context/AppContext', () => ({ useAppContext: () => state }));
+const go = vi.fn();
+function ui(children = <BillingScreen />) {
+  return render(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}>{children}</DeskProvider>);
+}
+beforeEach(() => {
+  vi.clearAllMocks();
+  Object.assign(state.billingDetails, state.summary);
+  Object.assign(state.appSession, { membership: { role: 'OWNER' }, billing: state.summary });
+  state.loadBilling.mockResolvedValue(state.billingDetails);
+  state.cancelSubscription.mockResolvedValue({ ok: true });
+  state.reloadSession.mockResolvedValue(undefined);
+  state.quoteSubscription.mockResolvedValue({ id: 'q', key: 'BASIC_MONTHLY', usd: 22, amountArs: 22000, exchangeRate: 1000, payerEmail: 'owner@example.com', expiresAt: '2099-01-01' });
+});
+describe('Plan y facturación', () => {
+  it('muestra precios mensuales/anuales en USD y Sistema propio sin checkout', async () => {
+    ui(); await screen.findByRole('button', { name: 'Suscribirme a Básico' });
+    expect(screen.getByText('US$ 22')).toBeVisible(); expect(screen.getByText('US$ 87')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /Anual/ }));
+    expect(screen.getByText('US$ 16,50')).toBeVisible(); expect(screen.getByText('US$ 65,25')).toBeVisible();
+    expect(screen.getByText('US$ 198 por año, en un solo cobro')).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /Suscribirme/ })).toHaveLength(2);
+  });
+  it('muestra importe ARS y email antes de pedir el checkout', async () => {
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    const quote = await screen.findByTestId('billing-quote');
+    expect(quote).toHaveTextContent('22.000'); expect(quote).toHaveTextContent('owner@example.com');
+    expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
+  });
+  it('un error de checkout conserva mensaje visible y pide revisar el importe', async () => {
+    state.openSubscriptionCheckout.mockRejectedValue(new Error('Cambió el importe en pesos.'));
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar a Mercado Pago' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cambió el importe');
+    expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+  });
+  it('cambiar email o frecuencia invalida la cotización anterior', async () => {
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    await screen.findByTestId('billing-quote');
+    await userEvent.type(screen.getByRole('textbox', { name: /Email del pagador/ }), 'x');
+    expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+  });
+  it('el plan interno nunca muestra checkout ni cancelación', async () => {
+    Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });
+    ui(); await waitFor(() => expect(screen.queryByText('Cargando planes…')).not.toBeInTheDocument());
+    expect(screen.getByText(/sin cobros ni límite/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción/ })).not.toBeInTheDocument();
+  });
+  it('cancelar requiere confirmación y conserva el error si MP falla', async () => {
+    Object.assign(state.billingDetails, { plan: 'BASIC', status: 'ACTIVE', canCancel: true, paidThrough: '2099-01-01T00:00:00Z' });
+    state.cancelSubscription.mockRejectedValue(new Error('No se pudo cancelar.'));
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Cancelar suscripción' }));
+    expect(state.cancelSubscription).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, cancelar suscripción' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cancelar.');
+    expect(screen.getByRole('button', { name: 'Sí, cancelar suscripción' })).toBeVisible();
+  });
+  it('prohíbe checkout si el equipo excede Básico', async () => {
+    Object.assign(state.billingDetails, { members: 2 }); ui();
+    expect(await screen.findByRole('button', { name: 'Suscribirme a Básico' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Suscribirme a Negocio' })).toBeEnabled();
+  });
+  it('staff recibe mensaje y no obtiene acciones de facturación', () => {
+    state.appSession.membership.role = 'STAFF'; ui();
+    expect(screen.getByText(/Solo el propietario/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Suscribirme/ })).not.toBeInTheDocument();
+  });
+  it('contador de prueba navega al plan; empleados vencidos contactan al propietario', async () => {
+    const view = ui(<BillingAccessBanner dashboard />);
+    expect(screen.getByTestId('billing-access-banner')).toHaveTextContent('7 días restantes');
+    await userEvent.click(screen.getByRole('button', { name: 'Ver planes' })); expect(go).toHaveBeenCalledWith('billing');
+    state.appSession.membership.role = 'STAFF'; state.appSession.billing = { ...state.summary, readOnly: true, trialDaysLeft: 0 };
+    view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: true }}><BillingAccessBanner /></DeskProvider>);
+    expect(screen.getByTestId('billing-access-banner')).toHaveTextContent('Contactá al propietario');
+    expect(screen.queryByRole('button', { name: 'Ver planes' })).not.toBeInTheDocument();
+  });
+});

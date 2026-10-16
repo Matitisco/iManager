@@ -2,7 +2,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
 
-const OUT = '/opt/cursor/artifacts/import-auto';
+const OUT = 'test-results/import-auto';
 const WORKBOOK = path.resolve('e2e/fixtures/ejemplo-stock.xlsx');
 
 async function mockDollar(page: Page) {

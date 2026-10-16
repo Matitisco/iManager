@@ -87,6 +87,23 @@ OPENAI_IMPORT_MODEL=gpt-6-luna
 
 ---
 
+## Suscripciones Mercado Pago (#359)
+
+Configuración en Railway **solo en el backend**:
+
+- `MP_ACCESS_TOKEN`: token del vendedor de Mercado Pago. El código lo lee únicamente desde `process.env.MP_ACCESS_TOKEN`; comenzar con credenciales TEST.
+- `MP_WEBHOOK_SECRET`: secreto opcional para validar `x-signature` mediante HMAC-SHA256. Si falta, se omite la firma y se vuelve a consultar la suscripción igualmente. Configurarlo antes de vender en producción.
+- `FRONTEND_URL`: URL pública HTTPS de la app para retornar a `#/plan`.
+- `DATABASE_URL`: base PostgreSQL del entorno, separada para TEST y producción.
+
+Ejecutar `npm --prefix backend run billing:sync` con esas variables para crear o actualizar los cuatro planes ARS y reconciliar contratos. Configurar `POST /webhooks/mercadopago` y los eventos `subscription_preapproval` / `subscription_authorized_payment` en Mercado Pago. Las tiendas anteriores conservan el plan interno gratis; cuentas nuevas reciben siete días sin tarjeta.
+
+Precios visibles en USD: Básico 22 mensual / 198 anual y Negocio 87 mensual / 783 anual. El cobro es en ARS al **blue vendedor** del backend; el owner confirma el importe y el email antes de abrir el checkout hospedado. Facturación está en Configuración → Plan y facturación.
+
+Operación, validación, límites del sandbox y decisiones pendientes: [Suscripciones y pruebas #359](docs/subscriptions-359.md).
+
+---
+
 ## Flujo de sesión
 
 ```

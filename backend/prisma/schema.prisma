@@ -8,6 +8,8 @@ datasource db {
 }
 
 model User {
+  // db push backfills existing accounts; only new auth registrations write false.
+  billingLegacy Boolean @default(true)
   id                String        @id @default(cuid())
   firebaseUid       String        @unique
   email             String?       @db.VarChar(255)
@@ -24,6 +26,16 @@ model User {
 }
 
 model Store {
+  // Existing stores remain internal for life, including plain db push deploys.
+  billingPlan             String    @default("INTERNAL") @db.VarChar(16)
+  billingStatus           String    @default("ACTIVE") @db.VarChar(16)
+  trialEndsAt             DateTime?
+  billingPaidThrough      DateTime?
+  billingPreapprovalId    String?   @db.VarChar(100)
+  billingPeriod           String?   @db.VarChar(16)
+  billingPayerEmail       String?   @db.VarChar(255)
+  billingRemoteUpdatedAt  DateTime?
+  billingCheckouts        BillingCheckout[]
   // Null dates keep existing stores out of the new-account journey.
   onboardingStage       String?   @db.VarChar(16)
   onboardingStartedAt   DateTime?
@@ -811,4 +823,31 @@ model CashCount {
   session     CashSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   @@index([storeId])
   @@index([sessionId, createdAt])
+}
+
+// Global provider catalog, not a tenant business dataset. Uniqueness only on new tables.
+model BillingPlan {
+  key         String   @id @db.VarChar(32)
+  providerId  String   @unique @db.VarChar(100)
+  sellerId    String   @db.VarChar(100)
+  initPoint   String   @db.Text
+  amountArs   Decimal  @db.Decimal(12, 2)
+  exchangeRate Decimal @db.Decimal(12, 2)
+  updatedAt   DateTime @updatedAt
+}
+
+model BillingCheckout {
+  id         String   @id @default(cuid())
+  storeId    String
+  planKey    String   @db.VarChar(32)
+  providerPlanId String @db.VarChar(100)
+  payerEmail String   @db.VarChar(255)
+  amountArs  Decimal  @db.Decimal(12, 2)
+  exchangeRate Decimal @db.Decimal(12, 2)
+  expiresAt  DateTime
+  openedAt   DateTime?
+  createdAt  DateTime @default(now())
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
 }

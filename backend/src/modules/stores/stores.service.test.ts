@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  user: { findUniqueOrThrow: vi.fn() },
   storeMember: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -36,6 +37,7 @@ import {
 describe("stores.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ billingLegacy: true });
   });
 
   it("prevents a manager from promoting someone to OWNER", async () => {

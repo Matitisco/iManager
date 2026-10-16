@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createRepairViaApi } from './utils';
 
-const SHOTS = '/opt/cursor/artifacts/issue-267';
+const SHOTS = 'test-results/issue-267';
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({

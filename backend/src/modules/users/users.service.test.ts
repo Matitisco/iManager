@@ -31,6 +31,7 @@ describe("users.service", () => {
 
     expect(prismaMock.user.create).toHaveBeenCalledWith({
       data: {
+        billingLegacy: false,
         firebaseUid: "firebase-user",
         email: "owner@example.com",
         displayName: "Owner",

@@ -16,7 +16,8 @@
     "migrate:clients": "tsx scripts/migrate-clients.ts",
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
-    "eval:import": "tsx scripts/eval-import-llm.ts"
+    "eval:import": "tsx scripts/eval-import-llm.ts",
+    "billing:sync": "tsx scripts/billing-sync.ts"
   },
   "engines": {
     "node": "22.x"

@@ -1,3 +1,4 @@
+import { useBillingState } from '../hooks/useBillingState';
 import { useCashState } from './cash-state';
 import { useGettingStartedState } from './getting-started-state';
 import { usePublicCatalogState } from './public-catalog-state';
@@ -81,6 +82,11 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   user: AuthUserLike | null;
   loading: boolean;
   appSession: AppSession | null;
+  billingDetails: ReturnType<typeof useBillingState>['billingDetails'];
+  loadBilling: ReturnType<typeof useBillingState>['loadBilling'];
+  quoteSubscription: ReturnType<typeof useBillingState>['quoteSubscription'];
+  openSubscriptionCheckout: ReturnType<typeof useBillingState>['openSubscriptionCheckout'];
+  cancelSubscription: ReturnType<typeof useBillingState>['cancelSubscription'];
   backendStatus: BackendConnectionStatus;
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
@@ -120,6 +126,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     recordsGeneration,
   } = useStoreRecords({ user, appSession, backendStatus });
 
+  const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
   const commissions = useCommissionState(user, appSession, backendStatus);
   const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
@@ -306,6 +313,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updatedUser = await updateUserProfileApi(user, data);
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
+
+  useEffect(() => {
+    const storeId = appSession?.store?.id;
+    if (!user || !storeId || appSession?.billing?.plan === 'INTERNAL' || !appSession?.billing) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const { session } = await fetchBackendSession(user);
+        if (active && session?.store?.id === storeId) setAppSession(current => current?.store?.id === storeId ? { ...current, billing: session.billing } : current);
+      } catch { /* The existing session remains readable; each write is guarded by the server. */ }
+    };
+    const timer = window.setInterval(() => { void refresh(); }, 60_000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [user, appSession?.store?.id, appSession?.billing?.plan]);
 
   const gettingStartedState = useGettingStartedState(user, backendStatus === 'ready' ? appSession?.store?.id : undefined);
 
@@ -840,6 +862,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       clientCategories,
       updateStore, updateUserProfile, reloadSession,
+      ...billingState,
       user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
