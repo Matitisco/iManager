@@ -1,0 +1,32 @@
+{
+  "name": "imanager-landing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Landing de marketing de iManager (imanager.com.ar)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "start": "node serve.mjs",
+    "shots": "node scripts/shots.mjs",
+    "check:layout": "node scripts/layout-check.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.2.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "playwright-core": "^1.53.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.4.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
