@@ -16,7 +16,6 @@ export interface BillingDetails extends BillingSummary {
   plans: { key: BillingPlanKey; plan: string; name: string; period: string; usd: number; months: number; users: number }[];
 }
 export interface BillingQuote {
-  publicKey: string;
   id: string; key: BillingPlanKey; usd: number; amountArs: number; exchangeRate: number;
   payerEmail: string; expiresAt: string;
 }

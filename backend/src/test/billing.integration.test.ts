@@ -26,10 +26,15 @@ async function opened(key = 'BASIC_MONTHLY') {
   const planId = (await prisma.billingPlan.findUniqueOrThrow({ where: { key } })).providerId;
   return { storeId, planId, quote: quote.json() };
 }
-function subscription(storeId: string, planId: string, overrides: Record<string, unknown> = {}) {
+function subscription(storeId: string, planId: string, quoteId: string, overrides: Record<string, unknown> = {}) {
   const now = new Date();
-  const remote = { id: 'subscription-1', external_reference: storeId, preapproval_plan_id: planId, payer_email: 'buyer@example.com', status: 'authorized', date_created: new Date(now.getTime() - 1000).toISOString(), last_modified: now.toISOString(), auto_recurring: { currency_id: 'ARS', frequency: 1, frequency_type: 'months', transaction_amount: 22000 }, summarized: { charged_quantity: 1, last_charged_date: now.toISOString() }, ...overrides };
+  const remote = { id: 'subscription-1', external_reference: quoteId, preapproval_plan_id: planId, payer_email: 'buyer@example.com', status: 'authorized', date_created: new Date(now.getTime() - 1000).toISOString(), last_modified: now.toISOString(), auto_recurring: { currency_id: 'ARS', frequency: 1, frequency_type: 'months', transaction_amount: 22000 }, summarized: { charged_quantity: 1, last_charged_date: now.toISOString() }, ...overrides };
   mp.subscriptions.set(String(remote.id), remote); return remote;
+}
+function signedWebhook(id: string) {
+  const ts = Math.floor(Date.now() / 1000);
+  const hash = createHmac('sha256', 'test-secret').update(`id:${id.toLowerCase()};request-id:req;ts:${ts};`).digest('hex');
+  return `ts=${ts},v1=${hash}`;
 }
 const webhook = (id = 'subscription-1', extra: Record<string, unknown> = {}) => getApp().inject({ method: 'POST', url: '/webhooks/mercadopago', payload: { type: 'subscription_preapproval', data: { id }, ...extra } });
 
@@ -78,39 +83,43 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     await seedStoreContext({ firebaseUid: 'staff', role: 'STAFF' });
     expect((await getApp().inject({ url: '/api/billing', headers: buildAuthHeaders({ uid: 'staff' }) })).statusCode).toBe(403);
     await seedStoreContext({ firebaseUid: 'other' });
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: buildAuthHeaders({ uid: 'other' }), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(404);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: buildAuthHeaders({ uid: 'other' }), payload: { quoteId: quote.id } })).statusCode).toBe(404);
   });
   it('crea preapproval por API con token, plan, referencia y email de la cotización', async () => {
     const { storeId, quote, planId } = await opened('BASIC_ANNUAL');
-    expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com', publicKey: 'public-key-placeholder' });
-    const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'single-use-token' } });
+    expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com' });
+    expect(quote).not.toHaveProperty('publicKey');
+    const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
     expect(response.statusCode, response.body).toBe(200);
-    expect(response.json()).toEqual({ status: 'authorized' });
+    expect(response.json().initPoint).toMatch(/^https:\/\/www\.mercadopago\.com\.ar\/subscriptions\/checkout\?preapproval_id=/);
     const calls = mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval');
     expect(calls).toHaveLength(1);
-    expect(calls[0].body).toMatchObject({ preapproval_plan_id: planId, card_token_id: 'single-use-token', payer_email: 'buyer@example.com', external_reference: storeId, status: 'authorized' });
-    expect(JSON.stringify(await prisma.billingCheckout.findMany())).not.toContain('single-use-token');
-    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'TRIAL', paidThrough: null });
+    expect(calls[0].body).toMatchObject({ preapproval_plan_id: planId, payer_email: 'buyer@example.com', external_reference: quote.id, status: 'pending', back_url: 'http://127.0.0.1:3000/#/plan' });
+    expect(calls[0].body).not.toHaveProperty('card_token_id');
+    expect(JSON.stringify(calls)).not.toContain('single-use-token');
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
+    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'TRIAL', paidThrough: null });
   });
-  it('valida el token y rechaza datos crudos de tarjeta sin llamar al proveedor', async () => {
+  it('rechaza datos de tarjeta y no llama al proveedor', async () => {
     const { quote } = await opened(); const before = mp.calls.length;
-    for (const payload of [{ quoteId: quote.id }, { quoteId: quote.id, cardTokenId: '' }, { quoteId: quote.id, cardTokenId: 'token', cardNumber: 'synthetic-pan' }]) {
+    for (const payload of [{}, { quoteId: quote.id, cardTokenId: 'token' }, { quoteId: quote.id, cardNumber: 'synthetic-pan' }]) {
       expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload })).statusCode).toBe(400);
     }
     expect(mp.calls).toHaveLength(before);
+    expect(JSON.stringify(mp.calls)).not.toContain('synthetic-pan');
   });
   it('un doble envío concurrente crea una sola suscripción', async () => {
     const { quote } = await opened();
-    const responses = await Promise.all([1, 2].map(() => getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })));
+    const responses = await Promise.all([1, 2].map(() => getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })));
     expect(responses.map(response => response.statusCode).sort()).toEqual([200, 409]);
     expect(mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval')).toHaveLength(1);
   });
   it('una respuesta incierta bloquea otro cobro y refresh recupera la creación remota', async () => {
     const { storeId, planId, quote } = await opened();
     mp.failOn('POST /preapproval');
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(502);
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BUSINESS_MONTHLY', payerEmail: 'another@example.com' } })).statusCode).toBe(409);
-    const remote = subscription(storeId, planId);
+    const remote = subscription(storeId, planId, quote.id);
     mp.failOn('');
     const result = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
     expect(result.json()).toMatchObject({ status: 'ACTIVE', canCancel: true });
@@ -119,9 +128,9 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   it('un contrato cancelado anterior no libera un nuevo intento incierto', async () => {
     const { storeId, planId, quote } = await opened();
     await prisma.store.update({ where: { id: storeId }, data: { billingPreapprovalId: 'old-cancelled', billingPayerEmail: 'buyer@example.com', billingStatus: 'CANCELLED', billingPaidThrough: new Date(0), billingRemoteUpdatedAt: new Date(0) } });
-    subscription(storeId, planId, { id: 'old-cancelled', status: 'cancelled', summarized: undefined });
+    subscription(storeId, planId, quote.id, { id: 'old-cancelled', status: 'cancelled', external_reference: storeId, summarized: undefined });
     mp.failOn('POST /preapproval');
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(502);
     mp.failOn('');
     await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
     expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('CREATING');
@@ -129,7 +138,10 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it('un rechazo explícito permite otra cotización con un nuevo token', async () => {
     const { quote } = await opened(); mp.failOn('POST /preapproval', 400);
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    const rejected = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
+    expect(rejected.statusCode).toBe(402);
+    expect(rejected.json().error).toBe('Mercado Pago rechazó el pago. Revisá los datos de la tarjeta o probá con otra.');
+    expect(rejected.body).not.toContain('mock failure');
     expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
     mp.failOn('');
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } })).statusCode).toBe(200);
@@ -137,9 +149,9 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   it('impide abrir un importe distinto o una cotización vencida', async () => {
     const { quote, planId } = await opened();
     mp.plans.get(planId)!.auto_recurring = { frequency: 1, frequency_type: 'months', currency_id: 'ARS', transaction_amount: 23000 };
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
     await prisma.billingCheckout.update({ where: { id: quote.id }, data: { expiresAt: new Date(0) } });
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
   });
   it('revalida cotización blue y actualiza el plan antes de mostrar ARS', async () => {
     await opened(); vi.spyOn(blue, 'currentBlueRate').mockResolvedValue(1400);
@@ -150,36 +162,39 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   it('con secreto rechaza firmas y discrepancias antes de consultar MP', async () => {
     vi.stubEnv('MP_WEBHOOK_SECRET', 'test-secret');
     expect((await webhook()).statusCode).toBe(401); expect(mp.calls).toHaveLength(0);
-    const signature = createHmac('sha256', 'test-secret').update('id:subscription-1;request-id:req;ts:123;').digest('hex');
-    expect((await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': `ts=123,v1=${signature}` }, payload: { type: 'subscription_preapproval', data: { id: 'another-id' } } })).statusCode).toBe(400);
+    expect((await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': signedWebhook('subscription-1') }, payload: { type: 'subscription_preapproval', data: { id: 'another-id' } } })).statusCode).toBe(400);
     expect(mp.calls).toHaveLength(0);
   });
   it('valida firma correcta, reconsulta y activa únicamente el pago confirmado', async () => {
-    const { storeId, planId } = await opened(); subscription(storeId, planId);
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id);
     vi.stubEnv('MP_WEBHOOK_SECRET', 'test-secret');
-    const hash = createHmac('sha256', 'test-secret').update('id:subscription-1;request-id:req;ts:123;').digest('hex');
-    const response = await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': `ts=123,v1=${hash}` }, payload: { type: 'subscription_preapproval', data: { id: 'subscription-1' }, status: 'cancelled' } });
+    const response = await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': signedWebhook('subscription-1') }, payload: { type: 'subscription_preapproval', data: { id: 'subscription-1' }, status: 'cancelled' } });
     expect(response.statusCode).toBe(200);
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: false, memberLimit: 3 });
     expect(mp.calls.filter(call => call.path === '/preapproval/subscription-1')).toHaveLength(2);
   });
   it('sin secreto también reconsulta, no confía en pending ni extiende desde next_payment_date', async () => {
-    const { storeId, planId } = await opened();
-    subscription(storeId, planId, { status: 'pending', summarized: undefined, next_payment_date: '2099-01-01T00:00:00Z' });
+    const { storeId, planId, quote } = await opened();
+    subscription(storeId, planId, quote.id, { status: 'pending', summarized: undefined, next_payment_date: '2099-01-01T00:00:00Z' });
     await webhook('subscription-1', { status: 'authorized' });
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
-    subscription(storeId, planId, { summarized: undefined, next_payment_date: '2099-01-01T00:00:00Z' });
+    subscription(storeId, planId, quote.id, { summarized: undefined, next_payment_date: '2099-01-01T00:00:00Z' });
     await webhook();
     await prisma.store.update({ where: { id: storeId }, data: { trialEndsAt: new Date(0) } });
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ readOnly: true, status: 'EXPIRED' });
   });
-  it.each(['payer_email', 'external_reference', 'preapproval_plan_id'])('no activa si no coincide %s', async field => {
-    const { storeId, planId } = await opened(); subscription(storeId, planId, { [field]: 'wrong' });
+  it.each(['external_reference', 'preapproval_plan_id'])('no activa si no coincide %s', async field => {
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id, { [field]: 'wrong' });
     await webhook();
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
   });
+  it.each([null, '', 'otra@example.com'])('activa aunque payer_email sea %s', async email => {
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id, { payer_email: email });
+    await webhook();
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBe('subscription-1');
+  });
   it('facturas reconsultan authorized_payments y la suscripción, con entrega repetida y fuera de orden', async () => {
-    const { storeId, planId } = await opened(); const remote = subscription(storeId, planId);
+    const { storeId, planId, quote } = await opened(); const remote = subscription(storeId, planId, quote.id);
     mp.invoices.set('invoice-1', 'subscription-1');
     for (let i = 0; i < 2; i++) await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago', payload: { type: 'subscription_authorized_payment', data: { id: 'invoice-1' } } });
     const before = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
@@ -214,7 +229,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ method: 'POST', url: '/api/invitations', headers: headers(), payload: { role: 'STAFF' } })).statusCode).toBe(409);
   });
   it('cancelar exige confirmación del proveedor, es idempotente y preserva período abonado', async () => {
-    const { storeId, planId } = await opened(); subscription(storeId, planId); await webhook();
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id); await webhook();
     mp.failOn('PUT /preapproval/subscription-1');
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/cancel', headers: headers() })).statusCode).toBe(502);
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingStatus).toBe('ACTIVE');
@@ -223,17 +238,17 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ status: 'CANCELLED', readOnly: false, canCancel: false });
   });
   it('permite volver a suscribirse tras cancelar y vencer, sin reactivar eventos viejos', async () => {
-    const { storeId, planId } = await opened(); const old = subscription(storeId, planId); await webhook();
+    const { storeId, planId, quote } = await opened(); const old = subscription(storeId, planId, quote.id); await webhook();
     await getApp().inject({ method: 'POST', url: '/api/billing/cancel', headers: headers() });
     await prisma.store.update({ where: { id: storeId }, data: { billingPaidThrough: new Date(0), billingRemoteUpdatedAt: new Date(Date.now() - 5000), trialEndsAt: new Date(0) } });
-    subscription(storeId, planId, { id: 'subscription-2' });
+    subscription(storeId, planId, quote.id, { id: 'subscription-2' });
     await webhook('subscription-2'); old.status = 'authorized'; old.last_modified = new Date().toISOString(); await webhook();
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBe('subscription-2');
   });
   it('un plan anual habilita un año pagado y vence sin necesitar otro webhook', async () => {
-    const { storeId, planId } = await opened('BUSINESS_ANNUAL');
+    const { storeId, planId, quote } = await opened('BUSINESS_ANNUAL');
     const charged = new Date();
-    subscription(storeId, planId, { auto_recurring: { currency_id: 'ARS', frequency: 12, frequency_type: 'months', transaction_amount: 783000 }, summarized: { charged_quantity: 1, last_charged_date: charged.toISOString() } });
+    subscription(storeId, planId, quote.id, { auto_recurring: { currency_id: 'ARS', frequency: 12, frequency_type: 'months', transaction_amount: 783000 }, summarized: { charged_quantity: 1, last_charged_date: charged.toISOString() } });
     await webhook();
     const stored = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
     expect(stored.billingPlan).toBe('BUSINESS'); expect(stored.billingPeriod).toBe('ANNUAL');
@@ -250,13 +265,14 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     }
     const extra = await prisma.user.create({ data: { firebaseUid: 'extra-paid' } });
     const member = await prisma.storeMember.create({ data: { storeId, userId: extra.id, role: 'STAFF' } });
-    subscription(storeId, planId); await webhook();
+    const quoteId = (await prisma.billingCheckout.findFirstOrThrow({ where: { storeId } })).id;
+    subscription(storeId, planId, quoteId); await webhook();
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', overLimit: true, readOnly: true });
     expect((await getApp().inject({ method: 'DELETE', url: `/api/stores/${storeId}/members/${member.id}`, headers: headers() })).statusCode).toBe(200);
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing.readOnly).toBe(false);
   });
   it('cancelar conserva un cobro reciente aunque todavía no haya llegado su webhook', async () => {
-    const { storeId, planId } = await opened(); const remote = subscription(storeId, planId); await webhook();
+    const { storeId, planId, quote } = await opened(); const remote = subscription(storeId, planId, quote.id); await webhook();
     const charge = new Date(Date.now() - 1000);
     await prisma.store.update({ where: { id: storeId }, data: { billingPaidThrough: new Date(0) } });
     remote.summarized = { charged_quantity: 2, last_charged_date: charge.toISOString() };
@@ -267,17 +283,18 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     const { quote, planId } = await opened();
     const remote = mp.plans.get(planId)!;
     remote.auto_recurring = { frequency: 12, frequency_type: 'months', currency_id: 'ARS', transaction_amount: 22000 };
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
     remote.auto_recurring = {};
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(502);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(502);
   });
   it('refresh recupera el retorno del checkout sin confiar en un ID enviado por el browser', async () => {
-    const { storeId, planId } = await opened(); subscription(storeId, planId);
-    const response = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers(), payload: { id: 'arbitrary' } });
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id);
+    const response = await getApp().inject({ method: 'POST', url: '/api/billing/refresh?preapproval_id=forged&status=authorized', headers: headers(), payload: { id: 'arbitrary', preapproval_id: 'forged', status: 'authorized' } });
     expect(response.json()).toMatchObject({ plan: 'BASIC', status: 'ACTIVE' });
+    expect(mp.calls.some(call => call.path.includes('forged') || call.path.includes('arbitrary'))).toBe(false);
   });
   it('el script actualiza el importe de contratos existentes y reconcilia sin exportar filas', async () => {
-    const { storeId, planId } = await opened(); subscription(storeId, planId); await webhook();
+    const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id); await webhook();
     vi.spyOn(blue, 'currentBlueRate').mockResolvedValue(1300); await syncPlans(); await reconcileSubscriptions();
     expect(mp.calls.some(call => call.path === '/preapproval/subscription-1' && call.method === 'PUT' && (call.body.auto_recurring as { transaction_amount?: number })?.transaction_amount === 28600)).toBe(true);
   });
