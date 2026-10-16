@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.build.json",
-    "start": "prisma db execute --file prisma/pre-push.sql --schema prisma/schema.prisma && prisma db push && node dist/src/server.js",
+    "start": "prisma db execute --file prisma/pre-push.sql --schema prisma/schema.prisma && prisma db push && npm run billing:sync:start && node dist/src/server.js",
     "lint": "tsc --noEmit",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config vitest.unit.config.ts",
@@ -17,7 +17,8 @@
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
     "eval:import": "tsx scripts/eval-import-llm.ts",
-    "billing:sync": "tsx scripts/billing-sync.ts"
+    "billing:sync": "tsx scripts/billing-sync.ts",
+    "billing:sync:start": "timeout 90 node dist/scripts/billing-sync.js || echo 'Aviso: la sincronización de facturación falló; la API arranca igual.'"
   },
   "engines": {
     "node": "22.x"
