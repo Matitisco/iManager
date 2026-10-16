@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { Writable } from 'node:stream';
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -54,6 +55,21 @@ describe('seguridad del checkout', () => {
     const expired = await app.inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=pre-1', headers: { 'x-request-id': 'req', 'x-signature': signature('pre-1', stale) }, payload: { type: 'subscription_preapproval', data: { id: 'pre-1' }, status: 'authorized' } });
     expect([missing.statusCode, forged.statusCode, expired.statusCode]).toEqual([401, 401, 401]);
     expect(reconcilePreapproval).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('sin secreto rechaza el webhook, avisa y no reconcilia', async () => {
+    vi.stubEnv('MP_WEBHOOK_SECRET', '  ');
+    const lines: string[] = [];
+    const app = Fastify({ logger: { level: 'warn', stream: new Writable({ write(chunk, _encoding, callback) { lines.push(String(chunk)); callback(); } }) } });
+    registerApiErrorHandler(app);
+    await app.register(mercadoPagoWebhookRoutes, { prefix: '/webhooks' });
+    const response = await app.inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=pre-1', payload: { type: 'subscription_preapproval', data: { id: 'pre-1' }, status: 'authorized' } });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: 'Firma inválida.' });
+    expect(reconcilePreapproval).not.toHaveBeenCalled();
+    expect(lines.join('\n')).toContain('MP_WEBHOOK_SECRET is missing');
+    expect(lines.join('\n')).not.toContain('Bearer');
     await app.close();
   });
 

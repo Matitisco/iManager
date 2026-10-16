@@ -26,8 +26,10 @@ describe('cliente Mercado Pago', () => {
     expect(sign(fresh - 301)).toBe(false);
     expect(sign(fresh + 301)).toBe(false);
   });
-  it('omite la validación únicamente sin secreto', () => {
-    expect(validSignature('abc', undefined, undefined, '')).toBe(true);
+  it('rechaza el webhook si falta el secreto', () => {
+    expect(validSignature('abc', 'req', 'ts=123,v1=' + 'ab'.repeat(32), '')).toBe(false);
+    expect(validSignature('abc', 'req', 'ts=123,v1=' + 'ab'.repeat(32), '   ')).toBe(false);
+    expect(validSignature('abc', undefined, undefined, undefined)).toBe(false);
     expect(validSignature('abc', undefined, undefined, 'secret')).toBe(false);
   });
   it('usa solo el token del entorno sin devolver el cuerpo del proveedor al fallar', async () => {

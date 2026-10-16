@@ -36,7 +36,11 @@ function signedWebhook(id: string) {
   const hash = createHmac('sha256', 'test-secret').update(`id:${id.toLowerCase()};request-id:req;ts:${ts};`).digest('hex');
   return `ts=${ts},v1=${hash}`;
 }
-const webhook = (id = 'subscription-1', extra: Record<string, unknown> = {}) => getApp().inject({ method: 'POST', url: '/webhooks/mercadopago', payload: { type: 'subscription_preapproval', data: { id }, ...extra } });
+const webhook = (id = 'subscription-1', extra: Record<string, unknown> = {}, signed = true) => getApp().inject({
+  method: 'POST', url: `/webhooks/mercadopago?data.id=${encodeURIComponent(id)}`,
+  headers: signed ? { 'x-request-id': 'req', 'x-signature': signedWebhook(id) } : undefined,
+  payload: { type: 'subscription_preapproval', data: { id }, ...extra },
+});
 
 describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   it('db push defaults deja las tiendas y cuentas existentes internas sin bloqueo ni límite', async () => {
@@ -86,7 +90,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: buildAuthHeaders({ uid: 'other' }), payload: { quoteId: quote.id } })).statusCode).toBe(404);
   });
   it('crea preapproval por API con token, plan, referencia y email de la cotización', async () => {
-    const { storeId, quote, planId } = await opened('BASIC_ANNUAL');
+    const { storeId, quote } = await opened('BASIC_ANNUAL');
     expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com' });
     expect(quote).not.toHaveProperty('publicKey');
     const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
@@ -94,7 +98,11 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect(response.json().initPoint).toMatch(/^https:\/\/www\.mercadopago\.com\.ar\/subscriptions\/checkout\?preapproval_id=/);
     const calls = mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval');
     expect(calls).toHaveLength(1);
-    expect(calls[0].body).toMatchObject({ preapproval_plan_id: planId, payer_email: 'buyer@example.com', external_reference: quote.id, status: 'pending', back_url: 'http://127.0.0.1:3000/#/plan' });
+    expect(calls[0].body).toEqual({
+      reason: 'iManager Básico anual', payer_email: 'buyer@example.com', external_reference: quote.id, status: 'pending', back_url: 'http://127.0.0.1:3000/#/plan',
+      auto_recurring: { frequency: 12, frequency_type: 'months', transaction_amount: 198000, currency_id: 'ARS' },
+    });
+    expect(calls[0].body).not.toHaveProperty('preapproval_plan_id');
     expect(calls[0].body).not.toHaveProperty('card_token_id');
     expect(JSON.stringify(calls)).not.toContain('single-use-token');
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
@@ -161,7 +169,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it('con secreto rechaza firmas y discrepancias antes de consultar MP', async () => {
     vi.stubEnv('MP_WEBHOOK_SECRET', 'test-secret');
-    expect((await webhook()).statusCode).toBe(401); expect(mp.calls).toHaveLength(0);
+    expect((await webhook('subscription-1', {}, false)).statusCode).toBe(401); expect(mp.calls).toHaveLength(0);
     expect((await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': signedWebhook('subscription-1') }, payload: { type: 'subscription_preapproval', data: { id: 'another-id' } } })).statusCode).toBe(400);
     expect(mp.calls).toHaveLength(0);
   });
@@ -173,7 +181,18 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: false, memberLimit: 3 });
     expect(mp.calls.filter(call => call.path === '/preapproval/subscription-1')).toHaveLength(2);
   });
-  it('sin secreto también reconsulta, no confía en pending ni extiende desde next_payment_date', async () => {
+  it('sin secreto rechaza el webhook y no consulta la suscripción', async () => {
+    const { storeId, planId, quote } = await opened();
+    subscription(storeId, planId, quote.id);
+    vi.stubEnv('MP_WEBHOOK_SECRET', '');
+    const before = mp.calls.length;
+    const response = await webhook();
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error).toBe('Firma inválida.');
+    expect(mp.calls).toHaveLength(before);
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
+  });
+  it('con secreto no confía en pending ni extiende desde next_payment_date', async () => {
     const { storeId, planId, quote } = await opened();
     subscription(storeId, planId, quote.id, { status: 'pending', summarized: undefined, next_payment_date: '2099-01-01T00:00:00Z' });
     await webhook('subscription-1', { status: 'authorized' });
@@ -185,6 +204,22 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it.each(['external_reference', 'preapproval_plan_id'])('no activa si no coincide %s', async field => {
     const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id, { [field]: 'wrong' });
+    await webhook();
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
+  });
+  it('activa por el intento cuando la suscripción no trae plan asociado', async () => {
+    const { storeId, planId, quote } = await opened();
+    const remote = subscription(storeId, planId, quote.id);
+    delete (remote as { preapproval_plan_id?: string }).preapproval_plan_id;
+    await webhook();
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPlan).toBe('BASIC');
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBe('subscription-1');
+  });
+  it('no activa una suscripción sin plan si el importe no es el cotizado', async () => {
+    const { storeId, planId, quote } = await opened();
+    const remote = subscription(storeId, planId, quote.id);
+    delete (remote as { preapproval_plan_id?: string }).preapproval_plan_id;
+    remote.auto_recurring = { currency_id: 'ARS', frequency: 1, frequency_type: 'months', transaction_amount: 1 };
     await webhook();
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
   });
