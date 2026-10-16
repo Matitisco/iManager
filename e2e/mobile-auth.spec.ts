@@ -78,7 +78,7 @@ test.describe('desktop auth stays put', () => {
 test.describe('phone login, invite and onboarding', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('pins the login actions and keeps recovery on a short screen', async ({ page }) => {
+  test('keeps login actions reachable and recovery on a short screen', async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto('/');
     await expect(page.getByTestId('login-email')).toBeVisible();
@@ -127,17 +127,20 @@ test.describe('phone login, invite and onboarding', () => {
     await expectFits(page);
     await shot(page, 'm10-login-error-390');
 
+    // Keyboard-sized viewport after typing: the form flows and scrolls, nothing covers the password.
     await page.setViewportSize({ width: 390, height: 520 });
-    await expectInViewport(page, 'login-submit');
-    await expectInViewport(page, 'login-google');
+    await page.getByTestId('login-password').focus();
+    await expectInViewport(page, 'login-password');
+    const password = await page.getByTestId('login-password').boundingBox();
+    const footer = await page.getByTestId('auth-footer').boundingBox();
+    expect(footer!.y).toBeGreaterThanOrEqual(password!.y + password!.height);
+    for (const id of ['login-submit', 'login-google']) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
+      await expectInViewport(page, id);
+    }
     await expect(page.getByRole('button', { name: 'Crear cuenta' })).toBeVisible();
-    const before = await page.getByTestId('login-submit').boundingBox();
-    await page.getByTestId('auth-scroll').evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-    const after = await page.getByTestId('login-submit').boundingBox();
-    expect(after?.y).toBe(before?.y);
     await expectFits(page);
+    await shot(page, 'm10-login-teclado-390');
 
     await page.setViewportSize({ width: 360, height: 844 });
     await page.getByTestId('forgot-password').click();

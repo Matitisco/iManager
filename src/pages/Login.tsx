@@ -38,6 +38,10 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const googleAttempt = useRef(0);
   const phone = usePhoneLayout();
   const keyboardInset = useKeyboardInset(phone);
+  const [fieldFocused, setFieldFocused] = useState(false);
+  // Once a field is touched (keyboard open), drop the pinned footer for the rest of the visit so
+  // taps on the submit button never land on a layout that is jumping back. With the keyboard open, drop the pinned footer and let the whole form scroll naturally.
+  const flowLayout = phone && (fieldFocused || keyboardInset > 0);
 
   useEffect(() => {
     // Firebase delays rejecting a closed popup. Restore the button when the
@@ -163,7 +167,11 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
     <div
       data-testid="auth-screen"
       className="min-h-screen flex bg-white font-sans overflow-hidden max-[760px]:h-dvh max-[760px]:min-h-0 max-[760px]:overflow-x-clip max-[760px]:bg-[#F7F8FA]"
-      style={phone ? { height: `calc(100dvh - ${keyboardInset}px)` } : undefined}
+      data-keyboard={flowLayout ? 'open' : undefined}
+      onFocusCapture={(event) => {
+        if (phone && event.target instanceof HTMLInputElement) setFieldFocused(true);
+      }}
+      style={phone ? (flowLayout ? { height: 'auto', minHeight: '100svh', overflow: 'visible' } : { height: '100dvh' }) : undefined}
     >
       <div className="hidden lg:flex lg:w-1/2 bg-zinc-950 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none bg-zinc-950">
