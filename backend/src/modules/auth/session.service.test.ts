@@ -22,6 +22,8 @@ vi.mock("../stores/stores.service.js", () => ({
   listStoresForUser: listStoresForUserMock,
 }));
 
+vi.mock("../billing/service.js", () => ({ getBillingSummary: vi.fn(async () => ({ plan: "INTERNAL", readOnly: false })) }));
+
 import { buildAppSessionForUser } from "./session.service.js";
 
 describe("session.service", () => {

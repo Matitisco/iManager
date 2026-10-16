@@ -5,6 +5,8 @@ import { domainErrorFrom } from "./domain-error.js";
 const GENERIC_INTERNAL_MESSAGE = "Ocurrió un error interno. Probá de nuevo.";
 
 const FIELD_LABELS: Record<string, string> = {
+  payerEmail: "email del pagador",
+  quoteId: "cotización",
   storeName: "nombre",
   name: "nombre",
   model: "modelo",

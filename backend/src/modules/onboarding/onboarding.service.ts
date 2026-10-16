@@ -1,3 +1,4 @@
+import { trialData } from '../billing/domain.js';
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
@@ -53,6 +54,7 @@ export async function completeOnboarding(
 
       const store = await tx.store.create({
         data: {
+          ...trialData(user.billingLegacy),
           name: trimmedStoreName,
           onboardingStartedAt: new Date(),
           onboardingStage: "invite",

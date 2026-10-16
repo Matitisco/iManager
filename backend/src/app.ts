@@ -1,3 +1,4 @@
+import { billingRoutes, mercadoPagoWebhookRoutes } from './modules/billing/routes.js';
 import { cashRoutes } from './modules/cash/routes.js';
 import { catalogManagementRoutes, publicCatalogRoutes } from './modules/public-catalog/routes.js';
 import { depositsRoutes } from './modules/deposits/deposits.routes.js';
@@ -62,6 +63,8 @@ export function buildApp() {
 
   app.register(catalogManagementRoutes, { prefix: "/api/catalog" });
   app.register(publicCatalogRoutes, { prefix: "/api/public/catalog" });
+  app.register(billingRoutes, { prefix: "/api/billing" });
+  app.register(mercadoPagoWebhookRoutes, { prefix: "/webhooks" });
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
   app.register(gettingStartedRoutes, { prefix: "/api" });

@@ -1,3 +1,4 @@
+import type { BillingSummary } from './billing';
 export type BackendConnectionStatus = 'checking' | 'ready' | 'unconfigured' | 'offline' | 'error';
 
 export type AppMembershipRole = 'OWNER' | 'MANAGER' | 'STAFF';
@@ -48,6 +49,7 @@ export interface AppUserStore {
 }
 
 export interface AppSession {
+  billing?: BillingSummary;
   user: AppUserSummary;
   store: AppStoreSummary | null;
   membership: AppMembershipSummary | null;

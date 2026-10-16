@@ -1,3 +1,4 @@
+import { trialData } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
@@ -65,8 +66,9 @@ export async function createStoreForUser(userId: string, storeName: string) {
       });
     }
 
+    const account = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     const store = await tx.store.create({
-      data: { name },
+      data: { name, ...trialData(account.billingLegacy) },
     });
 
     const membership = await tx.storeMember.create({

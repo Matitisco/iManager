@@ -1,3 +1,4 @@
+import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
 import { CashScreen } from './screens/CashScreen';
 import { CircleHelp } from 'lucide-react';
 import { HelpScreen } from './screens/HelpScreen';
@@ -40,7 +41,7 @@ import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
 const ROUTE: Record<DeskTab, string> = {
-  cash: 'cajas', publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
+  billing: 'plan', cash: 'cajas', publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
   clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
   help: 'ayuda', more: 'mas', commissions: 'comisiones',
 };
@@ -181,7 +182,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'help' || id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
     if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
@@ -301,7 +302,14 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     tab,
     go,
     openRecord,
-    open: (next: Overlay) => setOverlay(next),
+    open: (next: Overlay) => {
+      const writing = /^(new-|edit-)/.test(next.type) || ['del', 'import', 'store', 'warranty', 'invite', 'onboarding-stock', 'new-deposit', 'repair-deposit'].includes(next.type);
+      if (writing && appSession?.billing?.readOnly) {
+        setMessage('La tienda está en modo solo lectura. Revisá Plan y facturación.');
+        setToastOn(true); return;
+      }
+      setOverlay(next);
+    },
     close: () => setOverlay(null),
     toast: (text: string) => { setMessage(text); setToastOn(true); },
     isStaff,
@@ -382,6 +390,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
+          <BillingAccessBanner dashboard={tab === 'dashboard'} />
           <SampleStockBanner />
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
@@ -398,6 +407,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
+            {tab === 'billing' && <BillingScreen key={appSession?.store?.id} />}
             {tab === 'settings' && <SettingsScreen />}
             {tab === 'more' && (
               <MoreScreen

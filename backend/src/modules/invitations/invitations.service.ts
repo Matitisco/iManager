@@ -1,3 +1,5 @@
+import { assertMemberCapacity } from '../billing/service.js';
+import { storeBillingLock } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
@@ -11,6 +13,8 @@ export async function createInvitation(storeId: string, actorRole: string, email
   if (actorRole !== "OWNER") {
     throw new DomainError("Solo el Propietario puede crear invitaciones", 403);
   }
+
+  await assertMemberCapacity(storeId);
 
   const frontendUrl = process.env.FRONTEND_URL?.trim();
   if (!frontendUrl) {
@@ -138,6 +142,9 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
         { statusCode: 409 }
       );
     }
+
+    await lockTransactionKey(tx, storeBillingLock(invitation.storeId));
+    await assertMemberCapacity(invitation.storeId, tx);
 
     const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
 

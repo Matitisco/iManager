@@ -2,7 +2,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
 
-const OUT = '/opt/cursor/artifacts/import-sections';
+const OUT = 'test-results/import-sections';
 const CLIENTS = path.resolve('e2e/fixtures/clientes-agenda.csv');
 const SALES = path.resolve('e2e/fixtures/ventas-mostrador.csv');
 const GASTOS = path.resolve('e2e/fixtures/gastos-local.csv');

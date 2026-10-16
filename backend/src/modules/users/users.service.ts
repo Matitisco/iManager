@@ -16,6 +16,7 @@ async function createUserOrLoadWinner(auth: FirebaseAuthContext) {
   try {
     return await prisma.user.create({
       data: {
+        billingLegacy: false,
         firebaseUid: auth.firebaseUid,
         email: auth.email,
         displayName: auth.name,

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { bootstrapStoreViaApi, buildTestEmail, createRepairViaApi } from './utils';
 
-const SHOTS = '/opt/cursor/artifacts/repair-hierarchy';
+const SHOTS = 'test-results/repair-hierarchy';
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({

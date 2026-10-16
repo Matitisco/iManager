@@ -137,7 +137,7 @@ function AppContent() {
     return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
   }
 
-  if (backendStatus === 'ready' && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt) {
+  if (backendStatus === 'ready' && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly) {
     return <OnboardingJourney />;
   }
 

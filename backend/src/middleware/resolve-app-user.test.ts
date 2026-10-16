@@ -43,6 +43,8 @@ describe("resolveAppUser", () => {
     });
 
     const request = {
+      url: "/api/me",
+      method: "GET",
       auth: { firebaseUid: "firebase-user" },
     } as any;
     const reply = {

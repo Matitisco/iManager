@@ -1,3 +1,5 @@
+import { getBillingSummary } from '../billing/service.js';
+import type { BillingSummary } from '../billing/domain.js';
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import {
@@ -46,6 +48,7 @@ export interface AppSessionResponse {
     sensitiveAccess: boolean | null;
   } | null;
   stores: UserStoreSummary[];
+  billing?: BillingSummary;
   onboardingRequired: boolean;
 }
 
@@ -83,6 +86,7 @@ export async function buildAppSessionForUser(
   return {
     user: serializeSessionUser(user),
     store: serializeStore(membership.store),
+    billing: await getBillingSummary(membership.storeId),
     membership: {
       role: membership.role,
       isDefault: membership.isDefault,

@@ -3,6 +3,16 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-15**
 
+
+## Issue #359 — Suscripciones con Mercado Pago — 2026-10-15
+
+- Catálogo Básico/Negocio mensual/anual en USD, convertido a ARS con blue vendedor. Script `billing:sync` crea cuatro planes idempotentes, conserva IDs y vendedor, recupera altas interrumpidas y actualiza planes/contratos por PUT. Cotización temporal del monto ARS/email y checkout propio con Secure Fields estilizados, solo tarjeta sin cuenta MP. Alta de preapproval por API con plan/token/email; intento durable para evitar cobros duplicados ante respuestas inciertas.
+- Cuentas existentes internas gratis de por vida, ilimitadas, incluidas las anteriores sin tienda. Nuevas cuentas reciben prueba de siete días sin tarjeta en ambos caminos de alta. Prisma aditivo con defaults seguros; db push comprobado sobre cuenta, tienda, membresía e inventario previos sin aceptar pérdida ni crear unicidades en tablas existentes. Sin exportaciones de filas.
+- Webhook `/webhooks/mercadopago`: HMAC opcional con MP_WEBHOOK_SECRET, reconsulta obligatoria de preapproval, facturas reconsultadas, validación de tienda/plan/moneda/frecuencia/email y períodos por cobros confirmados. Locks y fecha remota evitan regresión por duplicados y concurrencia. Cancelación idempotente conserva el período abonado y un cobro reciente aún sin webhook.
+- Plan y facturación owner en Configuración, con USD, confirmación ARS y cancelación; contador de prueba en Dashboard, aviso de solo lectura y límites 3/5 incluyendo owner (prueba: 5). Backend protege escrituras; aceptación concurrente de invitaciones respeta el último lugar y owner puede quitar exceso tras un cambio de plan. Un onboarding incompleto no impide acceder a facturación cuando vence la prueba.
+- Validación de los ajustes: lint y builds frontend/backend aprobados; 769 unitarios frontend, 414 backend, 32 integraciones de facturación y cuatro E2E afectados desktop/WebKit iPhone, sin retries. Todos los comandos de prueba con timeout 900; no se ejecutó Playwright completo ni se regeneraron capturas de otros issues. db push desde el schema anterior conservó una tienda y cotización sintéticas, con default QUOTED e ID remoto null. Capturas nuevas revisadas únicamente en temporal.
+- Capturas: `docs/pr-shots/issue-359-*.png`; operación y validación: `docs/subscriptions-359.md`; OpenSpec: `add-mercadopago-subscriptions`. Ajustes 15/10: requiere MP_PUBLIC_KEY de la misma aplicación/entorno del access token. Pendiente externo: no hay credenciales MP inyectadas; falta validar Secure Fields reales y débito sin cuenta MP en iPhone/desktop, referencia/email y CVV de 3/4 dígitos. No habilitar cobros productivos sin esa validación. No se tocaron datos ni configuración de Railway.
+
 ## Regresión #307 — Reintegros de cobros fuera de caja — 2026-10-15
 
 - Las compensaciones revisan la asignación del movimiento original: si no tenía caja, quedan sin caja ni sesión aunque ahora haya una compatible abierta. Los cobros originalmente asignados conservan la selección de caja abierta o sin asignar, sin modificar originales ni cierres.

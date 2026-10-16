@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.build.json",
-    "start": "prisma db push && node dist/src/server.js",
+    "start": "prisma db execute --file prisma/pre-push.sql --schema prisma/schema.prisma && prisma db push && node dist/src/server.js",
     "lint": "tsc --noEmit",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config vitest.unit.config.ts",
@@ -16,7 +16,8 @@
     "migrate:clients": "tsx scripts/migrate-clients.ts",
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
-    "eval:import": "tsx scripts/eval-import-llm.ts"
+    "eval:import": "tsx scripts/eval-import-llm.ts",
+    "billing:sync": "tsx scripts/billing-sync.ts"
   },
   "engines": {
     "node": "22.x"

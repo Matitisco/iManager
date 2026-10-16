@@ -38,7 +38,7 @@ import { completeOnboarding } from "./onboarding.service.js";
 describe("onboarding.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    findOrCreateUserFromFirebaseMock.mockResolvedValue({ id: "user-1" });
+    findOrCreateUserFromFirebaseMock.mockResolvedValue({ id: "user-1", billingLegacy: false });
     buildAppSessionForUserMock.mockResolvedValue({ onboardingRequired: false });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
     prismaMock.store.create.mockResolvedValue({ id: "store-1" });
@@ -81,6 +81,9 @@ describe("onboarding.service", () => {
 
     expect(prismaMock.store.create).toHaveBeenCalledWith({
       data: {
+        billingPlan: "TRIAL",
+        billingStatus: "TRIAL",
+        trialEndsAt: expect.any(Date),
         name: "Mi Tienda",
         instagram: "mi.tienda",
         currency: "USD",
