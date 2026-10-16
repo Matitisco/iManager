@@ -121,7 +121,7 @@ export function registerApiErrorHandler(app: FastifyInstance) {
 
     const domain = domainErrorFrom(error);
     if (domain) {
-      request.log.info({ err: domain, statusCode: domain.statusCode }, "domain error");
+      request.log.info({ err: domain, statusCode: domain.statusCode, provider: domain.logContext }, "domain error");
       return reply.code(domain.statusCode).send({ error: domain.message });
     }
 

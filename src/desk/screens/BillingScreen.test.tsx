@@ -19,37 +19,20 @@ const state = vi.hoisted(() => {
   };
 });
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => state }));
-const token = vi.hoisted(() => ({ create: vi.fn(), unmount: vi.fn(), load: vi.fn() }));
-vi.mock('../../services/mercadopago-fields', () => ({ loadMercadoPago: async () => { await token.load(); return class {
-  fields = {
-    create: () => {
-      const callbacks: Record<string, () => void> = {};
-      return { on: (event: string, callback: () => void) => { callbacks[event] = callback; }, mount: () => { callbacks.ready?.(); }, unmount: token.unmount, update: vi.fn() };
-    },
-    createCardToken: token.create,
-  };
-  getIdentificationTypes = async () => [{ id: 'DNI', name: 'DNI' }];
-}; } }));
+const redirectToMercadoPago = vi.hoisted(() => vi.fn());
+vi.mock('../../services/mercadopago-url', () => ({ redirectToMercadoPago }));
 const go = vi.fn();
-async function pay() {
-  await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre del titular' }), 'APRO');
-  await userEvent.type(screen.getByRole('textbox', { name: 'Documento del titular' }), '12345678');
-  const button = screen.getByRole('button', { name: 'Confirmar suscripción con tarjeta' });
-  await waitFor(() => expect(button).toBeEnabled());
-  await userEvent.click(button);
-}
 function ui(children = <BillingScreen />) {
   return render(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}>{children}</DeskProvider>);
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  token.create.mockResolvedValue({ id: 'single-use-token' });
   Object.assign(state.billingDetails, state.summary);
   Object.assign(state.appSession, { membership: { role: 'OWNER' }, billing: state.summary });
   state.loadBilling.mockResolvedValue(state.billingDetails);
   state.cancelSubscription.mockResolvedValue({ ok: true });
   state.reloadSession.mockResolvedValue(undefined);
-  state.quoteSubscription.mockResolvedValue({ publicKey: 'public-key-placeholder', id: 'q', key: 'BASIC_MONTHLY', usd: 22, amountArs: 22000, exchangeRate: 1000, payerEmail: 'owner@example.com', expiresAt: '2099-01-01' });
+  state.quoteSubscription.mockResolvedValue({ id: 'q', key: 'BASIC_MONTHLY', usd: 22, amountArs: 22000, exchangeRate: 1000, payerEmail: 'owner@example.com', expiresAt: '2099-01-01' });
 });
 describe('Plan y facturación', () => {
   it('muestra precios mensuales/anuales en USD y Sistema propio sin checkout', async () => {
@@ -71,50 +54,40 @@ describe('Plan y facturación', () => {
   it('un error de checkout conserva mensaje visible y pide revisar el importe', async () => {
     state.openSubscriptionCheckout.mockRejectedValue(new Error('Cambió el importe en pesos.'));
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    await pay();
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar en Mercado Pago' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Cambió el importe');
     expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+    expect(redirectToMercadoPago).not.toHaveBeenCalled();
   });
-  it('tokeniza antes de enviar y conserva iManager al confirmar la suscripción', async () => {
-    state.openSubscriptionCheckout.mockResolvedValue({ status: 'authorized' });
+  it('confirma el importe y redirige al checkout de Mercado Pago', async () => {
+    state.openSubscriptionCheckout.mockResolvedValue({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=abc' });
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=forged&status=authorized');
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    expect(await screen.findByText('No necesitás una cuenta de Mercado Pago.')).toBeVisible();
-    await pay();
-    expect(token.create).toHaveBeenCalledWith({ cardholderName: 'APRO', identificationType: 'DNI', identificationNumber: '12345678' });
-    expect(state.openSubscriptionCheckout).toHaveBeenCalledWith('q', 'single-use-token');
-    expect(await screen.findByText(/Suscripción enviada/)).toBeVisible();
+    expect(await screen.findByText(/El pago se completa en Mercado Pago/)).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: 'Número de tarjeta' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar en Mercado Pago' }));
+    expect(state.openSubscriptionCheckout).toHaveBeenCalledWith('q');
+    expect(redirectToMercadoPago).toHaveBeenCalledWith('https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=abc');
+    expect(JSON.stringify(state.openSubscriptionCheckout.mock.calls)).not.toContain('forged');
+  });
+  it('un init_point inválido no sale de iManager', async () => {
+    state.openSubscriptionCheckout.mockResolvedValue({ initPoint: 'https://evil.example/checkout' });
+    redirectToMercadoPago.mockImplementationOnce(() => { throw new Error('No pudimos abrir Mercado Pago.'); });
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar en Mercado Pago' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos abrir Mercado Pago');
     expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
-    expect(token.unmount).toHaveBeenCalledTimes(3);
   });
-  it('una tarjeta inválida conserva el formulario y no crea suscripción', async () => {
-    token.create.mockRejectedValue(new Error('provider detail'));
+  it('un doble click envía una sola suscripción', async () => {
+    let complete!: (value: { initPoint: string }) => void;
+    state.openSubscriptionCheckout.mockReturnValue(new Promise(resolve => { complete = resolve; }));
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    await pay();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Revisá el número');
-    expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
-    expect(screen.getByTestId('billing-quote')).toBeVisible();
-  });
-  it('un doble submit durante la tokenización envía una sola suscripción', async () => {
-    let complete!: (value: { id: string }) => void;
-    token.create.mockReturnValue(new Promise(resolve => { complete = resolve; }));
-    state.openSubscriptionCheckout.mockResolvedValue({ status: 'authorized' });
-    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    await pay();
-    fireEvent.submit(screen.getByRole('form', { name: 'Pago con tarjeta' }));
-    expect(token.create).toHaveBeenCalledTimes(1);
-    expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
-    complete({ id: 'single-use-token' });
-    await screen.findByText(/Suscripción enviada/);
+    const button = await screen.findByRole('button', { name: 'Continuar en Mercado Pago' });
+    fireEvent.click(button);
+    fireEvent.click(button);
     expect(state.openSubscriptionCheckout).toHaveBeenCalledTimes(1);
-  });
-  it('permite recuperar un fallo del SDK sin abandonar iManager', async () => {
-    token.load.mockRejectedValueOnce(new Error('SDK unavailable'));
-    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos cargar los campos');
-    expect(screen.getByRole('button', { name: 'Confirmar suscripción con tarjeta' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar formulario' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar suscripción con tarjeta' })).toBeEnabled());
-    expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
+    complete({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=abc' });
+    await waitFor(() => expect(redirectToMercadoPago).toHaveBeenCalledTimes(1));
   });
   it('cambiar email o frecuencia invalida la cotización anterior', async () => {
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
@@ -125,7 +98,8 @@ describe('Plan y facturación', () => {
   it('el plan interno nunca muestra checkout ni cancelación', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });
     ui(); await waitFor(() => expect(screen.queryByText('Cargando planes…')).not.toBeInTheDocument());
-    expect(screen.getByText(/sin cobros ni límite/)).toBeVisible();
+    expect(screen.getByText('Acceso ilimitado')).toBeVisible();
+    expect(screen.getByText('Tu cuenta tiene acceso ilimitado, sin cobros ni límite de usuarios.')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción/ })).not.toBeInTheDocument();
   });
   it('cancelar requiere confirmación y conserva el error si MP falla', async () => {

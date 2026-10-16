@@ -19,10 +19,12 @@ export async function billingRoutes(app: FastifyInstance) {
     return quoteCheckout(storeId, body.key, body.payerEmail);
   });
   app.post('/checkout', { preHandler }, request => {
-    const storeId = ownerStore(request); const body = z.object({ quoteId: z.string().min(1).max(100), cardTokenId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/) }).strict().parse(request.body);
-    return openCheckout(storeId, body.quoteId, body.cardTokenId);
+    const storeId = ownerStore(request);
+    const body = z.object({ quoteId: z.string().min(1).max(100) }).strict().parse(request.body);
+    return openCheckout(storeId, body.quoteId);
   });
   app.post('/cancel', { preHandler }, async request => { await cancelSubscription(ownerStore(request)); return { ok: true }; });
+  // back_url may append preapproval_id or status. Activation never reads them.
   app.post('/refresh', { preHandler }, request => refreshBilling(ownerStore(request)));
 }
 export async function mercadoPagoWebhookRoutes(app: FastifyInstance) {

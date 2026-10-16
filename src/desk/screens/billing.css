@@ -25,6 +25,7 @@
 .desk-app .billing-link{display:inline-block;text-decoration:underline;text-underline-offset:3px;min-height:44px;padding:10px 0;font-weight:600;color:#30343b;cursor:pointer}
 .billing-confirm{border-color:#16181d;scroll-margin-bottom:100px}
 .billing-confirm strong{color:#16181d;overflow-wrap:anywhere}
+.billing-confirm .billing-primary{margin-top:12px}
 .desk-app .billing-confirm .billing-link{margin-left:16px}
 .desk-app .billing-danger{color:#b91c1c;border:1px solid #fecaca;border-radius:12px;min-height:44px;padding:10px 16px;font-weight:600}
 .billing-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:16px;border-radius:12px}
@@ -39,7 +40,7 @@
 @media(max-width:900px){.billing-plans{grid-template-columns:repeat(2,minmax(0,1fr))}
 .billing-custom{grid-column:1/-1}
 }
-@media(max-width:760px){.billing-content{padding:0 16px 24px;gap:16px}
+@media(max-width:760px){.billing-content{padding:0 16px max(24px, env(safe-area-inset-bottom));gap:16px}
 .billing-current,.billing-plan,.billing-confirm{padding:20px}
 .billing-plans{grid-template-columns:1fr}
 .billing-custom{grid-column:auto}
@@ -51,16 +52,3 @@
 .billing-period{width:100%;font-size:13px}
 .billing-period button{flex:1;padding:10px 8px}
 }
-.billing-card-form{max-width:520px;display:grid;gap:12px;margin-top:24px}
-.billing-card-form fieldset{border:0;padding:0;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.billing-card-form label,.billing-card-form fieldset>div{display:grid;gap:8px;min-width:0;font-size:13px;font-weight:600;color:#374151}
-.billing-card-wide{grid-column:1/-1}
-.billing-card-form input,.billing-card-form select,.billing-secure-field{width:100%;min-width:0;height:48px;border:1px solid #d1d5db;background:#f9fafb;border-radius:12px;font-size:16px}
-.billing-card-form input,.billing-card-form select{padding:10px 12px}
-.billing-secure-field{overflow:hidden}
-.billing-secure-field iframe{width:100%;height:46px;border:0}
-.billing-card-form input:focus,.billing-card-form select:focus,.billing-secure-field:focus-within{outline:2px solid #16181d;outline-offset:2px}
-.billing-card-form fieldset:disabled{opacity:.6;pointer-events:none}
-.billing-card-form .billing-safe{font-size:13px;align-items:flex-start}
-.billing-card-form .billing-safe svg{flex-shrink:0;margin-top:2px}
-@media(max-width:760px){.billing-card-form{padding-bottom:env(safe-area-inset-bottom,0px)}.billing-card-form fieldset{gap:12px}}

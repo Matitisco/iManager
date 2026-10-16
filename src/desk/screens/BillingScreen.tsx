@@ -4,9 +4,9 @@ import { Check, CreditCard } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import type { BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
+import { redirectToMercadoPago } from '../../services/mercadopago-url';
 import { PageHead, useDesk } from '../ui';
 import './billing.css';
-import { BillingCardForm } from './BillingCardForm';
 
 export const billingPlanName = (plan?: string) => ({ INTERNAL: 'Interno', TRIAL: 'Prueba gratuita', BASIC: 'Básico', BUSINESS: 'Negocio' }[plan ?? ''] ?? 'Tu plan');
 const statusName = (status?: string) => ({ ACTIVE: 'Activa', TRIAL: 'En prueba', EXPIRED: 'Vencida', CANCELLED: 'Cancelada' }[status ?? ''] ?? '');
@@ -25,23 +25,25 @@ export function BillingScreen() {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const alive = useRef(true);
+  const busyRef = useRef(false);
   const quoteRef = useRef<HTMLElement>(null);
   useEffect(() => { if (quote) quoteRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); }, [quote]);
   const storeId = appSession?.store?.id;
   useEffect(() => {
     alive.current = true;
     setLoading(true); setQuote(null); setError('');
-    void loadBilling().catch(cause => { if (alive.current) setError(toUserMessage(cause)); }).finally(() => { if (alive.current) setLoading(false); });
+    void loadBilling(true).catch(cause => { if (alive.current) setError(toUserMessage(cause)); }).finally(() => { if (alive.current) setLoading(false); });
     return () => { alive.current = false; };
   }, [loadBilling, storeId]);
   const billing = billingDetails ?? appSession?.billing;
   const internal = billing?.plan === 'INTERNAL';
   const subscribed = billing?.canCancel || (!!billing?.paidThrough && new Date(billing.paidThrough) > new Date());
   const run = async (action: () => Promise<void>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true); setError(''); setNotice('');
     try { await action(); } catch (cause) { if (alive.current) setError(toUserMessage(cause)); }
-    finally { if (alive.current) setBusy(false); }
+    finally { busyRef.current = false; if (alive.current) setBusy(false); }
   };
   if (appSession?.membership?.role !== 'OWNER') return <div className="dscreen"><p>Solo el propietario puede administrar Plan y facturación.</p></div>;
   return (
@@ -49,8 +51,8 @@ export function BillingScreen() {
       <PageHead title="Plan y facturación" subtitle="Tu suscripción a iManager" back={() => go('settings')} />
       <div className="billing-content">
         <section className="billing-current" aria-label="Plan actual">
-          <div className="billing-heading"><CreditCard size={22} /><h2>{billingPlanName(billing?.plan)}</h2><span className="billing-status">{internal ? 'Gratis de por vida' : statusName(billing?.status)}</span></div>
-          {internal ? <p>Tu cuenta tiene acceso gratis de por vida, sin cobros ni límite de usuarios.</p> : <>
+          <div className="billing-heading"><CreditCard size={22} /><h2>{billingPlanName(billing?.plan)}</h2><span className="billing-status">{internal ? 'Acceso ilimitado' : statusName(billing?.status)}</span></div>
+          {internal ? <p>Tu cuenta tiene acceso ilimitado, sin cobros ni límite de usuarios.</p> : <>
             <p>{billing?.readOnly ? 'Tu tienda está en modo solo lectura. Tus datos siguen disponibles.' : 'Tu tienda está lista para operar.'}</p>
             {billing?.trialDaysLeft ? <p>Te {billing.trialDaysLeft === 1 ? 'queda 1 día' : `quedan ${billing.trialDaysLeft} días`} de prueba sin tarjeta.</p> : null}
             {billing?.paidThrough ? <p>{billing.status === 'CANCELLED' ? 'Acceso abonado hasta' : 'Período abonado hasta'} el {date(billing.paidThrough)}.</p> : null}
@@ -84,14 +86,13 @@ export function BillingScreen() {
             <h2>Antes de suscribirte</h2><p>Se va a cobrar <strong>{ars(quote.amountArs)} ARS</strong> {quote.key.endsWith('ANNUAL') ? 'por año' : 'por mes'}.</p>
             <p>Equivale a US$ {quote.usd} · Dólar blue vendedor: {ars(quote.exchangeRate)}.</p>
             <p>Email del pagador: <strong>{quote.payerEmail}</strong></p><p>El débito es automático. El importe en ARS se ajusta con la cotización. Podés cancelar los próximos cobros desde esta pantalla.</p>
-            <BillingCardForm key={quote.id} publicKey={quote.publicKey} busy={busy} onPay={token => run(async () => {
+            <p>El pago se completa en Mercado Pago. iManager no ve los datos de la tarjeta.</p>
+            <button className="billing-primary" type="button" disabled={busy} onClick={() => void run(async () => {
               try {
-                await openSubscriptionCheckout(quote.id, token);
-                setQuote(null);
-                setNotice('Suscripción enviada. El acceso se actualizará al confirmarse el cobro.');
-                await loadBilling(); await reloadSession();
+                const result = await openSubscriptionCheckout(quote.id);
+                redirectToMercadoPago(result.initPoint);
               } catch (cause) { setQuote(null); throw cause; }
-            })} />
+            })}>Continuar en Mercado Pago</button>
             <button className="billing-link" type="button" disabled={busy} onClick={() => setQuote(null)}>Volver a elegir</button>
           </section> : null}
         </> : null}

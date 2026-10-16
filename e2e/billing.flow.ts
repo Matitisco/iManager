@@ -18,41 +18,9 @@ async function shot(page: Page, device: string, state: string) {
   mkdirSync(process.env.ISSUE_359_SHOTS, { recursive: true });
   await page.screenshot({ path: `${process.env.ISSUE_359_SHOTS}/issue-359-${device}-${state}.png`, animations: 'disabled' });
 }
-// Simulate only the provider SDK boundary. Inputs stay inside frames, as in Secure Fields.
-async function mockSecureFields(page: Page) {
-  await page.route('https://sdk.mercadopago.com/js/v2', route => route.fulfill({ contentType: 'application/javascript', body: `
-    window.MercadoPago = class {
-      constructor() {
-        this.inputs = {};
-        this.fields = {
-          create: (type, options) => {
-            const callbacks = {};
-            let frame;
-            return {
-              on: (event, callback) => { callbacks[event] = callback; },
-              update: () => {},
-              mount: id => {
-                frame = document.createElement('iframe'); frame.title = options.srLabel;
-                frame.srcdoc = '<input aria-label="' + options.srLabel + '" style="box-sizing:border-box;width:100%;height:44px;border:0;background:#f9fafb;font:16px Arial;padding:12px" />';
-                frame.onload = () => { this.inputs[type] = frame.contentDocument.querySelector('input'); callbacks.ready?.({}); };
-                document.getElementById(id).appendChild(frame);
-              },
-              unmount: () => frame?.remove(),
-            };
-          },
-          createCardToken: async () => {
-            if (this.inputs.securityCode.value !== '123' || !this.inputs.cardNumber.value || !this.inputs.expirationDate.value) throw new Error('Invalid card');
-            return { id: 'e2e-single-use-token' };
-          },
-        };
-      }
-      async getIdentificationTypes() { return [{ id: 'DNI', name: 'DNI' }]; }
-    };
-  ` }));
-}
 export function registerBillingTests(device: string) {
   test.afterAll(async () => { await prisma.$disconnect(); });
-  test(`prueba, precios USD, confirmación ARS y tarjeta dentro de iManager · ${device}`, async ({ page, request }, info) => {
+  test(`prueba, precios USD, confirmación ARS y checkout de Mercado Pago · ${device}`, async ({ page, request }, info) => {
     const email = buildTestEmail(info, 'billing');
     await bootstrapStoreViaApi(page, request, email, 'Tienda del Centro');
     const session = await fetchSession(request, email);
@@ -69,35 +37,23 @@ export function registerBillingTests(device: string) {
     await expect(page.getByText('US$ 198 por año, en un solo cobro')).toBeVisible();
     await shot(page, device, 'plans'); await fits(page);
     // Provider boundary simulated here; backend HTTP and persistence covered by integration suite.
-    await page.route('**/api/billing/quote', route => route.fulfill({ json: { publicKey: 'public-key-placeholder', id: 'e2e-quote', key: 'BASIC_ANNUAL', usd: 198, amountArs: 277200, exchangeRate: 1400, payerEmail, expiresAt: '2099-01-01T00:00:00Z' } }));
-    await mockSecureFields(page);
+    await page.route('**/api/billing/quote', route => route.fulfill({ json: { id: 'e2e-quote', key: 'BASIC_ANNUAL', usd: 198, amountArs: 277200, exchangeRate: 1400, payerEmail, expiresAt: '2099-01-01T00:00:00Z' } }));
     const payloads: unknown[] = [];
     await page.route('**/api/billing/checkout', route => {
       payloads.push(route.request().postDataJSON());
-      return route.fulfill({ json: { status: 'authorized' } });
+      return route.fulfill({ json: { initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=e2e' } });
     });
+    await page.route('https://www.mercadopago.com.ar/**', route => route.fulfill({ contentType: 'text/html', body: '<main>Mercado Pago</main>' }));
     await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
     const quote = page.getByTestId('billing-quote'); await expect(quote).toContainText('277.200');
     await expect(quote).toContainText(payerEmail); expect(payloads).toHaveLength(0);
-    await expect(page.getByRole('button', { name: 'Confirmar suscripción con tarjeta' })).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(quote).toContainText('El pago se completa en Mercado Pago');
+    await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveCSS('color', 'rgb(255, 255, 255)');
     await quote.scrollIntoViewIfNeeded(); await fits(page); await shot(page, device, 'ars');
-    await expect(quote).toContainText('No necesitás una cuenta de Mercado Pago.');
-    await page.getByRole('textbox', { name: 'Nombre del titular' }).fill('APRO');
-    await page.getByRole('textbox', { name: 'Documento del titular' }).fill('12345678');
-    await page.frameLocator('[id$="-cardNumber"] iframe').getByRole('textbox').fill('4509953566233704');
-    await page.frameLocator('[id$="-expirationDate"] iframe').getByRole('textbox').fill('11/30');
-    const cvv = page.frameLocator('[id$="-securityCode"] iframe').getByRole('textbox');
-    await cvv.fill('000');
-    await page.getByRole('button', { name: 'Confirmar suscripción con tarjeta' }).click();
-    await expect(page.getByRole('alert')).toContainText('Revisá el número');
-    expect(payloads).toHaveLength(0);
-    await cvv.fill('123');
-    await shot(page, device, 'card'); await fits(page);
-    await page.getByRole('button', { name: 'Confirmar suscripción con tarjeta' }).click();
-    await expect(page.getByText(/Suscripción enviada/)).toBeVisible();
-    expect(payloads).toEqual([{ quoteId: 'e2e-quote', cardTokenId: 'e2e-single-use-token' }]);
-    await expect(page).toHaveURL(/#\/plan$/);
-    await expect(page.getByTestId('billing-screen')).toBeVisible();
+    await page.getByRole('button', { name: 'Continuar en Mercado Pago' }).click();
+    await expect(page).toHaveURL(/https:\/\/www\.mercadopago\.com\.ar\/subscriptions\/checkout\?preapproval_id=e2e/);
+    expect(payloads).toEqual([{ quoteId: 'e2e-quote' }]);
+    expect(JSON.stringify(payloads)).not.toContain('card');
   });
   test(`vencimiento solo lectura, límites, cancelación y acceso interno · ${device}`, async ({ page, request }, info) => {
     const email = buildTestEmail(info, 'billing-expired');
@@ -125,7 +81,7 @@ export function registerBillingTests(device: string) {
     await shot(page, device, 'cancelled');
     await prisma.store.update({ where: { id: storeId }, data: { billingPlan: 'INTERNAL', billingStatus: 'ACTIVE' } });
     await page.reload();
-    await expect(page.getByText('Gratis de por vida', { exact: true })).toBeVisible();
+    await expect(page.getByText('Acceso ilimitado', { exact: true })).toBeVisible();
     await expect(page.getByTestId('billing-access-banner')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Suscribirme|Cancelar suscripción/ })).toHaveCount(0);
     const write = await request.post(`${api}/api/clients`, { headers: authHeaders(email), data: { name: 'Cliente interno' } });

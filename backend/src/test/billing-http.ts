@@ -30,11 +30,12 @@ export function mockMercadoPago() {
     }
     if (path === '/preapproval' && method === 'POST') {
       const id = `created-${subscriptions.size + 1}`;
-      const plan = plans.get(String(body.preapproval_plan_id))!;
-      const remote = { id, external_reference: body.external_reference, preapproval_plan_id: body.preapproval_plan_id, payer_email: body.payer_email, status: 'authorized', last_modified: new Date().toISOString(), date_created: new Date().toISOString(), auto_recurring: plan.auto_recurring };
-      subscriptions.set(id, remote); return json(remote);
+      const plan = plans.get(String(body.preapproval_plan_id));
+      if (!plan) return json({ message: 'missing plan', cause: [{ code: 'plan' }] }, 400);
+      const remote = { id, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=${id}`, external_reference: body.external_reference, preapproval_plan_id: body.preapproval_plan_id, payer_email: body.payer_email ?? null, status: body.status ?? 'pending', last_modified: new Date().toISOString(), date_created: new Date().toISOString(), auto_recurring: plan.auto_recurring, back_url: body.back_url };
+      subscriptions.set(id, remote); return json(remote, 201);
     }
-    if (path === '/preapproval/search') return json({ results: [...subscriptions.values()].filter(subscription => subscription.external_reference === url.searchParams.get('external_reference') && subscription.payer_email === url.searchParams.get('payer_email')) });
+    if (path === '/preapproval/search') return json({ results: [...subscriptions.values()].filter(subscription => subscription.external_reference === url.searchParams.get('external_reference')) });
     if (path.startsWith('/authorized_payments/')) return json({ preapproval_id: invoices.get(path.split('/').at(-1)!) });
     if (path.startsWith('/preapproval/')) {
       const id = path.split('/').at(-1)!; const remote = subscriptions.get(id);
