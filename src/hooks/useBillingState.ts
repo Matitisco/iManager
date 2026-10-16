@@ -22,7 +22,7 @@ export function useBillingState(user: AuthUserLike | null, storeId?: string, rol
   return {
     billingDetails, loadBilling,
     quoteSubscription: (key: BillingPlanKey, email: string) => quoteBilling(requireOwner(), key, email),
-    openSubscriptionCheckout: (id: string) => checkoutBilling(requireOwner(), id),
+    openSubscriptionCheckout: (id: string, token: string) => checkoutBilling(requireOwner(), id, token),
     cancelSubscription: () => cancelBilling(requireOwner()),
   };
 }

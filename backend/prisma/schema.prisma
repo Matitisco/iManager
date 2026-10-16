@@ -846,6 +846,8 @@ model BillingCheckout {
   exchangeRate Decimal @db.Decimal(12, 2)
   expiresAt  DateTime
   openedAt   DateTime?
+  checkoutStatus String @default("QUOTED") @db.VarChar(20)
+  providerSubscriptionId String? @db.VarChar(100)
   createdAt  DateTime @default(now())
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 

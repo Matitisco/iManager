@@ -18,15 +18,15 @@ describe('reglas de suscripción', () => {
   });
   it('respeta períodos pagados cancelados hasta su fin', () => {
     const store = { ...base, trialEndsAt: null, billingPlan: 'BASIC', billingStatus: 'CANCELLED', billingPaidThrough: new Date('2026-02-28T10:00:00Z') };
-    expect(billingSummary(store, 1, now)).toMatchObject({ status: 'CANCELLED', readOnly: false, canCancel: false, memberLimit: 1 });
+    expect(billingSummary(store, 1, now)).toMatchObject({ status: 'CANCELLED', readOnly: false, canCancel: false, memberLimit: 3 });
     expect(billingSummary(store, 1, store.billingPaidThrough)).toMatchObject({ readOnly: true, status: 'CANCELLED' });
   });
-  it('limita Básico a uno y Negocio/prueba a tres, incluyendo propietario', () => {
-    expect(billingSummary({ ...base, billingPlan: 'BASIC' }, 2, now)).toMatchObject({ overLimit: true, readOnly: true });
-    expect(billingSummary({ ...base, billingPlan: 'BUSINESS' }, 3, now)).toMatchObject({ overLimit: false, memberLimit: 3 });
-    expect(billingSummary(base, 3, now).readOnly).toBe(false);
+  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 5]])('limita %s a %s incluyendo al propietario', (plan, limit) => {
+    expect(billingSummary({ ...base, billingPlan: String(plan) }, Number(limit), now)).toMatchObject({ overLimit: false, readOnly: false, memberLimit: limit });
+    expect(billingSummary({ ...base, billingPlan: String(plan) }, Number(limit) + 1, now)).toMatchObject({ overLimit: true, readOnly: true });
   });
   it('mantiene los cuatro precios USD y convierte el cobro anual completo', () => {
+    expect(Object.values(PLANS).map(plan => plan.users)).toEqual([3, 3, 5, 5]);
     expect(Object.values(PLANS).map(plan => plan.usd)).toEqual([22, 198, 87, 783]);
     expect(arsAmount(783, 1234.56)).toBe(966660.48);
     expect(arsAmount(22, 1200.55)).toBe(26412.1);

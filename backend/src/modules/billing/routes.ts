@@ -19,8 +19,8 @@ export async function billingRoutes(app: FastifyInstance) {
     return quoteCheckout(storeId, body.key, body.payerEmail);
   });
   app.post('/checkout', { preHandler }, request => {
-    const storeId = ownerStore(request); const body = z.object({ quoteId: z.string().min(1).max(100) }).parse(request.body);
-    return openCheckout(storeId, body.quoteId);
+    const storeId = ownerStore(request); const body = z.object({ quoteId: z.string().min(1).max(100), cardTokenId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/) }).strict().parse(request.body);
+    return openCheckout(storeId, body.quoteId, body.cardTokenId);
   });
   app.post('/cancel', { preHandler }, async request => { await cancelSubscription(ownerStore(request)); return { ok: true }; });
   app.post('/refresh', { preHandler }, request => refreshBilling(ownerStore(request)));

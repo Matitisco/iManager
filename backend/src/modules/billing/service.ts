@@ -5,12 +5,11 @@ import { DomainError } from '../../lib/domain-error.js';
 import { currentBlueRate } from '../../lib/blue-rate.js';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { PLANS, PLAN_KEYS, BILLING_LOCK, storeBillingLock, arsAmount, billingSummary, addMonths, type PlanKey } from './domain.js';
-import { getRemoteSubscription, hostedCheckout, mpRequest, remotePlanSchema, parseRemote, type RemoteSubscription } from './mercadopago.js';
+import { getRemoteSubscription, MPRejectedRequest, mpRequest, remotePlanSchema, remoteSubscriptionSchema, parseRemote, type RemoteSubscription } from './mercadopago.js';
 
 function assertPlan(remote: z.infer<typeof remotePlanSchema>, key: PlanKey, providerId: string, amount: number) {
   const spec = PLANS[key];
-  const checkout = new URL(hostedCheckout(remote.init_point, 'validation', 'validation@example.com'));
-  if (remote.id !== providerId || checkout.searchParams.get('preapproval_plan_id') !== providerId || remote.auto_recurring.frequency !== spec.months || remote.auto_recurring.transaction_amount !== amount || remote.auto_recurring.free_trial) {
+  if (remote.id !== providerId || remote.auto_recurring.frequency !== spec.months || remote.auto_recurring.transaction_amount !== amount || remote.auto_recurring.free_trial) {
     throw new DomainError('Mercado Pago no confirmó las condiciones del plan. Volvé a consultar el importe.', 409);
   }
 }
@@ -86,6 +85,16 @@ export async function syncPlans() {
   return result;
 }
 
+function paymentPublicKey() {
+  const key = process.env.MP_PUBLIC_KEY?.trim();
+  if (!key) throw new DomainError('El pago con tarjeta todavía no está configurado. Contactá a iManager.', 503);
+  return key;
+}
+async function assertNoPendingCheckout(storeId: string, tx: Prisma.TransactionClient) {
+  if (await tx.billingCheckout.findFirst({ where: { storeId, checkoutStatus: { in: ['CREATING', 'CREATED'] } } })) {
+    throw new DomainError('Hay una suscripción en proceso. Actualizá el estado del pago antes de volver a intentar.', 409);
+  }
+}
 export async function billingDetails(storeId: string) {
   const summary = await getBillingSummary(storeId);
   return { ...summary, plans: PLAN_KEYS.map(key => ({ key, ...PLANS[key] })) };
@@ -96,15 +105,17 @@ function assertCheckoutAllowed(summary: Awaited<ReturnType<typeof getBillingSumm
   if (summary.canCancel || (summary.paidThrough && new Date(summary.paidThrough) > new Date())) {
     throw new DomainError('Ya tenés una suscripción. Cancelala y esperá al fin del período abonado para elegir otro plan.', 409);
   }
-  if (summary.members > PLANS[key].users) throw new DomainError(`Este plan admite ${PLANS[key].users} ${PLANS[key].users === 1 ? 'usuario' : 'usuarios'}. Primero reducí tu equipo.`, 409);
+  if (summary.members > PLANS[key].users) throw new DomainError(`Este plan admite ${PLANS[key].users} usuarios. Primero reducí tu equipo.`, 409);
 }
 
 export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: string) {
+  const publicKey = paymentPublicKey();
   const rate = await currentBlueRate();
   return prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
     await lockTransactionKey(tx, storeBillingLock(storeId));
     assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
+    await assertNoPendingCheckout(storeId, tx);
     let plan = await tx.billingPlan.findUnique({ where: { key } });
     if (!plan) throw new DomainError('Los planes todavía no están disponibles. Contactá a iManager.', 503);
     const amount = arsAmount(PLANS[key].usd, rate);
@@ -114,28 +125,61 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
       plan = await tx.billingPlan.update({ where: { key }, data: { amountArs: amount, exchangeRate: rate, initPoint: remote.init_point } });
     }
     const quote = await tx.billingCheckout.create({ data: { storeId, planKey: key, providerPlanId: plan.providerId, payerEmail: payerEmail.trim().toLowerCase(), amountArs: amount, exchangeRate: rate, expiresAt: new Date(Date.now() + 10 * 60_000) } });
-    return { id: quote.id, key, usd: PLANS[key].usd, amountArs: amount, exchangeRate: rate, payerEmail: quote.payerEmail, expiresAt: quote.expiresAt.toISOString() };
+    return { publicKey, id: quote.id, key, usd: PLANS[key].usd, amountArs: amount, exchangeRate: rate, payerEmail: quote.payerEmail, expiresAt: quote.expiresAt.toISOString() };
   }, { timeout: 25_000, maxWait: 10_000 });
 }
-export async function openCheckout(storeId: string, quoteId: string) {
-  return prisma.$transaction(async tx => {
+export async function openCheckout(storeId: string, quoteId: string, cardTokenId: string) {
+  // Persist the claim BEFORE contacting MP. A timeout or process crash must not permit a second charge.
+  const quote = await prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
     await lockTransactionKey(tx, storeBillingLock(storeId));
     const quote = await tx.billingCheckout.findFirst({ where: { id: quoteId, storeId } });
     if (!quote) throw new DomainError('Cotización no encontrada.', 404);
+    if (quote.checkoutStatus !== 'QUOTED') throw new DomainError('Esta solicitud ya fue enviada. Actualizá el estado del pago.', 409);
     if (quote.expiresAt <= new Date()) throw new DomainError('La cotización venció. Volvé a consultar el importe.', 409);
     const key = quote.planKey as PlanKey;
     assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
+    await assertNoPendingCheckout(storeId, tx);
     const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
     const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`));
     assertPlan(remote, key, quote.providerPlanId, Number(quote.amountArs));
     if (arsAmount(PLANS[key].usd, await currentBlueRate()) !== Number(quote.amountArs)) {
       throw new DomainError('Cambió el importe en pesos. Volvé a consultarlo antes de suscribirte.', 409);
     }
-    const initPoint = hostedCheckout(remote.init_point, storeId, quote.payerEmail);
-    await tx.billingCheckout.update({ where: { id: quote.id }, data: { openedAt: new Date() } });
-    return { initPoint };
+    return tx.billingCheckout.update({ where: { id: quote.id }, data: { openedAt: new Date(), checkoutStatus: 'CREATING' } });
   }, { timeout: 25_000, maxWait: 10_000 });
+  let remote: RemoteSubscription;
+  let sent = false;
+  try {
+    remote = await prisma.$transaction(async tx => {
+      // Keep price synchronization and tenant mutations out of the actual creation window.
+      await lockTransactionKey(tx, BILLING_LOCK);
+      await lockTransactionKey(tx, storeBillingLock(storeId));
+      const key = quote.planKey as PlanKey;
+      assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
+      const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
+      const conditions = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`));
+      assertPlan(conditions, key, quote.providerPlanId, Number(quote.amountArs));
+      if (quote.expiresAt <= new Date() || arsAmount(PLANS[key].usd, await currentBlueRate()) !== Number(quote.amountArs)) {
+        throw new DomainError('La cotización cambió o venció. Volvé a consultar el importe.', 409);
+      }
+      const returnUrl = backUrl();
+      sent = true;
+      const created = parseRemote(remoteSubscriptionSchema, await mpRequest('/preapproval', 'POST', {
+        preapproval_plan_id: quote.providerPlanId, card_token_id: cardTokenId,
+        payer_email: quote.payerEmail, external_reference: storeId,
+        back_url: returnUrl, status: 'authorized',
+      }));
+      await tx.billingCheckout.update({ where: { id: quote.id }, data: { providerSubscriptionId: created.id, checkoutStatus: 'CREATED' } });
+      return created;
+    }, { timeout: 35_000, maxWait: 10_000 });
+  } catch (cause) {
+    // Only a preflight failure or explicit rejection is safe to retry. Recover unknown outcomes by refresh/webhook.
+    if (!sent || cause instanceof MPRejectedRequest) await prisma.billingCheckout.update({ where: { id: quote.id }, data: { checkoutStatus: 'FAILED' } });
+    throw cause;
+  }
+  if (!await reconcilePreapproval(remote.id, storeId)) throw new DomainError('No pudimos verificar la suscripción. Actualizá el estado del pago.', 502);
+  return { status: remote.status };
 }
 
 /** Re-fetch under the tenant lock: duplicated/out-of-order webhooks cannot regress access. */
@@ -167,8 +211,13 @@ export async function reconcilePreapproval(id: string, expectedStoreId?: string)
     const through = paidThrough && (!previousThrough || paidThrough > previousThrough) ? paidThrough : previousThrough;
     const cancelled = remote.status === 'cancelled';
     const hasPaidTerm = through && through > new Date();
-    // Pending attempts never occupy the active subscription slot, so abandoned checkout is recoverable.
+    // Pending contracts keep the durable attempt unresolved; refresh can recover authorization.
     if (remote.status === 'pending' && (!store.billingPreapprovalId || replacing)) return true;
+    await tx.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] }, OR: [
+      { providerSubscriptionId: id },
+      // An old cancelled contract cannot resolve a new attempt whose response was lost.
+      ...(store.billingPreapprovalId !== id ? [{ providerSubscriptionId: null }] : []),
+    ] }, data: { checkoutStatus: 'RESOLVED', providerSubscriptionId: id } });
     await tx.store.update({ where: { id: storeId }, data: {
       billingPlan: spec.plan, billingPeriod: spec.period, billingPreapprovalId: id, billingPayerEmail: intention.payerEmail,
       billingRemoteUpdatedAt: modified, billingPaidThrough: through,
@@ -226,7 +275,8 @@ export async function refreshBilling(storeId: string) {
   if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED') await reconcilePreapproval(store.billingPreapprovalId, storeId);
   else {
     const intention = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null } }, orderBy: { createdAt: 'desc' } });
-    if (intention) {
+    if (intention?.providerSubscriptionId) await reconcilePreapproval(intention.providerSubscriptionId, storeId);
+    else if (intention) {
       const search = parseRemote(z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().optional() })).max(100) }),
         await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(storeId)}&payer_email=${encodeURIComponent(intention.payerEmail)}&limit=20`),
       );

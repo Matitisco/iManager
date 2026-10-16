@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
 
+export class MPRejectedRequest extends DomainError {}
+
 const API = 'https://api.mercadopago.com';
 export async function mpRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
   const token = process.env.MP_ACCESS_TOKEN?.trim();
@@ -12,9 +14,13 @@ export async function mpRequest(path: string, method = 'GET', body?: unknown): P
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(10_000),
     });
     // Never include provider error bodies, request headers or credentials in errors/logs.
-    if (!response.ok) throw new Error('provider request failed');
+    if (!response.ok) {
+      if ([400, 401, 403, 404, 422].includes(response.status)) throw new MPRejectedRequest('Mercado Pago rechazó la solicitud. Revisá la tarjeta y volvé a intentar.', 502);
+      throw new Error('provider request failed');
+    }
     return await response.json();
-  } catch {
+  } catch (cause) {
+    if (cause instanceof MPRejectedRequest) throw cause;
     throw new DomainError('No pudimos consultar Mercado Pago. Reintentá en unos minutos.', 502);
   }
 }
@@ -37,15 +43,6 @@ export async function getRemoteSubscription(id: string) {
   const result = remoteSubscriptionSchema.safeParse(await mpRequest(`/preapproval/${encodeURIComponent(id)}`));
   if (!result.success || result.data.id !== id) throw new DomainError('Mercado Pago devolvió una suscripción inválida.', 502);
   return result.data;
-}
-export function hostedCheckout(initPoint: string, storeId: string, email: string) {
-  const url = new URL(initPoint);
-  if (url.protocol !== 'https:' || url.hostname !== 'www.mercadopago.com.ar' || url.pathname !== '/subscriptions/checkout' || url.username || url.password) {
-    throw new DomainError('Mercado Pago devolvió un enlace de pago inválido.', 502);
-  }
-  url.searchParams.set('external_reference', storeId);
-  url.searchParams.set('payer_email', email);
-  return url.toString();
 }
 export function validSignature(id: string, requestId: string | undefined, signature: string | undefined, secret = process.env.MP_WEBHOOK_SECRET) {
   if (!secret) return true;

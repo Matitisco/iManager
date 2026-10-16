@@ -23,7 +23,7 @@ El sistema SHALL ofrecer Básico USD 22 mensual o 198 anual y Negocio USD 87 men
 
 #### Scenario: Rate changes before opening checkout
 - **WHEN** el owner confirma un monto cuya cotización ya cambió
-- **THEN** se pide revisar el nuevo importe antes de navegar
+- **THEN** se pide revisar el nuevo importe antes de enviar la suscripción
 
 ### Requirement: Trusted subscription reconciliation
 El sistema MUST validar x-signature cuando hay secreto y reconsultar preapproval sin confiar en el estado recibido, vinculando tienda, plan y email del pagador.
@@ -37,7 +37,7 @@ El sistema MUST validar x-signature cuando hay secreto y reconsultar preapproval
 - **THEN** no retrocede el período pagado ni reemplaza una suscripción diferente
 
 ### Requirement: Owner billing and member limits
-El sistema SHALL permitir al owner ver plan, suscribirse y cancelar en iPhone y desktop. Básico incluye un miembro y Negocio tres; el plan interno es ilimitado y la prueba permite tres.
+El sistema SHALL permitir al owner ver plan, suscribirse y cancelar en iPhone y desktop. Básico incluye tres miembros y Negocio cinco; el plan interno es ilimitado y la prueba permite cinco. El propietario cuenta dentro del límite.
 
 #### Scenario: Concurrent invitations at capacity
 - **WHEN** dos invitaciones intentan ocupar el último lugar
@@ -49,3 +49,18 @@ El sistema SHALL crear idempotentemente cuatro planes ARS con IDs persistidos y 
 #### Scenario: Retry after plan synchronization
 - **WHEN** se ejecuta nuevamente la sincronización
 - **THEN** conserva IDs y actualiza importes sin crear otros cuatro planes
+
+### Requirement: Embedded card checkout
+El sistema SHALL mantener el checkout dentro de iManager, con su interfaz y Secure Fields estilizados de Mercado Pago, solo tarjeta y sin iniciar sesión en MP. El backend MUST crear preapproval por API con preapproval_plan_id, card_token_id y payer_email de la cotización, sin usar init_point ni almacenar datos de tarjeta/token.
+
+#### Scenario: Card subscription on iPhone and desktop
+- **WHEN** el owner confirma el total ARS y completa su tarjeta
+- **THEN** se tokeniza con el SDK y se envía solo el token junto al quoteId al backend, conservando la pantalla de iManager
+
+#### Scenario: Duplicate or uncertain submission
+- **WHEN** dos solicitudes compiten o MP no confirma el resultado
+- **THEN** el intento durable impide otro cobro y se reconcilia desde el proveedor antes de permitir otro intento
+
+#### Scenario: Card rejection
+- **WHEN** la tarjeta no se valida o el proveedor rechaza explícitamente la suscripción
+- **THEN** hay un error visible y se permite corregir/reintentar con un token nuevo

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, CreditCard, ShieldCheck } from 'lucide-react';
+import { Check, CreditCard } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import type { BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
 import { PageHead, useDesk } from '../ui';
 import './billing.css';
+import { BillingCardForm } from './BillingCardForm';
 
 export const billingPlanName = (plan?: string) => ({ INTERNAL: 'Interno', TRIAL: 'Prueba gratuita', BASIC: 'Básico', BUSINESS: 'Negocio' }[plan ?? ''] ?? 'Tu plan');
 const statusName = (status?: string) => ({ ACTIVE: 'Activa', TRIAL: 'En prueba', EXPIRED: 'Vencida', CANCELLED: 'Cancelada' }[status ?? ''] ?? '');
@@ -53,7 +54,7 @@ export function BillingScreen() {
             <p>{billing?.readOnly ? 'Tu tienda está en modo solo lectura. Tus datos siguen disponibles.' : 'Tu tienda está lista para operar.'}</p>
             {billing?.trialDaysLeft ? <p>Te {billing.trialDaysLeft === 1 ? 'queda 1 día' : `quedan ${billing.trialDaysLeft} días`} de prueba sin tarjeta.</p> : null}
             {billing?.paidThrough ? <p>{billing.status === 'CANCELLED' ? 'Acceso abonado hasta' : 'Período abonado hasta'} el {date(billing.paidThrough)}.</p> : null}
-            <p>{billing?.members ?? 0} de {billing?.memberLimit ?? 3} {billing?.memberLimit === 1 ? 'usuario' : 'usuarios'} · Incluye al propietario</p>
+            <p>{billing?.members ?? 0} de {billing?.memberLimit ?? 5} {billing?.memberLimit === 1 ? 'usuario' : 'usuarios'} · Incluye al propietario</p>
             {billing?.readOnly && billing.canCancel && !billing.overLimit ? <p>Si ya pagaste, actualizá el estado. También podés cancelar esta suscripción para elegir un nuevo plan.</p> : null}
             {billing?.overLimit ? <p role="alert">Tu equipo supera el límite del plan. Quitá miembros desde Configuración para volver a operar.</p> : null}
           </>}
@@ -68,14 +69,14 @@ export function BillingScreen() {
             <button type="button" aria-pressed={!annual} disabled={busy} onClick={() => { setAnnual(false); setQuote(null); }}>Mensual</button>
             <button type="button" aria-pressed={annual} disabled={busy} onClick={() => { setAnnual(true); setQuote(null); }}>Anual · Ahorrás 25%</button>
           </div>
-          <label className="billing-email">Email del pagador<input type="email" autoComplete="email" value={email} disabled={busy} onChange={event => { setEmail(event.target.value); setQuote(null); }} /><small>Usá este mismo email al pagar en Mercado Pago.</small></label>
+          <label className="billing-email">Email del pagador<input type="email" autoComplete="email" value={email} disabled={busy} onChange={event => { setEmail(event.target.value); setQuote(null); }} /><small>Recibirás las novedades de tu suscripción en este email.</small></label>
           <div className="billing-plans">
             {(billingDetails?.plans ?? []).filter(plan => plan.period === (annual ? 'ANNUAL' : 'MONTHLY')).map(plan => <section className="billing-plan" key={plan.key}>
               <h3>{plan.name}</h3><p className="billing-price">US$ {new Intl.NumberFormat('es-AR', { minimumFractionDigits: annual ? 2 : 0, maximumFractionDigits: 2 }).format(plan.usd / plan.months)}<span>/mes</span></p>
               <p>{annual ? `US$ ${plan.usd} por año, en un solo cobro` : 'Cobro mensual'}</p>
-              <p className="billing-feature"><Check size={17} />{plan.users === 1 ? '1 usuario' : 'Hasta 3 usuarios'}</p>
+              <p className="billing-feature"><Check size={17} />{`Hasta ${plan.users} usuarios`}</p>
               <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} className="billing-primary" type="button" disabled={busy || !email.trim() || (billing?.members ?? 0) > plan.users} onClick={() => void run(async () => { setQuote(null); setQuote(await quoteSubscription(plan.key, email)); })}>Suscribirme a {plan.name}</motion.button>
-              {(billing?.members ?? 0) > plan.users ? <small>Primero reducí tu equipo a {plan.users} usuario.</small> : null}
+              {(billing?.members ?? 0) > plan.users ? <small>Primero reducí tu equipo a {plan.users} usuarios.</small> : null}
             </section>)}
             <section className="billing-plan billing-custom"><h3>Sistema propio</h3><p className="billing-price">A medida</p><p>Una solución para las necesidades de tu negocio.</p><p>Contactá a iManager para definir el alcance y el precio.</p></section>
           </div>
@@ -83,15 +84,14 @@ export function BillingScreen() {
             <h2>Antes de suscribirte</h2><p>Se va a cobrar <strong>{ars(quote.amountArs)} ARS</strong> {quote.key.endsWith('ANNUAL') ? 'por año' : 'por mes'}.</p>
             <p>Equivale a US$ {quote.usd} · Dólar blue vendedor: {ars(quote.exchangeRate)}.</p>
             <p>Email del pagador: <strong>{quote.payerEmail}</strong></p><p>El débito es automático. El importe en ARS se ajusta con la cotización. Podés cancelar los próximos cobros desde esta pantalla.</p>
-            <p className="billing-safe"><ShieldCheck size={17} />La tarjeta se ingresa en Mercado Pago.</p>
-            <button className="billing-primary" type="button" disabled={busy} onClick={() => void run(async () => {
+            <BillingCardForm key={quote.id} publicKey={quote.publicKey} busy={busy} onPay={token => run(async () => {
               try {
-                const { initPoint } = await openSubscriptionCheckout(quote.id);
-                const url = new URL(initPoint);
-                if (url.protocol !== 'https:' || url.hostname !== 'www.mercadopago.com.ar' || url.pathname !== '/subscriptions/checkout') throw new Error('El enlace de pago no es válido.');
-                window.location.assign(url.toString());
+                await openSubscriptionCheckout(quote.id, token);
+                setQuote(null);
+                setNotice('Suscripción enviada. El acceso se actualizará al confirmarse el cobro.');
+                await loadBilling(); await reloadSession();
               } catch (cause) { setQuote(null); throw cause; }
-            })}>{busy ? 'Consultando…' : 'Continuar a Mercado Pago'}</button>
+            })} />
             <button className="billing-link" type="button" disabled={busy} onClick={() => setQuote(null)}>Volver a elegir</button>
           </section> : null}
         </> : null}

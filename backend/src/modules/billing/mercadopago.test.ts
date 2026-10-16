@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { hostedCheckout, mpRequest, validSignature } from './mercadopago.js';
+import { mpRequest, validSignature } from './mercadopago.js';
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 describe('cliente Mercado Pago', () => {
@@ -20,7 +20,7 @@ describe('cliente Mercado Pago', () => {
   });
   it('usa solo el token del entorno sin devolver el cuerpo del proveedor al fallar', async () => {
     vi.stubEnv('MP_ACCESS_TOKEN', 'test-placeholder');
-    const fetchMock = vi.fn().mockResolvedValue(new Response('{"error":"provider detail"}', { status: 401 }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"error":"provider detail"}', { status: 503 }));
     vi.stubGlobal('fetch', fetchMock);
     await expect(mpRequest('/preapproval/abc')).rejects.toMatchObject({ statusCode: 502, message: 'No pudimos consultar Mercado Pago. Reintentá en unos minutos.' });
     expect(fetchMock).toHaveBeenCalledWith('https://api.mercadopago.com/preapproval/abc', expect.objectContaining({ headers: { Authorization: 'Bearer test-placeholder' } }));
@@ -29,13 +29,5 @@ describe('cliente Mercado Pago', () => {
     vi.stubEnv('MP_ACCESS_TOKEN', ''); const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
     await expect(mpRequest('/users/me')).rejects.toMatchObject({ statusCode: 503 });
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('el enlace conserva plan y agrega referencia y email sin permitir otro host', () => {
-    const url = new URL(hostedCheckout('https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=plan', 'store-1', 'owner+1@example.com'));
-    expect(url.searchParams.get('external_reference')).toBe('store-1');
-    expect(url.searchParams.get('payer_email')).toBe('owner+1@example.com');
-    expect(url.searchParams.get('preapproval_plan_id')).toBe('plan');
-    expect(() => hostedCheckout('https://evil.test/subscriptions/checkout', 'id', 'email')).toThrow();
-    expect(() => hostedCheckout('http://www.mercadopago.com.ar/subscriptions/checkout', 'id', 'email')).toThrow();
   });
 });

@@ -2,10 +2,10 @@ import type { Store } from '@prisma/client';
 import { DomainError } from '../../lib/domain-error.js';
 
 export const PLANS = {
-  BASIC_MONTHLY: { plan: 'BASIC', name: 'Básico', period: 'MONTHLY', usd: 22, months: 1, users: 1 },
-  BASIC_ANNUAL: { plan: 'BASIC', name: 'Básico', period: 'ANNUAL', usd: 198, months: 12, users: 1 },
-  BUSINESS_MONTHLY: { plan: 'BUSINESS', name: 'Negocio', period: 'MONTHLY', usd: 87, months: 1, users: 3 },
-  BUSINESS_ANNUAL: { plan: 'BUSINESS', name: 'Negocio', period: 'ANNUAL', usd: 783, months: 12, users: 3 },
+  BASIC_MONTHLY: { plan: 'BASIC', name: 'Básico', period: 'MONTHLY', usd: 22, months: 1, users: 3 },
+  BASIC_ANNUAL: { plan: 'BASIC', name: 'Básico', period: 'ANNUAL', usd: 198, months: 12, users: 3 },
+  BUSINESS_MONTHLY: { plan: 'BUSINESS', name: 'Negocio', period: 'MONTHLY', usd: 87, months: 1, users: 5 },
+  BUSINESS_ANNUAL: { plan: 'BUSINESS', name: 'Negocio', period: 'ANNUAL', usd: 783, months: 12, users: 5 },
 } as const;
 export type PlanKey = keyof typeof PLANS;
 export const PLAN_KEYS = Object.keys(PLANS) as PlanKey[];
@@ -20,7 +20,7 @@ export function arsAmount(usd: number, rate: number) {
   return amount;
 }
 export function memberLimit(plan: string) {
-  return plan === 'INTERNAL' ? null : plan === 'BASIC' ? 1 : 3;
+  return plan === 'INTERNAL' ? null : plan === 'BASIC' ? 3 : 5;
 }
 export type BillingStore = Pick<Store, 'billingPlan' | 'billingStatus' | 'trialEndsAt' | 'billingPaidThrough' | 'billingPeriod' | 'billingPreapprovalId'>;
 export function billingSummary(store: BillingStore, members: number, now = new Date()) {

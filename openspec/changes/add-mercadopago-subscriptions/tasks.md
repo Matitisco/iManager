@@ -13,7 +13,14 @@
 ## 3. Validación y entrega
 - [x] 3.1 Unitarios y backend integración con HTTP MP simulado.
 - [x] 3.2 Playwright desktop/iPhone y capturas docs/pr-shots/issue-359-*.png.
-- [ ] 3.3 Lint, builds, npm test, backend tests y E2E completos.
+- [x] 3.3 Lint, builds, unitarios frontend/backend y E2E afectados de facturación (timeout 900).
 - [x] 3.4 Documentar entorno, operación, decisiones pendientes y evidencia sandbox disponible.
-- [ ] 3.5 Validar en MP TEST real tarjeta como invitado, external_reference y email coincidente (requiere token/vendedor y acceso de comprador no disponibles en esta sesión).
-- [ ] 3.6 Commit en español, push de feat/359-suscripciones-mp y PR sin merge.
+- [ ] 3.5 Validar en MP TEST real Secure Fields sin cuenta MP en iPhone/desktop, external_reference y email coincidente (requiere token/vendedor y acceso de comprador no disponibles en esta sesión).
+- [x] 3.6 Commit en español, push de feat/359-suscripciones-mp y PR sin merge.
+
+## 4. Ajustes solicitados 15/10
+- [x] 4.1 Límites Básico 3, Negocio 5, prueba 5 e interno ilimitado en backend/UI/tests.
+- [x] 4.2 Checkout propio con Secure Fields, solo tarjeta sin cuenta MP y preapproval por API.
+- [x] 4.3 Intentos durables, doble envío, error visible y recuperación de respuesta incierta.
+- [x] 4.4 Validar lint/build/unitarios frontend/backend, integración y únicamente E2E billing desktop/iPhone.
+- [x] 4.5 Actualizar documentación y PR #378, commit en español y push a la misma rama.

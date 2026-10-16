@@ -21,9 +21,9 @@ async function opened(key = 'BASIC_MONTHLY') {
   const storeId = await trial(); await syncPlans();
   const quote = await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key, payerEmail: 'buyer@example.com' } });
   expect(quote.statusCode).toBe(200);
-  const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.json().id } });
-  expect(response.statusCode).toBe(200);
-  const planId = new URL(response.json().initPoint).searchParams.get('preapproval_plan_id')!;
+  // A previously confirmed intention for webhook tests, without creating a remote contract.
+  await prisma.billingCheckout.update({ where: { id: quote.json().id }, data: { openedAt: new Date() } });
+  const planId = (await prisma.billingPlan.findUniqueOrThrow({ where: { key } })).providerId;
   return { storeId, planId, quote: quote.json() };
 }
 function subscription(storeId: string, planId: string, overrides: Record<string, unknown> = {}) {
@@ -49,7 +49,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
       const response = await getApp().inject({ method: 'POST', url: path, headers: h, payload: path.includes('onboarding') ? { storeName: 'Nueva' } : { name: 'Nueva' } });
       expect(response.statusCode, response.body).toBeLessThan(300);
       const session = await getApp().inject({ url: '/api/me', headers: h });
-      expect(session.json().billing).toMatchObject({ plan: 'TRIAL', trialDaysLeft: 7, memberLimit: 3 });
+      expect(session.json().billing).toMatchObject({ plan: 'TRIAL', trialDaysLeft: 7, memberLimit: 5 });
     }
     await seedStoreContext({ createStore: false });
     await getApp().inject({ method: 'POST', url: '/api/stores', headers: headers(), payload: { name: 'Anterior' } });
@@ -78,21 +78,68 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     await seedStoreContext({ firebaseUid: 'staff', role: 'STAFF' });
     expect((await getApp().inject({ url: '/api/billing', headers: buildAuthHeaders({ uid: 'staff' }) })).statusCode).toBe(403);
     await seedStoreContext({ firebaseUid: 'other' });
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: buildAuthHeaders({ uid: 'other' }), payload: { quoteId: quote.id } })).statusCode).toBe(404);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: buildAuthHeaders({ uid: 'other' }), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(404);
   });
-  it('confirma el cobro ARS y conserva referencia/email codificados en el init_point del plan', async () => {
-    const { storeId, quote } = await opened('BASIC_ANNUAL');
-    expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com' });
-    const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
-    const url = new URL(response.json().initPoint);
-    expect(url.searchParams.get('external_reference')).toBe(storeId); expect(url.searchParams.get('payer_email')).toBe('buyer@example.com');
+  it('crea preapproval por API con token, plan, referencia y email de la cotización', async () => {
+    const { storeId, quote, planId } = await opened('BASIC_ANNUAL');
+    expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com', publicKey: 'public-key-placeholder' });
+    const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'single-use-token' } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toEqual({ status: 'authorized' });
+    const calls = mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toMatchObject({ preapproval_plan_id: planId, card_token_id: 'single-use-token', payer_email: 'buyer@example.com', external_reference: storeId, status: 'authorized' });
+    expect(JSON.stringify(await prisma.billingCheckout.findMany())).not.toContain('single-use-token');
+    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'TRIAL', paidThrough: null });
+  });
+  it('valida el token y rechaza datos crudos de tarjeta sin llamar al proveedor', async () => {
+    const { quote } = await opened(); const before = mp.calls.length;
+    for (const payload of [{ quoteId: quote.id }, { quoteId: quote.id, cardTokenId: '' }, { quoteId: quote.id, cardTokenId: 'token', cardNumber: 'synthetic-pan' }]) {
+      expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload })).statusCode).toBe(400);
+    }
+    expect(mp.calls).toHaveLength(before);
+  });
+  it('un doble envío concurrente crea una sola suscripción', async () => {
+    const { quote } = await opened();
+    const responses = await Promise.all([1, 2].map(() => getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })));
+    expect(responses.map(response => response.statusCode).sort()).toEqual([200, 409]);
+    expect(mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval')).toHaveLength(1);
+  });
+  it('una respuesta incierta bloquea otro cobro y refresh recupera la creación remota', async () => {
+    const { storeId, planId, quote } = await opened();
+    mp.failOn('POST /preapproval');
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BUSINESS_MONTHLY', payerEmail: 'another@example.com' } })).statusCode).toBe(409);
+    const remote = subscription(storeId, planId);
+    mp.failOn('');
+    const result = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
+    expect(result.json()).toMatchObject({ status: 'ACTIVE', canCancel: true });
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).providerSubscriptionId).toBe(remote.id);
+  });
+  it('un contrato cancelado anterior no libera un nuevo intento incierto', async () => {
+    const { storeId, planId, quote } = await opened();
+    await prisma.store.update({ where: { id: storeId }, data: { billingPreapprovalId: 'old-cancelled', billingPayerEmail: 'buyer@example.com', billingStatus: 'CANCELLED', billingPaidThrough: new Date(0), billingRemoteUpdatedAt: new Date(0) } });
+    subscription(storeId, planId, { id: 'old-cancelled', status: 'cancelled', summarized: undefined });
+    mp.failOn('POST /preapproval');
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    mp.failOn('');
+    await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('CREATING');
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } })).statusCode).toBe(409);
+  });
+  it('un rechazo explícito permite otra cotización con un nuevo token', async () => {
+    const { quote } = await opened(); mp.failOn('POST /preapproval', 400);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'token' } })).statusCode).toBe(502);
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
+    mp.failOn('');
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } })).statusCode).toBe(200);
   });
   it('impide abrir un importe distinto o una cotización vencida', async () => {
     const { quote, planId } = await opened();
     mp.plans.get(planId)!.auto_recurring = { frequency: 1, frequency_type: 'months', currency_id: 'ARS', transaction_amount: 23000 };
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
     await prisma.billingCheckout.update({ where: { id: quote.id }, data: { expiresAt: new Date(0) } });
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
   });
   it('revalida cotización blue y actualiza el plan antes de mostrar ARS', async () => {
     await opened(); vi.spyOn(blue, 'currentBlueRate').mockResolvedValue(1400);
@@ -113,7 +160,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     const hash = createHmac('sha256', 'test-secret').update('id:subscription-1;request-id:req;ts:123;').digest('hex');
     const response = await getApp().inject({ method: 'POST', url: '/webhooks/mercadopago?data.id=subscription-1', headers: { 'x-request-id': 'req', 'x-signature': `ts=123,v1=${hash}` }, payload: { type: 'subscription_preapproval', data: { id: 'subscription-1' }, status: 'cancelled' } });
     expect(response.statusCode).toBe(200);
-    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: false, memberLimit: 1 });
+    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: false, memberLimit: 3 });
     expect(mp.calls.filter(call => call.path === '/preapproval/subscription-1')).toHaveLength(2);
   });
   it('sin secreto también reconsulta, no confía en pending ni extiende desde next_payment_date', async () => {
@@ -152,17 +199,19 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ url: '/api/billing', headers: headers() })).statusCode).toBe(200);
     expect(await prisma.client.count()).toBe(0);
   });
-  it('Básico rechaza invitaciones y dos aceptaciones compiten por el último lugar del plan', async () => {
+  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 5]])('%s permite el último lugar y rechaza invitaciones al alcanzar %s', async (plan, limit) => {
     const storeId = await trial();
-    await prisma.store.update({ where: { id: storeId }, data: { billingPlan: 'BASIC' } });
-    expect((await getApp().inject({ method: 'POST', url: '/api/invitations', headers: headers(), payload: { role: 'STAFF' } })).statusCode).toBe(409);
-    await prisma.store.update({ where: { id: storeId }, data: { billingPlan: 'BUSINESS' } });
-    const extra = await prisma.user.create({ data: { firebaseUid: 'extra' } });
-    await prisma.storeMember.create({ data: { storeId, userId: extra.id, role: 'STAFF' } });
+    await prisma.store.update({ where: { id: storeId }, data: { billingPlan: String(plan) } });
+    for (let i = 1; i < Number(limit) - 1; i++) {
+      const extra = await prisma.user.create({ data: { firebaseUid: `extra-${i}` } });
+      await prisma.storeMember.create({ data: { storeId, userId: extra.id, role: 'STAFF' } });
+    }
+    expect((await getApp().inject({ method: 'POST', url: '/api/invitations', headers: headers(), payload: { role: 'STAFF' } })).statusCode).toBeLessThan(300);
     const invitations = await Promise.all(['a', 'b'].map(() => prisma.storeInvitation.create({ data: { storeId, role: 'STAFF', expiresAt: new Date(Date.now() + 60000) } })));
     const responses = await Promise.all(invitations.map((invite, i) => getApp().inject({ method: 'POST', url: '/api/invitations/accept', headers: buildAuthHeaders({ uid: `new-${i}` }), payload: { token: invite.token } })));
     expect(responses.map(response => response.statusCode).sort()).toEqual([200, 409]);
-    expect(await prisma.storeMember.count({ where: { storeId } })).toBe(3);
+    expect(await prisma.storeMember.count({ where: { storeId } })).toBe(Number(limit));
+    expect((await getApp().inject({ method: 'POST', url: '/api/invitations', headers: headers(), payload: { role: 'STAFF' } })).statusCode).toBe(409);
   });
   it('cancelar exige confirmación del proveedor, es idempotente y preserva período abonado', async () => {
     const { storeId, planId } = await opened(); subscription(storeId, planId); await webhook();
@@ -195,6 +244,10 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it('un pago de Básico con equipo excedido conserva datos y permite al owner reducirlo', async () => {
     const { storeId, planId } = await opened();
+    for (let i = 0; i < 2; i++) {
+      const user = await prisma.user.create({ data: { firebaseUid: `paid-${i}` } });
+      await prisma.storeMember.create({ data: { storeId, userId: user.id, role: 'STAFF' } });
+    }
     const extra = await prisma.user.create({ data: { firebaseUid: 'extra-paid' } });
     const member = await prisma.storeMember.create({ data: { storeId, userId: extra.id, role: 'STAFF' } });
     subscription(storeId, planId); await webhook();
@@ -214,9 +267,9 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     const { quote, planId } = await opened();
     const remote = mp.plans.get(planId)!;
     remote.auto_recurring = { frequency: 12, frequency_type: 'months', currency_id: 'ARS', transaction_amount: 22000 };
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(409);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(409);
     remote.auto_recurring = {};
-    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(502);
+    expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id, cardTokenId: 'card-token-placeholder' } })).statusCode).toBe(502);
   });
   it('refresh recupera el retorno del checkout sin confiar en un ID enviado por el browser', async () => {
     const { storeId, planId } = await opened(); subscription(storeId, planId);
