@@ -39,7 +39,8 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
   const phone = usePhoneLayout();
   const keyboardInset = useKeyboardInset(phone);
   const [fieldFocused, setFieldFocused] = useState(false);
-  // With the keyboard open, drop the pinned footer and let the whole form scroll naturally.
+  // Once a field is touched (keyboard open), drop the pinned footer for the rest of the visit so
+  // taps on the submit button never land on a layout that is jumping back. With the keyboard open, drop the pinned footer and let the whole form scroll naturally.
   const flowLayout = phone && (fieldFocused || keyboardInset > 0);
 
   useEffect(() => {
@@ -169,9 +170,6 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
       data-keyboard={flowLayout ? 'open' : undefined}
       onFocusCapture={(event) => {
         if (phone && event.target instanceof HTMLInputElement) setFieldFocused(true);
-      }}
-      onBlurCapture={(event) => {
-        if (!(event.relatedTarget instanceof HTMLInputElement)) setFieldFocused(false);
       }}
       style={phone ? (flowLayout ? { height: 'auto', minHeight: '100svh', overflow: 'visible' } : { height: '100dvh' }) : undefined}
     >
