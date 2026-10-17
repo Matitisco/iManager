@@ -6,7 +6,7 @@ import type { FirebaseAuthContext } from "../../types/auth.js";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser } from "../auth/session.service.js";
-import { assertSectionList, normalizeSections } from "../stores/sections.js";
+import { assertSectionList, normalizeSections, STAFF_DEFAULT_SECTIONS } from "../stores/sections.js";
 
 const INVITATION_TTL_DAYS = 7;
 
@@ -16,9 +16,10 @@ export async function createInvitation(
   email: string | undefined,
   role: "MANAGER" | "STAFF",
   access?: { sections?: string[]; sensitiveAccess?: boolean },
+  actorUserId?: string,
 ) {
-  if (actorRole !== "OWNER") {
-    throw new DomainError("Solo el Propietario puede crear invitaciones", 403);
+  if (actorRole !== "OWNER" && !(actorRole === "MANAGER" && role === "STAFF")) {
+    throw new DomainError("No tenés permisos para invitar con ese rol", 403);
   }
 
   await assertMemberCapacity(storeId);
@@ -31,17 +32,6 @@ export async function createInvitation(
     );
   }
 
-  // Check if email already belongs to a member (only when email is provided)
-  if (email) {
-    const existing = await prisma.user.findFirst({
-      where: { email },
-      include: { memberships: { where: { storeId } } },
-    });
-    if (existing && existing.memberships.length > 0) {
-      throw new DomainError("Este email ya es miembro de la tienda", 409);
-    }
-  }
-
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + INVITATION_TTL_DAYS);
 
@@ -49,6 +39,7 @@ export async function createInvitation(
   const invitation = await prisma.storeInvitation.create({
     data: {
       storeId,
+      ...(actorUserId ? { invitedById: actorUserId } : {}),
       email,
       role,
       expiresAt,
@@ -64,21 +55,25 @@ export async function createInvitation(
     email: invitation.email,
     role: invitation.role,
     expiresAt: invitation.expiresAt,
+    createdAt: invitation.createdAt,
   };
 }
 
 export async function listInvitations(storeId: string) {
   const now = new Date();
-  return prisma.storeInvitation.findMany({
+  const invitations = await prisma.storeInvitation.findMany({
     where: { storeId, status: "PENDING", expiresAt: { gt: now } },
     orderBy: { createdAt: "desc" },
-    select: { id: true, email: true, role: true, createdAt: true, expiresAt: true },
+    select: { id: true, token: true, email: true, role: true, createdAt: true, expiresAt: true },
   });
+  const base = process.env.FRONTEND_URL?.trim().replace(/\/+$/, "");
+  if (!base) throw new DomainError("No se puede generar el enlace de invitación", 500);
+  return invitations.map(({ token, ...invite }) => ({ ...invite, inviteUrl: `${base}/invite/${token}` }));
 }
 
 export async function revokeInvitation(storeId: string, invitationId: string, actorRole: string) {
-  if (actorRole !== "OWNER") {
-    throw new DomainError("Solo el Propietario puede revocar invitaciones", 403);
+  if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
+    throw new DomainError("No tenés permisos para cancelar invitaciones", 403);
   }
 
   const invitation = await prisma.storeInvitation.findFirst({
@@ -87,14 +82,20 @@ export async function revokeInvitation(storeId: string, invitationId: string, ac
   if (!invitation) {
     throw new DomainError("Invitación no encontrada", 404);
   }
+  if (actorRole === "MANAGER" && invitation.role !== "STAFF") {
+    throw new DomainError("Solo podés cancelar invitaciones para Empleado", 403);
+  }
   if (invitation.status === "REVOKED") return; // already revoked — idempotent
   if (invitation.status !== "PENDING") {
     throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
   }
 
-  await prisma.storeInvitation.update({
-    where: { id: invitationId },
-    data: { status: "REVOKED" },
+  await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, `invitation:${invitation.id}`);
+    const current = await tx.storeInvitation.findUnique({ where: { id: invitation.id } });
+    if (current?.status === "REVOKED") return;
+    if (current?.status !== "PENDING") throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
+    await tx.storeInvitation.update({ where: { id: invitation.id }, data: { status: "REVOKED" } });
   });
 }
 
@@ -105,13 +106,25 @@ export async function previewInvitation(token: string) {
     include: { store: { select: { name: true } } },
   });
 
-  if (!invitation || invitation.status !== "PENDING" || invitation.expiresAt < now) {
-    return null;
-  }
+  if (!invitation) return { status: "not_found" as const };
+  if (invitation.status === "ACCEPTED") return { status: "used" as const };
+  if (invitation.status === "REVOKED") return { status: "revoked" as const };
+  if (invitation.expiresAt <= now) return { status: "expired" as const };
 
+  const inviter = invitation.invitedById
+    ? await prisma.user.findUnique({ where: { id: invitation.invitedById }, select: { displayName: true } })
+    : null;
+  const owner = !inviter?.displayName ? await prisma.storeMember.findFirst({
+    where: { storeId: invitation.storeId, role: "OWNER" },
+    orderBy: { createdAt: "asc" },
+    select: { user: { select: { displayName: true } } },
+  }) : null;
   return {
+    status: "valid" as const,
     storeName: invitation.store.name,
     role: invitation.role,
+    expiresAt: invitation.expiresAt,
+    inviterName: inviter?.displayName || owner?.user.displayName || "El propietario",
   };
 }
 
@@ -121,7 +134,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     where: { token },
   });
 
-  if (!invitation || invitation.status !== "PENDING" || invitation.expiresAt < now) {
+  if (!invitation || invitation.status !== "PENDING" || invitation.expiresAt <= now) {
     throw new DomainError("La invitación expiró o ya fue utilizada", 410);
   }
 
@@ -144,7 +157,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     await lockTransactionKey(tx, `invitation:${invitation.id}`);
 
     const current = await tx.storeInvitation.findUnique({ where: { id: invitation.id } });
-    if (!current || current.status !== "PENDING" || current.expiresAt < now) {
+    if (!current || current.status !== "PENDING" || current.expiresAt <= new Date()) {
       throw new DomainError("La invitación expiró o ya fue utilizada", 410);
     }
 
@@ -163,7 +176,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
 
     const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
 
-    const sections = normalizeSections(current.sections);
+    const sections = normalizeSections(current.sections) ?? (current.role === "STAFF" ? STAFF_DEFAULT_SECTIONS : null);
     await tx.storeMember.create({
       data: {
         storeId: invitation.storeId,

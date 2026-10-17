@@ -1,7 +1,15 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-15**
+**Ultima actualizacion: 2026-10-17**
+
+
+## Issue #71 — Equipo e invitaciones por link — 2026-10-17
+
+- Equipo y permisos mobile/desktop según diseños aprobados: perfiles rápidos derivados, saldo de cajas anidado, acciones sensibles y baja confirmada; Socio sólo invita y gestiona Empleados ajenos.
+- Preview con estados válidos/vencidos/usados/revocados/inexistentes, creador nullable y fallback al Propietario. Aceptación por link sin coincidencia de email, de un uso, transaccional y con vencimiento. Empleado con defaults explícitos sin Cajas, saldos, Reportes o administración de Comisiones.
+- Hash sin permiso conserva URL y muestra pantalla de acceso denegado con nombre del dueño, sin notificación. Reportes respeta los accesos a listas/categorías, y Catálogos filtra GET/PUT por sección.
+- Schema aditivo aplicado sólo al Postgres local. TypeScript, build frontend, 834 tests frontend, 449 unitarios backend y 268 integraciones aprobados; E2E nuevos mobile/desktop y regresiones de Configuración/Reportes aprobados. Detalles: `docs/team-permissions-71.md`; OpenSpec: `team-section-permissions`. Cambios en working tree, sin commit ni push.
 
 
 ## Issue #359 — Suscripciones con Mercado Pago — 2026-10-15

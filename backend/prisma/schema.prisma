@@ -509,6 +509,7 @@ model StoreCatalogOption {
 
 model StoreInvitation {
   id              String           @id @default(cuid())
+  invitedById     String? // Nullable for legacy invitations; User id of the creator.
   storeId         String
   token           String           @unique @default(uuid())
   email           String?          @db.VarChar(255)

@@ -8,7 +8,7 @@ import { MOBILE_TAB_INDICATOR_TRANSITION, clampIndicatorFrame, mobileTabIndicato
 const context = vi.hoisted(() => ({
   appSession: {
     user: { displayName: 'Ana', email: 'ana@test.com' },
-    store: { id: 's', name: 'Casa' },
+    store: { id: 's', name: 'Casa', ownerDisplayName: 'Matías' },
     membership: { role: 'OWNER' as 'OWNER' | 'MANAGER' | 'STAFF', sections: null as string[] | null },
     onboardingRequired: false,
   },
@@ -32,6 +32,7 @@ describe('sidebar unread counts', () => {
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
     context.appSession.membership.role = 'OWNER';
+    context.appSession.membership.sections = null;
     window.location.hash = '#/dash';
   });
 
@@ -260,6 +261,33 @@ describe('sidebar unread counts', () => {
     expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
     expect(screen.queryByTestId('page-back')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
+  });
+
+  it('keeps a forbidden URL and shows the owner access message instead of redirecting', async () => {
+    usePhone();
+    context.appSession.membership.role = 'STAFF';
+    context.appSession.membership.sections = ['dashboard', 'sales'];
+    window.location.hash = '#/rep';
+    render(<DeskApp />);
+    expect(screen.getByTestId('no-section-access')).toHaveTextContent('No tenés acceso');
+    expect(screen.getByText('Pedile acceso a Matías')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pedile acceso a Matías' })).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/rep');
+    expect(screen.queryByTestId('sidebar-tab-reports')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Volver al Dashboard' }));
+    expect(window.location.hash).toBe('#/dash');
+    goHash('#/inv');
+    expect(screen.getByTestId('no-section-access')).toHaveTextContent('Inventario');
+    expect(window.location.hash).toBe('#/inv');
+  });
+
+  it('keeps billing owner-only and shows the calm access screen', () => {
+    usePhone();
+    context.appSession.membership.role = 'MANAGER';
+    window.location.hash = '#/plan';
+    render(<DeskApp />);
+    expect(screen.getByTestId('no-section-access')).toHaveTextContent('Plan y facturación');
+    expect(window.location.hash).toBe('#/plan');
   });
 
   it('slides Canjes into the bar when an employee cannot open Reportes', () => {

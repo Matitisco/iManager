@@ -40,7 +40,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   await page.getByTestId('sidebar-tab-settings').click();
   await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
   const reports = page.getByRole('switch', { name: 'Reportes' });
-  await expect(page.getByRole('heading', { name: 'Permisos' })).toBeVisible();
+  await expect(page.locator('.team-permissions h1')).toBeVisible();
   await expect(reports).not.toBeChecked();
   await expect(reports).toBeEnabled();
   await expect(page.getByRole('switch', { name: 'Ventas' })).toBeChecked();
@@ -50,7 +50,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
 
   await reports.click();
   await expect(reports).toBeChecked();
-  await expect(reports.locator('xpath=ancestor::div[contains(@class,"perm")]')).toContainText('Puede ver esta sección');
+  await expect(reports.locator('xpath=ancestor::div[contains(@class,"perm")][1]')).toContainText('Puede ver esta sección');
   await shot(page, 'permissions-1440-on');
   await page.getByRole('button', { name: 'Guardar permisos' }).click();
   await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
@@ -77,10 +77,10 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   await page.getByTestId('sidebar-tab-more').click();
   await page.getByTestId('sidebar-tab-settings').click();
   await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
-  await expect(page.getByRole('heading', { name: 'Permisos' })).toBeVisible();
+  await expect(page.locator('.team-permissions h1')).toBeVisible();
   await expect(page.getByRole('switch', { name: 'Reportes' })).toBeChecked();
   await expect(page.getByTestId('permissions-save')).toBeVisible();
-  await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
+  await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
   await shot(page, 'permissions-390-on');
 
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });

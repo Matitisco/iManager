@@ -424,14 +424,14 @@ describe("integrated operation API", () => {
     expect(details.json().sale).toMatchObject({ amount: 1400, status: "PENDIENTE" });
   });
 
-  it("keeps reports-only managers read-only for module lists and categories", async () => {
+  it("blocks module lists and categories for reports-only managers", async () => {
     const app = getApp();
     const context = await seedStoreContext({ role: "MANAGER" });
     await prisma.storeMember.update({ where: { id: context.membership!.id }, data: { sections: ["reports"] } });
     const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
     for (const path of ["/api/inventory", "/api/sales", "/api/trade-ins", "/api/clients", "/api/inventory/categories", "/api/sales/categories", "/api/trade-ins/categories", "/api/clients/categories"]) {
       const response = await app.inject({ method: "GET", url: path, headers });
-      expect(response.statusCode, path).toBe(200);
+      expect(response.statusCode, path).toBe(403);
     }
     const mutation = await app.inject({ method: "POST", url: "/api/inventory/categories", headers, payload: { name: "Denied" } });
     expect(mutation.statusCode).toBe(403);

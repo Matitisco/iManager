@@ -221,15 +221,12 @@ for (const viewport of viewports) {
       await shot(page, `${prefix}-16-invitacion.png`);
       await page.keyboard.press('Escape');
       await expect(invite).toBeHidden();
-      await page.getByTestId('settings-invites').click();
-      const links = page.getByRole('dialog', { name: 'Links de invitación' });
-      await expect(links).toBeVisible();
+      await expect(page.getByTestId('settings-invites')).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Compartir por WhatsApp' })).toBeVisible();
       await shot(page, `${prefix}-17-invitaciones.png`);
-      await links.locator('.sheet-foot').getByRole('button', { name: 'Listo' }).click();
-      await expect(links).toBeHidden();
 
       await page.locator('[data-testid^="settings-member-"]').filter({ hasText: 'Empleado' }).click();
-      await expect(page.getByRole('heading', { name: 'Permisos', exact: true })).toBeVisible();
+      await expect(page.locator('.team-permissions h1')).toBeVisible();
       await expect(page.getByRole('switch', { name: 'Inventario' })).toBeVisible();
       await shot(page, `${prefix}-18-permisos.png`);
     });

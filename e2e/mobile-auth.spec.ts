@@ -173,17 +173,17 @@ test.describe('phone login, invite and onboarding', () => {
       await route.continue();
     });
     await page.goto(`/invite/${invitation.token}`);
-    await expect(page.getByTestId('login-invite-banner')).toContainText('Verificando invitación');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Verificando invitación');
     await expectFits(page);
     await shot(page, 'm10-login-invitacion-verificando-390');
     releasePreview?.();
-    await expect(page.getByTestId('login-invite-banner')).toContainText('Tienda Ejemplo');
-    await expect(page.getByTestId('login-invite-banner')).toContainText('Socio');
-    await expect(page.getByTestId('login-submit')).toBeVisible();
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Tienda Ejemplo');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Socio');
+    await expect(page.getByRole('button', { name: 'Crear cuenta con email' })).toBeVisible();
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectFits(page);
-      await expectInViewport(page, 'login-submit');
+      await expectInViewport(page, 'accept-invitation-screen');
       if (width === 390) await shot(page, 'm10-login-invitacion-390');
     }
 
@@ -191,18 +191,18 @@ test.describe('phone login, invite and onboarding', () => {
     await page.route('**/api/invitations/preview/**', (route) => route.fulfill({ status: 400, body: '{}' }));
     await clearSession(page);
     await page.goto('/invite/caido');
-    await expect(page.getByTestId('login-invite-banner')).toContainText('No pudimos verificar la invitación todavía');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('No pudimos verificar la invitación todavía');
     await expectFits(page);
-    await expectInViewport(page, 'login-submit');
+    await expectInViewport(page, 'accept-invitation-screen');
     await shot(page, 'm10-login-invitacion-error-390');
 
     await page.unroute('**/api/invitations/preview/**');
     await page.goto(`/invite/vencida-${Date.now()}`);
-    await expect(page.getByTestId('login-invite-banner')).toContainText('ya no está disponible');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Esta invitación ya no sirve');
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectFits(page);
-      await expectInViewport(page, 'login-google');
+      await expectInViewport(page, 'accept-invitation-screen');
       if (width === 390) await shot(page, 'm10-login-invitacion-no-disponible-390');
     }
   });
@@ -254,8 +254,8 @@ test.describe('phone login, invite and onboarding', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/invite/${invitation.token}`);
-    await expect(page.getByTestId('store-invite-modal')).toContainText('Tienda Norte');
-    await expect(page.getByTestId('store-invite-modal')).toContainText('Empleado');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Tienda Norte');
+    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Empleado');
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectFits(page);
@@ -278,12 +278,12 @@ test.describe('phone login, invite and onboarding', () => {
     await expectFits(page);
     await shot(page, 'm10-onboarding-verificando-390');
     releaseOnboarding?.();
-    await expect(page.getByRole('button', { name: /Unirme a Tienda Norte/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Aceptar invitación' })).toBeVisible();
     await expect(page.getByText('Empleado')).toBeVisible();
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
       await expectFits(page);
-      await expectInViewport(page, 'onboarding-dock');
+      await expectInViewport(page, 'accept-invitation-screen');
       if (width === 390) await shot(page, 'm10-onboarding-invitacion-390');
     }
 
@@ -293,21 +293,17 @@ test.describe('phone login, invite and onboarding', () => {
     await expect(page.getByRole('heading', { name: 'No pudimos verificar la invitación todavía' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reintentar verificación' })).toBeVisible();
     await expectFits(page);
-    await expectInViewport(page, 'onboarding-dock');
+    await expectInViewport(page, 'accept-invitation-screen');
     await shot(page, 'm10-onboarding-error-390');
 
     await page.unroute('**/api/invitations/preview/**');
     await page.goto(`/invite/onboarding-vencida-${Date.now()}`);
-    await expect(page.getByText('Invitación inválida. Podés crear tu propia tienda.')).toBeVisible();
-    await expect(page.getByTestId('onboarding-currency')).toBeHidden();
-    await page.getByText('Moneda y dólar').click();
-    await expect(page.getByTestId('onboarding-currency')).toBeVisible();
-    await expect(page.getByTestId('onboarding-exchange-source')).toBeVisible();
-    await expect(page.getByTestId('onboarding-submit')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Esta invitación ya no sirve' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Ir a iManager' })).toBeVisible();
+    await expect(page.getByTestId('onboarding-submit')).toHaveCount(0);
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 640 });
       await expectFits(page);
-      await expectInViewport(page, 'onboarding-submit');
       if (width === 390) await shot(page, 'm10-onboarding-invalida-390');
     }
   });

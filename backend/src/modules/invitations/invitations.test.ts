@@ -20,6 +20,7 @@ const {
     },
     storeMember: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),
       updateMany: vi.fn(),
@@ -58,6 +59,7 @@ describe("invitations.service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.storeMember.findFirst.mockResolvedValue({ user: { displayName: "Ana" } });
     prismaMock.store.findUniqueOrThrow.mockResolvedValue({ billingPlan: "INTERNAL", trialEndsAt: null, billingPaidThrough: null });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
     prismaMock.storeMember.updateMany.mockResolvedValue({ count: 1 });
@@ -134,8 +136,11 @@ describe("invitations.service", () => {
     });
 
     await expect(previewInvitation("token-1")).resolves.toEqual({
+      status: "valid",
       storeName: "Tienda Centro",
       role: "MANAGER",
+      inviterName: "Ana",
+      expiresAt: expect.any(Date),
     });
   });
 
@@ -187,7 +192,7 @@ describe("invitations.service", () => {
     const preview = await previewInvitation(created.token);
     const session = await acceptInvitation(created.token, auth);
 
-    expect(preview).toEqual({ storeName: "Tienda Norte", role: "MANAGER" });
+    expect(preview).toEqual({ status: "valid", storeName: "Tienda Norte", role: "MANAGER", inviterName: "Ana", expiresAt: expect.any(Date) });
     expect(prismaMock.storeMember.create).toHaveBeenCalledWith({
       data: {
         storeId: "store-invited",

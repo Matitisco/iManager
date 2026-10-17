@@ -63,7 +63,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 const PERMISSION_ORDER = Object.keys(PERMISSION_LABELS);
 
 export const INVITE_ROLE_SECTIONS: Record<"STAFF" | "MANAGER", string[]> = {
-  STAFF: ["sales", "inventory", "tradeins"],
+  STAFF: ["dashboard", "inventory", "sales", "clients", "tradeins", "service", "notifications"],
   MANAGER: ["dashboard", "inventory", "sales", "tradeins", "clients", "service", "cash", "reports", "notifications"],
 };
 

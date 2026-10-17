@@ -70,9 +70,9 @@ function saleMoment(sale: Sale) {
 }
 
 function roleName(role: string) {
-  if (role === "MANAGER") return "Administrador";
-  if (role === "OWNER") return "Dueño";
-  return "Vendedor";
+  if (role === "MANAGER") return "Socio";
+  if (role === "OWNER") return "Propietario";
+  return "Empleado";
 }
 
 interface ActivityRow {
