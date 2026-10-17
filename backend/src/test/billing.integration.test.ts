@@ -1,10 +1,12 @@
 import { createHmac } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../plugins/prisma.js';
 import { useIntegrationApp } from './integration-helpers.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
 import { mockMercadoPago } from './billing-http.js';
 import { refreshBilling, syncFailureLine, syncPlans, reconcileSubscriptions } from '../modules/billing/service.js';
+import { runDailyReprice } from '../modules/billing/reprice-schedule.js';
 import * as blue from '../lib/blue-rate.js';
 
 const { getApp } = useIntegrationApp();
@@ -572,5 +574,55 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     const { storeId, planId, quote } = await opened(); subscription(storeId, planId, quote.id); await webhook();
     vi.spyOn(blue, 'currentBlueRate').mockResolvedValue(1300); await syncPlans(); await reconcileSubscriptions();
     expect(mp.calls.some(call => call.path === '/preapproval/subscription-1' && call.method === 'PUT' && (call.body.auto_recurring as { transaction_amount?: number })?.transaction_amount === 28600)).toBe(true);
+  });
+  it('la corrida diaria actualiza los pesos, sigue si una tienda falla y la segunda instancia no repite', async () => {
+    const { storeId, planId, quote } = await opened();
+    subscription(storeId, planId, quote.id); await webhook();
+    const other = await seedStoreContext({ firebaseUid: 'daily-other', email: 'otra@example.com' });
+    const checkout = await prisma.billingCheckout.create({ data: {
+      storeId: other.store!.id, planKey: 'BASIC_MONTHLY', providerPlanId: planId, payerEmail: 'otra@example.com',
+      amountArs: 22000, exchangeRate: 1000, expiresAt: new Date(Date.now() + 60_000), openedAt: new Date(), checkoutStatus: 'RESOLVED', providerSubscriptionId: 'subscription-bad',
+    } });
+    await prisma.store.update({ where: { id: other.store!.id }, data: { billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPeriod: 'MONTHLY', billingPreapprovalId: 'subscription-bad', billingPayerEmail: 'otra@example.com' } });
+    const cancelled = await seedStoreContext({ firebaseUid: 'daily-cancelled', email: 'baja@example.com' });
+    await prisma.store.update({ where: { id: cancelled.store!.id }, data: { billingPlan: 'BASIC', billingStatus: 'CANCELLED', billingPeriod: 'MONTHLY', billingPreapprovalId: 'subscription-cancelled', billingPayerEmail: 'baja@example.com' } });
+    const remote = { external_reference: checkout.id, preapproval_plan_id: planId, payer_email: 'otra@example.com', status: 'authorized', date_created: new Date().toISOString(), last_modified: new Date().toISOString(), auto_recurring: { currency_id: 'ARS', frequency: 1, frequency_type: 'months', transaction_amount: 22000 } };
+    mp.subscriptions.set('subscription-bad', { id: 'subscription-bad', ...remote });
+    mp.subscriptions.set('subscription-cancelled', { id: 'subscription-cancelled', ...remote, external_reference: cancelled.store!.id, payer_email: 'baja@example.com' });
+    vi.spyOn(blue, 'currentBlueRate').mockResolvedValue(1300);
+    mp.failOn('PUT /preapproval/subscription-bad', 503, 'otra@example.com no disponible');
+    const log = { info: vi.fn(), warn: vi.fn() };
+    await runDailyReprice(log);
+    expect(log.info).toHaveBeenCalledWith('Facturación diaria: 4 planes, 1 suscripción actualizada, 1 error.');
+    expect(mp.calls.some(call => call.path === '/preapproval/subscription-1' && call.method === 'PUT' && (call.body.auto_recurring as { transaction_amount?: number })?.transaction_amount === 28600)).toBe(true);
+    expect(mp.calls.some(call => call.path === '/preapproval/subscription-cancelled' && call.method === 'PUT')).toBe(false);
+    const logged = JSON.stringify(log.info.mock.calls);
+    expect(logged).not.toContain(storeId);
+    expect(logged).not.toContain('otra@example.com');
+    expect(logged).not.toContain('baja@example.com');
+    expect(logged).not.toContain('test-placeholder');
+    const pinned = new URL(process.env.DATABASE_URL ?? '');
+    pinned.searchParams.set('connection_limit', '1');
+    const holder = new PrismaClient({ datasourceUrl: pinned.toString() });
+    try {
+      const held = await holder.$queryRaw<Array<{ locked: boolean }>>`SELECT pg_try_advisory_lock(hashtext('billing:daily'), 164) AS locked`;
+      expect(held[0]?.locked).toBe(true);
+      const skipped = { info: vi.fn(), warn: vi.fn() };
+      const before = mp.calls.length;
+      await runDailyReprice(skipped);
+      expect(skipped.info).not.toHaveBeenCalled();
+      expect(mp.calls.length).toBe(before);
+    } finally {
+      await holder.$queryRaw`SELECT pg_advisory_unlock(hashtext('billing:daily'), 164) AS released`;
+      await holder.$disconnect();
+    }
+  });
+  it('un fallo del catálogo deja la corrida diaria en un conteo y no corta el proceso', async () => {
+    mp.failOn('GET /users/me', 503, 'token test-placeholder buyer@example.com');
+    const log = { info: vi.fn(), warn: vi.fn() };
+    await expect(runDailyReprice(log)).resolves.toBeUndefined();
+    expect(log.info).toHaveBeenCalledWith('Facturación diaria: 0 planes, 0 suscripciones actualizadas, 1 error.');
+    expect(JSON.stringify(log.info.mock.calls)).not.toContain('test-placeholder');
+    expect(JSON.stringify(log.info.mock.calls)).not.toContain('buyer@example.com');
   });
 });
