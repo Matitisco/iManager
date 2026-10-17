@@ -19,8 +19,9 @@ export function arsAmount(usd: number, rate: number) {
   if (!Number.isFinite(amount) || amount <= 0 || amount >= 10_000_000_000) throw new DomainError('Cotización inválida para la suscripción');
   return amount;
 }
+/** The no-card trial carries Básico entitlements. INTERNAL stays unlimited. */
 export function memberLimit(plan: string) {
-  return plan === 'INTERNAL' ? null : plan === 'BASIC' ? 3 : 5;
+  return plan === 'INTERNAL' ? null : plan === 'BASIC' || plan === 'TRIAL' ? 3 : 5;
 }
 export type BillingStore = Pick<Store, 'billingPlan' | 'billingStatus' | 'trialEndsAt' | 'billingPaidThrough' | 'billingPeriod' | 'billingPreapprovalId'>;
 export function billingSummary(store: BillingStore, members: number, now = new Date()) {

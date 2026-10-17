@@ -8,7 +8,7 @@ import { BillingAccessBanner, BillingScreen } from './BillingScreen';
 import { DeskProvider } from '../ui';
 
 const state = vi.hoisted(() => {
-  const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 5, members: 1, overLimit: false, canCancel: false };
+  const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false };
   return {
     summary, appSession: { user: { email: 'owner@example.com' }, store: { id: 's' }, membership: { role: 'OWNER' }, billing: summary },
     billingDetails: { ...summary, plans: [
@@ -40,7 +40,9 @@ beforeEach(() => {
 describe('Plan y facturación', () => {
   it('muestra precios mensuales/anuales en USD y Sistema propio sin checkout', async () => {
     ui(); await screen.findByRole('button', { name: 'Suscribirme a Básico' });
-    expect(screen.getByText('1 de 5 usuarios · Incluye al propietario')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).toBeVisible();
+    expect(screen.getByText('Te quedan 7 días de prueba sin tarjeta.')).toBeVisible();
+    expect(screen.getByText('1 de 3 usuarios · Incluye al propietario')).toBeVisible();
     expect(screen.getByText('Hasta 3 usuarios')).toBeVisible(); expect(screen.getByText('Hasta 5 usuarios')).toBeVisible();
     expect(screen.getByText('US$ 22')).toBeVisible(); expect(screen.getByText('US$ 87')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: /Anual/ }));
@@ -50,16 +52,22 @@ describe('Plan y facturación', () => {
   });
   it('muestra importe ARS y email antes de pedir el checkout', async () => {
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    const quote = await screen.findByTestId('billing-quote');
+    const quote = await screen.findByRole('dialog', { name: 'Antes de suscribirte' });
+    expect(quote).toHaveAttribute('aria-modal', 'true');
     expect(quote).toHaveTextContent('22.000'); expect(quote).toHaveTextContent('owner@example.com');
+    expect(quote).toHaveTextContent('Dólar blue vendedor');
+    expect(quote).toHaveTextContent('El débito es automático');
     expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
   });
-  it('un error de checkout conserva mensaje visible y pide revisar el importe', async () => {
+  it('un error de checkout queda dentro del modal', async () => {
     state.openSubscriptionCheckout.mockRejectedValue(new Error('Cambió el importe en pesos.'));
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Continuar en Mercado Pago' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cambió el importe');
-    expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+    const quote = await screen.findByTestId('billing-quote');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Cambió el importe');
+    expect(quote).toContainElement(alert);
+    expect(screen.getByRole('button', { name: 'Continuar en Mercado Pago' })).toBeEnabled();
     expect(redirectToMercadoPago).not.toHaveBeenCalled();
   });
   it('confirma el importe y redirige al checkout de Mercado Pago', async () => {
@@ -78,8 +86,9 @@ describe('Plan y facturación', () => {
     redirectToMercadoPago.mockImplementationOnce(() => { throw new Error('No pudimos abrir Mercado Pago.'); });
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Continuar en Mercado Pago' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos abrir Mercado Pago');
-    expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('No pudimos abrir Mercado Pago');
+    expect(screen.getByTestId('billing-quote')).toContainElement(alert);
   });
   it('un doble click envía una sola suscripción', async () => {
     let complete!: (value: { initPoint: string }) => void;
@@ -89,14 +98,48 @@ describe('Plan y facturación', () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(state.openSubscriptionCheckout).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Abriendo Mercado Pago…' })).toHaveAttribute('aria-busy', 'true');
     complete({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=abc' });
     await waitFor(() => expect(redirectToMercadoPago).toHaveBeenCalledTimes(1));
   });
-  it('cambiar email o frecuencia invalida la cotización anterior', async () => {
-    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    await screen.findByTestId('billing-quote');
-    await userEvent.type(screen.getByRole('textbox', { name: /Email del pagador/ }), 'x');
+  it('contiene el foco y se cierra con escape, volver y el fondo', async () => {
+    const view = ui();
+    const open = screen.getByRole('button', { name: 'Suscribirme a Básico' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Antes de suscribirte' });
+    expect(dialog).toHaveAttribute('data-layout', 'dialog');
+    expect(view.container.inert).toBe(true);
+    expect(dialog).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Volver a elegir' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(view.container.inert).toBe(false);
+    expect(open).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'Suscribirme a Básico' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Volver a elegir' }));
     expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Suscribirme a Básico' }));
+    fireEvent.mouseDown(await screen.findByTestId('billing-modal-backdrop'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('en el teléfono la confirmación es una hoja inferior', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('max-width'), media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      ui();
+      await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Antes de suscribirte' });
+      expect(dialog).toHaveAttribute('data-layout', 'sheet');
+      expect(dialog.querySelector('.billing-modal-grab')).toBeTruthy();
+    } finally { window.matchMedia = original; }
   });
   it('el plan interno nunca muestra checkout ni cancelación', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });
