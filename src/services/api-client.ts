@@ -1,5 +1,5 @@
 import type { AuthUserLike } from '../types/auth-user';
-import { readApiErrorMessage } from '../lib/api-message';
+import { isTechnicalMessage, readApiErrorMessage } from '../lib/api-message';
 import { SERVER_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -11,6 +11,8 @@ export type ApiRequestOptions = {
   // 'error'/'friendly' read backend validation text and hide technical messages;
   // 'fallback' never shows backend text. All modes normalize 5xx errors.
   errorFrom?: 'error' | 'friendly' | 'fallback';
+  // A 503 from billing can carry a safe Spanish sentence. Other 5xx stay generic.
+  revealFriendlyServerError?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
   accept?: string;
@@ -63,7 +65,14 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
     : await fetchWithTimeout(`${baseUrl}${path}`, init, timeoutMs);
 
   if (!response.ok) {
-    if (response.status >= 500) throw new ApiError(response.status, SERVER_ERROR_MESSAGE);
+    if (response.status >= 500) {
+      if (options.revealFriendlyServerError) {
+        const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+        const text = typeof payload?.error === 'string' ? payload.error.trim() : '';
+        if (text && text.length <= 240 && !isTechnicalMessage(text)) throw new ApiError(response.status, text);
+      }
+      throw new ApiError(response.status, SERVER_ERROR_MESSAGE);
+    }
     const message = typeof fallback === 'function' ? fallback(response.status) : fallback;
     if (errorFrom === 'fallback') throw new ApiError(response.status, message);
     const payload = await response.json().catch(() => null) as { error?: string } | null;

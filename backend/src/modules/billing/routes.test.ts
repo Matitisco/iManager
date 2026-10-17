@@ -3,21 +3,23 @@ import { Writable } from 'node:stream';
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { authenticateMock, resolveAppUserMock, refreshBilling, reconcilePreapproval } = vi.hoisted(() => ({
+const { authenticateMock, resolveAppUserMock, refreshBilling, reconcilePreapproval, openCheckout } = vi.hoisted(() => ({
   authenticateMock: vi.fn(),
   resolveAppUserMock: vi.fn(),
   refreshBilling: vi.fn(),
   reconcilePreapproval: vi.fn(),
+  openCheckout: vi.fn(),
 }));
 
 vi.mock('../../middleware/authenticate.js', () => ({ authenticate: authenticateMock }));
 vi.mock('../../middleware/resolve-app-user.js', () => ({ resolveAppUser: resolveAppUserMock }));
 vi.mock('./service.js', () => ({
-  billingDetails: vi.fn(), quoteCheckout: vi.fn(), openCheckout: vi.fn(), cancelSubscription: vi.fn(),
+  billingDetails: vi.fn(), quoteCheckout: vi.fn(), openCheckout, cancelSubscription: vi.fn(),
   reconcilePreapproval, reconcileInvoice: vi.fn(), refreshBilling,
 }));
 
 import { registerApiErrorHandler } from '../../lib/api-error.js';
+import { DomainError } from '../../lib/domain-error.js';
 import { billingRoutes, mercadoPagoWebhookRoutes } from './routes.js';
 
 function signature(id: string, ts: number, secret = 'test-secret') {
@@ -102,6 +104,42 @@ describe('seguridad del checkout', () => {
     const anon = await app.inject({ method: 'POST', url: '/api/billing/checkout', payload: { quoteId: 'chk-1' } });
     expect(anon.statusCode).toBe(401);
     expect(refreshBilling).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it('el checkout devuelve el error de Mercado Pago para el modal y registra la configuración sin el email', async () => {
+    const lines: string[] = [];
+    const app = Fastify({ logger: { level: 'info', stream: new Writable({ write(chunk, _encoding, callback) { lines.push(String(chunk)); callback(); } }) } });
+    registerApiErrorHandler(app);
+    await app.register(billingRoutes, { prefix: '/api/billing' });
+    openCheckout.mockRejectedValueOnce(new DomainError(
+      'Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.',
+      402,
+      { kind: 'provider', status: 400, message: 'Both payer and collector must be real or test users. payer [redacted-email]', causes: [] },
+    ));
+    const rejected = await app.inject({
+      method: 'POST', url: '/api/billing/checkout', headers: { authorization: 'Bearer test.owner' }, payload: { quoteId: 'chk-1' },
+    });
+    expect(rejected.statusCode).toBe(402);
+    expect(rejected.json()).toEqual({ error: 'Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.' });
+    expect(rejected.body).not.toContain('tarjeta');
+    expect(rejected.body).not.toContain('@');
+    openCheckout.mockRejectedValueOnce(new DomainError(
+      'La facturación no está disponible en este momento. Contactá a iManager.',
+      503,
+      { kind: 'config', status: 401, message: 'invalid access token [redacted]', causes: [] },
+    ));
+    const config = await app.inject({
+      method: 'POST', url: '/api/billing/checkout', headers: { authorization: 'Bearer test.owner' }, payload: { quoteId: 'chk-1' },
+    });
+    expect(config.statusCode).toBe(503);
+    expect(config.json()).toEqual({ error: 'La facturación no está disponible en este momento. Contactá a iManager.' });
+    const logged = lines.join('\n');
+    expect(logged).toContain('billing config error');
+    expect(logged).toContain('[redacted]');
+    expect(logged).not.toContain('buyer@example.com');
+    expect(logged).not.toContain('test-placeholder');
+    expect(logged).not.toContain('tarjeta');
     await app.close();
   });
 });
