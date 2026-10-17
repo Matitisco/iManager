@@ -67,10 +67,13 @@ export function registerBillingTests(device: string) {
     await expect(quote.getByRole('button', { name: 'Cambiar' })).toBeVisible();
     await quote.getByRole('button', { name: 'Cambiar' }).click();
     await quote.getByRole('textbox', { name: 'Email del pagador' }).fill(payerEmail);
-    await expect(quote).toContainText('dólar blue de hoy');
-    await expect(quote).toContainText('Débito automático en pesos');
-    await expect(quote).toContainText('Cancelás cuando quieras');
-    await expect(quote).not.toContainText('tarjeta');
+    await expect(quote).toContainText('al dólar de hoy');
+    await expect(quote).toContainText('Débito automático en pesos según el dólar del día. Te avisamos antes del primer cobro. Cancelás cuando quieras.');
+    await expect(quote).toContainText('Crédito');
+    await expect(quote).toContainText('Débito de banco');
+    await expect(quote).toContainText('Cuenta de Mercado Pago');
+    await expect(quote).toContainText('Por ahora no: prepagas como Naranja X, Ualá o la tarjeta de Mercado Pago.');
+    await expect(quote).not.toContainText('dólar blue');
     expect(payloads).toHaveLength(0);
     await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveCSS('color', 'rgb(255, 255, 255)');
     if (device === 'iphone') {
@@ -78,6 +81,8 @@ export function registerBillingTests(device: string) {
       expect(padding).toBeGreaterThanOrEqual(24);
     }
     await fits(page); await shot(page, device, 'ars');
+    mkdirSync('/opt/cursor/artifacts/billing-card-guidance', { recursive: true });
+    await page.screenshot({ path: `/opt/cursor/artifacts/billing-card-guidance/${device}-02-antes-de-suscribirte.png`, animations: 'disabled' });
     await page.keyboard.press('Escape');
     await expect(quote).toHaveCount(0);
     await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
@@ -173,8 +178,53 @@ export function registerBillingTests(device: string) {
     expect(page.url()).not.toContain('forged-id');
     expect(page.url()).not.toContain('other-store');
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByTestId('billing-return-pending')).toHaveCount(0);
+    await expect(page.getByTestId('billing-payment-incomplete')).toHaveCount(0);
     expect(sent.some(body => body.includes('forged-id') || body.includes('other-store') || body.includes('authorized'))).toBe(false);
     await fits(page);
+  });
+  test(`un pago no completado ofrece reintentar sin alarma · ${device}`, async ({ page, request }, info) => {
+    const email = buildTestEmail(info, 'billing-incomplete');
+    await bootstrapStoreViaApi(page, request, email, 'Tienda Este');
+    const trialEndsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    const details = {
+      ...returnBilling, trialEndsAt, trialDaysLeft: 5, pendingCheckout: false, recentlyActivated: false, paymentAttempt: {
+        outcome: 'rejected', payerEmail: 'cobros@tienda.test',
+        plan: { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3, amountArs: 34210 },
+      },
+    };
+    await page.route('**/api/billing/refresh', route => route.fulfill({ json: details }));
+    await page.route('**/api/billing/quote', route => route.fulfill({ json: { id: 'retry-quote', key: 'BASIC_MONTHLY', usd: 22, amountArs: 34210, exchangeRate: 1555, payerEmail: 'cobros@tienda.test', expiresAt: '2099-01-01T00:00:00Z', firstChargeAt: trialEndsAt } }));
+    const checkouts: unknown[] = [];
+    await page.route('**/api/billing/checkout', async route => {
+      checkouts.push(route.request().postDataJSON());
+      await route.fulfill({ json: { initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=retry' } });
+    });
+    await page.route('https://www.mercadopago.com.ar/**', route => route.fulfill({ contentType: 'text/html', body: '<main>Mercado Pago</main>' }));
+    await page.goto('/#/plan');
+    const card = page.getByTestId('billing-payment-incomplete');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('Pago no completado');
+    await expect(card).toContainText('Plan Básico · mensual');
+    await expect(card).toContainText('Mercado Pago no aceptó la tarjeta');
+    await expect(card).toContainText('Suele pasar con tarjetas prepagas');
+    await expect(card.getByRole('button', { name: 'Reintentar con otra tarjeta' })).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Pagar con mi cuenta de Mercado Pago' })).toBeVisible();
+    await expect(card).toContainText('Naranja X');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Suscribirme/ })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).toHaveCount(0);
+    if (device === 'iphone') {
+      const pay = card.locator('.billing-pay');
+      await pay.scrollIntoViewIfNeeded();
+      const payBox = await pay.boundingBox();
+      const tabBox = await page.locator('.mtab').boundingBox();
+      expect(payBox && tabBox && payBox.y + payBox.height <= tabBox.y + 1).toBeTruthy();
+    }
+    await fits(page);
+    mkdirSync('/opt/cursor/artifacts/billing-card-guidance', { recursive: true });
+    await page.screenshot({ path: `/opt/cursor/artifacts/billing-card-guidance/${device}-06-pago-no-completado.png`, animations: 'disabled' });
+    await card.getByRole('button', { name: 'Pagar con mi cuenta de Mercado Pago' }).click();
+    await expect(page).toHaveURL(/preapproval_id=retry/);
+    expect(checkouts).toEqual([{ quoteId: 'retry-quote' }]);
   });
 }

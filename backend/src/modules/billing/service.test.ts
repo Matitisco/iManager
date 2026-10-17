@@ -24,6 +24,7 @@ const harness = vi.hoisted(() => {
     if (typeof where.providerSubscriptionId === 'string' && where.providerSubscriptionId !== row.providerSubscriptionId) return false;
     if (typeof where.providerPlanId === 'string' && where.providerPlanId !== row.providerPlanId) return false;
     if (where.openedAt && typeof where.openedAt === 'object' && (where.openedAt as { not?: unknown }).not === null && row.openedAt === null) return false;
+    if (typeof where.checkoutStatus === 'string' && where.checkoutStatus !== row.checkoutStatus) return false;
     if (where.checkoutStatus && typeof where.checkoutStatus === 'object') {
       const list = (where.checkoutStatus as { in?: string[] }).in;
       if (list && !list.includes(row.checkoutStatus)) return false;
@@ -149,6 +150,7 @@ describe('reconciliación de suscripciones', () => {
     await expect(reconcilePreapproval('pre-1', 'store-1')).resolves.toBe(true);
     expect(checkout.checkoutStatus).toBe('FAILED');
     expect(checkout.providerSubscriptionId).toBe('pre-1');
+    expect((checkout as { providerStatus?: string }).providerStatus).toBe('cancelled');
     expect(store.billingPreapprovalId).toBeNull();
     expect(harness.prisma.state.storeUpdates).toBe(0);
   });

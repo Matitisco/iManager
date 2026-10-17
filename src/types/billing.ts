@@ -25,9 +25,17 @@ export interface BillingPlanOffer {
   amountArs?: number | null;
   exchangeRate?: number | null;
 }
+export interface BillingPaymentAttempt {
+  /** `rejected` when Mercado Pago cancelled the new preapproval. `incomplete` when the attempt failed or was abandoned and the reason is unknown. */
+  outcome: 'rejected' | 'incomplete';
+  payerEmail: string;
+  plan: BillingPlanOffer & { amountArs: number | null };
+}
 export interface BillingDetails extends BillingSummary {
   pendingCheckout?: boolean;
   pendingPlan?: (BillingPlanOffer & { amountArs: number | null }) | null;
+  pendingPayerEmail?: string | null;
+  paymentAttempt?: BillingPaymentAttempt | null;
   recentlyActivated?: boolean;
   plans: BillingPlanOffer[];
 }

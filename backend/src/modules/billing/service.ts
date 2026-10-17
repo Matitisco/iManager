@@ -182,8 +182,9 @@ const RECENT_ACTIVATION_MS = 30 * 60_000;
 export async function billingDetails(storeId: string) {
   const summary = await getBillingSummary(storeId);
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { billingPlan: true, billingStatus: true, billingRemoteUpdatedAt: true } });
-  const [pendingCheckout, plans] = await Promise.all([
-    prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, orderBy: { openedAt: 'desc' }, select: { planKey: true, amountArs: true } }),
+  const [pendingCheckout, failedCheckout, plans] = await Promise.all([
+    prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, orderBy: { openedAt: 'desc' }, select: { planKey: true, amountArs: true, payerEmail: true } }),
+    prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: 'FAILED' }, orderBy: { openedAt: 'desc' }, select: { planKey: true, amountArs: true, payerEmail: true, providerStatus: true } }),
     prisma.billingPlan.findMany({ select: { key: true, amountArs: true, exchangeRate: true } }),
   ]);
   const quoted = new Map(plans.map(plan => [plan.key, plan]));
@@ -191,9 +192,20 @@ export async function billingDetails(storeId: string) {
   const recentlyActivated = store.billingStatus === 'ACTIVE' && store.billingPlan !== 'INTERNAL' && store.billingPlan !== 'TRIAL' && !!updatedAt && Date.now() - updatedAt < RECENT_ACTIVATION_MS;
   const pendingKey = pendingCheckout?.planKey;
   const pendingSpec = pendingKey && pendingKey in PLANS ? PLANS[pendingKey as PlanKey] : null;
+  const approved = summary.plan === 'INTERNAL' || recentlyActivated || summary.canCancel || (!!summary.paidThrough && new Date(summary.paidThrough) > new Date()) || !!summary.firstChargeAt;
+  const failedKey = failedCheckout?.planKey;
+  const failedSpec = !approved && !pendingCheckout && failedKey && failedKey in PLANS ? PLANS[failedKey as PlanKey] : null;
   return {
     ...summary, pendingCheckout: !!pendingCheckout, recentlyActivated,
     pendingPlan: pendingSpec ? { key: pendingKey, ...pendingSpec, amountArs: Number(pendingCheckout!.amountArs) } : null,
+    pendingPayerEmail: pendingCheckout?.payerEmail ?? null,
+    // A still-open checkout can still be authorized. Only a closed FAILED attempt is "pago no completado".
+    // `cancelled` is the preapproval status MP returns when it rejects the card. Other FAILED rows have no reason.
+    paymentAttempt: failedSpec ? {
+      outcome: failedCheckout!.providerStatus === 'cancelled' ? 'rejected' as const : 'incomplete' as const,
+      payerEmail: failedCheckout!.payerEmail,
+      plan: { key: failedKey as PlanKey, ...failedSpec, amountArs: Number(failedCheckout!.amountArs) },
+    } : null,
     plans: PLAN_KEYS.map(key => {
       const row = quoted.get(key);
       return { key, ...PLANS[key], amountArs: row ? Number(row.amountArs) : null, exchangeRate: row ? Number(row.exchangeRate) : null };
@@ -369,7 +381,7 @@ export async function reconcilePreapproval(id: string, expectedStoreId?: string)
     if (!intention) return false;
     // A brand-new attempt that MP cancelled (rejected card) must not touch the store.
     if (remote.status === 'cancelled' && store.billingPreapprovalId !== id) {
-      await tx.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, data: { checkoutStatus: 'FAILED', providerSubscriptionId: id } });
+      await tx.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, data: { checkoutStatus: 'FAILED', providerSubscriptionId: id, providerStatus: 'cancelled' } });
       return true;
     }
     const modified = new Date(remote.last_modified);

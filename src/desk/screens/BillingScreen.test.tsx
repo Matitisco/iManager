@@ -30,7 +30,7 @@ function ui(children = <BillingScreen />) {
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState(null, '', '/#/plan');
-  Object.assign(state.billingDetails, state.summary);
+  Object.assign(state.billingDetails, state.summary, { paymentAttempt: null, pendingCheckout: false, pendingPlan: null, pendingPayerEmail: null, recentlyActivated: false });
   Object.assign(state.appSession, { membership: { role: 'OWNER' }, billing: state.summary });
   state.loadBilling.mockResolvedValue(state.billingDetails);
   state.cancelSubscription.mockResolvedValue({ ok: true });
@@ -58,8 +58,14 @@ describe('Plan y facturación', () => {
     expect(quote).toHaveAttribute('aria-modal', 'true');
     expect(quote).toHaveTextContent('22.000'); expect(quote).toHaveTextContent('owner@example.com');
     expect(quote).toHaveTextContent('Primer cobro el');
-    expect(quote).toHaveTextContent('dólar blue de hoy');
-    expect(quote).toHaveTextContent('Débito automático en pesos');
+    expect(quote).toHaveTextContent('al dólar de hoy');
+    expect(quote).toHaveTextContent('Débito automático en pesos según el dólar del día. Te avisamos antes del primer cobro. Cancelás cuando quieras.');
+    expect(quote).toHaveTextContent('Cómo pagás');
+    expect(quote).toHaveTextContent('Crédito');
+    expect(quote).toHaveTextContent('Débito de banco');
+    expect(quote).toHaveTextContent('Cuenta de Mercado Pago');
+    expect(quote).toHaveTextContent('Por ahora no: prepagas como Naranja X, Ualá o la tarjeta de Mercado Pago.');
+    expect(quote.querySelectorAll('.billing-pay-chips button')).toHaveLength(0);
     expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
   });
   it('un email incompatible queda dentro del modal y no habla de la tarjeta', async () => {
@@ -230,19 +236,22 @@ describe('Plan y facturación', () => {
       ui();
       await act(async () => { await Promise.resolve(); });
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Esperando a Mercado Pago');
-      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Plan Básico · mensual');
-      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Pago en proceso');
+      const card = screen.getByTestId('billing-payment-incomplete');
+      expect(card).toHaveTextContent('Pago no completado');
+      expect(card).toHaveTextContent('No se completó el pago');
+      expect(card).toHaveTextContent('Plan Básico · mensual');
+      expect(card).not.toHaveTextContent('Mercado Pago no aceptó la tarjeta');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(window.location.hash).toBe('#/plan');
       expect(window.location.href).not.toContain('pre-1');
       expect(state.loadBilling.mock.calls.every(call => call[1] !== true)).toBe(true);
-      fireEvent.click(screen.getByRole('button', { name: 'Ya pagué, actualizar' }));
-      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
-      expect(state.loadBilling).toHaveBeenCalledWith(true, true);
-      expect(screen.queryByTestId('billing-return-pending')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('billing-return-confirming')).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Suscribirme a Básico' })).toBeVisible();
+      state.openSubscriptionCheckout.mockResolvedValue({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=nuevo' });
+      fireEvent.click(screen.getByRole('button', { name: 'Reintentar con otra tarjeta' }));
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+      expect(state.quoteSubscription).toHaveBeenCalledWith('BASIC_MONTHLY', 'owner@example.com');
+      expect(state.openSubscriptionCheckout).toHaveBeenCalledWith('q');
+      expect(redirectToMercadoPago).toHaveBeenCalledWith('https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=nuevo');
+      expect(state.loadBilling.mock.calls.every(call => call[1] !== true)).toBe(true);
     } finally { vi.useRealTimers(); }
   });
   it('actualizar estado y reintentar un error reemplazan el checkout abandonado', async () => {
@@ -268,7 +277,7 @@ describe('Plan y facturación', () => {
     expect(await screen.findByRole('button', { name: 'Suscribirme a Básico' })).toBeVisible();
     await waitFor(() => expect(screen.queryByText('Confirmando tu pago…')).not.toBeInTheDocument(), { timeout: BILLING_RETURN_CONFIRMING_MS + 1_000 });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('billing-return-pending')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('billing-payment-incomplete')).not.toBeInTheDocument();
     expect(window.location.hash).toBe('#/plan');
     expect(window.location.href).not.toContain('ajeno');
   });
@@ -315,6 +324,56 @@ describe('Plan y facturación', () => {
     view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: true }}><BillingAccessBanner /></DeskProvider>);
     expect(screen.getByTestId('billing-access-banner')).toHaveTextContent('Contactá al propietario');
     expect(screen.queryByRole('button', { name: 'Ver planes' })).not.toBeInTheDocument();
+  });
+  it('un pago rechazado explica la tarjeta y ambos reintentos abren otro checkout', async () => {
+    Object.assign(state.billingDetails, {
+      paymentAttempt: {
+        outcome: 'rejected', payerEmail: 'cobros@tienda.test',
+        plan: { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3, amountArs: 34210 },
+      },
+    });
+    state.openSubscriptionCheckout.mockResolvedValue({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=nuevo' });
+    ui();
+    const card = await screen.findByTestId('billing-payment-incomplete');
+    expect(card).toHaveTextContent('Pago no completado');
+    expect(card).toHaveTextContent('Mercado Pago no aceptó la tarjeta');
+    expect(card).toHaveTextContent(/Suele pasar con tarjetas prepagas\. Tu tienda sigue funcionando hasta el/);
+    expect(card).toHaveTextContent('Naranja X');
+    expect(screen.queryByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Suscribirme/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar con otra tarjeta' }));
+    await waitFor(() => expect(state.openSubscriptionCheckout).toHaveBeenCalledWith('q'));
+    expect(state.quoteSubscription).toHaveBeenCalledWith('BASIC_MONTHLY', 'cobros@tienda.test');
+    expect(redirectToMercadoPago).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Pagar con mi cuenta de Mercado Pago' }));
+    await waitFor(() => expect(state.quoteSubscription).toHaveBeenCalledTimes(2));
+    expect(state.quoteSubscription).toHaveBeenLastCalledWith('BASIC_MONTHLY', 'cobros@tienda.test');
+  });
+  it('un intento fallido sin motivo no dice que rechazó la tarjeta', async () => {
+    Object.assign(state.billingDetails, {
+      paymentAttempt: {
+        outcome: 'incomplete', payerEmail: 'cobros@tienda.test',
+        plan: { key: 'BUSINESS_ANNUAL', name: 'Negocio', plan: 'BUSINESS', period: 'ANNUAL', usd: 783, months: 12, users: 5, amountArs: 783000 },
+      },
+    });
+    ui();
+    const card = await screen.findByTestId('billing-payment-incomplete');
+    expect(card).toHaveTextContent('Plan Negocio · anual');
+    expect(card).toHaveTextContent('No se completó el pago');
+    expect(card).not.toHaveTextContent('Mercado Pago no aceptó la tarjeta');
+  });
+  it('una suscripción activa no muestra el pago incompleto', async () => {
+    Object.assign(state.billingDetails, {
+      plan: 'BASIC', status: 'ACTIVE', canCancel: true, paidThrough: '2099-06-01T15:00:00Z',
+      paymentAttempt: {
+        outcome: 'rejected', payerEmail: 'cobros@tienda.test',
+        plan: { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3, amountArs: 22000 },
+      },
+    });
+    ui();
+    expect(await screen.findByText('Activa')).toBeVisible();
+    expect(screen.queryByTestId('billing-payment-incomplete')).not.toBeInTheDocument();
   });
   it('el recordatorio del primer cobro aparece en el dashboard', () => {
     state.appSession.billing = { ...state.summary, chargeReminder: true, firstChargeAt: '2099-01-03T00:00:00.000Z' };
