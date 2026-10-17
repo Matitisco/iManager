@@ -1,5 +1,7 @@
 export const BILLING_RETURN_POLL_MS = 3_000;
 export const BILLING_RETURN_WINDOW_MS = 30_000;
+/** The return banner stays up long enough to read when the first refresh is already resolved. */
+export const BILLING_RETURN_CONFIRMING_MS = 1_200;
 const RETURN_KEYS = ['preapproval_id', 'status', 'external_reference'] as const;
 
 export interface BillingReturnSnapshot {

@@ -5,7 +5,7 @@ import { useAppContext } from '../../context/AppContext';
 import type { BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
 import { redirectToMercadoPago } from '../../services/mercadopago-url';
-import { BILLING_RETURN_POLL_MS, BILLING_RETURN_WINDOW_MS, billingPathFromLocation, billingReturnStep, isBillingReturn } from '../billing-return';
+import { BILLING_RETURN_CONFIRMING_MS, BILLING_RETURN_POLL_MS, BILLING_RETURN_WINDOW_MS, billingPathFromLocation, billingReturnStep, isBillingReturn } from '../billing-return';
 import { PageHead, useDesk } from '../ui';
 import type { BillingDetails } from '../../types/billing';
 import './billing.css';
@@ -14,6 +14,19 @@ export const billingPlanName = (plan?: string) => ({ INTERNAL: 'Interno', TRIAL:
 const statusName = (status?: string) => ({ ACTIVE: 'Activa', TRIAL: 'En prueba', EXPIRED: 'Vencida', CANCELLED: 'Cancelada' }[status ?? ''] ?? '');
 const ars = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(amount);
 const date = (iso: string) => new Date(iso).toLocaleDateString('es-AR');
+
+let sharedReturnRefresh: { key: string; promise: Promise<BillingDetails | undefined> } | null = null;
+
+/** One return refresh per store. A remount or StrictMode replay must not start a second one. */
+function shareReturnRefresh(key: string, load: () => Promise<BillingDetails | undefined>) {
+  if (sharedReturnRefresh?.key !== key) {
+    const promise = load().finally(() => {
+      if (sharedReturnRefresh?.promise === promise) sharedReturnRefresh = null;
+    });
+    sharedReturnRefresh = { key, promise };
+  }
+  return sharedReturnRefresh.promise;
+}
 
 export function BillingScreen() {
   const { appSession, billingDetails, loadBilling, quoteSubscription, openSubscriptionCheckout, cancelSubscription, reloadSession } = useAppContext();
@@ -25,12 +38,12 @@ export function BillingScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState(() => isBillingReturn(window.location.hash, window.location.search));
   const [paymentPending, setPaymentPending] = useState(false);
   const [returnAttempt, setReturnAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const alive = useRef(true);
-  const returningRef = useRef(isBillingReturn(window.location.hash, window.location.search));
+  const returningRef = useRef(confirming);
   const reloadSessionRef = useRef(reloadSession);
   reloadSessionRef.current = reloadSession;
   const busyRef = useRef(false);
@@ -45,34 +58,49 @@ export function BillingScreen() {
     let stopped = false;
     setLoading(true); setQuote(null); setError(''); setPaymentPending(false);
     setConfirming(returning);
-    const settle = (path: string) => {
+    const finish = (apply: () => void) => {
       if (!alive.current || stopped) return;
-      history.replaceState(null, '', path);
-      setConfirming(false);
-      setLoading(false);
+      const wait = returning ? Math.max(0, BILLING_RETURN_CONFIRMING_MS - (Date.now() - started)) : 0;
+      const run = () => {
+        if (!alive.current || stopped) return;
+        apply();
+      };
+      if (wait === 0) run();
+      else timer = window.setTimeout(run, wait);
+    };
+    const settle = (path: string, apply: () => void = () => undefined) => {
+      finish(() => {
+        history.replaceState(null, '', path);
+        setConfirming(false);
+        setLoading(false);
+        apply();
+      });
     };
     const tick = async () => {
       if (stopped || !alive.current) return;
       let details: BillingDetails | undefined;
-      try { details = await loadBilling(true); }
+      try { details = await (returning ? shareReturnRefresh(`${storeId ?? ''}:${returnAttempt}`, () => loadBilling(true)) : loadBilling(true)); }
       catch (cause) {
         if (!alive.current || stopped) return;
         if (returning && Date.now() - started < BILLING_RETURN_WINDOW_MS) {
           timer = window.setTimeout(() => void tick(), BILLING_RETURN_POLL_MS);
           return;
         }
-        setConfirming(false); setLoading(false);
-        if (returning) { setPaymentPending(true); history.replaceState(null, '', billingPathFromLocation(window.location.href)); }
-        else setError(toUserMessage(cause));
+        finish(() => {
+          setConfirming(false); setLoading(false);
+          if (returning) { setPaymentPending(true); history.replaceState(null, '', billingPathFromLocation(window.location.href)); }
+          else setError(toUserMessage(cause));
+        });
         return;
       }
       if (!alive.current || stopped) return;
       if (!returning) { setLoading(false); return; }
       const step = billingReturnStep(details, Date.now() - started);
       if (step === 'success') {
-        settle(billingPathFromLocation(window.location.href));
-        setNotice(`Listo. Tu plan ${billingPlanName(details?.plan)} ya está activo.`);
-        void reloadSessionRef.current();
+        settle(billingPathFromLocation(window.location.href), () => {
+          setNotice(`Listo. Tu plan ${billingPlanName(details?.plan)} ya está activo.`);
+          void reloadSessionRef.current();
+        });
         return;
       }
       if (step === 'confirming') {
@@ -81,8 +109,7 @@ export function BillingScreen() {
         return;
       }
       if (step === 'pending') {
-        settle(billingPathFromLocation(window.location.href));
-        setPaymentPending(true);
+        settle(billingPathFromLocation(window.location.href), () => setPaymentPending(true));
         return;
       }
       settle(billingPathFromLocation(window.location.href));
