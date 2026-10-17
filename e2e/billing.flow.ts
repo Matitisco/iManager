@@ -29,7 +29,9 @@ export function registerBillingTests(device: string) {
     await billing(page);
     const payerEmail = 'cobros@tienda.test';
     await page.getByRole('textbox', { name: /Email del pagador/ }).fill(payerEmail);
-    await expect(page.getByText('1 de 5 usuarios', { exact: false })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).toBeVisible();
+    await expect(page.getByText(/Te quedan \d+ días de prueba sin tarjeta/)).toBeVisible();
+    await expect(page.getByText('1 de 3 usuarios', { exact: false })).toBeVisible();
     await expect(page.getByText('Hasta 3 usuarios')).toBeVisible();
     await expect(page.getByText('Hasta 5 usuarios')).toBeVisible();
     await expect(page.getByText('US$ 22', { exact: false })).toBeVisible();
@@ -39,20 +41,46 @@ export function registerBillingTests(device: string) {
     // Provider boundary simulated here; backend HTTP and persistence covered by integration suite.
     await page.route('**/api/billing/quote', route => route.fulfill({ json: { id: 'e2e-quote', key: 'BASIC_ANNUAL', usd: 198, amountArs: 277200, exchangeRate: 1400, payerEmail, expiresAt: '2099-01-01T00:00:00Z' } }));
     const payloads: unknown[] = [];
-    await page.route('**/api/billing/checkout', route => {
+    let failCheckout = true;
+    await page.route('**/api/billing/checkout', async route => {
       payloads.push(route.request().postDataJSON());
+      if (failCheckout) {
+        failCheckout = false;
+        return route.fulfill({ status: 402, json: { error: 'No pudimos crear el pago en Mercado Pago.' } });
+      }
+      await new Promise(resolve => setTimeout(resolve, 400));
       return route.fulfill({ json: { initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=e2e' } });
     });
     await page.route('https://www.mercadopago.com.ar/**', route => route.fulfill({ contentType: 'text/html', body: '<main>Mercado Pago</main>' }));
     await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
-    const quote = page.getByTestId('billing-quote'); await expect(quote).toContainText('277.200');
+    const quote = page.getByRole('dialog', { name: 'Antes de suscribirte' });
+    await expect(quote).toHaveAttribute('data-layout', device === 'iphone' ? 'sheet' : 'dialog');
+    await expect(quote).toHaveAttribute('aria-modal', 'true');
+    await expect(quote).toContainText('277.200');
     await expect(quote).toContainText(payerEmail); expect(payloads).toHaveLength(0);
+    await expect(quote).toContainText('Dólar blue vendedor');
+    await expect(quote).toContainText('El débito es automático');
     await expect(quote).toContainText('El pago se completa en Mercado Pago');
+    await expect(quote).toContainText('iManager no ve los datos de la tarjeta');
     await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveCSS('color', 'rgb(255, 255, 255)');
-    await quote.scrollIntoViewIfNeeded(); await fits(page); await shot(page, device, 'ars');
+    if (device === 'iphone') {
+      const padding = await quote.evaluate(el => Number.parseFloat(getComputedStyle(el).paddingBottom));
+      expect(padding).toBeGreaterThanOrEqual(24);
+    }
+    await fits(page); await shot(page, device, 'ars');
+    await page.keyboard.press('Escape');
+    await expect(quote).toHaveCount(0);
+    await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
+    await page.getByTestId('billing-modal-backdrop').click({ position: { x: 12, y: 12 } });
+    await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
     await page.getByRole('button', { name: 'Continuar en Mercado Pago' }).click();
+    await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' }).getByRole('alert')).toContainText('No pudimos crear el pago');
+    await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continuar en Mercado Pago' }).click();
+    await expect(page.getByRole('button', { name: 'Abriendo Mercado Pago…' })).toBeVisible();
     await expect(page).toHaveURL(/https:\/\/www\.mercadopago\.com\.ar\/subscriptions\/checkout\?preapproval_id=e2e/);
-    expect(payloads).toEqual([{ quoteId: 'e2e-quote' }]);
+    expect(payloads).toEqual([{ quoteId: 'e2e-quote' }, { quoteId: 'e2e-quote' }]);
     expect(JSON.stringify(payloads)).not.toContain('card');
   });
   test(`vencimiento solo lectura, límites, cancelación y acceso interno · ${device}`, async ({ page, request }, info) => {
@@ -89,7 +117,7 @@ export function registerBillingTests(device: string) {
   });
   const returnBilling = {
     plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null,
-    trialDaysLeft: 7, readOnly: false, memberLimit: 5, members: 1, overLimit: false, canCancel: false,
+    trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false,
     plans: [
       { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3 },
       { key: 'BUSINESS_MONTHLY', name: 'Negocio', plan: 'BUSINESS', period: 'MONTHLY', usd: 87, months: 1, users: 5 },
@@ -107,7 +135,7 @@ export function registerBillingTests(device: string) {
       expect(sent).not.toContain('pre-real');
       expect(sent).not.toContain('authorized');
       const active = calls > 1;
-      await route.fulfill({ json: { ...returnBilling, plan: active ? 'BASIC' : 'TRIAL', status: active ? 'ACTIVE' : 'TRIAL', canCancel: active, memberLimit: active ? 3 : 5, pendingCheckout: !active, recentlyActivated: active, paidThrough: active ? '2099-01-01T00:00:00Z' : null } });
+      await route.fulfill({ json: { ...returnBilling, plan: active ? 'BASIC' : 'TRIAL', status: active ? 'ACTIVE' : 'TRIAL', canCancel: active, memberLimit: 3, pendingCheckout: !active, recentlyActivated: active, paidThrough: active ? '2099-01-01T00:00:00Z' : null } });
     });
     await page.goto('/#/plan?preapproval_id=pre-real&status=authorized&external_reference=chk-1');
     await expect(page.getByTestId('billing-screen')).toBeVisible();

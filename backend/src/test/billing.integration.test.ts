@@ -58,7 +58,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
       const response = await getApp().inject({ method: 'POST', url: path, headers: h, payload: path.includes('onboarding') ? { storeName: 'Nueva' } : { name: 'Nueva' } });
       expect(response.statusCode, response.body).toBeLessThan(300);
       const session = await getApp().inject({ url: '/api/me', headers: h });
-      expect(session.json().billing).toMatchObject({ plan: 'TRIAL', trialDaysLeft: 7, memberLimit: 5 });
+      expect(session.json().billing).toMatchObject({ plan: 'TRIAL', trialDaysLeft: 7, memberLimit: 3 });
     }
     await seedStoreContext({ createStore: false });
     await getApp().inject({ method: 'POST', url: '/api/stores', headers: headers(), payload: { name: 'Anterior' } });
@@ -250,7 +250,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ url: '/api/billing', headers: headers() })).statusCode).toBe(200);
     expect(await prisma.client.count()).toBe(0);
   });
-  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 5]])('%s permite el último lugar y rechaza invitaciones al alcanzar %s', async (plan, limit) => {
+  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 3]])('%s permite el último lugar y rechaza invitaciones al alcanzar %s', async (plan, limit) => {
     const storeId = await trial();
     await prisma.store.update({ where: { id: storeId }, data: { billingPlan: String(plan) } });
     for (let i = 1; i < Number(limit) - 1; i++) {

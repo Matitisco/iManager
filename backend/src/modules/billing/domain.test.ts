@@ -21,7 +21,7 @@ describe('reglas de suscripción', () => {
     expect(billingSummary(store, 1, now)).toMatchObject({ status: 'CANCELLED', readOnly: false, canCancel: false, memberLimit: 3 });
     expect(billingSummary(store, 1, store.billingPaidThrough)).toMatchObject({ readOnly: true, status: 'CANCELLED' });
   });
-  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 5]])('limita %s a %s incluyendo al propietario', (plan, limit) => {
+  it.each([['BASIC', 3], ['BUSINESS', 5], ['TRIAL', 3]])('limita %s a %s incluyendo al propietario', (plan, limit) => {
     expect(billingSummary({ ...base, billingPlan: String(plan) }, Number(limit), now)).toMatchObject({ overLimit: false, readOnly: false, memberLimit: limit });
     expect(billingSummary({ ...base, billingPlan: String(plan) }, Number(limit) + 1, now)).toMatchObject({ overLimit: true, readOnly: true });
   });
