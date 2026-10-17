@@ -1,5 +1,5 @@
 import { toUserMessage } from '../lib/user-message';
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
 import { ModalCloseButton } from './close-button';
@@ -112,7 +112,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
     focusAdded.current = false;
   }, [rows.length]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();

@@ -104,7 +104,7 @@ export async function syncPlans(log: SyncLog = console) {
           providerId = created.id;
         }
       }
-      const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(providerId)}`, 'PUT', { auto_recurring: recurring, back_url: returnUrl }));
+      const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(providerId)}`, 'PUT', { auto_recurring: recurring, back_url: returnUrl }, { purpose: 'plan' }));
       assertPlan(remote, key, providerId, amount);
       await tx.billingPlan.upsert({ where: { key }, create: { key, sellerId, providerId, initPoint: remote.init_point, amountArs: amount, exchangeRate: rate }, update: { sellerId, initPoint: remote.init_point, amountArs: amount, exchangeRate: rate } });
       result.push({ key, amountArs: amount });
@@ -152,7 +152,7 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
     if (!plan) throw new DomainError('Los planes todavía no están disponibles. Contactá a iManager.', 503);
     const amount = arsAmount(PLANS[key].usd, rate);
     if (Number(plan.amountArs) !== amount) {
-      const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'PUT', { auto_recurring: { transaction_amount: amount, currency_id: 'ARS' } }));
+      const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'PUT', { auto_recurring: { transaction_amount: amount, currency_id: 'ARS' } }, { purpose: 'plan' }));
       assertPlan(remote, key, plan.providerId, amount);
       plan = await tx.billingPlan.update({ where: { key }, data: { amountArs: amount, exchangeRate: rate, initPoint: remote.init_point } });
     }
@@ -174,7 +174,7 @@ export async function openCheckout(storeId: string, quoteId: string) {
     assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
     await assertNoPendingCheckout(storeId, tx);
     const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
-    const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`));
+    const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'GET', undefined, { purpose: 'plan' }));
     assertPlan(remote, key, quote.providerPlanId, Number(quote.amountArs));
     if (arsAmount(PLANS[key].usd, await currentBlueRate()) !== Number(quote.amountArs)) {
       throw new DomainError('Cambió el importe en pesos. Volvé a consultarlo antes de suscribirte.', 409);
@@ -191,7 +191,7 @@ export async function openCheckout(storeId: string, quoteId: string) {
       const key = quote.planKey as PlanKey;
       assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
       const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
-      const conditions = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`));
+      const conditions = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'GET', undefined, { purpose: 'plan' }));
       assertPlan(conditions, key, quote.providerPlanId, Number(quote.amountArs));
       if (quote.expiresAt <= new Date() || arsAmount(PLANS[key].usd, await currentBlueRate()) !== Number(quote.amountArs)) {
         throw new DomainError('La cotización cambió o venció. Volvé a consultar el importe.', 409);
@@ -221,7 +221,7 @@ export async function openCheckout(storeId: string, quoteId: string) {
     throw new DomainError('Mercado Pago no confirmó la referencia del checkout.', 502);
   }
   if (!await reconcilePreapproval(remote.id, storeId)) throw new DomainError('No pudimos verificar la suscripción. Actualizá el estado del pago.', 502);
-  if (remote.status === 'cancelled') throw new DomainError('La tarjeta fue rechazada. Probá con otra tarjeta o revisá los datos.', 402);
+  if (remote.status === 'cancelled') throw new DomainError('Mercado Pago canceló la suscripción. Volvé a intentarlo.', 402);
   let initPoint: string;
   try { initPoint = assertMercadoPagoCheckoutUrl(remote.init_point ?? ''); }
   catch (cause) {

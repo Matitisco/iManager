@@ -82,6 +82,16 @@ describe('apiRequest', () => {
     await expect(apiRequest(mockUser, '/a', { fallback: 'No se pudieron cargar los pagos', errorFrom: 'fallback' })).rejects.toThrow('No se pudieron cargar los pagos');
   });
 
+  it('muestra un 503 de facturación con texto seguro y oculta un 503 técnico', async () => {
+    vi.mocked(fetchWithTimeout)
+      .mockResolvedValueOnce(json({ error: 'La facturación no está disponible en este momento. Contactá a iManager.' }, 503))
+      .mockResolvedValueOnce(json({ error: 'invalid access token' }, 503))
+      .mockResolvedValueOnce(json({ error: 'La facturación no está disponible en este momento. Contactá a iManager.' }, 503));
+    await expect(apiRequest(mockUser, '/api/billing/checkout', { fallback: 'x', revealFriendlyServerError: true })).rejects.toThrow('La facturación no está disponible en este momento. Contactá a iManager.');
+    await expect(apiRequest(mockUser, '/api/billing/checkout', { fallback: 'x', revealFriendlyServerError: true })).rejects.toThrow(SERVER_ERROR_MESSAGE);
+    await expect(apiRequest(mockUser, '/api/billing/checkout', { fallback: 'x' })).rejects.toThrow(SERVER_ERROR_MESSAGE);
+  });
+
   it.each(['error', 'friendly', 'fallback'] as const)('uses the server message in %s mode even for a non-JSON 5xx body', async (errorFrom) => {
     for (const status of [500, 502, 503, 504]) {
       vi.mocked(fetchWithTimeout).mockResolvedValueOnce(new Response('<html>Bad Gateway</html>', { status }));
