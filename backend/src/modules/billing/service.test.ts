@@ -19,6 +19,7 @@ const harness = vi.hoisted(() => {
   };
   function matches(row: Checkout, where: Record<string, unknown>) {
     if (typeof where.id === 'string' && where.id !== row.id) return false;
+    if (where.id && typeof where.id === 'object' && (where.id as { not?: string }).not === row.id) return false;
     if (typeof where.storeId === 'string' && where.storeId !== row.storeId) return false;
     if (typeof where.providerSubscriptionId === 'string' && where.providerSubscriptionId !== row.providerSubscriptionId) return false;
     if (typeof where.providerPlanId === 'string' && where.providerPlanId !== row.providerPlanId) return false;
@@ -69,6 +70,7 @@ const harness = vi.hoisted(() => {
     },
     billingCheckout: {
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => state.checkouts.find(row => matches(row, where)) ?? null),
+      findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => state.checkouts.filter(row => matches(row, where))),
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const row = state.checkouts.find(item => item.id === where.id);
         if (!row) throw new Error('missing checkout');

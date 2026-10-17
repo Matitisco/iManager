@@ -13,9 +13,9 @@ export function useBillingState(user: AuthUserLike | null, storeId?: string, rol
     if (!user || !storeId || role !== 'OWNER') throw new Error('Solo el propietario puede administrar el plan.');
     return user;
   };
-  const loadBilling = useCallback(async (refresh = false) => {
+  const loadBilling = useCallback(async (refresh = false, replaceAbandoned = false) => {
     if (!user || !storeId || role !== 'OWNER') return;
-    const result = await fetchBilling(user, refresh);
+    const result = await fetchBilling(user, refresh, replaceAbandoned);
     if (scopeRef.current === scope) setBillingDetails(result);
     return result;
   }, [user, storeId, role, scope]);

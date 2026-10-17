@@ -118,10 +118,65 @@ export async function syncPlans(log: SyncLog = console) {
   return result;
 }
 
-async function assertNoPendingCheckout(storeId: string, tx: Prisma.TransactionClient) {
-  if (await tx.billingCheckout.findFirst({ where: { storeId, checkoutStatus: { in: ['CREATING', 'CREATED'] } } })) {
-    throw new DomainError('Hay una suscripción en proceso. Actualizá el estado del pago antes de volver a intentar.', 409);
+const OPEN_CHECKOUT_STATUSES = ['QUOTED', 'CREATING', 'CREATED'] as const;
+const ACTIVE_SUBSCRIPTION = 'Ya tenés una suscripción. Cancelala y esperá al fin del período abonado para elegir otro plan.';
+
+async function subscriptionForCheckout(checkout: { id: string; checkoutStatus: string; providerSubscriptionId: string | null }) {
+  if (checkout.checkoutStatus === 'QUOTED' && !checkout.providerSubscriptionId) return null;
+  const ids: string[] = [];
+  if (checkout.providerSubscriptionId) ids.push(checkout.providerSubscriptionId);
+  else {
+    const searchSchema = z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().nullish() })).max(100) });
+    try {
+      const search = parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(checkout.id)}&limit=20`));
+      for (const item of search.results) {
+        if ((item.external_reference ?? '').trim() === checkout.id) ids.push(item.id);
+      }
+    } catch (cause) {
+      if (!isStalePreapproval(cause)) throw cause;
+    }
   }
+  let pending: RemoteSubscription | null = null;
+  for (const id of ids) {
+    try {
+      const remote = await getRemoteSubscription(id);
+      const reference = (remote.external_reference ?? '').trim();
+      if (!checkout.providerSubscriptionId && reference !== checkout.id) continue;
+      if (remote.status === 'authorized' || remote.status === 'paused') return remote;
+      if (remote.status === 'pending') pending = remote;
+    } catch (cause) {
+      if (!isStalePreapproval(cause)) throw cause;
+    }
+  }
+  return pending;
+}
+async function cancelPendingPreapproval(id: string) {
+  try {
+    const cancelled = z.object({ id: z.string(), status: z.literal('cancelled') }).safeParse(await mpRequest(`/preapproval/${encodeURIComponent(id)}`, 'PUT', { status: 'cancelled' }));
+    if (!cancelled.success || cancelled.data.id !== id) throw new DomainError('Mercado Pago no confirmó la cancelación. Reintentá.', 502);
+  } catch (cause) {
+    if (!isStalePreapproval(cause)) throw cause;
+  }
+}
+/** A checkout that Mercado Pago never authorized cannot block another attempt. */
+async function supersedeAbandonedCheckouts(storeId: string, exceptId?: string) {
+  const open = await prisma.billingCheckout.findMany({
+    where: { storeId, checkoutStatus: { in: [...OPEN_CHECKOUT_STATUSES] }, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    orderBy: { createdAt: 'asc' },
+  });
+  let authorized: RemoteSubscription | null = null;
+  for (const checkout of open) {
+    const remote = await subscriptionForCheckout(checkout);
+    if (remote && (remote.status === 'authorized' || remote.status === 'paused')) {
+      authorized = remote;
+      continue;
+    }
+    if (remote?.status === 'pending') await cancelPendingPreapproval(remote.id);
+    await prisma.billingCheckout.updateMany({ where: { id: checkout.id, checkoutStatus: { in: [...OPEN_CHECKOUT_STATUSES] } }, data: { checkoutStatus: 'FAILED' } });
+  }
+  if (!authorized) return 'cleared' as const;
+  await reconcilePreapproval(authorized.id, storeId);
+  return 'authorized' as const;
 }
 const RECENT_ACTIVATION_MS = 30 * 60_000;
 export async function billingDetails(storeId: string) {
@@ -136,18 +191,21 @@ function assertCheckoutAllowed(summary: Awaited<ReturnType<typeof getBillingSumm
   if (summary.plan === 'INTERNAL') throw new DomainError('Tu plan interno tiene acceso ilimitado y no necesita suscripción.', 409);
   // Cancelled subscriptions can be replaced only after the paid term ends.
   if (summary.canCancel || (summary.paidThrough && new Date(summary.paidThrough) > new Date())) {
-    throw new DomainError('Ya tenés una suscripción. Cancelala y esperá al fin del período abonado para elegir otro plan.', 409);
+    throw new DomainError(ACTIVE_SUBSCRIPTION, 409);
   }
   if (summary.members > PLANS[key].users) throw new DomainError(`Este plan admite ${PLANS[key].users} usuarios. Primero reducí tu equipo.`, 409);
 }
 
 export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: string) {
+  if (await supersedeAbandonedCheckouts(storeId) === 'authorized') throw new DomainError(ACTIVE_SUBSCRIPTION, 409);
   const rate = await currentBlueRate();
   return prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
     await lockTransactionKey(tx, storeBillingLock(storeId));
     assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
-    await assertNoPendingCheckout(storeId, tx);
+    if (await tx.billingCheckout.findFirst({ where: { storeId, checkoutStatus: { in: ['CREATING', 'CREATED'] } } })) {
+      throw new DomainError('No pudimos cerrar un intento anterior. Reintentá.', 409);
+    }
     let plan = await tx.billingPlan.findUnique({ where: { key } });
     if (!plan) throw new DomainError('Los planes todavía no están disponibles. Contactá a iManager.', 503);
     const amount = arsAmount(PLANS[key].usd, rate);
@@ -162,6 +220,7 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
 }
 export async function openCheckout(storeId: string, quoteId: string) {
   limitCheckout(storeId);
+  if (await supersedeAbandonedCheckouts(storeId, quoteId) === 'authorized') throw new DomainError(ACTIVE_SUBSCRIPTION, 409);
   // Persist the claim BEFORE contacting MP. A timeout or process crash must not permit a second charge.
   const quote = await prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
@@ -172,7 +231,9 @@ export async function openCheckout(storeId: string, quoteId: string) {
     if (quote.expiresAt <= new Date()) throw new DomainError('La cotización venció. Volvé a consultar el importe.', 409);
     const key = quote.planKey as PlanKey;
     assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
-    await assertNoPendingCheckout(storeId, tx);
+    if (await tx.billingCheckout.findFirst({ where: { storeId, id: { not: quote.id }, checkoutStatus: { in: ['CREATING', 'CREATED'] } } })) {
+      throw new DomainError('No pudimos cerrar un intento anterior. Reintentá.', 409);
+    }
     const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
     const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'GET', undefined, { purpose: 'plan' }));
     assertPlan(remote, key, quote.providerPlanId, Number(quote.amountArs));
@@ -340,45 +401,88 @@ export async function cancelSubscription(storeId: string) {
   }, { timeout: 30_000, maxWait: 10_000 });
 }
 
-export async function reconcileSubscriptions() {
+function isStalePreapproval(cause: unknown) {
+  const context = domainErrorFrom(cause)?.logContext;
+  if (!context || typeof context.status !== 'number') return false;
+  const message = typeof context.message === 'string' ? context.message : '';
+  if (context.status === 404) return true;
+  return context.status === 400 && /not valid for callerId|not found/i.test(message);
+}
+
+/** The id belongs to another Mercado Pago seller. End the paid period so the store can subscribe again. */
+async function releaseStalePreapproval(storeId: string, preapprovalId: string, log: SyncLog) {
+  const ended = new Date();
+  const released = await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, storeBillingLock(storeId));
+    const current = await tx.store.findUnique({ where: { id: storeId } });
+    if (!current || current.billingPlan === 'INTERNAL' || current.billingPreapprovalId !== preapprovalId) return false;
+    await tx.store.update({ where: { id: storeId }, data: {
+      billingPreapprovalId: null, billingStatus: 'EXPIRED', billingPaidThrough: ended, billingRemoteUpdatedAt: ended,
+    } });
+    return true;
+  }, { timeout: 15_000, maxWait: 10_000 });
+  if (released) log.info(`Suscripción de otro vendedor descartada para la tienda ${storeId}.`);
+  return released;
+}
+
+export async function reconcileSubscriptions(log: SyncLog = console) {
   // IDs only, no business row exports or provider dumps.
   const stores = await prisma.store.findMany({ where: { billingPlan: { not: 'INTERNAL' }, billingPreapprovalId: { not: null } }, select: { id: true, billingPreapprovalId: true } });
+  const failures: unknown[] = [];
   for (const store of stores) {
-    await prisma.$transaction(async tx => {
-      await lockTransactionKey(tx, storeBillingLock(store.id));
-      const current = await tx.store.findUniqueOrThrow({ where: { id: store.id } });
-      if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
-      const remote = await getRemoteSubscription(current.billingPreapprovalId);
-      const reference = remote.external_reference?.trim() || '';
-      const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
-      if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
-      const plan = await planForRemote(tx, store.id, remote, reference);
-      if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
-        await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
+    const preapprovalId = store.billingPreapprovalId;
+    if (!preapprovalId) continue;
+    try {
+      await prisma.$transaction(async tx => {
+        await lockTransactionKey(tx, storeBillingLock(store.id));
+        const current = await tx.store.findUniqueOrThrow({ where: { id: store.id } });
+        if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
+        const remote = await getRemoteSubscription(current.billingPreapprovalId);
+        const reference = remote.external_reference?.trim() || '';
+        const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
+        if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
+        const plan = await planForRemote(tx, store.id, remote, reference);
+        if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
+          await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
+        }
+      }, { timeout: 30_000, maxWait: 10_000 });
+      await reconcilePreapproval(preapprovalId, store.id);
+    } catch (cause) {
+      if (isStalePreapproval(cause)) {
+        await releaseStalePreapproval(store.id, preapprovalId, log);
+        continue;
       }
-    }, { timeout: 30_000, maxWait: 10_000 });
-    await reconcilePreapproval(store.billingPreapprovalId!, store.id);
+      failures.push(cause);
+    }
   }
+  if (failures.length > 0) throw failures[0];
   return stores.length;
 }
 
-export async function refreshBilling(storeId: string) {
+export async function refreshBilling(storeId: string, log: SyncLog = console, options?: { replaceAbandoned?: boolean }) {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
   if (store.billingPlan === 'INTERNAL') return billingDetails(storeId);
-  if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED') await reconcilePreapproval(store.billingPreapprovalId, storeId);
-  else {
-    const intention = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null } }, orderBy: { createdAt: 'desc' } });
-    if (intention?.providerSubscriptionId) await reconcilePreapproval(intention.providerSubscriptionId, storeId);
-    else if (intention) {
-      const searchSchema = z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().nullish() })).max(100) });
-      const byAttempt = parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(intention.id)}&limit=20`));
-      const byStore = byAttempt.results.length > 0 ? { results: [] as { id: string; external_reference?: string | null }[] } : parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(storeId)}&limit=20`));
-      const results = [...byAttempt.results, ...byStore.results];
-      for (const remote of results) if (remote.external_reference === intention.id || remote.external_reference === storeId) await reconcilePreapproval(remote.id, storeId);
-      if (!results.some(remote => remote.external_reference === intention.id || remote.external_reference === storeId) && intention.createdAt < new Date(Date.now() - 2 * 60_000)) {
-        await prisma.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] }, providerSubscriptionId: null }, data: { checkoutStatus: 'FAILED' } });
+  try {
+    if (options?.replaceAbandoned) await supersedeAbandonedCheckouts(storeId);
+    if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED') await reconcilePreapproval(store.billingPreapprovalId, storeId);
+    else {
+      const intention = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null } }, orderBy: { createdAt: 'desc' } });
+      if (intention?.providerSubscriptionId) await reconcilePreapproval(intention.providerSubscriptionId, storeId);
+      else if (intention) {
+        const searchSchema = z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().nullish() })).max(100) });
+        const byAttempt = parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(intention.id)}&limit=20`));
+        const byStore = byAttempt.results.length > 0 ? { results: [] as { id: string; external_reference?: string | null }[] } : parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(storeId)}&limit=20`));
+        const results = [...byAttempt.results, ...byStore.results];
+        for (const remote of results) if (remote.external_reference === intention.id || remote.external_reference === storeId) await reconcilePreapproval(remote.id, storeId);
+        if (!results.some(remote => remote.external_reference === intention.id || remote.external_reference === storeId) && intention.createdAt < new Date(Date.now() - 2 * 60_000)) {
+          await prisma.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] }, providerSubscriptionId: null }, data: { checkoutStatus: 'FAILED' } });
+        }
       }
     }
+  } catch (cause) {
+    if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED' && isStalePreapproval(cause)) {
+      await releaseStalePreapproval(storeId, store.billingPreapprovalId, log);
+    } else throw cause;
   }
   return billingDetails(storeId);
 }

@@ -155,11 +155,16 @@ export function BillingScreen() {
             {billing?.readOnly && billing.canCancel && !billing.overLimit ? <p>Si ya pagaste, actualizá el estado. También podés cancelar esta suscripción para elegir un nuevo plan.</p> : null}
             {billing?.overLimit ? <p role="alert">Tu equipo supera el límite del plan. Quitá miembros desde Configuración para volver a operar.</p> : null}
           </>}
-          {!internal ? <button className="billing-link" type="button" disabled={busy || loading} onClick={() => void run(async () => { await loadBilling(true); await reloadSession(); setNotice('Estado actualizado desde Mercado Pago.'); })}>Actualizar estado del pago</button> : null}
+          {!internal ? <button className="billing-link" type="button" disabled={busy || loading} onClick={() => void run(async () => { await loadBilling(true, true); await reloadSession(); setNotice('Estado actualizado desde Mercado Pago.'); })}>Actualizar estado del pago</button> : null}
         </section>
         {confirming ? <p className="billing-return" role="status" data-testid="billing-return-confirming">Confirmando tu pago…</p> : null}
-        {paymentPending ? <div className="billing-return" role="status" data-testid="billing-return-pending"><p>Tu pago todavía está pendiente. Si ya lo completaste en Mercado Pago, podés volver a consultar.</p><button className="billing-primary" type="button" disabled={busy} onClick={() => setReturnAttempt(attempt => attempt + 1)}>Reintentar</button></div> : null}
-        {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(); setLoading(false); })}>Reintentar</button></div> : null}
+        {paymentPending ? <div className="billing-return" role="status" data-testid="billing-return-pending"><p>Tu pago todavía está pendiente. Si ya lo completaste en Mercado Pago, podés volver a consultar.</p><button className="billing-primary" type="button" disabled={busy} onClick={() => void run(async () => {
+          const details = await loadBilling(true, true);
+          await reloadSession();
+          if (details?.recentlyActivated) setNotice(`Listo. Tu plan ${billingPlanName(details.plan)} ya está activo.`);
+          if (!details?.pendingCheckout) setPaymentPending(false);
+        })}>Reintentar</button></div> : null}
+        {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(true, true); setLoading(false); })}>Reintentar</button></div> : null}
         {notice ? <p className="billing-notice" role="status">{notice}</p> : null}
         {loading && !confirming ? <p role="status">Cargando planes…</p> : null}
         {!internal && !subscribed ? <>

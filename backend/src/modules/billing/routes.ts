@@ -25,7 +25,11 @@ export async function billingRoutes(app: FastifyInstance) {
   });
   app.post('/cancel', { preHandler }, async request => { await cancelSubscription(ownerStore(request)); return { ok: true }; });
   // back_url may append preapproval_id or status. Activation never reads them.
-  app.post('/refresh', { preHandler }, request => refreshBilling(ownerStore(request)));
+  app.post('/refresh', { preHandler }, request => {
+    const body = request.body;
+    const replaceAbandoned = !!body && typeof body === 'object' && (body as { replaceAbandoned?: unknown }).replaceAbandoned === true;
+    return refreshBilling(ownerStore(request), console, { replaceAbandoned });
+  });
 }
 export async function mercadoPagoWebhookRoutes(app: FastifyInstance) {
   app.post('/mercadopago', async (request, reply) => {
