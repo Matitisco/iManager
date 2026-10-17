@@ -25,7 +25,7 @@ Variables del backend/Railway (sin valores en el repositorio):
 
 - `MP_ACCESS_TOKEN` obligatorio para operaciones MP. Se lee exclusivamente desde el entorno del proceso backend. No se imprime ni se incorpora a errores.
 - `MP_PUBLIC_KEY` obligatoria para el formulario de tarjeta, de la misma aplicación/vendedor/entorno que el access token. Es pública y se entrega en la cotización; no reemplaza al token privado.
-- `MP_WEBHOOK_SECRET` opcional. Con valor se exige HMAC-SHA256; sin valor se omite la verificación de firma, pero se reconsulta MP de todas formas. Usar secreto en producción.
+- `MP_WEBHOOK_SECRET` obligatorio. Sin valor el webhook responde 401 y no reconcilia. Con valor se exige HMAC-SHA256 de `x-signature`.
 - `FRONTEND_URL` HTTPS público, con retorno a `#/plan`.
 - `DATABASE_URL` del entorno seleccionado. Mantener TEST separado de producción.
 

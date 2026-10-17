@@ -92,7 +92,7 @@ OPENAI_IMPORT_MODEL=gpt-6-luna
 Configuración en Railway **solo en el backend**:
 
 - `MP_ACCESS_TOKEN`: token del vendedor de Mercado Pago. El código lo lee únicamente desde `process.env.MP_ACCESS_TOKEN`; comenzar con credenciales TEST.
-- `MP_WEBHOOK_SECRET`: secreto opcional para validar `x-signature` mediante HMAC-SHA256. Si falta, se omite la firma y se vuelve a consultar la suscripción igualmente. Configurarlo antes de vender en producción.
+- `MP_WEBHOOK_SECRET`: secreto obligatorio del webhook. Sin él, `POST /webhooks/mercadopago` responde 401 y no reconcilia. Con él se valida `x-signature` mediante HMAC-SHA256.
 - `FRONTEND_URL`: URL pública HTTPS de la app para retornar a `#/plan`.
 - `DATABASE_URL`: base PostgreSQL del entorno, separada para TEST y producción.
 

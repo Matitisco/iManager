@@ -76,8 +76,8 @@ export async function getRemoteSubscription(id: string) {
   return result.data;
 }
 export function validSignature(id: string, requestId: string | undefined, signature: string | undefined, secret = process.env.MP_WEBHOOK_SECRET, now = Date.now()) {
-  if (!secret) return true;
-  if (!requestId || !signature) return false;
+  const key = secret?.trim();
+  if (!key || !requestId || !signature) return false;
   const fields = signature.split(',').map(part => part.trim().split('='));
   const timestamps = fields.filter(([key]) => key === 'ts');
   const signatures = fields.filter(([key]) => key === 'v1');
@@ -86,7 +86,7 @@ export function validSignature(id: string, requestId: string | undefined, signat
   if (!ts || !/^\d+$/.test(ts) || !hash || !/^[a-f\d]{64}$/i.test(hash)) return false;
   const issued = Number(ts) * 1000;
   if (!Number.isFinite(issued) || Math.abs(now - issued) > WEBHOOK_SIGNATURE_SKEW_MS) return false;
-  const expected = createHmac('sha256', secret).update(`id:${id.toLowerCase()};request-id:${requestId};ts:${ts};`).digest();
+  const expected = createHmac('sha256', key).update(`id:${id.toLowerCase()};request-id:${requestId};ts:${ts};`).digest();
   const actual = Buffer.from(hash, 'hex');
   return actual.length === expected.length && timingSafeEqual(expected, actual);
 }

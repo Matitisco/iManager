@@ -37,6 +37,7 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance) {
     if (!id || !/^[a-z\d_-]{1,100}$/i.test(id)) return reply.code(400).send({ error: 'ID de notificación inválido.' });
     if (body.data && String(body.data.id).toLowerCase() !== id.toLowerCase()) return reply.code(400).send({ error: 'La notificación no coincide con su firma.' });
     const header = (key: string) => typeof request.headers[key] === 'string' ? request.headers[key] as string : undefined;
+    if (!process.env.MP_WEBHOOK_SECRET?.trim()) request.log.warn('MP_WEBHOOK_SECRET is missing; rejecting Mercado Pago webhook');
     if (!validSignature(id, header('x-request-id'), header('x-signature'))) return reply.code(401).send({ error: 'Firma inválida.' });
     const type = body.type ?? query.type;
     if (type === 'subscription_preapproval') await reconcilePreapproval(id);

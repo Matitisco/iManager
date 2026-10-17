@@ -167,8 +167,35 @@ describe('reconciliación de suscripciones', () => {
     expect(store.billingPlan).toBe('TRIAL');
     expect(store.billingPreapprovalId).toBeNull();
     const post = harness.mpRequest.mock.calls.find(call => call[0] === '/preapproval' && call[1] === 'POST');
-    expect(post?.[2]).toMatchObject({ status: 'pending', external_reference: 'chk-1', preapproval_plan_id: 'plan-1' });
+    expect(post?.[2]).toEqual({
+      reason: 'iManager Básico mensual',
+      external_reference: 'chk-1',
+      payer_email: 'buyer@example.com',
+      auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: 22000, currency_id: 'ARS' },
+      back_url: 'http://127.0.0.1:3000/#/plan',
+      status: 'pending',
+    });
+    expect(post?.[2]).not.toHaveProperty('preapproval_plan_id');
     expect(post?.[2]).not.toHaveProperty('card_token_id');
+  });
+
+  it('activa un preapproval sin plan asociado cuando el importe coincide con la cotización', async () => {
+    const { store } = seed();
+    harness.getRemoteSubscription.mockResolvedValue(remote({ preapproval_plan_id: undefined }));
+    await expect(reconcilePreapproval('pre-1', 'store-1')).resolves.toBe(true);
+    expect(store.billingPreapprovalId).toBe('pre-1');
+    expect(store.billingPlan).toBe('BASIC');
+  });
+
+  it('no activa un preapproval sin plan si el importe no es el cotizado', async () => {
+    const { store } = seed();
+    harness.getRemoteSubscription.mockResolvedValue(remote({
+      preapproval_plan_id: undefined,
+      auto_recurring: { currency_id: 'ARS', frequency: 1, frequency_type: 'months', transaction_amount: 1 },
+    }));
+    await expect(reconcilePreapproval('pre-1', 'store-1')).resolves.toBe(false);
+    expect(store.billingPreapprovalId).toBeNull();
+    expect(harness.prisma.state.storeUpdates).toBe(0);
   });
 
   it('refresh libera un intento viejo sin suscripción en Mercado Pago', async () => {

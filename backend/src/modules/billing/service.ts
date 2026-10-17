@@ -160,10 +160,16 @@ export async function openCheckout(storeId: string, quoteId: string) {
         throw new DomainError('La cotización cambió o venció. Volvé a consultar el importe.', 409);
       }
       const returnUrl = backUrl();
+      const spec = PLANS[key];
       sent = true;
+      // A plan-linked preapproval requires card_token_id and status authorized. Pending checkout is plan-less.
       const created = parseRemote(remoteSubscriptionSchema.extend({ init_point: z.string().min(1) }), await mpRequest('/preapproval', 'POST', {
-        preapproval_plan_id: quote.providerPlanId, payer_email: quote.payerEmail,
-        external_reference: quote.id, back_url: returnUrl, status: 'pending',
+        reason: `iManager ${spec.name} ${spec.period === 'ANNUAL' ? 'anual' : 'mensual'}`,
+        external_reference: quote.id,
+        payer_email: quote.payerEmail,
+        auto_recurring: { frequency: spec.months, frequency_type: 'months', transaction_amount: Number(quote.amountArs), currency_id: 'ARS' },
+        back_url: returnUrl,
+        status: 'pending',
       }));
       await tx.billingCheckout.update({ where: { id: quote.id }, data: { providerSubscriptionId: created.id, checkoutStatus: 'CREATED' } });
       return created;
@@ -188,6 +194,19 @@ export async function openCheckout(storeId: string, quoteId: string) {
   return { initPoint };
 }
 
+async function planForRemote(tx: Prisma.TransactionClient, storeId: string, remote: RemoteSubscription, remoteReference: string) {
+  if (remote.preapproval_plan_id) return tx.billingPlan.findUnique({ where: { providerId: remote.preapproval_plan_id } });
+  const attempt = await tx.billingCheckout.findFirst({
+    where: { storeId, openedAt: { not: null }, OR: [{ providerSubscriptionId: remote.id }, ...(remoteReference ? [{ id: remoteReference }] : [])] },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!attempt || !PLAN_KEYS.includes(attempt.planKey as PlanKey)) return null;
+  const plan = await tx.billingPlan.findUnique({ where: { key: attempt.planKey } });
+  if (!plan || attempt.providerPlanId !== plan.providerId) return null;
+  const amount = Number(remote.auto_recurring.transaction_amount);
+  if (amount !== Number(attempt.amountArs) && amount !== Number(plan.amountArs)) return null;
+  return plan;
+}
 function payerEmailMismatch(remoteEmail: string | null | undefined, stored: string | null) {
   const email = remoteEmail?.trim().toLowerCase() || '';
   return !!email && email !== (stored ?? '');
@@ -213,7 +232,6 @@ export async function reconcilePreapproval(id: string, expectedStoreId?: string)
     if (!store || store.billingPlan === 'INTERNAL') return false;
     const remote = await getRemoteSubscription(id);
     const remoteReference = remote.external_reference?.trim() || '';
-    if (!remote.preapproval_plan_id) return false;
     const linked = await tx.billingCheckout.findFirst({
       where: { storeId, openedAt: { not: null }, OR: [{ providerSubscriptionId: id }, ...(remoteReference ? [{ id: remoteReference }] : [])] },
       orderBy: { createdAt: 'desc' },
@@ -224,7 +242,7 @@ export async function reconcilePreapproval(id: string, expectedStoreId?: string)
     const replacing = !!store.billingPreapprovalId && store.billingPreapprovalId !== id;
     if (replacing && (store.billingStatus !== 'CANCELLED' || (store.billingPaidThrough && store.billingPaidThrough > new Date()))) return false;
     if (replacing && (!remote.date_created || (store.billingRemoteUpdatedAt && new Date(remote.date_created) <= store.billingRemoteUpdatedAt))) return false;
-    const plan = await tx.billingPlan.findUnique({ where: { providerId: remote.preapproval_plan_id } });
+    const plan = await planForRemote(tx, storeId, remote, remoteReference);
     if (!plan || !PLAN_KEYS.includes(plan.key as PlanKey)) return false;
     const spec = PLANS[plan.key as PlanKey];
     if (remote.auto_recurring.currency_id !== 'ARS' || remote.auto_recurring.frequency !== spec.months || remote.auto_recurring.frequency_type !== 'months') return false;
@@ -297,8 +315,8 @@ export async function reconcileSubscriptions() {
       const reference = remote.external_reference?.trim() || '';
       const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
       if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
-      const plan = await tx.billingPlan.findUnique({ where: { providerId: remote.preapproval_plan_id ?? '' } });
-      if (plan && Number(plan.amountArs) !== remote.auto_recurring.transaction_amount) {
+      const plan = await planForRemote(tx, store.id, remote, reference);
+      if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
         await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
       }
     }, { timeout: 30_000, maxWait: 10_000 });

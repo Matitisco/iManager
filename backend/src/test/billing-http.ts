@@ -30,9 +30,12 @@ export function mockMercadoPago() {
     }
     if (path === '/preapproval' && method === 'POST') {
       const id = `created-${subscriptions.size + 1}`;
-      const plan = plans.get(String(body.preapproval_plan_id));
-      if (!plan) return json({ message: 'missing plan', cause: [{ code: 'plan' }] }, 400);
-      const remote = { id, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=${id}`, external_reference: body.external_reference, preapproval_plan_id: body.preapproval_plan_id, payer_email: body.payer_email ?? null, status: body.status ?? 'pending', last_modified: new Date().toISOString(), date_created: new Date().toISOString(), auto_recurring: plan.auto_recurring, back_url: body.back_url };
+      const recurring = body.auto_recurring as { currency_id?: string; transaction_amount?: number; frequency?: number; frequency_type?: string } | undefined;
+      if (body.preapproval_plan_id && body.status === 'pending' && !body.card_token_id) return json({ message: 'card_token_id is required', cause: [{ code: 'card_token_id' }] }, 400);
+      if (!recurring || recurring.currency_id !== 'ARS' || typeof recurring.transaction_amount !== 'number' || recurring.transaction_amount <= 0) {
+        return json({ message: 'missing recurring', cause: [{ code: 'auto_recurring' }] }, 400);
+      }
+      const remote = { id, init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=${id}`, reason: body.reason, external_reference: body.external_reference, payer_email: body.payer_email ?? null, status: body.status ?? 'pending', last_modified: new Date().toISOString(), date_created: new Date().toISOString(), auto_recurring: recurring, back_url: body.back_url };
       subscriptions.set(id, remote); return json(remote, 201);
     }
     if (path === '/preapproval/search') return json({ results: [...subscriptions.values()].filter(subscription => subscription.external_reference === url.searchParams.get('external_reference')) });
@@ -46,7 +49,7 @@ export function mockMercadoPago() {
     throw new Error(`Unexpected MP endpoint ${method} ${path}`);
   });
   vi.stubEnv('MP_ACCESS_TOKEN', 'test-placeholder');
-  vi.stubEnv('MP_WEBHOOK_SECRET', '');
+  vi.stubEnv('MP_WEBHOOK_SECRET', 'test-secret');
   vi.stubEnv('MP_PUBLIC_KEY', 'public-key-placeholder');
   vi.stubGlobal('fetch', fetchMock);
   return { plans, subscriptions, invoices, calls, fetchMock, failOn: (value: string, status = 503) => { fail = value; failStatus = status; } };
