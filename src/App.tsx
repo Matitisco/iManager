@@ -8,6 +8,8 @@ import { toUserMessage } from './lib/user-message';
 import { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Login } from './pages/Login';
+import { StoreActivityPage } from './pages/StoreActivity';
+import { isStoreActivityPath } from './lib/store-activity';
 import { AuthActionPage } from './pages/AuthActionPage';
 import { Onboarding } from './pages/Onboarding';
 import { DeskApp } from './desk/DeskApp';
@@ -131,6 +133,10 @@ function AppContent() {
       return <SessionClosed key={closedVersion} storeName={storeName} onRelogin={() => setClosedVersion((version) => version + 1)} />;
     }
     return <Login inviteToken={inviteToken} />;
+  }
+
+  if (isStoreActivityPath(window.location.pathname)) {
+    return <StoreActivityPage />;
   }
 
   if (backendStatus === 'ready' && appSession?.onboardingRequired) {

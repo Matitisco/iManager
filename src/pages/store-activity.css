@@ -1,0 +1,27 @@
+.store-activity { height: 100dvh; }
+.store-activity .stage { margin-bottom: 0; }
+.store-activity .activity-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.store-activity .activity-note { margin: -4px 0 14px; color: var(--secondary); font-size: 13px; font-weight: 600; }
+.store-activity .activity-cards { display: flex; flex-direction: column; gap: 10px; }
+.store-activity .activity-card { cursor: default; }
+.store-activity .activity-card:active, .store-activity .activity-card:hover { transform: none; box-shadow: 0 1px 2px rgba(22, 24, 29, .06), 0 8px 22px rgba(22, 24, 29, .08); }
+.store-activity .activity-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.store-activity .activity-stats div { background: var(--bg); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.store-activity .activity-stats dt { font-size: 11px; font-weight: 700; color: var(--secondary); }
+.store-activity .activity-stats dd { margin: 2px 0 0; font-size: 16px; font-weight: 800; }
+.store-activity .activity-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.store-activity .dtable tbody tr,
+.store-activity .dtable tbody tr:hover { cursor: default; background: transparent; }
+.store-activity .activity-missing,
+.store-activity .activity-status { min-height: 70dvh; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; }
+.store-activity .activity-missing h1,
+.store-activity .activity-status h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.store-activity .activity-missing p,
+.store-activity .activity-status p { color: var(--secondary); font-weight: 600; max-width: 36ch; }
+.store-activity .activity-home { text-decoration: none; }
+@media (max-width: 760px) {
+  .store-activity .stage { margin-bottom: 0; }
+  .store-activity .dscreen { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .store-activity .whead { align-items: stretch; flex-direction: column; }
+  .store-activity .whead h1 { font-size: 26px; }
+}
