@@ -398,7 +398,12 @@
 .fresh-row small { display: block; margin-top: 2px; color: var(--secondary); font-size: 12px; font-weight: 600; }
 .fresh-row strong { font-size: 14px; font-weight: 800; }
 .steps-scrim { position: fixed; inset: 0; z-index: 46; border: 0; background: rgba(22,24,29,.38); }
-.steps-pill, .steps-panel { position: fixed; z-index: 47; right: 22px; bottom: 22px; }
+.steps-pill, .steps-panel { position: fixed; right: 22px; bottom: 22px; }
+.steps-pill { z-index: 44; }
+.steps-panel { z-index: 47; }
+.desk-app:has(.ov) .steps-pill,
+.desk-app:has(.ov) .steps-panel,
+.desk-app:has(.ov) .steps-scrim { visibility: hidden; pointer-events: none; }
 .steps-pill { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px 0 8px; border-radius: 999px; background: #16181d; color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 12px 32px rgba(22,24,29,.28); }
 .steps-pill.is-done { padding-left: 8px; cursor: default; }
 .steps-ring { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
