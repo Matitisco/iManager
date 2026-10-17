@@ -98,12 +98,15 @@ describe('seguridad del checkout', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(refreshBilling).toHaveBeenCalledTimes(1);
-    expect(refreshBilling).toHaveBeenCalledWith('store-1');
+    expect(refreshBilling).toHaveBeenCalledWith('store-1', console, { replaceAbandoned: false });
+    const replace = await app.inject({ method: 'POST', url: '/api/billing/refresh', headers, payload: { replaceAbandoned: true, preapproval_id: 'forged' } });
+    expect(replace.statusCode).toBe(200);
+    expect(refreshBilling).toHaveBeenLastCalledWith('store-1', console, { replaceAbandoned: true });
     const staff = await app.inject({ method: 'POST', url: '/api/billing/refresh', headers: { ...headers, 'x-test-role': 'STAFF' } });
     expect(staff.statusCode).toBe(403);
     const anon = await app.inject({ method: 'POST', url: '/api/billing/checkout', payload: { quoteId: 'chk-1' } });
     expect(anon.statusCode).toBe(401);
-    expect(refreshBilling).toHaveBeenCalledTimes(1);
+    expect(refreshBilling).toHaveBeenCalledTimes(2);
     await app.close();
   });
 

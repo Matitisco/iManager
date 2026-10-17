@@ -200,7 +200,9 @@ describe('Plan y facturación', () => {
   });
   it('si el pago sigue pendiente ofrece reintentar y no muestra un error', async () => {
     window.history.replaceState(null, '', '/#/plan?preapproval_id=pre-1&status=pending');
-    state.loadBilling.mockResolvedValue({ ...state.billingDetails, pendingCheckout: true, recentlyActivated: false });
+    state.loadBilling.mockImplementation(async (_refresh?: boolean, replaceAbandoned?: boolean) => ({
+      ...state.billingDetails, pendingCheckout: !replaceAbandoned, recentlyActivated: false,
+    }));
     vi.useFakeTimers();
     try {
       ui();
@@ -210,10 +212,29 @@ describe('Plan y facturación', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(window.location.hash).toBe('#/plan');
       expect(window.location.href).not.toContain('pre-1');
+      expect(state.loadBilling.mock.calls.every(call => call[1] !== true)).toBe(true);
       fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-      await act(async () => { await Promise.resolve(); });
-      expect(screen.getByTestId('billing-return-confirming')).toBeVisible();
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(state.loadBilling).toHaveBeenCalledWith(true, true);
+      expect(screen.queryByTestId('billing-return-pending')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('billing-return-confirming')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Suscribirme a Básico' })).toBeVisible();
     } finally { vi.useRealTimers(); }
+  });
+  it('actualizar estado y reintentar un error reemplazan el checkout abandonado', async () => {
+    const view = ui();
+    await screen.findByRole('button', { name: 'Suscribirme a Básico' });
+    await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado del pago' }));
+    expect(state.loadBilling).toHaveBeenCalledWith(true, true);
+    expect(await screen.findByText('Estado actualizado desde Mercado Pago.')).toBeVisible();
+    view.unmount();
+    state.loadBilling.mockRejectedValueOnce(new Error('Probá de nuevo.'));
+    ui();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Probá de nuevo.');
+    state.loadBilling.mockResolvedValue(state.billingDetails);
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(state.loadBilling).toHaveBeenCalledWith(true, true);
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
   it('un retorno de otra tienda abre el plan sin error ni mensaje de pago', async () => {
     window.history.replaceState(null, '', '/#/plan?preapproval_id=ajeno&status=authorized&external_reference=otra');
