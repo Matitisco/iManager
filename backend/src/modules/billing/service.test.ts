@@ -67,6 +67,7 @@ const harness = vi.hoisted(() => {
         if (!row) throw new Error('missing plan');
         return row;
       }),
+      findMany: vi.fn(async () => []),
     },
     billingCheckout: {
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => state.checkouts.find(row => matches(row, where)) ?? null),
@@ -173,7 +174,7 @@ describe('reconciliación de suscripciones', () => {
       reason: 'iManager Básico mensual',
       external_reference: 'chk-1',
       payer_email: 'buyer@example.com',
-      auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: 22000, currency_id: 'ARS' },
+      auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: 22000, currency_id: 'ARS', start_date: store.trialEndsAt!.toISOString() },
       back_url: 'http://127.0.0.1:3000/#/plan',
       status: 'pending',
     });

@@ -24,6 +24,12 @@ export function memberLimit(plan: string) {
   return plan === 'INTERNAL' ? null : plan === 'BASIC' || plan === 'TRIAL' ? 3 : 5;
 }
 export type BillingStore = Pick<Store, 'billingPlan' | 'billingStatus' | 'trialEndsAt' | 'billingPaidThrough' | 'billingPeriod' | 'billingPreapprovalId'>;
+/** First debit of a subscription started during the trial. Null means charge now. */
+export function trialChargeStart(trialEndsAt: Date | null | undefined, now = new Date()) {
+  if (!trialEndsAt || trialEndsAt.getTime() <= now.getTime()) return null;
+  return trialEndsAt;
+}
+const CHARGE_REMINDER_MS = 2 * 86_400_000;
 export function billingSummary(store: BillingStore, members: number, now = new Date()) {
   const internal = store.billingPlan === 'INTERNAL';
   const trial = !internal && store.trialEndsAt !== null && store.trialEndsAt > now;
@@ -31,6 +37,8 @@ export function billingSummary(store: BillingStore, members: number, now = new D
   const limit = memberLimit(store.billingPlan);
   const overLimit = !internal && limit !== null && members > limit;
   const status = internal ? 'ACTIVE' : store.billingStatus === 'CANCELLED' ? 'CANCELLED' : paid ? 'ACTIVE' : trial ? 'TRIAL' : 'EXPIRED';
+  const scheduled = trial && !paid && !!store.billingPreapprovalId && store.billingStatus !== 'CANCELLED';
+  const untilCharge = scheduled ? store.trialEndsAt!.getTime() - now.getTime() : 0;
   return {
     plan: store.billingPlan, status, period: store.billingPeriod,
     trialEndsAt: store.trialEndsAt?.toISOString() ?? null,
@@ -39,6 +47,8 @@ export function billingSummary(store: BillingStore, members: number, now = new D
     readOnly: !internal && ((!trial && !paid) || overLimit),
     memberLimit: limit, members, overLimit,
     canCancel: !internal && !!store.billingPreapprovalId && store.billingStatus !== 'CANCELLED',
+    firstChargeAt: scheduled ? store.trialEndsAt!.toISOString() : null,
+    chargeReminder: scheduled && untilCharge <= CHARGE_REMINDER_MS,
   };
 }
 export type BillingSummary = ReturnType<typeof billingSummary>;

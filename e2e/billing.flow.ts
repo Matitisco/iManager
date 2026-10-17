@@ -27,19 +27,25 @@ export function registerBillingTests(device: string) {
     await expect(page.getByTestId('billing-access-banner')).toContainText('7 días restantes');
     await shot(page, device, 'trial');
     await billing(page);
-    const payerEmail = 'cobros@tienda.test';
-    await page.getByRole('textbox', { name: /Email del pagador/ }).fill(payerEmail);
     await expect(page.getByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).toBeVisible();
-    await expect(page.getByText(/Te quedan \d+ días de prueba sin tarjeta/)).toBeVisible();
-    await expect(page.getByText('1 de 3 usuarios', { exact: false })).toBeVisible();
+    await expect(page.getByText(/Quedan \d+ días/)).toBeVisible();
+    await expect(page.getByText('1 de 3')).toBeVisible();
     await expect(page.getByText('Hasta 3 usuarios')).toBeVisible();
     await expect(page.getByText('Hasta 5 usuarios')).toBeVisible();
-    await expect(page.getByText('US$ 22', { exact: false })).toBeVisible();
+    await expect(page.getByText('US$ 22', { exact: false }).first()).toBeVisible();
     await page.getByRole('button', { name: /Anual/ }).click();
-    await expect(page.getByText('US$ 198 por año, en un solo cobro')).toBeVisible();
+    await expect(page.getByText('US$ 198 por año')).toBeVisible();
+    const custom = page.getByRole('link', { name: /Escribinos/ });
+    await custom.scrollIntoViewIfNeeded();
+    if (device === 'iphone') {
+      const customBox = await custom.boundingBox();
+      const dockBox = await page.getByTestId('billing-dock').boundingBox();
+      expect(customBox && dockBox && customBox.y + customBox.height <= dockBox.y + 1).toBeTruthy();
+    }
     await shot(page, device, 'plans'); await fits(page);
+    const payerEmail = 'cobros@tienda.test';
     // Provider boundary simulated here; backend HTTP and persistence covered by integration suite.
-    await page.route('**/api/billing/quote', route => route.fulfill({ json: { id: 'e2e-quote', key: 'BASIC_ANNUAL', usd: 198, amountArs: 277200, exchangeRate: 1400, payerEmail, expiresAt: '2099-01-01T00:00:00Z' } }));
+    await page.route('**/api/billing/quote', route => route.fulfill({ json: { id: 'e2e-quote', key: 'BASIC_ANNUAL', usd: 198, amountArs: 277200, exchangeRate: 1400, payerEmail, expiresAt: '2099-01-01T00:00:00Z', firstChargeAt: '2099-01-01T00:00:00Z' } }));
     const payloads: unknown[] = [];
     let failCheckout = true;
     await page.route('**/api/billing/checkout', async route => {
@@ -57,11 +63,15 @@ export function registerBillingTests(device: string) {
     await expect(quote).toHaveAttribute('data-layout', device === 'iphone' ? 'sheet' : 'dialog');
     await expect(quote).toHaveAttribute('aria-modal', 'true');
     await expect(quote).toContainText('277.200');
-    await expect(quote).toContainText(payerEmail); expect(payloads).toHaveLength(0);
-    await expect(quote).toContainText('Dólar blue vendedor');
-    await expect(quote).toContainText('El débito es automático');
-    await expect(quote).toContainText('El pago se completa en Mercado Pago');
-    await expect(quote).toContainText('iManager no ve los datos de la tarjeta');
+    await expect(quote).toContainText('Primer cobro el');
+    await expect(quote.getByRole('button', { name: 'Cambiar' })).toBeVisible();
+    await quote.getByRole('button', { name: 'Cambiar' }).click();
+    await quote.getByRole('textbox', { name: 'Email del pagador' }).fill(payerEmail);
+    await expect(quote).toContainText('dólar blue de hoy');
+    await expect(quote).toContainText('Débito automático en pesos');
+    await expect(quote).toContainText('Cancelás cuando quieras');
+    await expect(quote).not.toContainText('tarjeta');
+    expect(payloads).toHaveLength(0);
     await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveCSS('color', 'rgb(255, 255, 255)');
     if (device === 'iphone') {
       const padding = await quote.evaluate(el => Number.parseFloat(getComputedStyle(el).paddingBottom));
@@ -94,7 +104,7 @@ export function registerBillingTests(device: string) {
     expect(response.status()).toBe(402);
     await billing(page); await shot(page, device, 'expired'); await fits(page);
     await prisma.store.update({ where: { id: storeId }, data: { onboardingCompletedAt: new Date(), billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPreapprovalId: 'test-subscription', billingPaidThrough: new Date(Date.now() + 10 * 86400000), billingPeriod: 'MONTHLY' } });
-    await page.reload(); await expect(page.getByText('1 de 3 usuarios')).toBeVisible();
+    await page.reload(); await expect(page.getByText('1 de 3')).toBeVisible();
     await shot(page, device, 'active');
     await page.getByRole('button', { name: 'Cancelar suscripción', exact: true }).click();
     await page.route('**/api/billing/cancel', route => route.fulfill({ status: 502, json: { error: 'Provider failure' } }));
