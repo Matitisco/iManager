@@ -83,6 +83,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it('requiere autenticación/owner y aísla cotizaciones de otra tienda', async () => {
     const { quote } = await opened();
+    expect((await getApp().inject({ url: '/api/billing', headers: headers() })).json()).toMatchObject({ pendingCheckout: false, recentlyActivated: false });
     expect((await getApp().inject({ url: '/api/billing' })).statusCode).toBe(401);
     await seedStoreContext({ firebaseUid: 'staff', role: 'STAFF' });
     expect((await getApp().inject({ url: '/api/billing', headers: buildAuthHeaders({ uid: 'staff' }) })).statusCode).toBe(403);

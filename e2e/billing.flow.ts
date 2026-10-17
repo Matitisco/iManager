@@ -87,4 +87,55 @@ export function registerBillingTests(device: string) {
     const write = await request.post(`${api}/api/clients`, { headers: authHeaders(email), data: { name: 'Cliente interno' } });
     expect(write.ok()).toBeTruthy(); await fits(page); await shot(page, device, 'internal');
   });
+  const returnBilling = {
+    plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null,
+    trialDaysLeft: 7, readOnly: false, memberLimit: 5, members: 1, overLimit: false, canCancel: false,
+    plans: [
+      { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3 },
+      { key: 'BUSINESS_MONTHLY', name: 'Negocio', plan: 'BUSINESS', period: 'MONTHLY', usd: 87, months: 1, users: 5 },
+      { key: 'BASIC_ANNUAL', name: 'Básico', plan: 'BASIC', period: 'ANNUAL', usd: 198, months: 12, users: 3 },
+      { key: 'BUSINESS_ANNUAL', name: 'Negocio', plan: 'BUSINESS', period: 'ANNUAL', usd: 783, months: 12, users: 5 },
+    ],
+  };
+  test(`el retorno de Mercado Pago abre el plan y confirma el pago · ${device}`, async ({ page, request }, info) => {
+    const email = buildTestEmail(info, 'billing-return');
+    await bootstrapStoreViaApi(page, request, email, 'Tienda Sur');
+    let calls = 0;
+    await page.route('**/api/billing/refresh', async route => {
+      calls += 1;
+      const sent = `${route.request().url()} ${route.request().postData() ?? ''}`;
+      expect(sent).not.toContain('pre-real');
+      expect(sent).not.toContain('authorized');
+      const active = calls > 1;
+      await route.fulfill({ json: { ...returnBilling, plan: active ? 'BASIC' : 'TRIAL', status: active ? 'ACTIVE' : 'TRIAL', canCancel: active, memberLimit: active ? 3 : 5, pendingCheckout: !active, recentlyActivated: active, paidThrough: active ? '2099-01-01T00:00:00Z' : null } });
+    });
+    await page.goto('/#/plan?preapproval_id=pre-real&status=authorized&external_reference=chk-1');
+    await expect(page.getByTestId('billing-screen')).toBeVisible();
+    await expect(page.getByTestId('billing-return-confirming')).toHaveText('Confirmando tu pago…');
+    await expect(page.getByText('Listo. Tu plan Básico ya está activo.')).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/#\/plan$/);
+    expect(page.url()).not.toContain('pre-real');
+    expect(page.url()).not.toContain('authorized');
+    expect(calls).toBeGreaterThan(1);
+    await fits(page);
+  });
+  test(`un retorno de otra tienda abre el plan sin error · ${device}`, async ({ page, request }, info) => {
+    const email = buildTestEmail(info, 'billing-return-other');
+    await bootstrapStoreViaApi(page, request, email, 'Tienda Oeste');
+    const sent: string[] = [];
+    await page.route('**/api/billing/refresh', async route => {
+      sent.push(`${route.request().url()} ${route.request().postData() ?? ''}`);
+      await route.continue();
+    });
+    await page.goto('/#/plan?preapproval_id=forged-id&status=authorized&external_reference=other-store');
+    await expect(page.getByTestId('billing-screen')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Suscribirme a Básico' })).toBeVisible();
+    await expect(page).toHaveURL(/#\/plan$/);
+    expect(page.url()).not.toContain('forged-id');
+    expect(page.url()).not.toContain('other-store');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByTestId('billing-return-pending')).toHaveCount(0);
+    expect(sent.some(body => body.includes('forged-id') || body.includes('other-store') || body.includes('authorized'))).toBe(false);
+    await fits(page);
+  });
 }

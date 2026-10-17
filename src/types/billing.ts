@@ -13,6 +13,8 @@ export interface BillingSummary {
   canCancel: boolean;
 }
 export interface BillingDetails extends BillingSummary {
+  pendingCheckout?: boolean;
+  recentlyActivated?: boolean;
   plans: { key: BillingPlanKey; plan: string; name: string; period: string; usd: number; months: number; users: number }[];
 }
 export interface BillingQuote {

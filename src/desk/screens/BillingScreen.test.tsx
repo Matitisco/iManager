@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BillingSummary } from '../../types/billing';
+import { BILLING_RETURN_CONFIRMING_MS } from '../billing-return';
 import { BillingAccessBanner, BillingScreen } from './BillingScreen';
 import { DeskProvider } from '../ui';
 
@@ -27,6 +29,7 @@ function ui(children = <BillingScreen />) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState(null, '', '/#/plan');
   Object.assign(state.billingDetails, state.summary);
   Object.assign(state.appSession, { membership: { role: 'OWNER' }, billing: state.summary });
   state.loadBilling.mockResolvedValue(state.billingDetails);
@@ -120,6 +123,90 @@ describe('Plan y facturación', () => {
     state.appSession.membership.role = 'STAFF'; ui();
     expect(screen.getByText(/Solo el propietario/)).toBeVisible();
     expect(screen.queryByRole('button', { name: /Suscribirme/ })).not.toBeInTheDocument();
+  });
+  it('al volver de Mercado Pago confirma el plan y borra los parámetros', async () => {
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=pre-1&status=authorized&external_reference=chk-1');
+    state.loadBilling
+      .mockResolvedValueOnce({ ...state.billingDetails, pendingCheckout: true, recentlyActivated: false })
+      .mockResolvedValue({ ...state.billingDetails, plan: 'BASIC', status: 'ACTIVE', canCancel: true, pendingCheckout: false, recentlyActivated: true });
+    vi.useFakeTimers();
+    try {
+      ui();
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByTestId('billing-return-confirming')).toHaveTextContent('Confirmando tu pago…');
+      expect(state.loadBilling).toHaveBeenCalledWith(true);
+      expect(JSON.stringify(state.loadBilling.mock.calls)).not.toContain('pre-1');
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+      expect(screen.getByText('Listo. Tu plan Básico ya está activo.')).toBeVisible();
+      expect(window.location.hash).toBe('#/plan');
+      expect(window.location.href).not.toContain('pre-1');
+      expect(window.location.href).not.toContain('authorized');
+      expect(state.reloadSession).toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it('si el pago sigue pendiente ofrece reintentar y no muestra un error', async () => {
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=pre-1&status=pending');
+    state.loadBilling.mockResolvedValue({ ...state.billingDetails, pendingCheckout: true, recentlyActivated: false });
+    vi.useFakeTimers();
+    try {
+      ui();
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Tu pago todavía está pendiente');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(window.location.hash).toBe('#/plan');
+      expect(window.location.href).not.toContain('pre-1');
+      fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByTestId('billing-return-confirming')).toBeVisible();
+    } finally { vi.useRealTimers(); }
+  });
+  it('un retorno de otra tienda abre el plan sin error ni mensaje de pago', async () => {
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=ajeno&status=authorized&external_reference=otra');
+    state.loadBilling.mockResolvedValue({ ...state.billingDetails, pendingCheckout: false, recentlyActivated: false });
+    ui();
+    expect(screen.getByTestId('billing-return-confirming')).toHaveTextContent('Confirmando tu pago…');
+    expect(await screen.findByRole('button', { name: 'Suscribirme a Básico' })).toBeVisible();
+    await waitFor(() => expect(screen.queryByText('Confirmando tu pago…')).not.toBeInTheDocument(), { timeout: BILLING_RETURN_CONFIRMING_MS + 1_000 });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('billing-return-pending')).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/plan');
+    expect(window.location.href).not.toContain('ajeno');
+  });
+  it('mantiene la confirmación si un refresh duplicado ya trae el plan activo', async () => {
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=pre-1&status=authorized&external_reference=chk-1');
+    let calls = 0;
+    state.loadBilling.mockImplementation(async () => {
+      calls += 1;
+      const active = calls > 1;
+      return { ...state.billingDetails, plan: active ? 'BASIC' : 'TRIAL', status: active ? 'ACTIVE' : 'TRIAL', canCancel: active, pendingCheckout: !active, recentlyActivated: active, paidThrough: active ? '2099-01-01T00:00:00Z' : null };
+    });
+    vi.useFakeTimers();
+    try {
+      render(<StrictMode><DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}><BillingScreen /></DeskProvider></StrictMode>);
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByTestId('billing-return-confirming')).toHaveTextContent('Confirmando tu pago…');
+      expect(calls).toBe(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+      expect(screen.getByText('Listo. Tu plan Básico ya está activo.')).toBeVisible();
+      expect(calls).toBe(2);
+    } finally { vi.useRealTimers(); }
+  });
+  it('no cierra la confirmación si el primer refresh ya trae el plan activo', async () => {
+    window.history.replaceState(null, '', '/#/plan?preapproval_id=pre-1&status=authorized&external_reference=chk-1');
+    state.loadBilling.mockResolvedValue({ ...state.billingDetails, plan: 'BASIC', status: 'ACTIVE', canCancel: true, pendingCheckout: false, recentlyActivated: true, paidThrough: '2099-01-01T00:00:00Z' });
+    vi.useFakeTimers();
+    try {
+      ui();
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByTestId('billing-return-confirming')).toHaveTextContent('Confirmando tu pago…');
+      expect(screen.queryByText('Listo. Tu plan Básico ya está activo.')).not.toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(BILLING_RETURN_CONFIRMING_MS - 1); });
+      expect(screen.getByTestId('billing-return-confirming')).toBeVisible();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(screen.getByText('Listo. Tu plan Básico ya está activo.')).toBeVisible();
+      expect(window.location.hash).toBe('#/plan');
+    } finally { vi.useRealTimers(); }
   });
   it('contador de prueba navega al plan; empleados vencidos contactan al propietario', async () => {
     const view = ui(<BillingAccessBanner dashboard />);

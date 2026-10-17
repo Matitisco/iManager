@@ -33,6 +33,7 @@ import { DeskIcon, DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
 import { canManageCommissions, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
+import { ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
 import './desk.css';
@@ -40,11 +41,6 @@ import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
-const ROUTE: Record<DeskTab, string> = {
-  billing: 'plan', cash: 'cajas', publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
-  clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
-  help: 'ayuda', more: 'mas', commissions: 'comisiones',
-};
 const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
   cash: 'grid', publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
@@ -163,11 +159,6 @@ function FxBanner() {
   const warning = useMoney().warning;
   if (!warning) return null;
   return <p className="fx-warn" data-testid="fx-warning" role="status">{warning}</p>;
-}
-
-function tabFromHash(hash: string): DeskTab {
-  const name = hash.replace(/^#\/?/, '').split('/')[0];
-  return (Object.keys(ROUTE) as DeskTab[]).find((key) => ROUTE[key] === name) ?? 'dashboard';
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {

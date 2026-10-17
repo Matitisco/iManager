@@ -5,13 +5,28 @@ import { useAppContext } from '../../context/AppContext';
 import type { BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
 import { redirectToMercadoPago } from '../../services/mercadopago-url';
+import { BILLING_RETURN_CONFIRMING_MS, BILLING_RETURN_POLL_MS, BILLING_RETURN_WINDOW_MS, billingPathFromLocation, billingReturnStep, isBillingReturn } from '../billing-return';
 import { PageHead, useDesk } from '../ui';
+import type { BillingDetails } from '../../types/billing';
 import './billing.css';
 
 export const billingPlanName = (plan?: string) => ({ INTERNAL: 'Interno', TRIAL: 'Prueba gratuita', BASIC: 'Básico', BUSINESS: 'Negocio' }[plan ?? ''] ?? 'Tu plan');
 const statusName = (status?: string) => ({ ACTIVE: 'Activa', TRIAL: 'En prueba', EXPIRED: 'Vencida', CANCELLED: 'Cancelada' }[status ?? ''] ?? '');
 const ars = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(amount);
 const date = (iso: string) => new Date(iso).toLocaleDateString('es-AR');
+
+let sharedReturnRefresh: { key: string; promise: Promise<BillingDetails | undefined> } | null = null;
+
+/** One return refresh per store. A remount or StrictMode replay must not start a second one. */
+function shareReturnRefresh(key: string, load: () => Promise<BillingDetails | undefined>) {
+  if (sharedReturnRefresh?.key !== key) {
+    const promise = load().finally(() => {
+      if (sharedReturnRefresh?.promise === promise) sharedReturnRefresh = null;
+    });
+    sharedReturnRefresh = { key, promise };
+  }
+  return sharedReturnRefresh.promise;
+}
 
 export function BillingScreen() {
   const { appSession, billingDetails, loadBilling, quoteSubscription, openSubscriptionCheckout, cancelSubscription, reloadSession } = useAppContext();
@@ -23,18 +38,85 @@ export function BillingScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [confirming, setConfirming] = useState(() => isBillingReturn(window.location.hash, window.location.search));
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [returnAttempt, setReturnAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const alive = useRef(true);
+  const returningRef = useRef(confirming);
+  const reloadSessionRef = useRef(reloadSession);
+  reloadSessionRef.current = reloadSession;
   const busyRef = useRef(false);
   const quoteRef = useRef<HTMLElement>(null);
   useEffect(() => { if (quote) quoteRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); }, [quote]);
   const storeId = appSession?.store?.id;
   useEffect(() => {
     alive.current = true;
-    setLoading(true); setQuote(null); setError('');
-    void loadBilling(true).catch(cause => { if (alive.current) setError(toUserMessage(cause)); }).finally(() => { if (alive.current) setLoading(false); });
-    return () => { alive.current = false; };
-  }, [loadBilling, storeId]);
+    const returning = returningRef.current;
+    const started = Date.now();
+    let timer = 0;
+    let stopped = false;
+    setLoading(true); setQuote(null); setError(''); setPaymentPending(false);
+    setConfirming(returning);
+    const finish = (apply: () => void) => {
+      if (!alive.current || stopped) return;
+      const wait = returning ? Math.max(0, BILLING_RETURN_CONFIRMING_MS - (Date.now() - started)) : 0;
+      const run = () => {
+        if (!alive.current || stopped) return;
+        apply();
+      };
+      if (wait === 0) run();
+      else timer = window.setTimeout(run, wait);
+    };
+    const settle = (path: string, apply: () => void = () => undefined) => {
+      finish(() => {
+        history.replaceState(null, '', path);
+        setConfirming(false);
+        setLoading(false);
+        apply();
+      });
+    };
+    const tick = async () => {
+      if (stopped || !alive.current) return;
+      let details: BillingDetails | undefined;
+      try { details = await (returning ? shareReturnRefresh(`${storeId ?? ''}:${returnAttempt}`, () => loadBilling(true)) : loadBilling(true)); }
+      catch (cause) {
+        if (!alive.current || stopped) return;
+        if (returning && Date.now() - started < BILLING_RETURN_WINDOW_MS) {
+          timer = window.setTimeout(() => void tick(), BILLING_RETURN_POLL_MS);
+          return;
+        }
+        finish(() => {
+          setConfirming(false); setLoading(false);
+          if (returning) { setPaymentPending(true); history.replaceState(null, '', billingPathFromLocation(window.location.href)); }
+          else setError(toUserMessage(cause));
+        });
+        return;
+      }
+      if (!alive.current || stopped) return;
+      if (!returning) { setLoading(false); return; }
+      const step = billingReturnStep(details, Date.now() - started);
+      if (step === 'success') {
+        settle(billingPathFromLocation(window.location.href), () => {
+          setNotice(`Listo. Tu plan ${billingPlanName(details?.plan)} ya está activo.`);
+          void reloadSessionRef.current();
+        });
+        return;
+      }
+      if (step === 'confirming') {
+        setConfirming(true); setLoading(false);
+        timer = window.setTimeout(() => void tick(), BILLING_RETURN_POLL_MS);
+        return;
+      }
+      if (step === 'pending') {
+        settle(billingPathFromLocation(window.location.href), () => setPaymentPending(true));
+        return;
+      }
+      settle(billingPathFromLocation(window.location.href));
+    };
+    void tick();
+    return () => { stopped = true; alive.current = false; window.clearTimeout(timer); };
+  }, [loadBilling, returnAttempt, storeId]);
   const billing = billingDetails ?? appSession?.billing;
   const internal = billing?.plan === 'INTERNAL';
   const subscribed = billing?.canCancel || (!!billing?.paidThrough && new Date(billing.paidThrough) > new Date());
@@ -62,9 +144,11 @@ export function BillingScreen() {
           </>}
           {!internal ? <button className="billing-link" type="button" disabled={busy || loading} onClick={() => void run(async () => { await loadBilling(true); await reloadSession(); setNotice('Estado actualizado desde Mercado Pago.'); })}>Actualizar estado del pago</button> : null}
         </section>
+        {confirming ? <p className="billing-return" role="status" data-testid="billing-return-confirming">Confirmando tu pago…</p> : null}
+        {paymentPending ? <div className="billing-return" role="status" data-testid="billing-return-pending"><p>Tu pago todavía está pendiente. Si ya lo completaste en Mercado Pago, podés volver a consultar.</p><button className="billing-primary" type="button" disabled={busy} onClick={() => setReturnAttempt(attempt => attempt + 1)}>Reintentar</button></div> : null}
         {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(); setLoading(false); })}>Reintentar</button></div> : null}
         {notice ? <p className="billing-notice" role="status">{notice}</p> : null}
-        {loading ? <p role="status">Cargando planes…</p> : null}
+        {loading && !confirming ? <p role="status">Cargando planes…</p> : null}
         {!internal && !subscribed ? <>
           <div className="billing-intro"><h2>Elegí cómo seguir</h2><p>Precios en USD. Pagás el equivalente en pesos argentinos con Mercado Pago.</p></div>
           <div className="billing-period" role="group" aria-label="Frecuencia de facturación">
