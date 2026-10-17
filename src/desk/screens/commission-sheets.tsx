@@ -70,6 +70,7 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
 export function CommissionPaymentSheet({ memberId, period, people, onClose }: { memberId: string | null; period: string; people: CommissionSummary['people']; onClose: () => void }) {
   const { payCommission } = useAppContext();
   const blue = useCommissionBlue();
+  const hasPending = people.some(p => p.pending.ARS > 0 || p.pending.USD > 0);
   const [member, setMember] = useState(memberId ?? people.find(p => p.pending.ARS > 0 || p.pending.USD > 0)?.memberId ?? '');
   const person = people.find(p => p.memberId === member);
   const [currency, setCurrency] = useState<CommissionCurrency>('ARS');
@@ -103,7 +104,8 @@ export function CommissionPaymentSheet({ memberId, period, people, onClose }: { 
   };
   return <Sheet title="Registrar pago" subtitle="Podés pagar una parte; el resto queda pendiente." onClose={() => { if (!busy) onClose(); }} className="commission-form">
     {error ? <div className="ferr" role="alert">{error}</div> : null}
-    <Field label="Para"><DeskSelect label="Para" value={member} onChange={id => { setMember(id); const p = people.find(row => row.memberId === id); setSettles(p && p.pending.ARS <= 0 && p.pending.USD > 0 ? 'USD' : 'ARS'); }} disabled={busy} options={people.map(p => ({ value: p.memberId, label: `${p.name} · debe ${commissionTotal(p.pending)}`, disabled: p.pending.ARS <= 0 && p.pending.USD <= 0 }))} /></Field>
+    <Field label="Para"><DeskSelect label="Para" value={member} onChange={id => { setMember(id); const p = people.find(row => row.memberId === id); setSettles(p && p.pending.ARS <= 0 && p.pending.USD > 0 ? 'USD' : 'ARS'); }} disabled={busy || !hasPending} options={people.map(p => ({ value: p.memberId, label: `${p.name} · debe ${commissionTotal(p.pending)}`, disabled: p.pending.ARS <= 0 && p.pending.USD <= 0 }))} /></Field>
+    {!hasPending ? <p className="eqs-note" role="status">No hay comisiones pendientes</p> : null}
     <div className="frow"><div><Field label="Pagás en" /><Segs options={CURRENCIES} value={currency} onChange={value => setCurrency(value as CommissionCurrency)} /></div><Field label={`Monto · ${currency}`}><input aria-label="Monto del pago" type="number" step="0.01" min="0.01" value={amount} onChange={event => setAmount(event.target.value)} disabled={busy} /></Field></div>
     <Field label="Salda la deuda en" /><Segs options={[{ id: 'ARS', label: `Pesos · ${commissionAmount(pending.ARS, 'ARS')}` }, { id: 'USD', label: `Dólares · ${commissionAmount(pending.USD, 'USD')}` }].filter(option => pending[option.id as CommissionCurrency] > 0)} value={settles} onChange={value => setSettles(value as CommissionCurrency)} />
     <Field label="Cotización · dólar blue venta · editable"><input aria-label="Cotización del pago" type="number" min="0.01" step="0.01" value={exchangeRate} onChange={event => { dirtyRate.current = true; setExchangeRate(event.target.value); }} disabled={busy} /></Field>
