@@ -68,11 +68,17 @@ function wait(ms: number) {
 export async function createInvitation(
   user: AuthUserLike,
   email: string | undefined,
-  role: InvitationRole
+  role: InvitationRole,
+  access?: { sections?: string[]; sensitiveAccess?: boolean },
 ): Promise<CreatedInvitation> {
   return apiRequest<CreatedInvitation>(user, '/api/invitations', {
     method: 'POST',
-    body: email ? { email, role } : { role },
+    body: {
+      ...(email ? { email } : {}),
+      role,
+      ...(access?.sections !== undefined ? { sections: access.sections } : {}),
+      ...(access?.sensitiveAccess !== undefined ? { sensitiveAccess: access.sensitiveAccess } : {}),
+    },
     fallback: 'Error al crear invitación',
   });
 }

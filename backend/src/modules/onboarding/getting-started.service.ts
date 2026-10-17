@@ -3,6 +3,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { lockTransactionKey } from "../../lib/advisory-lock.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { canAccessSection } from "../stores/sections.js";
+import { evaluateFirstSteps, firstStepsVisibleTo } from "./first-steps.js";
 
 type Member = {
   storeId: string;
@@ -22,11 +23,12 @@ export async function getGettingStarted(member: Member) {
   const { storeId, userId, role, sections } = member;
   const can = (section: "inventory" | "sales") =>
     canAccessSection(section, { sections, role });
-  const [store, preferences, stock, sales, employees, catalog, samples] =
+  const [store, preferences, stock, sales, members, invitations, catalog, samples] =
     await Promise.all([
       prisma.store.findUniqueOrThrow({
         where: { id: storeId },
         select: {
+          name: true,
           onboardingStartedAt: true,
           onboardingCompletedAt: true,
           onboardingStage: true,
@@ -40,25 +42,32 @@ export async function getGettingStarted(member: Member) {
             where: { storeId, archivedAt: null, sampleBatchId: null },
           })
         : 0,
-      can("sales")
-        ? prisma.sale.count({
-            where: { storeId, status: { not: "CANCELADA" } },
-          })
+      can("sales") ? prisma.sale.count({ where: { storeId } }) : 0,
+      firstStepsVisibleTo(role)
+        ? prisma.storeMember.count({ where: { storeId } })
         : 0,
-      role !== "STAFF"
-        ? prisma.storeMember.count({
-            where: { storeId, role: { not: "OWNER" } },
-          })
+      firstStepsVisibleTo(role)
+        ? prisma.storeInvitation.count({ where: { storeId } })
         : 0,
       role === "OWNER"
         ? prisma.storePublicCatalog.findUnique({ where: { storeId } })
         : null,
       can("inventory")
         ? prisma.inventoryItem.count({
-            where: { storeId, sampleBatchId: { not: null } },
+            where: { storeId, archivedAt: null, sampleBatchId: { not: null } },
           })
         : 0,
     ]);
+  const steps = firstStepsVisibleTo(role)
+    ? evaluateFirstSteps({
+        storeName: store.name,
+        inventoryItems: stock + samples,
+        sales,
+        members,
+        invitations,
+        installed: preferences.appInstalled,
+      })
+    : { store: false, stock: false, sale: false, team: false, install: false };
   return {
     stage: store.onboardingStage === "video" ? "invite" : (store.onboardingStage ?? "stock"),
     eligible: store.onboardingStartedAt !== null,
@@ -68,12 +77,14 @@ export async function getGettingStarted(member: Member) {
       role === "OWNER",
     dismissed: preferences.gettingStartedDismissed,
     stock,
-    sales: sales > 0,
-    team: employees > 0,
+    sales: steps.sale,
+    team: steps.team,
     catalog: Boolean(catalog?.active),
     installed: preferences.appInstalled,
     visible: preferences.gettingStartedVisible,
     samples,
+    storeNamed: steps.store,
+    steps,
   };
 }
 

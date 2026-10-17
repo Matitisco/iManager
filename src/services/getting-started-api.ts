@@ -13,6 +13,14 @@ export interface GettingStartedProgress {
   installed: boolean;
   visible: boolean;
   samples: number;
+  storeNamed?: boolean;
+  steps?: {
+    store: boolean;
+    stock: boolean;
+    sale: boolean;
+    team: boolean;
+    install: boolean;
+  };
 }
 export type ProgressPatch = {
   dismissed?: boolean;

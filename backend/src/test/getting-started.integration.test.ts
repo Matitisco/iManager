@@ -214,4 +214,85 @@ describe("primeros pasos persistentes y muestras", () => {
         .statusCode,
     ).toBe(401);
   });
+
+  it("completa tienda al alta, stock con un equipo, venta, invitación o segundo miembro, e instalación", async () => {
+    const ctx = await seedStoreContext({ createStore: false });
+    const app = getApp();
+    const auth = headers(ctx.user.firebaseUid);
+    await app.inject({
+      method: "POST",
+      url: "/api/onboarding",
+      headers: auth,
+      payload: { storeName: "iPhone Club Palermo" },
+    });
+    const fresh = await app.inject({ method: "GET", url: "/api/onboarding/progress", headers: auth });
+    expect(fresh.json().steps).toEqual({
+      store: true,
+      stock: false,
+      sale: false,
+      team: false,
+      install: false,
+    });
+    const storeId = (await prisma.storeMember.findFirstOrThrow({ where: { userId: ctx.user.id } })).storeId;
+    await prisma.inventoryItem.create({
+      data: {
+        storeId,
+        model: "iPhone 14",
+        capacity: "128GB",
+        color: "",
+        condition: "USADO",
+        grade: "",
+        batteryHealth: "",
+        price: 100,
+        cost: 0,
+        status: "DISPONIBLE",
+      },
+    });
+    expect((await app.inject({ method: "GET", url: "/api/onboarding/progress", headers: auth })).json().steps.stock).toBe(true);
+    await prisma.sale.create({
+      data: {
+        storeId,
+        clientName: "Lucía",
+        dateLabel: "17/10/2026",
+        amount: 742000,
+        amountCurrency: "ARS",
+        paymentMethod: "EFECTIVO",
+        status: "COMPLETADA",
+        soldAt: new Date(),
+      },
+    });
+    expect((await app.inject({ method: "GET", url: "/api/onboarding/progress", headers: auth })).json().steps.sale).toBe(true);
+    const invite = await app.inject({
+      method: "POST",
+      url: "/api/invitations",
+      headers: auth,
+      payload: { role: "STAFF", email: "martin@gmail.com", sections: ["sales", "inventory", "tradeins"], sensitiveAccess: false },
+    });
+    expect(invite.statusCode).toBe(201);
+    expect((await app.inject({ method: "GET", url: "/api/onboarding/progress", headers: auth })).json().steps.team).toBe(true);
+    const installed = await app.inject({
+      method: "PATCH",
+      url: "/api/onboarding/progress",
+      headers: auth,
+      payload: { installed: true },
+    });
+    expect(installed.json().steps).toMatchObject({ store: true, stock: true, sale: true, team: true, install: true });
+
+    const seller = await seedStoreContext({ firebaseUid: "seller-386", role: "STAFF", createStore: false });
+    await prisma.storeMember.create({
+      data: { storeId, userId: seller.user.id, role: "STAFF", isDefault: true, sections: ["dashboard", "sales"] },
+    });
+    const hidden = await app.inject({
+      method: "GET",
+      url: "/api/onboarding/progress",
+      headers: headers(seller.user.firebaseUid),
+    });
+    expect(hidden.json().steps).toEqual({
+      store: false,
+      stock: false,
+      sale: false,
+      team: false,
+      install: false,
+    });
+  });
 });

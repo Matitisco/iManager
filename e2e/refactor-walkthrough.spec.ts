@@ -215,13 +215,12 @@ for (const viewport of viewports) {
       await expect(page.getByTestId('blue-overlay')).toBeHidden();
 
       await page.getByTestId('settings-invite').click();
-      const invite = page.getByRole('dialog', { name: 'Invitar al equipo' });
-      await invite.getByRole('button', { name: 'Generar link' }).click();
-      const ready = page.getByRole('dialog', { name: 'Link listo' });
-      await expect(ready.getByTestId('invite-share')).toBeVisible();
+      const invite = page.getByRole('dialog', { name: 'Invitá a tu equipo' });
+      await invite.getByTestId('invite-copy').click();
+      await expect(invite.getByTestId('invite-url')).not.toHaveText('');
       await shot(page, `${prefix}-16-invitacion.png`);
-      await ready.getByRole('button', { name: 'Listo' }).click();
-      await expect(ready).toBeHidden();
+      await page.keyboard.press('Escape');
+      await expect(invite).toBeHidden();
       await page.getByTestId('settings-invites').click();
       const links = page.getByRole('dialog', { name: 'Links de invitación' });
       await expect(links).toBeVisible();

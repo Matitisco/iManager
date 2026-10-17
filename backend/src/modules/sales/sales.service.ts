@@ -75,6 +75,7 @@ export interface SaleResponse {
   cancelledBy: string | null;
   cancelledAt: string | null;
   warrantyDays: number | null;
+  soldAt: string;
 }
 
 type SaleRecord = {
@@ -186,6 +187,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     cancelledBy: sale.cancelledBy ?? null,
     cancelledAt: sale.cancelledAt ? sale.cancelledAt.toISOString() : null,
     warrantyDays: sale.warrantyDays ?? null,
+    soldAt: sale.soldAt.toISOString(),
   };
 }
 

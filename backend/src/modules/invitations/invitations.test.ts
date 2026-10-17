@@ -88,6 +88,32 @@ describe("invitations.service", () => {
     });
   });
 
+  it("persiste secciones vacías y el acceso sensible de la invitación", async () => {
+    prismaMock.storeInvitation.create.mockResolvedValue({
+      id: "inv-2",
+      token: "token-abcdef",
+      email: "martin@gmail.com",
+      role: "STAFF",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+    });
+
+    await createInvitation("store-1", "OWNER", "martin@gmail.com", "STAFF", {
+      sections: [],
+      sensitiveAccess: false,
+    });
+
+    expect(prismaMock.storeInvitation.create).toHaveBeenCalledWith({
+      data: {
+        storeId: "store-1",
+        email: "martin@gmail.com",
+        role: "STAFF",
+        expiresAt: expect.any(Date),
+        sections: [],
+        sensitiveAccess: false,
+      },
+    });
+  });
+
   it("fails clearly when FRONTEND_URL is missing", async () => {
     process.env.FRONTEND_URL = "";
 

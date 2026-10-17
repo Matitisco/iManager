@@ -14,6 +14,8 @@ import {
 const createSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(["MANAGER", "STAFF"]),
+  sections: z.array(z.string()).optional(),
+  sensitiveAccess: z.boolean().optional(),
 });
 
 function tokenPrefix(token: string) {
@@ -121,7 +123,8 @@ export async function invitationsRoutes(app: FastifyInstance) {
         request.appUser.storeId,
         request.appUser.role,
         body.email,
-        body.role
+        body.role,
+        { sections: body.sections, sensitiveAccess: body.sensitiveAccess },
       );
 
       request.log.info(

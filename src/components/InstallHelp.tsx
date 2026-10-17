@@ -62,7 +62,7 @@ function PlatformSteps({ platform, own = false }: { platform: Platform; own?: bo
   </section>;
 }
 
-export function InstallHelp({ onClose }: { onClose: () => void }) {
+export function InstallHelp({ onClose, onInstalled }: { onClose: () => void; onInstalled?: () => void }) {
   const titleId = useId();
   const otherId = useId();
   const dialog = useRef<HTMLDivElement>(null);
@@ -142,6 +142,7 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
           <span className="install-other-icon"><Smartphone size={22} /></span><span><b>¿Usás {other === 'iphone' ? 'iPhone' : 'Android'}?</b><small>{other === 'iphone' ? 'Safari → Compartir → Agregar a inicio' : 'Chrome → ⋮ → Instalar app'}</small></span><ChevronDown size={18} className={expanded ? 'expanded' : ''} />
         </button>
         <div id={otherId} hidden={!expanded}>{expanded && <PlatformSteps platform={other} />}</div>
+        {onInstalled ? <button className="install-installed" type="button" onClick={onInstalled}>Ya la instalé</button> : null}
       </div>
     </motion.div>
   </div>, document.body);

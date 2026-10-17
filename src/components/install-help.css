@@ -59,4 +59,5 @@
 .install-other > svg.expanded { transform: rotate(180deg); }
 .install-other + div:not([hidden]) { margin-top: 14px; }
 @media (max-width: 370px) { .install-guide-steps li { grid-template-columns: 26px minmax(0, 1fr) 96px; gap: 8px; padding: 10px; } .install-platform-heading { gap: 5px; } .install-platform-heading h3 { font-size: 15px; } }
+.install-installed { width: 100%; margin-top: 16px; min-height: 48px; border: 0; border-radius: 14px; background: #16181D; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
 @media (min-width: 761px) { .install-more-card { display: none; } }

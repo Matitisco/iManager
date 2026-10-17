@@ -8,10 +8,11 @@ import { Actions, PageHead } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
 
 
-export function MemberPermissions({ member, onBack, onSaved }: {
+export function MemberPermissions({ member, onBack, onSaved, draft = false }: {
   member: TeamMember;
   onBack: () => void;
   onSaved: (member: TeamMember) => void;
+  draft?: boolean;
 }) {
   const { user, appSession, reloadSession } = useAppContext();
   const phone = usePhoneLayout();
@@ -28,6 +29,11 @@ export function MemberPermissions({ member, onBack, onSaved }: {
   };
 
   const save = async () => {
+    if (draft) {
+      onSaved({ ...member, sections, sensitiveAccess: sensitive });
+      onBack();
+      return;
+    }
     if (!user || !appSession?.store?.id || locked) return;
     setBusy(true);
     setError('');

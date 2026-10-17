@@ -65,6 +65,7 @@ export interface Sale {
   cancelledBy?: string | null;
   cancelledAt?: string | null;
   warrantyDays?: number | null;
+  soldAt?: string | null;
 }
 
 export interface RepairStatusEvent {
