@@ -7,6 +7,7 @@ export function mockMercadoPago() {
   const calls: Array<{ path: string; method: string; body: Record<string, unknown> }> = [];
   let fail = '';
   let failStatus = 503;
+  let failMessage = 'mock failure';
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     if (url.origin !== 'https://api.mercadopago.com') throw new Error('Unexpected external HTTP');
@@ -14,7 +15,7 @@ export function mockMercadoPago() {
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
     calls.push({ path, method, body });
     const json = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
-    if (fail === `${method} ${path}`) return json({ message: 'mock failure' }, failStatus);
+    if (fail === `${method} ${path}`) return json({ message: failMessage }, failStatus);
     if (path === '/users/me') return json({ id: 123 });
     if (path === '/preapproval_plan/search') return json({ results: [...plans.values()].filter(plan => plan.reason === url.searchParams.get('q')) });
     if (path === '/preapproval_plan' && method === 'POST') {
@@ -52,5 +53,5 @@ export function mockMercadoPago() {
   vi.stubEnv('MP_WEBHOOK_SECRET', 'test-secret');
   vi.stubEnv('MP_PUBLIC_KEY', 'public-key-placeholder');
   vi.stubGlobal('fetch', fetchMock);
-  return { plans, subscriptions, invoices, calls, fetchMock, failOn: (value: string, status = 503) => { fail = value; failStatus = status; } };
+  return { plans, subscriptions, invoices, calls, fetchMock, failOn: (value: string, status = 503, message = 'mock failure') => { fail = value; failStatus = status; failMessage = message; } };
 }

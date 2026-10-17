@@ -8,12 +8,20 @@ const API = 'https://api.mercadopago.com';
 const WEBHOOK_SIGNATURE_SKEW_MS = 5 * 60_000;
 const MP_HOST = /^(?:[a-z0-9-]+\.)*mercadopago\.com(?:\.[a-z]{2})?$/;
 
+const CONFIG_ERROR = 'La facturación no está disponible en este momento. Contactá a iManager.';
+const PREAPPROVAL_ERROR = 'Mercado Pago no pudo iniciar la suscripción. Revisá el email del pagador o probá de nuevo en unos minutos.';
+const MIXED_ACCOUNT_ERROR = 'Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.';
+const PLAN_ERROR = 'No pudimos validar el plan con Mercado Pago. Reintentá.';
+const PROVIDER_ERROR = 'No pudimos consultar Mercado Pago. Reintentá en unos minutos.';
+
+export type MpRequestContext = { purpose?: 'plan' };
+
 function providerLog(status: number, raw: string, token: string) {
   let message = '';
   const causes: Array<string | number> = [];
   try {
     const body = JSON.parse(raw) as { message?: unknown; cause?: unknown };
-    if (typeof body.message === 'string') message = body.message.replace(/\s+/g, ' ').slice(0, 180);
+    if (typeof body.message === 'string') message = body.message.replace(/\s+/g, ' ').trim();
     if (Array.isArray(body.cause)) {
       for (const item of body.cause.slice(0, 8)) {
         if (!item || typeof item !== 'object' || !('code' in item)) continue;
@@ -23,11 +31,26 @@ function providerLog(status: number, raw: string, token: string) {
       }
     }
   } catch { /* unreadable provider body is not logged */ }
-  if (token && message.includes(token)) message = message.replaceAll(token, '[redacted]');
+  if (token) message = message.replaceAll(token, '[redacted]');
+  message = message.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '[redacted-email]').slice(0, 180);
   return { status, message, causes };
 }
 
-export async function mpRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
+function mpRejection(status: number, method: string, path: string, message: string, context?: MpRequestContext) {
+  const route = path.split('?')[0];
+  if (/real or test users/i.test(message)) return { statusCode: 402, message: MIXED_ACCOUNT_ERROR, kind: 'provider' as const };
+  if (status === 401 || status === 403) return { statusCode: 503, message: CONFIG_ERROR, kind: 'config' as const };
+  if ((status === 400 || status === 422) && method.toUpperCase() === 'POST' && route === '/preapproval') {
+    return { statusCode: 402, message: PREAPPROVAL_ERROR, kind: 'provider' as const };
+  }
+  if (context?.purpose === 'plan' && [400, 404, 422].includes(status) && (method.toUpperCase() === 'GET' || method.toUpperCase() === 'PUT') && route.startsWith('/preapproval_plan/')) {
+    return { statusCode: 402, message: PLAN_ERROR, kind: 'provider' as const };
+  }
+  if ([400, 404, 422].includes(status)) return { statusCode: 502, message: PROVIDER_ERROR, kind: 'provider' as const };
+  return null;
+}
+
+export async function mpRequest(path: string, method = 'GET', body?: unknown, context?: MpRequestContext): Promise<unknown> {
   const token = process.env.MP_ACCESS_TOKEN?.trim();
   if (!token) throw new DomainError('La facturación todavía no está configurada. Contactá a iManager.', 503);
   try {
@@ -35,16 +58,17 @@ export async function mpRequest(path: string, method = 'GET', body?: unknown): P
       method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(10_000),
     });
-    // Log only status, message and cause codes. Never the raw body, headers or credentials.
+    // Log only status, a sanitized message and cause codes. Never the raw body, headers, tokens or full emails.
     if (!response.ok) {
       const details = providerLog(response.status, await response.text(), token);
-      if ([400, 401, 403, 404, 422].includes(response.status)) throw new MPRejectedRequest('Mercado Pago rechazó el pago. Revisá los datos de la tarjeta o probá con otra.', 402, details);
-      throw new DomainError('No pudimos consultar Mercado Pago. Reintentá en unos minutos.', 502, details);
+      const mapped = mpRejection(response.status, method, path, details.message, context);
+      if (mapped) throw new MPRejectedRequest(mapped.message, mapped.statusCode, { ...details, kind: mapped.kind });
+      throw new DomainError(PROVIDER_ERROR, 502, { ...details, kind: 'provider' });
     }
     return await response.json();
   } catch (cause) {
     if (cause instanceof DomainError) throw cause;
-    throw new DomainError('No pudimos consultar Mercado Pago. Reintentá en unos minutos.', 502);
+    throw new DomainError(PROVIDER_ERROR, 502);
   }
 }
 export function parseRemote<T>(schema: z.ZodType<T>, value: unknown): T {

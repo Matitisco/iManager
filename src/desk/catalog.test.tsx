@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogKind, CatalogOption, CatalogPayload } from '../services/catalogs-api';
@@ -118,7 +118,10 @@ describe('Catalog editor drafts and persistence', () => {
     window.addEventListener('keydown', parentClose);
     try {
       const { onClose } = await setup();
-      fireEvent.keyDown(window, { key: 'Escape' });
+      await act(async () => { await Promise.resolve(); });
+      const dialog = screen.getByRole('dialog');
+      dialog.focus();
+      fireEvent.keyDown(dialog, { key: 'Escape' });
       expect(onClose).toHaveBeenCalledOnce();
       expect(parentClose).not.toHaveBeenCalled();
     } finally { window.removeEventListener('keydown', parentClose); }

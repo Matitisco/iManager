@@ -46,7 +46,7 @@ export function registerBillingTests(device: string) {
       payloads.push(route.request().postDataJSON());
       if (failCheckout) {
         failCheckout = false;
-        return route.fulfill({ status: 402, json: { error: 'No pudimos crear el pago en Mercado Pago.' } });
+        return route.fulfill({ status: 402, json: { error: 'Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.' } });
       }
       await new Promise(resolve => setTimeout(resolve, 400));
       return route.fulfill({ json: { initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=e2e' } });
@@ -75,7 +75,8 @@ export function registerBillingTests(device: string) {
     await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
     await page.getByRole('button', { name: 'Continuar en Mercado Pago' }).click();
-    await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' }).getByRole('alert')).toContainText('No pudimos crear el pago');
+    await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' }).getByRole('alert')).toContainText('Este email no se puede usar con la cuenta de cobro actual');
+    await expect(page.getByRole('dialog', { name: 'Antes de suscribirte' }).getByRole('alert')).not.toContainText('tarjeta');
     await expect(page.getByRole('button', { name: 'Continuar en Mercado Pago' })).toBeVisible();
     await page.getByRole('button', { name: 'Continuar en Mercado Pago' }).click();
     await expect(page.getByRole('button', { name: 'Abriendo Mercado Pago…' })).toBeVisible();

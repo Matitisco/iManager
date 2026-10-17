@@ -161,7 +161,7 @@ describe('reconciliación de suscripciones', () => {
     harness.getRemoteSubscription.mockResolvedValue(created);
     await expect(openCheckout('store-1', 'chk-1')).rejects.toMatchObject({
       statusCode: 402,
-      message: 'La tarjeta fue rechazada. Probá con otra tarjeta o revisá los datos.',
+      message: 'Mercado Pago canceló la suscripción. Volvé a intentarlo.',
     });
     expect(checkout.checkoutStatus).toBe('FAILED');
     expect(store.billingPlan).toBe('TRIAL');

@@ -149,11 +149,40 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     const { quote } = await opened(); mp.failOn('POST /preapproval', 400);
     const rejected = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
     expect(rejected.statusCode).toBe(402);
-    expect(rejected.json().error).toBe('Mercado Pago rechazó el pago. Revisá los datos de la tarjeta o probá con otra.');
+    expect(rejected.json().error).toBe('Mercado Pago no pudo iniciar la suscripción. Revisá el email del pagador o probá de nuevo en unos minutos.');
     expect(rejected.body).not.toContain('mock failure');
+    expect(rejected.body).not.toContain('tarjeta');
     expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
     mp.failOn('');
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } })).statusCode).toBe(200);
+  });
+  it('un email real contra un cobrador de prueba no menciona la tarjeta', async () => {
+    const { quote } = await opened();
+    mp.failOn('POST /preapproval', 400, 'Both payer and collector must be real or test users. payer buyer@example.com');
+    const rejected = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
+    expect(rejected.statusCode).toBe(402);
+    expect(rejected.json().error).toBe('Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.');
+    expect(rejected.body).not.toContain('buyer@example.com');
+    expect(rejected.body).not.toContain('tarjeta');
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
+  });
+  it('credenciales inválidas de Mercado Pago son un error de configuración', async () => {
+    const { quote } = await opened();
+    mp.failOn('POST /preapproval', 401, 'invalid access token');
+    const rejected = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
+    expect(rejected.statusCode).toBe(503);
+    expect(rejected.json().error).toBe('La facturación no está disponible en este momento. Contactá a iManager.');
+    expect(rejected.body).not.toContain('tarjeta');
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
+  });
+  it('un plan que Mercado Pago no confirma pide reintentar', async () => {
+    const { quote, planId } = await opened();
+    mp.failOn(`GET /preapproval_plan/${planId}`, 422, 'invalid plan buyer@example.com');
+    const rejected = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
+    expect(rejected.statusCode).toBe(402);
+    expect(rejected.json().error).toBe('No pudimos validar el plan con Mercado Pago. Reintentá.');
+    expect(rejected.body).not.toContain('buyer@example.com');
+    expect(rejected.body).not.toContain('tarjeta');
   });
   it('impide abrir un importe distinto o una cotización vencida', async () => {
     const { quote, planId } = await opened();

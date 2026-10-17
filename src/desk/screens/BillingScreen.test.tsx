@@ -59,6 +59,17 @@ describe('Plan y facturación', () => {
     expect(quote).toHaveTextContent('El débito es automático');
     expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
   });
+  it('un email incompatible queda dentro del modal y no habla de la tarjeta', async () => {
+    state.openSubscriptionCheckout.mockRejectedValue(new Error('Este email no se puede usar con la cuenta de cobro actual. Probá con otro email o contactá a iManager.'));
+    ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar en Mercado Pago' }));
+    const quote = await screen.findByTestId('billing-quote');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Este email no se puede usar con la cuenta de cobro actual');
+    expect(alert).not.toHaveTextContent('tarjeta');
+    expect(quote).toContainElement(alert);
+    expect(redirectToMercadoPago).not.toHaveBeenCalled();
+  });
   it('un error de checkout queda dentro del modal', async () => {
     state.openSubscriptionCheckout.mockRejectedValue(new Error('Cambió el importe en pesos.'));
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
