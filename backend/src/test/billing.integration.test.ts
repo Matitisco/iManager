@@ -4,7 +4,7 @@ import { prisma } from '../plugins/prisma.js';
 import { useIntegrationApp } from './integration-helpers.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
 import { mockMercadoPago } from './billing-http.js';
-import { syncPlans, reconcileSubscriptions } from '../modules/billing/service.js';
+import { syncFailureLine, syncPlans, reconcileSubscriptions } from '../modules/billing/service.js';
 import * as blue from '../lib/blue-rate.js';
 
 const { getApp } = useIntegrationApp();
@@ -80,6 +80,56 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect(await prisma.billingPlan.count()).toBe(0);
     mp.failOn(''); await syncPlans();
     expect(mp.plans.size).toBe(4); expect(await prisma.billingPlan.count()).toBe(4);
+  });
+  it('recrea los planes cuando cambia el vendedor y no modifica las tiendas', async () => {
+    const storeId = await trial();
+    await prisma.store.update({ where: { id: storeId }, data: { billingPreapprovalId: 'pre-old', billingPayerEmail: 'buyer@example.com' } });
+    const internal = await seedStoreContext({ firebaseUid: 'internal-owner', email: 'internal@example.com' });
+    await prisma.store.update({ where: { id: internal.store!.id }, data: { billingPreapprovalId: 'pre-internal', billingPayerEmail: 'internal@example.com' } });
+    await syncPlans();
+    const previous = await prisma.billingPlan.findMany({ orderBy: { key: 'asc' } });
+    expect(previous.map(plan => plan.sellerId)).toEqual(['123', '123', '123', '123']);
+    const quote = {
+      storeId, planKey: 'BASIC_MONTHLY', providerPlanId: previous[0]!.providerId, payerEmail: 'buyer@example.com',
+      amountArs: 22000, exchangeRate: 1000, expiresAt: new Date(Date.now() + 60_000),
+    };
+    const rows = await Promise.all(['QUOTED', 'CREATING', 'CREATED', 'RESOLVED'].map(checkoutStatus => prisma.billingCheckout.create({
+      data: { ...quote, checkoutStatus, ...(checkoutStatus === 'QUOTED' ? {} : { openedAt: new Date() }) },
+    })));
+    const same = { info: vi.fn(), warn: vi.fn() };
+    await syncPlans(same);
+    expect(same.info).not.toHaveBeenCalled();
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: rows[0]!.id } })).checkoutStatus).toBe('QUOTED');
+    expect((await prisma.billingPlan.findMany({ orderBy: { key: 'asc' } })).map(plan => plan.providerId)).toEqual(previous.map(plan => plan.providerId));
+
+    mp.seller(999);
+    const log = { info: vi.fn(), warn: vi.fn() };
+    expect(await syncPlans(log)).toHaveLength(4);
+    const next = await prisma.billingPlan.findMany({ orderBy: { key: 'asc' } });
+    expect(next.map(plan => plan.sellerId)).toEqual(['999', '999', '999', '999']);
+    const oldIds = new Set(previous.map(plan => plan.providerId));
+    expect(next.every(plan => !oldIds.has(plan.providerId))).toBe(true);
+    expect(mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval_plan')).toHaveLength(8);
+    const statuses = await Promise.all(rows.map(row => prisma.billingCheckout.findUniqueOrThrow({ where: { id: row.id } })));
+    expect(statuses.map(row => row.checkoutStatus)).toEqual(['FAILED', 'FAILED', 'FAILED', 'RESOLVED']);
+    const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+    expect(store).toMatchObject({ billingPlan: 'TRIAL', billingPreapprovalId: 'pre-old', billingPayerEmail: 'buyer@example.com' });
+    expect(await prisma.store.findUniqueOrThrow({ where: { id: internal.store!.id } })).toMatchObject({ billingPlan: 'INTERNAL', billingPreapprovalId: 'pre-internal', billingPayerEmail: 'internal@example.com' });
+    expect(log.info).toHaveBeenCalledWith('Vendedor de MP cambió: planes recreados para el vendedor nuevo (4)');
+    expect(log.warn).toHaveBeenCalledWith('Suscripciones vigentes de otro vendedor: 1 tiendas no internas.');
+    const logged = JSON.stringify([log.info.mock.calls, log.warn.mock.calls]);
+    expect(logged).not.toContain('buyer@example.com');
+    expect(logged).not.toContain('internal@example.com');
+    expect(logged).not.toContain('test-placeholder');
+  });
+  it('registra el estado y el mensaje de Mercado Pago cuando la sincronización falla', async () => {
+    mp.failOn('POST /preapproval_plan', 401, 'invalid access token test-placeholder buyer@example.com');
+    let line = '';
+    try { await syncPlans(); } catch (cause) { line = syncFailureLine(cause); }
+    expect(line).toBe('No se pudo sincronizar facturación. Mercado Pago respondió 401: invalid access token [redacted] [redacted-email]');
+    expect(line).not.toContain('test-placeholder');
+    expect(line).not.toContain('buyer@example.com');
+    expect(await prisma.billingPlan.count()).toBe(0);
   });
   it('requiere autenticación/owner y aísla cotizaciones de otra tienda', async () => {
     const { quote } = await opened();
