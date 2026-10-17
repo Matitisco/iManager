@@ -101,17 +101,21 @@ export function registerBillingTests(device: string) {
     const email = buildTestEmail(info, 'billing-return');
     await bootstrapStoreViaApi(page, request, email, 'Tienda Sur');
     let calls = 0;
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>(resolve => { releaseRefresh = resolve; });
     await page.route('**/api/billing/refresh', async route => {
       calls += 1;
       const sent = `${route.request().url()} ${route.request().postData() ?? ''}`;
       expect(sent).not.toContain('pre-real');
       expect(sent).not.toContain('authorized');
+      await refreshGate;
       const active = calls > 1;
       await route.fulfill({ json: { ...returnBilling, plan: active ? 'BASIC' : 'TRIAL', status: active ? 'ACTIVE' : 'TRIAL', canCancel: active, memberLimit: active ? 3 : 5, pendingCheckout: !active, recentlyActivated: active, paidThrough: active ? '2099-01-01T00:00:00Z' : null } });
     });
     await page.goto('/#/plan?preapproval_id=pre-real&status=authorized&external_reference=chk-1');
     await expect(page.getByTestId('billing-screen')).toBeVisible();
     await expect(page.getByTestId('billing-return-confirming')).toHaveText('Confirmando tu pago…');
+    releaseRefresh();
     await expect(page.getByText('Listo. Tu plan Básico ya está activo.')).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/#\/plan$/);
     expect(page.url()).not.toContain('pre-real');
