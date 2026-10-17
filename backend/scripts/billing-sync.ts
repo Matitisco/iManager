@@ -1,4 +1,4 @@
-import { syncPlans, reconcileSubscriptions } from '../src/modules/billing/service.js';
+import { syncFailureLine, syncPlans, reconcileSubscriptions } from '../src/modules/billing/service.js';
 import { prisma } from '../src/plugins/prisma.js';
 
 try {
@@ -11,9 +11,9 @@ try {
   }
   const count = await reconcileSubscriptions();
   console.log(`Facturación: ${count} suscripciones verificadas.`);
-} catch {
-  // Avoid printing provider payloads or credentials even on failure.
-  console.error('No se pudo sincronizar facturación. Revisá configuración y conectividad y reintentá.');
+} catch (cause) {
+  // Status and sanitized message only. Never a stack, token, email or raw body.
+  console.error(syncFailureLine(cause));
   process.exitCode = 1;
 } finally {
   await prisma.$disconnect();

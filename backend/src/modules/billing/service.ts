@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../plugins/prisma.js';
-import { DomainError } from '../../lib/domain-error.js';
+import { DomainError, domainErrorFrom } from '../../lib/domain-error.js';
 import { currentBlueRate } from '../../lib/blue-rate.js';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { PLANS, PLAN_KEYS, BILLING_LOCK, storeBillingLock, arsAmount, billingSummary, addMonths, type PlanKey } from './domain.js';
@@ -46,20 +46,47 @@ function backUrl() {
   return url.toString();
 }
 
+const OPEN_CHECKOUTS = ['QUOTED', 'CREATING', 'CREATED'] as const;
+type SyncLog = { info: (message: string) => void; warn: (message: string) => void };
+
+function sanitizeSyncMessage(message: string) {
+  const token = process.env.MP_ACCESS_TOKEN?.trim();
+  let text = message.replace(/\s+/g, ' ').trim();
+  if (token) text = text.replaceAll(token, '[redacted]');
+  text = text.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '[redacted-email]');
+  return text.slice(0, 180);
+}
+
+/** Safe line for the startup script. Status and message only; never a token, email or stack. */
+export function syncFailureLine(cause: unknown) {
+  const context = domainErrorFrom(cause)?.logContext;
+  if (!context || typeof context.status !== 'number') return 'No se pudo sincronizar facturación. Revisá configuración y conectividad y reintentá.';
+  const message = sanitizeSyncMessage(typeof context.message === 'string' ? context.message : '');
+  return `No se pudo sincronizar facturación. Mercado Pago respondió ${context.status}: ${message}`;
+}
+
 /** Operator-only script. No tenant can change the global USD price catalog. */
-export async function syncPlans() {
+export async function syncPlans(log: SyncLog = console) {
   const rate = await currentBlueRate();
   const seller = parseRemote(z.object({ id: z.union([z.string(), z.number()]) }), await mpRequest('/users/me'));
   const sellerId = String(seller.id);
   const returnUrl = backUrl();
   const result: Array<{ key: string; amountArs: number }> = [];
   // Lock includes remote calls: single catalog mutation across workers/replicas.
-  await prisma.$transaction(async tx => {
+  const replaced = await prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
+    const stored = await tx.billingPlan.findMany({ select: { sellerId: true } });
+    const stale = stored.filter(plan => plan.sellerId !== sellerId);
+    let foreignStores = 0;
+    if (stale.length > 0) {
+      // The previous seller's provider ids cannot be updated with the new token.
+      await tx.billingPlan.deleteMany({ where: { sellerId: { not: sellerId } } });
+      await tx.billingCheckout.updateMany({ where: { checkoutStatus: { in: [...OPEN_CHECKOUTS] } }, data: { checkoutStatus: 'FAILED' } });
+      foreignStores = await tx.store.count({ where: { billingPlan: { not: 'INTERNAL' }, billingPreapprovalId: { not: null } } });
+    }
     for (const key of PLAN_KEYS) {
       const spec = PLANS[key];
       const existing = await tx.billingPlan.findUnique({ where: { key } });
-      if (existing && existing.sellerId !== sellerId) throw new DomainError('El vendedor de MP cambió. Usá una base separada para TEST y producción.', 409);
       const amount = arsAmount(spec.usd, rate);
       const recurring = { frequency: spec.months, frequency_type: 'months', transaction_amount: amount, currency_id: 'ARS' };
       let providerId = existing?.providerId;
@@ -79,10 +106,15 @@ export async function syncPlans() {
       }
       const remote = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(providerId)}`, 'PUT', { auto_recurring: recurring, back_url: returnUrl }, { purpose: 'plan' }));
       assertPlan(remote, key, providerId, amount);
-      await tx.billingPlan.upsert({ where: { key }, create: { key, sellerId, providerId, initPoint: remote.init_point, amountArs: amount, exchangeRate: rate }, update: { initPoint: remote.init_point, amountArs: amount, exchangeRate: rate } });
+      await tx.billingPlan.upsert({ where: { key }, create: { key, sellerId, providerId, initPoint: remote.init_point, amountArs: amount, exchangeRate: rate }, update: { sellerId, initPoint: remote.init_point, amountArs: amount, exchangeRate: rate } });
       result.push({ key, amountArs: amount });
     }
+    return { plans: stale.length, foreignStores };
   }, { timeout: 180_000, maxWait: 15_000 });
+  if (replaced.plans > 0) {
+    log.info(`Vendedor de MP cambió: planes recreados para el vendedor nuevo (${replaced.plans})`);
+    log.warn(`Suscripciones vigentes de otro vendedor: ${replaced.foreignStores} tiendas no internas.`);
+  }
   return result;
 }
 
