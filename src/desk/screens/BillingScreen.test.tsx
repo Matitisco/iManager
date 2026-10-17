@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BillingSummary } from '../../types/billing';
@@ -11,11 +11,11 @@ const state = vi.hoisted(() => {
   const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false };
   return {
     summary, appSession: { user: { email: 'owner@example.com' }, store: { id: 's' }, membership: { role: 'OWNER' }, billing: summary },
-    billingDetails: { ...summary, plans: [
-      { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3 },
-      { key: 'BUSINESS_MONTHLY', name: 'Negocio', plan: 'BUSINESS', period: 'MONTHLY', usd: 87, months: 1, users: 5 },
-      { key: 'BASIC_ANNUAL', name: 'Básico', plan: 'BASIC', period: 'ANNUAL', usd: 198, months: 12, users: 3 },
-      { key: 'BUSINESS_ANNUAL', name: 'Negocio', plan: 'BUSINESS', period: 'ANNUAL', usd: 783, months: 12, users: 5 },
+    billingDetails: { ...summary,     plans: [
+      { key: 'BASIC_MONTHLY', name: 'Básico', plan: 'BASIC', period: 'MONTHLY', usd: 22, months: 1, users: 3, amountArs: 22000, exchangeRate: 1000 },
+      { key: 'BUSINESS_MONTHLY', name: 'Negocio', plan: 'BUSINESS', period: 'MONTHLY', usd: 87, months: 1, users: 5, amountArs: 87000, exchangeRate: 1000 },
+      { key: 'BASIC_ANNUAL', name: 'Básico', plan: 'BASIC', period: 'ANNUAL', usd: 198, months: 12, users: 3, amountArs: 198000, exchangeRate: 1000 },
+      { key: 'BUSINESS_ANNUAL', name: 'Negocio', plan: 'BUSINESS', period: 'ANNUAL', usd: 783, months: 12, users: 5, amountArs: 783000, exchangeRate: 1000 },
     ] },
     loadBilling: vi.fn(), quoteSubscription: vi.fn(), openSubscriptionCheckout: vi.fn(), cancelSubscription: vi.fn(), reloadSession: vi.fn(),
   };
@@ -35,28 +35,31 @@ beforeEach(() => {
   state.loadBilling.mockResolvedValue(state.billingDetails);
   state.cancelSubscription.mockResolvedValue({ ok: true });
   state.reloadSession.mockResolvedValue(undefined);
-  state.quoteSubscription.mockResolvedValue({ id: 'q', key: 'BASIC_MONTHLY', usd: 22, amountArs: 22000, exchangeRate: 1000, payerEmail: 'owner@example.com', expiresAt: '2099-01-01' });
+  state.quoteSubscription.mockResolvedValue({ id: 'q', key: 'BASIC_MONTHLY', usd: 22, amountArs: 22000, exchangeRate: 1000, payerEmail: 'owner@example.com', expiresAt: '2099-01-01', firstChargeAt: '2099-01-01T00:00:00Z' });
 });
 describe('Plan y facturación', () => {
   it('muestra precios mensuales/anuales en USD y Sistema propio sin checkout', async () => {
     ui(); await screen.findByRole('button', { name: 'Suscribirme a Básico' });
     expect(screen.getByRole('heading', { name: 'Prueba gratuita · Plan Básico' })).toBeVisible();
-    expect(screen.getByText('Te quedan 7 días de prueba sin tarjeta.')).toBeVisible();
-    expect(screen.getByText('1 de 3 usuarios · Incluye al propietario')).toBeVisible();
+    expect(screen.getByText(/Quedan 7 días/)).toBeVisible();
+    expect(screen.getByText('1 de 3')).toBeVisible();
     expect(screen.getByText('Hasta 3 usuarios')).toBeVisible(); expect(screen.getByText('Hasta 5 usuarios')).toBeVisible();
-    expect(screen.getByText('US$ 22')).toBeVisible(); expect(screen.getByText('US$ 87')).toBeVisible();
+    expect(screen.getAllByText(/US\$ 22/).length).toBeGreaterThan(0); expect(screen.getByText(/US\$ 87/)).toBeVisible();
+    expect(screen.getAllByText(/22\.000/).length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole('button', { name: /Anual/ }));
-    expect(screen.getByText('US$ 16,50')).toBeVisible(); expect(screen.getByText('US$ 65,25')).toBeVisible();
-    expect(screen.getByText('US$ 198 por año, en un solo cobro')).toBeVisible();
-    expect(screen.getAllByRole('button', { name: /Suscribirme/ })).toHaveLength(2);
+    expect(screen.getByText(/US\$ 16,5\/mes/)).toBeVisible(); expect(screen.getByText(/US\$ 65,25\/mes/)).toBeVisible();
+    expect(screen.getByText('US$ 198 por año')).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /Suscribirme/ })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /Escribinos/ })).toBeVisible();
   });
   it('muestra importe ARS y email antes de pedir el checkout', async () => {
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
     const quote = await screen.findByRole('dialog', { name: 'Antes de suscribirte' });
     expect(quote).toHaveAttribute('aria-modal', 'true');
     expect(quote).toHaveTextContent('22.000'); expect(quote).toHaveTextContent('owner@example.com');
-    expect(quote).toHaveTextContent('Dólar blue vendedor');
-    expect(quote).toHaveTextContent('El débito es automático');
+    expect(quote).toHaveTextContent('Primer cobro el');
+    expect(quote).toHaveTextContent('dólar blue de hoy');
+    expect(quote).toHaveTextContent('Débito automático en pesos');
     expect(state.openSubscriptionCheckout).not.toHaveBeenCalled();
   });
   it('un email incompatible queda dentro del modal y no habla de la tarjeta', async () => {
@@ -85,7 +88,8 @@ describe('Plan y facturación', () => {
     state.openSubscriptionCheckout.mockResolvedValue({ initPoint: 'https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=abc' });
     window.history.replaceState(null, '', '/#/plan?preapproval_id=forged&status=authorized');
     ui(); await userEvent.click(await screen.findByRole('button', { name: 'Suscribirme a Básico' }));
-    expect(await screen.findByText(/El pago se completa en Mercado Pago/)).toBeVisible();
+    const quote = await screen.findByRole('dialog', { name: 'Antes de suscribirte' });
+    expect(quote).toHaveTextContent(/Débito automático en pesos/);
     expect(screen.queryByRole('textbox', { name: 'Número de tarjeta' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Continuar en Mercado Pago' }));
     expect(state.openSubscriptionCheckout).toHaveBeenCalledWith('q');
@@ -122,17 +126,19 @@ describe('Plan y facturación', () => {
     expect(view.container.inert).toBe(true);
     expect(dialog).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Tab' });
-    expect(screen.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Cambiar' })).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Tab' });
-    expect(screen.getByRole('button', { name: 'Volver a elegir' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(within(dialog).getByRole('button', { name: 'Volver' })).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
-    expect(screen.getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Continuar en Mercado Pago' })).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(view.container.inert).toBe(false);
     expect(open).toHaveFocus();
     await userEvent.click(screen.getByRole('button', { name: 'Suscribirme a Básico' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Volver a elegir' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Antes de suscribirte' })).getByRole('button', { name: 'Volver' }));
     expect(screen.queryByTestId('billing-quote')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Suscribirme a Básico' }));
     fireEvent.mouseDown(await screen.findByTestId('billing-modal-backdrop'));
@@ -170,8 +176,24 @@ describe('Plan y facturación', () => {
   });
   it('prohíbe checkout si el equipo excede Básico', async () => {
     Object.assign(state.billingDetails, { members: 4 }); ui();
-    expect(await screen.findByRole('button', { name: 'Suscribirme a Básico' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /Básico/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole('radio', { name: /Negocio/ }));
     expect(screen.getByRole('button', { name: 'Suscribirme a Negocio' })).toBeEnabled();
+  });
+  it('muestra la prueba vencida y, con un plan pago, el próximo cobro y el historial', async () => {
+    Object.assign(state.billingDetails, { status: 'EXPIRED', trialDaysLeft: 0, readOnly: true });
+    const view = ui();
+    expect(await screen.findByText('Vencida')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Elegí un plan para seguir' })).toBeVisible();
+    expect(screen.getByText(/Tu prueba terminó el/)).toBeVisible();
+    expect(screen.getByText(/Tus datos están guardados/)).toBeVisible();
+    view.unmount();
+    Object.assign(state.billingDetails, { plan: 'BASIC', status: 'ACTIVE', period: 'MONTHLY', canCancel: true, paidThrough: '2026-11-17T15:00:00Z', trialDaysLeft: 0, readOnly: false, members: 2 });
+    ui();
+    expect(await screen.findByText('Activa')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Cambiar a Negocio' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Cobros' })).toHaveTextContent('Pagado');
+    expect(screen.getByText(/dólar blue del día del cobro/)).toBeVisible();
   });
   it('staff recibe mensaje y no obtiene acciones de facturación', () => {
     state.appSession.membership.role = 'STAFF'; ui();
@@ -208,12 +230,14 @@ describe('Plan y facturación', () => {
       ui();
       await act(async () => { await Promise.resolve(); });
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Tu pago todavía está pendiente');
+      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Esperando a Mercado Pago');
+      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Plan Básico · mensual');
+      expect(screen.getByTestId('billing-return-pending')).toHaveTextContent('Pago en proceso');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(window.location.hash).toBe('#/plan');
       expect(window.location.href).not.toContain('pre-1');
       expect(state.loadBilling.mock.calls.every(call => call[1] !== true)).toBe(true);
-      fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Ya pagué, actualizar' }));
       await act(async () => { await Promise.resolve(); await Promise.resolve(); });
       expect(state.loadBilling).toHaveBeenCalledWith(true, true);
       expect(screen.queryByTestId('billing-return-pending')).not.toBeInTheDocument();
@@ -291,5 +315,11 @@ describe('Plan y facturación', () => {
     view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: true }}><BillingAccessBanner /></DeskProvider>);
     expect(screen.getByTestId('billing-access-banner')).toHaveTextContent('Contactá al propietario');
     expect(screen.queryByRole('button', { name: 'Ver planes' })).not.toBeInTheDocument();
+  });
+  it('el recordatorio del primer cobro aparece en el dashboard', () => {
+    state.appSession.billing = { ...state.summary, chargeReminder: true, firstChargeAt: '2099-01-03T00:00:00.000Z' };
+    ui(<BillingAccessBanner dashboard />);
+    expect(screen.getByTestId('billing-charge-reminder')).toHaveTextContent('Primer cobro el');
+    expect(screen.getByTestId('billing-charge-reminder')).toHaveTextContent('No se cobra antes');
   });
 });
