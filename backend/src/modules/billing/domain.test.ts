@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { addMonths, arsAmount, billingSummary, PLANS, trialChargeStart, trialData, type BillingStore } from './domain.js';
+import { describe, expect, it, vi } from 'vitest';
+import { addMonths, arsAmount, billingBetaUnlimited, billingSummary, PLANS, trialChargeStart, trialData, type BillingStore } from './domain.js';
 
 const now = new Date('2026-01-31T10:00:00Z');
 const base: BillingStore = { billingPlan: 'TRIAL', billingStatus: 'TRIAL', trialEndsAt: new Date('2026-02-07T10:00:00Z'), billingPaidThrough: null, billingPeriod: null, billingPreapprovalId: null };
@@ -10,6 +10,32 @@ describe('reglas de suscripción', () => {
   it('da siete días sin tarjeta solo a cuentas nuevas', () => {
     expect(trialData(true, now)).toEqual({});
     expect(trialData(false, now)).toMatchObject({ billingPlan: 'TRIAL', trialEndsAt: new Date('2026-02-07T10:00:00Z') });
+  });
+  it('con la beta una tienda nueva nace interna y una prueba vencida no se bloquea', () => {
+    const previous = process.env.BILLING_BETA_UNLIMITED;
+    delete process.env.BILLING_BETA_UNLIMITED;
+    try {
+      expect(billingBetaUnlimited()).toBe(true);
+      expect(trialData(false, now)).toEqual({ billingPlan: 'INTERNAL', billingStatus: 'ACTIVE', trialEndsAt: null });
+      expect(trialData(true, now)).toEqual({ billingPlan: 'INTERNAL', billingStatus: 'ACTIVE', trialEndsAt: null });
+      const expired = { ...base, trialEndsAt: new Date('2026-01-01T00:00:00Z') };
+      expect(billingSummary(expired, 40, now)).toMatchObject({ plan: 'INTERNAL', status: 'ACTIVE', readOnly: false, memberLimit: null, trialDaysLeft: 0, betaUnlimited: true });
+      const paid = { ...base, billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPaidThrough: new Date('2026-03-01T00:00:00Z'), billingPeriod: 'MONTHLY', billingPreapprovalId: 'pre-paid' };
+      expect(billingSummary(paid, 9, now)).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: true, overLimit: true, memberLimit: 3, betaUnlimited: true });
+    } finally {
+      process.env.BILLING_BETA_UNLIMITED = previous;
+    }
+  });
+  it('con el interruptor apagado la prueba vencida sigue bloqueada', () => {
+    vi.stubEnv('BILLING_BETA_UNLIMITED', 'false');
+    try {
+      expect(billingBetaUnlimited()).toBe(false);
+      const expired = { ...base, trialEndsAt: new Date(0) };
+      expect(trialData(false, now)).toMatchObject({ billingPlan: 'TRIAL', trialEndsAt: new Date('2026-02-07T10:00:00Z') });
+      expect(billingSummary(expired, 4, now)).toMatchObject({ plan: 'TRIAL', status: 'EXPIRED', readOnly: true, memberLimit: 3, betaUnlimited: false });
+    } finally {
+      vi.stubEnv('BILLING_BETA_UNLIMITED', '0');
+    }
   });
   it('vence exactamente al terminar el séptimo día', () => {
     expect(billingSummary(base, 1, now).trialDaysLeft).toBe(7);

@@ -1,4 +1,4 @@
-import { billingPlanName } from './BillingScreen';
+import { billingAccountSubtitle } from './BillingScreen';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -336,7 +336,7 @@ export function SettingsScreen() {
         <div className="card">
           <MRow icon={<ImanagerIcon name="cliente" size={20} />} title="Perfil" sub={`${me?.displayName || 'Usuario'} · ${me?.email || ''}`} onClick={() => open({ type: 'profile' })} />
           <MRow icon={<DeskIcon name="lock" size={18} />} title="Seguridad" sub="Cambiar contraseña" onClick={() => open({ type: 'password' })} />
-          {appSession?.membership?.role === 'OWNER' ? <MRow icon={<DeskIcon name="card" size={18} />} title="Plan y facturación" sub={billingPlanName(appSession?.billing?.plan)} onClick={() => go('billing')} /> : null}
+          {appSession?.membership?.role === 'OWNER' ? <MRow icon={<DeskIcon name="card" size={18} />} title="Plan y facturación" sub={billingAccountSubtitle(appSession?.billing)} onClick={() => go('billing')} /> : null}
         </div>
         <div className="logout"><button type="button" data-testid="settings-logout" onClick={() => open({ type: 'logout' })}>Cerrar sesión</button></div>
       </div>

@@ -8,7 +8,7 @@ import { BillingAccessBanner, BillingScreen } from './BillingScreen';
 import { DeskProvider } from '../ui';
 
 const state = vi.hoisted(() => {
-  const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false };
+  const summary: BillingSummary = { plan: 'TRIAL', status: 'TRIAL', period: null, trialEndsAt: '2099-01-01T00:00:00Z', paidThrough: null, trialDaysLeft: 7, readOnly: false, memberLimit: 3, members: 1, overLimit: false, canCancel: false, betaUnlimited: false };
   return {
     summary, appSession: { user: { email: 'owner@example.com' }, store: { id: 's' }, membership: { role: 'OWNER' }, billing: summary },
     billingDetails: { ...summary,     plans: [
@@ -163,6 +163,31 @@ describe('Plan y facturación', () => {
       expect(dialog).toHaveAttribute('data-layout', 'sheet');
       expect(dialog.querySelector('.billing-modal-grab')).toBeTruthy();
     } finally { window.matchMedia = original; }
+  });
+  it('durante la beta muestra la cuenta desbloqueada y no ofrece suscribirse', async () => {
+    Object.assign(state.billingDetails, { plan: 'INTERNAL', status: 'ACTIVE', betaUnlimited: true, memberLimit: null, trialDaysLeft: 0, readOnly: false, trialEndsAt: null });
+    state.appSession.billing = { ...state.summary, plan: 'INTERNAL', status: 'ACTIVE', betaUnlimited: true, memberLimit: null, trialDaysLeft: 0, readOnly: false, trialEndsAt: null };
+    ui();
+    expect(screen.getByRole('heading', { name: 'Todo desbloqueado' })).toBeVisible();
+    expect(screen.getByText('Tu cuenta')).toBeVisible();
+    expect(screen.getByText('Beta gratis')).toBeVisible();
+    expect(screen.getByText('Mientras dure la beta, iManager es gratis y sin límites.')).toBeVisible();
+    expect(screen.getByText('Usuarios ilimitados')).toBeVisible();
+    expect(screen.getByText('Todos los módulos')).toBeVisible();
+    const feedback = screen.getByRole('link', { name: /Contanos/ });
+    expect(feedback).toHaveAttribute('href', 'https://wa.me/5491141722188');
+    expect(feedback).toHaveAttribute('target', '_blank');
+    expect(feedback).toHaveTextContent('¿Algo para mejorar?');
+    expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción|Cambiar a/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/US\$|días restantes|Quedan|Vencida|Elegí un plan|Mercado Pago/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('durante la beta un plan pago tampoco muestra precios ni suscripción', async () => {
+    Object.assign(state.billingDetails, { betaUnlimited: true, plan: 'BASIC', status: 'ACTIVE', period: 'MONTHLY', canCancel: true, paidThrough: '2026-11-17T15:00:00Z', trialDaysLeft: 0, readOnly: false, members: 2 });
+    ui();
+    expect(screen.getByRole('heading', { name: 'Todo desbloqueado' })).toBeVisible();
+    expect(screen.queryByText('Activa')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción|Cambiar a/ })).not.toBeInTheDocument();
   });
   it('el plan interno nunca muestra checkout ni cancelación', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });
@@ -319,6 +344,12 @@ describe('Plan y facturación', () => {
   it('contador de prueba navega al plan; empleados vencidos contactan al propietario', async () => {
     const view = ui(<BillingAccessBanner dashboard />);
     expect(screen.getByTestId('billing-access-banner')).toHaveTextContent('7 días restantes');
+    state.appSession.billing = { ...state.summary, betaUnlimited: true, plan: 'INTERNAL', readOnly: false, trialDaysLeft: 0, memberLimit: null };
+    view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}><BillingAccessBanner dashboard /></DeskProvider>);
+    expect(screen.queryByTestId('billing-access-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('billing-charge-reminder')).not.toBeInTheDocument();
+    state.appSession.billing = state.summary;
+    view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}><BillingAccessBanner dashboard /></DeskProvider>);
     await userEvent.click(screen.getByRole('button', { name: 'Ver planes' })); expect(go).toHaveBeenCalledWith('billing');
     state.appSession.membership.role = 'STAFF'; state.appSession.billing = { ...state.summary, readOnly: true, trialDaysLeft: 0 };
     view.rerender(<DeskProvider value={{ tab: 'billing', go, open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: true }}><BillingAccessBanner /></DeskProvider>);

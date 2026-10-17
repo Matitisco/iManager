@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CreditCard, Lock, X } from 'lucide-react';
+import { Check, CreditCard, Lock, X } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import type { BillingPlanOffer, BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
@@ -14,6 +14,11 @@ import './billing.css';
 const ZONE = 'America/Argentina/Buenos_Aires';
 const TRIAL_MS = 7 * 86_400_000;
 export const billingPlanName = (plan?: string) => ({ INTERNAL: 'Interno', TRIAL: 'Prueba gratuita · Plan Básico', BASIC: 'Básico', BUSINESS: 'Negocio' }[plan ?? ''] ?? 'Tu plan');
+export function billingAccountSubtitle(billing?: { plan?: string; betaUnlimited?: boolean }) {
+  if (billing?.betaUnlimited && billing.plan === 'INTERNAL') return 'Beta gratis';
+  return billingPlanName(billing?.plan);
+}
+const BETA_WHATSAPP = 'https://wa.me/5491141722188';
 const periodName = (period?: string | null) => period === 'ANNUAL' ? 'anual' : 'mensual';
 const ars = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: Number.isInteger(amount) ? 0 : 2 }).format(amount);
 const usd = (amount: number) => `US$ ${new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)}`;
@@ -214,6 +219,7 @@ export function BillingScreen() {
     return details;
   };
   if (appSession?.membership?.role !== 'OWNER') return <div className="dscreen"><p>Solo el propietario puede administrar Plan y facturación.</p></div>;
+  if (billing?.betaUnlimited) return <BetaBilling error={error} onBack={() => go('settings')} />;
   const trialEnd = billing?.trialEndsAt;
   const elapsed = trialEnd ? Math.min(TRIAL_MS, Math.max(0, Date.now() - (new Date(trialEnd).getTime() - TRIAL_MS))) : 0;
   const currentOffer = (billingDetails?.plans ?? []).find(plan => plan.plan === billing?.plan && plan.period === (billing?.period === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY'));
@@ -243,7 +249,7 @@ export function BillingScreen() {
             {billing?.paidThrough ? <div className="billing-row"><span>Próximo cobro</span><b>{dayMonth(billing.paidThrough)}{currentOffer ? ` · ${usd(currentOffer.usd)}` : ''}{currentOffer?.amountArs ? <small>≈ {ars(currentOffer.amountArs)}</small> : null}</b></div> : null}
             <div className="billing-row"><span>Medio de pago</span><b>Mercado Pago</b></div>
             <div className="billing-row"><span>Usuarios</span><b>{members} de {billing?.memberLimit ?? 3}</b></div>
-            {other ? <button className="billing-secondary" type="button" disabled={busy} onClick={() => openQuote(other)}>Cambiar a {other.name}</button> : null}
+            {other && !billing?.betaUnlimited ? <button className="billing-secondary" type="button" disabled={busy} onClick={() => openQuote(other)}>Cambiar a {other.name}</button> : null}
             {billing?.canCancel ? (cancelConfirm ? <div className="billing-cancel" role="group" aria-label="Confirmar cancelación"><p>¿Querés cancelar los próximos cobros?</p><button type="button" className="billing-text-danger" disabled={busy} onClick={() => void run(async () => { await cancelSubscription(); await loadBilling(); await reloadSession(); setCancelConfirm(false); setNotice('Suscripción cancelada. No se harán nuevos cobros.'); })}>Sí, cancelar suscripción</button><button className="billing-link" type="button" disabled={busy} onClick={() => setCancelConfirm(false)}>Conservar suscripción</button></div> : <button className="billing-text-danger" type="button" disabled={busy} onClick={() => setCancelConfirm(true)}>Cancelar suscripción</button>) : null}
           </section>
           {billing?.paidThrough ? <section className="billing-card" aria-label="Cobros">
@@ -451,11 +457,49 @@ function IncompletePayment({ busy, error, rejected, planName, period, accessUnti
   );
 }
 
+function BetaBilling({ error, onBack }: { error: string; onBack: () => void }) {
+  return (
+    <div className="dscreen billing-screen is-beta" data-testid="billing-screen">
+      <div className="whead billing-beta-head">
+        <button type="button" className="billing-beta-back" onClick={onBack}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+          Configuración
+        </button>
+        <div className="whead-copy">
+          <h1>Plan y facturación</h1>
+        </div>
+      </div>
+      <div className="billing-content billing-beta-stack">
+        {error ? <div className="billing-error" role="alert">{error}</div> : null}
+        <section className="billing-card billing-beta" data-testid="billing-beta-note" aria-labelledby="billing-beta-title">
+          <div className="billing-card-top">
+            <p>Tu cuenta</p>
+            <span className="billing-pill">Beta gratis</span>
+          </div>
+          <h3 id="billing-beta-title">Todo desbloqueado</h3>
+          <p>Mientras dure la beta, iManager es gratis y sin límites.</p>
+          <ul className="billing-beta-perks">
+            <li><span className="billing-beta-check" aria-hidden="true"><Check size={14} strokeWidth={2.8} /></span>Usuarios ilimitados</li>
+            <li><span className="billing-beta-check" aria-hidden="true"><Check size={14} strokeWidth={2.8} /></span>Todos los módulos</li>
+          </ul>
+        </section>
+        <a className="billing-beta-feedback" href={BETA_WHATSAPP} target="_blank" rel="noopener noreferrer">
+          <span>¿Algo para mejorar?</span>
+          <b>Contanos ›</b>
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function BillingAccessBanner({ dashboard = false }: { dashboard?: boolean }) {
   const { appSession } = useAppContext();
   const { go } = useDesk();
   const billing = appSession?.billing;
   if (!billing || billing.plan === 'INTERNAL') return null;
+  if (billing.betaUnlimited && !billing.readOnly) return null;
   const owner = appSession.membership?.role === 'OWNER';
   if (billing.chargeReminder && billing.firstChargeAt) {
     return <div className="billing-access billing-access-soon" role="status" data-testid="billing-charge-reminder"><div><strong>Primer cobro el {dayMonth(billing.firstChargeAt)}</strong><p>Tu prueba sigue hasta ese día. No se cobra antes.</p></div>{owner ? <button className="billing-primary" type="button" onClick={() => go('billing')}>Ver plan</button> : null}</div>;

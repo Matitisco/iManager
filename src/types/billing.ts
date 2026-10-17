@@ -11,6 +11,7 @@ export interface BillingSummary {
   members: number;
   overLimit: boolean;
   canCancel: boolean;
+  betaUnlimited?: boolean;
   firstChargeAt?: string | null;
   chargeReminder?: boolean;
 }

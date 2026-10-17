@@ -12,3 +12,5 @@ process.env.FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || "demo-d
 process.env.SMTP_HOST = process.env.SMTP_HOST || "smtp.example.com";
 process.env.SMTP_USER = process.env.SMTP_USER || "mailer@example.com";
 process.env.SMTP_PASS = process.env.SMTP_PASS || "secret";
+// Production leaves this unset (beta on). The suite keeps the subscription rules unless a test turns it on.
+process.env.BILLING_BETA_UNLIMITED = "0";
