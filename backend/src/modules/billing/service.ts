@@ -425,28 +425,38 @@ async function releaseStalePreapproval(storeId: string, preapprovalId: string, l
   return released;
 }
 
-export async function reconcileSubscriptions(log: SyncLog = console) {
+function listPricedSubscriptions() {
   // IDs only, no business row exports or provider dumps.
-  const stores = await prisma.store.findMany({ where: { billingPlan: { not: 'INTERNAL' }, billingPreapprovalId: { not: null } }, select: { id: true, billingPreapprovalId: true } });
+  return prisma.store.findMany({ where: { billingPlan: { not: 'INTERNAL' }, billingPreapprovalId: { not: null } }, select: { id: true, billingPreapprovalId: true } });
+}
+/** Puts the catalog ARS amount on one preapproval. Cancelled rows are left untouched. */
+async function alignStoreAmount(storeId: string, preapprovalId: string) {
+  let updated = false;
+  await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, storeBillingLock(storeId));
+    const current = await tx.store.findUniqueOrThrow({ where: { id: storeId } });
+    if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
+    const remote = await getRemoteSubscription(current.billingPreapprovalId);
+    const reference = remote.external_reference?.trim() || '';
+    const linked = reference === storeId || await tx.billingCheckout.findFirst({ where: { storeId, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
+    if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
+    const plan = await planForRemote(tx, storeId, remote, reference);
+    if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
+      await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
+      updated = true;
+    }
+  }, { timeout: 30_000, maxWait: 10_000 });
+  await reconcilePreapproval(preapprovalId, storeId);
+  return updated;
+}
+export async function reconcileSubscriptions(log: SyncLog = console) {
+  const stores = await listPricedSubscriptions();
   const failures: unknown[] = [];
   for (const store of stores) {
     const preapprovalId = store.billingPreapprovalId;
     if (!preapprovalId) continue;
     try {
-      await prisma.$transaction(async tx => {
-        await lockTransactionKey(tx, storeBillingLock(store.id));
-        const current = await tx.store.findUniqueOrThrow({ where: { id: store.id } });
-        if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
-        const remote = await getRemoteSubscription(current.billingPreapprovalId);
-        const reference = remote.external_reference?.trim() || '';
-        const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
-        if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
-        const plan = await planForRemote(tx, store.id, remote, reference);
-        if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
-          await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
-        }
-      }, { timeout: 30_000, maxWait: 10_000 });
-      await reconcilePreapproval(preapprovalId, store.id);
+      await alignStoreAmount(store.id, preapprovalId);
     } catch (cause) {
       if (isStalePreapproval(cause)) {
         await releaseStalePreapproval(store.id, preapprovalId, log);
@@ -457,6 +467,26 @@ export async function reconcileSubscriptions(log: SyncLog = console) {
   }
   if (failures.length > 0) throw failures[0];
   return stores.length;
+}
+/** Same pass as reconcile, but one store never aborts the rest and nothing is thrown. */
+export async function repriceOpenSubscriptions(log: SyncLog = console) {
+  const stores = await listPricedSubscriptions();
+  let updated = 0;
+  let failed = 0;
+  for (const store of stores) {
+    const preapprovalId = store.billingPreapprovalId;
+    if (!preapprovalId) continue;
+    try {
+      if (await alignStoreAmount(store.id, preapprovalId)) updated += 1;
+    } catch (cause) {
+      if (isStalePreapproval(cause)) {
+        await releaseStalePreapproval(store.id, preapprovalId, log);
+        continue;
+      }
+      failed += 1;
+    }
+  }
+  return { updated, failed };
 }
 
 export async function refreshBilling(storeId: string, log: SyncLog = console, options?: { replaceAbandoned?: boolean }) {
