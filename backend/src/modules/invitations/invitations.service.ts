@@ -6,10 +6,17 @@ import type { FirebaseAuthContext } from "../../types/auth.js";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser } from "../auth/session.service.js";
+import { assertSectionList, normalizeSections } from "../stores/sections.js";
 
 const INVITATION_TTL_DAYS = 7;
 
-export async function createInvitation(storeId: string, actorRole: string, email: string | undefined, role: "MANAGER" | "STAFF") {
+export async function createInvitation(
+  storeId: string,
+  actorRole: string,
+  email: string | undefined,
+  role: "MANAGER" | "STAFF",
+  access?: { sections?: string[]; sensitiveAccess?: boolean },
+) {
   if (actorRole !== "OWNER") {
     throw new DomainError("Solo el Propietario puede crear invitaciones", 403);
   }
@@ -38,8 +45,16 @@ export async function createInvitation(storeId: string, actorRole: string, email
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + INVITATION_TTL_DAYS);
 
+  const sections = access?.sections !== undefined ? assertSectionList(access.sections) : undefined;
   const invitation = await prisma.storeInvitation.create({
-    data: { storeId, email, role, expiresAt },
+    data: {
+      storeId,
+      email,
+      role,
+      expiresAt,
+      ...(sections !== undefined ? { sections } : {}),
+      ...(access?.sensitiveAccess !== undefined ? { sensitiveAccess: access.sensitiveAccess } : {}),
+    },
   });
 
   return {
@@ -148,12 +163,15 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
 
     const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
 
+    const sections = normalizeSections(current.sections);
     await tx.storeMember.create({
       data: {
         storeId: invitation.storeId,
         userId: user.id,
-        role: invitation.role,
+        role: current.role,
         isDefault: membershipCount === 0,
+        ...(sections ? { sections } : {}),
+        ...(typeof current.sensitiveAccess === "boolean" ? { sensitiveAccess: current.sensitiveAccess } : {}),
       },
     });
 

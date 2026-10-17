@@ -230,23 +230,20 @@ test.describe('settings on a phone', () => {
     await expect(page.getByTestId('settings-invites')).toHaveCount(0);
 
     await page.getByTestId('settings-invite').click();
-    const invite = page.getByRole('dialog', { name: 'Invitar al equipo' });
-    await expect(invite.getByRole('button', { name: 'Empleado' })).toBeVisible();
-    await invite.getByRole('button', { name: 'Socio' }).click();
+    const invite = page.getByRole('dialog', { name: 'Invitá a tu equipo' });
+    await expect(invite.getByRole('button', { name: 'Vendedor' })).toBeVisible();
+    await invite.getByRole('button', { name: 'Administrador' }).click();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-invitar.png` });
-    await invite.locator('.sheet-foot').getByRole('button', { name: 'Generar link' }).click();
-    const ready = page.getByRole('dialog', { name: 'Link listo' });
-    await expect(ready.locator('.linkrow span')).not.toHaveText('');
-    await ready.getByTestId('invite-copy').click();
-    await expect(ready.getByTestId('invite-copy')).toHaveText('Copiado');
+    await invite.getByTestId('invite-copy').click();
+    await expect(invite.getByTestId('invite-url')).not.toHaveText('');
+    await expect(invite.getByTestId('invite-copy')).toHaveText('Copiado');
     await expect(page.locator('.toast.show')).toContainText('Link copiado');
-    await expect(ready.locator('.sheet-foot').getByTestId('invite-share')).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-link.png` });
-    await ready.locator('.sheet-foot').getByRole('button', { name: 'Listo' }).click();
+    await invite.getByRole('button', { name: 'Cerrar' }).click();
     await expect(page.getByTestId('settings-invites')).toContainText('1 link de invitación activo');
 
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();

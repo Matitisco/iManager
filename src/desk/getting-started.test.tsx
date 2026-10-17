@@ -1,26 +1,36 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GettingStarted } from "./getting-started";
+import { FirstStepsHelp, FirstStepsIsland } from "./first-steps-island";
+
 const state = vi.hoisted(() => ({
   gettingStarted: {
     eligible: true,
-    dismissed: false,
-    stock: 3,
+    dismissed: true,
+    stock: 0,
+    samples: 0,
     sales: false,
-    team: true,
+    team: false,
     catalog: false,
     installed: false,
     visible: false,
+    storeNamed: true,
+    steps: {
+      store: true,
+      stock: false,
+      sale: false,
+      team: false,
+      install: false,
+    },
   },
   gettingStartedError: "",
-  inventory: [],
-  sales: [],
-  publicCatalog: null,
-  appSession: { membership: { role: "OWNER", sections: null } },
+  inventory: [] as unknown[],
+  sales: [] as unknown[],
+  appSession: { membership: { role: "OWNER", sections: null as string[] | null } },
   refreshGettingStarted: vi.fn(async () => undefined),
   updateGettingStarted: vi.fn(async () => undefined),
 }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), go: vi.fn() }));
+
 vi.mock("../context/AppContext", () => ({ useAppContext: () => state }));
 vi.mock("./ui", () => ({ useDesk: () => desk, Dialog: () => null }));
 vi.mock("../lib/pwa", () => ({
@@ -28,76 +38,95 @@ vi.mock("../lib/pwa", () => ({
   subscribeInstall: () => () => undefined,
 }));
 vi.mock("../components/InstallHelp", () => ({
-  InstallHelp: () => <div>Guía PWA</div>,
+  InstallHelp: ({ onInstalled }: { onInstalled?: () => void }) => (
+    <div>
+      Guía PWA
+      <button type="button" onClick={onInstalled}>Ya la instalé</button>
+    </div>
+  ),
 }));
-describe("Primeros pasos pendientes", () => {
+
+function flags(next: Partial<typeof state.gettingStarted.steps>) {
+  state.gettingStarted.steps = { ...state.gettingStarted.steps, ...next };
+}
+
+describe("isla de primeros pasos", () => {
   beforeEach(() => {
-    state.gettingStarted.dismissed = false;
     state.gettingStarted.eligible = true;
+    state.gettingStarted.dismissed = true;
     state.gettingStarted.visible = false;
+    state.gettingStarted.storeNamed = true;
+    state.gettingStarted.stock = 0;
+    state.gettingStarted.samples = 0;
+    state.gettingStarted.sales = false;
+    state.gettingStarted.team = false;
+    state.gettingStarted.installed = false;
     state.appSession.membership.role = "OWNER";
-    state.gettingStarted.team = true;
+    flags({ store: true, stock: false, sale: false, team: false, install: false });
     vi.clearAllMocks();
   });
-  it("muestra solo pendientes y cuenta los completados del recorrido", () => {
-    render(<GettingStarted />);
-    expect(screen.getByText("2 de 5 · lo hacés cuando quieras")).toBeVisible();
-    expect(screen.queryByTestId("first-step-stock")).toBeNull();
-    expect(screen.queryByTestId("first-step-team")).toBeNull();
-    expect(screen.queryByTestId("first-step-video")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Mostrar en Dashboard" })).toBeNull();
-    expect(screen.getByTestId("first-step-catalog")).toBeVisible();
-    fireEvent.click(screen.getByTestId("first-step-install"));
-    expect(screen.getByText("Guía PWA")).toBeVisible();
+
+  it("arranca en 1 de 5, tacha lo hecho y solo se minimiza", () => {
+    render(<FirstStepsIsland />);
+    expect(screen.queryByRole("button", { name: "Cerrar Primeros pasos" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" }));
+    expect(screen.getByText("1 de 5 · a tu ritmo")).toBeVisible();
+    expect(screen.getByTestId("first-step-store")).toHaveAttribute("data-done", "true");
+    expect(screen.getByTestId("first-step-stock")).toHaveAttribute("data-done", "false");
+    expect(screen.getByText("Empezar")).toBeVisible();
+    fireEvent.click(screen.getByTestId("first-step-stock").querySelector("button")!);
+    expect(desk.open).toHaveBeenCalledWith({ type: "onboarding-stock" });
+    fireEvent.click(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Minimizar primeros pasos" }));
+    expect(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+    expect(state.updateGettingStarted).not.toHaveBeenCalled();
   });
-  it("reutiliza invitación y oculta ese paso a empleados", () => {
-    state.gettingStarted.team = false;
-    const view = render(<GettingStarted />);
-    fireEvent.click(screen.getByTestId("first-step-team"));
-    expect(desk.open).toHaveBeenCalledWith({ type: "invite" });
-    state.appSession.membership.role = "STAFF";
-    view.rerender(<GettingStarted />);
-    expect(screen.queryByTestId("first-step-team")).toBeNull();
-    expect(screen.queryByTestId("first-step-catalog")).toBeNull();
-  });
-  it("persiste el descarte y Ayuda permite reabrirlo", async () => {
-    const view = render(<GettingStarted />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Cerrar Primeros pasos" }),
-    );
-    expect(state.updateGettingStarted).toHaveBeenCalledWith({
-      dismissed: true,
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    state.gettingStarted.dismissed = true;
-    view.rerender(<GettingStarted />);
-    expect(screen.queryByTestId("getting-started")).toBeNull();
-    view.rerender(<GettingStarted force />);
-    expect(
-      screen.getByRole("button", { name: "Mostrar en Dashboard" }),
-    ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar en Dashboard" }));
-    expect(state.updateGettingStarted).toHaveBeenCalledWith({
-      dismissed: false,
-      visible: true,
-    });
-  });
-  it("permite mostrar Primeros pasos en el Dashboard de una cuenta existente", async () => {
-    state.gettingStarted.eligible = false;
-    state.gettingStarted.dismissed = false;
-    state.gettingStarted.visible = false;
-    const view = render(<GettingStarted />);
-    expect(screen.queryByTestId("getting-started")).toBeNull();
-    view.rerender(<GettingStarted force />);
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar en Dashboard" }));
-    expect(state.updateGettingStarted).toHaveBeenCalledWith({
-      dismissed: false,
-      visible: true,
-    });
-    state.gettingStarted.visible = true;
-    view.rerender(<GettingStarted />);
+
+  it("la ve el administrador y no el vendedor", () => {
+    state.appSession.membership.role = "MANAGER";
+    const view = render(<FirstStepsIsland />);
     expect(screen.getByTestId("getting-started")).toBeVisible();
+    state.appSession.membership.role = "STAFF";
+    view.rerender(<FirstStepsIsland />);
+    expect(screen.queryByTestId("getting-started")).toBeNull();
+    expect(screen.queryByText("Primeros pasos")).toBeNull();
+  });
+
+  it("al completar los cinco deja el aviso y no festeja", () => {
+    flags({ store: true, stock: true, sale: true, team: true, install: true });
+    render(<FirstStepsIsland />);
+    expect(screen.getByRole("status")).toHaveTextContent("Primeros pasos completos");
+    expect(screen.queryByText(/Completaste/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Primeros pasos/ })).toBeNull();
+  });
+
+  it("reusa la guía de instalación y marca el paso al confirmar", async () => {
+    flags({ store: true, stock: true, sale: true, team: true, install: false });
+    render(<FirstStepsIsland />);
+    fireEvent.click(screen.getByRole("button", { name: "Primeros pasos, 4 de 5" }));
+    fireEvent.click(screen.getByTestId("first-step-install").querySelector("button")!);
+    expect(screen.getByText("Guía PWA")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Ya la instalé" }));
+    expect(state.updateGettingStarted).toHaveBeenCalledWith({ installed: true });
+    await act(async () => { await Promise.resolve(); });
+  });
+
+  it("una cuenta existente lo muestra desde Ayuda y no lo puede ocultar para siempre", () => {
+    state.gettingStarted.eligible = false;
+    state.gettingStarted.visible = false;
+    const hidden = render(<FirstStepsIsland />);
+    expect(screen.queryByTestId("getting-started")).toBeNull();
+    hidden.unmount();
+
+    const help = render(<FirstStepsHelp />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar en Dashboard" }));
+    expect(state.updateGettingStarted).toHaveBeenCalledWith({ dismissed: false, visible: true });
+    help.unmount();
+
+    state.gettingStarted.visible = true;
+    state.gettingStarted.dismissed = true;
+    render(<FirstStepsIsland />);
+    expect(screen.getByTestId("getting-started")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cerrar Primeros pasos" })).toBeNull();
   });
 });

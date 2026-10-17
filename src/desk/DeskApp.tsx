@@ -162,7 +162,7 @@ function FxBanner() {
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
+  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const commissionAccess = canManageCommissions(sections, role);
@@ -381,7 +381,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         <main className="stage">
           <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
-          <BillingAccessBanner dashboard={tab === 'dashboard'} />
+          <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
           <SampleStockBanner />
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}

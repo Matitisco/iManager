@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { InstallHelp } from "../../components/InstallHelp";
-import { GettingStarted } from "../getting-started";
+import { FirstStepsHelp } from "../first-steps-island";
 import { canOpenSection, canViewTeam } from "../sections";
 import { useAppContext } from "../../context/AppContext";
 import { useDesk, ScreenTitle } from "../ui";
@@ -42,7 +42,7 @@ export function HelpScreen() {
           Instalar la app en el celular <span>›</span>
         </button>
       </div>
-      <GettingStarted force />
+      <FirstStepsHelp />
       {install && <InstallHelp onClose={closeInstall} />}
     </div>
   );

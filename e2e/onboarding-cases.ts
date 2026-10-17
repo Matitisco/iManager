@@ -96,16 +96,15 @@ export function onboardingCases(phone: boolean) {
       .getByRole("button", { name: "Invitar al equipo", exact: true })
       .click();
     const invite = page.getByRole("dialog", {
-      name: "Invitar al equipo",
+      name: "Invitá a tu equipo",
       exact: true,
     });
-    await invite.getByRole("button", { name: "Empleado", exact: true }).click();
-    await invite.getByRole("button", { name: "Generar link" }).click();
-    await expect(
-      page.getByRole("dialog", { name: "Link listo" }),
-    ).toBeVisible();
-    const link = await page.locator(".linkrow span").innerText();
-    const token = link.split("/invite/")[1];
+    await invite.getByRole("button", { name: "Vendedor", exact: true }).click();
+    await invite.getByRole("button", { name: "Copiar link de invitación" }).click();
+    const linkNode = page.getByTestId("invite-url");
+    await expect(linkNode).not.toHaveText("");
+    const link = (await linkNode.textContent()) ?? "";
+    const token = link.split("/invite/")[1]?.trim();
     const employeeEmail = buildTestEmail(info, "employee");
     // Accept using the real existing invitation API, then verify the checklist uses membership.
     const accepted = await request.post(`${API}/api/invitations/accept`, {
@@ -113,10 +112,8 @@ export function onboardingCases(phone: boolean) {
       data: { token },
     });
     expect(accepted.ok()).toBe(true);
-    await page
-      .getByRole("dialog", { name: "Link listo" })
-      .getByRole("button", { name: "Listo", exact: true })
-      .click();
+    await page.keyboard.press("Escape");
+    await expect(invite).toBeHidden();
     await page
       .getByTestId("onboarding-invite")
       .getByRole("button", { name: "Seguir", exact: true })
@@ -171,12 +168,15 @@ export function onboardingCases(phone: boolean) {
     ).toBe(true);
     await expect(page.getByText("Para revisar", { exact: true })).toBeVisible();
     await page.getByTestId("sidebar-tab-dashboard").click();
+    const island = page.getByTestId("getting-started");
+    await expect(island).toBeVisible();
+    await island.click();
     const checklist = page.getByTestId("getting-started");
-    await expect(checklist).toBeVisible();
-    await expect(checklist.getByTestId("first-step-stock")).toHaveCount(0);
-    await expect(checklist.getByTestId("first-step-video")).toHaveCount(0);
+    await expect(checklist.getByTestId("first-step-stock")).toHaveAttribute("data-done", "true");
+    await expect(checklist.getByTestId("first-step-store")).toHaveAttribute("data-done", "true");
+    await expect(checklist.getByTestId("first-step-team")).toHaveAttribute("data-done", "true");
     await expect(page.getByText("Video de bienvenida")).toHaveCount(0);
-    await expect(checklist.getByTestId("first-step-team")).toHaveCount(0);
+    await page.getByRole("button", { name: "Minimizar primeros pasos" }).click();
     await page.reload();
     await expect(page.getByTestId("getting-started")).toBeVisible();
   });
@@ -195,7 +195,7 @@ export function onboardingCases(phone: boolean) {
     ).toBeVisible();
     await page.getByRole("button", { name: "Saltar por ahora" }).click();
     await expect(
-      page.getByRole("button", { name: "Cargar mi stock", exact: true }),
+      page.getByRole("button", { name: "Cargar equipo", exact: true }),
     ).toBeVisible();
     await fits(page);
     await page.screenshot({
@@ -203,7 +203,7 @@ export function onboardingCases(phone: boolean) {
       fullPage: true,
     });
     expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
-    await page.getByRole("button", { name: "Cargar mi stock", exact: true }).click();
+    await page.getByRole("button", { name: "Cargar equipo", exact: true }).click();
     await expect(
       page.getByRole("button", { name: /Probar con datos de ejemplo/ }),
     ).toBeVisible();
@@ -212,16 +212,20 @@ export function onboardingCases(phone: boolean) {
       page.getByText("Estás viendo datos de ejemplo", { exact: false }),
     ).toBeVisible();
     await fits(page);
-    await page.getByRole("button", { name: "Cerrar Primeros pasos" }).click();
+    await expect(page.getByTestId("getting-started")).toBeVisible();
+    await page.getByTestId("getting-started").click();
+    await expect(page.getByTestId("first-step-stock")).toHaveAttribute("data-done", "true");
+    await expect(page.getByRole("button", { name: "Cerrar Primeros pasos" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Minimizar primeros pasos" }).click();
     await page.reload();
-    await expect(page.getByTestId("getting-started")).toHaveCount(0);
+    await expect(page.getByTestId("getting-started")).toBeVisible();
     if (phone) await page.getByTestId("sidebar-tab-more").click();
     await page.getByTestId("sidebar-tab-help").click();
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "▶ Ver video de bienvenida" }),
     ).toHaveCount(0);
-    await page.getByRole("button", { name: "Mostrar en Dashboard" }).click();
+    await expect(page.getByRole("button", { name: "Mostrar en Dashboard" })).toHaveCount(0);
     await page.getByTestId("sidebar-tab-dashboard").click();
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await fits(page);

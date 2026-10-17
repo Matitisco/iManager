@@ -508,16 +508,18 @@ model StoreCatalogOption {
 }
 
 model StoreInvitation {
-  id        String           @id @default(cuid())
-  storeId   String
-  token     String           @unique @default(uuid())
-  email     String?          @db.VarChar(255)
-  role      StoreRole
-  status    InvitationStatus @default(PENDING)
-  expiresAt DateTime
-  store     Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id              String           @id @default(cuid())
+  storeId         String
+  token           String           @unique @default(uuid())
+  email           String?          @db.VarChar(255)
+  role            StoreRole
+  status          InvitationStatus @default(PENDING)
+  expiresAt       DateTime
+  sections        Json?
+  sensitiveAccess Boolean?
+  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([storeId])
   @@index([token])

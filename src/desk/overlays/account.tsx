@@ -3,12 +3,16 @@ import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type U
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { createInvitation, listInvitations, revokeInvitation, type Invitation, type InvitationRole } from '../../services/invitations-api';
+import { INVITE_ROLE_SECTIONS, permissionSummary } from '../../lib/first-steps';
+import { MemberPermissions } from '../screens/MemberPermissions';
+import type { TeamMember } from '../../services/members-api';
+import { ChevronRight, Link2 } from 'lucide-react';
 import { formatInputMoney, formatArDate, initials, parseMoney } from '../format';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { manualQuoteOrderError } from '../../lib/manual-quote';
 import { clearStoreContactOffer, normalizeInstagram, storeContactErrors } from '../../lib/store-contact';
-import { clearBad, shareOrCopy, type FormProps } from './shared';
+import { clearBad, type FormProps } from './shared';
 import { DEFAULT_REPAIR_WARRANTY_DAYS, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, parseWarrantyDaysInput } from '../../lib/warranty';
 import { ROLE_LABEL } from '../../lib/roles';
 import { DeskSelect } from '../select';
@@ -274,67 +278,120 @@ export function PasswordForm({ run, busy, error }: FormProps) {
 }
 
 export function InviteForm({ initialUrl }: { initialUrl?: string }) {
-  const { user, appSession } = useAppContext();
+  const { user, refreshGettingStarted } = useAppContext();
   const { close, toast } = useDesk();
-  const isPhone = usePhoneLayout();
   const [role, setRole] = useState<InvitationRole>('STAFF');
+  const [email, setEmail] = useState('');
+  const [sections, setSections] = useState<string[]>(INVITE_ROLE_SECTIONS.STAFF);
+  const [sensitive, setSensitive] = useState(false);
   const [url, setUrl] = useState(initialUrl ?? '');
-  const [expires, setExpires] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
   const copiedTimer = useRef<number | null>(null);
   useEffect(() => () => { if (copiedTimer.current) window.clearTimeout(copiedTimer.current); }, []);
-  const store = appSession?.store?.name || 'la tienda';
-  const roleLabel = ROLE_LABEL[role];
-  const copy = () => navigator.clipboard.writeText(url).then(() => {
-    toast('Link copiado');
-    if (!isPhone) return;
+  const access = { sections, sensitiveAccess: sensitive };
+  const create = (target: string | undefined, reuse: boolean) => {
+    if (!user) return Promise.reject(new Error('No hay sesión.'));
+    if (reuse && url) return Promise.resolve(url);
+    return createInvitation(user, target, role, access).then((created) => {
+      setUrl(created.inviteUrl);
+      window.dispatchEvent(new Event('desk-invites'));
+      void refreshGettingStarted?.();
+      return created.inviteUrl;
+    });
+  };
+  const rememberCopy = () => {
     setCopied(true);
+    toast('Link copiado');
     if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
     copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
-  });
-  const share = () => shareOrCopy({ title: 'Invitación a iManager', url }, copy);
+  };
+  const draft: TeamMember = {
+    id: 'invite-draft',
+    userId: 'invite-draft',
+    role,
+    isDefault: false,
+    createdAt: new Date().toISOString(),
+    sections,
+    sensitiveAccess: sensitive,
+    user: { id: 'invite-draft', displayName: email || 'Invitación', email: email || null, avatarUrl: null },
+  };
+  if (editing) {
+    return (
+      <div className="ov" onMouseDown={close}>
+        <div className="sheet wide fresh-perms" role="dialog" aria-modal="true" aria-label="Permisos" onMouseDown={(event) => event.stopPropagation()}>
+          <MemberPermissions
+            key={`${role}:${sections.join(',')}:${sensitive}`}
+            draft
+            member={draft}
+            onBack={() => setEditing(false)}
+            onSaved={(saved) => {
+              setSections(saved.sections ?? []);
+              setSensitive(Boolean(saved.sensitiveAccess));
+              setUrl('');
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     <Sheet
-      className="cfg-sheet"
-      title={url ? 'Link listo' : 'Invitar al equipo'}
-      subtitle={url ? `Pasáselo a quien quieras sumar como ${roleLabel}. Sirve para una sola persona${expires ? ` y vence el ${expires}` : ''}.` : `Generá un link de un solo uso para sumar a alguien a ${store}.`}
+      className="cfg-sheet fresh-invite"
+      title="Invitá a tu equipo"
+      subtitle="Le llega un link para crear su usuario."
       onClose={close}
     >
       {error && <div className="ferr">{error}</div>}
-      {url ? (
-        <>
-          <div className="linkrow"><span>{url}</span><button className="copy" type="button" data-testid="invite-copy" onClick={() => { void copy(); }}>{copied ? 'Copiado' : 'Copiar'}</button></div>
-          <p className="sheet-note">Cuando alguien entra con el link, deja de funcionar. Lo podés cancelar desde Configuración.</p>
-        </>
-      ) : (
-        <>
-          <Field label="Rol"><span /></Field>
-          <Segs options={[{ id: 'STAFF', label: 'Empleado' }, { id: 'MANAGER', label: 'Socio' }]} value={role} onChange={(value) => setRole(value as InvitationRole)} />
-          <p className="sheet-note">El Empleado carga equipos y ventas. El Socio además ve reportes y aprueba canjes.</p>
-        </>
-      )}
-      {url ? (
-        <div className="sacts">
-          <button className="btn2 s" type="button" onClick={close}>Listo</button>
-          <button className="btn2 p" type="button" data-testid="invite-share" onClick={share}>Compartir link</button>
-        </div>
-      ) : (
-        <Actions busy={busy} primary="Generar link" onSecondary={close} onPrimary={() => {
-          if (!user) return;
+      <Field label="Email" error={undefined}>
+        <input type="email" inputMode="email" autoComplete="email" value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setUrl(''); }} />
+      </Field>
+      <Field label="Rol"><span /></Field>
+      <Segs
+        options={[{ id: 'STAFF', label: 'Vendedor' }, { id: 'MANAGER', label: 'Administrador' }]}
+        value={role}
+        onChange={(value) => {
+          const next = value as InvitationRole;
+          setRole(next);
+          setSections(INVITE_ROLE_SECTIONS[next]);
+          setSensitive(next === 'MANAGER');
+          setUrl('');
+        }}
+      />
+      <button className="fresh-perms-row" type="button" data-testid="invite-permissions" onClick={() => setEditing(true)}>
+        <span className="ico" aria-hidden="true"><span /><span /><span /></span>
+        <span><b>Permisos</b><small>{permissionSummary(sections)}</small></span>
+        <ChevronRight size={18} />
+      </button>
+      {url ? <p className="invite-url" data-testid="invite-url">{url}</p> : null}
+      <div className="fresh-invite-actions">
+        <button className="dbtn p" type="button" data-testid="invite-send" disabled={busy} onClick={() => {
+          const target = email.trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+            setError('Ingresá un email válido.');
+            return;
+          }
           setBusy(true);
           setError(null);
-          createInvitation(user, undefined, role)
-            .then((created) => {
-              setUrl(created.inviteUrl);
-              setExpires(formatArDate(new Date(created.expiresAt)));
-              window.dispatchEvent(new Event('desk-invites'));
+          create(target, false)
+            .then(() => { toast('Invitación enviada'); close(); })
+            .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
+            .finally(() => setBusy(false));
+        }}>{busy ? 'Enviando…' : 'Enviar invitación'}</button>
+        <button className="fresh-copy" type="button" data-testid="invite-copy" disabled={busy} onClick={() => {
+          setBusy(true);
+          setError(null);
+          create(email.trim() || undefined, true)
+            .then(async (link) => {
+              try { await navigator.clipboard.writeText(link); } catch { /* The link stays available to copy by hand. */ }
+              rememberCopy();
             })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
             .finally(() => setBusy(false));
-        }} />
-      )}
+        }}>{copied ? 'Copiado' : <><Link2 size={15} /> Copiar link de invitación</>}</button>
+      </div>
     </Sheet>
   );
 }

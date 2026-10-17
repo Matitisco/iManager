@@ -1,4 +1,5 @@
-import { GettingStarted, GettingStartedDashboard } from '../getting-started';
+import { FirstStepsIsland } from '../first-steps-island';
+import { NewAccountDashboard } from './NewAccountDashboard';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listMembers, type TeamMember } from '../../services/members-api';
@@ -141,7 +142,14 @@ export function DashboardScreen() {
     </div>
   );
 
-  if (appSession?.store?.onboardingStartedAt || gettingStarted?.eligible) return <GettingStartedDashboard />;
+  if (appSession?.store?.onboardingStartedAt || gettingStarted?.eligible) {
+    return (
+      <>
+        <NewAccountDashboard />
+        <FirstStepsIsland />
+      </>
+    );
+  }
 
   return (
     <div className="dscreen">
@@ -156,8 +164,6 @@ export function DashboardScreen() {
         ) : people}
         desktop={<div className="dright">{people}<DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div>}
       />
-      <GettingStarted />
-
       <div className="dgrid dash">
         <div className="hero">
           <div className="hero-top">
@@ -272,6 +278,7 @@ export function DashboardScreen() {
           ))}
         </div>
       </div>
+      <FirstStepsIsland />
     </div>
   );
 }
