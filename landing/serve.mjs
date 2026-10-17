@@ -41,6 +41,8 @@ function headers(file, status, { serviceWorker = false } = {}) {
     headers: {
       'Content-Type': serviceWorker ? 'application/javascript; charset=utf-8' : (types[ext] || 'application/octet-stream'),
       'Cache-Control': serviceWorker ? 'no-cache' : hashed ? 'public, max-age=31536000, immutable' : ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+      // Cloudflare reescribe Cache-Control: no-cache a max-age=14400. Este header le dice al borde que no cachee y deje pasar el no-cache.
+      ...(serviceWorker ? { 'Cloudflare-CDN-Cache-Control': 'no-store' } : {}),
       ...(noindex ? { 'X-Robots-Tag': 'noindex' } : {}),
     },
   };
@@ -59,7 +61,7 @@ createServer(async (req, res) => {
     if (missing && missing !== '.html') {
       res.writeHead(404, {
         'Content-Type': 'text/plain; charset=utf-8',
-        ...(serviceWorker ? { 'Cache-Control': 'no-cache' } : {}),
+        ...(serviceWorker ? { 'Cache-Control': 'no-cache', 'Cloudflare-CDN-Cache-Control': 'no-store' } : {}),
         ...(noindex ? { 'X-Robots-Tag': 'noindex' } : {}),
       }).end(req.method === 'HEAD' ? undefined : 'Not found');
       return;
