@@ -164,24 +164,30 @@ describe('Plan y facturación', () => {
       expect(dialog.querySelector('.billing-modal-grab')).toBeTruthy();
     } finally { window.matchMedia = original; }
   });
-  it('durante la beta solo avisa que todo está desbloqueado', async () => {
+  it('durante la beta muestra la cuenta desbloqueada y no ofrece suscribirse', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', status: 'ACTIVE', betaUnlimited: true, memberLimit: null, trialDaysLeft: 0, readOnly: false, trialEndsAt: null });
     state.appSession.billing = { ...state.summary, plan: 'INTERNAL', status: 'ACTIVE', betaUnlimited: true, memberLimit: null, trialDaysLeft: 0, readOnly: false, trialEndsAt: null };
     ui();
-    await waitFor(() => expect(screen.queryByText('Cargando planes…')).not.toBeInTheDocument());
-    expect(screen.getByTestId('billing-beta-note')).toBeEmptyDOMElement();
-    expect(screen.queryByText(/beta gratuita|Acceso ilimitado/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Todo desbloqueado' })).toBeVisible();
+    expect(screen.getByText('Tu cuenta')).toBeVisible();
+    expect(screen.getByText('Beta gratis')).toBeVisible();
+    expect(screen.getByText('Mientras dure la beta, iManager es gratis y sin límites.')).toBeVisible();
+    expect(screen.getByText('Usuarios ilimitados')).toBeVisible();
+    expect(screen.getByText('Todos los módulos')).toBeVisible();
+    const feedback = screen.getByRole('link', { name: /Contanos/ });
+    expect(feedback).toHaveAttribute('href', 'https://wa.me/5491141722188');
+    expect(feedback).toHaveAttribute('target', '_blank');
+    expect(feedback).toHaveTextContent('¿Algo para mejorar?');
     expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción|Cambiar a/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/días restantes|Quedan|Vencida|Elegí/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/US\$|días restantes|Quedan|Vencida|Elegí un plan|Mercado Pago/)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
-  it('durante la beta un plan pago sigue visible y no ofrece cambiarlo', async () => {
+  it('durante la beta un plan pago tampoco muestra precios ni suscripción', async () => {
     Object.assign(state.billingDetails, { betaUnlimited: true, plan: 'BASIC', status: 'ACTIVE', period: 'MONTHLY', canCancel: true, paidThrough: '2026-11-17T15:00:00Z', trialDaysLeft: 0, readOnly: false, members: 2 });
     ui();
-    expect(await screen.findByText('Activa')).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Cambiar a Negocio' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Suscribirme/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancelar suscripción' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Todo desbloqueado' })).toBeVisible();
+    expect(screen.queryByText('Activa')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción|Cambiar a/ })).not.toBeInTheDocument();
   });
   it('el plan interno nunca muestra checkout ni cancelación', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });

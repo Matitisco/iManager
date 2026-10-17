@@ -86,6 +86,19 @@
 .desk-app .billing-access .billing-primary{flex-shrink:0;width:auto}
 .billing-content button:focus-visible,.billing-access button:focus-visible,.billing-modal button:focus-visible{outline:3px solid #9ca3af;outline-offset:3px}
 .billing-layout-active{display:contents}
+.billing-beta-back{display:none}
+.billing-beta-stack{max-width:560px;gap:12px}
+.billing-screen.is-beta .billing-content{padding-left:0;padding-right:0}
+.billing-beta{border-radius:20px;border-color:#e6e8ec;box-shadow:0 1px 2px rgba(22,24,29,.04);padding:18px 18px 6px}
+.billing-beta .billing-card-top p{color:#8b909a;font-size:13px;font-weight:600}
+.billing-beta .billing-pill{background:#f6e7a8;color:#3f3a1a;padding:5px 10px;font-size:12px;font-weight:700}
+.billing-beta h3{font-size:28px;font-weight:800;letter-spacing:-.45px;margin:12px 0 6px}
+.billing-beta > p{margin:0;color:#737984;font-size:14.5px;line-height:1.4}
+.billing-beta-perks{list-style:none;margin:14px 0 0;padding:0}
+.billing-beta-perks li{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 0;border-top:1px solid #eceef2;color:#16181d;font-size:15px;font-weight:750}
+.billing-beta-check{width:24px;height:24px;border-radius:8px;background:#f6e7a8;color:#16181d;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.billing-beta-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:14px 16px;background:#fff;border:1px solid #e6e8ec;border-radius:16px;color:#8b909a;font-size:15px}
+.billing-beta-feedback b{color:#16181d;font-weight:750;white-space:nowrap}
 @media(min-width:761px){
   .billing-plans{grid-template-columns:1fr 1fr}
   .billing-layout-active{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr);gap:16px;align-items:start}
@@ -103,6 +116,11 @@
   .billing-card{padding:16px}
   .billing-card h3{font-size:22px}
   .billing-screen{padding-bottom:168px}
+  .billing-screen.is-beta{padding-bottom:24px}
+  .billing-beta-head.whead{flex-direction:column;align-items:flex-start;gap:2px;padding-bottom:14px}
+  .billing-beta-back{display:inline-flex;align-items:center;gap:2px;min-height:32px;padding:0;color:#8b909a;font-size:15px;font-weight:650}
+  .billing-beta h3{font-size:26px}
+  .billing-card.billing-beta{padding:16px 16px 4px}
   .billing-dock{position:fixed;z-index:30;left:0;right:0;bottom:var(--tab-clearance);background:#fff;border-top:1px solid #eee;padding:12px 16px calc(12px + env(safe-area-inset-bottom, 0px))}
   .billing-access{margin:12px 16px;align-items:flex-start;flex-direction:column;padding:16px}
   .desk-app .billing-access .billing-primary{width:100%}
