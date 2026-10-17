@@ -4,7 +4,7 @@ import { prisma } from '../plugins/prisma.js';
 import { useIntegrationApp } from './integration-helpers.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
 import { mockMercadoPago } from './billing-http.js';
-import { syncFailureLine, syncPlans, reconcileSubscriptions } from '../modules/billing/service.js';
+import { refreshBilling, syncFailureLine, syncPlans, reconcileSubscriptions } from '../modules/billing/service.js';
 import * as blue from '../lib/blue-rate.js';
 
 const { getApp } = useIntegrationApp();
@@ -121,6 +121,58 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect(logged).not.toContain('buyer@example.com');
     expect(logged).not.toContain('internal@example.com');
     expect(logged).not.toContain('test-placeholder');
+  });
+  it('descarta preapprovals de otro vendedor y sigue con las demás tiendas', async () => {
+    async function stuck(preapprovalId: string, firebaseUid: string, email: string) {
+      const context = await seedStoreContext({ firebaseUid, email });
+      const id = context.store!.id;
+      await prisma.store.update({ where: { id }, data: {
+        billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPeriod: 'MONTHLY', billingPreapprovalId: preapprovalId,
+        billingPayerEmail: email, billingPaidThrough: new Date(Date.now() + 86_400_000), trialEndsAt: new Date(Date.now() - 86_400_000),
+      } });
+      return id;
+    }
+    const caller = await stuck('old-caller', 'owner-a', 'buyer@example.com');
+    const missing = await stuck('missing-pre', 'owner-b', 'other@example.com');
+    const internal = await seedStoreContext({ firebaseUid: 'internal-owner', email: 'internal@example.com' });
+    await prisma.store.update({ where: { id: internal.store!.id }, data: { billingPreapprovalId: 'pre-internal', billingPayerEmail: 'internal@example.com' } });
+    mp.failOn('GET /preapproval/old-caller', 400, 'the preapprovalId is not valid for callerId buyer@example.com');
+    const log = { info: vi.fn(), warn: vi.fn() };
+    await expect(reconcileSubscriptions(log)).resolves.toBe(2);
+    for (const id of [caller, missing]) {
+      const row = await prisma.store.findUniqueOrThrow({ where: { id } });
+      expect(row.billingPreapprovalId).toBeNull();
+      expect(row.billingStatus).toBe('EXPIRED');
+      expect(row.billingPaidThrough!.getTime()).toBeLessThanOrEqual(Date.now());
+    }
+    expect(await prisma.store.findUniqueOrThrow({ where: { id: internal.store!.id } })).toMatchObject({ billingPlan: 'INTERNAL', billingPreapprovalId: 'pre-internal' });
+    expect(log.info).toHaveBeenCalledWith(`Suscripción de otro vendedor descartada para la tienda ${caller}.`);
+    expect(log.info).toHaveBeenCalledWith(`Suscripción de otro vendedor descartada para la tienda ${missing}.`);
+    const logged = JSON.stringify(log.info.mock.calls);
+    expect(logged).not.toContain('buyer@example.com');
+    expect(logged).not.toContain('other@example.com');
+    expect(logged).not.toContain('internal@example.com');
+    expect(logged).not.toContain('test-placeholder');
+  });
+  it('Plan y facturación suelta un preapproval ajeno y vuelve a permitir la suscripción', async () => {
+    const storeId = await trial();
+    await syncPlans();
+    await prisma.store.update({ where: { id: storeId }, data: {
+      billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPeriod: 'MONTHLY', billingPreapprovalId: 'old-seller-pre',
+      billingPayerEmail: 'buyer@example.com', billingPaidThrough: new Date(Date.now() + 86_400_000), trialEndsAt: new Date(Date.now() - 86_400_000),
+    } });
+    mp.failOn('GET /preapproval/old-seller-pre', 400, 'the preapprovalId is not valid for callerId buyer@example.com');
+    const log = { info: vi.fn(), warn: vi.fn() };
+    const details = await refreshBilling(storeId, log);
+    expect(details).toMatchObject({ status: 'EXPIRED', canCancel: false, plan: 'BASIC' });
+    expect(new Date(details.paidThrough!).getTime()).toBeLessThanOrEqual(Date.now());
+    const quote = await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } });
+    expect(quote.statusCode, quote.body).toBe(200);
+    expect(log.info).toHaveBeenCalledWith(`Suscripción de otro vendedor descartada para la tienda ${storeId}.`);
+    expect(JSON.stringify(log.info.mock.calls)).not.toContain('buyer@example.com');
+    const screen = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
+    expect(screen.statusCode).toBe(200);
+    expect(screen.json()).toMatchObject({ status: 'EXPIRED', canCancel: false });
   });
   it('registra el estado y el mensaje de Mercado Pago cuando la sincronización falla', async () => {
     mp.failOn('POST /preapproval_plan', 401, 'invalid access token test-placeholder buyer@example.com');

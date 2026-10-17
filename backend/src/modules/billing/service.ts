@@ -340,45 +340,87 @@ export async function cancelSubscription(storeId: string) {
   }, { timeout: 30_000, maxWait: 10_000 });
 }
 
-export async function reconcileSubscriptions() {
+function isStalePreapproval(cause: unknown) {
+  const context = domainErrorFrom(cause)?.logContext;
+  if (!context || typeof context.status !== 'number') return false;
+  const message = typeof context.message === 'string' ? context.message : '';
+  if (context.status === 404) return true;
+  return context.status === 400 && /not valid for callerId|not found/i.test(message);
+}
+
+/** The id belongs to another Mercado Pago seller. End the paid period so the store can subscribe again. */
+async function releaseStalePreapproval(storeId: string, preapprovalId: string, log: SyncLog) {
+  const ended = new Date();
+  const released = await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, storeBillingLock(storeId));
+    const current = await tx.store.findUnique({ where: { id: storeId } });
+    if (!current || current.billingPlan === 'INTERNAL' || current.billingPreapprovalId !== preapprovalId) return false;
+    await tx.store.update({ where: { id: storeId }, data: {
+      billingPreapprovalId: null, billingStatus: 'EXPIRED', billingPaidThrough: ended, billingRemoteUpdatedAt: ended,
+    } });
+    return true;
+  }, { timeout: 15_000, maxWait: 10_000 });
+  if (released) log.info(`Suscripción de otro vendedor descartada para la tienda ${storeId}.`);
+  return released;
+}
+
+export async function reconcileSubscriptions(log: SyncLog = console) {
   // IDs only, no business row exports or provider dumps.
   const stores = await prisma.store.findMany({ where: { billingPlan: { not: 'INTERNAL' }, billingPreapprovalId: { not: null } }, select: { id: true, billingPreapprovalId: true } });
+  const failures: unknown[] = [];
   for (const store of stores) {
-    await prisma.$transaction(async tx => {
-      await lockTransactionKey(tx, storeBillingLock(store.id));
-      const current = await tx.store.findUniqueOrThrow({ where: { id: store.id } });
-      if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
-      const remote = await getRemoteSubscription(current.billingPreapprovalId);
-      const reference = remote.external_reference?.trim() || '';
-      const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
-      if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
-      const plan = await planForRemote(tx, store.id, remote, reference);
-      if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
-        await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
+    const preapprovalId = store.billingPreapprovalId;
+    if (!preapprovalId) continue;
+    try {
+      await prisma.$transaction(async tx => {
+        await lockTransactionKey(tx, storeBillingLock(store.id));
+        const current = await tx.store.findUniqueOrThrow({ where: { id: store.id } });
+        if (current.billingStatus === 'CANCELLED' || !current.billingPreapprovalId) return;
+        const remote = await getRemoteSubscription(current.billingPreapprovalId);
+        const reference = remote.external_reference?.trim() || '';
+        const linked = reference === store.id || await tx.billingCheckout.findFirst({ where: { storeId: store.id, OR: [{ providerSubscriptionId: remote.id }, ...(reference ? [{ id: reference }] : [])] } });
+        if (!linked || payerEmailMismatch(remote.payer_email, current.billingPayerEmail) || remote.status === 'cancelled') return;
+        const plan = await planForRemote(tx, store.id, remote, reference);
+        if (plan && Number(plan.amountArs) !== Number(remote.auto_recurring.transaction_amount)) {
+          await mpRequest(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { auto_recurring: { transaction_amount: Number(plan.amountArs), currency_id: 'ARS' } });
+        }
+      }, { timeout: 30_000, maxWait: 10_000 });
+      await reconcilePreapproval(preapprovalId, store.id);
+    } catch (cause) {
+      if (isStalePreapproval(cause)) {
+        await releaseStalePreapproval(store.id, preapprovalId, log);
+        continue;
       }
-    }, { timeout: 30_000, maxWait: 10_000 });
-    await reconcilePreapproval(store.billingPreapprovalId!, store.id);
+      failures.push(cause);
+    }
   }
+  if (failures.length > 0) throw failures[0];
   return stores.length;
 }
 
-export async function refreshBilling(storeId: string) {
+export async function refreshBilling(storeId: string, log: SyncLog = console) {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
   if (store.billingPlan === 'INTERNAL') return billingDetails(storeId);
-  if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED') await reconcilePreapproval(store.billingPreapprovalId, storeId);
-  else {
-    const intention = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null } }, orderBy: { createdAt: 'desc' } });
-    if (intention?.providerSubscriptionId) await reconcilePreapproval(intention.providerSubscriptionId, storeId);
-    else if (intention) {
-      const searchSchema = z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().nullish() })).max(100) });
-      const byAttempt = parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(intention.id)}&limit=20`));
-      const byStore = byAttempt.results.length > 0 ? { results: [] as { id: string; external_reference?: string | null }[] } : parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(storeId)}&limit=20`));
-      const results = [...byAttempt.results, ...byStore.results];
-      for (const remote of results) if (remote.external_reference === intention.id || remote.external_reference === storeId) await reconcilePreapproval(remote.id, storeId);
-      if (!results.some(remote => remote.external_reference === intention.id || remote.external_reference === storeId) && intention.createdAt < new Date(Date.now() - 2 * 60_000)) {
-        await prisma.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] }, providerSubscriptionId: null }, data: { checkoutStatus: 'FAILED' } });
+  try {
+    if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED') await reconcilePreapproval(store.billingPreapprovalId, storeId);
+    else {
+      const intention = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null } }, orderBy: { createdAt: 'desc' } });
+      if (intention?.providerSubscriptionId) await reconcilePreapproval(intention.providerSubscriptionId, storeId);
+      else if (intention) {
+        const searchSchema = z.object({ results: z.array(z.object({ id: z.string(), external_reference: z.string().nullish() })).max(100) });
+        const byAttempt = parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(intention.id)}&limit=20`));
+        const byStore = byAttempt.results.length > 0 ? { results: [] as { id: string; external_reference?: string | null }[] } : parseRemote(searchSchema, await mpRequest(`/preapproval/search?external_reference=${encodeURIComponent(storeId)}&limit=20`));
+        const results = [...byAttempt.results, ...byStore.results];
+        for (const remote of results) if (remote.external_reference === intention.id || remote.external_reference === storeId) await reconcilePreapproval(remote.id, storeId);
+        if (!results.some(remote => remote.external_reference === intention.id || remote.external_reference === storeId) && intention.createdAt < new Date(Date.now() - 2 * 60_000)) {
+          await prisma.billingCheckout.updateMany({ where: { id: intention.id, checkoutStatus: { in: ['CREATING', 'CREATED'] }, providerSubscriptionId: null }, data: { checkoutStatus: 'FAILED' } });
+        }
       }
     }
+  } catch (cause) {
+    if (store.billingPreapprovalId && store.billingStatus !== 'CANCELLED' && isStalePreapproval(cause)) {
+      await releaseStalePreapproval(storeId, store.billingPreapprovalId, log);
+    } else throw cause;
   }
   return billingDetails(storeId);
 }
