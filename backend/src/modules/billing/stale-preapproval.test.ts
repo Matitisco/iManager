@@ -34,7 +34,7 @@ vi.mock('../../plugins/prisma.js', () => {
     },
     storeMember: { count: vi.fn(async () => 1) },
     billingCheckout: { findFirst: vi.fn(async () => null), updateMany: vi.fn(async () => ({ count: 0 })) },
-    billingPlan: { findUnique: vi.fn(async () => null) },
+    billingPlan: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
   };
   return { prisma };
 });

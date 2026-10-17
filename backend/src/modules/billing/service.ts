@@ -4,7 +4,7 @@ import { prisma } from '../../plugins/prisma.js';
 import { DomainError, domainErrorFrom } from '../../lib/domain-error.js';
 import { currentBlueRate } from '../../lib/blue-rate.js';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
-import { PLANS, PLAN_KEYS, BILLING_LOCK, storeBillingLock, arsAmount, billingSummary, addMonths, type PlanKey } from './domain.js';
+import { PLANS, PLAN_KEYS, BILLING_LOCK, storeBillingLock, arsAmount, billingSummary, addMonths, trialChargeStart, type PlanKey } from './domain.js';
 import { limitCheckout } from './checkout-rate-limit.js';
 import { assertMercadoPagoCheckoutUrl, getRemoteSubscription, MPRejectedRequest, mpRequest, remotePlanSchema, remoteSubscriptionSchema, parseRemote, type RemoteSubscription } from './mercadopago.js';
 
@@ -182,10 +182,23 @@ const RECENT_ACTIVATION_MS = 30 * 60_000;
 export async function billingDetails(storeId: string) {
   const summary = await getBillingSummary(storeId);
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { billingPlan: true, billingStatus: true, billingRemoteUpdatedAt: true } });
-  const pendingCheckout = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, select: { id: true } });
+  const [pendingCheckout, plans] = await Promise.all([
+    prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, orderBy: { openedAt: 'desc' }, select: { planKey: true, amountArs: true } }),
+    prisma.billingPlan.findMany({ select: { key: true, amountArs: true, exchangeRate: true } }),
+  ]);
+  const quoted = new Map(plans.map(plan => [plan.key, plan]));
   const updatedAt = store.billingRemoteUpdatedAt?.getTime();
   const recentlyActivated = store.billingStatus === 'ACTIVE' && store.billingPlan !== 'INTERNAL' && store.billingPlan !== 'TRIAL' && !!updatedAt && Date.now() - updatedAt < RECENT_ACTIVATION_MS;
-  return { ...summary, pendingCheckout: !!pendingCheckout, recentlyActivated, plans: PLAN_KEYS.map(key => ({ key, ...PLANS[key] })) };
+  const pendingKey = pendingCheckout?.planKey;
+  const pendingSpec = pendingKey && pendingKey in PLANS ? PLANS[pendingKey as PlanKey] : null;
+  return {
+    ...summary, pendingCheckout: !!pendingCheckout, recentlyActivated,
+    pendingPlan: pendingSpec ? { key: pendingKey, ...pendingSpec, amountArs: Number(pendingCheckout!.amountArs) } : null,
+    plans: PLAN_KEYS.map(key => {
+      const row = quoted.get(key);
+      return { key, ...PLANS[key], amountArs: row ? Number(row.amountArs) : null, exchangeRate: row ? Number(row.exchangeRate) : null };
+    }),
+  };
 }
 function assertCheckoutAllowed(summary: Awaited<ReturnType<typeof getBillingSummary>>, key: PlanKey) {
   if (summary.plan === 'INTERNAL') throw new DomainError('Tu plan interno tiene acceso ilimitado y no necesita suscripción.', 409);
@@ -202,7 +215,8 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
   return prisma.$transaction(async tx => {
     await lockTransactionKey(tx, BILLING_LOCK);
     await lockTransactionKey(tx, storeBillingLock(storeId));
-    assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
+    const summary = await getBillingSummary(storeId, tx);
+    assertCheckoutAllowed(summary, key);
     if (await tx.billingCheckout.findFirst({ where: { storeId, checkoutStatus: { in: ['CREATING', 'CREATED'] } } })) {
       throw new DomainError('No pudimos cerrar un intento anterior. Reintentá.', 409);
     }
@@ -215,7 +229,8 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
       plan = await tx.billingPlan.update({ where: { key }, data: { amountArs: amount, exchangeRate: rate, initPoint: remote.init_point } });
     }
     const quote = await tx.billingCheckout.create({ data: { storeId, planKey: key, providerPlanId: plan.providerId, payerEmail: payerEmail.trim().toLowerCase(), amountArs: amount, exchangeRate: rate, expiresAt: new Date(Date.now() + 10 * 60_000) } });
-    return { id: quote.id, key, usd: PLANS[key].usd, amountArs: amount, exchangeRate: rate, payerEmail: quote.payerEmail, expiresAt: quote.expiresAt.toISOString() };
+    const start = trialChargeStart(summary.trialEndsAt ? new Date(summary.trialEndsAt) : null);
+    return { id: quote.id, key, usd: PLANS[key].usd, amountArs: amount, exchangeRate: rate, payerEmail: quote.payerEmail, expiresAt: quote.expiresAt.toISOString(), firstChargeAt: start?.toISOString() ?? null };
   }, { timeout: 25_000, maxWait: 10_000 });
 }
 export async function openCheckout(storeId: string, quoteId: string) {
@@ -250,7 +265,8 @@ export async function openCheckout(storeId: string, quoteId: string) {
       await lockTransactionKey(tx, BILLING_LOCK);
       await lockTransactionKey(tx, storeBillingLock(storeId));
       const key = quote.planKey as PlanKey;
-      assertCheckoutAllowed(await getBillingSummary(storeId, tx), key);
+      const summary = await getBillingSummary(storeId, tx);
+      assertCheckoutAllowed(summary, key);
       const plan = await tx.billingPlan.findUniqueOrThrow({ where: { key } });
       const conditions = parseRemote(remotePlanSchema, await mpRequest(`/preapproval_plan/${encodeURIComponent(plan.providerId)}`, 'GET', undefined, { purpose: 'plan' }));
       assertPlan(conditions, key, quote.providerPlanId, Number(quote.amountArs));
@@ -259,13 +275,17 @@ export async function openCheckout(storeId: string, quoteId: string) {
       }
       const returnUrl = backUrl();
       const spec = PLANS[key];
+      const start = trialChargeStart(summary.trialEndsAt ? new Date(summary.trialEndsAt) : null);
       sent = true;
       // A plan-linked preapproval requires card_token_id and status authorized. Pending checkout is plan-less.
       const created = parseRemote(remoteSubscriptionSchema.extend({ init_point: z.string().min(1) }), await mpRequest('/preapproval', 'POST', {
         reason: `iManager ${spec.name} ${spec.period === 'ANNUAL' ? 'anual' : 'mensual'}`,
         external_reference: quote.id,
         payer_email: quote.payerEmail,
-        auto_recurring: { frequency: spec.months, frequency_type: 'months', transaction_amount: Number(quote.amountArs), currency_id: 'ARS' },
+        auto_recurring: {
+          frequency: spec.months, frequency_type: 'months', transaction_amount: Number(quote.amountArs), currency_id: 'ARS',
+          ...(start ? { start_date: start.toISOString() } : {}),
+        },
         back_url: returnUrl,
         status: 'pending',
       }));

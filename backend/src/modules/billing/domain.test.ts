@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, arsAmount, billingSummary, PLANS, trialData, type BillingStore } from './domain.js';
+import { addMonths, arsAmount, billingSummary, PLANS, trialChargeStart, trialData, type BillingStore } from './domain.js';
 
 const now = new Date('2026-01-31T10:00:00Z');
 const base: BillingStore = { billingPlan: 'TRIAL', billingStatus: 'TRIAL', trialEndsAt: new Date('2026-02-07T10:00:00Z'), billingPaidThrough: null, billingPeriod: null, billingPreapprovalId: null };
@@ -30,6 +30,20 @@ describe('reglas de suscripción', () => {
     expect(Object.values(PLANS).map(plan => plan.usd)).toEqual([22, 198, 87, 783]);
     expect(arsAmount(783, 1234.56)).toBe(966660.48);
     expect(arsAmount(22, 1200.55)).toBe(26412.1);
+  });
+  it('cobra al terminar la prueba y, si ya venció, cobra ahora', () => {
+    expect(trialChargeStart(base.trialEndsAt, now)?.toISOString()).toBe('2026-02-07T10:00:00.000Z');
+    expect(trialChargeStart(now, now)).toBeNull();
+    expect(trialChargeStart(new Date(now.getTime() - 1), now)).toBeNull();
+    expect(trialChargeStart(null, now)).toBeNull();
+  });
+  it('avisa uno o dos días antes del primer cobro y no antes', () => {
+    const subscribed = { ...base, billingPlan: 'BASIC', billingPreapprovalId: 'pre-1', billingStatus: 'ACTIVE' };
+    expect(billingSummary(subscribed, 1, now)).toMatchObject({ firstChargeAt: '2026-02-07T10:00:00.000Z', chargeReminder: false, readOnly: false, status: 'TRIAL' });
+    expect(billingSummary(subscribed, 1, new Date('2026-02-06T10:00:00Z'))).toMatchObject({ chargeReminder: true, readOnly: false });
+    expect(billingSummary(base, 1, now)).toMatchObject({ firstChargeAt: null, chargeReminder: false });
+    expect(billingSummary({ ...subscribed, billingPaidThrough: new Date('2026-03-07T10:00:00Z') }, 1, now)).toMatchObject({ firstChargeAt: null, chargeReminder: false, status: 'ACTIVE' });
+    expect(billingSummary({ ...subscribed, billingPlan: 'INTERNAL' }, 1, new Date('2026-02-06T10:00:00Z'))).toMatchObject({ firstChargeAt: null, chargeReminder: false, plan: 'INTERNAL' });
   });
   it.each([0, -1, NaN, Infinity])('rechaza cotización inválida %s', rate => expect(() => arsAmount(22, rate)).toThrow());
   it('suma meses calendario sin desbordar fin de mes ni año bisiesto', () => {

@@ -187,7 +187,10 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   });
   it('requiere autenticación/owner y aísla cotizaciones de otra tienda', async () => {
     const { quote } = await opened();
-    expect((await getApp().inject({ url: '/api/billing', headers: headers() })).json()).toMatchObject({ pendingCheckout: false, recentlyActivated: false });
+    expect((await getApp().inject({ url: '/api/billing', headers: headers() })).json()).toMatchObject({
+      pendingCheckout: false, recentlyActivated: false,
+      plans: expect.arrayContaining([expect.objectContaining({ key: 'BASIC_MONTHLY', amountArs: 22000, usd: 22 })]),
+    });
     expect((await getApp().inject({ url: '/api/billing' })).statusCode).toBe(401);
     await seedStoreContext({ firebaseUid: 'staff', role: 'STAFF' });
     expect((await getApp().inject({ url: '/api/billing', headers: buildAuthHeaders({ uid: 'staff' }) })).statusCode).toBe(403);
@@ -197,6 +200,7 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
   it('crea preapproval por API con token, plan, referencia y email de la cotización', async () => {
     const { storeId, quote } = await opened('BASIC_ANNUAL');
     expect(quote).toMatchObject({ usd: 198, amountArs: 198000, exchangeRate: 1000, payerEmail: 'buyer@example.com' });
+    expect(quote.firstChargeAt).toBe((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).trialEndsAt!.toISOString());
     expect(quote).not.toHaveProperty('publicKey');
     const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } });
     expect(response.statusCode, response.body).toBe(200);
@@ -205,13 +209,28 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].body).toEqual({
       reason: 'iManager Básico anual', payer_email: 'buyer@example.com', external_reference: quote.id, status: 'pending', back_url: 'http://127.0.0.1:3000/#/plan',
-      auto_recurring: { frequency: 12, frequency_type: 'months', transaction_amount: 198000, currency_id: 'ARS' },
+      auto_recurring: { frequency: 12, frequency_type: 'months', transaction_amount: 198000, currency_id: 'ARS', start_date: (await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).trialEndsAt!.toISOString() },
     });
     expect(calls[0].body).not.toHaveProperty('preapproval_plan_id');
     expect(calls[0].body).not.toHaveProperty('card_token_id');
     expect(JSON.stringify(calls)).not.toContain('single-use-token');
     expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
-    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'TRIAL', paidThrough: null });
+    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'TRIAL', paidThrough: null, firstChargeAt: null });
+    expect((await getApp().inject({ url: '/api/billing', headers: headers() })).json().pendingPlan).toMatchObject({ key: 'BASIC_ANNUAL', usd: 198, amountArs: 198000 });
+  });
+  it('si la prueba ya terminó el alta no programa el primer cobro', async () => {
+    const { storeId, quote } = await opened();
+    await prisma.store.update({ where: { id: storeId }, data: { trialEndsAt: new Date(Date.now() - 86_400_000) } });
+    const fresh = await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } });
+    expect(fresh.statusCode, fresh.body).toBe(200);
+    expect(fresh.json().firstChargeAt).toBeNull();
+    expect(fresh.json().amountArs).toBe(22000);
+    const response = await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: fresh.json().id } });
+    expect(response.statusCode, response.body).toBe(200);
+    const body = mp.calls.filter(call => call.method === 'POST' && call.path === '/preapproval').at(-1)?.body;
+    expect(body?.auto_recurring).toEqual({ frequency: 1, frequency_type: 'months', transaction_amount: 22000, currency_id: 'ARS' });
+    expect(JSON.stringify(body)).not.toContain('start_date');
+    expect(quote.id).not.toBe(fresh.json().id);
   });
   it('rechaza datos de tarjeta y no llama al proveedor', async () => {
     const { quote } = await opened(); const before = mp.calls.length;
