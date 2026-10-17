@@ -848,6 +848,8 @@ model BillingCheckout {
   openedAt   DateTime?
   checkoutStatus String @default("QUOTED") @db.VarChar(20)
   providerSubscriptionId String? @db.VarChar(100)
+  /// Last preapproval status Mercado Pago reported. `cancelled` on a new attempt is a rejected card.
+  providerStatus String? @db.VarChar(20)
   createdAt  DateTime @default(now())
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 

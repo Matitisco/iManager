@@ -18,7 +18,6 @@
 .billing-row small{display:block;font-weight:500;color:#8b909a}
 .billing-callout{display:flex;gap:12px;align-items:flex-start;margin:14px 0}
 .billing-callout svg{flex:none;margin-top:2px;color:#16181d}
-.billing-waiting .billing-callout svg{background:#f6e7a8;border-radius:999px;padding:8px;box-sizing:content-box}
 .billing-callout strong{color:#16181d}
 .billing-callout p{margin:2px 0 0}
 .billing-choose{font-size:20px;font-weight:750}
@@ -57,12 +56,22 @@
 .billing-modal-grab{width:36px;height:4px;margin:8px auto 12px;border-radius:999px;background:#d1d5db}
 .billing-modal h2{font-size:22px;font-weight:750;color:#16181d;margin:0}
 .billing-modal-plan{margin:4px 0 14px;color:#8b909a}
-.billing-due{background:#f7f7f8;border-radius:16px;padding:16px;margin-bottom:4px}
-.billing-due span{color:#6b7280}
-.billing-due strong{display:block;margin-top:4px;font-size:32px;letter-spacing:-.6px;color:#16181d}
-.billing-due small{display:block;margin-top:4px;color:#8b909a}
-.billing-check{display:flex;align-items:flex-start;gap:8px;margin:8px 0;color:#3f4650}
-.billing-check svg{flex:none;margin-top:2px;color:#17803d}
+.billing-due{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:start;background:#f7f7f8;border-radius:16px;padding:16px;margin-bottom:4px}
+.billing-due span{grid-column:1;grid-row:1;align-self:center;color:#6b7280}
+.billing-due strong{grid-column:2;grid-row:1;margin:0;font-size:28px;letter-spacing:-.6px;color:#16181d;text-align:right}
+.billing-due small{grid-column:2;grid-row:2;margin-top:2px;color:#8b909a;text-align:right}
+.billing-fine{margin:12px 0 0;color:#6b7280;font-size:13px;line-height:1.45}
+.billing-pay{border:1px solid #e7e8ec;border-radius:16px;padding:12px 14px;margin-top:12px;scroll-margin-bottom:180px}
+.billing-pay > p:first-child{margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;color:#8b909a;text-transform:uppercase}
+.billing-pay-chips{display:flex;flex-wrap:wrap;gap:8px}
+.billing-pay-chips > span{display:inline-flex;align-items:center;gap:6px;border:1px solid #e7e8ec;border-radius:999px;padding:7px 10px;color:#16181d;font-size:13px;font-weight:650;background:#fff}
+.billing-pay-chips svg{flex:none;color:#16181d}
+.billing-pay-radio{width:14px;height:14px;border-radius:999px;box-shadow:inset 0 0 0 2px #16181d, inset 0 0 0 4px #fff, inset 0 0 0 8px #16181d}
+.billing-pay-no{display:flex;gap:6px;align-items:flex-start;margin:10px 0 0;color:#d11a2a;font-size:13px;line-height:1.4}
+.billing-pay-no svg{flex:none;margin-top:2px}
+.billing-failed-actions{display:grid;gap:8px}
+.billing-failed-actions .billing-secondary{margin-top:0}
+.billing-failed .billing-callout svg{background:#f6e7a8;border-radius:12px;padding:8px;box-sizing:content-box;color:#16181d}
 .billing-email-row input{min-height:40px;border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:16px}
 .billing-change{background:none;border:0;color:#16181d;font-weight:650;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:0}
 .billing-modal-actions{display:grid;gap:4px;margin-top:12px}
@@ -85,6 +94,7 @@
   .billing-dock-rows,.billing-caption{display:block}
   .billing-content{display:grid}
   .billing-dock{order:4}
+  .billing-failed .billing-pay-chips{flex-wrap:nowrap}
   .billing-custom{order:5}
   .billing-status-link{order:6}
 }

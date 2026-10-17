@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Clock, Lock } from 'lucide-react';
+import { CreditCard, Lock, X } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import type { BillingPlanOffer, BillingQuote } from '../../types/billing';
 import { toUserMessage } from '../../lib/user-message';
@@ -31,6 +31,12 @@ function plusMonths(iso: string, months: number) {
 }
 const laterLabel = (iso: string, months: number) => months >= 12 ? `Renueva ${dayMonth(plusMonths(iso, months))}` : `Luego el ${dayOnly(iso)} de cada mes`;
 const afterLabel = (iso: string, months: number) => months >= 12 ? dayMonth(plusMonths(iso, months)) : `El ${dayOnly(iso)} de cada mes`;
+const futureDate = (iso?: string | null) => !!iso && new Date(iso).getTime() > Date.now();
+function accessUntil(trialEndsAt?: string | null, paidThrough?: string | null) {
+  if (futureDate(trialEndsAt)) return trialEndsAt ?? null;
+  if (futureDate(paidThrough)) return paidThrough ?? null;
+  return trialEndsAt ?? paidThrough ?? null;
+}
 
 let sharedReturnRefresh: { key: string; promise: Promise<BillingDetails | undefined> } | null = null;
 
@@ -57,6 +63,7 @@ export function BillingScreen() {
   const [error, setError] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
   const [notice, setNotice] = useState('');
+  const [incompleteError, setIncompleteError] = useState('');
   const [confirming, setConfirming] = useState(() => isBillingReturn(window.location.hash, window.location.search));
   const [paymentPending, setPaymentPending] = useState(false);
   const [returnAttempt] = useState(0);
@@ -74,7 +81,7 @@ export function BillingScreen() {
     const started = Date.now();
     let timer = 0;
     let stopped = false;
-    setLoading(true); setQuote(null); setCheckoutError(''); setError(''); setPaymentPending(false);
+    setLoading(true); setQuote(null); setCheckoutError(''); setError(''); setIncompleteError(''); setPaymentPending(false);
     setConfirming(returning);
     const finish = (apply: () => void) => {
       if (!alive.current || stopped) return;
@@ -140,8 +147,10 @@ export function BillingScreen() {
   const paidUp = !!billing?.paidThrough && new Date(billing.paidThrough) > new Date();
   const scheduled = !!billing?.firstChargeAt;
   const active = !internal && !scheduled && (paidUp || !!billing?.canCancel);
-  const processing = !confirming && (paymentPending || !!billingDetails?.pendingCheckout) && !billingDetails?.recentlyActivated;
-  const expired = !internal && !active && !scheduled && !processing && billing?.status === 'EXPIRED';
+  const openPending = !confirming && !billingDetails?.recentlyActivated && (paymentPending || !!billingDetails?.pendingCheckout);
+  const failedAttempt = !openPending ? billingDetails?.paymentAttempt ?? null : null;
+  const incomplete = !confirming && !internal && !active && !scheduled && !billingDetails?.recentlyActivated && (openPending || !!failedAttempt);
+  const expired = !internal && !active && !scheduled && !incomplete && billing?.status === 'EXPIRED';
   const plans = (billingDetails?.plans ?? []).filter(plan => plan.period === (annual ? 'ANNUAL' : 'MONTHLY'));
   const selected = plans.find(plan => plan.plan === tier) ?? plans[0];
   const members = billing?.members ?? 0;
@@ -168,6 +177,35 @@ export function BillingScreen() {
     setCheckoutError('');
     setQuote(await quoteSubscription(plan.key, email));
   });
+  const retryCheckout = async () => {
+    if (busyRef.current) return;
+    const plan = failedAttempt?.plan ?? billingDetails?.pendingPlan ?? selected;
+    const payer = (failedAttempt?.payerEmail || billingDetails?.pendingPayerEmail || email).trim();
+    if (!plan || !payer) return;
+    busyRef.current = true;
+    setBusy(true); setIncompleteError(''); setError(''); setNotice('');
+    try {
+      const quoted = await quoteSubscription(plan.key, payer);
+      if (!alive.current) return;
+      setEmail(payer);
+      const result = await openSubscriptionCheckout(quoted.id);
+      redirectToMercadoPago(result.initPoint);
+    } catch (cause) {
+      if (!alive.current) return;
+      const message = toUserMessage(cause);
+      if (/ya tenés una suscripción/i.test(message)) {
+        const details = await loadBilling(true);
+        await reloadSession();
+        if (alive.current && (details?.recentlyActivated || details?.canCancel)) setNotice(`Listo. Tu plan ${billingPlanName(details.plan)} ya está activo.`);
+        else if (alive.current) setIncompleteError(message);
+        return;
+      }
+      setIncompleteError(message);
+    } finally {
+      busyRef.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
   const refreshPayment = async () => {
     const details = await loadBilling(true, true);
     await reloadSession();
@@ -185,7 +223,7 @@ export function BillingScreen() {
       <PageHead title="Plan y facturación" back={() => go('settings')} />
       <div className="billing-content">
         {internal ? <section className="billing-card"><div className="billing-card-top"><h2>Interno</h2><span className="billing-pill">Acceso ilimitado</span></div><p>Tu cuenta tiene acceso ilimitado, sin cobros ni límite de usuarios.</p></section> : null}
-        {!internal && (scheduled || (!active && !processing)) ? <section className="billing-card" aria-label="Plan actual">
+        {!internal && !incomplete && (scheduled || (!active && !incomplete)) ? <section className="billing-card" aria-label="Plan actual">
           <div className="billing-card-top"><h2>Prueba gratuita · Plan {billing?.plan === 'BUSINESS' ? 'Negocio' : 'Básico'}</h2><span className={`billing-pill${expired ? ' is-muted' : ''}`}>{expired ? 'Vencida' : 'En prueba'}</span></div>
           {expired ? <div className="billing-callout"><Lock size={18} /><div><strong>Tu prueba terminó el {trialEnd ? dayMonth(trialEnd) : ''}</strong><p>Tus datos están guardados. Podés verlos, pero no cargar nada nuevo hasta elegir un plan.</p></div></div> : <>
             <h3>Tu prueba termina el {trialEnd ? dayMonth(trialEnd) : ''}</h3>
@@ -196,13 +234,7 @@ export function BillingScreen() {
           <div className="billing-row"><span>Usuarios</span><b>{members} de {billing?.memberLimit ?? 3}</b></div>
           {scheduled ? <button className="billing-text-danger" type="button" disabled={busy} onClick={() => setCancelConfirm(true)}>Cancelar suscripción</button> : null}
         </section> : null}
-        {processing ? <section className="billing-card billing-waiting" data-testid="billing-return-pending" role="status">
-          <div className="billing-card-top"><h2>Plan {billingDetails?.pendingPlan?.name ?? (billing?.plan === 'BUSINESS' ? 'Negocio' : 'Básico')} · {periodName(billingDetails?.pendingPlan?.period ?? billing?.period)}</h2><span className="billing-pill">Pago en proceso</span></div>
-          <div className="billing-callout"><Clock size={18} /><div><strong>Esperando a Mercado Pago</strong><p>Suele tardar unos minutos. Tu tienda sigue funcionando.</p></div></div>
-          <button className="billing-primary" type="button" disabled={busy} onClick={() => void run(async () => { await refreshPayment(); })}>Ya pagué, actualizar</button>
-          {billingDetails?.pendingPlan ? <div className="billing-row"><span>Monto</span><b>{usd(billingDetails.pendingPlan.usd)}{billingDetails.pendingPlan.amountArs ? <small>≈ {ars(billingDetails.pendingPlan.amountArs)} por {billingDetails.pendingPlan.months >= 12 ? 'año' : 'mes'}</small> : null}</b></div> : selected ? <div className="billing-row"><span>Monto</span><b>{usd(selected.usd)}{selected.amountArs ? <small>≈ {ars(selected.amountArs)} por {selected.months >= 12 ? 'año' : 'mes'}</small> : null}</b></div> : null}
-          {trialEnd ? <div className="billing-row"><span>Prueba</span><b>Hasta el {dayMonth(trialEnd)}</b></div> : null}
-        </section> : null}
+        {incomplete ? <IncompletePayment busy={busy} error={incompleteError} rejected={!openPending && failedAttempt?.outcome === 'rejected'} planName={(failedAttempt?.plan ?? billingDetails?.pendingPlan)?.name ?? 'Básico'} period={periodName((failedAttempt?.plan ?? billingDetails?.pendingPlan)?.period)} accessUntil={accessUntil(billing?.trialEndsAt, billing?.paidThrough)} onRetry={() => void retryCheckout()} /> : null}
         {active ? <div className="billing-layout-active">
           <section className="billing-card" aria-label="Plan actual">
             <div className="billing-card-top"><p>Tu plan</p><span className="billing-pill is-ok">{billing?.status === 'CANCELLED' ? 'Cancelada' : 'Activa'}</span></div>
@@ -225,7 +257,7 @@ export function BillingScreen() {
         {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(true, true); setLoading(false); })}>Reintentar</button></div> : null}
         {notice ? <p className="billing-notice" role="status">{notice}</p> : null}
         {loading && !confirming ? <p role="status">Cargando planes…</p> : null}
-        {!internal && !active && !scheduled && !processing ? <>
+        {!internal && !active && !scheduled && !incomplete ? <>
           <h2 className="billing-choose">{expired ? 'Elegí un plan para seguir' : 'Elegí tu plan'}</h2>
           <div className="billing-period" role="group" aria-label="Frecuencia de facturación">
             <button type="button" aria-pressed={!annual} disabled={busy} onClick={() => { setAnnual(false); closeQuote(); }}>Mensual</button>
@@ -365,13 +397,13 @@ function ConfirmCheckout({ quote, busy, error, phone, onClose, onContinue, onEma
         <p className="billing-modal-plan">Plan {quote.key.startsWith('BUSINESS') ? 'Negocio' : 'Básico'} · {annual ? 'anual' : 'mensual'}</p>
         <div className="billing-due">
           <span>{at ? `Primer cobro el ${dayMonth(at)}` : 'Pagás hoy'}</span>
-          <strong>{ars(quote.amountArs)}</strong>
-          <small>{usd(quote.usd)} al dólar blue de hoy ({ars(quote.exchangeRate)})</small>
+          <strong>≈ {ars(quote.amountArs)}</strong>
+          <small>{usd(quote.usd)} al dólar de hoy</small>
         </div>
         <div className="billing-row"><span>Después</span><b>{afterLabel(at ?? new Date().toISOString(), months)}</b></div>
         <div className="billing-row billing-email-row"><span>Email del pago</span>{editing ? <input type="email" aria-label="Email del pagador" autoComplete="email" value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={saveEmail} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveEmail(); } }} /> : <b>{quote.payerEmail} <button type="button" className="billing-change" disabled={busy} onClick={() => setEditing(true)}>Cambiar</button></b>}</div>
-        <p className="billing-check"><Check size={16} />Débito automático en pesos según el dólar del día.</p>
-        <p className="billing-check"><Check size={16} />Cancelás cuando quieras desde esta pantalla.</p>
+        <PaymentMethods />
+        <p className="billing-fine">Débito automático en pesos según el dólar del día. Te avisamos antes del primer cobro. Cancelás cuando quieras.</p>
         {error ? <div ref={alertRef} className="billing-error" role="alert" tabIndex={-1}>{error}</div> : null}
         <div className="billing-modal-actions">
           <button className="billing-primary" type="button" disabled={busy} aria-busy={busy || undefined} onClick={onContinue}>{busy ? 'Abriendo Mercado Pago…' : 'Continuar en Mercado Pago'}</button>
@@ -379,6 +411,43 @@ function ConfirmCheckout({ quote, busy, error, phone, onClose, onContinue, onEma
         </div>
       </div>
     </div>
+  );
+}
+
+function PaymentMethods() {
+  return (
+    <div className="billing-pay">
+      <p>Cómo pagás</p>
+      <div className="billing-pay-chips">
+        <span><CreditCard size={16} aria-hidden="true" /> Crédito</span>
+        <span><CreditCard size={16} aria-hidden="true" /> Débito de banco</span>
+        <span><span className="billing-pay-radio" aria-hidden="true" /> Cuenta de Mercado Pago</span>
+      </div>
+      <p className="billing-pay-no"><X size={14} aria-hidden="true" /> Por ahora no: prepagas como Naranja X, Ualá o la tarjeta de Mercado Pago.</p>
+    </div>
+  );
+}
+
+function IncompletePayment({ busy, error, rejected, planName, period, accessUntil: until, onRetry }: {
+  busy: boolean;
+  error: string;
+  rejected: boolean;
+  planName: string;
+  period: string;
+  accessUntil: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <section className="billing-card billing-failed" data-testid="billing-payment-incomplete" role="status">
+      <div className="billing-card-top"><h2>Plan {planName} · {period}</h2><span className="billing-pill">Pago no completado</span></div>
+      <div className="billing-callout"><CreditCard size={18} /><div><strong>{rejected ? 'Mercado Pago no aceptó la tarjeta' : 'No se completó el pago'}</strong><p>Suele pasar con tarjetas prepagas. Tu tienda sigue funcionando{until ? ` hasta el ${dayMonth(until)}` : ''}.</p></div></div>
+      <div className="billing-failed-actions">
+        <button className="billing-primary" type="button" disabled={busy} onClick={onRetry}>{busy ? 'Abriendo Mercado Pago…' : 'Reintentar con otra tarjeta'}</button>
+        <button className="billing-secondary" type="button" disabled={busy} onClick={onRetry}>Pagar con mi cuenta de Mercado Pago</button>
+      </div>
+      {error ? <p className="billing-note">{error}</p> : null}
+      <PaymentMethods />
+    </section>
   );
 }
 

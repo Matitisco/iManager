@@ -310,8 +310,9 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect((await getApp().inject({ method: 'POST', url: '/api/billing/checkout', headers: headers(), payload: { quoteId: quote.id } })).statusCode).toBe(200);
     const replaced = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers(), payload: { replaceAbandoned: true } });
     expect(replaced.statusCode, replaced.body).toBe(200);
-    expect(replaced.json()).toMatchObject({ pendingCheckout: false, status: 'TRIAL', canCancel: false });
-    expect(replaced.body).not.toContain('buyer@example.com');
+    expect(replaced.json()).toMatchObject({ pendingCheckout: false, status: 'TRIAL', canCancel: false, paymentAttempt: { outcome: 'incomplete', payerEmail: 'buyer@example.com', plan: { key: 'BASIC_MONTHLY' } } });
+    expect(replaced.json().paymentAttempt.outcome).not.toBe('rejected');
+    expect(replaced.json().pendingPayerEmail).toBeNull();
     expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).checkoutStatus).toBe('FAILED');
     const quoted = await getApp().inject({ method: 'POST', url: '/api/billing/quote', headers: headers(), payload: { key: 'BASIC_MONTHLY', payerEmail: 'buyer@example.com' } });
     expect(quoted.statusCode).toBe(200);
@@ -320,6 +321,23 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     expect(next.statusCode, next.body).toBe(200);
     expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quoted.json().id } })).checkoutStatus).toBe('FAILED');
     expect(mp.calls).toHaveLength(before);
+  });
+  it('un preapproval cancelado en un intento nuevo avisa que Mercado Pago no aceptó la tarjeta', async () => {
+    const { storeId, planId, quote } = await opened();
+    await prisma.billingCheckout.update({ where: { id: quote.id }, data: { checkoutStatus: 'CREATED', providerSubscriptionId: 'rejected-pre' } });
+    subscription(storeId, planId, quote.id, { id: 'rejected-pre', status: 'cancelled', payer_email: null, summarized: undefined });
+    const details = await getApp().inject({ method: 'POST', url: '/api/billing/refresh', headers: headers() });
+    expect(details.statusCode, details.body).toBe(200);
+    expect(details.json()).toMatchObject({ pendingCheckout: false, canCancel: false, status: 'TRIAL', paymentAttempt: { outcome: 'rejected', payerEmail: 'buyer@example.com', plan: { key: 'BASIC_MONTHLY' } } });
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPreapprovalId).toBeNull();
+    expect((await prisma.billingCheckout.findUniqueOrThrow({ where: { id: quote.id } })).providerStatus).toBe('cancelled');
+  });
+  it('un checkout todavía pendiente no se presenta como tarjeta rechazada', async () => {
+    const { quote } = await opened();
+    await prisma.billingCheckout.update({ where: { id: quote.id }, data: { checkoutStatus: 'CREATED', providerSubscriptionId: 'pending-pre' } });
+    const details = await getApp().inject({ url: '/api/billing', headers: headers() });
+    expect(details.json()).toMatchObject({ pendingCheckout: true, paymentAttempt: null });
+    expect(details.body).not.toContain('rejected');
   });
   it.each(['authorized', 'paused'] as const)('un intento %s anterior bloquea otro cobro', async status => {
     const { storeId, planId, quote } = await opened();
