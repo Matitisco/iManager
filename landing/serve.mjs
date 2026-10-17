@@ -33,14 +33,14 @@ async function resolveFile(pathname) {
   return null;
 }
 
-function headers(file, status) {
+function headers(file, status, { serviceWorker = false } = {}) {
   const ext = extname(file);
-  const hashed = /-[\w-]{8}\.(js|css|woff2)$/.test(file);
+  const hashed = !serviceWorker && /-[\w-]{8}\.(js|css|woff2)$/.test(file);
   return {
     status,
     headers: {
-      'Content-Type': types[ext] || 'application/octet-stream',
-      'Cache-Control': hashed ? 'public, max-age=31536000, immutable' : ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+      'Content-Type': serviceWorker ? 'application/javascript; charset=utf-8' : (types[ext] || 'application/octet-stream'),
+      'Cache-Control': serviceWorker ? 'no-cache' : hashed ? 'public, max-age=31536000, immutable' : ext === '.html' ? 'no-cache' : 'public, max-age=3600',
       ...(noindex ? { 'X-Robots-Tag': 'noindex' } : {}),
     },
   };
@@ -52,11 +52,16 @@ createServer(async (req, res) => {
     return;
   }
   const { pathname } = new URL(req.url || '/', 'http://localhost');
+  const serviceWorker = pathname === '/sw.js';
   const file = await resolveFile(pathname);
   if (!file) {
     const missing = extname(pathname);
     if (missing && missing !== '.html') {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...(noindex ? { 'X-Robots-Tag': 'noindex' } : {}) }).end('Not found');
+      res.writeHead(404, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        ...(serviceWorker ? { 'Cache-Control': 'no-cache' } : {}),
+        ...(noindex ? { 'X-Robots-Tag': 'noindex' } : {}),
+      }).end(req.method === 'HEAD' ? undefined : 'Not found');
       return;
     }
     try {
@@ -71,7 +76,7 @@ createServer(async (req, res) => {
   }
   try {
     const body = await readFile(file);
-    const h = headers(file, 200);
+    const h = headers(file, 200, { serviceWorker });
     res.writeHead(h.status, h.headers);
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch {
