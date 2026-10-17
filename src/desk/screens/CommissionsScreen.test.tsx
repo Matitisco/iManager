@@ -29,6 +29,55 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 describe('Comisiones', () => {
+  describe.each([false, true])('payment recipient selector (phone: %s)', phone => {
+    let matchMedia: typeof window.matchMedia;
+    beforeEach(() => {
+      matchMedia = window.matchMedia;
+      window.matchMedia = vi.fn(query => ({ matches: phone && query.includes('max-width'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    });
+    afterEach(() => { window.matchMedia = matchMedia; });
+
+    it('opens recipients outside the payment modal and updates settlement after selection', async () => {
+      render(<div className="desk-app"><CommissionsScreen /></div>);
+      await waitFor(() => expect(screen.queryByText('Cargando comisiones…')).not.toBeInTheDocument());
+      await userEvent.click(screen.getAllByRole('button', { name: 'Registrar pago' })[0]);
+      const payment = screen.getByRole('dialog', { name: 'Registrar pago' });
+      const recipient = within(payment).getByRole('combobox', { name: 'Para' });
+      fireEvent.change(within(payment).getByLabelText('Monto del pago'), { target: { value: '13000' } });
+      await userEvent.click(recipient);
+      expect(recipient).toHaveAttribute('aria-expanded', 'true');
+      const list = screen.getByRole('listbox', { name: 'Para' });
+      expect(payment).not.toContainElement(list);
+      expect(list.closest('.ds-select-layer, .ds-select-backdrop')?.parentElement).toHaveClass('desk-app');
+      expect(within(list).getAllByRole('option')).toHaveLength(3);
+      expect(within(list).getByRole('option', { name: /Sofía Pérez/ })).toHaveAttribute('aria-selected', 'true');
+      const deduction = within(list).getByRole('option', { name: /Lucía Díaz/ });
+      expect(deduction).toHaveAttribute('aria-disabled', 'true');
+      await userEvent.click(deduction);
+      expect(screen.getByRole('listbox', { name: 'Para' })).toBeInTheDocument();
+      await userEvent.click(within(list).getByRole('option', { name: /Martín Gómez/ }));
+      expect(recipient).toHaveTextContent('Martín Gómez');
+      expect(screen.queryByRole('listbox', { name: 'Para' })).not.toBeInTheDocument();
+      expect(recipient).toHaveFocus();
+      expect(within(payment).getByText(/Equivale a/)).toHaveTextContent('Equivale a US$ 10');
+      expect(within(payment).getByText(/Queda pendiente:/)).toHaveTextContent('Queda pendiente: US$ 30');
+      expect(context.payCommission).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: 'no sellers', people: [] },
+      { name: 'only settled balances and deductions', people: commissionFixtureSummary.people.map(person => ({ ...person, pending: { ARS: Math.min(0, person.pending.ARS), USD: 0 } })) },
+    ])('explains the empty state with $name', async ({ people }) => {
+      render(<CommissionPaymentSheet memberId={null} period="2026-10" people={people} onClose={vi.fn()} />);
+      expect(screen.getByRole('status')).toHaveTextContent('No hay comisiones pendientes');
+      const recipient = screen.getByRole('combobox', { name: 'Para' });
+      expect(recipient).toBeDisabled();
+      await userEvent.click(recipient);
+      expect(screen.queryByRole('listbox', { name: 'Para' })).not.toBeInTheDocument();
+      expect(context.payCommission).not.toHaveBeenCalled();
+    });
+  });
+
   it('keeps payable balances separate from deductions and has no export action', async () => {
     render(<CommissionsScreen />);
     await waitFor(() => expect(screen.queryByText('Cargando comisiones…')).not.toBeInTheDocument());
