@@ -2,10 +2,10 @@ import { useState } from 'react';
 
 export const TABLE_PAGE_SIZE = 8;
 
-export function usePagedRows<T>(rows: T[], resetKey: string) {
+export function usePagedRows<T>(rows: T[], resetKey: string, pageSize = TABLE_PAGE_SIZE) {
   const [page, setPage] = useState(1);
   const [seenKey, setSeenKey] = useState(resetKey);
-  const pages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const requested = seenKey === resetKey ? page : 1;
   const current = Math.min(Math.max(requested, 1), pages);
 
@@ -16,15 +16,15 @@ export function usePagedRows<T>(rows: T[], resetKey: string) {
     setPage(current);
   }
 
-  const start = (current - 1) * TABLE_PAGE_SIZE;
+  const start = (current - 1) * pageSize;
   return {
     page: current,
     pages,
-    visible: rows.slice(start, start + TABLE_PAGE_SIZE),
+    visible: rows.slice(start, start + pageSize),
     total: rows.length,
     setPage,
     from: rows.length === 0 ? 0 : start + 1,
-    to: Math.min(start + TABLE_PAGE_SIZE, rows.length),
+    to: Math.min(start + pageSize, rows.length),
   };
 }
 
@@ -47,6 +47,7 @@ export function TablePager({
   from,
   to,
   onPage,
+  pageSize = TABLE_PAGE_SIZE,
 }: {
   page: number;
   pages: number;
@@ -54,8 +55,9 @@ export function TablePager({
   from: number;
   to: number;
   onPage: (page: number) => void;
+  pageSize?: number;
 }) {
-  if (total <= TABLE_PAGE_SIZE) return null;
+  if (total <= pageSize) return null;
   return (
     <nav className="dpager" aria-label="Paginación">
       <span>{from}–{to} de {total}</span>

@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ManagedCatalog } from '../../types/public-catalog';
 import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
 import { DeskProvider } from '../ui';
@@ -31,11 +32,13 @@ function catalog(): ManagedCatalog {
 const open = vi.fn();
 function renderScreen() {
   open.mockReset();
-  return render(
+  const content = () => (
     <DeskProvider value={{ tab: 'publicCatalog', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
       <PublicCatalogScreen />
-    </DeskProvider>,
+    </DeskProvider>
   );
+  const view = render(content());
+  return { ...view, rerenderScreen: () => view.rerender(content()) };
 }
 
 describe('catalog section', () => {
@@ -72,5 +75,239 @@ describe('catalog section', () => {
     window.dispatchEvent(new Event('online'));
     await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
     expect(await screen.findByText('1 disponible')).toBeInTheDocument();
+  });
+});
+
+function manyItems(total = 118): ManagedCatalog {
+  const base = catalog();
+  return {
+    ...base,
+    counts: { visible: total, rules: 0, manual: 0, available: total },
+    items: Array.from({ length: total }, (_, index) => ({
+      ...base.items[0], id: String(index + 1), model: `Equipo ${index + 1}`,
+      color: index < 32 ? 'Azul' : 'Negro',
+    })),
+  };
+}
+
+describe('managed catalog pagination', () => {
+  beforeEach(() => {
+    context.publicCatalog = manyItems();
+    context.appSession.store.phone = '11 5555 1234';
+    context.loadPublicCatalog.mockReset();
+    context.loadPublicCatalog.mockImplementation(async () => context.publicCatalog);
+    context.setCatalogVisibility.mockReset();
+    context.savePublicCatalog.mockReset();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  async function equipmentList() {
+    await screen.findByText('Página 1 de 8');
+    return screen.getByRole('heading', { name: 'Equipos' }).closest('section')!;
+  }
+
+  it('renders 16 rows and places the range and pager at the bottom of the list card', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const list = await equipmentList();
+    const pager = within(list).getByRole('navigation', { name: 'Paginación' });
+    expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(16);
+    expect(list.lastElementChild).toBe(pager);
+    expect(within(pager).getByText('1–16 de 118')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 17 · 128GB')).not.toBeInTheDocument();
+    expect(within(pager).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(6);
+    expect(screen.getByText('113–118 de 118')).toBeInTheDocument();
+    expect(screen.getByText('Equipo 113 · 128GB')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Página 1' }));
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    await user.click(screen.getByRole('button', { name: 'Página 3' }));
+    await user.click(screen.getByRole('button', { name: 'Página 4' }));
+    expect(screen.getByText('49–64 de 118')).toBeInTheDocument();
+    expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(16);
+    expect(screen.getByRole('button', { name: 'Página 4' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('resets on search and clear, searches across pages, and handles no results', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    await user.type(screen.getByRole('textbox', { name: 'Buscar equipo' }), 'azul');
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument();
+    expect(screen.getByText('32 resultados')).toBeInTheDocument();
+    expect(screen.getByText('1–16 de 32')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(screen.getByText('Equipo 17 · 128GB')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpiar' }));
+    expect(screen.getByText('Página 1 de 8')).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'Buscar equipo' }), 'no existe');
+    expect(screen.getByText('No hay equipos con esa búsqueda.')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { hideWithoutStock: false }, { hideReserved: false }, { minBattery: 80 },
+    { showPrice: false }, { priceCurrency: 'ARS' as const }, { active: false },
+  ])('resets to page 1 when saved settings change: %j', async settings => {
+    const user = userEvent.setup();
+    const view = renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    context.publicCatalog = { ...context.publicCatalog!, ...settings };
+    view.rerenderScreen();
+    expect(screen.getByText('Página 1 de 8')).toBeInTheDocument();
+    expect(screen.getByText('1–16 de 118')).toBeInTheDocument();
+  });
+
+  it('keeps the page after toggling visibility and refreshing items and counts', async () => {
+    const user = userEvent.setup();
+    context.setCatalogVisibility.mockImplementation(async (ids: string[], visible: boolean) => {
+      context.publicCatalog = {
+        ...context.publicCatalog!, counts: { ...context.publicCatalog!.counts, visible: 117, manual: 1 },
+        items: context.publicCatalog!.items.map(item => ids.includes(item.id) ? { ...item, catalogVisible: visible, reason: visible ? null : 'Oculto a mano' } : item),
+      };
+    });
+    renderScreen();
+    const list = await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue({ ...new DOMRect(), top: -100 });
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(list, 'scrollIntoView', { value: scrollIntoView });
+    const toggle = screen.getByRole('switch', { name: 'Visible en catálogo: Equipo 17 128GB' });
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+    expect(context.setCatalogVisibility).toHaveBeenCalledWith(['17'], false);
+    expect(screen.getByText('Página 2 de 8')).toBeInTheDocument();
+    expect(screen.getByText('17–32 de 118')).toBeInTheDocument();
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    expect(screen.getByText('Página 2 de 8')).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('clamps the current page after items are removed', async () => {
+    const user = userEvent.setup();
+    const view = renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    context.publicCatalog = manyItems(34);
+    view.rerenderScreen();
+    expect(screen.getByText('Página 3 de 3')).toBeInTheDocument();
+    expect(screen.getByText('33–34 de 34')).toBeInTheDocument();
+    expect(screen.getByText('Equipo 33 · 128GB')).toBeInTheDocument();
+  });
+
+  it('preserves individual selection and shows the count on other pages', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Seleccionar' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1 128GB' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar todos (118)' })).toBePartiallyChecked();
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
+    expect(screen.getByText('1 en otras páginas')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 17 128GB' }));
+    expect(screen.getByText('2 seleccionados')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página 1' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 1 128GB' })).toBeChecked();
+    expect(screen.getByText('1 en otras páginas')).toBeInTheDocument();
+  });
+
+  it('selects all filtered results across pages and sends all IDs to the bulk action', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await equipmentList();
+    await user.type(screen.getByRole('textbox', { name: 'Buscar equipo' }), 'azul');
+    await user.click(screen.getByRole('button', { name: 'Seleccionar' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (32)' }));
+    expect(screen.getByText('32 seleccionados')).toBeInTheDocument();
+    expect(screen.getByText('16 en otras páginas')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 32 128GB' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar todos (32)' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Ocultar' }));
+    expect(context.setCatalogVisibility).toHaveBeenCalledWith(Array.from({ length: 32 }, (_, i) => String(i + 1)), false);
+    await waitFor(() => expect(screen.getByText('0 seleccionados')).toBeInTheDocument());
+    expect(screen.getByText('17–32 de 32')).toBeInTheDocument();
+  });
+
+  it('deselects all pages and keeps selection when a bulk save fails', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Seleccionar' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (118)' }));
+    expect(screen.getByText('118 seleccionados')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    expect(screen.getByText('112 en otras páginas')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (118)' }));
+    expect(screen.getByText('0 seleccionados')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (118)' }));
+    context.setCatalogVisibility.mockRejectedValueOnce(new Error('No se pudo guardar'));
+    await user.click(screen.getByRole('button', { name: 'Mostrar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar');
+    expect(screen.getByText('118 seleccionados')).toBeInTheDocument();
+    expect(screen.getByText('Página 8 de 8')).toBeInTheDocument();
+  });
+
+  it('selects and deselects filtered results without dropping selections outside the search', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await equipmentList();
+    await user.click(screen.getByRole('button', { name: 'Seleccionar' }));
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 118 128GB' }));
+    await user.type(screen.getByRole('textbox', { name: 'Buscar equipo' }), 'azul');
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (32)' }));
+    expect(screen.getByText('33 seleccionados')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos (32)' }));
+    expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
+    expect(screen.getByText('1 en otras páginas')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpiar' }));
+    await user.click(screen.getByRole('button', { name: 'Página 8' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar Equipo 118 128GB' })).toBeChecked();
+  });
+
+  it.each([
+    { top: -100, viewportTop: 0, scroll: true },
+    { top: 20, viewportTop: 72, scroll: true },
+    { top: 100, viewportTop: 72, scroll: false },
+    { top: 900, viewportTop: 0, scroll: true },
+  ])('scrolls smoothly only when the list top is outside its viewport: %j', async ({ top, viewportTop, scroll }) => {
+    const user = userEvent.setup();
+    renderScreen();
+    const list = await equipmentList();
+    const stage = screen.getByTestId('catalog-screen').parentElement!;
+    stage.classList.add('stage');
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({ ...new DOMRect(), top: viewportTop, bottom: 800 });
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue({ ...new DOMRect(), top });
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(list, 'scrollIntoView', { value: scrollIntoView });
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    if (scroll) expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    else expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('paginates the mobile Equipos tab and preserves the page when switching tabs', async () => {
+    const media = window.matchMedia('(max-width: 760px)');
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ ...media, media: query, matches: query.includes('760') }));
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByRole('button', { name: 'Equipos' });
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Equipos' }));
+    const list = await equipmentList();
+    expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(16);
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+    await user.click(screen.getByRole('button', { name: 'Resumen' }));
+    await user.click(screen.getByRole('button', { name: 'Equipos' }));
+    expect(screen.getByText('17–32 de 118')).toBeInTheDocument();
   });
 });
