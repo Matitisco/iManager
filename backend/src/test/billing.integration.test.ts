@@ -66,6 +66,31 @@ describe('suscripciones con HTTP de Mercado Pago simulado', () => {
     await getApp().inject({ method: 'POST', url: '/api/stores', headers: headers(), payload: { name: 'Anterior' } });
     expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing.plan).toBe('INTERNAL');
   });
+  it('la beta deja internas las altas nuevas y desbloquea una prueba vencida sin migrar datos', async () => {
+    vi.stubEnv('BILLING_BETA_UNLIMITED', '');
+    for (const [uid, path] of [['beta-store', '/api/stores'], ['beta-onboarding', '/api/onboarding']]) {
+      const h = buildAuthHeaders({ uid });
+      const response = await getApp().inject({ method: 'POST', url: path, headers: h, payload: path.includes('onboarding') ? { storeName: 'Beta' } : { name: 'Beta' } });
+      expect(response.statusCode, response.body).toBeLessThan(300);
+      const session = await getApp().inject({ url: '/api/me', headers: h });
+      expect(session.json().billing).toMatchObject({ plan: 'INTERNAL', readOnly: false, memberLimit: null, trialDaysLeft: 0, betaUnlimited: true });
+      const created = await prisma.store.findUniqueOrThrow({ where: { id: session.json().store.id } });
+      expect(created).toMatchObject({ billingPlan: 'INTERNAL', billingStatus: 'ACTIVE', trialEndsAt: null });
+    }
+    const storeId = await trial();
+    await prisma.store.update({ where: { id: storeId }, data: { trialEndsAt: new Date(0) } });
+    for (let i = 0; i < 8; i += 1) {
+      const extra = await prisma.user.create({ data: { firebaseUid: `beta-extra-${i}` } });
+      await prisma.storeMember.create({ data: { storeId, userId: extra.id, role: 'STAFF' } });
+    }
+    const open = await getApp().inject({ url: '/api/me', headers: headers() });
+    expect(open.json().billing).toMatchObject({ plan: 'INTERNAL', status: 'ACTIVE', readOnly: false, memberLimit: null, betaUnlimited: true });
+    expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).billingPlan).toBe('TRIAL');
+    expect((await getApp().inject({ method: 'POST', url: '/api/clients', headers: headers(), payload: { name: 'Sigue' } })).statusCode).toBeLessThan(300);
+    expect((await getApp().inject({ method: 'POST', url: '/api/invitations', headers: headers(), payload: { role: 'STAFF' } })).statusCode).toBeLessThan(300);
+    await prisma.store.update({ where: { id: storeId }, data: { billingPlan: 'BASIC', billingStatus: 'ACTIVE', billingPeriod: 'MONTHLY', billingPaidThrough: new Date(Date.now() + 10 * 86_400_000), billingPreapprovalId: 'paid-beta' } });
+    expect((await getApp().inject({ url: '/api/me', headers: headers() })).json().billing).toMatchObject({ plan: 'BASIC', status: 'ACTIVE', readOnly: true, overLimit: true, memberLimit: 3, betaUnlimited: true });
+  });
   it('crea exactamente cuatro planes ARS sin free_trial e idempotentes bajo concurrencia', async () => {
     await Promise.all([syncPlans(), syncPlans()]);
     expect(mp.calls.filter(call => call.path === '/preapproval_plan' && call.method === 'POST')).toHaveLength(4);

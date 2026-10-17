@@ -46,6 +46,7 @@ export default defineConfig({
         DATABASE_URL: DEFAULT_DATABASE_URL,
         ENABLE_TEST_AUTH_BYPASS: 'true',
         FRONTEND_URL: DEFAULT_FRONTEND_URL,
+        BILLING_BETA_UNLIMITED: '0',
         OPENAI_API_KEY: '',
         OPENAI_IMPORT_MODEL: '',
       },

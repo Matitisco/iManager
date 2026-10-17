@@ -11,9 +11,24 @@ export type PlanKey = keyof typeof PLANS;
 export const PLAN_KEYS = Object.keys(PLANS) as PlanKey[];
 export const BILLING_LOCK = 'billing:catalog';
 export const storeBillingLock = (storeId: string) => `billing:store:${storeId}`;
-export const trialData = (legacy: boolean, now = new Date()) => legacy ? {} : {
-  billingPlan: 'TRIAL', billingStatus: 'TRIAL', trialEndsAt: new Date(now.getTime() + 7 * 86_400_000),
+/** Unset or blank stays on. `0`, `false`, `off` and `no` turn the beta off. */
+export function billingBetaUnlimited() {
+  const raw = process.env.BILLING_BETA_UNLIMITED;
+  if (raw == null || raw.trim() === '') return true;
+  return !/^(0|false|off|no)$/i.test(raw.trim());
+}
+const INTERNAL_OPENING = { billingPlan: 'INTERNAL', billingStatus: 'ACTIVE', trialEndsAt: null } as const;
+export const trialData = (legacy: boolean, now = new Date()) => {
+  if (billingBetaUnlimited()) return { ...INTERNAL_OPENING };
+  return legacy ? {} : {
+    billingPlan: 'TRIAL', billingStatus: 'TRIAL', trialEndsAt: new Date(now.getTime() + 7 * 86_400_000),
+  };
 };
+function paidActiveSubscription(store: Pick<BillingStore, 'billingPlan' | 'billingStatus' | 'billingPaidThrough'>, now: Date) {
+  if (store.billingPlan !== 'BASIC' && store.billingPlan !== 'BUSINESS') return false;
+  if (store.billingStatus !== 'ACTIVE') return false;
+  return store.billingPaidThrough !== null && store.billingPaidThrough > now;
+}
 export function arsAmount(usd: number, rate: number) {
   const amount = Math.round((usd * rate + Number.EPSILON) * 100) / 100;
   if (!Number.isFinite(amount) || amount <= 0 || amount >= 10_000_000_000) throw new DomainError('Cotización inválida para la suscripción');
@@ -31,24 +46,29 @@ export function trialChargeStart(trialEndsAt: Date | null | undefined, now = new
 }
 const CHARGE_REMINDER_MS = 2 * 86_400_000;
 export function billingSummary(store: BillingStore, members: number, now = new Date()) {
-  const internal = store.billingPlan === 'INTERNAL';
-  const trial = !internal && store.trialEndsAt !== null && store.trialEndsAt > now;
-  const paid = !internal && store.billingPaidThrough !== null && store.billingPaidThrough > now;
-  const limit = memberLimit(store.billingPlan);
+  const betaUnlimited = billingBetaUnlimited();
+  const effective = betaUnlimited && !paidActiveSubscription(store, now)
+    ? { ...store, billingPlan: 'INTERNAL', billingStatus: 'ACTIVE', trialEndsAt: null }
+    : store;
+  const internal = effective.billingPlan === 'INTERNAL';
+  const trial = !internal && effective.trialEndsAt !== null && effective.trialEndsAt > now;
+  const paid = !internal && effective.billingPaidThrough !== null && effective.billingPaidThrough > now;
+  const limit = memberLimit(effective.billingPlan);
   const overLimit = !internal && limit !== null && members > limit;
-  const status = internal ? 'ACTIVE' : store.billingStatus === 'CANCELLED' ? 'CANCELLED' : paid ? 'ACTIVE' : trial ? 'TRIAL' : 'EXPIRED';
-  const scheduled = trial && !paid && !!store.billingPreapprovalId && store.billingStatus !== 'CANCELLED';
-  const untilCharge = scheduled ? store.trialEndsAt!.getTime() - now.getTime() : 0;
+  const status = internal ? 'ACTIVE' : effective.billingStatus === 'CANCELLED' ? 'CANCELLED' : paid ? 'ACTIVE' : trial ? 'TRIAL' : 'EXPIRED';
+  const scheduled = trial && !paid && !!effective.billingPreapprovalId && effective.billingStatus !== 'CANCELLED';
+  const untilCharge = scheduled ? effective.trialEndsAt!.getTime() - now.getTime() : 0;
   return {
-    plan: store.billingPlan, status, period: store.billingPeriod,
-    trialEndsAt: store.trialEndsAt?.toISOString() ?? null,
-    paidThrough: store.billingPaidThrough?.toISOString() ?? null,
-    trialDaysLeft: trial ? Math.ceil((store.trialEndsAt!.getTime() - now.getTime()) / 86_400_000) : 0,
+    plan: effective.billingPlan, status, period: effective.billingPeriod,
+    trialEndsAt: effective.trialEndsAt?.toISOString() ?? null,
+    paidThrough: effective.billingPaidThrough?.toISOString() ?? null,
+    trialDaysLeft: trial ? Math.ceil((effective.trialEndsAt!.getTime() - now.getTime()) / 86_400_000) : 0,
     readOnly: !internal && ((!trial && !paid) || overLimit),
     memberLimit: limit, members, overLimit,
-    canCancel: !internal && !!store.billingPreapprovalId && store.billingStatus !== 'CANCELLED',
-    firstChargeAt: scheduled ? store.trialEndsAt!.toISOString() : null,
+    canCancel: !internal && !!effective.billingPreapprovalId && effective.billingStatus !== 'CANCELLED',
+    firstChargeAt: scheduled ? effective.trialEndsAt!.toISOString() : null,
     chargeReminder: scheduled && untilCharge <= CHARGE_REMINDER_MS,
+    betaUnlimited,
   };
 }
 export type BillingSummary = ReturnType<typeof billingSummary>;
