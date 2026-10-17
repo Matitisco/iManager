@@ -359,7 +359,7 @@ export function Footer({ path }: { path: string }) {
             <ul><li><a href={APP_URL}>Entrar</a></li><li><a href={SIGNUP_URL}>Probar gratis</a></li></ul>
           </div>
         </div>
-        <div className="legal"><span>© 2026 iManager · imanager.com.ar</span><span><a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></span></div>
+        <div className="legal"><span>© 2026 iManager · imanager.com.ar</span></div>
       </div>
     </footer>
   );

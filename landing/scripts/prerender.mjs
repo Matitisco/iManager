@@ -21,8 +21,6 @@ const { render, pageUrl } = await import(new URL('../dist/server/entry-server.js
 
 const routes = [
   ['/', 'index.html'],
-  ['/terminos', 'terminos/index.html'],
-  ['/privacidad', 'privacidad/index.html'],
   ['/404', '404.html'],
 ];
 

@@ -19,16 +19,6 @@ export const PAGES: Record<string, PageMeta> = {
     description: HOME_DESCRIPTION,
     path: '/',
   },
-  '/terminos': {
-    title: 'Términos y condiciones · iManager',
-    description: 'Condiciones de la suscripción a iManager: prueba, planes, cancelación y derecho de arrepentimiento.',
-    path: '/terminos',
-  },
-  '/privacidad': {
-    title: 'Política de privacidad · iManager',
-    description: 'Cómo iManager trata los datos personales según la Ley 25.326.',
-    path: '/privacidad',
-  },
   '/404': {
     title: 'Página no encontrada · iManager',
     description: 'Esta página no existe.',
