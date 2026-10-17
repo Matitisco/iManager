@@ -31,6 +31,9 @@
 .billing-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:16px;border-radius:12px}
 .billing-error button{display:block;color:inherit}
 .billing-notice{background:#ecfdf5;border:1px solid #a7f3d0;padding:16px;border-radius:12px;color:#065f46}
+.billing-return{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:16px 20px;color:#16181d}
+.billing-return p{margin:0}
+.billing-return .billing-primary{margin-top:12px}
 .billing-access{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 20px;padding:16px 20px;background:white;border:1px solid #e5e7eb;border-radius:16px;font-size:14px;color:#374151}
 .billing-access p{margin:6px 0 0;line-height:1.4}
 .billing-access-expired{background:#fffbeb;border-color:#fde68a}
@@ -46,7 +49,7 @@
 .billing-custom{grid-column:auto}
 .billing-access{margin:12px 16px;align-items:flex-start;flex-direction:column;padding:16px}
 .desk-app .billing-access .billing-primary{width:100%}
-.desk-app .billing-confirm .billing-primary{width:100%}
+.desk-app .billing-confirm .billing-primary,.billing-return .billing-primary{width:100%}
 .billing-confirm .billing-link,.desk-app .billing-cancel .billing-link{margin-left:0;display:block}
 .billing-heading{gap:10px}
 .billing-period{width:100%;font-size:13px}

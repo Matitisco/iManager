@@ -91,9 +91,14 @@ async function assertNoPendingCheckout(storeId: string, tx: Prisma.TransactionCl
     throw new DomainError('Hay una suscripción en proceso. Actualizá el estado del pago antes de volver a intentar.', 409);
   }
 }
+const RECENT_ACTIVATION_MS = 30 * 60_000;
 export async function billingDetails(storeId: string) {
   const summary = await getBillingSummary(storeId);
-  return { ...summary, plans: PLAN_KEYS.map(key => ({ key, ...PLANS[key] })) };
+  const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { billingPlan: true, billingStatus: true, billingRemoteUpdatedAt: true } });
+  const pendingCheckout = await prisma.billingCheckout.findFirst({ where: { storeId, openedAt: { not: null }, checkoutStatus: { in: ['CREATING', 'CREATED'] } }, select: { id: true } });
+  const updatedAt = store.billingRemoteUpdatedAt?.getTime();
+  const recentlyActivated = store.billingStatus === 'ACTIVE' && store.billingPlan !== 'INTERNAL' && store.billingPlan !== 'TRIAL' && !!updatedAt && Date.now() - updatedAt < RECENT_ACTIVATION_MS;
+  return { ...summary, pendingCheckout: !!pendingCheckout, recentlyActivated, plans: PLAN_KEYS.map(key => ({ key, ...PLANS[key] })) };
 }
 function assertCheckoutAllowed(summary: Awaited<ReturnType<typeof getBillingSummary>>, key: PlanKey) {
   if (summary.plan === 'INTERNAL') throw new DomainError('Tu plan interno tiene acceso ilimitado y no necesita suscripción.', 409);
