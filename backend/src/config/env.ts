@@ -27,6 +27,8 @@ const envSchema = z.object({
   // Responses API. La clave queda solo en el backend (Railway: hifi-desk-api).
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_IMPORT_MODEL: z.string().optional(),
+  // Comma-separated login emails for the internal store-activity panel. Empty means nobody.
+  ADMIN_EMAILS: z.string().optional(),
 }).superRefine((value, ctx) => {
   const firebaseRequired = !(value.NODE_ENV === "test" && value.ENABLE_TEST_AUTH_BYPASS);
 
