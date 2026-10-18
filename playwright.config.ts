@@ -34,7 +34,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `${resolveBin('npx')} tsx src/server.ts`,
+      command: `${resolveBin('npx')} tsx scripts/e2e-server.ts`,
       cwd: backendDir,
       url: `${DEFAULT_BACKEND_URL}/api/health`,
       reuseExistingServer: false,

@@ -13,7 +13,9 @@ test('a sale highlights the sold phone in inventory and clears that section coun
   });
 
   await page.getByTestId('sidebar-tab-sales').click();
-  await page.getByRole('button', { name: 'Registrar venta' }).click();
+  const sales = page.getByTestId('sales-screen');
+  await expect(sales).toBeVisible();
+  await sales.getByRole('button', { name: 'Registrar venta', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await dialog.getByLabel('Cliente').fill(clientName);
   await dialog.getByRole('combobox', { name: 'Equipo' }).fill(model);
@@ -30,7 +32,9 @@ test('a sale highlights the sold phone in inventory and clears that section coun
   await expect(row.getByTestId('notice-reason')).toHaveText('Vendido');
 
   await page.getByTestId('sidebar-tab-sales').click();
+  await expect(sales).toBeVisible();
   await page.getByTestId('sidebar-tab-inventory').click();
+  await expect(page.getByRole('heading', { name: 'Inventario', exact: true })).toBeVisible();
   await expect(page.getByLabel('1 en Inventario')).toHaveCount(0);
   await expect(page.getByTestId('notice-reason')).toHaveCount(0);
 });
@@ -50,7 +54,9 @@ test.describe('phone', () => {
     });
 
     await page.getByTestId('sidebar-tab-sales').click();
-    await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' }).click();
+    const sales = page.getByTestId('sales-screen');
+    await expect(sales).toBeVisible();
+    await sales.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
     await dialog.getByLabel('Cliente').fill(clientName);
     await dialog.getByRole('combobox', { name: 'Equipo' }).fill(model);

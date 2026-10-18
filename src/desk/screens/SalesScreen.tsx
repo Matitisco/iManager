@@ -156,7 +156,7 @@ export function SalesScreen() {
   const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
-    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+    <div className={`dscreen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
       <ScreenTitle
         title="Ventas"
         subtitle={subtitle}

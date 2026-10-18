@@ -41,7 +41,20 @@ for (const device of [
     // Separate browser context has no login/session/localStorage.
     const context = await browser.newContext(device.use);
     const lead = await context.newPage();
-    await lead.goto(link);
+    const loadPublic = async (url: string, expectedStatus = 200) => {
+      const path = `/api/public/catalog/${new URL(url).pathname.split('/c/')[1]}`;
+      const [response] = await Promise.all([
+        lead.waitForResponse(response => new URL(response.url()).pathname === path && response.request().method() === 'GET'),
+        lead.goto(url, { waitUntil: 'domcontentloaded' }),
+      ]);
+      expect(response.status(), `GET ${path}`).toBe(expectedStatus);
+    };
+    const publicPayload = async () => {
+      const response = await request.get(`${api}/api/public/catalog/${slug}`);
+      expect(response.status(), 'Read public catalog fixture').toBe(200);
+      return response.json();
+    };
+    await loadPublic(link);
     await expect(lead.getByRole('heading', { name: 'Mi Tienda Ejemplo' })).toBeVisible();
     await expect(lead.getByText('US$ 920')).toBeVisible();
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveCount(1);
@@ -54,7 +67,7 @@ for (const device of [
     await expect(lead.getByRole('img')).toHaveCount(0);
     await expect(lead.getByTestId('login-email')).toHaveCount(0);
     expect(await lead.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-    const payload = await (await request.get(`${api}/api/public/catalog/${slug}`)).json();
+    const payload = await publicPayload();
     expect(JSON.stringify(payload)).not.toMatch(/"(?:cost|imei|serial|supplier|customFields|id|storeId)"/);
     await expect(lead.locator('select')).toHaveCount(0);
     if (device.mobile) await lead.getByRole('button', { name: /^Filtros/ }).click();
@@ -73,9 +86,9 @@ for (const device of [
     await lead.screenshot({ path: shots ? `${shots}/issue-341-${device.name}-public.png` : testInfo.outputPath('public.png'), fullPage: true });
     await page.getByRole('switch', { name: 'Visible en catálogo: iPhone 15 Pro 128GB' }).click();
     await expect(page.getByText('Oculto a mano')).toBeVisible();
-    const afterHide = await (await request.get(`${api}/api/public/catalog/${slug}`)).json();
+    const afterHide = await publicPayload();
     expect(afterHide.items.map((item: { model: string }) => item.model)).toEqual(['iPhone 14']);
-    await lead.reload(); await expect(lead.getByText('US$ 920')).toHaveCount(0);
+    await loadPublic(link); await expect(lead.getByText('US$ 920')).toHaveCount(0);
     if (device.mobile) await page.getByRole('button', { name: 'Resumen', exact: true }).click();
     await page.screenshot({ path: shots ? `${shots}/issue-341-${device.name}-manage.png` : testInfo.outputPath('manage.png'), fullPage: true });
     if (device.mobile) await page.getByRole('button', { name: 'Editar ›' }).click();
@@ -89,19 +102,19 @@ for (const device of [
     await expect(rules.getByRole('alert')).toBeVisible(); await expect(rules).toBeVisible();
     await page.unroute('**/api/catalog');
     await rules.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(rules).toHaveCount(0);
-    await lead.reload(); await expect(lead.getByText('Consultá', { exact: true })).toBeVisible();
-    expect((await (await request.get(`${api}/api/public/catalog/${slug}`)).json()).items[0]).not.toHaveProperty('price');
+    await loadPublic(link); await expect(lead.getByText('Consultá', { exact: true })).toBeVisible();
+    expect((await publicPayload()).items[0]).not.toHaveProperty('price');
     const editRules = async () => { if (device.mobile) await page.getByRole('button', { name: 'Editar ›' }).click(); else await page.getByRole('button', { name: 'Reglas y precio', exact: true }).click(); };
     await editRules(); await page.getByRole('dialog', { name: 'Reglas y precio' }).getByRole('button', { name: 'Regenerar link' }).click();
     await page.getByRole('dialog', { name: '¿Regenerar el link?' }).getByRole('button', { name: 'Regenerar link' }).click();
     await expect(page.getByRole('dialog', { name: '¿Regenerar el link?' })).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Link público' })).not.toHaveValue(link);
     const newLink = await page.getByRole('textbox', { name: 'Link público' }).inputValue(); expect(newLink).not.toBe(link);
-    await lead.reload(); await expect(lead.getByText('Esta lista de precios no está disponible')).toBeVisible();
+    await loadPublic(link, 404); await expect(lead.getByText('Esta lista de precios no está disponible')).toBeVisible();
     await editRules(); await page.getByRole('dialog', { name: 'Reglas y precio' }).getByRole('button', { name: 'Desactivar catálogo' }).click();
     await page.getByRole('dialog', { name: '¿Desactivar el catálogo?' }).getByRole('button', { name: 'Desactivar catálogo' }).click();
     await expect(page.getByRole('dialog', { name: '¿Desactivar el catálogo?' })).toHaveCount(0);
-    await lead.goto(newLink); await expect(lead.getByText('Esta lista de precios no está disponible')).toBeVisible();
+    await loadPublic(newLink); await expect(lead.getByText('Esta lista de precios no está disponible')).toBeVisible();
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveCount(1);
     await context.close();
   });
