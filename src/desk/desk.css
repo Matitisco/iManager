@@ -259,7 +259,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sale-line { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 0 8px; max-width: 100%; }
 .sale-line::before { content: ""; position: absolute; left: 14px; top: 18px; bottom: 18px; width: 2px; background: #E4E6EA; }
 .sale-node { position: relative; min-width: 0; max-width: 100%; }
-.sale-node .phone-record { padding-left: 24px; }
+.sale-node .phone-row { padding-left: 24px; }
 .sale-node::before { content: ""; position: absolute; left: 10px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
 .sale-node.pending::before { background: var(--lime); border-color: #E2B100; }
 .sale-node.cancelled::before { background: #fff; border-color: #C4C8CE; }

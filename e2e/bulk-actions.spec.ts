@@ -85,7 +85,9 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
   await createClientViaApi(request, email, { name: 'Cliente independiente', dni: '12345678' });
   await page.reload(); await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
   for (let index = 0; index < 2; index++) {
-    await page.getByTestId('sidebar-tab-sales').click(); await page.getByRole('button', { name: 'Registrar venta', exact: true }).click();
+    await page.getByTestId('sidebar-tab-sales').click();
+    await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Registrar venta', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Registrar venta' });
     await form.getByLabel('Cliente').fill(`Cliente venta ${index}`);
     await form.getByRole('combobox', { name: 'Equipo', exact: true }).fill(`Equipo venta ${index}`);

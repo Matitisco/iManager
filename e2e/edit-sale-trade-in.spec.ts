@@ -29,6 +29,7 @@ for (const device of [
       const product = await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 14', capacity: '128GB', price: 650000 });
       await page.reload();
       await page.getByTestId('sidebar-tab-sales').click();
+      await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
       await (device.phone ? page.getByTestId('mobile-dock') : page).getByRole('button', { name: 'Registrar venta', exact: true }).click();
       const form = page.getByRole('dialog', { name: 'Registrar venta' });
       await form.getByLabel('Cliente').fill('Ana Pérez');
@@ -61,6 +62,7 @@ for (const device of [
 
       await page.reload();
       await page.getByTestId('sidebar-tab-sales').click();
+      await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
       editor = await openEditor(page, device.phone);
       await expect(editor.getByRole('checkbox', { name: 'Tiene canje' })).toBeChecked();
       await editor.getByLabel('Equipo recibido').fill('iPhone 12 128GB');
@@ -86,6 +88,7 @@ for (const device of [
       expect((await fetchInventory(request, email)).inventory.some((item) => item.model === 'iPhone 12 128GB')).toBe(false);
       await page.reload();
       await page.getByTestId('sidebar-tab-sales').click();
+      await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
       editor = await openEditor(page, device.phone);
       if (device.phone) await editor.getByTestId('sale-trade-fold').locator('summary').click();
       await expect(editor.getByRole('checkbox', { name: 'Tiene canje' })).not.toBeChecked();

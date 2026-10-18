@@ -7,6 +7,7 @@ test('free text always makes a new homonymous client; a client-ficha sale keeps 
   await bootstrapStoreViaApi(page, request, email, `Operations ${testInfo.parallelIndex}`);
 
   await page.getByTestId('sidebar-tab-sales').click();
+  await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await dialog.getByLabel('Cliente').fill(clientName);
@@ -99,6 +100,7 @@ test('a Ventas-origin draft is recoverable after reload', async ({ page, request
   await bootstrapStoreViaApi(page, request, email, `Sales Draft ${testInfo.parallelIndex}`);
 
   await page.getByTestId('sidebar-tab-sales').click();
+  await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await dialog.getByRole('checkbox', { name: 'Tiene canje' }).check();
@@ -110,6 +112,7 @@ test('a Ventas-origin draft is recoverable after reload', async ({ page, request
 
   await page.reload();
   await page.getByTestId('sidebar-tab-sales').click();
+  await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
   await page.getByRole('button', { name: 'Retomar' }).click();
   await expect(page.getByRole('dialog', { name: 'Retomar canje' })).toBeVisible();
