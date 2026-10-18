@@ -407,7 +407,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .gchip.sm { height: 32px; font-size: 12px; }
 .gchip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
 .gchip.sm.on { background: var(--lime-soft); color: var(--primary); border-color: #F0D56B; }
-.gfilters .gperiods { flex-wrap: wrap; }
+.gfilters .gperiods { flex-wrap: wrap; margin-left: auto; }
 .grange { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 20px; }
 .grange .fl { flex: 1 1 160px; max-width: 220px; min-width: 0; margin: 0; }
 .grange .fl input { height: 44px; font-size: 14px; }
@@ -1330,6 +1330,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   }
   .gfilters > div::-webkit-scrollbar,
   .gfilters .gperiods::-webkit-scrollbar { display: none; }
+  .gfilters .gperiods > :first-child { margin-left: auto; }
   .dtop .circ { flex: none; }
   .gtotal, .gamount, .geye, .gdelta, .glh, .glh h3, .gnote { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
   .gamount { font-size: clamp(26px, 8.4vw, 36px); }
