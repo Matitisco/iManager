@@ -266,7 +266,7 @@ test.describe('clients on a phone', () => {
     const debtorRow = page.getByTestId('phone-rows').locator('[data-testid^="client-row-"]').filter({ hasText: debtorName });
     await debtorRow.locator('xpath=..').getByTestId('row-menu').click();
     await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
-    await expect(page.locator('.ctx').getByRole('button', { name: 'Eliminar' })).toBeVisible();
+    await expect(page.locator('.ctx').getByRole('button', { name: 'Archivar' })).toBeVisible();
     await settleMotion(page, '.ctx');
     await expectFits(page);
     await page.locator('.ctxov').click({ position: { x: 12, y: 12 } });

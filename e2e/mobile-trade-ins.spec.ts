@@ -324,7 +324,7 @@ test.describe('trade-ins on a phone', () => {
 
     await page.getByTestId('row-menu').click();
     await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
-    await expect(page.locator('.ctx').getByRole('button', { name: 'Eliminar' })).toBeVisible();
+    await expect(page.locator('.ctx').getByRole('button', { name: 'Anular' })).toBeVisible();
     await settleMotion(page, '.ctx');
     await expectFits(page);
     await page.locator('.ctxov').click({ position: { x: 12, y: 12 } });

@@ -55,6 +55,7 @@ const ACTIONS: Record<string, ActionMeta> = {
   "inventory.deleted": { title: "Eliminó (antes del historial)", group: "Anulación/Archivo", section: "inventory", verb: "eliminó" },
   "sale.created": { title: "Registró una venta", group: "Alta", section: "sales", verb: "registró la venta" },
   "sale.updated": { title: "Editó una venta", group: "Edición", section: "sales", verb: "editó la venta" },
+  "sale.seller.changed": { title: "Cambió el vendedor", group: "Edición", section: "sales", verb: "cambió el vendedor de" },
   "sale.cancelled": { title: "Canceló una venta", group: "Anulación/Archivo", section: "sales", verb: "canceló la venta" },
   "sale.voided": { title: "Anuló una venta", group: "Anulación/Archivo", section: "sales", verb: "anuló la venta" },
   "sale.deleted": { title: "Eliminó (antes del historial)", group: "Anulación/Archivo", section: "sales", verb: "eliminó" },

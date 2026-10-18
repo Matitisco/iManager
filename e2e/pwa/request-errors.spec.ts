@@ -26,7 +26,7 @@ async function openCanjeConfirmation(page: Page) {
     await expect(page.locator('.ctx')).toBeVisible();
     await row.dispatchEvent('pointerup', { pointerType: 'touch' });
   } else await row.click({ button: 'right' });
-  await page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true }).click();
+  await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
   return page.getByRole('dialog', { name: 'Cancelar operación' });
 }
 

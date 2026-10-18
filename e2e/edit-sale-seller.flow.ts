@@ -103,7 +103,7 @@ export function editSaleSellerTests(phone: boolean) {
       await page.keyboard.press('Escape');
       await row().click({ button: 'right' });
       await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
-      await expect(page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true })).toBeVisible();
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }

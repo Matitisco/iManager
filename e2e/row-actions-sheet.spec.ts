@@ -60,7 +60,7 @@ async function closeMenu(page: Page) {
 async function expectPhoneMenuCoversFooter(page: Page) {
   const menu = page.locator('.ctx');
   await expect(menu.getByRole('button', { name: 'Editar' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Eliminar' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: /^(Archivar|Anular)$/ })).toBeVisible();
   await settle(page);
   const box = await page.evaluate(() => {
     const overlay = document.querySelector('.ov.ctxov');
@@ -105,7 +105,7 @@ async function expectPhoneMenuCoversFooter(page: Page) {
 async function expectDesktopMenuFloats(page: Page) {
   const menu = page.locator('.ctx');
   await expect(menu.getByRole('button', { name: 'Editar' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Eliminar' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: /^(Archivar|Anular)$/ })).toBeVisible();
   await expect(page.getByTestId('mobile-tab-bar')).toHaveCount(0);
   await expect(page.locator('.side')).toBeVisible();
   await settle(page);
