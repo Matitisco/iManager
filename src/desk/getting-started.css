@@ -422,3 +422,15 @@
   .steps-pill, .steps-panel { right: 12px; left: auto; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
   .steps-panel { left: 12px; width: auto; max-height: min(68vh, calc(100vh - 150px)); }
 }
+
+/* Spacing for the existing floating island only (#395). */
+.steps-pill, .steps-panel { right: 32px; bottom: max(32px, env(safe-area-inset-bottom, 0px)); }
+.steps-pill { gap: 8px; }
+.steps-panel { padding: 20px; }
+.steps-panel header { gap: 16px; }
+.steps-panel progress { margin: 16px 0 8px; }
+.steps-panel .steps-list button, .steps-panel .steps-list li.is-done { min-height: 56px; padding: 12px 8px; gap: 8px; }
+@media (max-width: 760px) {
+  .steps-pill, .steps-panel { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  .steps-panel { left: max(16px, env(safe-area-inset-left, 0px)); padding: 16px; }
+}

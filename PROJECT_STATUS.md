@@ -1,7 +1,15 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-17**
+**Ultima actualizacion: 2026-10-18**
+
+
+## Issue #395 — Onboarding Nombre / Stock — 2026-10-18
+
+- Dos pasos con el copy aprobado: Nombre y Stock. Excel primero, seguido de Pegar lista y A mano; muestras y omisión conservan sus flujos. Moneda/dólar muestra la cotización real y despliega los controles existentes.
+- Se quitó Equipo del recorrido; la invitación sigue en Primeros pasos. Nombre cuenta como 1/5 y solo stock real completa 2/5; muestras quedan en 1/5. Etapas anteriores invite/video retoman Stock y tiendas completadas no vuelven al recorrido.
+- Dashboard y píldora/panel de #386 conservados, con cambios únicamente de espaciado. Sin cambios de Prisma ni facturación; sin build, commit o push. Solo PostgreSQL local `127.0.0.1:5432/imanager_test`.
+- Validación y capturas antes/después: `docs/onboarding-395.md`; OpenSpec: `simplify-onboarding-395`.
 
 
 ## Issue #71 — Equipo e invitaciones por link — 2026-10-17

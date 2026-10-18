@@ -717,3 +717,44 @@ dialog.onb-edit-backdrop{width:100vw;height:100dvh;max-width:none;max-height:non
   .onb:has(form) .onb-main form>.onb-dock{position:fixed;left:20px;right:20px;bottom:var(--onb-keyboard-inset,0px);margin:0;padding:14px 0 calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,#f7f8fa 18%)}
 }
 .onb{overflow-wrap:anywhere}
+
+/* Approved two-step setup (#395). Existing import/review controls stay shared. */
+.onb-step-label { margin-left: auto; color: #747b88; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.onb-setup { position: relative; display: flex; flex-direction: column; padding: 32px; }
+.onb-setup .onb-header { flex: none; }
+.onb-setup .onb-main { width: 100%; max-width: 560px; margin: auto; padding: 96px 0; }
+.onb-setup .onb-steps { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); width: 240px; gap: 8px; margin: 0; }
+.onb-setup h1 { margin: 0 0 8px; }
+.onb-setup p { margin: 0 0 24px; }
+.onb-setup .onb-name { margin: 0 0 8px; padding: 16px; }
+.onb-setup .onb-currency { margin: 16px 0 0; }
+.onb-setup .onb-currency summary { gap: 8px; min-height: 64px; padding: 16px; }
+.onb-setup .onb-currency summary > span:first-of-type { flex: 1; min-width: 0; }
+.onb-setup .onb-currency summary > svg { flex: none; }
+.onb-setup .onb-dock { margin-top: 32px; gap: 8px; }
+.onb-setup .onb-primary, .onb-setup .onb-yellow { min-height: 44px; padding: 8px 16px; }
+.onb-excel-card { padding: 20px; }
+.onb .onb-excel-card h2 { margin: 0 0 8px; font-size: 22px; }
+.onb .onb-excel-card p { margin: 0 0 16px; }
+.onb-stock-options { gap: 8px; margin: 8px 0; }
+.onb-stock-options button { flex-direction: row; justify-content: flex-start; gap: 8px; min-height: 64px; padding: 16px; font-size: 14px; }
+.onb-stock-options button > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; background: #f0f1f4; flex: none; }
+.onb-setup .onb-sample { min-height: 64px; padding: 16px; gap: 8px; background: white; border: 1px solid #e0e2e7; }
+.onb-setup .onb-sample > svg { flex: none; color: #16181d; background: #fff4bf; padding: 8px; width: 32px; height: 32px; border-radius: 11px; }
+.onb-setup .onb-skip { margin: 32px auto 0; }
+.desk-app .onb-setup button.onb-sample { background: white; border: 1px solid #e0e2e7; }
+@media (max-width: 760px) {
+  .onb-setup { padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .onb-setup .onb-main { margin: 16px auto 0; padding: 0; flex: 1; display: flex; flex-direction: column; }
+  .onb-setup .onb-steps { position: static; transform: none; width: 100%; max-width: none; margin: 0 0 32px; flex: none; }
+  .onb-setup h1 { margin: 0 0 8px; }
+  .onb-setup p { margin-bottom: 24px; }
+  .onb-setup .onb-primary, .onb-setup .onb-yellow { min-height: 56px; padding: 16px; }
+  .onb-setup .onb-excel-card { padding: 20px; }
+  .onb-setup .onb-stock-options button { min-height: 64px; font-size: 14px; padding: 16px; }
+  .onb-setup .onb-skip { margin: auto auto 0; padding-top: 24px; }
+  .onb.onb-setup:has(form) { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .onb.onb-setup:has(form) .onb-main { margin-top: 16px; }
+  .onb.onb-setup:has(form) .onb-main form { padding-bottom: 96px; }
+  .onb.onb-setup:has(form) .onb-main form > .onb-dock { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+}

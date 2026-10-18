@@ -61,7 +61,7 @@ export async function getGettingStarted(member: Member) {
   const steps = firstStepsVisibleTo(role)
     ? evaluateFirstSteps({
         storeName: store.name,
-        inventoryItems: stock + samples,
+        inventoryItems: stock,
         sales,
         members,
         invitations,
@@ -69,7 +69,7 @@ export async function getGettingStarted(member: Member) {
       })
     : { store: false, stock: false, sale: false, team: false, install: false };
   return {
-    stage: store.onboardingStage === "video" ? "invite" : (store.onboardingStage ?? "stock"),
+    stage: "stock",
     eligible: store.onboardingStartedAt !== null,
     active:
       store.onboardingStartedAt !== null &&

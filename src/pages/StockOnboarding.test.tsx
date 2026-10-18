@@ -63,6 +63,14 @@ beforeEach(() => {
   api.analyzeInventoryTextProgress.mockResolvedValue(analysis);
 });
 describe("guardado revisado", () => {
+  it("ofrece Excel primero en el segundo y último paso, sin invitación", () => {
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    expect(screen.getByText("Paso 2 de 2")).toBeVisible();
+    expect(screen.getAllByRole("button").slice(0, 3).map((button) => button.textContent?.trim())).toEqual(["Subir Excel", "Pegar lista", "A mano"]);
+    expect(screen.getByText("Y ves cuánto vale tu stock.")).toBeVisible();
+    expect(screen.queryByText("Mejor con tu equipo")).toBeNull();
+  });
+
   it("nunca guarda al analizar y reintenta solo las filas que fallaron", async () => {
     api.importBackendRows
       .mockResolvedValueOnce({
@@ -73,7 +81,7 @@ describe("guardado revisado", () => {
       .mockResolvedValueOnce({ imported: 1, updated: 0, errors: [] });
     const finish = vi.fn();
     render(<StockOnboarding onFinish={finish} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pegar mi lista" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pegar lista" }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Listado de equipos" }),
       { target: { value: "listado" } },
@@ -115,7 +123,7 @@ describe("guardado revisado", () => {
         }),
     );
     render(<StockOnboarding onFinish={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pegar mi lista" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pegar lista" }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Listado de equipos" }),
       { target: { value: "iPhone 13" } },
@@ -159,7 +167,7 @@ describe("guardado revisado", () => {
       ],
     });
     render(<StockOnboarding onFinish={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pegar mi lista" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pegar lista" }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Listado de equipos" }),
       { target: { value: "iPhone 13\nlibre" } },

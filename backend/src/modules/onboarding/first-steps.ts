@@ -7,7 +7,7 @@ export function storeStepDone(name: string | null | undefined) {
   return Boolean(name?.trim());
 }
 
-/** Any inventory row counts, including sample devices. */
+/** Count only real inventory rows; sample devices do not advance onboarding. */
 export function stockStepDone(items: number) {
   return items >= 1;
 }

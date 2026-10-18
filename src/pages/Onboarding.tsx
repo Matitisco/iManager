@@ -6,7 +6,21 @@ import { BrandLockup } from "../components/brand-mark";
 import { toUserMessage } from "../lib/user-message";
 import { manualQuoteOrderError } from "../lib/manual-quote";
 import { ROLE_LABEL } from "../lib/roles";
+import { Banknote } from "lucide-react";
+import { ExchangeProvider, useExchange } from "../desk/exchange";
 import "./onboarding.css";
+
+function CurrencyQuote() {
+  const { settings, money, phase } = useExchange();
+  const rate = money.rate === null
+    ? (phase === "loading" ? "· Cotizando…" : "· Cotización no disponible")
+    : `$ ${new Intl.NumberFormat("es-AR").format(money.rate)}`;
+  return (
+    <small>
+      {settings.currency} · dólar {settings.exchangeMode === "manual" ? "manual" : settings.exchangeSource} {rate}
+    </small>
+  );
+}
 type StoreCurrency = "ARS" | "USD";
 type ExchangeMode = "auto" | "manual";
 type ExchangeSource = "blue" | "oficial" | "mep";
@@ -218,12 +232,13 @@ export function Onboarding({
   const invitation = Boolean(inviteToken && !invite.invalid);
   return (
     <div
-      className="onb"
+      className={`onb${invitation ? "" : " onb-setup"}`}
       data-testid="onboarding-screen"
       style={{ "--onb-keyboard-inset": `${keyboardInset}px` } as CSSProperties}
     >
       <header className="onb-header">
         <BrandLockup variant="horizontal" className="onb-logo" />
+        {!invitation && <span className="onb-step-label">Paso 1 de 2</span>}
       </header>
       <main className="onb-main">
         {invitation ? (
@@ -273,9 +288,8 @@ export function Onboarding({
           </section>
         ) : (
           <form onSubmit={submit} noValidate>
-            <div className="onb-steps" aria-label="Paso 1 de 3">
+            <div className="onb-steps" aria-label="Paso 1 de 2">
               <i className="on" />
-              <i />
               <i />
             </div>
             {invite.invalid && (
@@ -284,10 +298,7 @@ export function Onboarding({
               </p>
             )}
             <h1>¿Cómo se llama tu tienda?</h1>
-            <p>
-              Es lo único que necesitamos para arrancar. Lo ven tus clientes en
-              el catálogo y los comprobantes.
-            </p>
+            <p>Lo ven tus clientes en el catálogo.</p>
             <label className="sr-only" htmlFor="storeName">
               Nombre de la tienda
             </label>
@@ -301,17 +312,23 @@ export function Onboarding({
               disabled={busy}
               autoComplete="organization"
             />
-            <small>Lo podés cambiar cuando quieras en Configuración.</small>
+            <small>Lo cambiás cuando quieras.</small>
             <details className="onb-currency">
               <summary>
+                <Banknote size={20} aria-hidden="true" />
                 <span>
                   <b>Moneda y dólar</b>
-                  <small>
-                    Precios en {currency} · dólar{" "}
-                    {mode === "auto" ? `${source} automático` : "manual"}
-                  </small>
+                  <ExchangeProvider settings={{
+                    currency,
+                    exchangeMode: mode,
+                    exchangeSource: source,
+                    manualBuy: rateOrNull(buy),
+                    manualSell: rateOrNull(sell),
+                  }}>
+                    <CurrencyQuote />
+                  </ExchangeProvider>
                 </span>
-                <span>Cambiar ›</span>
+                <span>Cambiar</span>
               </summary>
               <div className="onb-fields">
                 <CurrencySetup

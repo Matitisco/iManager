@@ -57,7 +57,7 @@ export async function completeOnboarding(
           ...trialData(user.billingLegacy),
           name: trimmedStoreName,
           onboardingStartedAt: new Date(),
-          onboardingStage: "invite",
+          onboardingStage: "stock",
           instagram,
           currency: asCurrency(input.currency ?? "USD"),
           exchangeMode,

@@ -56,7 +56,7 @@ for (const viewport of viewports) {
       );
       await page.getByTestId('onboarding-submit').click({ noWaitAfter: true });
       await onboardingRequest;
-      for (let step = 0; step < 2; step++) await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+      await page.getByRole('button', { name: 'Saltar por ahora' }).click();
       await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
 
       await openTab(page, 'clients');

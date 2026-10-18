@@ -264,12 +264,13 @@ function StockFlow({
   const review = step === "review";
   return (
     <div
-      className="onb stock-onb"
+      className={`onb stock-onb${step === "choose" ? " onb-setup" : ""}`}
       data-testid="stock-onboarding"
       aria-busy={busy}
     >
       <header className="onb-header">
         <BrandLockup variant="horizontal" className="onb-logo" />
+        <span className="onb-step-label">Paso 2 de 2</span>
         {step !== "choose" && (
           <button
             className="onb-link"
@@ -284,8 +285,7 @@ function StockFlow({
         )}
       </header>
       <main className={`onb-main${review ? " onb-wide" : ""}`}>
-        <div className="onb-steps" aria-label="Paso 3 de 3">
-          <i className="on" />
+        <div className="onb-steps" aria-label="Paso 2 de 2">
           <i className="on" />
           <i className="on" />
         </div>
@@ -297,33 +297,22 @@ function StockFlow({
         {step === "choose" && (
           <>
             <h1>Cargá tu stock</h1>
-            <p>Con tus equipos cargados ya ves cuánto vale tu stock.</p>
-            <section className="onb-paste-card">
-              <span className="onb-badge">
-                <Sparkles size={13} /> Lo más rápido
-              </span>
-              <h2>Pegá tu lista de equipos</h2>
-              <p>
-                La misma que mandás por WhatsApp. La leemos y armamos el
-                inventario; vos revisás antes de guardar.
-              </p>
-              <pre>{EXAMPLE}</pre>
-              <button className="onb-yellow" onClick={() => setStep("paste")}>
-                <ClipboardList size={18} /> Pegar mi lista
+            <p>Y ves cuánto vale tu stock.</p>
+            <section className="onb-paste-card onb-excel-card">
+              <h2>Subí tu Excel</h2>
+              <p>Lo leemos y vos revisás antes de guardar.</p>
+              <button className="onb-yellow" disabled={busy} onClick={() => toAlternative("excel")}>
+                <FileSpreadsheet size={18} /> Subir Excel
               </button>
             </section>
-            <div className="onb-alternatives">
-              <button onClick={() => toAlternative("excel")}>
-                <FileSpreadsheet />
-                Subir Excel
+            <div className="onb-alternatives onb-stock-options">
+              <button disabled={busy} onClick={() => setStep("paste")}>
+                <span><ClipboardList /></span>
+                Pegar lista
               </button>
-              <button onClick={() => toAlternative("manual")}>
-                <Plus />
-                Cargar a mano
-              </button>
-              <button onClick={() => file.current?.click()}>
-                <FileText />
-                Subir .txt
+              <button disabled={busy} onClick={() => toAlternative("manual")}>
+                <span><Plus /></span>
+                A mano
               </button>
             </div>
             {appSession?.membership?.role === "OWNER" &&
@@ -347,8 +336,7 @@ function StockFlow({
                   <span>
                     <b>Probar con datos de ejemplo</b>
                     <small>
-                      Mirá la app llena sin cargar nada. Los borrás con un
-                      toque.
+                      Los borrás con un toque
                     </small>
                   </span>
                   ›
@@ -454,6 +442,11 @@ function StockFlow({
                 <Sparkles size={18} />
                 {step === "paste" ? "Analizar mi lista" : "Volver a analizar"}
               </button>
+              {step === "paste" && (
+                <button className="onb-link" onClick={() => file.current?.click()}>
+                  <FileText size={18} /> Subir .txt
+                </button>
+              )}
               {step === "partial" && (
                 <button className="onb-link" onClick={() => setStep("review")}>
                   Seguir con las reconocidas

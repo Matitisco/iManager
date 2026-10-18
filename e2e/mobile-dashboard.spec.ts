@@ -185,6 +185,8 @@ test.describe('dashboard on a phone', () => {
     await page.getByTestId('sidebar-tab-dashboard').click();
 
     await page.setViewportSize({ width: 360, height: 800 });
+    // Bounds describe the settled dashboard, after the section indicator finishes sliding.
+    await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.locator('.toast.show')).toBeHidden();
     await expect(sales).toContainText(clientName);
     await expect(trades).toContainText(received);
