@@ -1,124 +1,79 @@
 import { toUserMessage } from '../../lib/user-message';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { updateMemberSections, type TeamMember } from '../../services/members-api';
+import { removeMember, updateMemberSections, type TeamMember } from '../../services/members-api';
 import { DESK_SECTIONS, grantedSections } from '../sections';
+import { canEditMember, PERMISSION_PROFILES, permissionProfile } from '../team-permissions';
 import { usePhoneLayout } from '../section-notices';
-import { Actions, PageHead } from '../ui';
+import { Actions, DeskIcon, PageHead } from '../ui';
+import { initials } from '../format';
 import { ROLE_LABEL } from '../../lib/roles';
+import './team.css';
 
+const ORDER = ['inventory', 'sales', 'tradeins', 'clients', 'service', 'cash', 'reports', 'commissions', 'dashboard', 'notifications'];
+const ICONS = ['list', 'cart', 'swap', 'user', 'wrench', 'card', 'bars', 'comisiones', 'grid', 'bell'] as const;
 
-export function MemberPermissions({ member, onBack, onSaved, draft = false }: {
+export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = false }: {
   member: TeamMember;
   onBack: () => void;
   onSaved: (member: TeamMember) => void;
+  onRemoved?: () => void;
   draft?: boolean;
 }) {
   const { user, appSession, reloadSession } = useAppContext();
   const phone = usePhoneLayout();
-  const locked = member.role === 'OWNER';
+  const locked = member.role === 'OWNER' || (!draft && !canEditMember(appSession?.membership?.role, appSession?.user.id, member));
   const [sections, setSections] = useState<string[]>(() => [...grantedSections(member.sections, member.role), ...(member.sections?.includes('cashBalances') ? ['cashBalances'] : [])]);
   const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
   const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState('');
   const name = member.user.displayName || member.user.email || 'Miembro';
+  const profile = permissionProfile(sections);
 
   const toggle = (id: string) => {
     if (locked) return;
-    setSections((current) => current.includes(id as typeof current[number]) ? current.filter((item) => item !== id) : [...current, id as typeof current[number]]);
+    setSections(current => current.includes(id) ? current.filter(item => item !== id && !(id === 'cash' && item === 'cashBalances')) : [...current, id]);
   };
-
   const save = async () => {
-    if (draft) {
-      onSaved({ ...member, sections, sensitiveAccess: sensitive });
-      onBack();
-      return;
-    }
-    if (!user || !appSession?.store?.id || locked) return;
-    setBusy(true);
-    setError('');
+    if (locked) return;
+    if (draft) { onSaved({ ...member, sections, sensitiveAccess: sensitive }); onBack(); return; }
+    if (!user || !appSession?.store?.id) return;
+    setBusy(true); setError('');
     try {
       const saved = await updateMemberSections(user, appSession.store.id, member.id, sections, sensitive);
       if (member.userId === appSession.user.id) await reloadSession();
-      onSaved(saved);
-      onBack();
-    } catch (err) {
-      setError(toUserMessage(err, 'No se pudieron guardar los permisos'));
-    } finally {
-      setBusy(false);
-    }
+      onSaved(saved); onBack();
+    } catch (err) { setError(toUserMessage(err, 'No se pudieron guardar los permisos')); }
+    finally { setBusy(false); }
   };
-
-  const saveBar = locked ? null : (
-    <Actions primary="Guardar permisos" onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />
-  );
-
-  return (
-    <div className={`dscreen${phone && saveBar ? ' has-save' : ''}`}>
-      <PageHead
-        title="Permisos"
-        subtitle={`${name} · ${member.user.email || 'Sin email'} · ${ROLE_LABEL[member.role] ?? member.role}`}
-        back={phone ? onBack : undefined}
-        action={phone ? undefined : <button className="dbtn s" type="button" onClick={onBack}>Volver</button>}
-      />
-      <div className="settings-grid">
-        <div className="sec">Secciones</div>
-        <div className="card">
-          {DESK_SECTIONS.filter(section => section.id !== 'publicCatalog').map((section) => {
-            const on = sections.includes(section.id);
-            return (
-              <div className={`perm${section.id === 'commissions' ? ' commission-permission' : ''}`} key={section.id}>
-                <div>
-                  <b>{section.label}</b>
-                  <small>{section.id === 'commissions' ? (on ? 'Ve a todo el equipo, configura reglas y registra pagos' : 'Solo ve Mis comisiones') : on ? 'Puede ver esta sección' : 'Sin acceso'}</small>
-                </div>
-                <button
-                  type="button"
-                  className={`sw${on ? ' on' : ''}`}
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={section.label}
-                  disabled={locked || busy}
-                  onClick={() => toggle(section.id)}
-                >
-                  <i />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <p className="perm-note">Sin el permiso de Comisiones, cada persona ve igual «Mis comisiones», solo con lo suyo y sin costos. Por defecto lo tiene solo el Propietario.</p>
-        <div className="card"><div className="perm"><div><b>Ver saldo de cajas</b><small>Permite consultar saldos, movimientos y cierres. Sin este permiso puede cobrar y contar a ciegas.</small></div><button type="button" className={`sw${locked || sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={locked || sections.includes('cashBalances')} disabled={locked || busy} onClick={() => toggle('cashBalances')}><i /></button></div></div>
-        <div className="sec">Acciones</div>
-        <div className="card">
-          <div className="perm">
-            <div>
-              <b>Acciones sensibles</b>
-              <small>{sensitive ? 'Puede cancelar, borrar y cambiar precio o costo' : 'Sin permiso'}</small>
-            </div>
-            <button
-              type="button"
-              className={`sw${sensitive ? ' on' : ''}`}
-              role="switch"
-              aria-checked={sensitive || locked}
-              aria-label="Acciones sensibles"
-              disabled={locked || busy}
-              onClick={() => setSensitive((current) => !current)}
-            >
-              <i />
-            </button>
-          </div>
-        </div>
-        {locked ? <p className="perm-note">El propietario conserva el acceso a todas las secciones.</p> : null}
-        {phone ? null : error ? <div className="ferr">{error}</div> : null}
-        {phone ? null : saveBar}
-      </div>
-      {phone && saveBar ? (
-        <div className="phone-save" data-testid="permissions-save">
-          {error ? <div className="ferr">{error}</div> : null}
-          {saveBar}
-        </div>
-      ) : null}
-    </div>
-  );
+  const remove = async () => {
+    if (locked || draft || !user || !appSession?.store?.id) return;
+    setBusy(true); setError('');
+    try { await removeMember(user, appSession.store.id, member.id); onRemoved?.(); onBack(); }
+    catch (err) { setError(toUserMessage(err, 'No se pudo quitar a la persona del equipo')); }
+    finally { setBusy(false); }
+  };
+  const saveBar = locked ? null : <Actions primary={phone ? 'Guardar' : 'Guardar permisos'} onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />;
+  const row = (id: string, index: number) => {
+    const label = DESK_SECTIONS.find(s => s.id === id)!.label;
+    const on = sections.includes(id);
+    return <Fragment key={id}><div className={`perm team-perm${on ? '' : ' muted'}`}>
+      <span className="team-perm-icon"><DeskIcon name={ICONS[index]} size={19} /></span>
+      <div><b>{label}</b>{id === 'commissions' ? <small>Sin esto ve solo «Mis comisiones»</small> : <span className="sr-only">{on ? 'Puede ver esta sección' : 'Sin acceso'}</span>}</div>
+      <button type="button" className={`sw${on ? ' on' : ''}`} role="switch" aria-checked={on} aria-label={label} disabled={locked || busy} onClick={() => toggle(id)}><i /></button>
+    </div>{id === 'cash' ? <div className="perm team-perm team-nested"><div><b>Ver saldo de cajas</b></div><button type="button" className={`sw${sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={sections.includes('cash') && sections.includes('cashBalances')} disabled={locked || busy || !sections.includes('cash')} onClick={() => toggle('cashBalances')}><i /></button></div> : null}</Fragment>;
+  };
+  return <div className={`dscreen team-permissions${phone && saveBar ? ' has-save' : ''}`}>
+    <button type="button" className="team-back" onClick={onBack}>‹ Equipo</button>
+    <div className="team-member-head"><div className="av-c">{initials(name)}</div><PageHead title={name} subtitle={`${member.user.email || 'Sin email'} · ${ROLE_LABEL[member.role]}`} action={phone ? undefined : saveBar} /></div>
+    <div className="team-profiles" role="group" aria-label="Perfiles rápidos">{[...Object.keys(PERMISSION_PROFILES), 'Personalizado'].map(label => <button type="button" key={label} className={`gchip${profile === label ? ' on' : ''}`} aria-pressed={profile === label} disabled={locked || busy || label === 'Personalizado'} onClick={() => setSections([...PERMISSION_PROFILES[label as keyof typeof PERMISSION_PROFILES]])}>{label}</button>)}</div>
+    <div className="team-perm-columns"><div className="card">{ORDER.slice(0, 6).map((id, i) => row(id, i))}</div><div className="card">{ORDER.slice(6).map((id, i) => row(id, i + 6))}</div></div>
+    <div className="card team-sensitive"><div className="perm team-perm"><span className="team-perm-icon"><DeskIcon name="lock" size={19} /></span><div><b>Acciones sensibles</b><small>Cancelar, borrar, cambiar precio o costo</small></div><button type="button" className={`sw${sensitive ? ' on' : ''}`} role="switch" aria-checked={sensitive} aria-label="Acciones sensibles" disabled={locked || busy} onClick={() => setSensitive(current => !current)}><i /></button></div></div>
+    {locked ? <p className="perm-note">{member.role === 'OWNER' ? 'El propietario conserva el acceso a todas las secciones.' : 'Solo el propietario puede editar estos permisos.'}</p> : null}
+    {!draft && !locked ? <button type="button" className="team-remove" disabled={busy} onClick={() => { setError(''); setConfirmRemove(true); }}>Quitar del equipo</button> : null}
+    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {confirmRemove ? <div className="ov center"><div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-member-title"><h2 id="remove-member-title">¿Quitar a {name} del equipo?</h2><p>Va a perder el acceso a la tienda.</p><Actions primary="Quitar del equipo" secondary="Volver" danger busy={busy} onPrimary={() => { void remove(); }} onSecondary={() => setConfirmRemove(false)} />{error ? <p role="alert" className="ferr">{error}</p> : null}</div></div> : null}
+    {phone && saveBar ? <div className="phone-save" data-testid="permissions-save">{saveBar}</div> : null}
+  </div>;
 }

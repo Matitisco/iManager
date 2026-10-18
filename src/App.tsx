@@ -1,3 +1,5 @@
+import { ApiError } from './services/api-client';
+import { InviteScreen } from './pages/InviteScreen';
 import { OnboardingJourney } from './pages/OnboardingJourney';
 import { toUserMessage } from './lib/user-message';
 /**
@@ -32,8 +34,6 @@ function extractInviteToken(): string | null {
   return sessionStorage.getItem(INVITE_TOKEN_KEY);
 }
 
-const ROLE_LABEL: Record<string, string> = { OWNER: 'Propietario', MANAGER: 'Socio', STAFF: 'Empleado' };
-
 function BlockingScreen({
   title,
   message,
@@ -67,18 +67,7 @@ function AppContent() {
   const [closedVersion, setClosedVersion] = useState(0);
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteError, setInviteError] = useState('');
-  const inviteState = useInvitationPreview(
-    inviteToken && user && backendStatus === 'ready' && !appSession?.onboardingRequired ? inviteToken : null
-  );
-
-  const showInviteModal = !!(
-    inviteToken
-    && user
-    && !loading
-    && backendStatus === 'ready'
-    && !appSession?.onboardingRequired
-    && (inviteState.preview || inviteState.invalid || inviteState.error || inviteState.isLoading)
-  );
+  const inviteState = useInvitationPreview(inviteToken);
 
   const clearInvite = () => {
     sessionStorage.removeItem(INVITE_TOKEN_KEY);
@@ -94,6 +83,7 @@ function AppContent() {
       await acceptStoreInvitation(inviteToken);
       clearInvite();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 410) inviteState.reload();
       setInviteError(toUserMessage(err, 'No se pudo aceptar la invitación'));
     } finally {
       setInviteAccepting(false);
@@ -126,6 +116,8 @@ function AppContent() {
       </div>
     );
   }
+
+  if (inviteToken) return <InviteScreen token={inviteToken} state={inviteState} onLeave={clearInvite} onAccept={() => { void handleAcceptInvite(); }} accepting={inviteAccepting} error={inviteError || (user && ['offline', 'error', 'unconfigured'].includes(backendStatus) ? backendMessage || 'No pudimos preparar tu cuenta. Reintentá en unos segundos.' : '')} ready={backendStatus === 'ready'} />;
 
   if (!user) {
     const storeName = sessionClosedStore();
@@ -178,95 +170,7 @@ function AppContent() {
     );
   }
 
-  return (
-    <>
-      <DeskApp installEnabled={!showInviteModal} />
-
-      {showInviteModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 max-[760px]:items-end max-[760px]:px-0">
-          <div data-testid="store-invite-modal" className="w-full max-w-md min-w-0 bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5 max-[760px]:max-h-[92dvh] max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:rounded-b-none max-[760px]:rounded-t-3xl max-[760px]:p-5 max-[760px]:pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
-            {inviteState.isLoading ? (
-              <>
-                <h2 className="text-xl font-semibold text-gray-900 break-words">
-                  {inviteState.isRetrying ? 'Reintentando verificación...' : 'Verificando invitación...'}
-                </h2>
-                <p className="text-sm text-gray-500">
-                  {inviteState.isRetrying
-                    ? 'La tienda tarda en responder, seguimos intentando antes de marcar el enlace.'
-                    : 'Estamos cargando los datos de la invitación para que puedas aceptarla.'}
-                </p>
-              </>
-            ) : inviteState.invalid ? (
-              <>
-                <h2 className="text-xl font-semibold text-gray-900 break-words">Invitación inválida</h2>
-                <p className="text-sm text-gray-500">Este enlace de invitación expiró o ya fue utilizado.</p>
-                <button
-                  onClick={clearInvite}
-                  className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </>
-            ) : inviteState.error ? (
-              <>
-                <h2 className="text-xl font-semibold text-gray-900 break-words">No pudimos verificar la invitación todavía</h2>
-                <p className="text-sm text-gray-500 break-words">{inviteState.error}</p>
-                <div className="flex gap-3 max-[760px]:flex-col">
-                  <button
-                    onClick={clearInvite}
-                    disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    onClick={inviteState.reload}
-                    disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400]"
-                  >
-                    Reintentar
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-xl font-semibold text-gray-900 break-words">Te invitaron a una tienda</h2>
-                  <p className="text-sm text-gray-500 break-words">
-                    Fuiste invitado a unirte a{' '}
-                    <span className="font-medium text-gray-800">{inviteState.preview!.storeName}</span>{' '}
-                    como{' '}
-                    <span className="font-medium text-gray-800">
-                      {ROLE_LABEL[inviteState.preview!.role] ?? inviteState.preview!.role}
-                    </span>.
-                  </p>
-                </div>
-                {inviteError && (
-                  <p className="text-sm text-red-600">{inviteError}</p>
-                )}
-                <div className="flex gap-3 max-[760px]:flex-col">
-                  <button
-                    onClick={clearInvite}
-                    disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Ignorar
-                  </button>
-                  <button
-                    onClick={handleAcceptInvite}
-                    disabled={inviteAccepting}
-                    className="flex-1 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400]"
-                  >
-                    {inviteAccepting ? 'Aceptando...' : 'Aceptar invitación'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return <DeskApp />;
 }
 
 export default function App() {

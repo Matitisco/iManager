@@ -97,12 +97,8 @@ test.describe('desktop settings stays put', () => {
     await expect(profile.getByLabel('Nombre')).toBeVisible();
     await profile.getByRole('button', { name: 'Cancelar' }).click();
 
-    await page.getByTestId('settings-screen').getByRole('button', { name: /Propietario/ }).click();
-    await expect(page.getByRole('heading', { name: 'Permisos' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Volver' })).toBeVisible();
-    await expect(page.getByTestId('page-back')).toHaveCount(0);
-    await expect(page.getByTestId('permissions-save')).toHaveCount(0);
-    await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).toBeDisabled();
+    await expect(page.getByTestId('settings-screen').getByRole('button', { name: /Propietario/ })).toBeDisabled();
+    await expect(page.locator('.team-permissions')).toHaveCount(0);
   });
 });
 
@@ -125,8 +121,8 @@ test.describe('settings on a phone', () => {
     await expect(page.getByTestId('page-back')).toBeVisible();
     await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
     await expect(page.getByTestId('settings-store')).toContainText('Tienda');
-    await expect(page.getByTestId('settings-team')).toContainText('2 miembros');
-    await expect(page.getByTestId('settings-invites')).toContainText('1 link de invitación activo');
+    await expect(page.locator('.team-grid .member')).toHaveCount(2);
+    await expect(page.getByTestId('settings-invites')).toContainText('Link para Socio');
     await expect(page.getByTestId('settings-account')).toContainText('Mi cuenta');
     await expect(page.getByTestId('settings-logout')).toContainText('Cerrar sesión');
     await expect(page.getByRole('button', { name: /Cambiar contraseña/ })).toBeVisible();
@@ -217,22 +213,19 @@ test.describe('settings on a phone', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-clave.png` });
     await password.getByRole('button', { name: 'Cerrar' }).click();
 
-    await page.getByTestId('settings-invites').click();
-    const links = page.getByRole('dialog', { name: 'Links de invitación' });
-    await expect(links.getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    await expect(links.locator('.sheet-foot').getByRole('button', { name: 'Listo' })).toBeVisible();
-    await settleMotion(page, '.sheet');
+    const links = page.getByTestId('settings-invites');
+    await expect(links.getByRole('button', { name: 'Cancelar invitación' })).toBeVisible();
+    await expect(links.getByRole('link', { name: 'Compartir por WhatsApp' })).toBeVisible();
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-links.png` });
-    await links.getByRole('button', { name: 'Cancelar' }).click();
+    await links.getByRole('button', { name: 'Cancelar invitación' }).click();
     await expect(page.locator('.toast.show')).toContainText('Invitación cancelada');
-    await links.locator('.sheet-foot').getByRole('button', { name: 'Listo' }).click();
-    await expect(page.getByTestId('settings-invites')).toHaveCount(0);
+    await expect(links).toHaveCount(0);
 
     await page.getByTestId('settings-invite').click();
     const invite = page.getByRole('dialog', { name: 'Invitá a tu equipo' });
-    await expect(invite.getByRole('button', { name: 'Vendedor' })).toBeVisible();
-    await invite.getByRole('button', { name: 'Administrador' }).click();
+    await expect(invite.getByRole('button', { name: 'Empleado' })).toBeVisible();
+    await invite.getByRole('button', { name: 'Socio' }).click();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-invitar.png` });
@@ -244,32 +237,32 @@ test.describe('settings on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-link.png` });
     await invite.getByRole('button', { name: 'Cerrar' }).click();
-    await expect(page.getByTestId('settings-invites')).toContainText('1 link de invitación activo');
+    await expect(page.getByTestId('settings-invites')).toContainText('Link para Socio');
 
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
-    await expect(page.getByRole('heading', { name: 'Permisos' })).toBeVisible();
+    await expect(page.locator('.team-permissions h1')).toBeVisible();
     await expect(page.getByRole('switch', { name: 'Inventario' })).toBeChecked();
     await expect(page.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
     await page.getByRole('switch', { name: 'Inventario' }).click();
     await page.getByRole('switch', { name: 'Acciones sensibles' }).click();
     const permissions = page.getByTestId('permissions-save');
-    await expect(permissions.getByRole('button', { name: 'Guardar permisos' })).toBeVisible();
+    await expect(permissions.getByRole('button', { name: 'Guardar', exact: true })).toBeVisible();
     await expect(permissions.getByRole('button', { name: 'Cancelar' })).toBeVisible();
     const saveBox = await permissions.boundingBox();
-    const barBox = await page.getByTestId('mobile-tab-bar').boundingBox();
-    expect(saveBox && barBox && saveBox.y + saveBox.height <= barBox.y + 1).toBeTruthy();
+    expect(saveBox && saveBox.y + saveBox.height >= 840).toBeTruthy();
+    await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
     await expect(page.locator('.toast.show')).toBeHidden();
     await settleMotion(page, '.enter-f');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-permisos.png` });
-    await permissions.getByRole('button', { name: 'Guardar permisos' }).click();
+    await permissions.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
     await expect(page.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
-    await page.getByTestId('page-back').click();
+    await page.getByRole('button', { name: '‹ Equipo' }).click();
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
 
     await page.getByTestId('settings-logout').click();

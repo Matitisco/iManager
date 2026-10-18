@@ -458,3 +458,19 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.getByRole('combobox', { name: 'Columna de desglose' })).toBeInTheDocument();
   });
 });
+
+describe('reports without module access', () => {
+  afterEach(() => { context.appSession = null; });
+  it('shows a calm empty state for reports-only members', () => {
+    context.appSession = { membership: { role: 'STAFF', sections: ['reports'] } };
+    render(<ReportsScreen />);
+    expect(screen.getByText('No hay secciones habilitadas para tus reportes')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar' })).not.toBeInTheDocument();
+  });
+  it('shows only reports for the granted modules', () => {
+    context.appSession = { membership: { role: 'STAFF', sections: ['reports', 'service'] } };
+    render(<ReportsScreen />);
+    expect(screen.getByRole('button', { name: 'Servicio' })).toBeInTheDocument();
+    for (const label of ['Ventas', 'Stock', 'Canjes', 'Clientes']) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+  });
+});

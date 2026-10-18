@@ -14,11 +14,13 @@ export const DESK_SECTIONS = [
 
 export type DeskSectionId = (typeof DESK_SECTIONS)[number]['id'];
 
+export const STAFF_DEFAULT_SECTIONS = ['dashboard', 'inventory', 'sales', 'clients', 'tradeins', 'service', 'notifications'];
+
 export const DESK_SECTION_IDS: DeskSectionId[] = DESK_SECTIONS.map((section) => section.id);
 
 export function visibleSections(stored: string[] | null | undefined, role?: string | null): DeskSectionId[] {
   if (role === 'OWNER') return [...DESK_SECTION_IDS];
-  if (stored == null) return DESK_SECTION_IDS.filter(id => id !== 'publicCatalog');
+  if (stored == null) return DESK_SECTION_IDS.filter(id => id !== 'publicCatalog' && (role !== 'STAFF' || STAFF_DEFAULT_SECTIONS.includes(id)));
   return DESK_SECTION_IDS.filter((id) => id !== 'publicCatalog' && stored.includes(id));
 }
 

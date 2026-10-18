@@ -3,7 +3,20 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { getCatalogErrorStatus, isCatalogKind, listCatalogs, saveCatalog } from "./catalogs.service.js";
+import { canAccessSection, type SectionId } from "../stores/sections.js";
+import type { CatalogKind } from "@prisma/client";
 import { requireMember } from "../../middleware/section-access.js";
+
+const KIND_SECTION: Record<CatalogKind, SectionId> = {
+  INVENTORY_STATUS: "inventory", INVENTORY_CAPACITY: "inventory", INVENTORY_CONDITION: "inventory",
+  SALE_STATUS: "sales", TRADE_IN_STATUS: "tradeins", CLIENT_TAG: "clients", REPAIR_STATUS: "service",
+};
+function filterCatalogs(data: Awaited<ReturnType<typeof listCatalogs>>, member: { role: string; sections?: unknown }) {
+  return { ...data,
+    options: data.options.filter(option => canAccessSection(KIND_SECTION[option.kind], member)),
+    meta: Object.fromEntries(Object.entries(data.meta).filter(([kind]) => canAccessSection(KIND_SECTION[kind as CatalogKind], member))),
+  };
+}
 
 const saveSchema = z.object({
   options: z.array(z.object({
@@ -21,7 +34,7 @@ export async function catalogsRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
     requireMember(request);
     const data = await listCatalogs(request.appUser.storeId);
-    return reply.send(data);
+    return reply.send(filterCatalogs(data, request.appUser));
   });
 
   app.put("/:kind", { preHandler: [authenticate, resolveAppUser] }, async (request, reply) => {
@@ -29,6 +42,7 @@ export async function catalogsRoutes(app: FastifyInstance) {
     if (request.appUser.role === "STAFF") return reply.code(403).send({ error: "No podés editar los catálogos" });
     const kind = (request.params as { kind: string }).kind;
     if (!isCatalogKind(kind)) return reply.code(400).send({ error: "Catálogo desconocido" });
+    if (!canAccessSection(KIND_SECTION[kind], request.appUser)) return reply.code(403).send({ error: "No tenés acceso a esa sección" });
     try {
       const body = saveSchema.parse(request.body);
       const options = body.options.flatMap((option) => (
@@ -39,7 +53,7 @@ export async function catalogsRoutes(app: FastifyInstance) {
       ));
       await saveCatalog(request.appUser.storeId, kind, options, deletions);
       const data = await listCatalogs(request.appUser.storeId);
-      return reply.send(data);
+      return reply.send(filterCatalogs(data, request.appUser));
     } catch (error) {
       if (error instanceof z.ZodError) return reply.code(400).send({ error: "Revisá los nombres" });
       const status = getCatalogErrorStatus(error);

@@ -14,13 +14,16 @@ export const SECTION_IDS = [
   "notifications",
 ] as const;
 
+export const STAFF_DEFAULT_SECTIONS = ["dashboard", "inventory", "sales", "clients", "tradeins", "service", "notifications"];
+
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export function canAccessSection(section: SectionId, member: { role: string; sections?: unknown }): boolean {
   if (member.role === "OWNER") return true;
   const sections = normalizeSections(member.sections);
   if (sections == null) {
-    return section !== "cashBalances" && section !== "commissions" && !(section === "reports" && member.role === "STAFF");
+    if (member.role === "STAFF") return STAFF_DEFAULT_SECTIONS.includes(section);
+    return section !== "cashBalances" && section !== "commissions";
   }
   return sections.includes(section);
 }

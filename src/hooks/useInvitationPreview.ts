@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   resolveInvitationPreview,
   type InvitationPreview,
+  type InvitationInvalidReason,
 } from '../services/invitations-api';
 
 export interface UseInvitationPreviewState {
   preview: InvitationPreview | null;
   invalid: boolean;
+  reason?: InvitationInvalidReason;
   error: string | null;
   isLoading: boolean;
   isRetrying: boolean;
@@ -74,6 +76,7 @@ export function useInvitationPreview(inviteToken?: string | null): UseInvitation
         setState({
           preview: null,
           invalid: true,
+          reason: result.reason,
           error: null,
           isLoading: false,
           isRetrying: false,

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, createSaleViaApi, createTradeInViaApi, loginViaUi, updateStoreViaApi } from './utils';
+import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, createSaleViaApi, createTradeInViaApi, acceptInvitationViaUi, updateStoreViaApi } from './utils';
 
 const SHOTS = process.env.MOBILE_DASHBOARD_SHOTS?.trim();
 
@@ -203,9 +203,7 @@ test.describe('dashboard on a phone', () => {
     try {
       await mockDollar(staff);
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       const month = staff.getByRole('button', { name: /Ventas del mes/ });
       await expect(month).toContainText('operaciones');

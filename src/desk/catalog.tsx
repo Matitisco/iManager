@@ -48,11 +48,11 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       .then((data) => { if (!cancelled) setPayload(data); })
       .catch(() => { if (!cancelled) setPayload(null); });
     return () => { cancelled = true; };
-  }, [user, appSession?.store?.id, appSession?.onboardingRequired, tick]);
+  }, [user, appSession?.store?.id, appSession?.onboardingRequired, appSession?.membership?.role, JSON.stringify(appSession?.membership?.sections), tick]);
 
   const value = useMemo(() => ({
     options: payload?.options ?? [],
-    meta: payload?.meta ?? FALLBACK_META,
+    meta: { ...FALLBACK_META, ...payload?.meta },
     canEdit,
     ready: !!payload,
     reload: () => setTick((current) => current + 1),

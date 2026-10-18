@@ -52,6 +52,6 @@ describe("primeros pasos", () => {
   });
 
   it("resume los permisos del vendedor como en la invitación", () => {
-    expect(permissionSummary(INVITE_ROLE_SECTIONS.STAFF)).toBe("Ventas, Inventario y Canjes");
+    expect(permissionSummary(INVITE_ROLE_SECTIONS.STAFF)).toBe("Ventas, Inventario, Canjes, Clientes, Servicio técnico, Dashboard y Notificaciones");
   });
 });

@@ -103,3 +103,11 @@ describe('resolveInvitationPreview', () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('discriminated invitation previews', () => {
+  it.each(['expired', 'used', 'revoked', 'not_found'] as const)('preserves the %s reason from a 200 response', async status => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status }), { status: 200 }));
+    await expect(resolveInvitationPreview('token', { fetcher })).resolves.toEqual({ kind: 'invalid', reason: status, attempts: 1 });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+});

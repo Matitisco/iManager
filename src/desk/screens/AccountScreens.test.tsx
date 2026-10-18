@@ -8,6 +8,7 @@ import { SettingsScreen } from './AccountScreens';
 const membersApi = vi.hoisted(() => ({
   listMembers: vi.fn(async () => [] as TeamMember[]),
   updateMemberSections: vi.fn(),
+  removeMember: vi.fn(),
 }));
 
 const open = vi.fn();
@@ -94,7 +95,7 @@ describe('Member permissions', () => {
     renderSettings();
 
     await user.click(await screen.findByRole('button', { name: /Luis/ }));
-    expect(screen.getByRole('heading', { name: 'Permisos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Luis' })).toBeInTheDocument();
     expect(screen.getByText(/luis@test.com/)).toBeInTheDocument();
     expect(screen.getByText(/Empleado/)).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Dashboard' })).toBeChecked();
@@ -109,19 +110,14 @@ describe('Member permissions', () => {
     await user.click(screen.getByRole('button', { name: /Luis/ }));
     await user.click(screen.getByRole('button', { name: 'Guardar permisos' }));
     expect(await screen.findByText('No se pudo guardar')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Permisos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Luis' })).toBeInTheDocument();
   });
 
   it('keeps the owner locked to every section', async () => {
     membersApi.listMembers.mockResolvedValue([member({ role: 'OWNER', sections: null, user: { id: 'u', displayName: 'Ana', email: 'ana@test.com', avatarUrl: null } })]);
     renderSettings();
-    await userEvent.click(await screen.findByRole('button', { name: /Propietario/ }));
-    expect(screen.getByText('El propietario conserva el acceso a todas las secciones.')).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: 'Reportes' })).toBeDisabled();
-    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeDisabled();
-    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
-    expect(screen.queryByRole('button', { name: 'Guardar permisos' })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked());
+    expect(await screen.findByRole('button', { name: /Propietario/ })).toBeDisabled();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
   it('keeps reportes off for an employee until the owner turns it on', async () => {
@@ -226,7 +222,7 @@ describe('settings on a phone', () => {
 
     await user.click(await screen.findByRole('button', { name: /Socio/ }));
     const bar = screen.getByTestId('permissions-save');
-    expect(within(bar).getByRole('button', { name: 'Guardar permisos' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
     expect(within(bar).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Reportes' })).toBeChecked();
@@ -248,9 +244,9 @@ describe('settings on a phone', () => {
     expect(reports).not.toBeChecked();
     expect(reports).toBeEnabled();
     const bar = screen.getByTestId('permissions-save');
-    expect(within(bar).getByRole('button', { name: 'Guardar permisos' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
     await user.click(reports);
-    await user.click(within(bar).getByRole('button', { name: 'Guardar permisos' }));
+    await user.click(within(bar).getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalled());
     expect(membersApi.updateMemberSections.mock.calls.at(-1)?.[3]).toEqual(expect.arrayContaining(['reports']));
   });
@@ -299,4 +295,60 @@ describe('employee settings', () => {
     expect(screen.queryByTestId('settings-team')).not.toBeInTheDocument();
     expect(membersApi.listMembers).not.toHaveBeenCalled();
   });
+});
+
+describe('issue #71 profiles and team controls', () => {
+  beforeEach(() => { window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })); });
+  afterEach(() => { context.appSession.membership.role = 'OWNER'; });
+
+  it('toggles only sections with quick profiles and nests balances under cash', async () => {
+    membersApi.listMembers.mockResolvedValue([member()]);
+    renderSettings();
+    await userEvent.click(await screen.findByRole('button', { name: /Luis/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Vendedor' }));
+    expect(screen.getByRole('switch', { name: 'Cajas' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Servicio técnico' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Técnico' }));
+    expect(screen.getByRole('switch', { name: 'Servicio técnico' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Ventas' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Ver saldo de cajas' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Todo' }));
+    expect(screen.getAllByRole('switch').filter(input => input.getAttribute('aria-label') !== 'Acciones sensibles').every(input => input.getAttribute('aria-checked') === 'true')).toBe(true);
+    expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
+    await userEvent.click(screen.getByRole('switch', { name: 'Cajas' }));
+    expect(screen.getByRole('switch', { name: 'Ver saldo de cajas' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Ver saldo de cajas' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('hides edit controls from a Socio for other Socios, themselves and the owner', async () => {
+    context.appSession.membership.role = 'MANAGER';
+    membersApi.listMembers.mockResolvedValue([
+      member({ id: 'owner', userId: 'owner', role: 'OWNER' }),
+      member({ id: 'me', userId: 'u', role: 'MANAGER' }),
+      member({ id: 'peer', userId: 'peer', role: 'MANAGER' }),
+      member(),
+    ]);
+    renderSettings();
+    for (const id of ['owner', 'me', 'peer']) expect(await screen.findByTestId(`settings-member-${id}`)).toBeDisabled();
+    expect(screen.getByTestId('settings-member-m2')).toBeEnabled();
+    expect(screen.getByTestId('settings-invite')).toBeInTheDocument();
+  });
+});
+
+
+it('confirms removal and leaves a failed persistence visible before closing', async () => {
+  context.appSession.membership.role = 'OWNER';
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  membersApi.listMembers.mockResolvedValue([member()]);
+  membersApi.removeMember.mockRejectedValueOnce(new Error('No se pudo quitar'));
+  renderSettings();
+  await userEvent.click(await screen.findByRole('button', { name: /Luis/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Quitar del equipo' }));
+  const confirmation = screen.getByRole('alertdialog');
+  expect(membersApi.removeMember).not.toHaveBeenCalled();
+  await userEvent.click(within(confirmation).getByRole('button', { name: 'Quitar del equipo' }));
+  await waitFor(() => expect(within(confirmation).getByRole('alert')).toHaveTextContent('No se pudo quitar'));
+  expect(screen.getByRole('heading', { name: 'Luis' })).toBeInTheDocument();
 });
