@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import { test, expect, type Page } from "@playwright/test";
 import {
   authHeaders,
@@ -57,24 +58,43 @@ async function quote(page: Page) {
     route.fulfill({ json: { venta: "1300,00", valor_cierre_ant: "1300,00" } }),
   );
 }
-async function start(page: Page, email: string) {
+async function shot(page: Page, name: string) {
+  const directory = process.env.ISSUE_395_SHOTS;
+  if (!directory) return;
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${directory}/395-${name}.png`, animations: "disabled", scale: "css" });
+}
+async function start(page: Page, email: string, device?: string) {
   await quote(page);
   await loginViaUi(page, email);
-  await page.getByTestId("onboarding-store-name").fill("Tienda Palermo");
+  await page.getByTestId("onboarding-store-name").fill("iPhone Club Palermo");
+  await expect(page.getByTestId("onboarding-submit")).toBeInViewport();
+  if (device) {
+    await expect(page.getByText(/USD · dólar blue \$/)).toBeVisible();
+    await shot(page, `nombre-${device}`);
+  }
   await page.getByTestId("onboarding-submit").click();
-  await expect(page.getByTestId("onboarding-invite")).toBeVisible();
+  if (process.env.ISSUE_395_SHOTS) {
+    const profile = await page.request.patch(`${API}/api/users/me`, { headers: authHeaders(email), data: { displayName: "Martín" } });
+    expect(profile.ok()).toBe(true);
+  }
+  await expect(page.getByRole("heading", { name: "Cargá tu stock" })).toBeVisible();
+  await expect(page.getByTestId("onboarding-invite")).toHaveCount(0);
+  await expect(page.getByText("Mejor con tu equipo")).toHaveCount(0);
+  if (device) await shot(page, `stock-${device}`);
 }
 async function toStock(page: Page) {
-  await page
-    .getByTestId("onboarding-invite")
-    .getByRole("button", { name: "Saltar por ahora" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Cargá tu stock" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cargá tu stock" })).toBeVisible();
+  await expect(page.getByText("Paso 2 de 2", { exact: true })).toBeVisible();
+  const primary = page.getByTestId("stock-onboarding").getByRole("button").first();
+  await expect(primary).toHaveText("Subir Excel");
+  await expect(primary).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Saltar por ahora" })).toBeInViewport();
+  expect(await primary.evaluate((node) => node.getBoundingClientRect().height)).toBeGreaterThanOrEqual(await page.evaluate(() => innerWidth <= 760 ? 56 : 44));
 }
 async function paste(page: Page, value = text) {
-  await page.getByRole("button", { name: "Pegar mi lista" }).click();
+  await page.getByRole("button", { name: "Pegar lista" }).click();
   await page.getByRole("textbox", { name: "Listado de equipos" }).fill(value);
   await page.getByRole("button", { name: "Analizar mi lista" }).click();
 }
@@ -86,38 +106,83 @@ async function fits(page: Page) {
   ).toBe(true);
 }
 export function onboardingCases(phone: boolean) {
-  test("nombre → invitación → lista → revisión → inventario, sin guardar antes de confirmar", async ({
+  test("Subir Excel es la primera opción y guarda stock real tras revisar", async ({ page, request }, info) => {
+    const email = buildTestEmail(info, "onboarding-excel");
+    await start(page, email);
+    await toStock(page);
+    await page.getByRole("button", { name: "Subir Excel", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Importar equipos" });
+    await expect(dialog).toBeVisible();
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Stock");
+    sheet.addRows([["Modelo", "Precio USD", "Capacidad", "Condición"], ["iPhone 13", 420, "128GB", "USADO"]]);
+    await dialog.locator('input[type="file"]').setInputFiles({ name: "stock.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(await workbook.xlsx.writeBuffer()) });
+    await expect(dialog.getByTestId("import-confirm")).toBeEnabled();
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
+    await dialog.getByTestId("import-confirm").click();
+    await expect(page.getByRole("heading", { name: "Inventario", exact: true })).toBeVisible();
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(1);
+    await page.getByTestId("sidebar-tab-dashboard").click();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 2 de 5" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 2 de 5" })).toBeVisible();
+    await expect(page.getByTestId("stock-onboarding")).toHaveCount(0);
+    await fits(page);
+  });
+
+  test("cargar a mano conserva el equipo y termina con 2 de 5", async ({ page, request }, info) => {
+    const email = buildTestEmail(info, "onboarding-manual");
+    await start(page, email);
+    await page.getByRole("button", { name: "A mano", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Registrar equipo" });
+    await dialog.getByLabel("Modelo", { exact: true }).fill("iPhone 13");
+    await dialog.getByLabel(/Precio de venta/).fill("420");
+    await dialog.getByRole("button", { name: "Guardar equipo", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("button", { name: "Ir a mi inventario" })).toBeVisible();
+    await page.getByRole("button", { name: "Ir a mi inventario" }).click();
+    await expect(page.getByRole("heading", { name: "Inventario", exact: true })).toBeVisible();
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(1);
+    await page.getByTestId("sidebar-tab-dashboard").click();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 2 de 5" })).toBeVisible();
+    await fits(page);
+  });
+
+  test("una etapa de equipo antigua reanuda directamente en stock", async ({ page, request }, info) => {
+    const email = buildTestEmail(info, "onboarding-resume-invite");
+    await start(page, email);
+    const response = await request.patch(`${API}/api/onboarding/progress`, { headers: authHeaders(email), data: { stage: "invite" } });
+    expect(response.ok()).toBe(true);
+    await page.reload();
+    await toStock(page);
+    await expect(page.getByText("Mejor con tu equipo")).toHaveCount(0);
+    await page.getByRole("button", { name: "Saltar por ahora" }).click();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+  });
+
+  test("los datos de ejemplo desde Stock conservan 1 de 5 después de recargar", async ({ page, request }, info) => {
+    const email = buildTestEmail(info, "onboarding-samples-progress");
+    await start(page, email);
+    await page.getByRole("button", { name: /Probar con datos de ejemplo/ }).click();
+    await expect(page.getByText("Estás viendo datos de ejemplo")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(3);
+    await page.reload();
+    await page.getByTestId("getting-started").click();
+    await expect(page.getByTestId("getting-started")).toContainText("1 de 5");
+    await expect(page.getByTestId("first-step-store")).toHaveAttribute("data-done", "true");
+    await expect(page.getByTestId("first-step-stock")).toHaveAttribute("data-done", "false");
+    await expect(page.getByTestId("stock-onboarding")).toHaveCount(0);
+    await fits(page);
+  });
+
+  test("nombre → stock → lista → revisión → inventario, sin guardar antes de confirmar", async ({
     page,
     request,
   }, info) => {
     const email = buildTestEmail(info, "onboarding-happy");
-    await start(page, email);
-    await page
-      .getByRole("button", { name: "Invitar al equipo", exact: true })
-      .click();
-    const invite = page.getByRole("dialog", {
-      name: "Invitá a tu equipo",
-      exact: true,
-    });
-    await invite.getByRole("button", { name: "Empleado", exact: true }).click();
-    await invite.getByRole("button", { name: "Copiar link de invitación" }).click();
-    const linkNode = page.getByTestId("invite-url");
-    await expect(linkNode).not.toHaveText("");
-    const link = (await linkNode.textContent()) ?? "";
-    const token = link.split("/invite/")[1]?.trim();
-    const employeeEmail = buildTestEmail(info, "employee");
-    // Accept using the real existing invitation API, then verify the checklist uses membership.
-    const accepted = await request.post(`${API}/api/invitations/accept`, {
-      headers: authHeaders(employeeEmail),
-      data: { token },
-    });
-    expect(accepted.ok()).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(invite).toBeHidden();
-    await page
-      .getByTestId("onboarding-invite")
-      .getByRole("button", { name: "Seguir", exact: true })
-      .click();
+    await start(page, email, phone ? "mobile" : "desktop");
+    await toStock(page);
     await page.route("**/api/import/analyze-text", (route) =>
       route.fulfill({
         contentType: "application/x-ndjson",
@@ -174,26 +239,26 @@ export function onboardingCases(phone: boolean) {
     const checklist = page.getByTestId("getting-started");
     await expect(checklist.getByTestId("first-step-stock")).toHaveAttribute("data-done", "true");
     await expect(checklist.getByTestId("first-step-store")).toHaveAttribute("data-done", "true");
-    await expect(checklist.getByTestId("first-step-team")).toHaveAttribute("data-done", "true");
+    await expect(checklist.getByTestId("first-step-team")).toHaveAttribute("data-done", "false");
+    await expect(checklist).toContainText("2 de 5");
+    if (phone) await shot(page, "pasos-2de5-mobile");
     await expect(page.getByText("Video de bienvenida")).toHaveCount(0);
     await page.getByRole("button", { name: "Minimizar primeros pasos" }).click();
     await page.reload();
     await expect(page.getByTestId("getting-started")).toBeVisible();
   });
-  test("saltea cada pantalla, reanuda al recargar y permite minimizar y consultar checklist desde Ayuda", async ({
+  test("saltea stock, reanuda al recargar y permite minimizar y consultar checklist desde Ayuda", async ({
     page,
     request,
   }, info) => {
     const email = buildTestEmail(info, "onboarding-skip");
     await start(page, email);
     await page.reload();
-    await expect(page.getByTestId("onboarding-invite")).toBeVisible();
+    await toStock(page);
     await page.getByRole("button", { name: "Saltar por ahora" }).click();
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Cargá tu stock" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Saltar por ahora" }).click();
+    await expect(page.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+    await expect(page.getByTestId("stock-onboarding")).toHaveCount(0);
     await expect(
       page.getByTestId("getting-started"),
     ).toBeVisible();
@@ -202,10 +267,12 @@ export function onboardingCases(phone: boolean) {
       path: info.outputPath("dashboard-vacio.png"),
       fullPage: true,
     });
+    await shot(page, `dashboard-${phone ? "mobile" : "desktop"}`);
     expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
     await page.getByTestId("getting-started").click();
     const stockStep = page.getByTestId("getting-started").getByTestId("first-step-stock");
     await expect(stockStep).toHaveAttribute("data-done", "false");
+    await shot(page, phone ? "pasos-1de5-mobile" : "pasos-panel-desktop");
     await stockStep.getByRole("button", { name: /Cargá tu stock/ }).click();
     await expect(
       page.getByRole("button", { name: /Probar con datos de ejemplo/ }),
@@ -217,7 +284,8 @@ export function onboardingCases(phone: boolean) {
     await fits(page);
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await page.getByTestId("getting-started").click();
-    await expect(page.getByTestId("first-step-stock")).toHaveAttribute("data-done", "true");
+    await expect(page.getByTestId("first-step-stock")).toHaveAttribute("data-done", "false");
+    await expect(page.getByTestId("getting-started")).toContainText("1 de 5");
     await expect(page.getByRole("button", { name: "Cerrar Primeros pasos" })).toHaveCount(0);
     await page.getByRole("button", { name: "Minimizar primeros pasos" }).click();
     await page.reload();

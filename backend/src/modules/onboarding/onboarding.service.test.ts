@@ -88,7 +88,7 @@ describe("onboarding.service", () => {
         instagram: "mi.tienda",
         currency: "USD",
         onboardingStartedAt: expect.any(Date),
-        onboardingStage: "invite",
+        onboardingStage: "stock",
         exchangeMode: "auto",
         exchangeSource: "blue",
         manualBuy: null,

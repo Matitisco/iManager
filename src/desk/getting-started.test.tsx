@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
   },
   gettingStartedError: "",
   progressUnavailable: false,
+  legacyProgress: false,
   inventory: [] as unknown[],
   sales: [] as unknown[],
   appSession: {
@@ -37,7 +38,7 @@ const state = vi.hoisted(() => ({
 const desk = vi.hoisted(() => ({ open: vi.fn(), go: vi.fn() }));
 
 vi.mock("../context/AppContext", () => ({
-  useAppContext: () => ({ ...state, gettingStarted: state.progressUnavailable ? null : state.gettingStarted }),
+  useAppContext: () => ({ ...state, gettingStarted: state.progressUnavailable ? null : { ...state.gettingStarted, steps: state.legacyProgress ? undefined : state.gettingStarted.steps } }),
 }));
 vi.mock("./ui", () => ({ useDesk: () => desk, Dialog: () => null }));
 vi.mock("../lib/pwa", () => ({
@@ -70,6 +71,7 @@ describe("isla de primeros pasos", () => {
     state.gettingStarted.installed = false;
     state.gettingStartedError = "";
     state.progressUnavailable = false;
+    state.legacyProgress = false;
     state.appSession.membership.role = "OWNER";
     state.appSession.user.id = "user-1";
     state.appSession.store.id = "store-1";
@@ -92,6 +94,30 @@ describe("isla de primeros pasos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Minimizar primeros pasos" }));
     expect(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
     expect(state.updateGettingStarted).not.toHaveBeenCalled();
+  });
+
+  it("el fallback sin flags excluye muestras y cuenta solo stock real", () => {
+    state.legacyProgress = true;
+    state.gettingStarted.samples = 3;
+    const view = render(<FirstStepsIsland />);
+    expect(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+    state.gettingStarted.stock = 1;
+    view.rerender(<FirstStepsIsland />);
+    expect(screen.getByRole("button", { name: "Primeros pasos, 2 de 5" })).toBeVisible();
+  });
+
+  it("las muestras conservan 1 de 5; el stock real completa el segundo paso", () => {
+    state.gettingStarted.samples = 3;
+    const view = render(<FirstStepsIsland />);
+    expect(screen.getByRole("button", { name: "Primeros pasos, 1 de 5" })).toBeVisible();
+    fireEvent.click(screen.getByTestId("getting-started"));
+    expect(screen.getByTestId("first-step-store")).toHaveAttribute("data-done", "true");
+    expect(screen.getByTestId("first-step-stock")).toHaveAttribute("data-done", "false");
+    state.gettingStarted.stock = 1;
+    flags({ stock: true });
+    view.rerender(<FirstStepsIsland />);
+    expect(screen.getByText("2 de 5 · a tu ritmo")).toBeVisible();
+    expect(screen.getByTestId("first-step-stock")).toHaveAttribute("data-done", "true");
   });
 
   it("la ve el socio y no el empleado", () => {

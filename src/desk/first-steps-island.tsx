@@ -67,7 +67,7 @@ function useFirstSteps() {
   const flags = flagsFromProgress(state?.steps, {
     ...EMPTY_FLAGS,
     store: Boolean(state?.storeNamed),
-    stock: (state?.stock ?? 0) + (state?.samples ?? 0) >= 1,
+    stock: (state?.stock ?? 0) >= 1,
     sale: Boolean(state?.sales),
     team: Boolean(state?.team),
     install: Boolean(state?.installed),

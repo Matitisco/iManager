@@ -1977,3 +1977,19 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .buy-chips { flex-wrap: nowrap; }
   .buy-chips .wchip { padding: 0 8px; font-size: 12px; }
 }
+
+/* Dashboard spacing only (#395); other screens retain their existing geometry. */
+.dscreen.dashboard-screen { max-width: 1184px; padding: 32px 32px 64px; }
+.dashboard-screen .dtop { gap: 16px; margin-bottom: 24px; }
+.dashboard-screen .dgrid { gap: 16px; margin-bottom: 24px; }
+.dashboard-screen .dkpis { gap: 16px; }
+.dashboard-screen .hero, .dashboard-screen .dcard, .dashboard-screen button.mini { padding: 20px; }
+.dashboard-screen .hero-top, .dashboard-screen .hero .sub, .dashboard-screen .dch { margin-bottom: 16px; }
+.dashboard-screen .mini .ico { margin-bottom: 8px; }
+.dashboard-screen .dbtn.p { min-height: 44px; }
+.dashboard-screen .hlist .item { min-height: 56px; padding: 12px 4px; }
+@media (max-width: 760px) {
+  .dscreen.dashboard-screen { padding: 16px 16px 64px; }
+  .dashboard-screen .hero, .dashboard-screen .dcard, .dashboard-screen button.mini { padding: 16px; }
+  .dashboard-screen .dbtn.p { min-height: 56px; }
+}

@@ -30,7 +30,7 @@ import { registerApiErrorHandler } from "./lib/api-error.js";
 import { redactFinancials } from "./lib/redact-financials.js";
 import { canSeeFinancials } from "./modules/stores/sections.js";
 
-export function buildApp() {
+export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLimit?: number } = {}) {
   const app = Fastify({
     logger: env.NODE_ENV === "test" ? false : true,
   });
@@ -63,7 +63,7 @@ export function buildApp() {
   });
 
   app.register(catalogManagementRoutes, { prefix: "/api/catalog" });
-  app.register(publicCatalogRoutes, { prefix: "/api/public/catalog" });
+  app.register(publicCatalogRoutes, { prefix: "/api/public/catalog", readLimit: publicCatalogReadLimit });
   app.register(billingRoutes, { prefix: "/api/billing" });
   app.register(mercadoPagoWebhookRoutes, { prefix: "/webhooks" });
   app.register(healthRoutes, { prefix: "/api" });

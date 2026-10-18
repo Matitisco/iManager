@@ -44,9 +44,9 @@ export function createPublicRateLimiter(limit = 60, windowMs = 60_000) {
     if (++entry.count > limit) return reply.header('Retry-After', String(Math.max(1, Math.ceil((entry.expires - now) / 1000)))).code(429).send({ error: 'Demasiadas consultas. Volvé a intentar en un minuto.' });
   };
 }
-export async function publicCatalogRoutes(app: FastifyInstance) {
+export async function publicCatalogRoutes(app: FastifyInstance, { readLimit = 60 }: { readLimit?: number }) {
   app.addHook('onRequest', async (_request, reply) => { reply.header('Cache-Control', 'no-store'); reply.header('X-Content-Type-Options', 'nosniff'); });
-  app.addHook('onRequest', createPublicRateLimiter());
+  app.addHook('onRequest', createPublicRateLimiter(readLimit));
   app.get('/:slug/preview.png', async (request, reply) => {
     const { slug } = slugSchema.parse(request.params);
     const catalog = await getPublicCatalog(slug);

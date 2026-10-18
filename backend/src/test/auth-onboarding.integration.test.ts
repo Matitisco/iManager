@@ -164,7 +164,7 @@ describe("auth and onboarding integration", () => {
       payload: { storeName: "Sin Instagram" },
     });
     expect(missing.statusCode).toBe(200);
-    expect(missing.json().session.store).toMatchObject({ currency: "USD", instagram: null, onboardingStage: "invite" });
+    expect(missing.json().session.store).toMatchObject({ currency: "USD", instagram: null, onboardingStage: "stock" });
 
     const invalid = await app.inject({
       method: "POST",

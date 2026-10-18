@@ -28,6 +28,11 @@ const mockInvitationState = vi.hoisted(() => ({
   reload: vi.fn(),
 }));
 
+vi.mock('../desk/exchange', () => ({
+  ExchangeProvider: ({ children }: { children: React.ReactNode }) => children,
+  useExchange: () => ({ settings: { currency: 'USD', exchangeMode: 'auto', exchangeSource: 'blue' }, money: { rate: 1555 }, phase: 'ready' }),
+}));
+
 vi.mock('../context/AppContext', () => ({
   useAppContext: () => mockAppContext,
 }));
@@ -154,6 +159,11 @@ describe('Onboarding', () => {
 
   it('keeps currency settings folded and asks only for the store name', () => {
     render(<Onboarding />);
+    expect(screen.getByText('Paso 1 de 2')).toBeVisible();
+    expect(screen.getByLabelText('Paso 1 de 2').querySelectorAll('i')).toHaveLength(2);
+    expect(screen.getByText('Lo ven tus clientes en el catálogo.')).toBeVisible();
+    expect(screen.getByText('Lo cambiás cuando quieras.')).toBeVisible();
+    expect(screen.getByText('USD · dólar blue $ 1.555')).toBeVisible();
     expect(screen.queryByLabelText(/Instagram/)).toBeNull();
     expect(screen.getByText('Moneda y dólar').closest('details')).not.toHaveAttribute('open');
     expect(screen.getByTestId('onboarding-currency')).toHaveValue('USD');

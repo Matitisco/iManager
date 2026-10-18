@@ -69,7 +69,7 @@ export function buildTestEmail(testInfo: TestInfo, slug: string) {
 }
 
 export async function loginViaUi(page: Page, email: string, password = DEFAULT_PASSWORD) {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await submitLoginViaUi(page, email, password);
 }
 
@@ -168,7 +168,7 @@ export async function bootstrapStoreViaApi(
     await assertOk(contact, 'Set fixture store contact');
   }
   await waitForSessionReady(request, email);
-  await page.reload();
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
 }
 

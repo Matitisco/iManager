@@ -54,7 +54,7 @@ describe("primeros pasos persistentes y muestras", () => {
     expect(created.json().session.store).toMatchObject({
       currency: "USD",
       exchangeSource: "blue",
-      onboardingStage: "invite",
+      onboardingStage: "stock",
       instagram: null,
     });
     for (const stage of ["invite", "stock"]) {
@@ -64,7 +64,7 @@ describe("primeros pasos persistentes y muestras", () => {
         headers: auth,
         payload: { stage },
       });
-      expect(next.json()).toMatchObject({ active: true, stage });
+      expect(next.json()).toMatchObject({ active: true, stage: "stock" });
     }
     expect(
       (
@@ -96,6 +96,16 @@ describe("primeros pasos persistentes y muestras", () => {
       ).statusCode,
     ).toBe(200);
   });
+  it.each(["invite", "video"])("normaliza la etapa anterior %s a stock sin reabrir tiendas completadas", async (stage) => {
+    const ctx = await seedStoreContext();
+    const auth = headers(ctx.user.firebaseUid);
+    await prisma.store.update({ where: { id: ctx.store!.id }, data: { onboardingStartedAt: new Date(), onboardingStage: stage } });
+    const get = () => getApp().inject({ method: "GET", url: "/api/onboarding/progress", headers: auth });
+    expect((await get()).json()).toMatchObject({ stage: "stock", active: true });
+    await prisma.store.update({ where: { id: ctx.store!.id }, data: { onboardingCompletedAt: new Date() } });
+    expect((await get()).json()).toMatchObject({ stage: "stock", active: false });
+  });
+
   it("borra solo muestras propias, incluso con equipos reales y marcas falsas en customFields", async () => {
     const ctx = await seedStoreContext();
     const other = await seedStoreContext({ firebaseUid: "other" });
@@ -233,6 +243,11 @@ describe("primeros pasos persistentes y muestras", () => {
       team: false,
       install: false,
     });
+    const samples = await app.inject({ method: "POST", url: "/api/onboarding/samples", headers: auth });
+    expect(samples.statusCode).toBe(200);
+    const sampleProgress = (await app.inject({ method: "GET", url: "/api/onboarding/progress", headers: auth })).json();
+    expect(sampleProgress).toMatchObject({ stock: 0, samples: 3, steps: { store: true, stock: false } });
+    expect(Object.values(sampleProgress.steps).filter(Boolean)).toHaveLength(1);
     const storeId = (await prisma.storeMember.findFirstOrThrow({ where: { userId: ctx.user.id } })).storeId;
     await prisma.inventoryItem.create({
       data: {
