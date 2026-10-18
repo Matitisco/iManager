@@ -7,7 +7,7 @@ const MIN_FONT_SIZE = 11;
 /** Conservative DM Sans bold advance estimate, in em; no DOM measurement needed. */
 export function donutTextWidth(text: string, fontSize: number, phone = false): number {
   const units = Array.from(text).reduce((sum, char) => {
-    const advance = /[0-9]/.test(char) ? 0.62 : /[\s.,]/.test(char) ? 0.3 : /[M%—]/.test(char) ? 1 : 0.8;
+    const advance = /[0-9]/.test(char) ? 0.62 : /[\s.,]/.test(char) ? 0.3 : /[M%—]/.test(char) ? 1 : /[-]/.test(char) ? 0.4 : /[$Sek]/.test(char) ? 0.65 : 0.8;
     return sum + advance;
   }, 0);
   // The existing phone style uses -0.03em letter spacing.
@@ -26,13 +26,13 @@ export function fitDonutText(text: string, phone = false, compact?: () => string
   return { text, fontSize: Math.floor(fontSize * 100) / 100 };
 }
 
-function compactDonutNumber(value: number): string {
+function compactDonutNumber(value: number, precision = 1): string {
   const magnitude = Math.abs(value);
   // Keep even extreme finite totals short; normal business amounts use k/M.
   if (magnitude >= 1e12) return value.toExponential(0).replace('e+', 'e');
   const millions = magnitude >= 999_950;
   const divisor = millions ? 1e6 : 1e3;
-  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(value / divisor)}${millions ? 'M' : 'k'}`;
+  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: precision }).format(value / divisor)}${millions ? 'M' : 'k'}`;
 }
 
 export function fitDonutValue(value: number, currency?: 'ARS' | 'USD', phone = false) {
@@ -40,8 +40,15 @@ export function fitDonutValue(value: number, currency?: 'ARS' | 'USD', phone = f
   const fullText = currency ? formatMoney(amount, currency) : String(amount);
   const initial = currency ? formatMoneyCompact(amount, currency) : fullText;
   const prefix = currency ? `${currency === 'USD' ? 'US$' : '$'} ` : '';
+  let fitted = fitDonutText(initial, phone, () => `${prefix}${compactDonutNumber(amount)}`);
+  if (fitted.fontSize < MIN_FONT_SIZE) {
+    fitted = fitDonutText(`${prefix}${compactDonutNumber(amount, 0)}`, phone);
+  }
+  if (fitted.fontSize < MIN_FONT_SIZE) {
+    fitted = fitDonutText(`${prefix}${amount.toExponential(0).replace('e+', 'e')}`, phone);
+  }
   return {
-    ...fitDonutText(initial, phone, () => `${prefix}${compactDonutNumber(amount)}`),
+    ...fitted,
     fullText,
   };
 }

@@ -473,7 +473,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .gdonut svg path, .gdonut svg circle { pointer-events: stroke; cursor: pointer; }
 .gdonut .gc { position: absolute; inset: 0; margin: auto; width: 64px; max-width: calc(100% * 72 / 132 - 8px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
 .gdonut .gc b { font-size: 18px; max-width: 100%; white-space: nowrap; overflow: hidden; }
-.gdonut small { color: var(--secondary); font-weight: 700; font-size: 11px; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gdonut small { color: var(--secondary); font-weight: 700; font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gcomp { display: flex; gap: 16px; align-items: center; }
 .gleg { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .glg { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; text-align: left; padding: 5px 6px; border-radius: 10px; width: 100%; }
