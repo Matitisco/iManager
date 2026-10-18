@@ -225,7 +225,8 @@ test.describe('clients on a phone', () => {
     await expect(detail.getByText('Saldo pendiente')).toBeVisible();
     await expect(detail.getByText('US$ 50.000').first()).toBeVisible();
     await expect(detail.getByText('Total gastado')).toBeVisible();
-    await expect(detail.getByText('US$ 650.000')).toBeVisible();
+    await expect(detail.getByTestId('client-purchase-stats')).toContainText('US$ 0');
+    await expect(detail.getByTestId('client-purchase-stats')).toContainText('0 vigentes');
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Nueva venta' })).toBeVisible();

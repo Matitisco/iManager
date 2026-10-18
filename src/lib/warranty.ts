@@ -71,6 +71,15 @@ export function arFromIso(value: string) {
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
+/** Fecha de vencimiento que se muestra bajo los botones de garantía de una venta. */
+export function warrantyDueCopy(saleDate: string, days: number | null | undefined) {
+  if (days == null) return '';
+  if (days <= 0) return 'Sin garantía';
+  const start = parseArDate(saleDate) ?? parseArDate(arFromIso(saleDate));
+  const until = warrantyUntil(start, days);
+  return until ? `Vence el ${formatArDate(until)}` : 'Sin garantía';
+}
+
 export function saleWarrantyView(sale: Pick<Sale, 'date' | 'status'> & { warrantyDays?: number | null }, now = new Date()) {
   const days = sale.warrantyDays ?? null;
   if (sale.status === 'CANCELADA') return { state: 'sin' as const, days, untilLabel: null, phrase: 'Sin cobertura' };
