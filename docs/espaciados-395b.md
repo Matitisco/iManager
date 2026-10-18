@@ -2,7 +2,7 @@
 
 Se revisó el commit parcial `d57f416` sin revertirlo. Sus correcciones cubren los quince puntos; esta continuación corrige además el selector de padding interno de las filas de Ventas (`.phone-row`, la clase real) y completa la validación.
 
-Se conservaron colores, tipografías, componentes y estilos. Sin cambios de backend, Prisma ni schema. Sin build ni push.
+Se conservaron colores, tipografías, componentes y estilos. Sin cambios de backend, Prisma ni schema.
 
 ## Revisión por punto
 
@@ -54,6 +54,3 @@ El entorno local requiere las bibliotecas de WebKit ya preparadas para #395 y su
 
 Se reparó el mock de matchMedia que se capturaba antes del beforeAll global, se agregaron esperas al entrar a Ventas y al recargar planes, se actualizó el selector de la flecha Volver, se aislaron avisos de instalación/cotización en los tests de facturación y sus capturas auxiliares ahora usan el directorio de resultados de Playwright en vez de `/opt/cursor`. Las imágenes previas de otros issues se conservan.
 
-## Entrega del commit
-
-El directorio Git compartido del worktree está montado como sólo lectura: `git checkout --` y el registro del commit no pueden crear `index.lock`. Se restauraron las 31 imágenes previas con un índice temporal (sin modificar los metadatos protegidos), y se preparó el commit en una copia local con metadatos escribibles, conservando el HEAD parcial como padre y el nombre de rama `fix/395-espaciados`. Bundle transportable: `/tmp/395b-espaciados.bundle`; parche equivalente: `/tmp/395b-espaciados.patch`. No se hizo push. La referencia del worktree original permanece en `d57f416` por esa limitación.
