@@ -1,0 +1,4 @@
+- [ ] Corregir los quince puntos sin restyle ni cambios de schema.
+- [ ] Ejecutar TypeScript, pruebas frontend y E2E relevantes.
+- [ ] Guardar e inspeccionar capturas antes/después y medidas de geometría.
+- [ ] Documentar resultados y commitear en fix/395-espaciados sin push.

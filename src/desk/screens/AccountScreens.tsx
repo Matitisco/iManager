@@ -262,12 +262,15 @@ export function SettingsScreen() {
   const { appSession, user } = useAppContext();
   const { open, isStaff, toast, back, go } = useDesk();
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teamPage, setTeamPage] = useState(false);
   const [teamError, setTeamError] = useState('');
   const [busyInvite, setBusyInvite] = useState<string | null>(null);
   const [selected, setSelected] = useState<TeamMember | null>(null);
 
+  const phone = usePhoneLayout();
+  const usePhoneBack = phone ? () => setTeamPage(false) : undefined;
   const seeTeam = canViewTeam(appSession?.membership?.role);
   const loadVersion = useRef(0);
   const load = useCallback(() => {
@@ -277,13 +280,13 @@ export function SettingsScreen() {
     void Promise.all([listMembers(user, appSession.store.id), listInvitations(user)])
       .then(([nextMembers, nextInvites]) => {
         if (version !== loadVersion.current) return;
-        setMembers(nextMembers); setInvites(nextInvites);
+        setMembers(nextMembers); setMembersLoaded(true); setInvites(nextInvites);
       })
       .catch(err => { if (version === loadVersion.current) setTeamError(toUserMessage(err, 'No se pudo cargar el equipo')); });
   }, [user, appSession?.store?.id, seeTeam]);
 
   useEffect(() => {
-    setMembers([]); setInvites([]); setSelected(null); load();
+    setMembers([]); setMembersLoaded(false); setInvites([]); setSelected(null); load();
     return () => { loadVersion.current += 1; };
   }, [load]);
   useEffect(() => {
@@ -302,7 +305,7 @@ export function SettingsScreen() {
   const teamContent = <>
     {teamError ? <p className="ferr" role="alert">{teamError}</p> : null}
     <div className={`team-grid${members.length <= 1 && !invites.length ? ' solo' : ''}`}>
-      <div><div className="sec"><span>Miembros</span><span className="secr">{members.length}</span></div><div className="card">
+      <div><div className="sec"><span>Miembros</span><span className="secr" data-testid="settings-member-count">{membersLoaded ? members.length : '…'}</span></div><div className="card">
         {members.map((member, index) => {
           const editable = canEditMember(appSession?.membership?.role, me?.id, member);
           return <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} disabled={!editable} onClick={() => setSelected(member)}>
@@ -334,7 +337,7 @@ export function SettingsScreen() {
     );
   }
 
-  if (teamPage && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><button type="button" className="team-back" onClick={() => setTeamPage(false)}>‹ Configuración</button><PageHead title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${members.length} personas · ${invites.length} invitaciones`} action={inviteButton} />{teamContent}</div>;
+  if (teamPage && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><PageHead back={usePhoneBack} title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${members.length} personas · ${invites.length} invitaciones`} action={inviteButton} />{teamContent}</div>;
 
   return (
     <div className="dscreen" data-testid="settings-screen">
@@ -352,7 +355,7 @@ export function SettingsScreen() {
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
               <MRow icon={<DeskIcon name="cal" size={18} />} title="Garantías" sub="Usados, sellados y reparaciones" onClick={() => open({ type: 'warranty' })} />
             </div>
-            <div className="sec" data-testid="settings-team"><button type="button" className="team-back" onClick={() => setTeamPage(true)}>Equipo ›</button>{inviteButton}</div>
+            <div className="sec" data-testid="settings-team"><button type="button" className="team-section-link" onClick={() => setTeamPage(true)}>Equipo ›</button>{inviteButton}</div>
             {teamContent}
             <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
           </>

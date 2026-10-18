@@ -209,6 +209,7 @@
 }
 .help-screen {
   max-width: 900px;
+  margin-left: 0;
 }
 .help-screen > h2 {
   font-size: 12px;
@@ -433,4 +434,9 @@
 @media (max-width: 760px) {
   .steps-pill, .steps-panel { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   .steps-panel { left: max(16px, env(safe-area-inset-left, 0px)); padding: 16px; }
+}
+
+@media (max-width: 760px) {
+  /* The collapsed island owns a lane above the tab bar, outside the cards' scrollport. */
+  .desk-app:has(.steps-pill) .stage { margin-bottom: calc(var(--tab-clearance) + 64px); }
 }
