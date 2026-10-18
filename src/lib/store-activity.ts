@@ -1,4 +1,4 @@
-export type StoreActivityRange = '30d' | 'all';
+export type StoreActivityRange = '7d' | '30d' | 'all';
 export type ActivitySort = 'createdAt' | 'lastActivityAt';
 
 export type StoreActivityCounts = {
@@ -33,7 +33,7 @@ export type StoreActivityResponse = {
 export { isTestStore } from '../../backend/src/modules/admin/test-stores';
 
 export function isStoreActivityPath(pathname: string) {
-  return pathname === '/admin/actividad' || pathname === '/admin/actividad/';
+  return /^\/admin\/actividad(?:\/embudo|\/tienda\/[^/]+)?\/?$/.test(pathname);
 }
 
 function timeOf(value: string | null) {
@@ -60,6 +60,6 @@ export function statusLabel(status: string) {
 }
 
 export function stageLabel(stage: string | null) {
-  if (!stage) return '—';
-  return ({ invite: 'Equipo', stock: 'Stock', video: 'Video' } as Record<string, string>)[stage] ?? stage;
+  if (!stage) return 'Nombre';
+  return ({ name: 'Nombre', invite: 'Nombre', stock: 'Stock', video: 'Completo', complete: 'Completo', completed: 'Completo' } as Record<string, string>)[stage] ?? 'Nombre';
 }

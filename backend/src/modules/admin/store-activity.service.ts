@@ -2,9 +2,7 @@ import { analyticsSnapshot, type FunnelStepId } from './funnel.service.js';
 import { prisma } from "../../plugins/prisma.js";
 import { maskEmail } from "./access.js";
 
-const WINDOW_MS = 30 * 86_400_000;
-
-export type StoreActivityRange = "30d" | "all";
+export type StoreActivityRange = "7d" | "30d" | "all";
 
 export type StoreActivityRow = {
   id: string;
@@ -63,7 +61,7 @@ function maskedOwner(memberships: { user: { email: string | null } }[]) {
 }
 
 export async function listStoreActivity(range: StoreActivityRange, now = new Date()): Promise<StoreActivityResponse> {
-  const createdAt = range === "all" ? undefined : { gte: new Date(now.getTime() - WINDOW_MS) };
+  const createdAt = range === "all" ? undefined : { gte: new Date(now.getTime() - (range === "7d" ? 7 : 30) * 86_400_000) };
   const stores = await prisma.store.findMany({
     where: createdAt ? { createdAt } : {},
     orderBy: { createdAt: "desc" },
@@ -75,6 +73,7 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
       trialEndsAt: true,
       createdAt: true,
       onboardingStage: true,
+      onboardingCompletedAt: true,
       memberships: {
         where: { role: "OWNER" },
         orderBy: { createdAt: "asc" },
@@ -121,7 +120,7 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
       billingStatus: store.billingStatus,
       trialEndsAt: store.trialEndsAt?.toISOString() ?? null,
       createdAt: store.createdAt.toISOString(),
-      onboardingStage: store.onboardingStage,
+      onboardingStage: store.onboardingCompletedAt ? "complete" : store.onboardingStage,
       counts: {
         storeMembers: memberCounts.get(store.id) ?? 0,
         inventoryItems: inventoryCounts.get(store.id) ?? 0,
