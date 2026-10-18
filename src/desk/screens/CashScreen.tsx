@@ -70,7 +70,7 @@ export function CashScreen() {
   const rows = cashData?.registers.filter(row => Boolean(row.archivedAt) === archived) ?? [];
   return <div className="dscreen cash-screen" data-testid="cash-screen">
     <div className="cash-content" hidden={mode?.type === 'count'}>
-    <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : 'Ingresos, egresos y cierre diario por moneda y medio'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
+    <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : 'Ingresos, egresos y cierre diario por moneda y medio'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
     {loading && !cashData ? <p role="status">Cargando cajas…</p> : null}
     {!selected && cashData ? <>

@@ -262,7 +262,7 @@ test.describe('settings on a phone', () => {
     await expect(page.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Reportes' })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Acciones sensibles' })).toBeChecked();
-    await page.getByRole('button', { name: '‹ Equipo' }).click();
+    await page.getByTestId('page-back').click();
     await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
 
     await page.getByTestId('settings-logout').click();

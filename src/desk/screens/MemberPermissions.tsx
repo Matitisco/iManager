@@ -5,7 +5,7 @@ import { removeMember, updateMemberSections, type TeamMember } from '../../servi
 import { DESK_SECTIONS, grantedSections } from '../sections';
 import { canEditMember, PERMISSION_PROFILES, permissionProfile } from '../team-permissions';
 import { usePhoneLayout } from '../section-notices';
-import { Actions, DeskIcon, PageHead } from '../ui';
+import { Actions, BackButton, DeskIcon, PageHead } from '../ui';
 import { initials } from '../format';
 import { ROLE_LABEL } from '../../lib/roles';
 import './team.css';
@@ -65,7 +65,7 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
     </div>{id === 'cash' ? <div className="perm team-perm team-nested"><div><b>Ver saldo de cajas</b></div><button type="button" className={`sw${sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={sections.includes('cash') && sections.includes('cashBalances')} disabled={locked || busy || !sections.includes('cash')} onClick={() => toggle('cashBalances')}><i /></button></div> : null}</Fragment>;
   };
   return <div className={`dscreen team-permissions${phone && saveBar ? ' has-save' : ''}`}>
-    <button type="button" className="team-back" onClick={onBack}>‹ Equipo</button>
+    {phone ? <BackButton onClick={onBack} /> : <button type="button" className="team-back" onClick={onBack}>‹ Equipo</button>}
     <div className="team-member-head"><div className="av-c">{initials(name)}</div><PageHead title={name} subtitle={`${member.user.email || 'Sin email'} · ${ROLE_LABEL[member.role]}`} action={phone ? undefined : saveBar} /></div>
     <div className="team-profiles" role="group" aria-label="Perfiles rápidos">{[...Object.keys(PERMISSION_PROFILES), 'Personalizado'].map(label => <button type="button" key={label} className={`gchip${profile === label ? ' on' : ''}`} aria-pressed={profile === label} disabled={locked || busy || label === 'Personalizado'} onClick={() => setSections([...PERMISSION_PROFILES[label as keyof typeof PERMISSION_PROFILES]])}>{label}</button>)}</div>
     <div className="team-perm-columns"><div className="card">{ORDER.slice(0, 6).map(row)}</div><div className="card">{ORDER.slice(6).map(row)}</div></div>

@@ -133,7 +133,7 @@ export function ClientsScreen() {
       {phone ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
       {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
-      <div className="dbar">
+      <div className="dbar clients-filters">
         <div className="acct-views">
           <ChipRow
             options={[{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }]}

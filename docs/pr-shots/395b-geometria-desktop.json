@@ -1,0 +1,120 @@
+{
+  "login": {
+    "submit": {
+      "x": 856,
+      "y": 470,
+      "width": 448,
+      "height": 54
+    },
+    "google": {
+      "x": 856,
+      "y": 592,
+      "width": 448,
+      "height": 54
+    },
+    "forgot": {
+      "x": 1123,
+      "y": 434,
+      "width": 181,
+      "height": 20
+    }
+  },
+  "dashboard": {
+    "stage": {
+      "x": 248,
+      "y": 0,
+      "width": 1192,
+      "height": 900
+    },
+    "pill": {
+      "x": 1235,
+      "y": 816,
+      "width": 173,
+      "height": 52
+    }
+  },
+  "clientes": {
+    "all": {
+      "x": 284,
+      "y": 153,
+      "width": 67,
+      "height": 36
+    },
+    "debt": {
+      "x": 359,
+      "y": 153,
+      "width": 163,
+      "height": 36
+    }
+  },
+  "comisiones": {
+    "x": 285,
+    "y": 407,
+    "width": 1118,
+    "height": 324
+  },
+  "sidebar": {
+    "side": {
+      "x": 0,
+      "y": 0,
+      "width": 248,
+      "height": 900
+    },
+    "emailBox": {
+      "x": 74,
+      "y": 834.5,
+      "width": 149,
+      "height": 18
+    }
+  },
+  "titulos": {
+    "ventas": {
+      "x": 284,
+      "y": 28,
+      "width": 99.40625,
+      "height": 33
+    },
+    "clientes": {
+      "x": 284,
+      "y": 28,
+      "width": 139,
+      "height": 33
+    },
+    "catalogo": {
+      "x": 284,
+      "y": 28,
+      "width": 279,
+      "height": 33
+    },
+    "reportes": {
+      "x": 284,
+      "y": 28,
+      "width": 128.203125,
+      "height": 33
+    },
+    "comisiones": {
+      "x": 284,
+      "y": 28,
+      "width": 241,
+      "height": 33
+    },
+    "cajas": {
+      "x": 284,
+      "y": 28,
+      "width": 326,
+      "height": 33
+    },
+    "ayuda": {
+      "x": 284,
+      "y": 28,
+      "width": 169,
+      "height": 33
+    },
+    "configuracion": {
+      "x": 284,
+      "y": 28,
+      "width": 200.203125,
+      "height": 33
+    }
+  }
+}

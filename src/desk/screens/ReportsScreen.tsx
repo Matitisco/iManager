@@ -264,7 +264,7 @@ export function ReportsScreen() {
   if (!tabs.length) return <div className="dscreen"><ScreenTitle title="Reportes" desktop={null} /><div className="card team-empty"><h2>No hay secciones habilitadas para tus reportes</h2><p>Cuando tengas acceso a una sección, vas a poder consultar sus reportes acá.</p></div></div>;
 
   return (
-    <div className={`dscreen${activeTab === 'Comisiones' ? ' commission-report' : ''}`}>
+    <div className={`dscreen reports-screen${activeTab === 'Comisiones' ? ' commission-report' : ''}`}>
       <ScreenTitle title="Reportes" tools={exportButton} desktop={exportButton} />
       <div className="gfilters">
         <div role="group" aria-label="Tipo de reporte">{tabs.map((item) => <button key={item} className={`gchip${activeTab === item ? ' on' : ''}`} aria-pressed={activeTab === item} type="button" onClick={() => chooseTab(item)}>{item}</button>)}</div>
