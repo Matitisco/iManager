@@ -20,6 +20,8 @@ export type StoreActivityRow = {
   onboardingStage: string | null;
   counts: StoreActivityCounts;
   lastActivityAt: string | null;
+  stuckAt?: string | null;
+  activeDays30?: number;
 };
 
 export type StoreActivityResponse = {
@@ -28,17 +30,10 @@ export type StoreActivityResponse = {
   stores: StoreActivityRow[];
 };
 
-const TEST_NAME = /qa-|demo|test|smoke/i;
+export { isTestStore } from '../../backend/src/modules/admin/test-stores';
 
 export function isStoreActivityPath(pathname: string) {
   return pathname === '/admin/actividad' || pathname === '/admin/actividad/';
-}
-
-export function isTestStore(store: Pick<StoreActivityRow, 'name' | 'ownerEmail'>) {
-  if (TEST_NAME.test(store.name)) return true;
-  const at = store.ownerEmail?.lastIndexOf('@') ?? -1;
-  if (at < 0 || !store.ownerEmail) return false;
-  return store.ownerEmail.slice(at + 1).toLowerCase() === 'example.com';
 }
 
 function timeOf(value: string | null) {

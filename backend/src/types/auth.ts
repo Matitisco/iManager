@@ -1,5 +1,6 @@
 export type FirebaseAuthContext = {
   firebaseUid: string;
+  signInProvider?: string;
   email?: string;
   emailVerified?: boolean;
   name?: string;

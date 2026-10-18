@@ -1,3 +1,4 @@
+import { track, trackMany, markFirstSteps } from '../analytics/track.js';
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../plugins/prisma.js";
 import { lockTransactionKey } from "../../lib/advisory-lock.js";
@@ -16,6 +17,8 @@ export type GettingStartedPatch = {
   visible?: boolean;
   installed?: true;
   complete?: true;
+  completedVia?: "import" | "skip" | "sample";
+  installedHow?: "prompt" | "manual";
   stage?: "invite" | "stock";
 };
 
@@ -29,6 +32,7 @@ export async function getGettingStarted(member: Member) {
         where: { id: storeId },
         select: {
           name: true,
+          createdAt: true,
           onboardingStartedAt: true,
           onboardingCompletedAt: true,
           onboardingStage: true,
@@ -68,6 +72,7 @@ export async function getGettingStarted(member: Member) {
         installed: preferences.appInstalled,
       })
     : { store: false, stock: false, sale: false, team: false, install: false };
+  if (firstStepsVisibleTo(role)) void markFirstSteps(storeId, userId, steps, store.createdAt);
   return {
     stage: "stock",
     eligible: store.onboardingStartedAt !== null,
@@ -92,7 +97,8 @@ export async function patchGettingStarted(
   member: Member,
   patch: GettingStartedPatch,
 ) {
-  await prisma.$transaction(async (tx) => {
+  const completed = await prisma.$transaction(async (tx) => {
+    let completed = false;
     if (patch.stage) {
       if (member.role !== "OWNER")
         throw new DomainError(
@@ -114,14 +120,8 @@ export async function patchGettingStarted(
           "Solo el dueño puede completar la configuración inicial.",
           403,
         );
-      await tx.store.updateMany({
-        where: {
-          id: member.storeId,
-          onboardingStartedAt: { not: null },
-          onboardingCompletedAt: null,
-        },
-        data: { onboardingCompletedAt: new Date() },
-      });
+      const result = await tx.store.updateMany({ where: { id: member.storeId, onboardingStartedAt: { not: null }, onboardingCompletedAt: null }, data: { onboardingCompletedAt: new Date() } });
+      completed = result.count === 1;
     }
     await tx.storeMember.update({
       where: {
@@ -137,12 +137,15 @@ export async function patchGettingStarted(
         ...(patch.installed ? { appInstalled: true } : {}),
       },
     });
+    return completed;
   });
+  if (completed) void track({ name: 'onboarding_completed', storeId: member.storeId, userId: member.userId, props: patch.completedVia ? { via: patch.completedVia } : {}, dedupeKey: `onb_done:${member.storeId}` });
+  if (patch.installed) void track({ name: 'app_installed', storeId: member.storeId, userId: member.userId, props: patch.installedHow ? { how: patch.installedHow } : {}, dedupeKey: `installed:${member.storeId}:${member.userId}` });
   return getGettingStarted(member);
 }
 
 export async function createSampleStock(storeId: string) {
-  return prisma.$transaction(async (tx) => {
+  const loaded = await prisma.$transaction(async (tx) => {
     await lockTransactionKey(tx, `onboarding-samples:${storeId}`);
     const store = await tx.store.findUniqueOrThrow({ where: { id: storeId } });
     if (!store.onboardingStartedAt)
@@ -191,18 +194,22 @@ export async function createSampleStock(storeId: string) {
         status: "DISPONIBLE",
       })),
     });
-    await tx.store.update({
-      where: { id: storeId },
-      data: { onboardingCompletedAt: new Date() },
-    });
+    await tx.store.update({ where: { id: storeId }, data: { onboardingCompletedAt: new Date() } });
+    return { completed: store.onboardingCompletedAt === null };
   });
+  if (loaded) void trackMany([
+    { name: 'sample_stock_loaded', storeId },
+    ...(loaded.completed ? [{ name: 'onboarding_completed' as const, storeId, props: { via: 'sample' }, dedupeKey: `onb_done:${storeId}` }] : []),
+  ]);
 }
 
 export async function deleteSampleStock(storeId: string) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await lockTransactionKey(tx, `onboarding-samples:${storeId}`);
     return tx.inventoryItem.deleteMany({
       where: { storeId, sampleBatchId: { not: null } },
     });
   });
+  if (result.count > 0) void track({ name: 'sample_stock_deleted', storeId });
+  return result;
 }

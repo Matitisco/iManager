@@ -76,6 +76,8 @@ export async function gettingStartedRoutes(app: FastifyInstance) {
         visible: z.boolean().optional(),
         installed: z.literal(true).optional(),
         complete: z.literal(true).optional(),
+        completedVia: z.enum(["import", "skip", "sample"]).optional(),
+        installedHow: z.enum(["prompt", "manual"]).optional(),
         stage: z.enum(["invite", "stock"]).optional(),
       })
       .strict()

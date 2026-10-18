@@ -30,7 +30,7 @@ describe('commissions HTTP client', () => {
   it('uses authenticated summary, member, own and report endpoints with encoded parameters', async () => {
     vi.mocked(fetchWithTimeout).mockImplementation(async () => response({}));
     await fetchCommissionSummary(user, '2026-01');
-    expect(lastRequest()).toEqual(['https://api.imanager.test/api/commissions?period=2026-01', { method: 'GET', cache: 'no-store', headers: { Authorization: 'Bearer token', Accept: 'application/json' } }]);
+    expect(lastRequest()).toEqual(['https://api.imanager.test/api/commissions?period=2026-01', { method: 'GET', cache: 'no-store', headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token', Accept: 'application/json' } }]);
     await fetchCommissionMember(user, 'member/1', '2026-01');
     expect(lastRequest()[0]).toContain('/members/member%2F1?period=2026-01');
     await fetchMyCommissions(user);
@@ -68,7 +68,7 @@ describe('commissions HTTP client', () => {
     vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ payment }));
     await expect(voidCommissionPayment(user, payment.id)).resolves.toEqual(payment);
     expect(lastRequest()[0]).toContain('/payments/p%2F1/void');
-    expect(lastRequest()[1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bearer token' } });
+    expect(lastRequest()[1]).toMatchObject({ method: 'POST', headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token' } });
     vi.mocked(fetchWithTimeout).mockImplementation(async () => response({ error: 'No tenés acceso a Comisiones' }, 403));
     await expect(voidCommissionPayment(user, payment.id)).rejects.toMatchObject({ status: 403 });
   });

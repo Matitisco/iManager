@@ -1,3 +1,4 @@
+import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
@@ -202,7 +203,7 @@ export async function listSales(storeId: string) {
 }
 
 export async function createSale(storeId: string, input: SaleInput, actor?: Actor) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await assertCategoryBelongsToStore(tx, storeId, input.categoryId);
 
     const client = input.clientId
@@ -292,6 +293,8 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
 
     return serializeSale(sale as SaleRecord);
   });
+  void trackFirstSale(storeId, result.id, 'form', actor?.userId);
+  return result;
 }
 
 export async function updateSale(
@@ -591,7 +594,7 @@ export async function importSales(
       const dateLabel = formatArDate(soldAt);
       const rowCurrency = normalizeCurrencyToken(r.currency);
 
-      await prisma.$transaction(async (tx) => {
+      const saleId = await prisma.$transaction(async (tx) => {
         const clientLink = clientName || dni || phone
           ? decideClientLink(clients, { name: clientName, dni, phone })
           : { action: "skip" as const };
@@ -691,8 +694,10 @@ export async function importSales(
           linkedClient.totalSpent = nextSpent;
           linkedClient.lastPurchaseAt = nextPurchase;
         }
+        return sale.id;
       });
 
+      void trackFirstSale(storeId, saleId, 'import', actor?.userId);
       imported++;
     } catch (e) {
       errors.push({

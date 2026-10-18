@@ -1,3 +1,4 @@
+import type { FastifyReply, FastifyRequest } from 'fastify';
 /** Login emails allowed to open the internal store-activity panel. */
 export function platformAdminEmails(raw = process.env.ADMIN_EMAILS): Set<string> {
   return new Set(
@@ -8,9 +9,9 @@ export function platformAdminEmails(raw = process.env.ADMIN_EMAILS): Set<string>
   );
 }
 
-export function isPlatformAdmin(email: string | null | undefined, raw = process.env.ADMIN_EMAILS): boolean {
+export function isPlatformAdmin(email: string | null | undefined, verified: boolean | undefined, raw = process.env.ADMIN_EMAILS): boolean {
   const normalized = email?.trim().toLowerCase();
-  if (!normalized) return false;
+  if (verified !== true || !normalized) return false;
   return platformAdminEmails(raw).has(normalized);
 }
 
@@ -24,4 +25,10 @@ export function maskEmail(email: string | null | undefined): string | null {
   const domain = trimmed.slice(at + 1).toLowerCase();
   if (!domain || domain.includes("@") || /\s/.test(domain)) return null;
   return `${local.slice(0, 2)}***@${domain}`;
+}
+
+export async function requirePlatformAdmin(request: FastifyRequest, reply: FastifyReply) {
+  if (!isPlatformAdmin(request.auth?.email, request.auth?.emailVerified)) {
+    return reply.code(403).send({ error: 'Forbidden' });
+  }
 }

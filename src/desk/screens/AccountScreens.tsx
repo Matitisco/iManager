@@ -1,3 +1,4 @@
+import { track } from '../../lib/analytics';
 import { billingAccountSubtitle } from './BillingScreen';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -294,7 +295,7 @@ export function SettingsScreen() {
   const me = appSession?.user;
   const store = appSession?.store;
   const copyLink = async (link: string) => {
-    try { await navigator.clipboard.writeText(link); toast('Link copiado'); }
+    try { await navigator.clipboard.writeText(link); track('invite_shared', { channel: 'copy' }); toast('Link copiado'); }
     catch { setTeamError('No se pudo copiar el link. Intentá de nuevo.'); }
   };
   const inviteButton = <button className="dbtn p team-desktop-invite" type="button" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>;
@@ -314,7 +315,7 @@ export function SettingsScreen() {
       </div>{members.length === 1 && members[0]?.role === 'OWNER' ? <div className="team-empty"><div className="team-avatars" aria-hidden="true"><i /><i /><i /></div><h2>Sumá a tu equipo</h2><p>Cada persona entra con su usuario y ve solo lo que habilites.</p></div> : null}</div>
       {invites.length ? <div><div className="sec"><span>Invitaciones pendientes</span><span className="secr">{invites.length}</span></div><div className="card" data-testid="settings-invites">{invites.map(invite => <div className="team-invitation" key={invite.id}>
         <span className="team-link-icon"><Link2 size={16} /></span><div className="info"><b>{invite.email ? `${invite.email} · ${ROLE_LABEL[invite.role]}` : `Link para ${ROLE_LABEL[invite.role]}`}</b><small>Vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
-        <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => {
+        <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a onClick={() => track('invite_shared', { channel: 'whatsapp' })} aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => {
           if (!user) return; setBusyInvite(invite.id); setTeamError('');
           void revokeInvitation(user, invite.id).then(() => { setInvites(current => current.filter(item => item.id !== invite.id)); toast('Invitación cancelada'); }).catch(err => setTeamError(toUserMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
         }}><X size={17} /></button> : null}</div>

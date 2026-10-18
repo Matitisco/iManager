@@ -12,6 +12,7 @@ const user = vi.hoisted(() => ({
   getIdToken: async () => 'token',
 }));
 
+const fetchAdminAccess = vi.hoisted(() => vi.fn());
 const fetchStoreActivity = vi.hoisted(() => vi.fn());
 
 vi.mock('../context/AppContext', () => ({
@@ -20,6 +21,7 @@ vi.mock('../context/AppContext', () => ({
 
 vi.mock('../services/admin-activity-api', () => ({
   fetchStoreActivity,
+  fetchAdminAccess,
 }));
 
 function store(patch: Partial<StoreActivityRow> & Pick<StoreActivityRow, 'id' | 'name' | 'createdAt'>): StoreActivityRow {
@@ -61,6 +63,7 @@ function media(phone: boolean) {
 
 describe('StoreActivityPage', () => {
   beforeEach(() => {
+    fetchAdminAccess.mockReset().mockResolvedValue({ isAdmin: true });
     fetchStoreActivity.mockReset();
     fetchStoreActivity.mockImplementation(async (_user: unknown, range: '30d' | 'all') => ({ ...payload, range }));
     media(false);
@@ -75,6 +78,20 @@ describe('StoreActivityPage', () => {
     expect(screen.queryByTestId('activity-table')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /admin|actividad/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute('href', '/');
+  });
+
+  it('does not fetch or show activity when the capability is false', async () => {
+    fetchAdminAccess.mockResolvedValue({ isAdmin: false });
+    render(<StoreActivityPage />);
+    expect(await screen.findByTestId('activity-not-found')).toHaveTextContent('No encontramos esta página');
+    expect(fetchStoreActivity).not.toHaveBeenCalled();
+  });
+
+  it('hides activity when permission is revoked with 403', async () => {
+    fetchStoreActivity.mockRejectedValue(new ApiError(403, 'Forbidden'));
+    render(<StoreActivityPage />);
+    expect(await screen.findByTestId('activity-not-found')).toHaveTextContent('No encontramos esta página');
+    expect(screen.queryByTestId('activity-table')).not.toBeInTheDocument();
   });
 
   it('lists real stores in a table, hides test stores, and can sort or widen the range', async () => {

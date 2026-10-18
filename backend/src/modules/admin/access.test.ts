@@ -5,16 +5,18 @@ describe("platform admin allowlist", () => {
   it("treats a missing list as nobody", () => {
     expect(platformAdminEmails(undefined).size).toBe(0);
     expect(platformAdminEmails("").size).toBe(0);
-    expect(isPlatformAdmin("admin@internal.test", undefined)).toBe(false);
-    expect(isPlatformAdmin(null, "admin@internal.test")).toBe(false);
+    expect(isPlatformAdmin("admin@internal.test", true, undefined)).toBe(false);
+    expect(isPlatformAdmin(null, true, "admin@internal.test")).toBe(false);
   });
 
   it("matches emails without caring about case or surrounding spaces", () => {
     const raw = " Admin@Internal.Test , second@internal.test, not-an-email ";
     expect([...platformAdminEmails(raw)]).toEqual(["admin@internal.test", "second@internal.test"]);
-    expect(isPlatformAdmin("ADMIN@internal.test", raw)).toBe(true);
-    expect(isPlatformAdmin(" second@internal.test ", raw)).toBe(true);
-    expect(isPlatformAdmin("other@internal.test", raw)).toBe(false);
+    expect(isPlatformAdmin("ADMIN@internal.test", true, raw)).toBe(true);
+    expect(isPlatformAdmin(" second@internal.test ", true, raw)).toBe(true);
+    expect(isPlatformAdmin("other@internal.test", true, raw)).toBe(false);
+    expect(isPlatformAdmin("admin@internal.test", false, raw)).toBe(false);
+    expect(isPlatformAdmin("admin@internal.test", undefined, raw)).toBe(false);
   });
 });
 

@@ -1,3 +1,4 @@
+import { track } from '../analytics/track.js';
 import { assertMemberCapacity } from '../billing/service.js';
 import { storeBillingLock } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
@@ -48,6 +49,10 @@ export async function createInvitation(
     },
   });
 
+  void (async () => {
+    const nth = await prisma.storeInvitation.count({ where: { storeId } });
+    await track({ name: 'invite_created', storeId, userId: actorUserId, props: { role, nth } });
+  })().catch(() => undefined);
   return {
     id: invitation.id,
     token: invitation.token,
@@ -204,6 +209,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     });
   });
 
+  void track({ name: 'invite_accepted', storeId: invitation.storeId, userId: user.id, props: { role: invitation.role, hoursToAccept: Math.max(0, (now.getTime() - invitation.createdAt.getTime()) / 3600000) }, dedupeKey: `invite_acc:${invitation.id}` });
   // Return full session
   return buildAppSessionForUser(auth, invitation.storeId);
 }

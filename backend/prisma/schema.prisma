@@ -26,6 +26,7 @@ model User {
 }
 
 model Store {
+  productEvents ProductEvent[]
   // Existing stores remain internal for life, including plain db push deploys.
   billingPlan             String    @default("INTERNAL") @db.VarChar(16)
   billingStatus           String    @default("ACTIVE") @db.VarChar(16)
@@ -857,4 +858,21 @@ model BillingCheckout {
   store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
+}
+
+model ProductEvent {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(48)
+  storeId   String?
+  userId    String?
+  source    String   @db.VarChar(8)
+  props     Json?
+  dedupeKey String?  @unique @db.VarChar(160)
+  clientAt  DateTime?
+  createdAt DateTime @default(now())
+  store     Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([name, createdAt])
+  @@index([storeId, createdAt])
+  @@index([userId, createdAt])
 }

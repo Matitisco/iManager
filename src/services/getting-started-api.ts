@@ -27,6 +27,8 @@ export type ProgressPatch = {
   visible?: boolean;
   installed?: true;
   complete?: true;
+  completedVia?: "import" | "skip" | "sample";
+  installedHow?: "prompt" | "manual";
   stage?: "invite" | "stock";
 };
 export const getGettingStarted = (user: AuthUserLike) =>

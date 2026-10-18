@@ -30,6 +30,7 @@ interface Props {
   fields: ImportFieldDef[];
   onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
   onClose: () => void;
+  onStageChange?: (stage: 'file' | 'mapping' | 'review' | 'analyze') => void;
   title?: string;
   sheet?: boolean;
   nouns?: { one: string; many: string };
@@ -59,7 +60,7 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
 }
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, title = 'Importar', sheet = false,
+  fields, onImport, onClose, onStageChange, title = 'Importar', sheet = false,
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
@@ -70,6 +71,7 @@ export const ImportModal: React.FC<Props> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [step, setStep] = useState<Step>('upload');
+  useEffect(() => { onStageChange?.(step === 'upload' ? 'file' : step === 'reading' ? 'analyze' : step === 'adjust' ? 'mapping' : 'review'); }, [step, onStageChange]);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<ImportSheetPayload[]>([]);

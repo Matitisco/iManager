@@ -1,3 +1,4 @@
+import { track } from '../../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { useAppContext } from '../../context/AppContext';
@@ -386,7 +387,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
           setError(null);
           create(email.trim() || undefined, true)
             .then(async (link) => {
-              try { await navigator.clipboard.writeText(link); rememberCopy(); } catch { setError('Copiá el link que aparece arriba para compartirlo.'); }
+              try { await navigator.clipboard.writeText(link); track('invite_shared', { channel: 'copy' }); rememberCopy(); } catch { setError('Copiá el link que aparece arriba para compartirlo.'); }
             })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
             .finally(() => setBusy(false));
