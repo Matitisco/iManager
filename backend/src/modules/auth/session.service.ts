@@ -6,6 +6,7 @@ import {
   getDefaultMembershipForUser,
   getMembershipForUserAndStore,
   listStoresForUser,
+  getStoreOwnerName,
   type UserStoreSummary,
 } from "../stores/stores.service.js";
 import { normalizeSections } from "../stores/sections.js";
@@ -20,6 +21,7 @@ export interface AppSessionResponse {
     avatarUrl: string | null;
   };
   store: {
+    ownerDisplayName?: string;
     onboardingStage?: string | null;
     onboardingStartedAt?: string | null;
     onboardingCompletedAt?: string | null;
@@ -85,7 +87,7 @@ export async function buildAppSessionForUser(
 
   return {
     user: serializeSessionUser(user),
-    store: serializeStore(membership.store),
+    store: { ...serializeStore(membership.store), ownerDisplayName: await getStoreOwnerName(membership.storeId) },
     billing: await getBillingSummary(membership.storeId),
     membership: {
       role: membership.role,

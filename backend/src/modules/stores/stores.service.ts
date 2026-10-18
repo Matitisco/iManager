@@ -219,13 +219,8 @@ export async function updateMemberRole(
     throw new DomainError("Miembro no encontrado", 404);
   }
 
-  // MANAGER cannot touch OWNERs
-  if (actorRole === "MANAGER" && target.role === "OWNER") {
-    throw new DomainError("No podés modificar el rol de un Propietario", 403);
-  }
-  // MANAGER cannot assign OWNER role
-  if (actorRole === "MANAGER" && newRole === "OWNER") {
-    throw new DomainError("No podés asignar el rol Propietario", 403);
+  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId || newRole !== "STAFF")) {
+    throw new DomainError("Solo el Propietario puede cambiar ese rol", 403);
   }
 
   // Cannot leave store without an OWNER
@@ -257,9 +252,8 @@ export async function removeMember(
     throw new DomainError("Miembro no encontrado", 404);
   }
 
-  // MANAGER cannot remove OWNERs
-  if (actorRole === "MANAGER" && target.role === "OWNER") {
-    throw new DomainError("No podés remover a un Propietario", 403);
+  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
+    throw new DomainError("Solo podés quitar Empleados del equipo", 403);
   }
 
   // Cannot remove the only OWNER
@@ -296,6 +290,10 @@ export async function updateMemberSections(
     throw new DomainError("El propietario conserva el acceso a todas las secciones", 403);
   }
 
+  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
+    throw new DomainError("Solo podés editar los permisos de Empleados", 403);
+  }
+
   const next = assertSectionList(sections);
   const updated = await prisma.storeMember.update({
     where: { id: memberId },
@@ -306,4 +304,9 @@ export async function updateMemberSections(
     include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
   });
   return serializeMember(updated);
+}
+
+export async function getStoreOwnerName(storeId: string) {
+  const owner = await prisma.storeMember.findFirst({ where: { storeId, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { displayName: true } } } });
+  return owner?.user.displayName || 'el propietario';
 }

@@ -442,7 +442,8 @@ describe('operation detail', () => {
     const desk = screen.getByRole('dialog', { name: 'Ana Pérez' });
     expect(within(desk).getByText('Saldo pendiente')).toBeInTheDocument();
     expect(within(desk).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
-    expect(within(desk).queryByText('Total gastado')).not.toBeInTheDocument();
+    expect(within(desk).getByTestId('client-purchases')).toBeInTheDocument();
+    expect(within(desk).getByText('Total gastado')).toBeInTheDocument();
     cleanup();
 
     const original = window.matchMedia;

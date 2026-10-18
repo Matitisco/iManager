@@ -41,3 +41,7 @@ export async function updateMemberSections(
   });
   return data.member;
 }
+
+export async function removeMember(user: AuthUserLike, storeId: string, memberId: string): Promise<void> {
+  await apiRequest<void>(user, `/api/stores/${storeId}/members/${memberId}`, { method: 'DELETE', fallback: 'No se pudo quitar a la persona del equipo' });
+}

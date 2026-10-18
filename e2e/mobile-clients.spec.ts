@@ -5,7 +5,7 @@ import {
   createClientViaApi,
   createInvitationViaApi,
   fetchClients,
-  loginViaUi,
+  acceptInvitationViaUi,
   updateStoreViaApi,
 } from './utils';
 
@@ -225,7 +225,8 @@ test.describe('clients on a phone', () => {
     await expect(detail.getByText('Saldo pendiente')).toBeVisible();
     await expect(detail.getByText('US$ 50.000').first()).toBeVisible();
     await expect(detail.getByText('Total gastado')).toBeVisible();
-    await expect(detail.getByText('US$ 650.000')).toBeVisible();
+    await expect(detail.getByTestId('client-purchase-stats')).toContainText('US$ 0');
+    await expect(detail.getByTestId('client-purchase-stats')).toContainText('0 vigentes');
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Nueva venta' })).toBeVisible();
@@ -305,9 +306,7 @@ test.describe('clients on a phone', () => {
     try {
       await mockDollar(staff);
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await openClients(staff);
       await expect(staff.getByTestId('page-back')).toBeVisible();

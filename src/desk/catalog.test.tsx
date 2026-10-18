@@ -127,3 +127,14 @@ describe('Catalog editor drafts and persistence', () => {
     } finally { window.removeEventListener('keydown', parentClose); }
   });
 });
+
+it('uses default metadata and options when a section catalog was filtered out', async () => {
+  mocks.fetch.mockResolvedValue({ meta: {}, options: [] });
+  function Consumer() {
+    const catalogs = useCatalogs();
+    if (!catalogs?.ready) return null;
+    return <div>{catalogs.meta.INVENTORY_STATUS.title} · {catalogs.options.filter(option => option.kind === 'INVENTORY_STATUS').length} opciones propias</div>;
+  }
+  render(<CatalogProvider><Consumer /></CatalogProvider>);
+  expect(await screen.findByText('Estados de equipo · 0 opciones propias')).toBeInTheDocument();
+});

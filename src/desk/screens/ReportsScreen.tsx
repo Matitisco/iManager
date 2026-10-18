@@ -87,12 +87,15 @@ export function ReportsScreen() {
   const role = appSession?.membership?.role;
   const tabs = useMemo(() => REPORT_TABS.filter((item) => {
     if (item === 'Comisiones') return canManageCommissions(sections, role);
+    if (item === 'Ventas') return canOpenSection('sales', sections, role);
+    if (item === 'Stock') return canOpenSection('inventory', sections, role);
+    if (item === 'Canjes') return canOpenSection('tradeins', sections, role);
     if (item === 'Clientes') return canOpenSection('clients', sections, role);
     if (item === 'Servicio') return canOpenSection('service', sections, role);
     return true;
   }), [sections, role]);
   const [tab, setTab] = useState<ReportTab>('Ventas');
-  const activeTab = tabs.includes(tab) ? tab : 'Ventas';
+  const activeTab = tabs.includes(tab) ? tab : tabs[0] ?? 'Ventas';
   const [period, setPeriod] = useState<ReportPeriod>('Mes');
   const [customOpen, setCustomOpen] = useState(false);
   const [draftRange, setDraftRange] = useState(defaultReportRange);
@@ -256,6 +259,8 @@ export function ReportsScreen() {
     setSelected(null);
     setCat(null);
   };
+
+  if (!tabs.length) return <div className="dscreen"><ScreenTitle title="Reportes" desktop={null} /><div className="card team-empty"><h2>No hay secciones habilitadas para tus reportes</h2><p>Cuando tengas acceso a una sección, vas a poder consultar sus reportes acá.</p></div></div>;
 
   return (
     <div className={`dscreen${activeTab === 'Comisiones' ? ' commission-report' : ''}`}>

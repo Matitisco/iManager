@@ -70,10 +70,23 @@ export function buildTestEmail(testInfo: TestInfo, slug: string) {
 
 export async function loginViaUi(page: Page, email: string, password = DEFAULT_PASSWORD) {
   await page.goto('/');
+  await submitLoginViaUi(page, email, password);
+}
+
+async function submitLoginViaUi(page: Page, email: string, password = DEFAULT_PASSWORD) {
   await expect(page.getByTestId('login-email')).toBeVisible();
   await page.getByTestId('login-email').fill(email);
   await page.getByTestId('login-password').fill(password);
   await page.getByTestId('login-submit').click({ noWaitAfter: true });
+}
+
+export async function acceptInvitationViaUi(page: Page, email: string, token: string, storeName: string) {
+  await page.goto(`/invite/${token}`);
+  await expect(page.getByRole('heading', { name: `Sumate a ${storeName}`, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciá sesión', exact: true }).click();
+  await submitLoginViaUi(page, email);
+  await page.getByRole('button', { name: 'Aceptar invitación', exact: true }).click();
+  await expect(page.getByTestId('accept-invitation-screen')).toBeHidden();
 }
 
 export async function fetchSession(request: APIRequestContext, email: string): Promise<AppSessionResponse> {

@@ -98,12 +98,12 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const canAccess = (section: OperationSource | 'reports' | 'notifications' | 'service') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
   const backendInventoryEnabled = backendReady && canAccess('inventory');
-  const loadInventoryEnabled = backendReady && (canAccess('inventory') || canAccess('reports'));
+  const loadInventoryEnabled = backendReady && canAccess('inventory');
   const backendClientsEnabled = backendReady && canAccess('clients');
   const backendSalesEnabled = backendReady && canAccess('sales');
-  const loadSalesEnabled = backendReady && (canAccess('sales') || canAccess('reports'));
+  const loadSalesEnabled = backendReady && canAccess('sales');
   const backendTradeInsEnabled = backendReady && canAccess('tradeins');
-  const loadTradeInsEnabled = backendReady && (canAccess('tradeins') || canAccess('reports'));
+  const loadTradeInsEnabled = backendReady && canAccess('tradeins');
   const loadRepairsEnabled = backendReady && canAccess('service');
   const currentScope = `${user?.uid ?? ''}:${activeStoreId ?? ''}:${backendReady ? 'ready' : backendStatus}:${appSession?.membership?.role ?? ''}:${[canAccess('inventory'), canAccess('sales'), canAccess('tradeins'), canAccess('clients'), canAccess('service'), canAccess('reports'), canAccess('notifications')].map(Number).join('')}`;
   scopeRef.current = currentScope;

@@ -9,7 +9,7 @@ import {
   createRepairViaApi,
   createSaleViaApi,
   createTradeInViaApi,
-  loginViaUi,
+  acceptInvitationViaUi,
   updateStoreViaApi,
 } from './utils';
 
@@ -281,12 +281,15 @@ test.describe('reports on a phone', () => {
     try {
       await mockDollar(staff);
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await expect(staff.getByTestId('sidebar-tab-reports')).toHaveCount(0);
       await expect(staff.getByRole('heading', { name: 'Reportes' })).toHaveCount(0);
+      await expectFits(staff);
+      await staff.goto('/#/rep');
+      await expect(staff.getByTestId('no-section-access')).toContainText('No tenés acceso');
+      await expect(staff).toHaveURL(/#\/rep$/);
+      await expect(staff.getByRole('heading', { name: 'Reportes', exact: true })).toHaveCount(0);
       await expectFits(staff);
     } finally {
       await staffContext.close();

@@ -13,6 +13,7 @@ import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
 
 interface LoginProps {
   inviteToken?: string | null;
+  initialRegisterMode?: boolean;
 }
 
 function getAuthErrorCode(error: unknown): string {
@@ -22,12 +23,12 @@ function getAuthErrorCode(error: unknown): string {
   return '';
 }
 
-export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
+export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode = false }) => {
   const { login, loginWithEmail, registerWithEmail } = useAppContext();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(initialRegisterMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -343,7 +344,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                     </>
                   ) : inviteState.preview ? (
                     <>
-                      <p className="text-sm font-semibold">Te invitaron a una tienda</p>
+                      <p className="text-sm font-semibold">Sumate a {inviteState.preview.storeName}</p>
                       <p className="mt-1 text-sm break-words">
                         Vas a unirte a <strong>{inviteState.preview.storeName}</strong>
                         {roleLabel ? <> como <strong>{roleLabel}</strong></> : null}.
@@ -364,7 +365,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken }) => {
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-semibold">Esta invitación ya no está disponible</p>
+                      <p className="text-sm font-semibold">Esta invitación ya no sirve</p>
                       <p className="mt-1 text-sm text-amber-800 max-[760px]:text-[#4B5160]">
                         El enlace expiró, ya fue usado o no es válido. Igual podés iniciar sesión normalmente.
                       </p>

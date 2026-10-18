@@ -47,6 +47,9 @@ describe("invitations.routes", () => {
     await app.register(invitationsRoutes, { prefix: "/api/invitations" });
 
     previewInvitationMock.mockResolvedValue({
+      status: "valid",
+      expiresAt: "2030-10-24T00:00:00.000Z",
+      inviterName: "Matías",
       storeName: "Tienda Centro",
       role: "MANAGER",
     });
@@ -58,6 +61,9 @@ describe("invitations.routes", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
+      status: "valid",
+      expiresAt: "2030-10-24T00:00:00.000Z",
+      inviterName: "Matías",
       storeName: "Tienda Centro",
       role: "MANAGER",
     });

@@ -25,7 +25,7 @@ import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, trade
 import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
 import { ReportDatePicker } from '../report-date-picker';
-import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView } from '../../lib/warranty';
+import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView, warrantyDueCopy } from '../../lib/warranty';
 import { SalePaymentsFields, type SettlementState } from './sale-payments';
 import { SaleAccountPanel } from '../screens/CurrentAccount';
 
@@ -208,7 +208,17 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const noStock = phone && source === 'tradeins' && Boolean(options) && equipmentItems.length === 0;
 
   const typedWarranty = parseWarrantyDaysInput(warrantyDays);
-  const warrantyPreview = saleWarrantyView({ date: arFromIso(saleDate), warrantyDays: typedWarranty.days ?? null, status: 'COMPLETADA' }).phrase;
+  const warrantyQuick = warrantyDays === '30' || warrantyDays === '60' || warrantyDays === '90' ? warrantyDays : 'otro';
+  const warrantyPreview = warrantyDueCopy(saleDate, typedWarranty.error ? null : typedWarranty.days ?? null);
+  const pickWarranty = (next: '30' | '60' | '90' | 'otro') => {
+    dirty.current.add('warranty');
+    clearBad(setBad, 'warranty');
+    if (next === 'otro') {
+      if (warrantyQuick !== 'otro') setWarrantyDays('');
+      return;
+    }
+    setWarrantyDays(next);
+  };
   const buildInput = (draft: boolean): OperationInput => ({
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     sellerMemberId: sellerMemberId || null,
@@ -388,10 +398,20 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
       <ReportDatePicker label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
-      <Field label="Garantía (días)" error={bad.warranty}>
-        <input data-testid="sale-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="0" onChange={(event) => { dirty.current.add('warranty'); setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); clearBad(setBad, 'warranty'); }} />
-      </Field>
-      <p className="eqs-note" data-testid="sale-warranty-until">{warrantyPreview}</p>
+      <Field label="Garantía" error={bad.warranty}><span /></Field>
+      <div className="sgs warranty-presets" role="group" aria-label="Garantía">
+        {(['30', '60', '90'] as const).map((days) => (
+          <button key={days} type="button" className={`sg${warrantyQuick === days ? ' on' : ''}`} aria-pressed={warrantyQuick === days} onClick={() => pickWarranty(days)}>{days} días</button>
+        ))}
+        <button type="button" className={`sg${warrantyQuick === 'otro' ? ' on' : ''}`} aria-pressed={warrantyQuick === 'otro'} onClick={() => pickWarranty('otro')}>Otro</button>
+      </div>
+      {warrantyQuick === 'otro' ? (
+        <div className="warranty-other">
+          <input data-testid="sale-warranty-days" aria-label="Días de garantía" inputMode="numeric" value={warrantyDays} placeholder="0" onChange={(event) => { dirty.current.add('warranty'); setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); clearBad(setBad, 'warranty'); }} />
+          <span>días</span>
+        </div>
+      ) : null}
+      {warrantyPreview ? <p className={`eqs-note${warrantyPreview.startsWith('Vence') ? ' ok' : ''}`} data-testid="sale-warranty-until">{warrantyPreview}</p> : null}
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
           <span>No hay equipos disponibles en el inventario.</span>

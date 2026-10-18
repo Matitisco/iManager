@@ -20,6 +20,7 @@ vi.mock("../stores/stores.service.js", () => ({
   getDefaultMembershipForUser: getDefaultMembershipForUserMock,
   getMembershipForUserAndStore: getMembershipForUserAndStoreMock,
   listStoresForUser: listStoresForUserMock,
+  getStoreOwnerName: vi.fn(async () => "Ana"),
 }));
 
 vi.mock("../billing/service.js", () => ({ getBillingSummary: vi.fn(async () => ({ plan: "INTERNAL", readOnly: false })) }));

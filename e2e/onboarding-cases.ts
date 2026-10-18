@@ -99,7 +99,7 @@ export function onboardingCases(phone: boolean) {
       name: "Invitá a tu equipo",
       exact: true,
     });
-    await invite.getByRole("button", { name: "Vendedor", exact: true }).click();
+    await invite.getByRole("button", { name: "Empleado", exact: true }).click();
     await invite.getByRole("button", { name: "Copiar link de invitación" }).click();
     const linkNode = page.getByTestId("invite-url");
     await expect(linkNode).not.toHaveText("");

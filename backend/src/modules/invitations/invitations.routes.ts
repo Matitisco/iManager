@@ -31,15 +31,6 @@ export async function invitationsRoutes(app: FastifyInstance) {
 
       try {
         const data = await previewInvitation(token);
-        if (!data) {
-          request.log.warn({ event: "invite_preview_unavailable", ...logContext }, "Invitation preview unavailable");
-          return reply.code(410).send({ error: "La invitacion expiro o ya fue utilizada" });
-        }
-
-        request.log.info(
-          { event: "invite_preview_ok", ...logContext, storeName: data.storeName, role: data.role },
-          "Invitation preview loaded"
-        );
         return data;
       } catch (error) {
         request.log.error({ event: "invite_preview_error", ...logContext, error }, "Invitation preview failed");
@@ -125,6 +116,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
         body.email,
         body.role,
         { sections: body.sections, sensitiveAccess: body.sensitiveAccess },
+        request.appUser.userId,
       );
 
       request.log.info(

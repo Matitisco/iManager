@@ -303,7 +303,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updatedStore = await updateStoreApi(user, data);
     setAppSession(prev => prev ? {
       ...prev,
-      store: updatedStore,
+      store: { ...updatedStore, ownerDisplayName: prev.store?.id === updatedStore.id ? prev.store.ownerDisplayName : undefined },
       stores: prev.stores?.map((store) => store.id === updatedStore.id ? { ...store, name: updatedStore.name } : store),
     } : prev);
   };

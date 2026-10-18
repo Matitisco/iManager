@@ -33,6 +33,11 @@ describe('sale column filters', () => {
     expect(matchesSaleColumns(row, filters({ payments: ['Efectivo'] }), labels)).toBe(false);
     expect(matchesSaleColumns(row, filters({ statuses: ['CANCELADA'] }), labels)).toBe(false);
     expect(matchesSaleColumns(row, filters({ equipment: 'iphone' }), labels)).toBe(false);
+    expect(matchesSaleColumns(row, filters({ sellers: ['none'] }), labels)).toBe(true);
+    expect(matchesSaleColumns(sale({ sellerMemberId: 'lucia' }), filters({ sellers: ['lucia'] }), labels)).toBe(true);
+    expect(matchesSaleColumns(sale({ sellerMemberId: 'lucia' }), filters({ sellers: ['none'] }), labels)).toBe(false);
+    expect(saleFiltersActive(filters({ sellers: ['lucia'] }))).toBe(true);
+    expect(saleColumnActive(filters({ sellers: ['lucia'] }), 'sellers')).toBe(true);
     expect(saleFiltersActive(filters({ client: 'ana' }))).toBe(true);
     expect(saleColumnActive(filters({ payments: ['Efectivo'] }), 'payments')).toBe(true);
     expect(saleColumnActive(filters({ payments: ['Efectivo'] }), 'client')).toBe(false);

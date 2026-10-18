@@ -278,7 +278,8 @@ export function PasswordForm({ run, busy, error }: FormProps) {
 }
 
 export function InviteForm({ initialUrl }: { initialUrl?: string }) {
-  const { user, refreshGettingStarted } = useAppContext();
+  const { user, appSession, refreshGettingStarted } = useAppContext();
+  const owner = appSession?.membership?.role === 'OWNER';
   const { close, toast } = useDesk();
   const [role, setRole] = useState<InvitationRole>('STAFF');
   const [email, setEmail] = useState('');
@@ -341,16 +342,16 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
     <Sheet
       className="cfg-sheet fresh-invite"
       title="Invitá a tu equipo"
-      subtitle="Le llega un link para crear su usuario."
+      subtitle="Creá un link y compartilo. No se envía ningún email."
       onClose={close}
     >
       {error && <div className="ferr">{error}</div>}
-      <Field label="Email" error={undefined}>
+      <Field label="Email (opcional)" error={undefined}>
         <input type="email" inputMode="email" autoComplete="email" value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setUrl(''); }} />
       </Field>
       <Field label="Rol"><span /></Field>
       <Segs
-        options={[{ id: 'STAFF', label: 'Vendedor' }, { id: 'MANAGER', label: 'Administrador' }]}
+        options={owner ? [{ id: 'STAFF', label: 'Empleado' }, { id: 'MANAGER', label: 'Socio' }] : [{ id: 'STAFF', label: 'Empleado' }]}
         value={role}
         onChange={(value) => {
           const next = value as InvitationRole;
@@ -369,24 +370,23 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
       <div className="fresh-invite-actions">
         <button className="dbtn p" type="button" data-testid="invite-send" disabled={busy} onClick={() => {
           const target = email.trim();
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+          if (target && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
             setError('Ingresá un email válido.');
             return;
           }
           setBusy(true);
           setError(null);
-          create(target, false)
-            .then(() => { toast('Invitación enviada'); close(); })
+          create(target || undefined, true)
+            .then(() => { toast('Link de invitación creado'); })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
             .finally(() => setBusy(false));
-        }}>{busy ? 'Enviando…' : 'Enviar invitación'}</button>
+        }}>{busy ? 'Creando…' : 'Crear link de invitación'}</button>
         <button className="fresh-copy" type="button" data-testid="invite-copy" disabled={busy} onClick={() => {
           setBusy(true);
           setError(null);
           create(email.trim() || undefined, true)
             .then(async (link) => {
-              try { await navigator.clipboard.writeText(link); } catch { /* The link stays available to copy by hand. */ }
-              rememberCopy();
+              try { await navigator.clipboard.writeText(link); rememberCopy(); } catch { setError('Copiá el link que aparece arriba para compartirlo.'); }
             })
             .catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudo crear la invitación.')))
             .finally(() => setBusy(false));
@@ -397,7 +397,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
 }
 
 export function InvitesList() {
-  const { user } = useAppContext();
+  const { user, appSession } = useAppContext();
   const { close, toast } = useDesk();
   const [rows, setRows] = useState<Invitation[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -413,7 +413,7 @@ export function InvitesList() {
       {rows.length === 0 ? <div className="wempty">No quedan invitaciones.</div> : rows.map((invite) => (
         <div className="kv" key={invite.id}>
           <span>{ROLE_LABEL[invite.role] ?? 'Empleado'} · un solo uso · vence {when(invite.expiresAt)}</span>
-          <button className="mbtn" type="button" onClick={() => {
+          <button className="mbtn" type="button" hidden={appSession?.membership?.role !== 'OWNER' && invite.role !== 'STAFF'} onClick={() => {
             if (!user) return;
             revokeInvitation(user, invite.id)
               .then(() => { toast('Invitación cancelada'); load(); window.dispatchEvent(new Event('desk-invites')); })

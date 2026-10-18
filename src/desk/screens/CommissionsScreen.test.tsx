@@ -148,9 +148,9 @@ describe('Comisiones', () => {
     expect(context.voidCommissionPayment).toHaveBeenLastCalledWith('payment-sofia-1', 'sofia', '2026-10');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Anular pago' })).not.toBeInTheDocument());
   });
-  it('uses Propietario in commission permission explanations', () => {
+  it('explains the personal commissions view', () => {
     render(<MemberPermissions member={{ id: 'sofia', userId: 'sofia-user', role: 'STAFF', sections: null, isDefault: true, createdAt: '2026-01-01', user: { id: 'sofia-user', displayName: 'Sofía', email: 'sofia@test.com', avatarUrl: null } }} onBack={vi.fn()} onSaved={vi.fn()} />);
-    expect(screen.getByText(/Por defecto lo tiene solo el Propietario/)).toBeInTheDocument();
+    expect(screen.getByText(/Sin esto ve solo «Mis comisiones»/)).toBeInTheDocument();
     expect(screen.queryByText(/Dueño/)).not.toBeInTheDocument();
   });
   it('pluralizes a single sale in the detail and adds the desktop Rules icon', async () => {

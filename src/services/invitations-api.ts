@@ -8,7 +8,8 @@ import { toUserMessage } from '../lib/user-message';
 export type InvitationRole = 'MANAGER' | 'STAFF';
 export interface Invitation {
   id: string;
-  email?: string;
+  email?: string | null;
+  inviteUrl: string;
   role: InvitationRole;
   createdAt: string;
   expiresAt: string;
@@ -19,14 +20,19 @@ export interface CreatedInvitation extends Invitation {
   inviteUrl: string;
 }
 
+export type InvitationInvalidReason = 'expired' | 'used' | 'revoked' | 'not_found';
+
 export interface InvitationPreview {
+  status?: 'valid';
+  inviterName?: string;
+  expiresAt?: string;
   storeName: string;
   role: InvitationRole | 'OWNER';
 }
 
 export type InvitationPreviewResolution =
   | { kind: 'valid'; preview: InvitationPreview; attempts: number }
-  | { kind: 'invalid'; attempts: number }
+  | { kind: 'invalid'; reason?: InvitationInvalidReason; attempts: number }
   | { kind: 'error'; message: string; attempts: number };
 
 interface ResolveInvitationPreviewOptions {
@@ -124,9 +130,11 @@ export async function resolveInvitationPreview(
       }
 
       if (res.ok) {
+        const data = await res.json() as InvitationPreview | { status: InvitationInvalidReason };
+        if (data.status && data.status !== 'valid') return { kind: 'invalid', reason: data.status, attempts };
         return {
           kind: 'valid',
-          preview: (await res.json()) as InvitationPreview,
+          preview: data as InvitationPreview,
           attempts,
         };
       }
