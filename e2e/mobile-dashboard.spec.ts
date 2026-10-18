@@ -57,7 +57,7 @@ async function expectFits(page: Page) {
 }
 
 test.describe('desktop dashboard stays put', () => {
-  test('keeps the table, the header action and the old empty copy', async ({ page, request }, testInfo) => {
+  test('keeps the table, the header action and the approved empty states', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'dash-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Dash desk ${testInfo.parallelIndex}`);
@@ -68,9 +68,14 @@ test.describe('desktop dashboard stays put', () => {
     await expect(page.getByTestId('dashboard-register-sale')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
     await expect(page.locator('.hl')).toHaveText('hoy');
-    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
-    await expect(page.getByTestId('dashboard-sales')).toContainText('No encontré ventas.');
-    await expect(page.getByTestId('dashboard-trades')).toContainText('No hay canjes en curso.');
+    await expect(page.locator('.dright').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(2);
+    await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
+    await expect(page.getByTestId('dashboard-sales')).toContainText('Tu primera venta aparece acá');
+    await expect(page.getByTestId('dashboard-sales').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
+    await expect(page.getByTestId('dashboard-trades')).toContainText('Sin canjes en curso');
+    await expect(page.getByTestId('dashboard-trades')).toContainText('Los equipos que recibas como parte de pago aparecen acá');
+    await expect(page.getByTestId('dashboard-trades').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     await createSaleViaApi(request, email, {
       date: todayLabel(),
       clientName: 'Ana Escritorio',
@@ -108,9 +113,13 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByLabel('Invitar')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('dashboard-register-sale').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
-    await expect(page.getByTestId('dashboard-sales')).toContainText('No encontré ventas.');
-    await expect(page.getByTestId('dashboard-trades')).toContainText('No hay canjes en curso.');
+    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(2);
+    await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
+    await expect(page.getByTestId('dashboard-sales')).toContainText('Tu primera venta aparece acá');
+    await expect(page.getByTestId('dashboard-sales').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
+    await expect(page.getByTestId('dashboard-trades')).toContainText('Sin canjes en curso');
+    await expect(page.getByTestId('dashboard-trades')).toContainText('Los equipos que recibas como parte de pago aparecen acá');
+    await expect(page.getByTestId('dashboard-trades').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Venta' })).toHaveCount(0);
     const columns = await page.locator('.dkpis').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(2);
@@ -143,6 +152,7 @@ test.describe('dashboard on a phone', () => {
     await page.reload();
     await expect(page.getByTestId('dashboard-sales')).toContainText(clientName);
     const sales = page.getByTestId('dashboard-sales');
+    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(sales).toContainText('#V-');
     await expect(sales).toContainText('Pixel 8 128GB');
     await expect(sales).toContainText('$ 650.000');
