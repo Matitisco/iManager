@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Eye, EyeOff, Link, MessageCircle, RefreshCw, Settings2 } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ExternalLink, Eye, EyeOff, Link, MessageCircle, RefreshCw, Search, Settings2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogSettings, ManagedCatalog } from '../../types/public-catalog';
@@ -12,8 +12,11 @@ import { PriceList } from '../../catalog/PriceList';
 import { usePhoneLayout } from '../section-notices';
 import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 import { Actions, Dialog, Sheet, useDesk } from '../ui';
+import { TablePager, usePagedRows } from '../pager';
 import '../../catalog/catalog.css';
 import './public-catalog.css';
+
+const CATALOG_PAGE_SIZE = 16;
 
 export function CatalogToggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: () => void }) {
   return <button type="button" role="switch" aria-label={label} aria-checked={checked} disabled={disabled} className={`cat-toggle${checked ? ' on' : ''}`} onClick={onChange}><span /></button>;
@@ -32,6 +35,7 @@ export function PublicCatalogScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pending = useRef(false);
+  const equipment = useRef<HTMLElement>(null);
   const load = async () => { setLoading(true); setError(''); try { await loadPublicCatalog(); } catch (cause) { setError(toUserMessage(cause)); } finally { setLoading(false); } };
   useEffect(() => { void load(); }, [loadPublicCatalog]);
   useOfflineRecovery(error, () => { void load(); });
@@ -51,6 +55,30 @@ export function PublicCatalogScreen() {
   const available = catalog?.counts.available ?? 0;
   const counts = <div className="cat-counts">{[['En la lista', catalog?.counts.visible], ['Ocultos por reglas', catalog?.counts.rules], ['Ocultos a mano', catalog?.counts.manual]].map(([label, value]) => <div key={label}><small>{label}</small><b>{value ?? 0}</b></div>)}</div>;
   const rows = catalog?.items.filter(item => `${item.model} ${item.color} ${item.capacity}`.toLowerCase().includes(query.toLowerCase())) ?? [];
+  // Item visibility changes must not reset pagination when the catalog is refreshed.
+  const resetKey = JSON.stringify([query, catalog?.active, catalog?.hideWithoutStock, catalog?.hideReserved, catalog?.minBattery, catalog?.showPrice, catalog?.priceCurrency]);
+  const page = usePagedRows(rows, resetKey, CATALOG_PAGE_SIZE);
+  const previousPage = useRef(page.page);
+  useLayoutEffect(() => {
+    if (previousPage.current === page.page) return;
+    previousPage.current = page.page;
+    const list = equipment.current;
+    if (!list) return;
+    const viewport = list.closest('.stage')?.getBoundingClientRect();
+    const top = list.getBoundingClientRect().top;
+    if (top < (viewport?.top ?? 0) || top >= (viewport?.bottom ?? window.innerHeight)) {
+      list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [page.page]);
+  const selectedIds = catalog?.items.filter(item => selected.has(item.id)).map(item => item.id) ?? [];
+  const selectedElsewhere = selectedIds.length - page.visible.filter(item => selected.has(item.id)).length;
+  const selectedFiltered = rows.filter(item => selected.has(item.id)).length;
+  const allFilteredSelected = rows.length > 0 && selectedFiltered === rows.length;
+  const selectAll = () => setSelected(current => {
+    const next = new Set(current);
+    rows.forEach(item => { if (allFilteredSelected) next.delete(item.id); else next.add(item.id); });
+    return next;
+  });
   return <div className="dscreen catalog-screen" data-testid="catalog-screen">
     <div className="whead"><div><h1>Catálogo</h1><div className="wsub">Tu lista de precios pública · {catalog?.counts.visible ?? 0} {(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}</div></div>{catalog && !phone && <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div>}</div>
     {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div> : null}
@@ -59,14 +87,45 @@ export function PublicCatalogScreen() {
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
-        {(!phone || tab === 'items') && <section className="cat-card cat-equipment"><div className="cat-card-title"><h2>Equipos</h2><small>{available} {available === 1 ? 'disponible' : 'disponibles'}</small></div><div className="cat-search"><input aria-label="Buscar equipo" placeholder="Buscar equipo" value={query} onChange={e => setQuery(e.target.value)} /><button className="cat-button" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>{selecting ? 'Listo' : 'Seleccionar'}</button></div>
-          {selecting && <div className="cat-bulk"><b>{selected.size} seleccionados</b><div><button className="cat-button" disabled={busy || !selected.size} onClick={() => void run(async () => { await setCatalogVisibility([...selected], true); setSelected(new Set()); })}><Eye size={16} />Mostrar</button><button className="cat-button" disabled={busy || !selected.size} onClick={() => void run(async () => { await setCatalogVisibility([...selected], false); setSelected(new Set()); })}><EyeOff size={16} />Ocultar</button></div></div>}
-          {rows.map(item => <div className={`cat-equipment-row${selected.has(item.id) ? ' selected' : ''}`} key={item.id}>
+        {(!phone || tab === 'items') && <section className="cat-card cat-equipment" ref={equipment}>
+          <div className="cat-card-title">
+            <h2>Equipos</h2>
+            <small>{page.pages > 1 ? `Página ${page.page} de ${page.pages}` : `${available} ${available === 1 ? 'disponible' : 'disponibles'}`}</small>
+          </div>
+          <div className="cat-search">
+            <label className="cat-search-field">
+              <Search size={16} aria-hidden="true" />
+              <input aria-label="Buscar equipo" placeholder="Buscar equipo" value={query} onChange={e => setQuery(e.target.value)} />
+            </label>
+            <button className="cat-button" onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>{selecting ? 'Listo' : 'Seleccionar'}</button>
+          </div>
+          {query && <div className="cat-search-results">
+            <span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span>
+            <button type="button" onClick={() => setQuery('')}>Limpiar</button>
+          </div>}
+          {selecting && <>
+            <div className="cat-bulk">
+              <div className="cat-bulk-counts">
+                <b>{selectedIds.length} {selectedIds.length === 1 ? 'seleccionado' : 'seleccionados'}</b>
+                {selectedElsewhere > 0 && <small>{selectedElsewhere} en otras páginas</small>}
+              </div>
+              <div className="cat-bulk-actions">
+                <button className="cat-button" disabled={busy || !selectedIds.length} onClick={() => void run(async () => { await setCatalogVisibility(selectedIds, true); setSelected(new Set()); })}><Eye size={16} />Mostrar</button>
+                <button className="cat-button" disabled={busy || !selectedIds.length} onClick={() => void run(async () => { await setCatalogVisibility(selectedIds, false); setSelected(new Set()); })}><EyeOff size={16} />Ocultar</button>
+              </div>
+            </div>
+            <label className="cat-select-all">
+              <input type="checkbox" checked={allFilteredSelected} disabled={!rows.length} ref={input => { if (input) input.indeterminate = selectedFiltered > 0 && !allFilteredSelected; }} onChange={selectAll} />
+              Seleccionar todos ({rows.length})
+            </label>
+          </>}
+          {page.visible.map(item => <div className={`cat-equipment-row${selected.has(item.id) ? ' selected' : ''}`} key={item.id}>
             {selecting && <input type="checkbox" aria-label={`Seleccionar ${item.model} ${item.capacity}`} checked={selected.has(item.id)} onChange={() => setSelected(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} />}
             <div className="cat-equipment-info"><b>{item.model} · {item.capacity}</b><small>{item.color} · {catalogCondition(item)} · bat. {item.batteryHealth}</small>{item.reason && <span className={`cat-reason${item.reason === 'Oculto a mano' ? ' manual' : ''}`}><EyeOff size={11} />{item.reason}</span>}</div>
             {!selecting && <><strong>{catalogPrice({ ...item, currency: item.currency ?? appSession?.store?.currency })}</strong><CatalogToggle label={`Visible en catálogo: ${item.model} ${item.capacity}`} checked={item.catalogVisible && !item.reason} disabled={busy || (!!item.reason && item.reason !== 'Oculto a mano')} onChange={() => void run(() => setCatalogVisibility([item.id], !item.catalogVisible))} /></>}
           </div>)}
           {!rows.length && <p className="cat-empty">{catalog.items.length ? 'No hay equipos con esa búsqueda.' : 'Agregá equipos en Inventario para publicarlos.'}</p>}
+          <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} pageSize={CATALOG_PAGE_SIZE} />
         </section>}
         {(!phone || tab === 'summary') && <aside className="cat-summary">
           <section className="cat-card cat-link"><div className="cat-card-title"><h2>Link público</h2><span className={`cat-active${catalog.active ? ' on' : ''}`}>● {catalog.active ? 'Activo' : 'Pausado'}</span></div><div className="cat-link-box"><Link size={16} /><input aria-label="Link público" readOnly value={link} /><button className="cat-button dark" onClick={() => void copy()}>Copiar</button></div><div className="cat-share-actions"><a href={share} target="_blank" rel="noopener noreferrer"><span className="green"><MessageCircle size={20} /></span>WhatsApp</a><button onClick={() => void copy()}><span className="yellow"><Link size={20} /></span>Copiar link</button><a href={link} target="_blank" rel="noopener noreferrer"><span><ExternalLink size={20} /></span>Abrir</a></div></section>
