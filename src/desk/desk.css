@@ -62,7 +62,9 @@
 .dnav::-webkit-scrollbar { display: none; }
 .duser { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; width: 100%; text-align: left; }
 .duser:hover { background: #F3F4F6; }
-.duser b { display: block; font-size: 14px; }
+.duser .info { flex: 1; min-width: 0; }
+.duser .av-c { flex: none; }
+.duser b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .duser small { font-size: 12px; color: var(--secondary); font-weight: 600; }
 
 .stage { flex: 1; min-width: 0; overflow-y: auto; }
@@ -108,7 +110,7 @@
 .dch h3 { font-size: 16px; font-weight: 800; }
 .wlink { font-size: 13px; font-weight: 700; color: #16181D; text-decoration: underline; text-underline-offset: 3px; padding: 2px; }
 .whead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 0 0 18px; }
-.whead h1 { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1.12; }
+.whead h1 { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .wsub { font-size: 13px; font-weight: 500; margin-top: 3px; color: var(--secondary); }
 .mut { color: var(--secondary); font-size: 13px; font-weight: 600; }
 .up { color: var(--ok); font-weight: 800; }
@@ -254,10 +256,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }
 .sale-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
 .sale-sec span:last-child { letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 700; }
-.sale-line { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 0 8px; padding-left: 16px; max-width: 100%; }
-.sale-line::before { content: ""; position: absolute; left: 4px; top: 18px; bottom: 18px; width: 2px; background: #E4E6EA; }
+.sale-line { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 0 8px; max-width: 100%; }
+.sale-line::before { content: ""; position: absolute; left: 14px; top: 18px; bottom: 18px; width: 2px; background: #E4E6EA; }
 .sale-node { position: relative; min-width: 0; max-width: 100%; }
-.sale-node::before { content: ""; position: absolute; left: -15px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
+.sale-node .phone-row { padding-left: 24px; }
+.sale-node::before { content: ""; position: absolute; left: 10px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
 .sale-node.pending::before { background: var(--lime); border-color: #E2B100; }
 .sale-node.cancelled::before { background: #fff; border-color: #C4C8CE; }
 .phone-row:has(.sale-card),
@@ -1813,13 +1816,14 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .commission-hero { padding: 20px 18px; }
   .commission-hero > div > .commission-totals { font-size: 32px; margin: 10px 0; }
   .commission-banner { font-size: 14px; padding: 13px 16px; }
-  .commission-people { display: grid; gap: 12px; }
-  .commission-person { width: 100%; padding: 12px 14px; text-align: left; color: var(--primary); }
+  .commission-people { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .commission-person { min-width: 0; width: 100%; padding: 12px 14px; text-align: left; color: var(--primary); }
   .commission-person-head { display: flex; align-items: center; gap: 10px; }
-  .commission-person-head b { font-size: 16px; }
+  .commission-person-head > div:not(.av-c) { flex: 1; min-width: 0; }
+  .commission-person-head b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
   .commission-person-head small { display: block; color: var(--secondary); margin-top: 5px; font-size: 13px; }
   .commission-person-head .chev { margin-left: auto; }
-  .commission-person-values { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 14px; padding-top: 10px; border-top: 1px solid #edeef1; gap: 5px; font-size: 13px; }
+  .commission-person-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; padding-top: 10px; border-top: 1px solid #edeef1; gap: 5px; font-size: 13px; }
   .commission-person-values > div { padding: 6px; border-radius: 10px; }
   .commission-person-values > div > span:first-child { color: var(--secondary); font-size: 11px; font-weight: 700; }
   .commission-person-values .commission-totals { font-size: 14px; margin-top: 4px; }
@@ -1922,6 +1926,8 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .acct-tenders, .acct-stack { display: grid; gap: 8px; min-width: 0; }
 .acct-plan { display: grid; gap: 8px; margin: 8px 0 12px; min-width: 0; }
 .acct-views { min-width: 0; flex: 1 1 100%; }
+.clients-filters { flex-wrap: wrap; }
+.clients-filters > .wchips { flex-wrap: nowrap; }
 @media (max-width: 760px) {
   .dbar:has(.acct-views) { flex-wrap: wrap; align-items: flex-start; }
   .acct-views .wchips { flex-wrap: wrap; overflow: visible; }
@@ -1989,7 +1995,24 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dashboard-screen .dbtn.p { min-height: 44px; }
 .dashboard-screen .hlist .item { min-height: 56px; padding: 12px 4px; }
 @media (max-width: 760px) {
-  .dscreen.dashboard-screen { padding: 16px 16px 64px; }
+  .dscreen.dashboard-screen { padding: 16px 14px 64px; }
   .dashboard-screen .hero, .dashboard-screen .dcard, .dashboard-screen button.mini { padding: 16px; }
   .dashboard-screen .dbtn.p { min-height: 56px; }
+}
+
+/* Keep the seller table inside the standard desktop content gutters (#395). */
+.commission-table { table-layout: fixed; }
+.commission-table th:first-child { width: 23%; }
+.commission-table th:nth-child(2) { width: 17%; }
+.commission-table th:nth-child(3) { width: 6%; }
+.commission-table th:last-child { width: 6%; }
+.commission-table th, .commission-table td, .commission-table tfoot td { padding-inline: 10px; }
+.commission-name { width: 100%; }
+.commission-name > span { min-width: 0; }
+.commission-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commission-rule-chip { max-width: 100%; white-space: normal; }
+.reports-screen > .dtop { align-items: flex-start; }
+@media (max-width: 760px) {
+  .reports-screen .gfilters .gperiods { gap: 4px; justify-content: space-between; }
+  .reports-screen .gperiods .gchip { padding-inline: 7px; flex: none; }
 }

@@ -287,12 +287,12 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative max-[760px]:block max-[760px]:h-full max-[760px]:overflow-hidden max-[760px]:p-0">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative max-[760px]:block max-[760px]:h-full max-[760px]:overflow-y-auto max-[760px]:p-0">
         <form
           onSubmit={handleEmailSubmit}
-          className="w-full max-w-md max-[760px]:flex max-[760px]:h-full max-[760px]:max-w-none max-[760px]:flex-col"
+          className="w-full max-w-md max-[760px]:flex max-[760px]:min-h-full max-[760px]:max-w-none max-[760px]:flex-col"
         >
-        <div data-testid="auth-scroll" className="max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:flex-1 max-[760px]:overflow-y-auto max-[760px]:overflow-x-hidden max-[760px]:px-5 max-[760px]:pt-6 max-[760px]:pb-2">
+        <div data-testid="auth-scroll" className="max-[760px]:min-h-0 max-[760px]:min-w-0 max-[760px]:shrink-0 max-[760px]:overflow-x-hidden max-[760px]:px-[14px] max-[760px]:pt-6 max-[760px]:pb-2">
         <motion.div layout className="w-full max-w-md max-[760px]:max-w-none">
           <div className="lg:hidden mb-12 max-[760px]:mb-8" data-testid="login-brand">
             <BrandLockup variant="tagline" className="h-12 w-auto max-w-full" />
@@ -515,7 +515,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
 
         <div
           data-testid="auth-footer"
-          className="max-[760px]:shrink-0 max-[760px]:border-t max-[760px]:border-[#E6E8EC] max-[760px]:bg-[#F7F8FA] max-[760px]:px-5 max-[760px]:pt-3"
+          className="max-[760px]:shrink-0 max-[760px]:bg-[#F7F8FA] max-[760px]:px-[14px] max-[760px]:pt-3"
           style={phone ? { paddingBottom: keyboardInset > 0 ? 12 : 'calc(12px + env(safe-area-inset-bottom, 0px))' } : undefined}
         >
             <motion.button
@@ -524,7 +524,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
               whileTap={{ scale: 0.98 }}
               disabled={isLoading}
               type="submit"
-              className="mb-6 w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:mb-3 max-[760px]:rounded-2xl max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400] max-[760px]:focus:ring-[#16181D]"
+              className="mb-6 h-[54px] w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-black text-white rounded-xl font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:mb-3 max-[760px]:rounded-2xl max-[760px]:bg-[#FFD000] max-[760px]:font-bold max-[760px]:text-[#16181D] max-[760px]:hover:bg-[#F2C400] max-[760px]:focus:ring-[#16181D]"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin max-[760px]:border-[#16181D]/30 max-[760px]:border-t-[#16181D]" />
@@ -552,7 +552,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
             onClick={handleGoogleLogin}
             disabled={isGoogleLoading}
             type="button"
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:rounded-2xl"
+            className="h-[54px] w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[760px]:rounded-2xl"
           >
             {isGoogleLoading ? (
               <div className="w-5 h-5 border-2 border-gray-300 border-t-black rounded-full animate-spin" />

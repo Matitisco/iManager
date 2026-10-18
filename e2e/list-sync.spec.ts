@@ -44,6 +44,7 @@ test('a refresh keeps the text typed in an open sale', async ({ page, request },
   const email = buildTestEmail(testInfo, 'list-sync-draft');
   await bootstrapStoreViaApi(page, request, email, 'iManager · Borrador');
   await page.getByTestId('sidebar-tab-sales').click();
+  await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   const client = page.getByRole('combobox', { name: 'Cliente' });
   await client.fill('Borrador sin guardar');

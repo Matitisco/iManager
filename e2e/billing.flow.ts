@@ -19,6 +19,15 @@ async function shot(page: Page, device: string, state: string) {
   await page.screenshot({ path: `${process.env.ISSUE_359_SHOTS}/issue-359-${device}-${state}.png`, animations: 'disabled' });
 }
 export function registerBillingTests(device: string) {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('imanager:install-dismissed:ios', 'yes');
+      localStorage.setItem('imanager:install-dismissed:android', 'yes');
+    });
+    await page.route('https://dolarapi.com/**', route => route.fulfill({ json: {
+      compra: 1535, venta: 1555, fechaActualizacion: new Date().toISOString(),
+    } }));
+  });
   test.afterAll(async () => { await prisma.$disconnect(); });
   test(`prueba, precios USD, confirmación ARS y checkout de Mercado Pago · ${device}`, async ({ page, request }, info) => {
     const email = buildTestEmail(info, 'billing');
@@ -81,8 +90,7 @@ export function registerBillingTests(device: string) {
       expect(padding).toBeGreaterThanOrEqual(24);
     }
     await fits(page); await shot(page, device, 'ars');
-    mkdirSync('/opt/cursor/artifacts/billing-card-guidance', { recursive: true });
-    await page.screenshot({ path: `/opt/cursor/artifacts/billing-card-guidance/${device}-02-antes-de-suscribirte.png`, animations: 'disabled' });
+    await page.screenshot({ path: info.outputPath(`${device}-02-antes-de-suscribirte.png`), animations: 'disabled' });
     await page.keyboard.press('Escape');
     await expect(quote).toHaveCount(0);
     await page.getByRole('button', { name: 'Suscribirme a Básico' }).click();
@@ -114,14 +122,15 @@ export function registerBillingTests(device: string) {
     await page.getByRole('button', { name: 'Cancelar suscripción', exact: true }).click();
     await page.route('**/api/billing/cancel', route => route.fulfill({ status: 502, json: { error: 'Provider failure' } }));
     await page.getByRole('button', { name: 'Sí, cancelar suscripción' }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.locator('.billing-error[role="alert"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sí, cancelar suscripción' })).toBeVisible();
     await page.route('**/api/billing/cancel', async route => {
       await prisma.store.update({ where: { id: storeId }, data: { billingStatus: 'CANCELLED' } });
       await route.fulfill({ json: { ok: true } });
     });
     await page.getByRole('button', { name: 'Sí, cancelar suscripción' }).click();
-    await expect(page.getByRole('status')).toContainText('Suscripción cancelada.');
+    await expect(page.getByText('Cargando planes…', { exact: true })).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: 'Suscripción cancelada.' })).toBeVisible();
     await shot(page, device, 'cancelled');
     await prisma.store.update({ where: { id: storeId }, data: { billingPlan: 'INTERNAL', billingStatus: 'ACTIVE' } });
     await page.reload();
@@ -221,8 +230,7 @@ export function registerBillingTests(device: string) {
       expect(payBox && tabBox && payBox.y + payBox.height <= tabBox.y + 1).toBeTruthy();
     }
     await fits(page);
-    mkdirSync('/opt/cursor/artifacts/billing-card-guidance', { recursive: true });
-    await page.screenshot({ path: `/opt/cursor/artifacts/billing-card-guidance/${device}-06-pago-no-completado.png`, animations: 'disabled' });
+    await page.screenshot({ path: info.outputPath(`${device}-06-pago-no-completado.png`), animations: 'disabled' });
     await card.getByRole('button', { name: 'Pagar con mi cuenta de Mercado Pago' }).click();
     await expect(page).toHaveURL(/preapproval_id=retry/);
     expect(checkouts).toEqual([{ quoteId: 'retry-quote' }]);

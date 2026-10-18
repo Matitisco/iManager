@@ -178,9 +178,10 @@ describe('Member permissions', () => {
 });
 
 describe('settings on a phone', () => {
-  const originalMatchMedia = window.matchMedia;
+  let originalMatchMedia: typeof window.matchMedia;
 
   beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: String(query).includes('760'),
       media: query,
@@ -253,7 +254,11 @@ describe('settings on a phone', () => {
 });
 
 describe('employee settings', () => {
-  const originalMatchMedia = window.matchMedia;
+  let originalMatchMedia: typeof window.matchMedia;
+
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+  });
 
   afterEach(() => {
     context.appSession.membership.role = 'OWNER';
