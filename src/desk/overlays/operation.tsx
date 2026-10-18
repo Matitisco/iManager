@@ -60,6 +60,11 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const tradeRef = explicitSale?.tradeInId ?? tradeId;
   const currentTrade = tradeIns.find((trade) => trade.id === tradeRef) ?? operationDrafts.find((trade) => trade.id === tradeRef);
   const currentSale = explicitSale ?? sales.find((sale) => sale.id === currentTrade?.saleId);
+  const cancelled = currentSale?.status === 'CANCELADA';
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [error]);
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [optionError, setOptionError] = useState<string | null>(null);
   const [hasTrade, setHasTrade] = useState(startWithTrade || Boolean(tradeRef));
@@ -292,7 +297,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     return Object.keys(next).length === 0;
   };
   const save = (kind: 'draft' | 'confirm') => {
-    if (!validate(kind)) return;
+    if (cancelled || busy || !validate(kind)) return;
     const includeAmount = !(kind === 'draft' && !amount.trim());
     const originalAmount = currentSale?.amount ?? currentTrade?.draftAmount ?? selectedProduct?.price ?? 0;
     const originalCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(selectedProduct);
@@ -365,7 +370,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   );
   return (
     <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={sheetClass || undefined}>
-      {error && <div className="ferr">{error}</div>}
+      {cancelled ? <div className="ferr">Esta venta está cancelada y no se puede editar.</div> : null}
+      {error && <div ref={errorRef} className="ferr">{error}</div>}
       {optionError && <div className="ferr">{optionError}</div>}
       <ClientField
         clients={optionClients}
@@ -440,8 +446,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <div className="sacts">
         <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
-        {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
-        <button className="btn2 p" type="button" disabled={busy} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
+        {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy || cancelled} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
+        <button className="btn2 p" type="button" disabled={busy || cancelled} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
       </div>
     </Sheet>
   );
@@ -512,7 +518,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         <div className="sacts">
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
           {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-          <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button>
+          {sale.status !== 'CANCELADA' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
           <button className="btn2 p" type="button" onClick={() => {
             const text = [
               saleCode(sale),
