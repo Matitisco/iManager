@@ -6,7 +6,7 @@ import {
   createInvitationViaApi,
   createTradeInViaApi,
   fetchTradeIns,
-  loginViaUi,
+  acceptInvitationViaUi,
   updateStoreViaApi,
 } from './utils';
 
@@ -385,9 +385,7 @@ test.describe('trade-ins on a phone', () => {
     try {
       await mockDollar(staff);
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await staff.getByTestId('sidebar-tab-tradeins').click();
       await expect(staff.getByTestId('page-back')).toHaveCount(0);

@@ -218,11 +218,15 @@ for (const viewport of viewports) {
       const invite = page.getByRole('dialog', { name: 'Invitá a tu equipo' });
       await invite.getByTestId('invite-copy').click();
       await expect(invite.getByTestId('invite-url')).not.toHaveText('');
+      const inviteUrl = await invite.getByTestId('invite-url').innerText();
       await shot(page, `${prefix}-16-invitacion.png`);
       await page.keyboard.press('Escape');
       await expect(invite).toBeHidden();
       await expect(page.getByTestId('settings-invites')).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Compartir por WhatsApp' })).toBeVisible();
+      const share = page.getByTestId('settings-invites').getByRole('link', { name: 'Compartir por WhatsApp' })
+        .and(page.locator(`a[href*="${encodeURIComponent(inviteUrl)}"]`));
+      await expect(share).toBeVisible();
+      await expect(share).toHaveAttribute('href', `https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${storeName}: ${inviteUrl}`)}`);
       await shot(page, `${prefix}-17-invitaciones.png`);
 
       await page.locator('[data-testid^="settings-member-"]').filter({ hasText: 'Empleado' }).click();

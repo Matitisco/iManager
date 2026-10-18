@@ -5,7 +5,7 @@ import {
   createClientViaApi,
   createInvitationViaApi,
   fetchClients,
-  loginViaUi,
+  acceptInvitationViaUi,
   updateStoreViaApi,
 } from './utils';
 
@@ -305,9 +305,7 @@ test.describe('clients on a phone', () => {
     try {
       await mockDollar(staff);
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await openClients(staff);
       await expect(staff.getByTestId('page-back')).toBeVisible();
