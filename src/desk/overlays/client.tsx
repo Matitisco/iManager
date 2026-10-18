@@ -15,9 +15,8 @@ import type { CatalogKind } from '../../services/catalogs-api';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
-import { clientCoverageLines } from '../../lib/warranty';
 import { clientCredit, creditTotal } from '../client-balance';
-import { CoverageBlock } from '../warranty';
+import { ClientPurchases } from '../ClientPurchases';
 
 function paymentCaption(payment: ClientPaymentRecord) {
   const label = payment.kind === 'DEVOLUCION' ? 'Devolución'
@@ -33,7 +32,7 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [] } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [] } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
@@ -134,8 +133,7 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
-      {phone ? <div className="kv"><span>Total gastado</span><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></div> : null}
-      <CoverageBlock testId="client-warranties" lines={clientCoverageLines(client.id, sales, repairOrders)} />
+      <ClientPurchases clientId={client.id} sales={sales} tradeIns={tradeIns} repairs={repairOrders} inventory={inventory} sellers={commissionSellers} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}
