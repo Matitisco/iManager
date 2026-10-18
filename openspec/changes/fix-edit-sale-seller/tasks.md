@@ -1,0 +1,6 @@
+- [x] Proteger entradas de edición y formulario de ventas canceladas
+- [x] Desplazar errores de guardado a la vista
+- [x] Comparar importes de señas a centavos
+- [x] Cubrir vendedor, comisión y conservación de datos con pruebas
+- [x] Ejecutar suites, TypeScript, build y E2E Chromium desktop/mobile
+- [x] Conservar diferencia bruta del canje con señas al editar

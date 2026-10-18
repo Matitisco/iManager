@@ -945,7 +945,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const nextClientId = nextClient?.id ?? null;
     let nextStatus = input.status ?? sale.status;
     if (input.depositIds?.length) throw new OperationError("Las señas se aplican al crear una venta", 409);
-    if (Number(sale.depositAppliedAmount) > 0 && (nextClientId !== sale.clientId || nextProductId !== sale.inventoryItemId || nextAmount !== Number(sale.amount) || nextCurrency && nextCurrency !== sale.amountCurrency || hasTrade !== Boolean(trade) || nextTakeValue !== Number(trade?.takeValue ?? 0))) throw new OperationError("Esta venta tiene señas aplicadas. Para cambiar cliente, equipo o importes, cancelala y registrá una nueva", 409);
+    if (Number(sale.depositAppliedAmount) > 0 && (nextClientId !== sale.clientId || nextProductId !== sale.inventoryItemId || amountChanges || nextCurrency && nextCurrency !== sale.amountCurrency || hasTrade !== Boolean(trade) || moneyChanged(trade?.takeValue ?? 0, nextTakeValue))) throw new OperationError("Esta venta tiene señas aplicadas. Para cambiar cliente, equipo o importes, cancelala y registrá una nueva", 409);
     if (hasTrade && !nextClient) throw new OperationError("El canje confirmado requiere un cliente", 400);
     const nextDebt = Math.max(0, nextAmount - nextTakeValue - Number(sale.depositAppliedAmount));
     const priorDue = (trade ? toNum(trade.differencePaid) : toNum(sale.amount)) - Number(sale.depositAppliedAmount);
@@ -1030,7 +1030,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
               : nextTradeInput.deviceReceivedImei?.trim() || null,
           takeValue: dec(nextTakeValue),
           ...(nextCurrency ? { currency: nextCurrency } : {}),
-          differencePaid: dec(nextDebt),
+          differencePaid: dec(nextAmount - nextTakeValue),
           deviceGiven: nextProduct?.model ?? nextDeviceLabel ?? "",
           status: nextTradeInput?.status ?? trade.status,
           batteryHealth:
@@ -1068,7 +1068,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         deviceReceived: nextTradeInput.deviceReceived.trim(),
         deviceReceivedImei: nextTradeInput.deviceReceivedImei?.trim() || null,
         takeValue: dec(nextTakeValue), currency: nextCurrency ?? sale.amountCurrency,
-        differencePaid: dec(nextDebt), deviceGiven: nextProduct?.model ?? nextDeviceLabel ?? "",
+        differencePaid: dec(nextAmount - nextTakeValue), deviceGiven: nextProduct?.model ?? nextDeviceLabel ?? "",
         status: nextTradeInput.status ?? "PENDIENTE",
         confirmationStatus: "CONFIRMED", operationSource: "sales",
         batteryHealth: nextTradeInput.batteryHealth?.trim() || null,
