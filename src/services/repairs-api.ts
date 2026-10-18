@@ -57,6 +57,17 @@ export async function changeBackendRepairStatus(user: AuthUserLike, id: string, 
   return body.order;
 }
 
-export async function deleteBackendRepair(user: AuthUserLike, id: string) {
-  await request(user, `/api/repairs/${id}`, 'DELETE');
+export async function fetchArchivedRepairs(user: AuthUserLike) {
+  const body = await request(user, '/api/repairs?archived=1', 'GET');
+  return body.orders ?? [];
+}
+
+export async function deleteBackendRepair(user: AuthUserLike, id: string, reason?: string) {
+  await request(user, `/api/repairs/${id}`, 'DELETE', reason == null ? undefined : { reason });
+}
+
+export async function restoreBackendRepair(user: AuthUserLike, id: string) {
+  const body = await request(user, `/api/repairs/${id}/restore`, 'POST');
+  if (!body.order) throw new Error('Respuesta inválida al restaurar la orden');
+  return body.order;
 }

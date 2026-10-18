@@ -3,6 +3,8 @@ import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { fetchArchivedInventory } from '../../services/inventory-api';
+import { rememberArchivedProducts } from '../archive-cache';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
@@ -66,7 +68,7 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, deleteProduct, operationDrafts = [] } = useAppContext();
+  const { inventory, deleteProduct, operationDrafts = [], user } = useAppContext();
   const money = useMoney();
   const { sell } = useDisplayQuote();
   const catalogs = useCatalogs();
@@ -80,6 +82,8 @@ export function InventoryScreen() {
   const [query, setQuery] = useState('');
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
+  const [archivedMode, setArchivedMode] = useState(false);
+  const [archived, setArchived] = useState<Product[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
@@ -92,9 +96,20 @@ export function InventoryScreen() {
     return () => window.removeEventListener('desk-eq-saved', reset);
   }, []);
 
+  useEffect(() => {
+    if (!archivedMode || !user) return;
+    let active = true;
+    fetchArchivedInventory(user).then((rows) => {
+      if (!active) return;
+      setArchived(rows);
+      rememberArchivedProducts(rows);
+    }).catch(() => { if (active) setArchived([]); });
+    return () => { active = false; };
+  }, [archivedMode, user]);
+  const source = archivedMode ? archived : inventory;
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = inventory.filter((item) => {
+    let list = source.filter((item) => {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
       return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
@@ -107,7 +122,7 @@ export function InventoryScreen() {
     if (sort === 'Color ↑') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'asc') || a.model.localeCompare(b.model, 'es'));
     if (sort === 'Color ↓') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'desc') || a.model.localeCompare(b.model, 'es'));
     return list;
-  }, [inventory, query, columns, sort, money, phone]);
+  }, [source, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
   const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
   const scope = useBulkScope();
@@ -185,16 +200,17 @@ export function InventoryScreen() {
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
         <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
+        <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
-        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden eliminar. Esta acción no se puede deshacer.', execute: (item) => deleteProduct(item.id) }}
+        action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item) => deleteProduct(item.id) }}
       />
-      {phone && inventory.length > 0 ? (
+      {phone && (archivedMode ? listed.length : inventory.length) > 0 ? (
         <>
-          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{listed.length} de {inventory.length}</span></div>
+          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${inventory.length}`}</span></div>
           {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
         </>
       ) : null}
@@ -221,10 +237,10 @@ export function InventoryScreen() {
           </PhoneRecords>
         ) : (
         <>
-        {inventory.length > 0 ? (
+        {(archivedMode ? listed.length : inventory.length) > 0 ? (
           <div className="dch pad">
             <h3>Equipos</h3>
-            <span className="mut" data-testid="inventory-total">{listed.length} de {inventory.length}</span>
+            <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${inventory.length}`}</span>
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
@@ -361,7 +377,7 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}</div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
                   <td>{(item.color ?? '').trim() || '—'}</td>
@@ -370,7 +386,7 @@ export function InventoryScreen() {
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
                   <td className="r"><b>{item.price > 0 ? money.show(item.price, item.currency) : '-'}</b></td>
                   <td>
-                    {item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
+                    {item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
                     {item.reservedClientName ? <small className="reservation-label">Para {item.reservedClientName}</small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
@@ -501,6 +517,14 @@ export function InventoryScreen() {
   );
 }
 
+function archiveCaption(item: Product) {
+  if (!item.archivedAt) return '';
+  const when = new Date(item.archivedAt);
+  const date = Number.isNaN(when.getTime()) ? '' : when.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  const who = item.archivedBy ? `por ${item.archivedBy}${date ? ` el ${date}` : ''}` : (date ? `el ${date}` : '');
+  return `Archivado ${who}${item.archiveReason ? ` · ${item.archiveReason}` : ''}`.replace(/\s+/g, ' ').trim();
+}
+
 function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; sell: number | null }) {
   const condition = [conditionName(item.condition), item.color].filter(Boolean).join(' · ');
   const specs = [qualityPhrase(item.condition, item.grade), batteryLine(item.batteryHealth)].filter(Boolean).join(' · ');
@@ -508,10 +532,10 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
   return (
     <span className="inv-card">
       <span className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
-      <span className="inv-status">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
+      <span className="inv-status">{item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">
         <b>{equipmentTitle(item.model, item.capacity)}</b>
-        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}
+        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}
       </span>
       <span className="inv-meta">
         <small>{condition || '—'}</small>

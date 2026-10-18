@@ -105,7 +105,7 @@ describe("stores.service", () => {
     await createStoreForUser("user-1", "  Sucursal Norte  ");
 
     expect(prismaMock.storeMember.updateMany).toHaveBeenCalledWith({
-      where: { userId: "user-1" },
+      where: { userId: "user-1", removedAt: null },
       data: { isDefault: false },
     });
     expect(prismaMock.store.create).toHaveBeenCalledWith({

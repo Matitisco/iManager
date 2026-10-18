@@ -22,7 +22,7 @@ import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
 import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
-import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
+import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, restoreBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
 import { creditTotal } from '../desk/client-balance';
 import { isActiveTradeOperation } from '../desk/format';
@@ -37,7 +37,8 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   addRepairOrder: (input: RepairOrderInput) => Promise<RepairOrder>;
   updateRepairOrder: (id: string, input: Partial<RepairOrderInput>) => Promise<RepairOrder>;
   changeRepairStatus: (id: string, status: string) => Promise<RepairOrder>;
-  deleteRepairOrder: (id: string) => Promise<void>;
+  deleteRepairOrder: (id: string, reason?: string) => Promise<void>;
+  restoreRepairOrder: (id: string) => Promise<void>;
   sales: Sale[];
   tradeIns: TradeIn[];
   clients: Client[];
@@ -65,16 +66,16 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   fetchSaleOperation: (id: string) => Promise<OperationResult>;
   fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
   updateSale: (sale: Sale) => Promise<OperationResult | void>;
-  deleteSale: (id: string) => Promise<OperationResult | void>;
+  deleteSale: (id: string, reason?: string) => Promise<OperationResult | void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
+  deleteProduct: (id: string, reason?: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: Client) => Promise<void>;
   registerClientPayment: (clientId: string, input: { amount: number; method: string; currency?: string | null }) => Promise<Client>;
-  deleteClient: (id: string) => Promise<void>;
+  deleteClient: (id: string, reason?: string) => Promise<void>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<OperationResult | void>;
-  deleteTradeIn: (id: string) => Promise<OperationResult | void>;
+  deleteTradeIn: (id: string, reason?: string) => Promise<OperationResult | void>;
   reloadInventory: () => Promise<void>;
   reloadSales: () => Promise<void>;
   reloadClients: () => Promise<void>;
@@ -553,7 +554,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const deleteSale = async (id: string) => {
+  const deleteSale = async (id: string, reason?: string) => {
     if (!user) return;
     if (!backendSalesEnabled) {
       throw new Error(
@@ -566,7 +567,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!cancelled && (existingSale?.integratedOperation || existingSale?.tradeInId)) {
       return await runCancelSaleOperation(id);
     }
-    await deleteBackendSale(user, id);
+    await deleteBackendSale(user, id, reason);
 
     if (!cancelled && existingSale?.productId) {
       setInventory(prev => prev.map(product => (
@@ -631,11 +632,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return order;
   };
 
-  const deleteRepairOrder = async (id: string) => {
+  const deleteRepairOrder = async (id: string, reason?: string) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
-    await deleteBackendRepair(user, id);
+    await deleteBackendRepair(user, id, reason);
     setRepairOrders((current) => current.filter((item) => item.id !== id));
+    noteLocalMutation();
+  };
+
+  const restoreRepairOrder = async (id: string) => {
+    if (!user) throw new Error('No hay sesión');
+    if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const order = await restoreBackendRepair(user, id);
+    setRepairOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
     noteLocalMutation();
   };
 
@@ -681,14 +690,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const deleteProduct = async (id: string) => {
+  const deleteProduct = async (id: string, reason?: string) => {
     if (!user) return;
     if (!backendInventoryEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para eliminar inventario. Reintenta en unos segundos.'
       );
     }
-    await deleteBackendInventoryItem(user, id);
+    await deleteBackendInventoryItem(user, id, reason);
     setInventory(prev => prev.filter(product => product.id !== id));
     noteLocalMutation();
   };
@@ -768,14 +777,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return updated;
   };
 
-  const deleteClient = async (id: string) => {
+  const deleteClient = async (id: string, reason?: string) => {
     if (!user) return;
     if (!backendClientsEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para eliminar clientes. Reintenta en unos segundos.'
       );
     }
-    await deleteBackendClient(user, id);
+    await deleteBackendClient(user, id, reason);
     setClients(prev => prev.filter(client => client.id !== id));
     noteLocalMutation();
   };
@@ -815,7 +824,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     noteLocalMutation();
   };
 
-  const deleteTradeIn = async (id: string) => {
+  const deleteTradeIn = async (id: string, reason?: string) => {
     if (!user) return;
     if (!backendTradeInsEnabled) {
       throw new Error(
@@ -826,7 +835,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (existing && isActiveTradeOperation(existing)) {
       return await runCancelTradeOperation('tradeins', id);
     }
-    await deleteBackendTradeIn(user, id);
+    await deleteBackendTradeIn(user, id, reason);
     setTradeIns(prev => prev.filter(t => t.id !== id));
     noteLocalMutation();
   };
@@ -844,7 +853,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...commissions,
       ...catalogState,
       inventory, sales, tradeIns, clients, customColumns,
-      repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder,
+      repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder, restoreRepairOrder,
       operationOptions, operationDrafts,
       operationNotifications,
       notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead,

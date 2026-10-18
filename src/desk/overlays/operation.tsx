@@ -6,6 +6,8 @@ import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { getFriendlyErrorMessage } from '../../lib/utils';
+import { voidedSale } from '../archive-cache';
+import { RecordHistory } from '../screens/HistoryScreen';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
 import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
@@ -451,7 +453,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const { sales, clients, inventory, tradeIns, user, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
-  const sale = sales.find((item) => item.id === id);
+  const sale = sales.find((item) => item.id === id) ?? voidedSale(id);
   const [detailError, setDetailError] = useState<string | null>(null);
   useEffect(() => { if (loadCommissionSellers) void loadCommissionSellers().catch((cause: unknown) => setDetailError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, []);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -502,7 +504,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const coverage = saleWarrantyView(sale);
   return (
     <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet" footer={
-      sale.status === 'PENDIENTE' ? (
+      sale.voidedAt ? <div className="sacts"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div> : sale.status === 'PENDIENTE' ? (
         <div className="sacts">
           {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
           <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
@@ -532,8 +534,10 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       )
     }>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+      {sale.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulada</b><small>{sale.voidedBy ? `por ${sale.voidedBy}` : 'Esta venta está anulada'}{sale.voidReason ? ` · ${sale.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
       {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
+      <RecordHistory entityType="sale" entityId={sale.id} />
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>

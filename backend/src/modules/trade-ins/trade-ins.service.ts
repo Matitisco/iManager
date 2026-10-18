@@ -4,6 +4,7 @@ import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
+import { cleanReason, type ArchiveMeta } from "../audit/archive.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
@@ -61,11 +62,15 @@ export interface TradeInResponse {
   draftPaymentStatus: string | null;
   cancelledBy: string | null;
   cancelledAt: string | null;
+  voidedAt: string | null;
+  voidedBy: string | null;
+  voidReason: string | null;
 }
 
 export interface TradeInCategoryResponse {
   id: string;
   name: string;
+  archived?: boolean;
 }
 
 export interface TradeInImportRow {
@@ -116,6 +121,9 @@ type TradeInRecord = {
   draftPaymentStatus: string | null;
   cancelledBy?: string | null;
   cancelledAt?: Date | null;
+  voidedAt?: Date | null;
+  voidedBy?: string | null;
+  voidReason?: string | null;
   sale?: { id: string } | null;
   removedFromSaleNumber?: number | null;
 };
@@ -193,6 +201,9 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     draftPaymentStatus: tradeIn.draftPaymentStatus,
     cancelledBy: tradeIn.cancelledBy ?? null,
     cancelledAt: tradeIn.cancelledAt ? tradeIn.cancelledAt.toISOString() : null,
+    voidedAt: tradeIn.voidedAt ? tradeIn.voidedAt.toISOString() : null,
+    voidedBy: tradeIn.voidedBy ?? null,
+    voidReason: tradeIn.voidReason ?? null,
   };
 }
 
@@ -211,9 +222,9 @@ function normalizeBatteryHealth(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-export async function listTradeIns(storeId: string) {
+export async function listTradeIns(storeId: string, options?: { voided?: boolean }) {
   const tradeIns = await prisma.tradeIn.findMany({
-    where: { storeId },
+    where: { storeId, voidedAt: options?.voided ? { not: null } : null },
     orderBy: { tradeAt: "desc" },
     include: { sale: { select: { id: true } } },
   });
@@ -356,40 +367,45 @@ export async function updateTradeIn(
   return serializeTradeIn(updated as TradeInRecord);
 }
 
-export async function deleteTradeIn(storeId: string, id: string, actor?: Actor | null) {
+export async function deleteTradeIn(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
   return withSerializableRetry(async (tx) => {
     const existing = await tx.tradeIn.findFirst({
       where: { id, storeId },
     });
 
-    if (!existing) {
+    if (!existing || existing.voidedAt) {
       return false;
     }
     // An active operation is cancelled by the route, which restores stock and balance once.
-    // A cancelled canje was already reversed; deleting it must not do that again.
+    // A cancelled canje was already reversed; voiding it must not do that again.
     const alreadyCancelled = existing.confirmationStatus === "CANCELLED";
     if (!alreadyCancelled && (existing.confirmationStatus != null || existing.receivedInventoryItemId)) {
       throw new TradeInsError("Este canje está vinculado a una operación. Gestioná la operación desde su origen.", 409);
     }
 
-    if (actor) {
-      await writeAudit(tx, {
-        storeId,
-        actor,
-        action: "trade.deleted",
-        entityType: "trade",
-        entityId: id,
-        detail: existing.deviceReceived,
-      });
-    }
-
+    const reason = cleanReason(meta?.reason);
     await tx.sale.updateMany({
       where: { storeId, tradeInId: id },
       data: { tradeInId: null },
     });
-    await tx.tradeIn.delete({
+    await tx.tradeIn.update({
       where: { id },
+      data: { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: reason },
     });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "trade.voided",
+        entityType: "trade",
+        entityId: id,
+        entityLabel: existing.deviceReceived.slice(0, 160),
+        detail: existing.deviceReceived,
+        reason,
+        source: meta?.source ?? "app",
+        changes: [{ field: "status", label: "Estado", before: existing.status, after: "Anulado" }],
+      });
+    }
 
     return true;
   });
@@ -425,6 +441,7 @@ export async function importTradeIns(
       const client = await prisma.client.findFirst({
         where: {
           storeId,
+          archivedAt: null,
           name: { equals: clientName, mode: "insensitive" },
         },
         select: { id: true },
@@ -483,6 +500,7 @@ export async function importTradeIns(
             where: {
               storeId,
               deviceReceivedImei,
+              voidedAt: null,
             },
             select: { id: true },
           })
@@ -545,17 +563,29 @@ export async function importTradeIns(
 // ── TradeIn Categories ────────────────────────────────────────────────────────
 
 export async function listTradeInCategories(storeId: string): Promise<TradeInCategoryResponse[]> {
-  return prisma.tradeInCategory.findMany({
+  const rows = await prisma.tradeInCategory.findMany({
     where: { storeId },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, archivedAt: true },
   });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.archivedAt ? `${row.name} (archivada)` : row.name,
+    archived: Boolean(row.archivedAt),
+  }));
 }
 
 export async function createTradeInCategory(storeId: string, name: string): Promise<TradeInCategoryResponse> {
   const trimmed = name.trim();
   if (!trimmed) throw new TradeInsError("Category name required", 400);
   const existing = await prisma.tradeInCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing?.archivedAt) {
+    return prisma.tradeInCategory.update({
+      where: { id: existing.id },
+      data: { archivedAt: null },
+      select: { id: true, name: true },
+    });
+  }
   if (existing) throw new TradeInsError("Category already exists", 409);
   const count = await prisma.tradeInCategory.count({ where: { storeId } });
   return prisma.tradeInCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
@@ -569,13 +599,21 @@ export async function renameTradeInCategory(storeId: string, id: string, name: s
   return prisma.tradeInCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
 }
 
-export async function deleteTradeInCategory(storeId: string, id: string): Promise<boolean> {
+export async function deleteTradeInCategory(storeId: string, id: string, actor?: Actor | null): Promise<boolean> {
   const existing = await prisma.tradeInCategory.findFirst({ where: { id, storeId } });
-  if (!existing) return false;
-  await prisma.$transaction([
-    prisma.tradeIn.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } }),
-    prisma.tradeInCategory.delete({ where: { id } }),
-  ]);
+  if (!existing || existing.archivedAt) return false;
+  await prisma.tradeInCategory.update({ where: { id }, data: { archivedAt: new Date() } });
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "category.archived",
+      entityType: "category",
+      entityId: id,
+      entityLabel: existing.name,
+      detail: "Canjes",
+    });
+  }
   return true;
 }
 

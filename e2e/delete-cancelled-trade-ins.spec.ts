@@ -78,27 +78,27 @@ for (const device of [
         await record.dispatchEvent('pointerup', { pointerType: 'touch' });
         await expect(page.getByRole('checkbox', { name: /^Seleccionar C-/ })).toHaveCount(0);
       } else await record.click({ button: 'right' });
-      await page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true }).click();
-      const dialog = page.getByRole('dialog', { name: 'Eliminar registro' });
+      await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Anular canje' });
       await expect(dialog).toContainText('no se puede deshacer');
       if (shots) {
         mkdirSync(shots, { recursive: true });
         await page.screenshot({ path: `${shots}/issue-335-${device.name}-delete.png`, animations: 'disabled' });
       }
-      await dialog.getByRole('button', { name: 'Eliminar', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
       await expect(dialog).toBeHidden();
-      await expect(page.getByText('Canje eliminado')).toBeVisible();
+      await expect(page.getByText('Anulado')).toBeVisible();
       await expect(record).toHaveCount(0);
       expect((await fetchTradeIns(request, email)).tradeIns).toHaveLength(2);
       expect(await snapshot()).toEqual(before);
       await openTradeIns(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
-      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Eliminar selección' }).click();
-      const bulk = page.getByRole('dialog', { name: 'Eliminar selección: 2 registros' });
+      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular selección' }).click();
+      const bulk = page.getByRole('dialog', { name: 'Anular selección: 2 registros' });
       await expect(bulk).toContainText('Se conservan el stock, las ventas, los saldos y los pagos');
       if (shots) await page.screenshot({ path: `${shots}/issue-335-${device.name}-bulk.png`, animations: 'disabled' });
-      await bulk.getByRole('button', { name: 'Eliminar selección', exact: true }).click();
+      await bulk.getByRole('button', { name: 'Anular selección', exact: true }).click();
       await expect(bulk).toBeHidden();
       expect((await fetchTradeIns(request, email)).tradeIns).toHaveLength(0);
       expect(await snapshot()).toEqual(before);

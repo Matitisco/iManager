@@ -2,6 +2,8 @@ export class DomainError extends Error {
   readonly statusCode: number;
   /** Safe fields for logs. Never sent in the HTTP body. */
   readonly logContext?: Record<string, unknown>;
+  /** Extra safe fields merged into the JSON error body (for example archivedMatchId). */
+  extras?: Record<string, string | number | boolean | null>;
 
   constructor(message: string, statusCode = 400, logContext?: Record<string, unknown>) {
     super(message);

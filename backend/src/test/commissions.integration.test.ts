@@ -147,7 +147,7 @@ describe("commissions API (adapted from #122)", () => {
     if (action === "delete") {
       const deleted = await getApp().inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers: ownerHeaders() });
       expect(deleted.statusCode, deleted.body).toBe(204);
-      expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
+      expect((await prisma.sale.findUnique({ where: { id: sale.id } }))?.voidedAt).toBeTruthy();
     } else await getApp().inject({ method: "POST", url: `/api/operations/sales/sales/${sale.id}/cancel`, headers: ownerHeaders() });
     const original = await detail(f.member.id);
     expect(original.sales[0]).toMatchObject({ cancelled: true, commission: 0 });
@@ -179,7 +179,7 @@ describe("commissions API (adapted from #122)", () => {
     expect(cancelled.salesCount).toBe(0);
     const snapshot = await prisma.commissionAccrual.findFirstOrThrow({ where: { sourceSaleId: sale.id } });
     expect((await getApp().inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers: ownerHeaders() })).statusCode).toBe(204);
-    expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
+    expect((await prisma.sale.findUnique({ where: { id: sale.id } }))?.voidedAt).toBeTruthy();
     expect((await detail(f.member.id)).sales[0]).toMatchObject({ commission: 0, originalCommission: 20, voidReason: "DELETED" });
     const next = await detail(f.member.id, snapshot.adjustmentPeriod!);
     expect(next.adjustments).toEqual([expect.objectContaining({ saleNumber: sale.saleNumber, amount: -10, currency, label: "A descontar", reason: "DELETED" })]);

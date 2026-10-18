@@ -4,6 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
+import { readReason } from "../audit/archive.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { zodOptionalImei } from "../../lib/imei.js";
@@ -13,6 +14,7 @@ import {
   deleteInventoryItem,
   importInventoryItems,
   listInventory,
+  restoreInventoryItem,
   listInventoryPaged,
   getInventoryFilteredIds,
   updateInventoryItem,
@@ -64,6 +66,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     model: z.string().optional(),
     grade: z.string().optional(),
     battery: z.string().optional(),
+    archived: z.enum(["1", "true"]).optional(),
   });
 
   app.get(
@@ -73,6 +76,11 @@ export async function inventoryRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const query = pagedQuerySchema.parse(request.query);
+
+      if (query.archived) {
+        const inventory = await listInventory(request.appUser.storeId, { archived: true });
+        return { inventory };
+      }
 
       if (query.skip !== undefined || query.take !== undefined) {
         const params: ListInventoryParams = {
@@ -128,7 +136,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const body = inventoryItemSchema.parse(request.body) as InventoryItemInput;
-      const inventoryItem = await createInventoryItem(request.appUser.storeId, body);
+      const inventoryItem = await createInventoryItem(request.appUser.storeId, body, await loadActor(request.appUser.userId));
 
       return reply.code(201).send({ inventoryItem });
     }
@@ -212,7 +220,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
-      const deleted = await deleteInventoryItem(request.appUser.storeId, params.id, actor);
+      const deleted = await deleteInventoryItem(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });
 
       if (!deleted) {
         return reply.code(404).send({ error: "Inventory item not found" });
@@ -220,6 +228,20 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  app.post(
+    "/:id/restore",
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
+    async (request, reply) => {
+      requireMember(request);
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      const item = await restoreInventoryItem(request.appUser.storeId, params.id, actor);
+      if (!item) return reply.code(404).send({ error: "Inventory item not found" });
+      return { inventoryItem: item };
+    },
   );
 
   // ─── Categories ─────────────────────────────────────────────────────────────
@@ -256,7 +278,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const deleted = await deleteCategory(request.appUser.storeId, id);
+    const deleted = await deleteCategory(request.appUser.storeId, id, await loadActor(request.appUser.userId));
     if (!deleted) return reply.code(404).send({ error: "Category not found" });
     return reply.code(204).send();
   });

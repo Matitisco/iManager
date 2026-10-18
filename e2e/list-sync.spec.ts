@@ -31,9 +31,9 @@ test('a section change drops a device deleted elsewhere, and another page follow
   await expect(other.getByText('Pixel Compartido')).toBeVisible();
   const record = page.getByRole('row').filter({ hasText: 'Pixel Compartido' });
   await record.click({ button: 'right' });
-  await page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true }).click();
+  await page.locator('.ctx').getByRole('button', { name: 'Archivar', exact: true }).click();
   const synced = other.waitForResponse((response) => response.url().includes('/api/inventory') && response.request().method() === 'GET' && response.ok());
-  await page.getByRole('dialog', { name: 'Eliminar registro' }).getByRole('button', { name: 'Eliminar', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Archivar equipo' }).getByRole('button', { name: 'Archivar', exact: true }).click();
   await synced;
   await expect(other.getByText('Pixel Compartido')).toHaveCount(0);
   expect((await fetchInventory(request, email)).inventory.map((item) => item.model)).not.toContain('Pixel Compartido');

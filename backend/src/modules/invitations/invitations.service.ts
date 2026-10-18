@@ -8,6 +8,7 @@ import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lo
 import { findOrCreateUserFromFirebase } from "../users/users.service.js";
 import { buildAppSessionForUser } from "../auth/session.service.js";
 import { assertSectionList, normalizeSections, STAFF_DEFAULT_SECTIONS } from "../stores/sections.js";
+import { writeAudit, type Actor } from "../audit/audit.js";
 
 const INVITATION_TTL_DAYS = 7;
 
@@ -76,7 +77,7 @@ export async function listInvitations(storeId: string) {
   return invitations.map(({ token, ...invite }) => ({ ...invite, inviteUrl: `${base}/invite/${token}` }));
 }
 
-export async function revokeInvitation(storeId: string, invitationId: string, actorRole: string) {
+export async function revokeInvitation(storeId: string, invitationId: string, actorRole: string, actor?: Actor | null) {
   if (actorRole !== "OWNER" && actorRole !== "MANAGER") {
     throw new DomainError("No tenés permisos para cancelar invitaciones", 403);
   }
@@ -101,6 +102,17 @@ export async function revokeInvitation(storeId: string, invitationId: string, ac
     if (current?.status === "REVOKED") return;
     if (current?.status !== "PENDING") throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
     await tx.storeInvitation.update({ where: { id: invitation.id }, data: { status: "REVOKED" } });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "invitation.cancelled",
+        entityType: "invitation",
+        entityId: invitation.id,
+        entityLabel: invitation.email ?? "Invitación",
+        detail: invitation.email ?? "",
+      });
+    }
   });
 }
 
@@ -150,7 +162,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
   });
 
-  if (existingMember) {
+  if (existingMember && !existingMember.removedAt) {
     throw Object.assign(
       new Error("Ya formás parte de esta tienda. El creador o un miembro existente no puede usar este enlace."),
       { statusCode: 409 }
@@ -169,7 +181,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     const memberNow = await tx.storeMember.findUnique({
       where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },
     });
-    if (memberNow) {
+    if (memberNow && !memberNow.removedAt) {
       throw Object.assign(
         new Error("Ya formás parte de esta tienda. El creador o un miembro existente no puede usar este enlace."),
         { statusCode: 409 }
@@ -179,19 +191,32 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     await lockTransactionKey(tx, storeBillingLock(invitation.storeId));
     await assertMemberCapacity(invitation.storeId, tx);
 
-    const membershipCount = await tx.storeMember.count({ where: { userId: user.id } });
+    const membershipCount = await tx.storeMember.count({ where: { userId: user.id, removedAt: null } });
 
     const sections = normalizeSections(current.sections) ?? (current.role === "STAFF" ? STAFF_DEFAULT_SECTIONS : null);
-    await tx.storeMember.create({
-      data: {
-        storeId: invitation.storeId,
-        userId: user.id,
-        role: current.role,
-        isDefault: membershipCount === 0,
-        ...(sections ? { sections } : {}),
-        ...(typeof current.sensitiveAccess === "boolean" ? { sensitiveAccess: current.sensitiveAccess } : {}),
-      },
-    });
+    if (memberNow?.removedAt) {
+      await tx.storeMember.update({
+        where: { id: memberNow.id },
+        data: {
+          removedAt: null,
+          removedBy: null,
+          role: current.role,
+          sections: sections ?? undefined,
+          ...(typeof current.sensitiveAccess === "boolean" ? { sensitiveAccess: current.sensitiveAccess } : {}),
+        },
+      });
+    } else {
+      await tx.storeMember.create({
+        data: {
+          storeId: invitation.storeId,
+          userId: user.id,
+          role: current.role,
+          isDefault: membershipCount === 0,
+          ...(sections ? { sections } : {}),
+          ...(typeof current.sensitiveAccess === "boolean" ? { sensitiveAccess: current.sensitiveAccess } : {}),
+        },
+      });
+    }
 
     await tx.storeMember.updateMany({
       where: { userId: user.id, NOT: { storeId: invitation.storeId }, isDefault: true },

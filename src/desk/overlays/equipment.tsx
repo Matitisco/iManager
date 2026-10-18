@@ -17,6 +17,9 @@ import { QualityField } from '../QualityField';
 import { displayQuality, isUsedCondition, qualityDetail } from '../quality';
 import { Actions, Field, Segs, Sheet, signalDesk, useDesk } from '../ui';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, AuditLine, type FormProps } from './shared';
+import { archivedProduct } from '../archive-cache';
+import { RecordHistory } from '../screens/HistoryScreen';
+import { restoreBackendInventoryItem } from '../../services/inventory-api';
 import { deviceCoverageLines } from '../../lib/warranty';
 import { CoverageBlock } from '../warranty';
 
@@ -27,11 +30,11 @@ function batteryText(value: string) {
 }
 
 export function EquipmentDetail({ id }: { id: string }) {
-  const { inventory, updateProduct, sales = [], repairOrders = [] } = useAppContext();
+  const { inventory, updateProduct, sales = [], repairOrders = [], user, reloadInventory } = useAppContext();
   const money = useMoney();
   const { close, open, toast } = useDesk();
   const catalogs = useCatalogs();
-  const item = inventory.find((row) => row.id === id);
+  const item = inventory.find((row) => row.id === id) ?? archivedProduct(id);
   const [status, setStatus] = useState(item?.status || 'DISPONIBLE');
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +61,8 @@ export function EquipmentDetail({ id }: { id: string }) {
   return (
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
+      {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
+      <RecordHistory entityType="inventory" entityId={item.id} />
       <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
       {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {
         setBusy(true); setError(null);

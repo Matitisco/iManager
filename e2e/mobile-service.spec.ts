@@ -245,7 +245,7 @@ test.describe('service on a phone', () => {
     await editor.getByLabel('Seña').fill('50');
     await expectFits(page);
     await editor.getByTestId('repair-delete').click();
-    const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
+    const confirm = page.getByRole('dialog', { name: 'Archivar orden' });
     await expect(confirm).toContainText('vuelve como saldo a favor del cliente');
     await page.setViewportSize({ width: 360, height: 800 });
     await expectFits(page);

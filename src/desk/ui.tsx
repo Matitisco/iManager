@@ -497,7 +497,7 @@ export function ImportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-type DeskIconName = 'comisiones' | 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal';
+type DeskIconName = 'comisiones' | 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal' | 'clock';
 
 export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIconName; size?: number; strokeWidth?: number }) {
   if (name === 'comisiones') return <ImanagerIcon name="comisiones" size={nearestIconSize(size)} />;
@@ -513,6 +513,7 @@ export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIco
       {name === 'user' && <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>}
       {name === 'bars' && <path d="M5 20V10M10 20V5M15 20v-7M20 20V8" />}
       {name === 'bell' && <><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></>}
+      {name === 'clock' && <><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></>}
       {name === 'note' && <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />}
       {name === 'store' && <path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6" />}
       {name === 'lock' && <><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>}

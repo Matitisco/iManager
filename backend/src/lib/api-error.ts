@@ -124,7 +124,7 @@ export function registerApiErrorHandler(app: FastifyInstance) {
       const provider = domain.logContext;
       if (provider?.kind === "config") request.log.error({ statusCode: domain.statusCode, provider }, "billing config error");
       else request.log.info({ err: domain, statusCode: domain.statusCode, provider }, "domain error");
-      return reply.code(domain.statusCode).send({ error: domain.message });
+      return reply.code(domain.statusCode).send({ error: domain.message, ...(domain.extras ?? {}) });
     }
 
     const statusCode = statusCodeOf(error);

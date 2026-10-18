@@ -130,16 +130,16 @@ describe('operation detail', () => {
     ctx.sales = [sale({ status: 'CANCELADA' })];
     ctx.deleteSale.mockRejectedValueOnce(new Error('No se pudo eliminar la venta'));
     renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004 · Ana Pérez' });
-    const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
-    expect(dialog).toHaveTextContent('se va a borrar y no se puede deshacer');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Anular venta V-0004 · Ana Pérez' });
+    expect(dialog).toHaveTextContent('no se puede deshacer');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     expect(await screen.findByText('No se pudo eliminar la venta')).toBeVisible();
     expect(close).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
-    expect(ctx.deleteSale).toHaveBeenCalledWith('s1');
-    expect(toast).toHaveBeenCalledWith('Venta eliminada');
+    expect(ctx.deleteSale).toHaveBeenCalledWith('s1', 'Error de carga');
+    expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.updateSale).not.toHaveBeenCalled();
   });
 
@@ -147,16 +147,16 @@ describe('operation detail', () => {
     ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'CANCELADO' })];
     ctx.deleteTradeIn.mockRejectedValueOnce(new Error('No se pudo eliminar el canje'));
     renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
-    const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
+    const dialog = screen.getByRole('dialog', { name: 'Anular canje' });
     expect(dialog).toHaveTextContent('no se puede deshacer');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     expect(await screen.findByText('No se pudo eliminar el canje')).toBeVisible();
     expect(close).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
-    expect(ctx.deleteTradeIn).toHaveBeenCalledWith('t1');
-    expect(toast).toHaveBeenCalledWith('Canje eliminado');
+    expect(ctx.deleteTradeIn).toHaveBeenCalledWith('t1', 'Error de carga');
+    expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
   });
 
@@ -173,16 +173,16 @@ describe('operation detail', () => {
       ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'CANCELADO' })];
       ctx.deleteTradeIn.mockRejectedValueOnce(new TypeError(phone ? 'Load failed' : 'Failed to fetch'));
       renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
-      const dialog = screen.getByRole('dialog', { name: 'Eliminar registro' });
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+      const dialog = screen.getByRole('dialog', { name: 'Anular canje' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
       expect(await screen.findByText(NETWORK_ERROR_MESSAGE)).toBeVisible();
       expect(dialog).toBeVisible();
       expect(close).not.toHaveBeenCalled();
       expect(toast).not.toHaveBeenCalled();
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
       await waitFor(() => expect(close).toHaveBeenCalledOnce());
       expect(ctx.deleteTradeIn).toHaveBeenCalledTimes(2);
-      expect(toast).toHaveBeenCalledWith('Canje eliminado');
+      expect(toast).toHaveBeenCalledWith('Anulado');
     } finally { window.matchMedia = original; }
   });
 

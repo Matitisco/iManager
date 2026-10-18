@@ -108,6 +108,8 @@ model StoreMember {
   isDefault       Boolean   @default(false)
   sections        Json?
   sensitiveAccess Boolean?
+  removedAt       DateTime?
+  removedBy       String?   @db.VarChar(255)
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
@@ -132,6 +134,8 @@ model Client {
   balanceCurrency String?        @db.VarChar(3)
   tag            String?         @db.VarChar(30)
   birthday       DateTime?
+  archivedAt     DateTime?
+  archivedBy     String?         @db.VarChar(255)
   customFields   Json?
   store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category       ClientCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -145,6 +149,7 @@ model Client {
   updatedAt      DateTime        @updatedAt
 
   @@index([storeId])
+  @@index([storeId, archivedAt])
   @@unique([storeId, dni])
 }
 
@@ -155,6 +160,7 @@ model ClientCategory {
   sortOrder Int      @default(0)
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   clients   Client[]
+  archivedAt DateTime?
   createdAt DateTime @default(now())
 
   @@index([storeId])
@@ -168,6 +174,7 @@ model InventoryCategory {
   sortOrder Int             @default(0)
   store     Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   items     InventoryItem[]
+  archivedAt DateTime?
   createdAt DateTime        @default(now())
 
   @@index([storeId])
@@ -198,6 +205,8 @@ model InventoryItem {
   quantity      Int                @default(1)
   status        String             @db.VarChar(20)
   archivedAt    DateTime?
+  archivedBy    String?            @db.VarChar(255)
+  archiveReason String?            @db.VarChar(280)
   pendingSaleRegistration Boolean  @default(false)
   // Sale of a device that was not in stock. Battery, cost and quality still need to be filled in.
   needsCompletion Boolean          @default(false)
@@ -220,6 +229,7 @@ model InventoryItem {
   updatedAt     DateTime           @updatedAt
 
   @@index([storeId])
+  @@index([storeId, archivedAt])
   @@index([storeId, catalogVisible])
   @@index([reservedDepositId])
   @@unique([storeId, imei])
@@ -263,6 +273,9 @@ model Sale {
   warrantyDays    Int?
   cancelledBy     String?        @db.VarChar(255)
   cancelledAt     DateTime?
+  voidedAt        DateTime?
+  voidedBy        String?        @db.VarChar(255)
+  voidReason      String?        @db.VarChar(280)
   // Unpaid remainder after a price increase, partial tender or installment plan. Null keeps the legacy rule: a pending sale owes its full amount.
   openBalance     Decimal?       @db.Decimal(12, 2)
   customFields    Json?
@@ -279,6 +292,7 @@ model Sale {
 
   @@index([storeId])
   @@index([storeId, soldAt])
+  @@index([storeId, voidedAt])
   @@index([sellerMemberId])
   @@index([clientId])
   @@index([inventoryItemId])
@@ -319,6 +333,9 @@ model TradeIn {
   draftPaymentStatus String?          @db.VarChar(20)
   cancelledBy        String?          @db.VarChar(255)
   cancelledAt        DateTime?
+  voidedAt           DateTime?
+  voidedBy           String?          @db.VarChar(255)
+  voidReason         String?          @db.VarChar(280)
   customFields       Json?
   tradeAt            DateTime
   store              Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -331,6 +348,7 @@ model TradeIn {
 
   @@index([storeId])
   @@index([storeId, tradeAt])
+  @@index([storeId, voidedAt])
   @@index([clientId])
   @@unique([storeId, requestKey])
 }
@@ -350,11 +368,18 @@ model AuditEvent {
   entityType  String   @db.VarChar(40)
   entityId    String   @db.VarChar(120)
   detail      String?  @db.Text
+  entityLabel String?  @db.VarChar(160)
+  changes     Json?
+  reason      String?  @db.VarChar(280)
+  actorRole   String?  @db.VarChar(20)
+  source      String?  @db.VarChar(16)
   createdAt   DateTime @default(now())
   store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, entityType, entityId])
   @@index([storeId, createdAt])
+  @@index([storeId, actorUserId, createdAt])
+  @@index([storeId, action, createdAt])
 }
 
 model StoreNotification {
@@ -392,6 +417,7 @@ model TradeInCategory {
   sortOrder Int       @default(0)
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   tradeIns  TradeIn[]
+  archivedAt DateTime?
   createdAt DateTime  @default(now())
 
   @@index([storeId])
@@ -405,6 +431,7 @@ model SaleCategory {
   sortOrder Int      @default(0)
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sales     Sale[]
+  archivedAt DateTime?
   createdAt DateTime @default(now())
 
   @@index([storeId])
@@ -437,6 +464,9 @@ model RepairOrder {
   currency          String?             @db.VarChar(3)
   technician        String              @default("") @db.VarChar(120)
   status            String              @default("RECIBIDO") @db.VarChar(40)
+  archivedAt        DateTime?
+  archivedBy        String?             @db.VarChar(255)
+  archiveReason     String?             @db.VarChar(280)
   // Null on orders created before warranties. Coverage starts when the order is delivered.
   warrantyDays      Int?
   estimatedDelivery DateTime?
@@ -451,6 +481,7 @@ model RepairOrder {
 
   @@index([storeId])
   @@index([storeId, status])
+  @@index([storeId, archivedAt])
   @@index([clientId])
 }
 
@@ -500,6 +531,7 @@ model StoreCatalogOption {
   color     String?     @db.VarChar(9)
   isSystem  Boolean     @default(false)
   sortOrder Int         @default(0)
+  archivedAt DateTime?
   store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt

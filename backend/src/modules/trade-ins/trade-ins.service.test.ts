@@ -248,14 +248,14 @@ describe("trade-ins.service", () => {
 
     await expect(deleteTradeIn("store-1", "trade-1", { userId: "user-1", name: "Ana" })).resolves.toBe(true);
 
-    expect(prismaMock.tradeIn.delete).toHaveBeenCalledWith({ where: { id: "trade-1" } });
+    expect(prismaMock.tradeIn.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "trade-1" }, data: expect.objectContaining({ voidedAt: expect.any(Date) }) }));
     expect(prismaMock.sale.updateMany).toHaveBeenCalledWith({ where: { storeId: "store-1", tradeInId: "trade-1" }, data: { tradeInId: null } });
     expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
     expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
     expect(prismaMock.client.update).not.toHaveBeenCalled();
     expect(prismaMock.auditEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        action: "trade.deleted",
+        action: "trade.voided",
         entityType: "trade",
         entityId: "trade-1",
         actorUserId: "user-1",
@@ -269,7 +269,7 @@ describe("trade-ins.service", () => {
     prismaMock.tradeIn.findFirst.mockResolvedValue({ id: "trade-1", confirmationStatus: "CONFIRMED", receivedInventoryItemId: "item-received" });
 
     await expect(deleteTradeIn("store-1", "trade-1")).rejects.toMatchObject({ statusCode: 409 });
-    expect(prismaMock.tradeIn.delete).not.toHaveBeenCalled();
+    expect(prismaMock.tradeIn.update).not.toHaveBeenCalled();
     expect(prismaMock.auditEvent.create).not.toHaveBeenCalled();
   });
 
@@ -277,7 +277,7 @@ describe("trade-ins.service", () => {
     prismaMock.tradeIn.findFirst.mockResolvedValue({ id: "trade-1", confirmationStatus: null, status: "PENDIENTE", receivedInventoryItemId: null, deviceReceived: "iPhone 11" });
 
     await expect(deleteTradeIn("store-1", "trade-1")).resolves.toBe(true);
-    expect(prismaMock.tradeIn.delete).toHaveBeenCalledWith({ where: { id: "trade-1" } });
+    expect(prismaMock.tradeIn.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "trade-1" }, data: expect.objectContaining({ voidedAt: expect.any(Date) }) }));
     expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
   });
 });

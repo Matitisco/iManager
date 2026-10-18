@@ -8,6 +8,9 @@ import { useMoney } from './exchange';
 import { formatInputMoney, formatShortDate, parseMoney } from './format';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../lib/imei';
 import { getFriendlyErrorMessage } from '../lib/utils';
+import { archivedRepair } from './archive-cache';
+import { restoreBackendRepair } from '../services/repairs-api';
+import { RecordHistory } from './screens/HistoryScreen';
 import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
@@ -175,12 +178,12 @@ function storedCurrency(value: string | null | undefined): 'ARS' | 'USD' | null 
 }
 
 export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
-  const { repairOrders = [], changeRepairStatus } = useAppContext();
+  const { repairOrders = [], changeRepairStatus, user, restoreRepairOrder } = useAppContext();
   const money = useMoney();
   const { close, open, toast } = useDesk();
   const catalogs = useCatalogs();
   const phone = usePhoneLayout();
-  const order = repairOrders.find((item) => item.id === id);
+  const order = repairOrders.find((item) => item.id === id) ?? archivedRepair(id);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES)
@@ -248,6 +251,8 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         {next ? <span>Sigue: {next.label}</span> : null}
       </div>
       {error ? <div className="ferr">{error}</div> : null}
+      {order.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{order.archivedBy ? `por ${order.archivedBy}` : 'Esta orden está archivada'}{order.archiveReason ? ` · ${order.archiveReason}` : ''}</small></div><button type="button" disabled={busy || saving} onClick={() => { if (!user || !restoreRepairOrder) return; setSaving(true); void restoreRepairOrder(order.id).then(() => { toast('Orden restaurada'); close(); }).catch((cause) => setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.'))).finally(() => setSaving(false)); }}>Restaurar</button></div> : null}
+      <RecordHistory entityType="repair" entityId={order.id} />
       {clientRow}
       <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
@@ -300,6 +305,8 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         </p>
       ) : null}
       {error ? <div className="ferr">{error}</div> : null}
+      {order.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{order.archivedBy ? `por ${order.archivedBy}` : 'Esta orden está archivada'}{order.archiveReason ? ` · ${order.archiveReason}` : ''}</small></div><button type="button" disabled={busy || saving} onClick={() => { if (!user || !restoreRepairOrder) return; setSaving(true); void restoreRepairOrder(order.id).then(() => { toast('Orden restaurada'); close(); }).catch((cause) => setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.'))).finally(() => setSaving(false)); }}>Restaurar</button></div> : null}
+      <RecordHistory entityType="repair" entityId={order.id} />
       {clientRow}
       <div className="kv"><span>Ingreso</span><b>{received}</b></div>
       <div className="svc-fault-card">
@@ -443,7 +450,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
       await deleteRepairOrder(order.id);
       setConfirmDelete(false);
       close();
-      toast('Orden eliminada');
+      toast('Orden archivada');
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'No se pudo borrar la orden'));
     } finally {
@@ -497,7 +504,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
                 <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
               </Field>
             </div>
-            {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.</p>}
+            {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o archivar la orden.</p>}
             <Field label="Garantía (días)" error={bad.warranty}>
               <input data-testid="repair-edit-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="Sin garantía cargada" onChange={(event) => { setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); setBad((current) => ({ ...current, warranty: '' })); }} />
             </Field>
@@ -509,7 +516,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
               </Field>
             </div>
             <div className="svc-sensitive">
-              <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Eliminar orden</button>
+              <button type="button" className="btn2 danger" data-testid="repair-delete" disabled={!canManageSensitive || busy || saving} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onClick={() => { setError(''); setConfirmDelete(true); }}>Archivar orden</button>
             </div>
           </div>
         </div>
@@ -517,9 +524,9 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
       </Sheet>
       {confirmDelete ? (
         <Dialog
-          title="Eliminar orden"
-          text={order.deposit > 0 ? `#${order.code} · ${order.device} se va a borrar. Si tenía una seña aplicada, vuelve como saldo a favor del cliente.` : `#${order.code} · ${order.device} se va a borrar y no se puede deshacer.`}
-          ok="Eliminar"
+          title="Archivar orden"
+          text={order.deposit > 0 ? `#${order.code} · ${order.device} se va a archivar. Si tenía una seña aplicada, vuelve como saldo a favor del cliente. Podés restaurarla.` : `#${order.code} · ${order.device} se va a archivar. Podés restaurarla desde Archivados.`}
+          ok="Archivar"
           danger
           busy={saving}
           error={error}

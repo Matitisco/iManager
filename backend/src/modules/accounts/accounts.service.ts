@@ -331,7 +331,7 @@ export async function collectAccount(
 async function saleCoverage(storeId: string, clientId: string, saleId: string) {
   const [sales, payments, client] = await Promise.all([
     prisma.sale.findMany({
-      where: { storeId, clientId, OR: [{ id: saleId }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] },
+      where: { storeId, clientId, voidedAt: null, OR: [{ id: saleId }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] },
       include: { tradeIn: { select: { differencePaid: true } } },
     }),
     prisma.clientPayment.findMany({
@@ -400,8 +400,8 @@ export async function listFollowUps(storeId: string) {
   const clock = await storeClock(storeId);
   const settings = await getFollowUpSettings(storeId);
   const [clients, sales] = await Promise.all([
-    prisma.client.findMany({ where: { storeId }, select: { id: true, name: true, phone: true, birthday: true, pendingBalance: true, lastPurchaseAt: true } }),
-    prisma.sale.findMany({ where: { storeId, status: "COMPLETADA", clientId: { not: null }, warrantyDays: { gt: 0 } }, select: { id: true, saleNumber: true, clientId: true, deviceLabel: true, soldAt: true, warrantyDays: true, client: { select: { name: true, phone: true } } } }),
+    prisma.client.findMany({ where: { storeId, archivedAt: null }, select: { id: true, name: true, phone: true, birthday: true, pendingBalance: true, lastPurchaseAt: true } }),
+    prisma.sale.findMany({ where: { storeId, voidedAt: null, status: "COMPLETADA", clientId: { not: null }, warrantyDays: { gt: 0 } }, select: { id: true, saleNumber: true, clientId: true, deviceLabel: true, soldAt: true, warrantyDays: true, client: { select: { name: true, phone: true } } } }),
   ]);
   const cards: Array<{ id: string; kind: "CUMPLEANOS" | "GARANTIA" | "DEUDA" | "INACTIVO"; clientId: string; name: string; phone: string; title: string; detail: string }> = [];
   for (const client of clients) {

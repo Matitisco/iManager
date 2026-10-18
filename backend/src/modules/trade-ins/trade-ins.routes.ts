@@ -1,4 +1,5 @@
 import { loadActor } from "../audit/audit.js";
+import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { zodOptionalImei } from "../../lib/imei.js";
@@ -88,7 +89,8 @@ export async function tradeInsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const tradeIns = await listTradeIns(request.appUser.storeId);
+      const voided = z.object({ voided: z.enum(["1", "true"]).optional() }).parse(request.query).voided;
+      const tradeIns = await listTradeIns(request.appUser.storeId, { voided: Boolean(voided) });
       return { tradeIns };
     }
   );
@@ -167,7 +169,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
         await cancelTradeOperation(request.appUser.storeId, params.id, actor);
         return reply.code(204).send();
       }
-      const deleted = await deleteTradeIn(request.appUser.storeId, params.id, actor);
+      const deleted = await deleteTradeIn(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });
 
       if (!deleted) {
         return reply.code(404).send({ error: "Trade-in not found" });
@@ -218,7 +220,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
   app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("tradeins")] }, async (request, reply) => {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const deleted = await deleteTradeInCategory(request.appUser.storeId, id);
+    const deleted = await deleteTradeInCategory(request.appUser.storeId, id, await loadActor(request.appUser.userId));
     if (!deleted) return reply.code(404).send({ error: "Category not found" });
     return reply.code(204).send();
   });

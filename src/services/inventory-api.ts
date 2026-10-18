@@ -45,9 +45,26 @@ export async function updateBackendInventoryItem(user: AuthUserLike, item: Produ
   return data.inventoryItem;
 }
 
-export async function deleteBackendInventoryItem(user: AuthUserLike, itemId: string): Promise<void> {
+export async function fetchArchivedInventory(user: AuthUserLike): Promise<Product[]> {
+  const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory?archived=1', {
+    fallback: (status) => `No se pudo cargar el archivo (${status})`,
+  });
+  return data.inventory ?? [];
+}
+
+export async function deleteBackendInventoryItem(user: AuthUserLike, itemId: string, reason?: string): Promise<void> {
   await apiRequest<void>(user, `/api/inventory/${itemId}`, {
     method: 'DELETE',
-    fallback: (status) => `No se pudo eliminar el equipo (${status})`,
+    ...(reason == null ? {} : { body: { reason } }),
+    fallback: (status) => `No se pudo archivar el equipo (${status})`,
   });
+}
+
+export async function restoreBackendInventoryItem(user: AuthUserLike, itemId: string): Promise<Product> {
+  const data = await apiRequest<BackendInventoryResponse>(user, `/api/inventory/${itemId}/restore`, {
+    method: 'POST',
+    fallback: (status) => `No se pudo restaurar el equipo (${status})`,
+  });
+  if (!data.inventoryItem) throw new Error('Respuesta inválida al restaurar el equipo');
+  return data.inventoryItem;
 }

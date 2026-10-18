@@ -46,9 +46,9 @@ export async function getGettingStarted(member: Member) {
             where: { storeId, archivedAt: null, sampleBatchId: null },
           })
         : 0,
-      can("sales") ? prisma.sale.count({ where: { storeId } }) : 0,
+      can("sales") ? prisma.sale.count({ where: { storeId, voidedAt: null } }) : 0,
       firstStepsVisibleTo(role)
-        ? prisma.storeMember.count({ where: { storeId } })
+        ? prisma.storeMember.count({ where: { storeId, removedAt: null } })
         : 0,
       firstStepsVisibleTo(role)
         ? prisma.storeInvitation.count({ where: { storeId } })

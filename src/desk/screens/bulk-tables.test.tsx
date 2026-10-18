@@ -107,12 +107,12 @@ describe('bulk table wiring', () => {
     expect(screen.getByRole('checkbox', { name: /Seleccionar Equipo 9/ })).toBeChecked();
     fireEvent.change(screen.getByPlaceholderText('Buscar modelo o color'), { target: { value: 'Equipo 1' } });
     expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
-    confirm('Eliminar selección'); await waitFor(() => expect(ctx.deleteProduct).toHaveBeenCalledWith('1'));
+    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteProduct).toHaveBeenCalledWith('1'));
     expect(ctx.deleteProduct).toHaveBeenCalledTimes(1);
   });
   it('deletes clients through the existing method', async () => {
     mount(ClientsScreen); fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar Ana' }));
-    confirm('Eliminar selección'); await waitFor(() => expect(ctx.deleteClient).toHaveBeenCalledWith('c'));
+    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteClient).toHaveBeenCalledWith('c'));
   });
   it('cancels integrated sales and refuses active historical sales', async () => {
     const { unmount } = mount(SalesScreen); fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
@@ -130,7 +130,7 @@ describe('bulk table wiring', () => {
     ];
     mount(SalesScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
-    confirm('Eliminar selección');
+    confirm('Anular selección');
     await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledTimes(3));
     expect(ctx.deleteSale.mock.calls).toEqual([['s1'], ['s2'], ['s3']]);
     expect(ctx.updateSale).not.toHaveBeenCalled();
@@ -175,7 +175,7 @@ describe('bulk table wiring', () => {
     ];
     mount(TradeInsScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
-    confirm('Eliminar selección');
+    confirm('Anular selección');
     await waitFor(() => expect(ctx.deleteTradeIn).toHaveBeenCalledTimes(2));
     expect(ctx.deleteTradeIn.mock.calls.map((call) => call[0]).sort()).toEqual(['t1', 't2']);
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();

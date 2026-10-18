@@ -110,15 +110,15 @@ test('the owner edits the budget and deletes the order, and an employee without 
   }
 
   await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });
-  await page.getByRole('button', { name: 'Eliminar' }).click();
-  const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
+  await page.getByRole('button', { name: 'Archivar' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Archivar orden' });
   await expect(confirm).toContainText('vuelve como saldo a favor del cliente');
   await confirm.getByRole('button', { name: 'Cancelar' }).click();
   await expect(confirm).toBeHidden();
   await page.locator('[data-testid^="repair-card-"]').first().click({ button: 'right' });
-  await page.getByRole('button', { name: 'Eliminar' }).click();
-  await page.getByRole('dialog', { name: 'Eliminar orden' }).getByRole('button', { name: 'Eliminar' }).click();
-  await expect(page.getByText('Orden eliminada')).toBeVisible();
+  await page.getByRole('button', { name: 'Archivar' }).click();
+  await page.getByRole('dialog', { name: 'Archivar orden' }).getByRole('button', { name: 'Archivar' }).click();
+  await expect(page.getByText('Archivado')).toBeVisible();
   await expect(page.locator('[data-testid^="repair-card-"]')).toHaveCount(0);
 
   await page.reload();
@@ -174,6 +174,6 @@ test.describe('phone', () => {
       await page.setViewportSize({ width, height: 844 });
       await expectInside(page, '.dialog');
     }
-    await page.getByRole('dialog', { name: 'Eliminar orden' }).getByRole('button', { name: 'Cancelar' }).click();
+    await page.getByRole('dialog', { name: 'Archivar orden' }).getByRole('button', { name: 'Cancelar' }).click();
   });
 });

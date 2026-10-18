@@ -105,19 +105,29 @@ function slug(label: string) {
 
 async function seedMissing(storeId: string) {
   for (const kind of CATALOG_KINDS) {
-    const count = await prisma.storeCatalogOption.count({ where: { storeId, kind } });
-    if (count > 0) continue;
-    await prisma.storeCatalogOption.createMany({
-      data: DEFAULTS[kind].map((option, index) => ({
-        storeId,
-        kind,
-        value: option.value,
-        label: option.label,
-        color: option.color,
-        isSystem: option.isSystem,
-        sortOrder: index,
-      })),
-    });
+    const rows = await prisma.storeCatalogOption.findMany({ where: { storeId, kind } });
+    if (rows.some((row) => !row.archivedAt)) continue;
+    for (const [index, option] of DEFAULTS[kind].entries()) {
+      const archived = rows.find((row) => row.value === option.value);
+      if (archived) {
+        await prisma.storeCatalogOption.update({
+          where: { id: archived.id },
+          data: { archivedAt: null, label: option.label, color: option.color, isSystem: option.isSystem, sortOrder: index },
+        });
+        continue;
+      }
+      await prisma.storeCatalogOption.create({
+        data: {
+          storeId,
+          kind,
+          value: option.value,
+          label: option.label,
+          color: option.color,
+          isSystem: option.isSystem,
+          sortOrder: index,
+        },
+      });
+    }
   }
 }
 
@@ -164,7 +174,7 @@ export async function listCatalogs(storeId: string) {
   await retireRepairStatuses(storeId);
   const [rows, counts] = await Promise.all([
     prisma.storeCatalogOption.findMany({
-      where: { storeId },
+      where: { storeId, archivedAt: null },
       orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
     }),
     usageCounts(storeId),
@@ -223,7 +233,7 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
       const targetValue = labelIsValue ? targetLabel : (target.value?.trim() || slug(targetLabel));
       if (!targetLabel || targetValue === row.value) throw new CatalogError("Elegí a qué pasar los registros");
       await reassign(tx, storeId, kind, row.value, targetValue);
-      await tx.storeCatalogOption.delete({ where: { id: row.id } });
+      await tx.storeCatalogOption.update({ where: { id: row.id }, data: { archivedAt: new Date() } });
       removed.add(row.value);
     }
 
@@ -235,7 +245,7 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
       if (labels.has(key)) throw new CatalogError(`«${label}» está repetido.`);
       labels.add(key);
       const color = textKind ? null : (option.color ?? null);
-      const current = option.value ? existing.find((item) => item.value === option.value && !removed.has(item.value)) : undefined;
+      const current = option.value ? existing.find((item) => item.value === option.value && !item.archivedAt && !removed.has(item.value)) : undefined;
       if (current) {
         if (labelIsValue && current.value !== label) {
           await reassign(tx, storeId, kind, current.value, label);
@@ -252,6 +262,14 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
         continue;
       }
       const value = labelIsValue ? label : (option.value?.trim() || slug(label));
+      const archivedSame = existing.find((item) => item.value === value && item.archivedAt);
+      if (archivedSame) {
+        await tx.storeCatalogOption.update({
+          where: { id: archivedSame.id },
+          data: { label, color, sortOrder: index, archivedAt: null },
+        });
+        continue;
+      }
       await tx.storeCatalogOption.create({
         data: { storeId, kind, value, label, color, isSystem: false, sortOrder: index },
       });

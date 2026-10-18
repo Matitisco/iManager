@@ -1,14 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
-const clientList = {
-  where: (storeId: string) => ({ storeId }),
-};
-
 export const clientsRepository = {
-  list(storeId: string) {
+  list(storeId: string, archived = false) {
     return prisma.client.findMany({
-      where: clientList.where(storeId),
+      where: { storeId, archivedAt: archived ? { not: null } : null },
       orderBy: { createdAt: "desc" },
     });
   },
@@ -23,7 +19,7 @@ export const clientsRepository = {
   findIdByDni(storeId: string, dni: string) {
     return prisma.client.findFirst({
       where: { storeId, dni },
-      select: { id: true },
+      select: { id: true, archivedAt: true },
     });
   },
 
@@ -37,7 +33,7 @@ export const clientsRepository = {
 
   findActiveIntegratedSale(storeId: string, clientId: string) {
     return prisma.sale.findFirst({
-      where: { storeId, clientId, integratedOperation: true, status: { not: "CANCELADA" } },
+      where: { storeId, clientId, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null },
       select: { id: true },
     });
   },
@@ -45,7 +41,7 @@ export const clientsRepository = {
   findDniDuplicate(storeId: string, dni: string, exceptId: string) {
     return prisma.client.findFirst({
       where: { storeId, dni, id: { not: exceptId } },
-      select: { id: true },
+      select: { id: true, archivedAt: true },
     });
   },
 
@@ -64,13 +60,13 @@ export const clientsRepository = {
   findForDelete(storeId: string, id: string) {
     return prisma.client.findFirst({
       where: { id, storeId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, archivedAt: true },
     });
   },
 
   findActiveTrade(storeId: string, clientId: string) {
     return prisma.tradeIn.findFirst({
-      where: { storeId, clientId, confirmationStatus: { not: "CANCELLED" } },
+      where: { storeId, clientId, confirmationStatus: { not: "CANCELLED" }, voidedAt: null },
       select: { id: true },
     });
   },
@@ -97,7 +93,7 @@ export const clientsRepository = {
     return prisma.clientCategory.findMany({
       where: { storeId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, archivedAt: true },
     });
   },
 
@@ -128,11 +124,19 @@ export const clientsRepository = {
     });
   },
 
-  clearCategoryAndDelete(storeId: string, id: string) {
-    return prisma.$transaction([
-      prisma.client.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } }),
-      prisma.clientCategory.delete({ where: { id } }),
-    ]);
+  updateCategoryArchive(id: string, archivedAt: Date | null) {
+    return prisma.clientCategory.update({
+      where: { id },
+      data: { archivedAt },
+      select: { id: true, name: true },
+    });
+  },
+
+  archiveCategory(storeId: string, id: string) {
+    return prisma.clientCategory.updateMany({
+      where: { id, storeId, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
   },
 
   reorderCategories(storeId: string, categoryIds: string[]) {

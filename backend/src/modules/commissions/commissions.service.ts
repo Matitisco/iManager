@@ -79,7 +79,7 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
     prisma.storeMember.findMany({ where: { storeId, ...(memberId ? { id: memberId } : {}) }, include: { user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.commissionAccrual.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
     prisma.commissionPayment.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
-    memberId ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, sellerMemberId: null, status: { notIn: ["CANCELADA", "CANCELLED"] }, soldAt: { gte: period.start, lt: period.end } } }),
+    memberId ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, voidedAt: null, sellerMemberId: null, status: { notIn: ["CANCELADA", "CANCELLED"] }, soldAt: { gte: period.start, lt: period.end } } }),
   ]);
   // Only legacy accruals need the current quote; historical entries use their frozen rate.
   const needsRate = rows.some(row => row.exchangeRate == null);

@@ -319,7 +319,8 @@ describe('issue #71 profiles and team controls', () => {
     expect(screen.getByRole('switch', { name: 'Ventas' })).not.toBeChecked();
     expect(screen.getByRole('switch', { name: 'Ver saldo de cajas' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Todo' }));
-    expect(screen.getAllByRole('switch').filter(input => input.getAttribute('aria-label') !== 'Acciones sensibles').every(input => input.getAttribute('aria-checked') === 'true')).toBe(true);
+    expect(screen.getAllByRole('switch').filter(input => !['Acciones sensibles', 'Ver historial'].includes(input.getAttribute('aria-label') ?? '')).every(input => input.getAttribute('aria-checked') === 'true')).toBe(true);
+    expect(screen.getByRole('switch', { name: 'Ver historial' })).not.toBeChecked();
     expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();
     await userEvent.click(screen.getByRole('switch', { name: 'Cajas' }));
     expect(screen.getByRole('switch', { name: 'Ver saldo de cajas' })).not.toBeChecked();
@@ -368,7 +369,7 @@ it('shows Catálogo below Inventario in the 6 + 5 cards and saves its explicit g
   const cards = document.querySelectorAll('.team-perm-columns > .card');
   const labels = (card: Element) => Array.from(card.querySelectorAll('.team-perm:not(.team-nested) b')).map(node => node.textContent);
   expect(labels(cards[0])).toEqual(['Inventario', 'Catálogo', 'Ventas', 'Canjes', 'Clientes', 'Servicio técnico']);
-  expect(labels(cards[1])).toEqual(['Cajas', 'Reportes', 'Comisiones', 'Dashboard', 'Notificaciones']);
+  expect(labels(cards[1])).toEqual(['Cajas', 'Reportes', 'Ver historial', 'Comisiones', 'Dashboard', 'Notificaciones']);
   const toggle = screen.getByRole('switch', { name: 'Catálogo' });
   expect(toggle).not.toBeChecked();
   const row = toggle.closest('.team-perm')!;

@@ -2016,3 +2016,31 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .reports-screen .gfilters .gperiods { gap: 4px; justify-content: space-between; }
   .reports-screen .gperiods .gchip { padding-inline: 7px; flex: none; }
 }
+.history-filters { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.history-chip { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding-right: 28px; }
+.history-chip select { position: absolute; inset: 0; width: 100%; max-width: none; opacity: 0; cursor: pointer; }
+.history-chip::after { content: ""; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; opacity: .55; }
+.history-list { padding: 0; overflow: hidden; }
+.history-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; cursor: pointer; color: inherit; }
+.history-row:last-child { border-bottom: 0; }
+.history-row .av-c { width: 36px; height: 36px; font-size: 12px; }
+.history-row .info { min-width: 0; font-weight: 600; line-height: 1.35; }
+.history-row .info b { font-weight: 750; }
+.history-go { color: var(--section); justify-self: end; }
+.history-diff td, .history-diff th { text-align: left; }
+.sheet.history-detail .sheet-foot { display: block; margin-top: 16px; }
+.sheet.history-detail .sheet-foot .btn2 { width: 100%; }
+.kicker { margin: 16px 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
+.sheet textarea { width: 100%; min-height: 72px; resize: vertical; border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; background: #fff; font-size: 14px; font-weight: 600; color: var(--primary); }
+.sheet textarea:focus { outline: none; border-color: var(--primary); }
+.archive-note { display: block; margin-top: 2px; max-width: 280px; overflow-wrap: anywhere; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.dtable td.r { white-space: nowrap; }
+.record-history { margin: 8px 0 16px; }
+.record-history ul { margin: 8px 0 0; padding-left: 18px; color: var(--secondary); }
+@media (max-width: 760px) {
+  .history-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; padding: 14px; }
+  .history-row .spill { grid-column: 2; justify-self: start; }
+  .history-row .mut { grid-column: 2; }
+  .history-row > svg { grid-column: 3; grid-row: 1 / span 3; align-self: center; }
+  .sheet .wchips { flex-wrap: wrap; overflow: visible; }
+}

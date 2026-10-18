@@ -23,12 +23,21 @@ export type ApiRequestOptions = {
 
 export class ApiError extends Error {
   readonly status: number;
+  readonly payload: Record<string, unknown> | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, payload: Record<string, unknown> | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.payload = payload;
   }
+}
+
+export function archivedMatchOf(error: unknown) {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const id = error.payload?.archivedMatchId;
+  if (error.payload?.code !== 'ARCHIVED_MATCH' || typeof id !== 'string') return null;
+  return { id, entity: String(error.payload.entity ?? ''), message: error.message };
 }
 
 export async function apiRequest<T>(user: AuthUserLike, path: string, options: ApiRequestOptions): Promise<T> {
@@ -80,7 +89,7 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
     const message = typeof fallback === 'function' ? fallback(response.status) : fallback;
     if (errorFrom === 'fallback') throw new ApiError(response.status, message);
     const payload = await response.json().catch(() => null) as { error?: string } | null;
-    throw new ApiError(response.status, toUserMessage({ status: response.status, message: readApiErrorMessage(payload, message) }, message));
+    throw new ApiError(response.status, toUserMessage({ status: response.status, message: readApiErrorMessage(payload, message) }, message), payload && typeof payload === 'object' ? payload as Record<string, unknown> : null);
   }
 
   if (response.status === 204) return undefined as T;

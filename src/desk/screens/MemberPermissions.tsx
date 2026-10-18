@@ -23,7 +23,7 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
   const { user, appSession, reloadSession } = useAppContext();
   const phone = usePhoneLayout();
   const locked = member.role === 'OWNER' || (!draft && !canEditMember(appSession?.membership?.role, appSession?.user.id, member));
-  const [sections, setSections] = useState<string[]>(() => [...grantedSections(member.sections, member.role), ...(member.sections?.includes('cashBalances') ? ['cashBalances'] : [])]);
+  const [sections, setSections] = useState<string[]>(() => [...grantedSections(member.sections, member.role), ...(member.sections?.includes('cashBalances') ? ['cashBalances'] : []), ...(member.sections?.includes('history') ? ['history'] : [])]);
   const [sensitive, setSensitive] = useState(() => member.sensitiveAccess ?? (member.role === 'MANAGER' || member.role === 'OWNER'));
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -62,7 +62,7 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
       <span className="team-perm-icon"><DeskIcon name={ICONS[id]} size={19} /></span>
       <div><b>{label}</b>{id === 'publicCatalog' ? <small>Elegir qué equipos se publican, precios y orden</small> : id === 'commissions' ? <small>Sin esto ve solo «Mis comisiones»</small> : <span className="sr-only">{on ? 'Puede ver esta sección' : 'Sin acceso'}</span>}</div>
       <button type="button" className={`sw${on ? ' on' : ''}`} role="switch" aria-checked={on} aria-label={label} disabled={locked || busy} onClick={() => toggle(id)}><i /></button>
-    </div>{id === 'cash' ? <div className="perm team-perm team-nested"><div><b>Ver saldo de cajas</b></div><button type="button" className={`sw${sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={sections.includes('cash') && sections.includes('cashBalances')} disabled={locked || busy || !sections.includes('cash')} onClick={() => toggle('cashBalances')}><i /></button></div> : null}</Fragment>;
+    </div>{id === 'cash' ? <div className="perm team-perm team-nested"><div><b>Ver saldo de cajas</b></div><button type="button" className={`sw${sections.includes('cashBalances') ? ' on' : ''}`} role="switch" aria-label="Ver saldo de cajas" aria-checked={sections.includes('cash') && sections.includes('cashBalances')} disabled={locked || busy || !sections.includes('cash')} onClick={() => toggle('cashBalances')}><i /></button></div> : null}{id === 'reports' ? <div className={`perm team-perm${sections.includes('history') ? '' : ' muted'}`}><span className="team-perm-icon"><DeskIcon name="clock" size={19} /></span><div><b>Ver historial</b><small>Quién hizo qué y cuándo, en toda la tienda</small></div><button type="button" className={`sw${sections.includes('history') ? ' on' : ''}`} role="switch" aria-checked={sections.includes('history')} aria-label="Ver historial" disabled={locked || busy} onClick={() => toggle('history')}><i /></button></div> : null}</Fragment>;
   };
   return <div className={`dscreen team-permissions${phone && saveBar ? ' has-save' : ''}`}>
     {phone ? <BackButton onClick={onBack} /> : <button type="button" className="team-back" onClick={onBack}>‹ Equipo</button>}

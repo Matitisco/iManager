@@ -54,7 +54,7 @@ export async function retireRepairStatuses(storeId: string) {
       moved += 1;
     }
     const removed = optionIds.length
-      ? (await tx.storeCatalogOption.deleteMany({ where: { id: { in: optionIds } } })).count
+      ? (await tx.storeCatalogOption.updateMany({ where: { id: { in: optionIds }, archivedAt: null }, data: { archivedAt: new Date() } })).count
       : 0;
     return { moved, removed };
   });

@@ -204,6 +204,7 @@ describe("getReportsOverview", () => {
     expect(overview.inventory.series.length).toBe(overview.tradeIns.series.length);
     expect(inventoryCountMock).toHaveBeenNthCalledWith(1, {
       where: {
+        archivedAt: null,
         storeId: "store-1",
         createdAt: {
           gte: new Date("2026-04-01T00:00:00.000Z"),
@@ -291,7 +292,7 @@ describe("getReportsOverview", () => {
     });
 
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
-    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, { where: { storeId: "store-1" } });
+    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, { where: { storeId: "store-1", archivedAt: null } });
     expect(overview.comparison.available).toBe(false);
     expect(overview.comparison.revenueChange).toBeNull();
   });

@@ -20,6 +20,8 @@ export interface Product {
   pendingSaleRegistration?: boolean;
   needsCompletion?: boolean;
   archivedAt?: string | null;
+  archivedBy?: string | null;
+  archiveReason?: string | null;
   priceChangedBy?: string | null;
   priceChangedAt?: string | null;
   costChangedBy?: string | null;
@@ -64,6 +66,9 @@ export interface Sale {
   requestKey?: string | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
+  voidedAt?: string | null;
+  voidedBy?: string | null;
+  voidReason?: string | null;
   warrantyDays?: number | null;
   soldAt?: string | null;
 }
@@ -97,6 +102,9 @@ export interface RepairOrder {
   warrantyDays?: number | null;
   warrantyUntil?: string | null;
   warrantyState?: 'sin' | 'pendiente' | 'vigente' | 'vencida';
+  archivedAt?: string | null;
+  archivedBy?: string | null;
+  archiveReason?: string | null;
   events: RepairStatusEvent[];
 }
 
@@ -153,6 +161,9 @@ export interface TradeIn {
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
+  voidedAt?: string | null;
+  voidedBy?: string | null;
+  voidReason?: string | null;
 }
 
 export interface Client {
@@ -172,6 +183,8 @@ export interface Client {
   birthday?: string | null;
   customFields?: Record<string, any>;
   createdAt?: string | null;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
 }
 
 export interface ClientCategory {

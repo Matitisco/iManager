@@ -115,11 +115,56 @@ async function assertIncomingImei(tx: Prisma.TransactionClient, storeId: string,
     where: {
       storeId,
       imei: normalized,
+      archivedAt: null,
       ...(exceptInventoryId ? { id: { not: exceptInventoryId } } : {}),
     },
     select: { id: true },
   });
   if (duplicate) throw new OperationError("Ya existe un equipo con ese IMEI", 409);
+}
+
+async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.InventoryItemUncheckedCreateInput) {
+  const imei = typeof data.imei === "string" ? data.imei.trim() : "";
+  if (imei) {
+    const archived = await tx.inventoryItem.findFirst({
+      where: { storeId: data.storeId, imei, archivedAt: { not: null } },
+    });
+    if (archived) {
+      const restored = await tx.inventoryItem.update({
+        where: { id: archived.id },
+        data: {
+          imei,
+          model: data.model,
+          capacity: data.capacity ?? "",
+          color: data.color ?? "",
+          condition: data.condition,
+          grade: data.grade ?? "",
+          batteryHealth: data.batteryHealth ?? "",
+          cost: data.cost,
+          price: data.price,
+          currency: data.currency,
+          status: data.status,
+          customFields: data.customFields ?? {},
+          archivedAt: null,
+          archivedBy: null,
+          archiveReason: null,
+        },
+      });
+      await writeAudit(tx, {
+        storeId: data.storeId,
+        actor: null,
+        action: "inventory.restored",
+        entityType: "inventory",
+        entityId: archived.id,
+        entityLabel: [restored.model, restored.capacity].filter(Boolean).join(" ").slice(0, 160) || "Equipo",
+        source: "system",
+        detail: "Restaurado al recibir un canje",
+        changes: [{ field: "status", label: "Estado", before: "Archivado", after: "Activo" }],
+      });
+      return restored;
+    }
+  }
+  return tx.inventoryItem.create({ data });
 }
 
 type TradeForResponse = TradeIn & { saleId?: string | null; sale?: { id: string } | null };
@@ -289,7 +334,7 @@ async function applyClientOperation(tx: Prisma.TransactionClient, storeId: strin
   if (!client) return null;
   const total = Math.max(0, toNum(client.totalSpent) + direction * amount);
   const pending = Math.max(0, toNum(client.pendingBalance) + (paymentStatus === "PENDIENTE" ? direction * debtAmount : 0));
-  const lastPurchaseAt = direction > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
+  const lastPurchaseAt = direction > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
   await tx.client.update({ where: { id: clientId }, data: { totalSpent: dec(total), pendingBalance: dec(pending), lastPurchaseAt } });
   return tx.client.findFirst({ where: { id: clientId, storeId } });
 }
@@ -303,7 +348,7 @@ async function applyClientDelta(tx: Prisma.TransactionClient, storeId: string, p
     const newAmount = id === nextId ? nextAmount : 0;
     const oldDebt = id === priorId && priorStatus === "PENDIENTE" ? priorDebt : 0;
     const newDebt = id === nextId && nextStatus === "PENDIENTE" ? nextDebt : 0;
-    const nextLastPurchase = newAmount > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId: id, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
+    const nextLastPurchase = newAmount > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId: id, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
     await tx.client.update({ where: { id }, data: {
       totalSpent: dec(Math.max(0, toNum(client.totalSpent) + newAmount - oldAmount)),
       pendingBalance: dec(Math.max(0, toNum(client.pendingBalance) + newDebt - oldDebt)),
@@ -592,8 +637,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
           requestKey: input.requestKey ?? null,
         },
       });
-      incoming = await tx.inventoryItem.create({
-        data: {
+      incoming = await receiveDevice(tx, {
           storeId,
           imei: tradeInput.deviceReceivedImei?.trim() || null,
           model: tradeInput.deviceReceived.trim(),
@@ -607,7 +651,6 @@ export async function createOperation(storeId: string, source: OperationSource, 
           currency,
           status: "EN_REVISION",
           customFields: {},
-        },
       });
       trade = await tx.tradeIn.update({
         where: { id: trade.id },
@@ -660,6 +703,29 @@ export async function createOperation(storeId: string, source: OperationSource, 
       },
     });
     await recordSaleCommission(tx, storeId, sale.id);
+    if (actor) {
+      const code = `V-${String(sale.saleNumber).padStart(4, "0")}`;
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "sale.created",
+        entityType: "sale",
+        entityId: sale.id,
+        entityLabel: [code, sale.deviceLabel].filter(Boolean).join(" · ").slice(0, 160),
+        detail: sale.deviceLabel || sale.clientName || null,
+      });
+      if (trade) {
+        await writeAudit(tx, {
+          storeId,
+          actor,
+          action: "trade.created",
+          entityType: "trade",
+          entityId: trade.id,
+          entityLabel: (trade.deviceReceived || "Canje").slice(0, 160),
+          detail: trade.deviceReceived,
+        });
+      }
+    }
     const dueAmount = trade ? input.amount! - tradeInput!.takeValue : input.amount!;
     const depositAmount = await applyDeposits(tx, { storeId, clientId: client?.id ?? null, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: dueAmount, productId: product?.id, saleId: sale.id, actor });
     await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
@@ -770,7 +836,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
 
     const date = parseArDateOr(input.date ?? trade.dateLabel);
     await assertIncomingImei(tx, storeId, receivedImei);
-    const received = await tx.inventoryItem.create({ data: {
+    const received = await receiveDevice(tx, {
       storeId,
       imei: receivedImei?.trim() || null,
       model: receivedDevice.trim(),
@@ -784,7 +850,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       currency,
       status: "EN_REVISION",
       customFields: toJson(receivedCustomFields),
-    } });
+    });
     const confirmed = await tx.tradeIn.update({ where: { id: trade.id }, data: {
       clientId: client.id,
       clientName: client.name,
@@ -845,6 +911,27 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       warrantyDays,
     } });
     await recordSaleCommission(tx, storeId, sale.id);
+    if (actor) {
+      const code = `V-${String(sale.saleNumber).padStart(4, "0")}`;
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "sale.created",
+        entityType: "sale",
+        entityId: sale.id,
+        entityLabel: [code, sale.deviceLabel].filter(Boolean).join(" · ").slice(0, 160),
+        detail: sale.deviceLabel || null,
+      });
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "trade.confirmed",
+        entityType: "trade",
+        entityId: trade.id,
+        entityLabel: (trade.deviceReceived || "Canje").slice(0, 160),
+        detail: trade.deviceReceived,
+      });
+    }
     const depositAmount = await applyDeposits(tx, { storeId, clientId: client.id, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: outgoingAmount - takeValue, productId: product?.id, saleId: sale.id, actor });
     await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
     if (depositAmount.gt(0)) sale = await tx.sale.update({ where: { id: sale.id }, data: { depositAppliedAmount: depositAmount } });
@@ -1078,12 +1165,12 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     if (updatedTrade && !updatedTrade.receivedInventoryItemId) {
       await assertIncomingImei(tx, storeId, updatedTrade.deviceReceivedImei);
-      incoming = await tx.inventoryItem.create({ data: {
+      incoming = await receiveDevice(tx, {
         storeId, imei: updatedTrade.deviceReceivedImei, model: updatedTrade.deviceReceived,
         capacity: "", color: "", condition: "USADO", status: "EN_REVISION",
         grade: updatedTrade.grade ?? "", batteryHealth: updatedTrade.batteryHealth ?? "",
         cost: updatedTrade.takeValue, price: dec(0), currency: updatedTrade.currency, customFields: {},
-      } });
+      });
       updatedTrade = await tx.tradeIn.update({ where: { id: updatedTrade.id }, data: { receivedInventoryItemId: incoming.id } });
     }
     await refreshSaleCommission(tx, storeId, sale.id);
@@ -1271,6 +1358,7 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
       where: {
         storeId,
         clientId: sale.clientId,
+        voidedAt: null,
         OR: [{ id: sale.id }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }],
       },
       select: {

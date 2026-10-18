@@ -51,13 +51,13 @@ describe("delete cancelled sales", () => {
     expect(before.client.pendingBalance.toNumber()).toBe(resale.json().clients[0].pendingBalance);
     expect(before.payments.filter((row) => row.kind === "DEVOLUCION")).toHaveLength(status === "COMPLETADA" ? 1 : 0);
     expect((await app.inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers })).statusCode).toBe(204);
-    expect(await prisma.sale.findUnique({ where: { id: sale.id } })).toBeNull();
+    expect((await prisma.sale.findUnique({ where: { id: sale.id } }))?.voidedAt).toBeTruthy();
     expect(await snapshot()).toEqual(before);
     expect(await prisma.sale.findUnique({ where: { id: resale.json().sale.id } })).not.toBeNull();
-    expect(await prisma.auditEvent.findFirst({ where: { storeId, entityId: sale.id, action: "sale.deleted" } })).toMatchObject({ actorUserId: owner.user.id });
+    expect(await prisma.auditEvent.findFirst({ where: { storeId, entityId: sale.id, action: "sale.voided" } })).toMatchObject({ actorUserId: owner.user.id });
     expect(await prisma.auditEvent.count({ where: { entityId: sale.id, action: "sale.cancelled" } })).toBe(1);
     expect((await app.inject({ method: "DELETE", url: `/api/sales/${sale.id}`, headers })).statusCode).toBe(404);
-    expect(await prisma.auditEvent.count({ where: { entityId: sale.id, action: "sale.deleted" } })).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { entityId: sale.id, action: "sale.voided" } })).toBe(1);
   });
 
   it("keeps active DELETE as cancellation and enforces sensitive permissions and store scope before deletion", async () => {
@@ -79,8 +79,8 @@ describe("delete cancelled sales", () => {
     const foreign = await seedStoreContext({ firebaseUid: "foreign", email: "foreign@example.com" });
     expect((await app.inject({ method: "DELETE", url, headers: buildAuthHeaders({ uid: foreign.user.firebaseUid }) })).statusCode).toBe(404);
     expect(await prisma.sale.findUnique({ where: { id } })).not.toBeNull();
-    expect(await prisma.auditEvent.count({ where: { entityId: id, action: "sale.deleted" } })).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { entityId: id, action: "sale.voided" } })).toBe(0);
     expect((await app.inject({ method: "DELETE", url, headers })).statusCode).toBe(204);
-    expect(await prisma.sale.findUnique({ where: { id } })).toBeNull();
+    expect((await prisma.sale.findUnique({ where: { id } }))?.voidedAt).toBeTruthy();
   });
 });
