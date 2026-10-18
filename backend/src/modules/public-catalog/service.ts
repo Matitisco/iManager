@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../plugins/prisma.js';
+import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { DomainError } from '../../lib/domain-error.js';
 import { currentBlueRate } from '../../lib/blue-rate.js';
 import { writeAudit, type Actor } from '../audit/audit.js';
@@ -19,8 +20,13 @@ export async function getSettings(storeId: string) {
   const rows = items.map(item => ({ id: item.id, model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, price: Number(item.price), currency: item.currency, catalogVisible: item.catalogVisible, reason: ruleReason(item, config) ?? (item.catalogVisible ? null : 'Oculto a mano') }));
   return { slug: config.slug, active: config.active, hideWithoutStock: config.hideWithoutStock, hideReserved: config.hideReserved, minBattery: config.minBattery, showPrice: config.showPrice, priceCurrency: config.priceCurrency, logoUrl: config.logoUrl, hours: config.hours, items: rows, counts: { visible: rows.filter(item => !item.reason).length, rules: rows.filter(item => item.reason && item.reason !== 'Oculto a mano').length, manual: rows.filter(item => item.reason === 'Oculto a mano').length, available: countAvailable(items) } };
 }
-export async function saveSettings(storeId: string, input: CatalogSettingsInput, actor: Actor, regenerate = false) {
+export async function saveSettings(storeId: string, input: CatalogSettingsInput, actor: Actor, regenerate = false, { canChangeActive = true }: { canChangeActive?: boolean } = {}) {
   await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, `catalog-settings:${storeId}`);
+    if (!canChangeActive && input.active !== undefined) {
+      const current = await tx.storePublicCatalog.findUnique({ where: { storeId }, select: { active: true } });
+      if (current && input.active !== current.active) throw new DomainError('Solo el propietario puede cambiar el estado activo del catálogo', 403);
+    }
     const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { name: true } });
     await tx.storePublicCatalog.upsert({ where: { storeId }, create: { storeId, slug: newSlug(store.name), ...input }, update: { ...input, ...(regenerate ? { slug: newSlug(store.name) } : {}) } });
     await writeAudit(tx, { storeId, actor, action: regenerate ? 'catalog.regenerated' : 'catalog.settings', entityType: 'catalog', entityId: storeId });

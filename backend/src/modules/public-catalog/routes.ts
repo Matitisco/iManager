@@ -2,25 +2,25 @@ import { catalogPreviewPng } from './preview.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { resolveAppUser } from '../../middleware/resolve-app-user.js';
-import { requireMember } from '../../middleware/section-access.js';
+import { requireMember, requireSectionAccess } from '../../middleware/section-access.js';
 import { loadActor } from '../audit/audit.js';
 import { settingsSchema, visibilitySchema, slugSchema } from './schema.js';
 import { getSettings, saveSettings, setVisibility, getPublicCatalog } from './service.js';
 
 async function owner(request: FastifyRequest, reply: FastifyReply) {
   requireMember(request);
-  if (request.appUser.role !== 'OWNER') return reply.code(403).send({ error: 'Solo el propietario puede administrar el catálogo' });
+  if (request.appUser.role !== 'OWNER') return reply.code(403).send({ error: 'Solo el propietario puede regenerar el link del catálogo' });
 }
 export async function catalogManagementRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
   app.addHook('preHandler', resolveAppUser);
-  app.addHook('preHandler', owner);
+  app.addHook('preHandler', requireSectionAccess('publicCatalog'));
   app.get('/', async request => { requireMember(request); return { catalog: await getSettings(request.appUser.storeId) }; });
   app.patch('/', async request => {
     requireMember(request);
-    return { catalog: await saveSettings(request.appUser.storeId, settingsSchema.parse(request.body), await loadActor(request.appUser.userId)) };
+    return { catalog: await saveSettings(request.appUser.storeId, settingsSchema.parse(request.body), await loadActor(request.appUser.userId), false, { canChangeActive: request.appUser.role === 'OWNER' }) };
   });
-  app.post('/regenerate', async request => {
+  app.post('/regenerate', { preHandler: owner }, async request => {
     requireMember(request);
     return { catalog: await saveSettings(request.appUser.storeId, {}, await loadActor(request.appUser.userId), true) };
   });

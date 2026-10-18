@@ -24,7 +24,7 @@ export type GettingStartedPatch = {
 
 export async function getGettingStarted(member: Member) {
   const { storeId, userId, role, sections } = member;
-  const can = (section: "inventory" | "sales") =>
+  const can = (section: "inventory" | "sales" | "publicCatalog") =>
     canAccessSection(section, { sections, role });
   const [store, preferences, stock, sales, members, invitations, catalog, samples] =
     await Promise.all([
@@ -53,7 +53,7 @@ export async function getGettingStarted(member: Member) {
       firstStepsVisibleTo(role)
         ? prisma.storeInvitation.count({ where: { storeId } })
         : 0,
-      role === "OWNER"
+      can("publicCatalog")
         ? prisma.storePublicCatalog.findUnique({ where: { storeId } })
         : null,
       can("inventory")

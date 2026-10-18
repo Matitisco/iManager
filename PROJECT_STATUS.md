@@ -4,6 +4,14 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-18**
 
 
+## Issue #376 — Catálogo configurable por permisos — 2026-10-18
+
+- Catálogo se habilita explícitamente por miembro, apagado por defecto incluso para Socios con secciones legacy. Permisos conserva el diseño, agrega la fila debajo de Inventario y distribuye 6 + 5; Todo incluye Catálogo, Vendedor/Técnico no. Menú desktop y Más respetan el permiso, siempre fuera de la barra inferior; hash directo sin permiso muestra el aviso estándar sin redirigir.
+- API por sección; regeneración del enlace y cambios del estado activo de un catálogo existente siguen exclusivos del propietario. Creación inicial permitida; validación transaccional y auditoría conservadas. El sheet del empleado oculta las tres acciones exclusivas y guarda sin active. Sin cambios de Prisma.
+- Validación: lint/typecheck frontend/backend, build frontend, 949 tests frontend, 460 unitarios backend, 286 integraciones y dos E2E Chromium aprobados. Seis capturas revisadas contra mockups, mobile 390×844 a escala 2 y desktop 1440×900. Detalles y reproducción: `docs/catalog-permissions-376.md`; capturas: `docs/pr-shots/376-*.png`.
+- Solo PostgreSQL local: integración en `imanager_test` y E2E en `imanager_376_e2e`.
+
+
 ## Issue #395 — Onboarding Nombre / Stock — 2026-10-18
 
 - Dos pasos con el copy aprobado: Nombre y Stock. Excel primero, seguido de Pegar lista y A mano; muestras y omisión conservan sus flujos. Moneda/dólar muestra la cotización real y despliega los controles existentes.

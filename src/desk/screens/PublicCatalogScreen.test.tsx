@@ -11,7 +11,8 @@ const context = vi.hoisted(() => ({
   loadPublicCatalog: vi.fn(async () => context.publicCatalog),
   savePublicCatalog: vi.fn(),
   setCatalogVisibility: vi.fn(),
-  appSession: { store: { phone: '123123', name: 'Mi Tienda', currency: 'USD' } },
+  regeneratePublicCatalog: vi.fn(),
+  appSession: { membership: { role: 'OWNER' }, store: { phone: '123123', name: 'Mi Tienda', currency: 'USD' } },
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -309,5 +310,33 @@ describe('managed catalog pagination', () => {
     await user.click(screen.getByRole('button', { name: 'Resumen' }));
     await user.click(screen.getByRole('button', { name: 'Equipos' }));
     expect(screen.getByText('17–32 de 118')).toBeInTheDocument();
+  });
+});
+
+describe('catalog rules permissions', () => {
+  const originalMatchMedia = window.matchMedia;
+  beforeEach(() => { window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })); });
+  afterEach(() => { context.appSession.membership.role = 'OWNER'; window.matchMedia = originalMatchMedia; });
+  it.each(['STAFF', 'MANAGER', 'OWNER'])('shows the correct controls and save payload for %s', async role => {
+    context.publicCatalog = catalog();
+    context.appSession.membership.role = role;
+    context.loadPublicCatalog.mockResolvedValue(context.publicCatalog);
+    context.savePublicCatalog.mockReset();
+    context.savePublicCatalog.mockResolvedValue(undefined);
+    renderScreen();
+    await userEvent.click(await screen.findByRole('button', { name: 'Reglas y precio' }));
+    const sheet = screen.getByRole('dialog', { name: 'Reglas y precio' });
+    for (const label of ['Regenerar link', 'Desactivar catálogo']) {
+      expect(Boolean(within(sheet).queryByRole('button', { name: label }))).toBe(role === 'OWNER');
+    }
+    expect(Boolean(within(sheet).queryByRole('switch', { name: 'Catálogo activo' }))).toBe(role === 'OWNER');
+    await userEvent.click(within(sheet).getByRole('switch', { name: 'Ocultar reservados' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(context.savePublicCatalog).toHaveBeenCalledOnce());
+    const payload = context.savePublicCatalog.mock.calls[0][0];
+    expect(payload).toMatchObject({ hideReserved: false, hideWithoutStock: true, minBattery: null, showPrice: true, priceCurrency: 'USD', logoUrl: null, hours: null });
+    if (role === 'OWNER') expect(payload.active).toBe(true);
+    else expect(payload).not.toHaveProperty('active');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
