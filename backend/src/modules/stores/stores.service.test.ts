@@ -52,7 +52,7 @@ describe("stores.service", () => {
       updateMemberRole("store-1", "member-2", "OWNER", "MANAGER", "user-1")
     ).rejects.toMatchObject({
       statusCode: 403,
-      message: "No pod\u00e9s asignar el rol Propietario",
+      message: "Solo el Propietario puede cambiar ese rol",
     });
   });
 

@@ -9,7 +9,9 @@ const context = vi.hoisted(() => ({
   sales: [] as Sale[],
   clients: [] as never[],
   inventory: [] as Product[],
-  appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
+  appSession: null as { membership?: { role?: string; sections?: string[] | null }; store?: { id: string } } | null,
+  commissionSellers: [] as { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' }[],
+  loadCommissionSellers: vi.fn(async () => undefined),
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -47,6 +49,8 @@ describe('Sales column filters', () => {
     context.clients = [];
     context.inventory = [];
     context.appSession = null;
+    context.commissionSellers = [];
+    context.loadCommissionSellers.mockClear();
   });
 
   it('opens unassigned sales from the selected commission month, including historical periods', () => {
@@ -75,7 +79,8 @@ describe('Sales column filters', () => {
     expect(screen.getByRole('button', { name: 'Filtrar cliente' })).toHaveClass('on');
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
     expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
-    expect(screen.getByText('1 de 12')).toBeInTheDocument();
+    expect(screen.getByTestId('sales-filter-summary')).toHaveTextContent('1 de 12 ventas');
+    expect(screen.getByTestId('sales-filter-summary')).toHaveTextContent('900.000');
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
 
     await user.type(screen.getByPlaceholderText('Buscar cliente, equipo o número'), 'pixel');
@@ -211,5 +216,90 @@ describe('Sales on a phone', () => {
     expect(screen.getByTestId('sales-empty')).toHaveTextContent('No hay ventas');
     expect(screen.getByText('0 resultados')).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
+  });
+
+  it('filters by seller from the sheet, including sales without a seller', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.commissionSellers = [
+      { id: 'lucia', name: 'Lucía', role: 'STAFF' },
+      { id: 'martin', name: 'Martín', role: 'STAFF' },
+    ];
+    context.sales = [
+      sale(1, { sellerMemberId: 'lucia', clientName: 'Juan Domínguez', amount: 980, date: '2026-10-16' }),
+      sale(2, { sellerMemberId: 'lucia', clientName: 'Ana Pérez', amount: 430, date: '2026-10-15' }),
+      sale(3, { clientName: 'Mostrador', amount: 100, date: '2026-10-14' }),
+    ];
+    renderScreen();
+    const timeline = screen.getByTestId('sales-timeline');
+    expect(timeline.querySelectorAll('.av-c').length).toBe(3);
+    expect(timeline).toHaveTextContent('Juan Domínguez');
+    await user.click(screen.getByTestId('sales-seller-chip'));
+    const sheet = screen.getByRole('dialog', { name: 'Vendedor' });
+    expect(within(sheet).getByRole('checkbox', { name: /Lucía/ })).not.toBeChecked();
+    expect(within(sheet).getByText('2')).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: /Sin vendedor/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: /Martín/ })).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('checkbox', { name: /Lucía/ }));
+    await user.click(within(sheet).getByRole('button', { name: 'Ver 2 ventas' }));
+    expect(screen.queryByRole('dialog', { name: 'Vendedor' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('sales-seller-chip')).toHaveTextContent('Lucía');
+    expect(screen.getByTestId('sales-filter-summary')).toHaveTextContent('2 de 3 ventas');
+    expect(screen.getByTestId('sales-filter-summary')).toHaveTextContent('1.410');
+    expect(screen.getByText('Juan Domínguez')).toBeInTheDocument();
+    expect(screen.queryByText('Mostrador')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Quitar filtro de vendedor' }));
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.queryByTestId('sales-filter-summary')).not.toBeInTheDocument();
+  });
+});
+
+describe('Seller column filter', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    context.sales = [
+      sale(1, { sellerMemberId: 'lucia', clientName: 'Juan Domínguez', amount: 980, date: '2026-10-16' }),
+      sale(2, { sellerMemberId: 'lucia', clientName: 'Ana Pérez', amount: 430, date: '2026-10-15' }),
+      sale(3, { clientName: 'Mostrador', amount: 100, date: '2026-10-14' }),
+    ];
+    context.clients = [];
+    context.inventory = [];
+    context.appSession = null;
+    context.commissionSellers = [
+      { id: 'lucia', name: 'Lucía', role: 'STAFF' },
+      { id: 'martin', name: 'Martín', role: 'STAFF' },
+    ];
+  });
+
+  it('filters with the vendedor checkboxes and clears the total', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtrar vendedor' }));
+    const dialog = screen.getByRole('dialog', { name: 'Filtrar vendedor' });
+    expect(within(dialog).getByRole('checkbox', { name: 'Lucía' })).not.toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: 'Sin vendedor' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: 'Martín' })).toBeInTheDocument();
+    expect(within(dialog).getByText('2')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Lucía' }));
+    expect(screen.getByText('Juan Domínguez')).toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('Mostrador')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sales-filter-summary')).toHaveTextContent('2 de 3 ventas');
+    expect(screen.getByTestId('sales-seller-chip')).toHaveTextContent('Vendedor: Lucía');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Sin vendedor' }));
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
+    expect(screen.getByTestId('sales-seller-chip')).toHaveTextContent('Vendedor: 2');
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByTestId('sales-seller-chip')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
   });
 });

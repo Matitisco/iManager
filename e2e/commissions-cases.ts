@@ -130,7 +130,7 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await expect(page.getByRole('switch', { name: 'Comisiones', exact: true })).toBeChecked();
       await shot('11', 'permisos');
       await page.getByRole('switch', { name: 'Comisiones', exact: true }).click();
-      await page.getByRole('button', { name: 'Guardar permisos' }).click();
+      await page.getByRole('button', { name: phone ? 'Guardar' : 'Guardar permisos', exact: true }).click();
       for (const hash of ['#/dash', '#/inv', '#/ven', '#/canjes', '#/clientes', '#/servicio', '#/notif', '#/config']) { await navigate(hash); await noExport(); }
       state.resetPayments(); state.staff = true; state.calls = []; await page.reload(); await navigate('#/comisiones');
       await expect(page.getByRole('heading', { name: 'Mis comisiones', exact: true })).toBeVisible();

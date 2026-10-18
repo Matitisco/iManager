@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, loginViaUi } from './utils';
+import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
 
 const SHOTS = process.env.MOBILE_NAV_SHOTS?.trim();
 
@@ -126,9 +126,7 @@ test.describe('phone navigation', () => {
     const staff = await staffContext.newPage();
     try {
       await mockDollar(staff);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${store}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       const bar = staff.getByTestId('mobile-tab-bar');
       await expect(bar.getByTestId('sidebar-tab-dashboard')).toBeVisible();
@@ -139,7 +137,10 @@ test.describe('phone navigation', () => {
       await bar.getByTestId('sidebar-tab-more').click();
       await expect(staff.getByTestId('sidebar-tab-service')).toContainText('Servicio técnico');
       await expect(staff.getByTestId('sidebar-tab-clients')).toBeVisible();
-      await expect(staff.getByTestId('sidebar-tab-commissions')).toBeVisible();
+      await expect(staff.getByTestId('sidebar-tab-notifications')).toBeVisible();
+      await expect(staff.getByTestId('sidebar-tab-cash')).toHaveCount(0);
+      await expect(staff.getByTestId('sidebar-tab-reports')).toHaveCount(0);
+      await expect(staff.getByTestId('sidebar-tab-commissions')).toContainText('Mis comisiones');
       await expect(staff.getByText(/Tentativo/)).toHaveCount(0);
       await staff.setViewportSize({ width: 360, height: 800 });
       await expectFits(staff);

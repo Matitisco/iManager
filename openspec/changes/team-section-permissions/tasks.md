@@ -1,0 +1,3 @@
+- [x] Corregir autorización, defaults, preview y schema aditivo
+- [x] Implementar Equipo, perfiles, aceptación y acceso denegado
+- [x] Cubrir reglas con pruebas frontend/backend y ejecutar checks solicitados

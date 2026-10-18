@@ -7,6 +7,7 @@ import {
   deviceCoverageLines,
   repairWarrantyView,
   saleWarrantyView,
+  warrantyDueCopy,
   warrantyUntil,
 } from './warranty';
 import { formatArDate, parseArDate } from './ar-date';
@@ -47,6 +48,15 @@ const repair = (overrides: Partial<RepairOrder> = {}): RepairOrder => ({
   warrantyDays: 10,
   events: [{ id: 'e1', status: 'ENTREGADO', createdAt: '01/10/2026' }],
   ...overrides,
+});
+
+describe('warranty due copy', () => {
+  it('adds the chosen days to the sale date', () => {
+    expect(warrantyDueCopy('17/10/2026', 60)).toBe('Vence el 16/12/2026');
+    expect(warrantyDueCopy('2026-10-17', 30)).toBe('Vence el 16/11/2026');
+    expect(warrantyDueCopy('17/10/2026', 0)).toBe('Sin garantía');
+    expect(warrantyDueCopy('17/10/2026', null)).toBe('');
+  });
 });
 
 describe('warranty coverage', () => {

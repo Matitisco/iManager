@@ -79,11 +79,12 @@ describe('warranty screens', () => {
     ctx.repairOrders = [];
     ctx.inventory = [product];
     render(<DeskProvider value={desk}><DeskOverlays overlay={{ type: 'cl', id: 'c1' }} /></DeskProvider>);
-    const block = screen.getByTestId('client-warranties');
+    const block = screen.getByTestId('client-purchases');
     expect(block).toBeVisible();
-    expect(block).toHaveTextContent('Cubierto');
-    expect(block).toHaveTextContent('Vigente hasta el');
-    expect(block.querySelector('.warranty-line')).not.toBeNull();
+    expect(block).toHaveTextContent('iPhone 13');
+    expect(block).toHaveTextContent(/Vigente/);
+    expect(screen.queryByRole('region', { name: 'Garantías' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cubierto')).not.toBeInTheDocument();
     restore();
   });
 
@@ -118,9 +119,32 @@ describe('warranty screens', () => {
     const days = await screen.findByTestId('sale-warranty-days');
     expect(days).toBeVisible();
     await waitFor(() => expect(days).toHaveValue('45'));
-    expect(screen.getByTestId('sale-warranty-until')).toHaveTextContent('Vigente hasta el');
+    expect(screen.getByRole('button', { name: 'Otro' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('sale-warranty-until')).toHaveTextContent(/^Vence el \d{2}\/\d{2}\/\d{4}$/);
     expect(screen.getByLabelText('Fecha de la venta')).toBeVisible();
     restore();
+  });
+
+  it('uses 30 days for used devices, 90 for sealed, and Otro for anything else', async () => {
+    const user = userEvent.setup();
+    ctx.appSession.store.usedWarrantyDays = 30;
+    ctx.appSession.store.sealedWarrantyDays = 90;
+    ctx.inventory = [{ ...product, condition: 'USADO', status: 'DISPONIBLE' }];
+    ctx.sales = [];
+    render(<DeskProvider value={desk}><DeskOverlays overlay={{ type: 'new-sale', source: 'inventory', productId: 'p1' }} /></DeskProvider>);
+    await waitFor(() => expect(screen.getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.queryByTestId('sale-warranty-days')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sale-warranty-until')).toHaveTextContent(/^Vence el /);
+    await user.click(screen.getByRole('button', { name: '60 días' }));
+    expect(screen.getByRole('button', { name: '60 días' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Otro' }));
+    const days = screen.getByTestId('sale-warranty-days');
+    expect(days).toHaveValue('');
+    await user.type(days, '45');
+    expect(screen.getByRole('button', { name: 'Otro' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('sale-warranty-until')).toHaveTextContent(/^Vence el \d{2}\/\d{2}\/\d{4}$/);
+    ctx.appSession.store.usedWarrantyDays = 15;
+    ctx.appSession.store.sealedWarrantyDays = 45;
   });
 
   it('saves warranty defaults from settings', async () => {

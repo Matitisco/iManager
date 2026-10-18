@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, loginViaUi } from './utils';
+import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
 
 async function mockDollar(page: Page) {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({
@@ -92,9 +92,7 @@ test('the owner edits the budget and deletes the order, and an employee without 
   const staff = await staffContext.newPage();
   try {
     await mockDollar(staff);
-    await staff.goto(`/invite/${invitation.token}`);
-    await loginViaUi(staff, staffEmail);
-    await staff.getByRole('button', { name: `Unirme a ${storeName}` }).click();
+    await acceptInvitationViaUi(staff, staffEmail, invitation.token, storeName);
     await expect(staff.getByTestId('sidebar-tab-service')).toBeVisible();
     await openService(staff);
     await staff.locator('[data-testid^="repair-card-"]').first().click();

@@ -1,4 +1,5 @@
 import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
+import { NoSectionAccess } from './screens/NoSectionAccess';
 import { CashScreen } from './screens/CashScreen';
 import { CircleHelp } from 'lucide-react';
 import { HelpScreen } from './screens/HelpScreen';
@@ -218,11 +219,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
 
   useEffect(() => {
     const apply = () => {
-      let next = tabFromHash(window.location.hash);
-      if (!allowed(next)) {
-        next = allowed('dashboard') ? 'dashboard' : 'settings';
-        history.replaceState(null, '', `#/${ROUTE[next]}`);
-      }
+      const next = tabFromHash(window.location.hash);
       setTab(next);
       setOverlay(null);
     };
@@ -232,14 +229,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     return () => window.removeEventListener('hashchange', onHash);
   }, [sections, role]);
 
-  useEffect(() => {
-    const next = tabFromHash(window.location.hash || '#/dash');
-    if (allowed(next)) return;
-    const fallback = allowed('dashboard') ? 'dashboard' : 'settings';
-    history.replaceState(null, '', `#/${ROUTE[fallback]}`);
-    setTab(fallback);
-    setOverlay(null);
-  }, [sections, role]);
 
   useEffect(() => {
     if (phone || tab !== 'more') return;
@@ -256,7 +245,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [appSession?.store?.id, isStaff]);
 
   const go = (next: DeskTab) => {
-    if (!allowed(next)) return;
     const hash = `#/${ROUTE[next]}`;
     if (window.location.hash === hash) {
       setTab(next);
@@ -386,6 +374,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
+            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
@@ -415,6 +404,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 onOpen={go}
               />
             )}
+            </>}
           </div>
           </OfflineScope>
         </main>

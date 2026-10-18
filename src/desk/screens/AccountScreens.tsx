@@ -1,8 +1,8 @@
 import { billingAccountSubtitle } from './BillingScreen';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { listInvitations, type Invitation } from '../../services/invitations-api';
+import { listInvitations, revokeInvitation, type Invitation } from '../../services/invitations-api';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import { MemberPermissions } from './MemberPermissions';
 import { contactSummary } from '../../lib/store-contact';
@@ -12,6 +12,9 @@ import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ImanagerIcon, notificationIcon } from '../icons';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
+import { Link2, MessageCircle, X } from 'lucide-react';
+import { canEditMember, memberSectionSummary } from '../team-permissions';
+import './team.css';
 import { canViewTeam } from '../sections';
 import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 
@@ -259,35 +262,78 @@ export function SettingsScreen() {
   const { open, isStaff, toast, back, go } = useDesk();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
+  const [teamPage, setTeamPage] = useState(false);
+  const [teamError, setTeamError] = useState('');
+  const [busyInvite, setBusyInvite] = useState<string | null>(null);
   const [selected, setSelected] = useState<TeamMember | null>(null);
 
   const seeTeam = canViewTeam(appSession?.membership?.role);
-  const load = () => {
+  const loadVersion = useRef(0);
+  const load = useCallback(() => {
+    const version = ++loadVersion.current;
     if (!user || !appSession?.store?.id || !seeTeam) return;
-    listMembers(user, appSession.store.id).then(setMembers).catch(() => setMembers([]));
-    listInvitations(user).then(setInvites).catch(() => setInvites([]));
-  };
+    setTeamError('');
+    void Promise.all([listMembers(user, appSession.store.id), listInvitations(user)])
+      .then(([nextMembers, nextInvites]) => {
+        if (version !== loadVersion.current) return;
+        setMembers(nextMembers); setInvites(nextInvites);
+      })
+      .catch(err => { if (version === loadVersion.current) setTeamError(toUserMessage(err, 'No se pudo cargar el equipo')); });
+  }, [user, appSession?.store?.id, seeTeam]);
 
-  useEffect(() => { load(); }, [user, appSession?.store?.id, seeTeam]);
+  useEffect(() => {
+    setMembers([]); setInvites([]); setSelected(null); load();
+    return () => { loadVersion.current += 1; };
+  }, [load]);
   useEffect(() => {
     const refresh = () => load();
     window.addEventListener('desk-invites', refresh);
     return () => window.removeEventListener('desk-invites', refresh);
-  }, [user, appSession?.store?.id, seeTeam]);
+  }, [load]);
 
   const me = appSession?.user;
   const store = appSession?.store;
-  const inviteLine = invites.map((invite) => `${ROLE_LABEL[invite.role] ?? invite.role} · expira ${formatArDate(new Date(invite.expiresAt))}`).join(' · ');
+  const copyLink = async (link: string) => {
+    try { await navigator.clipboard.writeText(link); toast('Link copiado'); }
+    catch { setTeamError('No se pudo copiar el link. Intentá de nuevo.'); }
+  };
+  const inviteButton = <button className="dbtn p team-desktop-invite" type="button" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>;
+  const teamContent = <>
+    {teamError ? <p className="ferr" role="alert">{teamError}</p> : null}
+    <div className={`team-grid${members.length <= 1 && !invites.length ? ' solo' : ''}`}>
+      <div><div className="sec"><span>Miembros</span><span className="secr">{members.length}</span></div><div className="card">
+        {members.map((member, index) => {
+          const editable = canEditMember(appSession?.membership?.role, me?.id, member);
+          return <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} disabled={!editable} onClick={() => setSelected(member)}>
+            <div className={`av-c ${member.role === 'OWNER' ? 'owner' : ['b', 'p', 'g'][index % 3]}`}>{initials(member.user.displayName || member.user.email || 'U')}</div>
+            <div className="info"><div className="name">{member.user.displayName || member.user.email || 'Miembro'}</div><div className="role">{member.userId === me?.id ? 'Vos · ' : ''}{memberSectionSummary(member)}</div></div>
+            <span className={`spill ${member.role === 'OWNER' ? 'off' : member.role === 'MANAGER' ? 'mid' : ''}`}>{ROLE_LABEL[member.role]}</span>
+            {editable ? <span className="chev">›</span> : null}
+          </button>;
+        })}
+      </div>{members.length === 1 && members[0]?.role === 'OWNER' ? <div className="team-empty"><div className="team-avatars" aria-hidden="true"><i /><i /><i /></div><h2>Sumá a tu equipo</h2><p>Cada persona entra con su usuario y ve solo lo que habilites.</p></div> : null}</div>
+      {invites.length ? <div><div className="sec"><span>Invitaciones pendientes</span><span className="secr">{invites.length}</span></div><div className="card" data-testid="settings-invites">{invites.map(invite => <div className="team-invitation" key={invite.id}>
+        <span className="team-link-icon"><Link2 size={16} /></span><div className="info"><b>{invite.email ? `${invite.email} · ${ROLE_LABEL[invite.role]}` : `Link para ${ROLE_LABEL[invite.role]}`}</b><small>Vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
+        <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => {
+          if (!user) return; setBusyInvite(invite.id); setTeamError('');
+          void revokeInvitation(user, invite.id).then(() => { setInvites(current => current.filter(item => item.id !== invite.id)); toast('Invitación cancelada'); }).catch(err => setTeamError(toUserMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
+        }}><X size={17} /></button> : null}</div>
+      </div>)}</div></div> : null}
+    </div><button className="dbtn p team-invite-bottom" type="button" data-testid={teamPage ? 'settings-invite' : undefined} onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
+  </>;
 
   if (selected) {
     return (
       <MemberPermissions
         member={selected}
         onBack={() => setSelected(null)}
+        onRemoved={load}
         onSaved={(member) => setMembers((current) => current.map((item) => item.id === member.id ? { ...item, ...member } : item))}
       />
     );
   }
+
+  if (teamPage && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><button type="button" className="team-back" onClick={() => setTeamPage(false)}>‹ Configuración</button><PageHead title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${members.length} personas · ${invites.length} invitaciones`} action={inviteButton} />{teamContent}</div>;
 
   return (
     <div className="dscreen" data-testid="settings-screen">
@@ -305,31 +351,9 @@ export function SettingsScreen() {
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
               <MRow icon={<DeskIcon name="cal" size={18} />} title="Garantías" sub="Usados, sellados y reparaciones" onClick={() => open({ type: 'warranty' })} />
             </div>
-            <div className="sec" data-testid="settings-team"><span>Equipo</span><span className="secr">{members.length} miembros</span></div>
-            <div className="card">
-              {members.map((member, index) => (
-                <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} onClick={() => setSelected(member)}>
-                  <div className={`av-c ${['b', 'p', 'g'][index % 3]}`}>{initials(member.user.displayName || member.user.email || 'U')}</div>
-                  <div className="info">
-                    <div className="name">{member.user.displayName || member.user.email}</div>
-                    <div className="role">{member.user.email}</div>
-                  </div>
-                  {member.userId === me?.id ? <span className="spill mid">vos</span> : null}
-                  <span className={`spill ${member.role === 'OWNER' ? 'off' : 'mid'}`}>{ROLE_LABEL[member.role] ?? member.role}</span>
-                  <span className="chev">›</span>
-                </button>
-              ))}
-              {invites.length > 0 ? (
-                <button className="member" type="button" data-testid="settings-invites" onClick={() => open({ type: 'invites' })}>
-                  <div className="info">
-                    <div className="name">{invites.length === 1 ? '1 link de invitación activo' : `${invites.length} links de invitación activos`}</div>
-                    <div className="role">{inviteLine}</div>
-                  </div>
-                  <span className="chev">›</span>
-                </button>
-              ) : null}
-              <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
-            </div>
+            <div className="sec" data-testid="settings-team"><button type="button" className="team-back" onClick={() => setTeamPage(true)}>Equipo ›</button>{inviteButton}</div>
+            {teamContent}
+            <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
           </>
         )}
         <div className="sec" data-testid="settings-account">Mi cuenta</div>

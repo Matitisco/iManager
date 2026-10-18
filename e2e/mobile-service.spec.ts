@@ -5,7 +5,7 @@ import {
   createClientViaApi,
   createInvitationViaApi,
   createRepairViaApi,
-  loginViaUi,
+  acceptInvitationViaUi,
   updateStoreViaApi,
 } from './utils';
 
@@ -266,9 +266,7 @@ test.describe('service on a phone', () => {
     const staff = await staffContext.newPage();
     try {
       await mockDollar(staff);
-      await staff.goto(`/invite/${invitation.token}`);
-      await loginViaUi(staff, staffEmail);
-      await staff.getByRole('button', { name: `Unirme a ${storeName}` }).click();
+      await acceptInvitationViaUi(staff, staffEmail, invitation.token, storeName);
       await openService(staff);
       await staff.locator('[data-testid^="repair-card-"]').filter({ hasText: 'iPhone 14' }).click();
       const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });

@@ -117,8 +117,8 @@ describe('Login', () => {
 
     render(<Login inviteToken="invite-123" />);
 
-    expect(screen.getByText('Te invitaron a una tienda')).toBeInTheDocument();
-    expect(screen.getByText(/Casa Central/)).toBeInTheDocument();
+    expect(screen.getByText('Sumate a Casa Central')).toBeInTheDocument();
+    expect(screen.getAllByText(/Casa Central/)[0]).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Continuar con Google/i }));
 
