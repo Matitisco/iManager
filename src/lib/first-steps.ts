@@ -20,7 +20,7 @@ export function canSeeFirstSteps(role?: string | null) {
   return role === "OWNER" || role === "MANAGER";
 }
 
-/** The island stays until the five steps are done. It is never dismissed for good. */
+/** Eligibility for the dashboard; the island persists its dismissal after completion. */
 export function firstStepsOnDashboard(
   state: { eligible: boolean; visible?: boolean } | null | undefined,
   role?: string | null,
