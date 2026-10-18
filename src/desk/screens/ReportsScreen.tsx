@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
+import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
   saleBuyer,
   conditionLabel,
@@ -436,6 +437,10 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts
   const gap = visible.length > 1 ? Math.min(0.12, (Math.PI * 2) / visible.length / 4) : 0;
   let cursor = -Math.PI / 2;
   const active = parts.find((part) => part.label === cat);
+  const totalLabel = fitDonutValue(total, showMoney ? money.active : undefined, phone);
+  const center = sum === 0 ? fitDonutText('—', phone) : active ? fitDonutText(`${Math.round((active.value / sum) * 100)}%`, phone) : totalLabel;
+  const centerLabel = sum === 0 ? 'sin datos' : active?.label ?? 'total';
+  const description = `${active ? `${center.text} · ${active.label}; ` : ''}total: ${totalLabel.fullText}`;
   return (
     <div className="gcomp">
       <div className="gdonut">
@@ -468,8 +473,8 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts
               : <circle key={part.label} cx={DONUT_CENTER} cy={DONUT_CENTER} r={DONUT_RADIUS} {...props} />;
           })}
         </svg>
-        <div className="gc">
-          {sum === 0 ? <><b>—</b><small>sin datos</small></> : active ? <><b>{Math.round((active.value / sum) * 100)}%</b><small>{active.label}</small></> : <><b>{showMoney ? money.compactActive(total) : total}</b><small>total</small></>}
+        <div className="gc" role="img" aria-label={sum === 0 ? `sin datos; ${description}` : description} title={description}>
+          <b style={{ fontSize: center.fontSize }}>{center.text}</b><small title={centerLabel}>{centerLabel}</small>
         </div>
       </div>
       <div className="gleg">
