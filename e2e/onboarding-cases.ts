@@ -180,7 +180,7 @@ export function onboardingCases(phone: boolean) {
     await page.reload();
     await expect(page.getByTestId("getting-started")).toBeVisible();
   });
-  test("saltea cada pantalla, reanuda al recargar y permite cerrar/reabrir checklist desde Ayuda", async ({
+  test("saltea cada pantalla, reanuda al recargar y permite minimizar y consultar checklist desde Ayuda", async ({
     page,
     request,
   }, info) => {
@@ -195,7 +195,7 @@ export function onboardingCases(phone: boolean) {
     ).toBeVisible();
     await page.getByRole("button", { name: "Saltar por ahora" }).click();
     await expect(
-      page.getByRole("button", { name: "Cargar equipo", exact: true }),
+      page.getByTestId("getting-started"),
     ).toBeVisible();
     await fits(page);
     await page.screenshot({
@@ -203,7 +203,10 @@ export function onboardingCases(phone: boolean) {
       fullPage: true,
     });
     expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
-    await page.getByRole("button", { name: "Cargar equipo", exact: true }).click();
+    await page.getByTestId("getting-started").click();
+    const stockStep = page.getByTestId("getting-started").getByTestId("first-step-stock");
+    await expect(stockStep).toHaveAttribute("data-done", "false");
+    await stockStep.getByRole("button", { name: /Cargá tu stock/ }).click();
     await expect(
       page.getByRole("button", { name: /Probar con datos de ejemplo/ }),
     ).toBeVisible();

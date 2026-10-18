@@ -40,7 +40,7 @@ describe("primeros pasos", () => {
     expect(nextFirstStep(done)).toBeNull();
   });
 
-  it("muestra la isla solo al dueño y al administrador, y no se puede ocultar del todo", () => {
+  it("habilita la isla para propietario y socio según la elegibilidad o visibilidad desde Ayuda", () => {
     expect(canSeeFirstSteps("OWNER")).toBe(true);
     expect(canSeeFirstSteps("MANAGER")).toBe(true);
     expect(canSeeFirstSteps("STAFF")).toBe(false);

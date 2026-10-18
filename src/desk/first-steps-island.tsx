@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { InstallHelp } from "../components/InstallHelp";
@@ -106,6 +106,7 @@ function useFirstSteps() {
     closeInstall,
     markInstalled,
     run,
+    completionKey: `imanager-first-steps-completed:${appSession?.user?.id ?? ""}:${appSession?.store?.id ?? ""}`,
     refreshGettingStarted,
     updateGettingStarted,
   };
@@ -162,9 +163,48 @@ function InstallGate({
 
 export function FirstStepsIsland() {
   const model = useFirstSteps();
+  return <FirstStepsIslandView key={model.completionKey} model={model} />;
+}
+
+function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstSteps> }) {
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState<Element | null>(null);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(model.completionKey) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [celebrating, setCelebrating] = useState(false);
+  const seenIncomplete = useRef(false);
   const visible = firstStepsOnDashboard(model.state, model.role);
+  const { done, total, complete } = model.progress;
+
+  useEffect(() => {
+    if (!visible || dismissed) return;
+    if (!complete) {
+      seenIncomplete.current = true;
+      return;
+    }
+    // Persist immediately so a reload during the acknowledgement cannot replay it.
+    try {
+      localStorage.setItem(model.completionKey, "true");
+    } catch {
+      // The current session still hides the island when storage is unavailable.
+    }
+    if (seenIncomplete.current) setCelebrating(true);
+    else setDismissed(true);
+  }, [visible, dismissed, complete, model.completionKey]);
+
+  useEffect(() => {
+    if (!celebrating) return;
+    const timer = window.setTimeout(() => {
+      setDismissed(true);
+      setOpen(false);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [celebrating]);
 
   useEffect(() => {
     setHost(document.querySelector(".desk-app"));
@@ -172,12 +212,12 @@ export function FirstStepsIsland() {
 
   useEffect(() => {
     const root = document.querySelector(".desk-app");
-    if (!root || !open) return;
+    if (!root || !open || !visible || dismissed || complete) return;
     root.classList.add("steps-open");
     return () => root.classList.remove("steps-open");
-  }, [open]);
+  }, [open, visible, dismissed, complete]);
 
-  if (!canSeeFirstSteps(model.role)) return null;
+  if (!canSeeFirstSteps(model.role) || dismissed) return null;
   if (!model.state) {
     if (!model.gettingStartedError) return null;
     return (
@@ -188,16 +228,15 @@ export function FirstStepsIsland() {
       </section>
     );
   }
-  if (!visible) return null;
+  if (!visible || (complete && !celebrating)) return null;
 
-  const { done, total, complete } = model.progress;
   const node = (
     <>
       {open && !complete ? <div className="steps-scrim" onClick={() => setOpen(false)} /> : null}
       {complete ? (
         <div className="steps-pill is-done" data-testid="getting-started" data-complete="true" role="status">
           <span className="steps-done-mark" aria-hidden="true"><Check size={16} /></span>
-          Primeros pasos completos
+          Listo · 5/5
         </div>
       ) : open ? (
         <section className="steps-panel" data-testid="getting-started" aria-label="Primeros pasos">
