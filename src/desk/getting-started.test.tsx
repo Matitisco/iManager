@@ -224,7 +224,7 @@ describe("isla de primeros pasos", () => {
     fireEvent.click(screen.getByTestId("first-step-install").querySelector("button")!);
     expect(screen.getByText("Guía PWA")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Ya la instalé" }));
-    expect(state.updateGettingStarted).toHaveBeenCalledWith({ installed: true });
+    expect(state.updateGettingStarted).toHaveBeenCalledWith({ installed: true, installedHow: 'manual' });
     await act(async () => { await Promise.resolve(); });
   });
 

@@ -67,6 +67,7 @@ describe('sales-api', () => {
       method: 'GET',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
       },
@@ -92,6 +93,7 @@ describe('sales-api', () => {
       method: 'PATCH',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -117,6 +119,7 @@ describe('sales-api', () => {
       method: 'DELETE',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
       },

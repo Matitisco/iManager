@@ -74,6 +74,7 @@ describe("invitations.service", () => {
       token: "token-12345678",
       email: null,
       role: "STAFF",
+      createdAt: new Date(),
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
     });
 
@@ -96,6 +97,7 @@ describe("invitations.service", () => {
       token: "token-abcdef",
       email: "martin@gmail.com",
       role: "STAFF",
+      createdAt: new Date(),
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
     });
 
@@ -131,6 +133,7 @@ describe("invitations.service", () => {
       token: "token-1",
       role: "MANAGER",
       status: "PENDING",
+      createdAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
       store: { name: "Tienda Centro" },
     });
@@ -151,6 +154,7 @@ describe("invitations.service", () => {
       storeId: "store-invited",
       role: "MANAGER",
       status: "PENDING",
+      createdAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
     };
 
@@ -224,6 +228,7 @@ describe("invitations.service", () => {
       storeId: "store-owner",
       role: "STAFF",
       status: "PENDING",
+      createdAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
     });
     findOrCreateUserFromFirebaseMock.mockResolvedValue({

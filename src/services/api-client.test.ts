@@ -50,13 +50,13 @@ describe('apiRequest', () => {
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(1, 'https://api.imanager.test/api/items', {
       method: 'POST',
       cache: 'no-store',
-      headers: { Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       body: '{"name":"A"}',
     });
     expect(fetchWithTimeout).toHaveBeenNthCalledWith(2, 'https://api.imanager.test/api/items/1', {
       method: 'DELETE',
       cache: 'no-store',
-      headers: { Authorization: 'Bearer token-123', Accept: 'application/json' },
+      headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token-123', Accept: 'application/json' },
     });
   });
 

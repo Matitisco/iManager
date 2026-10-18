@@ -3,7 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { usePhoneLayout } from '../lib/phone-layout';
 import { formatArDateTime } from '../lib/ar-date';
 import { ApiError } from '../services/api-client';
-import { fetchStoreActivity } from '../services/admin-activity-api';
+import { fetchStoreActivity, fetchAdminAccess } from '../services/admin-activity-api';
 import {
   isTestStore,
   planLabel,
@@ -134,16 +134,22 @@ export function StoreActivityPage() {
   useEffect(() => {
     if (!user) return;
     let active = true;
+    setData(null);
     setLoad({ status: 'loading' });
-    fetchStoreActivity(user, range).then(
+    (async () => {
+      const access = await fetchAdminAccess(user);
+      if (!active) return null;
+      if (!access.isAdmin) { setData(null); setLoad({ status: 'missing' }); return null; }
+      return fetchStoreActivity(user, range);
+    })().then(
       (next) => {
-        if (!active) return;
+        if (!active || !next) return;
         setData(next);
         setLoad({ status: 'ready' });
       },
       (error: unknown) => {
         if (!active) return;
-        if (error instanceof ApiError && error.status === 404) {
+        if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
           setData(null);
           setLoad({ status: 'missing' });
           return;

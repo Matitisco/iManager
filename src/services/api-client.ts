@@ -1,3 +1,4 @@
+import { analyticsDeviceHeader } from '../lib/analytics-device';
 import type { AuthUserLike } from '../types/auth-user';
 import { isTechnicalMessage, readApiErrorMessage } from '../lib/api-message';
 import { SERVER_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
@@ -5,6 +6,7 @@ import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 
 export type ApiRequestOptions = {
+  keepalive?: boolean;
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   fallback: string | ((status: number) => string);
@@ -50,10 +52,12 @@ async function performRequest<T>(user: AuthUserLike, path: string, options: ApiR
   const hasBody = body !== undefined;
   const init: RequestInit = {
     method,
+    ...(options.keepalive ? { keepalive: true } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     cache: 'no-store',
     // Fastify rejects an empty body sent with Content-Type: application/json.
     headers: {
+      'x-im-device': analyticsDeviceHeader(),
       Authorization: `Bearer ${token}`,
       Accept: options.accept ?? 'application/json',
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),

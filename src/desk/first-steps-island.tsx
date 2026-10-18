@@ -1,3 +1,4 @@
+import { track } from '../lib/analytics';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
@@ -79,7 +80,7 @@ function useFirstSteps() {
   const markInstalled = async () => {
     setError("");
     try {
-      await updateGettingStarted?.({ installed: true });
+      await updateGettingStarted?.({ installed: true, installedHow: 'manual' });
       setInstallation(false);
     } catch (cause) {
       setError(toUserMessage(cause));
@@ -87,6 +88,7 @@ function useFirstSteps() {
   };
 
   const run = (id: FirstStepId) => {
+    track('first_steps_step_clicked', { step: id });
     if (id === "store") open({ type: "store" });
     else if (id === "stock") open({ type: "onboarding-stock" });
     else if (id === "sale") open({ type: "new-sale" });
@@ -261,7 +263,14 @@ function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstStep
           {(model.error || model.gettingStartedError) ? <p className="ferr" role="alert">{model.error || model.gettingStartedError}</p> : null}
         </section>
       ) : (
-        <button className="steps-pill" type="button" data-testid="getting-started" aria-label={`Primeros pasos, ${done} de ${total}`} onClick={() => setOpen(true)}>
+        <button className="steps-pill" type="button" data-testid="getting-started" aria-label={`Primeros pasos, ${done} de ${total}`} onClick={() => {
+          setOpen(true);
+          try {
+            const key = `${model.completionKey}:opened`;
+            const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+            if (localStorage.getItem(key) !== day) { localStorage.setItem(key, day); track('first_steps_opened', { done }); }
+          } catch { /* Storage may be unavailable. */ }
+        }}>
           <span className="steps-ring" style={{ background: `conic-gradient(#FFD000 ${(done / total) * 360}deg, #3A3D44 0deg)` }} aria-hidden="true">
             <span>{done}/{total}</span>
           </span>

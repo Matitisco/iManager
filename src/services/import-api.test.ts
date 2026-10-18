@@ -37,7 +37,7 @@ describe('import-api', () => {
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/analyze-text', {
       method: 'POST',
       cache: 'no-store',
-      headers: { Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     }, 190_000);
   });
@@ -58,6 +58,7 @@ describe('import-api', () => {
       method: 'POST',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -92,6 +93,7 @@ describe('import-api', () => {
       method: 'POST',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
         'Content-Type': 'application/json',

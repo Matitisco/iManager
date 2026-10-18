@@ -54,7 +54,7 @@ export function Privacy() {
       <p>La Ley 25.326 de Protección de Datos Personales te da derecho a acceder, rectificar, actualizar y suprimir tus datos, y a pedir que te expliquemos qué tenemos. Podés hacerlo escribiendo a {PLACEHOLDER}. También podés reclamar ante la Agencia de Acceso a la Información Pública (AAIP).</p>
       <p>La supresión alcanza a los datos de la cuenta. La tienda puede tener que conservar algunos registros el tiempo que le exija la ley fiscal o comercial.</p>
       <h2>Esta web</h2>
-      <p>La web de marketing no te pide una cuenta. No usa cookies de seguimiento de terceros. La app, en app.imanager.com.ar, usa la sesión necesaria para que entres a tu tienda.</p>
+      <p>La web de marketing no te pide una cuenta. No usa cookies de seguimiento de terceros. Registramos métricas de uso internas para mejorar iManager. No usamos servicios de analítica de terceros. La app, en app.imanager.com.ar, usa la sesión necesaria para que entres a tu tienda.</p>
       <h2>Cambios</h2>
       <p>Si cambiamos esta política, publicamos la versión nueva en esta página.</p>
     </article>

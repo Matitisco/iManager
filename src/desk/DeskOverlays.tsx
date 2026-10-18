@@ -16,11 +16,11 @@ import { ClientDetail, ClientForm } from './overlays/client';
 import { StoreForm, ContactForm, ProfileForm, PasswordForm, InviteForm, InvitesList, WarrantyForm } from './overlays/account';
 import { ImportHost } from './overlays/import';
 
-export function DeskOverlays({ overlay }: { overlay: Overlay | null }) {
+export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void }) {
   if (!overlay) return null;
   if (overlay.type === 'ctx') return <ContextMenu overlay={overlay} />;
   if (overlay.type === 'import') return <ImportHost kind={overlay.kind} />;
-  return <OverlayBody key={`${overlay.type}-${'id' in overlay ? overlay.id : ''}`} overlay={overlay} />;
+  return <OverlayBody key={`${overlay.type}-${'id' in overlay ? overlay.id : ''}`} overlay={overlay} onSaved={onSaved} />;
 }
 
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
@@ -41,7 +41,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   );
 }
 
-function OverlayBody({ overlay }: { overlay: Overlay }) {
+function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => void }) {
   const desk = useDesk();
   const ctx = useAppContext();
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +52,7 @@ function OverlayBody({ overlay }: { overlay: Overlay }) {
     setError(null);
     try {
       const result = await action();
+      onSaved?.();
       if (!options?.keepOpen) desk.close();
       options?.afterSuccess?.();
       const summary = result && typeof result === 'object' && 'summary' in result && typeof result.summary === 'string'

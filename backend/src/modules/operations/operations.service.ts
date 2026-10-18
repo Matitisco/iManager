@@ -1,3 +1,4 @@
+import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
@@ -459,7 +460,7 @@ export async function listOperationDrafts(storeId: string, source: OperationSour
 }
 
 export async function createOperation(storeId: string, source: OperationSource, input: OperationInput, actor?: Actor) {
-  return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
+  const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
     if (input.draft && hasSettlement(input)) throw new OperationError("Las cuotas y los pagos mixtos se confirman con la venta");
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
@@ -698,10 +699,12 @@ export async function createOperation(storeId: string, source: OperationSource, 
     ));
     return { sale: serializeSale(sale), ...(trade ? { tradeIn: serializeTrade({ ...trade, saleId: sale.id }) } : {}), inventory: [outputState, incoming].filter(present).map(serializeProduct), clients: updatedClient ? [serializeClient(updatedClient)] : [], notifications, summary: operationSummary({ trade: !!trade, amount: input.amount!, takeValue: tradeInput?.takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: !!incoming, receivedStatus: trade?.status, currency: labelCurrency, unpaid: settlement ? settlement.unpaid : undefined }) };
   });
+  if ('sale' in result && result.sale) void trackFirstSale(storeId, result.sale.id, 'form', actor?.userId);
+  return result;
 }
 
 export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
-  return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
+  const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
     if (!trade) throw new OperationError("Trade-in not found", 404);
     const priorSale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
@@ -885,6 +888,8 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       summary: operationSummary({ trade: true, amount: outgoingAmount, takeValue, depositApplied: Number(depositAmount), status: paymentStatus, hasInventory: !!product, received: true, receivedStatus: confirmed.status, currency: labelCurrency, unpaid: settlement ? settlement.unpaid : undefined }),
     };
   });
+  if ('sale' in result && result.sale) void trackFirstSale(storeId, result.sale.id, 'form', actor?.userId);
+  return result;
 }
 
 export async function updateSaleOperation(storeId: string, saleId: string, input: OperationInput, actor?: Actor) {

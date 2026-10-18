@@ -1,3 +1,4 @@
+import { setAnalyticsUser } from '../lib/analytics';
 import { useBillingState } from '../hooks/useBillingState';
 import { useCashState } from './cash-state';
 import { useGettingStartedState } from './getting-started-state';
@@ -200,6 +201,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
+      setAnalyticsUser(currentUser);
       setUser(currentUser);
       setLoading(false);
     });

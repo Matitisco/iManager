@@ -64,6 +64,7 @@ describe('inventory-api', () => {
       method: 'GET',
       cache: 'no-store',
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
       },

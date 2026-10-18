@@ -12,12 +12,16 @@ const context = vi.hoisted(() => ({
     },
     membership: { role: "OWNER" },
   },
-  inventory: [],
+  inventory: [] as Array<{ id: string }>,
   reloadInventory: vi.fn(async () => undefined),
   reloadSession: vi.fn(async () => undefined),
   updateGettingStarted: vi.fn(async () => undefined),
   refreshGettingStarted: vi.fn(async () => undefined),
 }));
+const analytics = vi.hoisted(() => ({ track: vi.fn(), rowBucket: (n: number) => n <= 1 ? '1' : '2-10' }));
+const samples = vi.hoisted(() => ({ createSampleStock: vi.fn(async () => undefined) }));
+vi.mock('../lib/analytics', () => analytics);
+vi.mock('../services/getting-started-api', () => samples);
 const api = vi.hoisted(() => ({
   analyzeInventoryTextProgress: vi.fn(),
   importBackendRows: vi.fn(),
@@ -28,8 +32,14 @@ vi.mock("../desk/exchange", () => ({
   exchangeFromStore: () => ({}),
   useMoney: () => ({ rate: 1300 }),
 }));
-vi.mock("../desk/DeskOverlays", () => ({ DeskOverlays: () => null }));
-vi.mock("../components/ImportModal", () => ({ ImportModal: () => null }));
+vi.mock("../desk/DeskOverlays", async () => {
+  const { useDesk } = await import('../desk/ui');
+  return { DeskOverlays: ({ onSaved }: { onSaved?: () => void }) => {
+    const desk = useDesk();
+    return <><button onClick={() => { onSaved?.(); desk.close(); }}>Guardar manual</button><button onClick={desk.close}>Cancelar manual</button></>;
+  } };
+});
+vi.mock("../components/ImportModal", () => ({ ImportModal: ({ onImport, onClose, onStageChange }: { onImport: (rows: Record<string, string>[]) => Promise<unknown>; onClose: () => void; onStageChange?: (at: 'mapping') => void }) => <><button onClick={() => { void onImport([{ model: 'Equipo' }]); }}>Importar prueba</button><button onClick={onClose}>Cancelar Excel</button><button onClick={() => onStageChange?.('mapping')}>Mapear prueba</button></> }));
 vi.mock("../services/import-api", () => api);
 const analysis = {
   currency: "USD",
@@ -54,6 +64,7 @@ const analysis = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  context.inventory = [];
   context.appSession.store = {
     name: "Casa",
     currency: "USD",
@@ -192,5 +203,53 @@ describe("guardado revisado", () => {
     expect(
       screen.getByRole("button", { name: /Probar con datos de ejemplo/ }),
     ).toBeVisible();
+  });
+});
+
+describe('instrumentación invisible de Stock', () => {
+  it.each([
+    ['Subir Excel', 'excel'], ['Pegar lista', 'paste'], ['A mano', 'manual'],
+    ['Probar con datos de ejemplo', 'sample'], ['Saltar por ahora', 'skip'], ['Ir a mi inventario', 'go_inventory'],
+  ])('emite el método %s', async (label, method) => {
+    if (method === 'go_inventory') context.inventory = [{ id: 'real' }];
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    expect(analytics.track).toHaveBeenCalledWith('onboarding_stock_viewed');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
+    expect(analytics.track).toHaveBeenCalledWith('stock_method_chosen', { method });
+    if (method === 'skip') await waitFor(() => expect(context.updateGettingStarted).toHaveBeenCalledWith({ complete: true, completedVia: 'skip' }));
+  });
+  it('registra el cierre de Excel y el paso donde se abandonó', () => {
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Subir Excel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mapear prueba' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar Excel' }));
+    expect(analytics.track).toHaveBeenCalledWith('stock_import_abandoned', { method: 'excel', at: 'mapping' });
+  });
+  it('distingue el alta manual de una cancelación sin alta', () => {
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'A mano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar manual' }));
+    expect(analytics.track).toHaveBeenCalledWith('stock_import_finished', { method: 'manual', ok: true, rows: '1', errors: 0 });
+    expect(analytics.track).not.toHaveBeenCalledWith('stock_import_abandoned', expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'A mano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar manual' }));
+    expect(analytics.track).toHaveBeenCalledWith('stock_import_abandoned', { method: 'manual' });
+  });
+  it('registra un Excel guardado y completa por import sin abandono', async () => {
+    api.importBackendRows.mockResolvedValue({ imported: 1, updated: 0, errors: [] });
+    const finish = vi.fn(); render(<StockOnboarding onFinish={finish} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Subir Excel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Importar prueba' }));
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('inventory'));
+    expect(analytics.track).toHaveBeenCalledWith('stock_import_finished', { method: 'excel', ok: true, rows: '1', errors: 0 });
+    expect(context.updateGettingStarted).toHaveBeenCalledWith({ complete: true, completedVia: 'import' });
+  });
+  it('registra Volver desde pegar como abandono sin enviar el texto', () => {
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Pegar lista' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Listado de equipos' }), { target: { value: 'Texto privado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    expect(analytics.track).toHaveBeenCalledWith('stock_import_abandoned', { method: 'paste', at: 'file' });
+    expect(JSON.stringify(analytics.track.mock.calls)).not.toContain('Texto privado');
   });
 });

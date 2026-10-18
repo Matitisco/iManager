@@ -1,3 +1,4 @@
+import { analyticsDeviceHeader } from '../lib/analytics-device';
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -35,6 +36,7 @@ export async function fetchBackendSession(user: AuthUserLike): Promise<{
 
     const response = await fetchWithTimeout(`${baseUrl}/api/me`, {
       headers: {
+        'x-im-device': analyticsDeviceHeader(),
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
       },

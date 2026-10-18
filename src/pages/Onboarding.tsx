@@ -1,5 +1,6 @@
+import { track } from '../lib/analytics';
 import { useKeyboardInset, usePhoneLayout } from "../lib/phone-layout";
-import { useState, type FormEvent, type CSSProperties } from "react";
+import { useEffect, useState, type FormEvent, type CSSProperties } from "react";
 import { useAppContext } from "../context/AppContext";
 import { useInvitationPreview } from "../hooks/useInvitationPreview";
 import { BrandLockup } from "../components/brand-mark";
@@ -230,6 +231,7 @@ export function Onboarding({
     );
   };
   const invitation = Boolean(inviteToken && !invite.invalid);
+  useEffect(() => { if (!invitation) track('onboarding_name_viewed'); }, [invitation]);
   return (
     <div
       className={`onb${invitation ? "" : " onb-setup"}`}

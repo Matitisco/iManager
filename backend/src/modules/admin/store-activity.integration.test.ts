@@ -84,7 +84,7 @@ async function seedActivity() {
 }
 
 describe("GET /admin/store-activity", () => {
-  it("answers 404 for a signed-in user who is not on the allowlist", async () => {
+  it("answers 403 for a signed-in user who is not on the allowlist", async () => {
     process.env.ADMIN_EMAILS = "admin@internal.test";
     await seedActivity();
     const response = await getApp().inject({
@@ -93,8 +93,8 @@ describe("GET /admin/store-activity", () => {
       headers: buildAuthHeaders({ uid: "real-owner", email: "Matias.Owner@Tienda.com", name: "Dueño" }),
     });
 
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toEqual({ error: "Not found" });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "Forbidden" });
     expect(response.body).not.toContain("iphoneclub");
     expect(response.body).not.toContain("Matias.Owner");
     expect(response.body).not.toContain("staff.person");

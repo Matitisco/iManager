@@ -28,6 +28,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 
     request.auth = {
       firebaseUid: decoded.uid,
+      signInProvider: decoded.firebase?.sign_in_provider,
       email: decoded.email,
       emailVerified: decoded.email_verified,
       name: decoded.name,

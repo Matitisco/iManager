@@ -1,3 +1,4 @@
+import { trackMany } from '../analytics/track.js';
 import { trialData } from '../billing/domain.js';
 import { prisma } from "../../plugins/prisma.js";
 import type { FirebaseAuthContext } from "../../types/auth.js";
@@ -41,7 +42,7 @@ export async function completeOnboarding(
   });
 
   if (!existingMembership) {
-    await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       // Two first onboardings can both observe "no membership" and each create
       // a store. The lock makes the second request see the row the first wrote.
       await lockTransactionKey(tx, userMembershipLockKey(user.id));
@@ -75,7 +76,12 @@ export async function completeOnboarding(
           isDefault: true,
         },
       });
+      return store;
     });
+    if (created) void trackMany([
+      { name: 'onboarding_name_completed', storeId: created.id, userId: user.id, dedupeKey: `store_created:${created.id}`, props: { currency: created.currency, exchangeMode: created.exchangeMode } },
+      { name: 'first_step_completed', storeId: created.id, userId: user.id, dedupeKey: `step:${created.id}:store`, props: { step: 'store', index: 1 } },
+    ]);
   }
 
   return buildAppSessionForUser(auth);

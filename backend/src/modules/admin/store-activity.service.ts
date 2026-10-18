@@ -1,3 +1,4 @@
+import { analyticsSnapshot, type FunnelStepId } from './funnel.service.js';
 import { prisma } from "../../plugins/prisma.js";
 import { maskEmail } from "./access.js";
 
@@ -22,6 +23,8 @@ export type StoreActivityRow = {
     repairOrders: number;
   };
   lastActivityAt: string | null;
+  stuckAt: FunnelStepId | null;
+  activeDays30: number;
 };
 
 export type StoreActivityResponse = {
@@ -94,6 +97,7 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
       prisma.auditEvent.groupBy({ by: ["storeId"], where, _max: { createdAt: true } }),
     ]);
 
+  const analytics = new Map((await analyticsSnapshot(ids, now)).map(s => [s.id, s]));
   const memberCounts = countsOf(members);
   const inventoryCounts = countsOf(inventory);
   const saleCounts = countsOf(sales);
@@ -108,6 +112,8 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
     range,
     generatedAt: now.toISOString(),
     stores: stores.map((store) => ({
+      stuckAt: analytics.get(store.id)?.stuckAt ?? null,
+      activeDays30: analytics.get(store.id)?.activeDays30 ?? 0,
       id: store.id,
       name: store.name,
       ownerEmail: maskedOwner(store.memberships),

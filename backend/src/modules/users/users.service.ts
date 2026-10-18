@@ -1,3 +1,4 @@
+import { track } from '../analytics/track.js';
 import type { User } from "@prisma/client";
 import type { FirebaseAuthContext } from "../../types/auth.js";
 import { isUniqueConstraintError } from "../../lib/unique-constraint.js";
@@ -14,7 +15,7 @@ export async function findOrCreateUserFromFirebase(auth: FirebaseAuthContext) {
 
 async function createUserOrLoadWinner(auth: FirebaseAuthContext) {
   try {
-    return await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         billingLegacy: false,
         firebaseUid: auth.firebaseUid,
@@ -23,6 +24,8 @@ async function createUserOrLoadWinner(auth: FirebaseAuthContext) {
         avatarUrl: auth.picture,
       },
     });
+    void track({ name: 'signup', userId: created.id, dedupeKey: `signup:${created.id}`, props: { via: 'direct', ...(auth.signInProvider === 'google.com' ? { provider: 'google' } : auth.signInProvider === 'password' ? { provider: 'password' } : {}) } });
+    return created;
   } catch (error) {
     // Simultaneous first requests all miss the lookup and insert. One insert
     // wins; the others hit the unique firebaseUid index and must read that row.

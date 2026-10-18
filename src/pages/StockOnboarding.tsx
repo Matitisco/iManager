@@ -1,3 +1,4 @@
+import { track, rowBucket } from '../lib/analytics';
 import { parseImportNumber } from "../lib/import-number";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -97,6 +98,17 @@ function StockFlow({
     null,
   );
   const [editing, setEditing] = useState<number | null>(null);
+  const importSaved = useRef(false);
+  const importStage = useRef<'file' | 'mapping' | 'review' | 'analyze'>('file');
+  useEffect(() => { if (step === 'choose') track('onboarding_stock_viewed'); }, [step]);
+  const importFinished = (method: 'excel' | 'paste' | 'manual', count: number, errors: number) => {
+    if (method !== 'paste' && count > 0) importSaved.current = true;
+    track('stock_import_finished', { method, ok: errors === 0, rows: rowBucket(count), errors });
+  };
+  const closeAlternative = () => {
+    if (alternative && !importSaved.current) track('stock_import_abandoned', { method: alternative, ...(alternative === 'excel' ? { at: importStage.current } : {}) });
+    setAlternative(null);
+  };
   const controller = useRef<AbortController | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const editorDialog = useRef<HTMLDialogElement>(null);
@@ -108,13 +120,13 @@ function StockFlow({
   useEffect(() => () => controller.current?.abort(), []);
   const totals = onboardingTotals(rows, money.rate);
   const validation = rows.map(textRowError).find(Boolean);
-  const finish = async (destination: "inventory" | "dashboard") => {
+  const finish = async (destination: "inventory" | "dashboard", completedVia: "import" | "skip" | "sample" = "import") => {
     if (
       appSession?.membership?.role === "OWNER" &&
       appSession.store?.onboardingStartedAt &&
       !appSession.store.onboardingCompletedAt
     ) {
-      await updateGettingStarted({ complete: true });
+      await updateGettingStarted({ complete: true, completedVia });
     } else {
       await refreshGettingStarted();
     }
@@ -226,7 +238,10 @@ function StockFlow({
   const save = async () => {
     if (!user) return;
     const payload = onboardingPayload(rows);
-    const result = await importBackendRows(user, "inventory", payload);
+    let result: Awaited<ReturnType<typeof importBackendRows>>;
+    try { result = await importBackendRows(user, "inventory", payload); }
+    catch (cause) { importFinished('paste', payload.length, 1); throw cause; }
+    importFinished('paste', result.imported + result.updated, result.errors.length);
     if (result.errors.length) {
       // The existing importer may persist a subset. Retrying must send only failures.
       const expanded = rows.flatMap((row) =>
@@ -258,6 +273,9 @@ function StockFlow({
       ),
     );
   const toAlternative = (value: "excel" | "manual") => {
+    track('stock_method_chosen', { method: value });
+    importSaved.current = false;
+    importStage.current = 'file';
     setError("");
     setAlternative(value);
   };
@@ -276,6 +294,7 @@ function StockFlow({
             className="onb-link"
             disabled={busy}
             onClick={() => {
+              track('stock_import_abandoned', { method: 'paste', at: step === 'paste' || step === 'invalid' ? 'file' : 'review' });
               setStep("choose");
               setError("");
             }}
@@ -306,7 +325,7 @@ function StockFlow({
               </button>
             </section>
             <div className="onb-alternatives onb-stock-options">
-              <button disabled={busy} onClick={() => setStep("paste")}>
+              <button disabled={busy} onClick={() => { track('stock_method_chosen', { method: 'paste' }); setStep("paste"); }}>
                 <span><ClipboardList /></span>
                 Pegar lista
               </button>
@@ -322,6 +341,7 @@ function StockFlow({
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
+                      track('stock_method_chosen', { method: 'sample' });
                       if (!user) return;
                       await createSampleStock(user);
                       await reloadInventory();
@@ -346,7 +366,7 @@ function StockFlow({
               <button
                 className="onb-primary"
                 disabled={busy}
-                onClick={() => void run(() => finish("inventory"))}
+                onClick={() => { track('stock_method_chosen', { method: 'go_inventory' }); void run(() => finish("inventory")); }}
               >
                 Ir a mi inventario
               </button>
@@ -354,7 +374,7 @@ function StockFlow({
             <button
               className="onb-link onb-skip"
               disabled={busy}
-              onClick={() => void run(() => finish("dashboard"))}
+              onClick={() => { track('stock_method_chosen', { method: 'skip' }); void run(() => finish("dashboard", "skip")); }}
             >
               Saltar por ahora
             </button>
@@ -504,6 +524,7 @@ function StockFlow({
             <button
               className="onb-link"
               onClick={() => {
+                track('stock_import_abandoned', { method: 'paste', at: 'analyze' });
                 controller.current?.abort();
                 setBusy(false);
                 setStep("paste");
@@ -671,23 +692,31 @@ function StockFlow({
             { key: "condition", label: "Condición", required: false },
             { key: "cost", label: "Costo", required: false },
           ]}
-          onClose={() => setAlternative(null)}
+          onClose={closeAlternative}
+          onStageChange={(at) => { importStage.current = at; }}
           onAnalyze={(sheets) => analyzeImport(user, "inventory", sheets)}
           onApply={(sheets, plan, refresh) =>
             applyImportPlan(user, "inventory", sheets, plan, refresh)
           }
           onImport={async (imported) => {
-            const result = await importBackendRows(
-              user,
-              "inventory",
-              imported.map((row) => ({
-                ...row,
-                imei: row.imei ?? "",
-                model: row.model,
-                price: parseImportNumber(row.price) ?? 0,
-                cost: parseImportNumber(row.cost),
-              })),
-            );
+            let result: Awaited<ReturnType<typeof importBackendRows>>;
+            try {
+              result = await importBackendRows(
+                user,
+                "inventory",
+                imported.map((row) => ({
+                  ...row,
+                  imei: row.imei ?? "",
+                  model: row.model,
+                  price: parseImportNumber(row.price) ?? 0,
+                  cost: parseImportNumber(row.cost),
+                })),
+              );
+            } catch (cause) {
+              importFinished('excel', 0, 1);
+              throw cause;
+            }
+            importFinished('excel', result.imported + result.updated, result.errors.length);
             await reloadInventory();
             if (!result.errors.length) await finish("inventory");
             return result;
@@ -701,14 +730,14 @@ function StockFlow({
               value={{
                 tab: "inventory",
                 openRecord: () => undefined,
-                go: () => setAlternative(null),
+                go: closeAlternative,
                 open: () => undefined,
-                close: () => setAlternative(null),
+                close: closeAlternative,
                 toast: () => undefined,
                 isStaff: false,
               }}
             >
-              <DeskOverlays overlay={{ type: "new-eq" }} />
+              <DeskOverlays overlay={{ type: "new-eq" }} onSaved={() => importFinished("manual", 1, 0)} />
             </DeskProvider>
           </CatalogProvider>
         </div>

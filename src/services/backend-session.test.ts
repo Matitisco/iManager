@@ -62,6 +62,7 @@ describe('backend-session', () => {
     });
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/me', {
       headers: {
+        'x-im-device': 'desktop',
         Authorization: 'Bearer token-123',
         Accept: 'application/json',
       },
