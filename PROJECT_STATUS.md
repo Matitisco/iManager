@@ -4,6 +4,13 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-18**
 
 
+## Corrección — Editar vendedor de ventas — 2026-10-18
+
+- Ventas canceladas sin Editar en detalle/menú; formularios abiertos muestran aviso y bloquean guardar. Errores de guardado se desplazan a la vista, conservando estilos.
+- Cambiar/quitar vendedor conserva importe, moneda, estado y cliente; auditoría y comisiones verificadas para integradas, legacy, pendientes, canje y señas en ARS/USD. Comparación a centavos para señas y diferencia del canje antes de señas conservada al editar.
+- Lint/TypeScript frontend/backend, 965 tests frontend, 460 unitarios backend, 305 integraciones y builds aprobados. Ocho E2E Chromium desktop/390 px aprobados sin retries. Solo PostgreSQL local `imanager_test_vendedor`, sin cambios de Prisma ni commit/push. Detalles: `docs/edit-sale-seller.md`; OpenSpec: `fix-edit-sale-seller`.
+
+
 ## Issue #376 — Catálogo configurable por permisos — 2026-10-18
 
 - Catálogo se habilita explícitamente por miembro, apagado por defecto incluso para Socios con secciones legacy. Permisos conserva el diseño, agrega la fila debajo de Inventario y distribuye 6 + 5; Todo incluye Catálogo, Vendedor/Técnico no. Menú desktop y Más respetan el permiso, siempre fuera de la barra inferior; hash directo sin permiso muestra el aviso estándar sin redirigir.
