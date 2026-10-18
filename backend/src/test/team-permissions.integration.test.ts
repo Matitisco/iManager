@@ -71,7 +71,7 @@ describe('issue #71 — invitations and section permissions', () => {
       expect((await app.inject({ method: 'DELETE', url: url(target.id), headers: headers('socio') })).statusCode).toBe(403);
     }
     expect((await app.inject({ method: 'PATCH', url: url(f.staff.id), headers: headers('socio'), payload: { role: 'MANAGER' } })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'PATCH', url: `${url(f.staff.id)}/sections`, headers: headers('socio'), payload: { sections: ['sales'], sensitiveAccess: true } })).json()).toMatchObject({ member: { sections: ['sales'], sensitiveAccess: true } });
+    expect((await app.inject({ method: 'PATCH', url: `${url(f.staff.id)}/sections`, headers: headers('socio'), payload: { sections: ['sales', 'publicCatalog'], sensitiveAccess: true } })).json()).toMatchObject({ member: { sections: ['sales', 'publicCatalog'], sensitiveAccess: true } });
     expect((await app.inject({ method: 'PATCH', url: `${url(f.peer.id)}/sections`, headers: headers(), payload: { sections: ['service'] } })).statusCode).toBe(200);
     expect((await app.inject({ method: 'PATCH', url: url(f.staff.id), headers: headers(), payload: { role: 'MANAGER' } })).statusCode).toBe(200);
     expect((await app.inject({ method: 'PATCH', url: `${url(f.owner.membership!.id)}/sections`, headers: headers(), payload: { sections: [] } })).statusCode).toBe(403);

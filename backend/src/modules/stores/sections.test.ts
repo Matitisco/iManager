@@ -76,3 +76,12 @@ describe("member sections", () => {
     });
   });
 });
+
+describe('publicCatalog section', () => {
+  it.each(['STAFF', 'MANAGER', 'OWNER'])('requires an explicit grant for %s except OWNER', role => {
+    for (const sections of [null, undefined, [], ['sales'], ['publicCatalog']]) {
+      expect(canAccessSection('publicCatalog', { role, sections })).toBe(role === 'OWNER' || Boolean(sections?.includes('publicCatalog')));
+    }
+    expect(assertSectionList(['publicCatalog'])).toEqual(['publicCatalog']);
+  });
+});

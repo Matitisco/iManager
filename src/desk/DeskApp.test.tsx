@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
 import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { DeskApp } from './DeskApp';
@@ -14,6 +14,8 @@ const context = vi.hoisted(() => ({
   },
   user: null as { uid: string } | null,
   backendStatus: 'checking',
+  publicCatalog: null,
+  loadPublicCatalog: vi.fn(async () => null),
   loadCommissions: undefined as undefined | ReturnType<typeof vi.fn>,
   tradeIns: [{ id: 't1', status: 'EN REVISIÓN' }],
   inventory: [],
@@ -28,6 +30,9 @@ vi.mock('../services/catalogs-api', () => ({ fetchCatalogs: vi.fn(async () => nu
 
 describe('sidebar unread counts', () => {
   const originalMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  });
 
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
@@ -70,6 +75,37 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it.each([false, true])('gates catalog menu and direct hashes for employees (granted=%s)', async granted => {
+    context.appSession.membership.role = 'STAFF';
+    context.appSession.membership.sections = granted ? ['publicCatalog'] : [];
+    window.location.hash = '#catalogo';
+    render(<DeskApp />);
+    if (granted) {
+      expect(screen.getByTestId('sidebar-tab-publicCatalog')).toBeInTheDocument();
+      expect(await screen.findByTestId('catalog-screen')).toBeInTheDocument();
+    } else {
+      expect(screen.queryByTestId('sidebar-tab-publicCatalog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('no-section-access')).toHaveTextContent('No tenés acceso');
+      expect(window.location.hash).toBe('#catalogo');
+    }
+  });
+
+  it.each([false, true])('places permitted employee catalog first in Más (granted=%s)', async granted => {
+    usePhone();
+    context.appSession.membership.role = 'STAFF';
+    context.appSession.membership.sections = granted ? ['publicCatalog', 'clients'] : ['clients'];
+    window.location.hash = '#/mas';
+    render(<DeskApp />);
+    const catalog = screen.queryByTestId('sidebar-tab-publicCatalog');
+    expect(Boolean(catalog)).toBe(granted);
+    expect(within(screen.getByTestId('mobile-tab-bar')).queryByText('Catálogo')).not.toBeInTheDocument();
+    if (granted) {
+      expect(catalog?.parentElement?.firstElementChild).toBe(catalog);
+      fireEvent.click(catalog!);
+      expect(await screen.findByTestId('catalog-screen')).toBeInTheDocument();
+    }
+  });
 
   it('shows the unread total and a badge on each section that has unread notes', () => {
     window.location.hash = '#/dash';

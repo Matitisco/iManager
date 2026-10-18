@@ -82,7 +82,7 @@ describe('public catalog API', () => {
     expect((await getApp().inject(`/api/public/catalog/${next.slug}`)).json().items).toHaveLength(1);
     expect(await prisma.auditEvent.count({ where: { storeId: store.id, action: 'catalog.regenerated' } })).toBe(1);
   });
-  it('restricts every management route to OWNER and refuses cross-store bulk writes atomically', async () => {
+  it('requires explicit catalog permission and refuses cross-store bulk writes atomically', async () => {
     const { item, membership } = await fixture();
     const other = await seedStoreContext({ firebaseUid: 'other-owner', email: 'other@example.com' });
     const { inventoryItem: foreign } = await seedCatalogFixture(other.store!.id);
@@ -111,5 +111,43 @@ describe('public catalog API', () => {
     const response = await getApp().inject(`/api/public/catalog/${catalog.slug}/preview.png`);
     expect(response.statusCode).toBe(200); expect(response.headers['content-type']).toBe('image/png');
     expect(response.rawPayload.subarray(1, 4).toString()).toBe('PNG');
+  });
+});
+
+describe('catalog member grants', () => {
+  it.each(['STAFF', 'MANAGER'] as const)('allows %s settings/items but reserves active state and regeneration for OWNER', async role => {
+    const { store, item, membership, catalog } = await fixture();
+    await prisma.storeMember.update({ where: { id: membership.id }, data: { role, sections: ['publicCatalog'] } });
+    const app = getApp();
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: '/api/catalog', headers: buildAuthHeaders(), payload });
+    expect((await app.inject({ url: '/api/catalog', headers: buildAuthHeaders() })).statusCode).toBe(200);
+    const settings = { hideWithoutStock: false, hideReserved: false, minBattery: 70, showPrice: false, priceCurrency: 'ORIGINAL', logoUrl: 'https://example.com/logo.png', hours: '9 a 18' };
+    const saved = await patch(settings);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().catalog).toMatchObject(settings);
+    expect((await patch({ active: true, hours: '10 a 19' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'PATCH', url: '/api/catalog/items', headers: buildAuthHeaders(), payload: { ids: [item.id], visible: true } })).statusCode).toBe(200);
+    const before = await prisma.auditEvent.count({ where: { storeId: store.id } });
+    for (const response of [await patch({ active: false, hours: 'not saved' }), await app.inject({ method: 'POST', url: '/api/catalog/regenerate', headers: buildAuthHeaders() })]) {
+      expect(response.statusCode).toBe(403);
+      expect(response.json().error).toMatch(/^Solo el propietario puede /);
+    }
+    expect(await prisma.storePublicCatalog.findUniqueOrThrow({ where: { storeId: store.id } })).toMatchObject({ active: true, slug: catalog.slug, hours: '10 a 19' });
+    expect(await prisma.auditEvent.count({ where: { storeId: store.id } })).toBe(before);
+    expect(before).toBeGreaterThan(1);
+    // Reactivating an existing catalog is equally restricted.
+    await prisma.storePublicCatalog.update({ where: { storeId: store.id }, data: { active: false } });
+    expect((await patch({ active: true })).statusCode).toBe(403);
+    expect((await patch({ showPrice: true })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/onboarding/progress', headers: buildAuthHeaders() })).json().catalog).toBe(false);
+    await prisma.storePublicCatalog.update({ where: { storeId: store.id }, data: { active: true } });
+    expect((await app.inject({ url: '/api/onboarding/progress', headers: buildAuthHeaders() })).json().catalog).toBe(true);
+  });
+  it('lets a permitted employee create a missing catalog with active:true', async () => {
+    const { membership } = await seedStoreContext({ role: 'STAFF' });
+    await prisma.storeMember.update({ where: { id: membership!.id }, data: { sections: ['publicCatalog'] } });
+    const response = await getApp().inject({ method: 'PATCH', url: '/api/catalog', headers: buildAuthHeaders(), payload: { active: true } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().catalog.active).toBe(true);
   });
 });

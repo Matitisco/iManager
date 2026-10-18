@@ -352,3 +352,26 @@ it('confirms removal and leaves a failed persistence visible before closing', as
   await waitFor(() => expect(within(confirmation).getByRole('alert')).toHaveTextContent('No se pudo quitar'));
   expect(screen.getByRole('heading', { name: 'Luis' })).toBeInTheDocument();
 });
+
+it('shows Catálogo below Inventario in the 6 + 5 cards and saves its explicit grant', async () => {
+  context.appSession.membership.role = 'OWNER';
+  window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  membersApi.listMembers.mockResolvedValue([member({ sections: null })]);
+  membersApi.updateMemberSections.mockResolvedValue(member({ sections: ['publicCatalog'] }));
+  renderSettings();
+  await userEvent.click(await screen.findByRole('button', { name: /Luis/ }));
+  const cards = document.querySelectorAll('.team-perm-columns > .card');
+  const labels = (card: Element) => Array.from(card.querySelectorAll('.team-perm:not(.team-nested) b')).map(node => node.textContent);
+  expect(labels(cards[0])).toEqual(['Inventario', 'Catálogo', 'Ventas', 'Canjes', 'Clientes', 'Servicio técnico']);
+  expect(labels(cards[1])).toEqual(['Cajas', 'Reportes', 'Comisiones', 'Dashboard', 'Notificaciones']);
+  const toggle = screen.getByRole('switch', { name: 'Catálogo' });
+  expect(toggle).not.toBeChecked();
+  const row = toggle.closest('.team-perm')!;
+  expect(within(row as HTMLElement).getByText('Elegir qué equipos se publican, precios y orden').tagName).toBe('SMALL');
+  expect(row.querySelector('[data-desk-icon="store"]')).toBeInTheDocument();
+  expect(cards[1].querySelector('[data-desk-icon="card"]')).toBeInTheDocument();
+  await userEvent.click(toggle);
+  await userEvent.click(screen.getByRole('button', { name: 'Guardar permisos' }));
+  await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalledWith(context.user, 's', 'm2', expect.arrayContaining(['publicCatalog']), false));
+  expect(await screen.findByTestId('settings-member-m2')).toHaveTextContent('Catálogo');
+});

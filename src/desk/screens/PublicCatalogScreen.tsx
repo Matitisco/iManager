@@ -141,6 +141,7 @@ export function PublicCatalogScreen() {
 function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: () => void }) {
   const { savePublicCatalog, regeneratePublicCatalog, appSession } = useAppContext();
   const { toast } = useDesk();
+  const owner = appSession?.membership?.role === 'OWNER';
   const [draft, setDraft] = useState<CatalogSettings>({ active: catalog.active, hideWithoutStock: catalog.hideWithoutStock, hideReserved: catalog.hideReserved, minBattery: catalog.minBattery, showPrice: catalog.showPrice, priceCurrency: catalog.priceCurrency, logoUrl: catalog.logoUrl, hours: catalog.hours });
   const [confirm, setConfirm] = useState<'regenerate' | 'deactivate' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -152,7 +153,10 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
     pending.current = true; setBusy(true); setError('');
     try {
       if (action === 'regenerate') { await regeneratePublicCatalog(); toast('Link regenerado'); }
-      else await savePublicCatalog(action === 'deactivate' ? { active: false } : draft);
+      else {
+        const { active, ...settings } = draft;
+        await savePublicCatalog(action === 'deactivate' ? { active: false } : owner ? { ...settings, active } : settings);
+      }
       onClose();
     } catch (cause) { setError(toUserMessage(cause)); }
     finally { pending.current = false; setBusy(false); }
@@ -160,12 +164,12 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
   const rule = (key: 'active' | 'hideWithoutStock' | 'hideReserved' | 'showPrice', label: string, hint?: string) => <div className="cat-rule-row"><div><b>{label}</b>{hint && <small>{hint}</small>}</div><CatalogToggle label={label} checked={draft[key]} disabled={busy} onChange={() => { if (key === 'active' && draft.active) setConfirm('deactivate'); else setDraft(current => ({ ...current, [key]: !current[key] })); }} /></div>;
   return <><Sheet title="Reglas y precio" subtitle="Los cambios se ven en el link al instante." onClose={close} className="cat-rules-sheet" footer={<Actions primary="Guardar" onPrimary={() => void save('save')} onSecondary={close} busy={busy} />}>
     {!confirm && error && <div className="ferr" role="alert">{error}</div>}
-    <div className="cat-rule-box">{rule('active', 'Catálogo activo', 'Si lo apagás, el link muestra «Catálogo no disponible»')}</div>
+    {owner && <div className="cat-rule-box">{rule('active', 'Catálogo activo', 'Si lo apagás, el link muestra «Catálogo no disponible»')}</div>}
     <div className="cat-label">Qué equipos se muestran <span>{catalog.counts.visible} {catalog.counts.visible === 1 ? 'visible' : 'visibles'}</span></div>
     <div className="cat-rule-box">{rule('hideWithoutStock', 'Ocultar sin stock y vendidos', 'Salen solos cuando se venden')}{rule('hideReserved', 'Ocultar reservados')}<div className="cat-rule-row"><b>Ocultar batería menor a</b><input aria-label="Batería mínima" type="number" min="0" max="100" disabled={busy || draft.minBattery == null} value={draft.minBattery ?? 80} onChange={e => setDraft(current => ({ ...current, minBattery: Number(e.target.value) }))} /><CatalogToggle label="Ocultar batería menor a" checked={draft.minBattery != null} disabled={busy} onChange={() => setDraft(current => ({ ...current, minBattery: current.minBattery == null ? 80 : null }))} /></div></div>
     <div className="cat-label">Precio</div><div className="cat-rule-box">{rule('showPrice', 'Mostrar precio', 'Si lo apagás, cada fila dice «Consultá»')}<div className="cat-currency"><b>Moneda</b><div>{(['USD', 'ARS', 'ORIGINAL'] as const).map(currency => <button className={draft.priceCurrency === currency ? 'on' : ''} key={currency} disabled={busy} onClick={() => setDraft(current => ({ ...current, priceCurrency: currency }))}>{currency === 'ORIGINAL' ? 'Como está cargado' : currency}</button>)}</div><small>Los precios se convierten con la cotización de venta de la tienda{appSession?.store?.exchangeMode === 'manual' ? ` ($ ${appSession.store.manualSell})` : ''}.</small></div></div>
     <details className="cat-brand-details"><summary>Logo y horario</summary><div className="cat-brand-fields"><label>Logo de la tienda (URL https)<input type="url" value={draft.logoUrl ?? ''} onChange={e => setDraft(current => ({ ...current, logoUrl: e.target.value || null }))} disabled={busy} /></label><label>Horario de atención<input value={draft.hours ?? ''} maxLength={120} onChange={e => setDraft(current => ({ ...current, hours: e.target.value || null }))} disabled={busy} /></label></div></details>
-    <div className="cat-danger-actions"><button className="cat-button" disabled={busy} onClick={() => setConfirm('regenerate')}><RefreshCw size={16} />Regenerar link</button><button className="cat-button danger" disabled={busy || !catalog.active} onClick={() => setConfirm('deactivate')}><EyeOff size={16} />Desactivar catálogo</button></div>
+    {owner && <div className="cat-danger-actions"><button className="cat-button" disabled={busy} onClick={() => setConfirm('regenerate')}><RefreshCw size={16} />Regenerar link</button><button className="cat-button danger" disabled={busy || !catalog.active} onClick={() => setConfirm('deactivate')}><EyeOff size={16} />Desactivar catálogo</button></div>}
   </Sheet>{confirm && <Dialog title={confirm === 'regenerate' ? '¿Regenerar el link?' : '¿Desactivar el catálogo?'} text={confirm === 'regenerate' ? 'El link anterior deja de funcionar. Vas a tener que compartir el nuevo con tus clientes. Los equipos y las reglas se conservan.' : 'Tus clientes van a ver «Catálogo no disponible». Podés volver a activarlo cuando quieras y conservar el mismo link.'} ok={confirm === 'regenerate' ? 'Regenerar link' : 'Desactivar catálogo'} danger={confirm === 'deactivate'} busy={busy} error={error} onClose={() => { if (!busy) { setConfirm(null); setError(''); } }} onOk={() => void save(confirm)} />}</>;
 }
 

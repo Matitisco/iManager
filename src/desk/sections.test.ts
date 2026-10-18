@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { canManageCommissions, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
-  it('offers catalog after Inventory to OWNER and first in More only to OWNER', () => {
+  it('offers catalog after Inventory to OWNER and first in More to permitted members', () => {
     expect(visibleSections(null, 'OWNER').slice(0, 3)).toEqual(['dashboard', 'inventory', 'publicCatalog']);
     expect(mobileTabs(null, 'OWNER').more[0]).toBe('publicCatalog');
-    expect(canOpenSection('publicCatalog', ['publicCatalog'], 'STAFF')).toBe(false);
+    expect(canOpenSection('publicCatalog', ['publicCatalog'], 'STAFF')).toBe(true);
     expect(canOpenSection('publicCatalog', null, 'MANAGER')).toBe(false);
   });
   it('grants commissions administration only to owners by default, and always allows own data', () => {
@@ -78,3 +78,18 @@ describe('desk sections', () => {
     });
   });
 });
+
+for (const role of ['STAFF', 'MANAGER', 'OWNER']) {
+  it(`gates catalog consistently for ${role}, including legacy defaults and mobile overflow`, () => {
+    for (const stored of [null, [], ['inventory'], ['publicCatalog'], ['dashboard', 'inventory', 'sales', 'tradeins', 'publicCatalog']]) {
+      const allowed = role === 'OWNER' || Boolean(stored?.includes('publicCatalog'));
+      expect(visibleSections(stored, role).includes('publicCatalog')).toBe(allowed);
+      expect(grantedSections(stored, role).includes('publicCatalog')).toBe(allowed);
+      expect(canOpenSection('publicCatalog', stored, role)).toBe(allowed);
+      const tabs = mobileTabs(stored, role);
+      expect(tabs.bar).not.toContain('publicCatalog');
+      expect(tabs.more.includes('publicCatalog')).toBe(allowed);
+      if (allowed) expect(tabs.more[0]).toBe('publicCatalog');
+    }
+  });
+}

@@ -4,7 +4,7 @@ import { DESK_SECTIONS, grantedSections } from './sections';
 export const PERMISSION_PROFILES = {
   Vendedor: ['dashboard', 'inventory', 'sales', 'tradeins', 'clients', 'cash', 'notifications'],
   Técnico: ['dashboard', 'service', 'clients', 'notifications'],
-  Todo: [...DESK_SECTIONS.filter(s => s.id !== 'publicCatalog').map(s => s.id), 'cashBalances'],
+  Todo: [...DESK_SECTIONS.map(s => s.id), 'cashBalances'],
 } satisfies Record<string, string[]>;
 
 export function permissionProfile(sections: string[]) {
@@ -19,7 +19,7 @@ export function canEditMember(actorRole: string | undefined, actorUserId: string
 export function memberSectionSummary(member: TeamMember) {
   if (member.role === 'OWNER') return 'Todas las secciones';
   const sections = grantedSections(member.sections, member.role);
-  const all = DESK_SECTIONS.filter(s => s.id !== 'publicCatalog');
+  const all = DESK_SECTIONS;
   if (sections.length === all.length) return 'Todas las secciones';
   if (sections.length === all.length - 1 && !sections.includes('commissions')) return 'Todo menos Comisiones';
   const labels = all.filter(s => sections.includes(s.id)).map(s => s.label);
