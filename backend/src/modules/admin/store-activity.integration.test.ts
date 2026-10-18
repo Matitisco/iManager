@@ -137,6 +137,21 @@ describe("GET /admin/store-activity", () => {
     expect(await prisma.auditEvent.count()).toBe(beforeAudits);
   });
 
+  it("accepts range=7d and excludes stores older than seven days", async () => {
+    process.env.ADMIN_EMAILS = "admin@internal.test";
+    const { recent } = await seedActivity();
+    const older = await prisma.store.create({ data: { name: "Eight days old", onboardingStage: "stock", onboardingCompletedAt: new Date(), createdAt: new Date(Date.now() - 8 * 86400000) } });
+    const response = await getApp().inject({ method: "GET", url: "/admin/store-activity?range=7d", headers: adminHeaders() });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    const body = response.json() as StoreActivityResponse;
+    expect(body.range).toBe("7d");
+    expect(body.stores.some(s => s.id === recent.id)).toBe(true);
+    expect(body.stores.some(s => s.id === older.id)).toBe(false);
+    const month = await getApp().inject({ method: "GET", url: "/admin/store-activity?range=30d", headers: adminHeaders() });
+    expect((month.json() as StoreActivityResponse).stores.find(s => s.id === older.id)?.onboardingStage).toBe("complete");
+  });
+
   it("returns every store when range=all", async () => {
     process.env.ADMIN_EMAILS = "admin@internal.test,second@internal.test";
     const { legacy } = await seedActivity();

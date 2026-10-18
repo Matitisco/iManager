@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isStoreActivityPath, isTestStore, sortStoreActivity, type StoreActivityRow } from './store-activity';
+import { isStoreActivityPath, isTestStore, sortStoreActivity, stageLabel, type StoreActivityRow } from './store-activity';
 
 function row(patch: Partial<StoreActivityRow> & Pick<StoreActivityRow, 'id' | 'name' | 'createdAt'>): StoreActivityRow {
   return {
@@ -18,8 +18,19 @@ describe('store activity helpers', () => {
   it('recognizes only the activity path', () => {
     expect(isStoreActivityPath('/admin/actividad')).toBe(true);
     expect(isStoreActivityPath('/admin/actividad/')).toBe(true);
+    expect(isStoreActivityPath('/admin/actividad/embudo')).toBe(true);
+    expect(isStoreActivityPath('/admin/actividad/tienda/club')).toBe(true);
+    expect(isStoreActivityPath('/admin/actividad/tienda/club/extra')).toBe(false);
     expect(isStoreActivityPath('/admin/actividad/extra')).toBe(false);
     expect(isStoreActivityPath('/')).toBe(false);
+  });
+
+  it('uses the current onboarding stages without legacy team/video labels', () => {
+    expect(stageLabel('name')).toBe('Nombre');
+    expect(stageLabel('invite')).toBe('Nombre');
+    expect(stageLabel('stock')).toBe('Stock');
+    expect(stageLabel('video')).toBe('Completo');
+    expect(stageLabel('complete')).toBe('Completo');
   });
 
   it('hides example.com owners and names that look like test data', () => {

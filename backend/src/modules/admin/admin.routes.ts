@@ -6,7 +6,7 @@ import { requirePlatformAdmin } from "./access.js";
 import { listStoreActivity } from "./store-activity.service.js";
 
 const querySchema = z.object({
-  range: z.enum(["30d", "all"]).optional(),
+  range: z.enum(["7d", "30d", "all"]).optional(),
 });
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -27,6 +27,6 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/store-activity", { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
     reply.header("cache-control", "no-store");
     const query = querySchema.parse(request.query);
-    return listStoreActivity(query.range === "all" ? "all" : "30d");
+    return listStoreActivity(query.range ?? "30d");
   });
 }
