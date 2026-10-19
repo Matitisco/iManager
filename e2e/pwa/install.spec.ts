@@ -146,7 +146,7 @@ test('Android retains its own install action after the legacy iOS guide and clos
 test('standalone dollar uses brand keyboard focus and no tap outline; captures real inventory for the manifest', async ({ page }, info) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await session(page);
-  await page.getByRole('button', { name: 'Inventario', exact: true }).click();
+  await page.getByRole('button', { name: 'Equipos', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
   await expect(page.getByText(/iPhone 16 Pro/).first()).toBeVisible();
   const dollar = page.locator('.dolar-hit');
@@ -343,7 +343,7 @@ test('new worker activates after a hard reload with multiple controlled tabs ope
   const second = await context.newPage();
   await second.goto('/', { waitUntil: 'domcontentloaded' }); await controlled(second);
   // An open form keeps both clients alive while controllerchange occurs.
-  await page.getByRole('button', { name: 'Inventario', exact: true }).click();
+  await page.getByRole('button', { name: 'Equipos', exact: true }).click();
   await page.getByRole('button', { name: 'Registrar equipo', exact: true }).click();
   const before = await page.evaluate(() => caches.keys());
   const release = Number(await (await page.request.post('/__test__/deploy?mode=sw')).text());
