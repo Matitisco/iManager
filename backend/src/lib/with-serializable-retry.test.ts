@@ -19,11 +19,11 @@ it('does not retry validation or arbitrary raw errors', async () => {
     transaction.mockReset();
   }
 });
-it('limits repeated conflicts to three attempts', async () => {
+it('limits repeated conflicts to five attempts', async () => {
   transaction.mockRejectedValue({ code: 'P2034' });
   try {
     await expect(withSerializableRetry(async () => 'ok')).rejects.toMatchObject({ code: 'P2034' });
-    expect(transaction).toHaveBeenCalledTimes(3);
+    expect(transaction).toHaveBeenCalledTimes(5);
   } finally {
     transaction.mockReset();
   }
