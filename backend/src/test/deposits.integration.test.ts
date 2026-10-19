@@ -157,7 +157,7 @@ describe('client deposits', () => {
     expect((await getApp().inject({ method: 'PATCH', url: `/api/repairs/${id}`, headers: f.headers, payload: { deposit: 20 } })).statusCode).toBe(409);
     const removed = await getApp().inject({ method: 'DELETE', url: `/api/repairs/${id}`, headers: f.headers });
     expect(removed.statusCode, removed.body).toBe(204);
-    expect(await prisma.repairOrder.findUnique({ where: { id } })).toBeNull();
+    expect((await prisma.repairOrder.findUnique({ where: { id } }))?.archivedAt).toBeTruthy();
     expect((await prisma.clientDeposit.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('CREDIT');
     expect((await cancel(f, row.id, 'REFUND')).statusCode).toBe(200);
     expect(await prisma.auditEvent.count({ where: { action: 'deposit.applied' } })).toBe(1);
@@ -187,7 +187,7 @@ describe('client deposits', () => {
     expect((await cancel(refunded, row.id, 'REFUND')).statusCode).toBe(200);
     const removed = await getApp().inject({ method: 'DELETE', url: `/api/clients/${refunded.client.id}`, headers: refunded.headers });
     expect(removed.statusCode, removed.body).toBe(204);
-    expect(await prisma.client.findUnique({ where: { id: refunded.client.id } })).toBeNull();
-    expect(await prisma.clientDeposit.count({ where: { clientId: refunded.client.id } })).toBe(0);
+    expect((await prisma.client.findUnique({ where: { id: refunded.client.id } }))?.archivedAt).toBeTruthy();
+    expect(await prisma.clientDeposit.count({ where: { clientId: refunded.client.id } })).toBe(1);
   });
 });

@@ -35,12 +35,12 @@ export function creditAmount(rows: DepositBalanceRow[], currency: string | null)
  */
 export function clientDeleteRefusal(deposits: DepositBalanceRow[], balanceCurrency: string | null): string | null {
   if (deposits.some((row) => row.status === "ACTIVE")) {
-    return "El cliente tiene una seña activa. Cancelala desde la ficha antes de eliminarlo.";
+    return "El cliente tiene una seña activa. Cancelala desde la ficha antes de archivarlo.";
   }
   const credit = creditAmount(deposits, balanceCurrency);
   if (credit > 0) {
     const formatted = formatArMoney(credit, balanceCurrency === "USD" ? "USD" : "ARS");
-    return `No se puede eliminar: tiene saldo a favor (${formatted}). Registrá la devolución del saldo desde la ficha y volvé a intentar.`;
+    return `No se puede archivar: tiene saldo a favor (${formatted}). Registrá la devolución del saldo desde la ficha y volvé a intentar.`;
   }
   if (deposits.some((row) => row.status !== "APPLIED" && row.status !== "REFUNDED")) {
     return "El cliente tiene señas que todavía no se pueden borrar.";

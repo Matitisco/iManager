@@ -76,11 +76,28 @@ export async function registerBackendClientPayment(
   return data.client;
 }
 
-export async function deleteBackendClient(user: AuthUserLike, clientId: string): Promise<void> {
+export async function fetchArchivedClients(user: AuthUserLike): Promise<Client[]> {
+  const data = await apiRequest<BackendClientResponse>(user, '/api/clients?archived=1', {
+    fallback: (status) => `No se pudo cargar el archivo (${status})`,
+  });
+  return data.clients ?? [];
+}
+
+export async function deleteBackendClient(user: AuthUserLike, clientId: string, reason?: string): Promise<void> {
   await apiRequest<void>(user, `/api/clients/${clientId}`, {
     method: 'DELETE',
-    fallback: (status) => `No se pudo eliminar el cliente (${status})`,
+    ...(reason == null ? {} : { body: { reason } }),
+    fallback: (status) => `No se pudo archivar el cliente (${status})`,
   });
+}
+
+export async function restoreBackendClient(user: AuthUserLike, clientId: string): Promise<Client> {
+  const data = await apiRequest<BackendClientResponse>(user, `/api/clients/${clientId}/restore`, {
+    method: 'POST',
+    fallback: (status) => `No se pudo restaurar el cliente (${status})`,
+  });
+  if (!data.client) throw new Error('Respuesta inválida al restaurar el cliente');
+  return data.client;
 }
 
 export type ClientCategoryApi = { id: string; name: string };

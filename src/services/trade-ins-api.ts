@@ -27,9 +27,17 @@ export async function updateBackendTradeIn(user: AuthUserLike, tradeIn: TradeIn)
   return data.tradeIn;
 }
 
-export async function deleteBackendTradeIn(user: AuthUserLike, tradeInId: string): Promise<void> {
+export async function fetchVoidedTradeIns(user: AuthUserLike): Promise<TradeIn[]> {
+  const data = await apiRequest<{ tradeIns?: TradeIn[] }>(user, '/api/trade-ins?voided=1', {
+    fallback: (status) => `No se pudieron cargar los canjes anulados (${status})`,
+  });
+  return data.tradeIns ?? [];
+}
+
+export async function deleteBackendTradeIn(user: AuthUserLike, tradeInId: string, reason?: string): Promise<void> {
   await apiRequest<void>(user, `/api/trade-ins/${tradeInId}`, {
     method: 'DELETE',
-    fallback: (status) => `No se pudo eliminar el canje (${status})`,
+    ...(reason == null ? {} : { body: { reason } }),
+    fallback: (status) => `No se pudo anular el canje (${status})`,
   });
 }

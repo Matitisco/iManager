@@ -23,6 +23,8 @@ import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
 import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Client } from '../../types';
+import { fetchArchivedClients } from '../../services/clients-api';
+import { rememberArchivedClients } from '../archive-cache';
 import { AccountCurrent, FollowUps } from './CurrentAccount';
 
 const SORTS = ['Deudores', 'Nombre', 'Última compra', 'Gastado'];
@@ -62,7 +64,7 @@ function sortClients(rows: Client[], sort: string) {
 }
 
 export function ClientsScreen() {
-  const { clients, deleteClient, operationDrafts = [] } = useAppContext();
+  const { clients, deleteClient, operationDrafts = [], user } = useAppContext();
   const money = useMoney();
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
@@ -75,10 +77,23 @@ export function ClientsScreen() {
   const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [archivedMode, setArchivedMode] = useState(false);
+  const [archivedClients, setArchivedClients] = useState<Client[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
   const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
+  useEffect(() => {
+    if (!archivedMode || !user) return;
+    let active = true;
+    fetchArchivedClients(user).then((rows) => {
+      if (!active) return;
+      setArchivedClients(rows);
+      rememberArchivedClients(rows);
+    }).catch(() => { if (active) setArchivedClients([]); });
+    return () => { active = false; };
+  }, [archivedMode, user]);
+  const clientSource = archivedMode ? archivedClients : clients;
   const withBalance = clients.filter((client) => clientNet(client) > 0).length;
   const noticeFor = (client: Client) => reasonWithBalance(notices.reasonFor(client.id), client.pendingBalance, client.balanceCurrency);
 
@@ -86,12 +101,12 @@ export function ClientsScreen() {
   const setDraft = (patch: Partial<ClientColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return clients.filter((client) => {
+    return clientSource.filter((client) => {
       const matches = filter === 'Todos' || clientNet(client) > 0;
       const haystack = `${client.name} ${client.phone} ${client.dni} ${client.email}`.toLowerCase();
       return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
-  }, [clients, query, filter, columns]);
+  }, [clientSource, query, filter, columns]);
   const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
   const ordered = phone ? sortClients(listed, sort) : listed;
   const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`);
@@ -146,6 +161,7 @@ export function ClientsScreen() {
           value={filter}
           onChange={setFilter}
         /> : null}
+        {view === 'lista' ? <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button> : null}
         {phone ? (
           <MenuButton
             testId="clients-sort"
@@ -162,7 +178,7 @@ export function ClientsScreen() {
       {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
       {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
-        action={{ label: 'Eliminar selección', explanation: 'Se eliminarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden eliminar. Esta acción no se puede deshacer.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
+        action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
       {view === 'lista' && phone ? (
         listed.length === 0 ? (

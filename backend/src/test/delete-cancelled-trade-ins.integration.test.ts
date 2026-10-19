@@ -65,21 +65,23 @@ describe("delete cancelled trade-ins", () => {
 
     const before = await fingerprint(storeId, fixture.client.id);
     expect((await app.inject({ method: "DELETE", url: `/api/trade-ins/${tradeIn.id}`, headers })).statusCode).toBe(204);
-    expect(await prisma.tradeIn.findUnique({ where: { id: tradeIn.id } })).toBeNull();
+    expect((await prisma.tradeIn.findUnique({ where: { id: tradeIn.id } }))?.voidedAt).toBeTruthy();
 
     const after = await fingerprint(storeId, fixture.client.id);
     expect(after.inventory).toEqual(before.inventory);
     expect(after.client).toEqual(before.client);
     expect(after.payments).toEqual(before.payments);
     expect(after.notifications).toEqual(before.notifications);
-    expect(after.trades).toEqual(before.trades.filter((trade) => trade.id !== tradeIn.id));
+    const rest = ({ voidedAt: _voidedAt, voidedBy: _voidedBy, voidReason: _voidReason, updatedAt: _updatedAt, ...row }: typeof after.trades[number]) => row;
+    expect(after.trades.map(rest)).toEqual(before.trades.map(rest));
+    expect(after.trades.find((trade) => trade.id === tradeIn.id)?.voidedAt).toBeTruthy();
     expect(after.sales.map(({ tradeInId, updatedAt, ...saleRow }) => saleRow)).toEqual(before.sales.map(({ tradeInId, updatedAt, ...saleRow }) => saleRow));
     expect(after.sales.find((row) => row.id === sale.id)?.tradeInId).toBeNull();
     expect(after.sales.find((row) => row.id === resale.json().sale.id)?.status).not.toBe("CANCELADA");
-    expect(await prisma.auditEvent.findFirst({ where: { storeId, entityId: tradeIn.id, action: "trade.deleted" } })).toMatchObject({ actorUserId: owner.user.id });
+    expect(await prisma.auditEvent.findFirst({ where: { storeId, entityId: tradeIn.id, action: "trade.voided" } })).toMatchObject({ actorUserId: owner.user.id });
     expect(await prisma.auditEvent.count({ where: { entityId: tradeIn.id, action: "trade.cancelled" } })).toBe(1);
     expect((await app.inject({ method: "DELETE", url: `/api/trade-ins/${tradeIn.id}`, headers })).statusCode).toBe(404);
-    expect(await prisma.auditEvent.count({ where: { entityId: tradeIn.id, action: "trade.deleted" } })).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { entityId: tradeIn.id, action: "trade.voided" } })).toBe(1);
   });
 
   it("cancels an active trade on the first delete and removes it on the second without reversing twice", async () => {
@@ -118,15 +120,15 @@ describe("delete cancelled trade-ins", () => {
     const foreign = await seedStoreContext({ firebaseUid: "foreign-trade", email: "foreign-trade@example.com" });
     expect((await app.inject({ method: "DELETE", url, headers: buildAuthHeaders({ uid: foreign.user.firebaseUid }) })).statusCode).toBe(404);
     expect(await prisma.tradeIn.findUnique({ where: { id: tradeIn.id } })).not.toBeNull();
-    expect(await prisma.auditEvent.count({ where: { entityId: tradeIn.id, action: "trade.deleted" } })).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { entityId: tradeIn.id, action: "trade.voided" } })).toBe(0);
 
     expect((await app.inject({ method: "DELETE", url, headers })).statusCode).toBe(204);
-    expect(await prisma.tradeIn.findUnique({ where: { id: tradeIn.id } })).toBeNull();
+    expect((await prisma.tradeIn.findUnique({ where: { id: tradeIn.id } }))?.voidedAt).toBeTruthy();
     const after = await fingerprint(owner.store!.id, fixture.client.id);
     expect(after.inventory).toEqual(before.inventory);
     expect(after.client).toEqual(before.client);
     expect(after.payments).toEqual(before.payments);
     expect(await prisma.sale.findUniqueOrThrow({ where: { id: sale.id } })).toMatchObject({ status: "CANCELADA", tradeInId: null });
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeIn.id, action: "trade.deleted" } })).toMatchObject({ actorUserId: owner.user.id });
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeIn.id, action: "trade.voided" } })).toMatchObject({ actorUserId: owner.user.id });
   });
 });

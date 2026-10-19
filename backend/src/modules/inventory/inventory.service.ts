@@ -8,6 +8,8 @@ import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { archivedMatch, batchChanges, cleanReason, deviceLabel, type ArchiveMeta } from "../audit/archive.js";
+import { diffFields, MONEY } from "../audit/diff-fields.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
@@ -53,6 +55,8 @@ export interface InventoryItemResponse {
   soldAt: string | null;
   createdAt: string;
   archivedAt?: string | null;
+  archivedBy?: string | null;
+  archiveReason?: string | null;
   pendingSaleRegistration?: boolean;
   needsCompletion?: boolean;
   priceChangedBy: string | null;
@@ -64,6 +68,7 @@ export interface InventoryItemResponse {
 export interface InventoryCategoryResponse {
   id: string;
   name: string;
+  archived?: boolean;
 }
 
 type InventoryRecord = {
@@ -91,6 +96,8 @@ type InventoryRecord = {
   sales?: { soldAt: Date }[];
   createdAt?: Date;
   archivedAt?: Date | null;
+  archivedBy?: string | null;
+  archiveReason?: string | null;
   pendingSaleRegistration?: boolean;
   needsCompletion?: boolean;
   priceChangedBy?: string | null;
@@ -157,6 +164,8 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     soldAt: item.sales?.[0]?.soldAt?.toISOString() ?? null,
     createdAt: item.createdAt?.toISOString() ?? new Date(0).toISOString(),
     archivedAt: item.archivedAt?.toISOString() ?? null,
+    archivedBy: item.archivedBy ?? null,
+    archiveReason: item.archiveReason ?? null,
     pendingSaleRegistration: item.pendingSaleRegistration ?? false,
     needsCompletion: item.needsCompletion ?? false,
     priceChangedBy: item.priceChangedBy ?? null,
@@ -333,9 +342,9 @@ export async function getInventoryFilteredIds(
 
 // ─── Full listing (legacy, used by AppContext) ─────────────────────────────────
 
-export async function listInventory(storeId: string) {
+export async function listInventory(storeId: string, options?: { archived?: boolean }) {
   const inventory = await inventoryPrisma.inventoryItem.findMany({
-    where: { storeId, archivedAt: null },
+    where: { storeId, archivedAt: options?.archived ? { not: null } : null },
     include: {
       sales: {
         select: { soldAt: true },
@@ -362,7 +371,7 @@ function storedGrade(condition: string, grade: string | null | undefined) {
   return parsed.grade;
 }
 
-export async function createInventoryItem(storeId: string, input: InventoryItemInput) {
+export async function createInventoryItem(storeId: string, input: InventoryItemInput, actor?: Actor | null) {
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   const imei = storedImei(input.imei);
   if (imei) {
@@ -372,6 +381,8 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
     });
 
     if (existing) {
+      const row = await inventoryPrisma.inventoryItem.findFirst({ where: { id: existing.id }, select: { archivedAt: true } });
+      if (row?.archivedAt) throw archivedMatch("Este equipo está archivado. ¿Restaurarlo?", existing.id, "inventory");
       throw new InventoryError("Inventory item already exists", 409);
     }
   }
@@ -397,6 +408,17 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
       categoryId: input.categoryId ?? null,
       customFields: normalizeCustomFields(input.customFields),
     } });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "inventory.created",
+        entityType: "inventory",
+        entityId: created.id,
+        entityLabel: deviceLabel(created),
+        detail: created.model,
+      });
+    }
     if (created.status === "VENDIDO") {
       await writeOperationNotifications(tx, storeId, [{
         section: "inventory",
@@ -446,12 +468,16 @@ export async function updateInventoryItem(
         where: { storeId, imei: nextImei, id: { not: id } },
         select: { id: true },
       });
-      if (duplicate) throw new InventoryError("Inventory item already exists", 409);
+      if (duplicate) {
+        const archived = await tx.inventoryItem.findFirst({ where: { id: duplicate.id }, select: { archivedAt: true } });
+        if (archived?.archivedAt) throw archivedMatch("Este equipo está archivado. ¿Restaurarlo?", duplicate.id, "inventory");
+        throw new InventoryError("Inventory item already exists", 409);
+      }
     }
 
     if (input.status !== undefined) {
       const activeSale = await tx.sale.findFirst({
-        where: { storeId, inventoryItemId: id, status: { not: "CANCELADA" } },
+        where: { storeId, inventoryItemId: id, status: { not: "CANCELADA" }, voidedAt: null },
         select: { id: true },
       });
       if (activeSale && input.status !== existing.status) {
@@ -501,6 +527,7 @@ export async function updateInventoryItem(
     }
 
     const updated = await tx.inventoryItem.update({ where: { id }, data });
+    const label = deviceLabel({ ...existing, ...input, imei: nextImei ?? existing.imei });
     if (options?.actor && priceChanges) {
       await writeAudit(tx, {
         storeId,
@@ -508,7 +535,13 @@ export async function updateInventoryItem(
         action: "inventory.price",
         entityType: "inventory",
         entityId: id,
+        entityLabel: label,
         detail: `${existing.price.toString()} → ${input.price}`,
+        changes: diffFields(
+          { price: existing.price },
+          { price: input.price },
+          [{ field: "price", label: "Precio", format: MONEY }],
+        ),
       });
     }
     if (options?.actor && costChanges) {
@@ -518,8 +551,60 @@ export async function updateInventoryItem(
         action: "inventory.cost",
         entityType: "inventory",
         entityId: id,
+        entityLabel: label,
         detail: `${existing.cost.toString()} → ${input.cost}`,
+        changes: diffFields(
+          { cost: existing.cost },
+          { cost: input.cost },
+          [{ field: "cost", label: "Costo", format: MONEY }],
+        ),
       });
+    }
+    if (options?.actor) {
+      const changes = diffFields(
+        {
+          model: existing.model,
+          capacity: existing.capacity,
+          color: existing.color,
+          condition: existing.condition,
+          grade: existing.grade,
+          batteryHealth: existing.batteryHealth,
+          imei: existing.imei,
+          status: existing.status,
+        },
+        {
+          model: input.model?.trim() ?? existing.model,
+          capacity: input.capacity?.trim() ?? existing.capacity,
+          color: input.color?.trim() ?? existing.color,
+          condition: input.condition ?? existing.condition,
+          grade: input.grade ?? existing.grade,
+          batteryHealth: input.batteryHealth ?? existing.batteryHealth,
+          imei: nextImei ?? existing.imei,
+          status: input.status ?? existing.status,
+        },
+        [
+          { field: "model", label: "Modelo" },
+          { field: "capacity", label: "Capacidad" },
+          { field: "color", label: "Color" },
+          { field: "condition", label: "Condición" },
+          { field: "grade", label: "Calidad" },
+          { field: "batteryHealth", label: "Batería" },
+          { field: "imei", label: "IMEI" },
+          { field: "status", label: "Estado" },
+        ],
+      );
+      if (changes.length) {
+        const onlyStatus = changes.length === 1 && changes[0]?.field === "status";
+        await writeAudit(tx, {
+          storeId,
+          actor: options.actor,
+          action: onlyStatus ? "inventory.status" : "inventory.updated",
+          entityType: "inventory",
+          entityId: id,
+          entityLabel: label,
+          changes,
+        });
+      }
     }
     if (input.status === "VENDIDO" && existing.status !== "VENDIDO") {
       await writeOperationNotifications(tx, storeId, [{
@@ -538,37 +623,76 @@ export async function updateInventoryItem(
   return serializeInventoryItem({ ...updated, catalogIncluded: inPublicCatalog(updated, catalog) });
 }
 
-export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null) {
+export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
   const existing = await inventoryPrisma.inventoryItem.findFirst({
     where: { id, storeId },
   });
 
-  if (!existing) {
+  if (!existing || existing.archivedAt) {
     return false;
   }
 
-  const linkedSale = await inventoryPrisma.sale.findFirst({ where: { storeId, inventoryItemId: id, integratedOperation: true, status: { not: "CANCELADA" } }, select: { id: true } });
-  const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED" }, select: { id: true } });
+  const linkedSale = await inventoryPrisma.sale.findFirst({ where: { storeId, inventoryItemId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } });
+  const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED", voidedAt: null }, select: { id: true } });
   if (linkedSale || activeReceivedTrade) throw new InventoryError("El equipo pertenece a una operación activa", 409);
 
   await withSerializableRetry(async (tx) => {
     await lockInventory(tx, storeId, id);
     const reserved = await tx.inventoryItem.findFirst({ where: { id, storeId, reservedDepositId: { not: null } } });
-    if (reserved) throw new InventoryError("Cancelá la seña antes de eliminar el equipo reservado", 409);
-    await tx.inventoryItem.delete({ where: { id } });
-    if (actor) {
+    if (reserved) throw new InventoryError("Cancelá la seña antes de archivar el equipo reservado", 409);
+    const reason = cleanReason(meta?.reason);
+    await tx.inventoryItem.update({
+      where: { id },
+      data: { archivedAt: new Date(), archivedBy: actor?.name ?? null, archiveReason: reason },
+    });
+    if (actor || meta?.source === "system") {
       await writeAudit(tx, {
         storeId,
         actor,
-        action: "inventory.deleted",
+        action: "inventory.archived",
         entityType: "inventory",
         entityId: id,
+        entityLabel: deviceLabel(existing),
         detail: existing.model,
+        reason,
+        source: meta?.source ?? "app",
+        changes: [
+          { field: "status", label: "Estado", before: "Activo", after: "Archivado" },
+          ...batchChanges(meta),
+        ],
       });
     }
   });
 
   return true;
+}
+
+export async function restoreInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
+  const existing = await inventoryPrisma.inventoryItem.findFirst({ where: { id, storeId } });
+  if (!existing || !existing.archivedAt) return null;
+  if (existing.imei) {
+    const clash = await inventoryPrisma.inventoryItem.findFirst({
+      where: { storeId, imei: existing.imei, archivedAt: null, id: { not: id } },
+      select: { id: true },
+    });
+    if (clash) throw new InventoryError("Ya hay un equipo activo con ese IMEI", 409);
+  }
+  const restored = await inventoryPrisma.inventoryItem.update({
+    where: { id },
+    data: { archivedAt: null, archivedBy: null, archiveReason: null },
+  });
+  await writeAudit(prisma, {
+    storeId,
+    actor,
+    action: "inventory.restored",
+    entityType: "inventory",
+    entityId: id,
+    entityLabel: deviceLabel(existing),
+    source: meta?.source ?? (actor ? "app" : "system"),
+    changes: [{ field: "status", label: "Estado", before: "Archivado", after: "Activo" }],
+  });
+  const catalog = restored.catalogVisible ? await prisma.storePublicCatalog.findUnique({ where: { storeId } }) : null;
+  return serializeInventoryItem({ ...restored, catalogIncluded: inPublicCatalog(restored, catalog) });
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
@@ -577,15 +701,26 @@ export async function listCategories(storeId: string): Promise<InventoryCategory
   const cats = await inventoryPrisma.inventoryCategory.findMany({
     where: { storeId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, name: true },
+    select: { id: true, name: true, archivedAt: true },
   });
-  return cats;
+  return cats.map((cat: { id: string; name: string; archivedAt?: Date | null }) => ({
+    id: cat.id,
+    name: cat.archivedAt ? `${cat.name} (archivada)` : cat.name,
+    archived: Boolean(cat.archivedAt),
+  }));
 }
 
 export async function createCategory(storeId: string, name: string): Promise<InventoryCategoryResponse> {
   const trimmed = name.trim();
   if (!trimmed) throw new InventoryError("Category name required", 400);
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing?.archivedAt) {
+    return inventoryPrisma.inventoryCategory.update({
+      where: { id: existing.id },
+      data: { archivedAt: null },
+      select: { id: true, name: true },
+    });
+  }
   if (existing) throw new InventoryError("Category already exists", 409);
   const count = await inventoryPrisma.inventoryCategory.count({ where: { storeId } });
   const cat = await inventoryPrisma.inventoryCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
@@ -609,12 +744,21 @@ export async function renameCategory(storeId: string, id: string, name: string):
   return updated;
 }
 
-export async function deleteCategory(storeId: string, id: string): Promise<boolean> {
+export async function deleteCategory(storeId: string, id: string, actor?: Actor | null): Promise<boolean> {
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { id, storeId } });
-  if (!existing) return false;
-  // Unassign items before deleting
-  await inventoryPrisma.inventoryItem.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } });
-  await inventoryPrisma.inventoryCategory.delete({ where: { id } });
+  if (!existing || existing.archivedAt) return false;
+  await inventoryPrisma.inventoryCategory.update({ where: { id }, data: { archivedAt: new Date() } });
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "category.archived",
+      entityType: "category",
+      entityId: id,
+      entityLabel: existing.name,
+      detail: "Inventario",
+    });
+  }
   return true;
 }
 

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
+import { fetchClientPayments, restoreBackendClient, type ClientPaymentRecord } from '../../services/clients-api';
 import type { Client } from '../../types';
 import { formatInputMoney, formatShortDate, parseMoney, paymentLabel } from '../format';
 import { useMoney } from '../exchange';
@@ -17,6 +17,8 @@ import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
 import { clientCredit, creditTotal } from '../client-balance';
 import { ClientPurchases } from '../ClientPurchases';
+import { archivedClient } from '../archive-cache';
+import { RecordHistory } from '../screens/HistoryScreen';
 
 function paymentCaption(payment: ClientPaymentRecord) {
   const label = payment.kind === 'DEVOLUCION' ? 'Devolución'
@@ -32,13 +34,13 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [] } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], reloadClients } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
   const deposits = useClientDeposits(id);
   const [cancelTarget, setCancelTarget] = useState<ClientDeposit | null>(null);
-  const client = clients.find((item) => item.id === id);
+  const client = clients.find((item) => item.id === id) ?? archivedClient(id);
   const [method, setMethod] = useState('TRANSFERENCIA');
   const [amount, setAmount] = useState('');
   const [payments, setPayments] = useState<ClientPaymentRecord[]>([]);
@@ -123,6 +125,8 @@ export function ClientDetail({ id }: { id: string }) {
   return (
     <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
+      {client.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{client.archivedBy ? `por ${client.archivedBy}` : 'Este cliente está archivado'}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendClient(user, client.id); await reloadClients(); toast('Cliente restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
+      <RecordHistory entityType="client" entityId={client.id} />
       <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
       {credit > 0 ? (
         <>

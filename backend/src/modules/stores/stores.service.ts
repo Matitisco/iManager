@@ -1,3 +1,4 @@
+import { writeAudit } from "../audit/audit.js";
 import { trialData } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
@@ -10,7 +11,7 @@ import { assertManualQuoteOrder } from "../../lib/manual-quote.js";
 
 export async function getDefaultMembershipForUser(userId: string) {
   return prisma.storeMember.findFirst({
-    where: { userId },
+    where: { userId, removedAt: null },
     include: { store: true },
     orderBy: { isDefault: "desc" },
   });
@@ -18,7 +19,7 @@ export async function getDefaultMembershipForUser(userId: string) {
 
 export async function getMembershipForUserAndStore(userId: string, storeId: string) {
   return prisma.storeMember.findFirst({
-    where: { userId, storeId },
+    where: { userId, storeId, removedAt: null },
     include: { store: true },
   });
 }
@@ -32,7 +33,7 @@ export interface UserStoreSummary {
 
 export async function listStoresForUser(userId: string): Promise<UserStoreSummary[]> {
   const memberships = await prisma.storeMember.findMany({
-    where: { userId },
+    where: { userId, removedAt: null },
     include: {
       store: {
         select: { id: true, name: true },
@@ -57,11 +58,11 @@ export async function createStoreForUser(userId: string, storeName: string) {
 
   return prisma.$transaction(async (tx) => {
     await lockTransactionKey(tx, userMembershipLockKey(userId));
-    const existingCount = await tx.storeMember.count({ where: { userId } });
+    const existingCount = await tx.storeMember.count({ where: { userId, removedAt: null } });
 
     if (existingCount > 0) {
       await tx.storeMember.updateMany({
-        where: { userId },
+        where: { userId, removedAt: null },
         data: { isDefault: false },
       });
     }
@@ -171,7 +172,7 @@ async function assertManualQuoteUpdate(storeId: string, data: StoreUpdateInput) 
 
 export async function listMembers(storeId: string) {
   const members = await prisma.storeMember.findMany({
-    where: { storeId },
+    where: { storeId, removedAt: null },
     include: {
       user: { select: { id: true, displayName: true, email: true, avatarUrl: true } },
     },
@@ -225,7 +226,7 @@ export async function updateMemberRole(
 
   // Cannot leave store without an OWNER
   if (target.role === "OWNER" && newRole !== "OWNER") {
-    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
+    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
     if (ownerCount <= 1) {
       throw new DomainError("No puede haber una tienda sin Propietario", 400);
     }
@@ -245,7 +246,7 @@ export async function removeMember(
   }
 
   const target = await prisma.storeMember.findFirst({
-    where: { id: memberId, storeId },
+    where: { id: memberId, storeId, removedAt: null },
     include: { user: true },
   });
   if (!target) {
@@ -258,13 +259,32 @@ export async function removeMember(
 
   // Cannot remove the only OWNER
   if (target.role === "OWNER") {
-    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER" } });
+    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
     if (ownerCount <= 1) {
       throw new DomainError("No puede haber una tienda sin Propietario", 400);
     }
   }
 
-  await prisma.storeMember.delete({ where: { id: memberId } });
+  const actor = await prisma.user.findUnique({
+    where: { id: actorUserId },
+    select: { displayName: true, email: true },
+  });
+  const actorName = actor?.displayName?.trim() || actor?.email?.trim() || "Equipo";
+  await prisma.$transaction(async (tx) => {
+    await tx.storeMember.update({
+      where: { id: memberId },
+      data: { removedAt: new Date(), removedBy: actorName.slice(0, 255) },
+    });
+    await writeAudit(tx, {
+      storeId,
+      actor: { userId: actorUserId, name: actorName, role: actorRole },
+      action: "member.removed",
+      entityType: "member",
+      entityId: memberId,
+      entityLabel: (target.user.displayName ?? target.user.email ?? "Miembro").slice(0, 160),
+      detail: target.user.displayName ?? target.user.email ?? "",
+    });
+  });
 }
 
 export async function updateMemberSections(

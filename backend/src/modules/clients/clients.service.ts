@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { diffFields } from "../audit/diff-fields.js";
+import { archivedMatch, cleanReason, type ArchiveMeta } from "../audit/archive.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { clientsRepository } from "./clients.repository.js";
@@ -45,11 +47,14 @@ export interface ClientResponse {
   birthday: string | null;
   customFields: Record<string, unknown>;
   createdAt: string | null;
+  archivedAt: string | null;
+  archivedBy: string | null;
 }
 
 export interface ClientCategoryResponse {
   id: string;
   name: string;
+  archived?: boolean;
 }
 
 type ClientRecord = {
@@ -68,6 +73,8 @@ type ClientRecord = {
   birthday?: Date | null;
   customFields: Prisma.JsonValue | null;
   createdAt?: Date | null;
+  archivedAt?: Date | null;
+  archivedBy?: string | null;
 };
 
 class ClientsError extends DomainError {}
@@ -117,6 +124,8 @@ export function serializeClient(client: ClientRecord, creditBalance = 0): Client
     birthday: client.birthday ? client.birthday.toISOString().slice(0, 10) : null,
     customFields: toCustomFields(client.customFields),
     createdAt: client.createdAt ? client.createdAt.toISOString() : null,
+    archivedAt: client.archivedAt ? client.archivedAt.toISOString() : null,
+    archivedBy: client.archivedBy ?? null,
   };
 }
 
@@ -134,9 +143,9 @@ function parseLastPurchaseDate(value?: string | null) {
   return parseArDate(value);
 }
 
-export async function listClients(storeId: string) {
+export async function listClients(storeId: string, options?: { archived?: boolean }) {
   const [clients, credits] = await Promise.all([
-    clientsRepository.list(storeId),
+    clientsRepository.list(storeId, Boolean(options?.archived)),
     prisma.clientDeposit.findMany({
       where: { storeId, status: "CREDIT" },
       select: { clientId: true, status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
@@ -157,12 +166,15 @@ function normalizeDni(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-export async function createClient(storeId: string, input: ClientInput) {
+export async function createClient(storeId: string, input: ClientInput, actor?: Actor | null) {
   const dni = normalizeDni(input.dni);
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   if (dni) {
     const existing = await clientsRepository.findIdByDni(storeId, dni);
 
+    if (existing?.archivedAt) {
+      throw archivedMatch("Este cliente está archivado. ¿Restaurarlo?", existing.id, "client");
+    }
     if (existing) {
       throw new ClientsError("Client already exists", 409);
     }
@@ -190,10 +202,22 @@ export async function createClient(storeId: string, input: ClientInput) {
       customFields: normalizeCustomFields(input.customFields),
   });
 
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "client.created",
+      entityType: "client",
+      entityId: client.id,
+      entityLabel: client.name,
+      detail: client.name,
+    });
+  }
+
   return serializeClient(client);
 }
 
-export async function updateClient(storeId: string, id: string, input: Partial<ClientInput>) {
+export async function updateClient(storeId: string, id: string, input: Partial<ClientInput>, actor?: Actor | null) {
   const existing = await clientsRepository.findInStore(storeId, id);
 
   if (!existing) {
@@ -210,6 +234,9 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     if (nextDni) {
       const duplicate = await clientsRepository.findDniDuplicate(storeId, nextDni, id);
 
+      if (duplicate?.archivedAt) {
+        throw archivedMatch("Este cliente está archivado. ¿Restaurarlo?", duplicate.id, "client");
+      }
       if (duplicate) {
         throw new ClientsError("Client already exists", 409);
       }
@@ -252,6 +279,30 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
       await tx.inventoryItem.updateMany({ where: { storeId, reservedClientId: id }, data: { reservedClientName: client.name } });
       await tx.sale.updateMany({ where: { storeId, clientId: id, integratedOperation: true }, data: { clientName: client.name } });
       await tx.tradeIn.updateMany({ where: { storeId, clientId: id, confirmationStatus: { not: null } }, data: { clientName: client.name } });
+    }
+    const changes = diffFields(
+      { name: existing.name, dni: existing.dni, phone: existing.phone, email: existing.email, instagram: existing.instagram, tag: existing.tag },
+      { name: client.name, dni: client.dni, phone: client.phone, email: client.email, instagram: client.instagram, tag: client.tag },
+      [
+        { field: "name", label: "Nombre" },
+        { field: "dni", label: "DNI" },
+        { field: "phone", label: "Teléfono" },
+        { field: "email", label: "Email" },
+        { field: "instagram", label: "Instagram" },
+        { field: "tag", label: "Etiqueta" },
+      ],
+    );
+    if (actor && changes.length) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "client.updated",
+        entityType: "client",
+        entityId: id,
+        entityLabel: client.name,
+        detail: client.name,
+        changes,
+      });
     }
     return client;
   });
@@ -313,16 +364,16 @@ export async function registerClientPayment(
   });
 }
 
-export async function deleteClient(storeId: string, id: string, actor?: Actor | null) {
+export async function deleteClient(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
   const existing = await clientsRepository.findForDelete(storeId, id);
 
-  if (!existing) {
+  if (!existing || existing.archivedAt) {
     return false;
   }
 
   const activeOperation = await clientsRepository.findActiveIntegratedSale(storeId, id);
   const activeTrade = await clientsRepository.findActiveTrade(storeId, id);
-  if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede eliminar", 409);
+  if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede archivar", 409);
 
   await prisma.$transaction(async (tx) => {
     const [client, deposits] = await Promise.all([
@@ -334,21 +385,48 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
     ]);
     const refusal = clientDeleteRefusal(deposits, client?.balanceCurrency ?? null);
     if (refusal) throw new ClientsError(refusal, 409);
-    if (deposits.length) await tx.clientDeposit.deleteMany({ where: { storeId, clientId: id } });
-    await tx.client.delete({ where: { id } });
+    const reason = cleanReason(meta?.reason);
+    await tx.client.update({
+      where: { id },
+      data: { archivedAt: new Date(), archivedBy: actor?.name ?? null },
+    });
     if (actor) {
       await writeAudit(tx, {
         storeId,
         actor,
-        action: "client.deleted",
+        action: "client.archived",
         entityType: "client",
         entityId: id,
+        entityLabel: existing.name,
         detail: existing.name,
+        reason,
+        source: meta?.source ?? "app",
+        changes: [{ field: "status", label: "Estado", before: "Activo", after: "Archivado" }],
       });
     }
   });
 
   return true;
+}
+
+export async function restoreClient(storeId: string, id: string, actor?: Actor | null) {
+  const existing = await clientsRepository.findInStore(storeId, id);
+  if (!existing?.archivedAt) return null;
+  if (existing.dni) {
+    const clash = await clientsRepository.findDniDuplicate(storeId, existing.dni, id);
+    if (clash && !clash.archivedAt) throw new ClientsError("Ya hay un cliente activo con ese DNI", 409);
+  }
+  const updated = await clientsRepository.update(id, { archivedAt: null, archivedBy: null });
+  await writeAudit(prisma, {
+    storeId,
+    actor,
+    action: "client.restored",
+    entityType: "client",
+    entityId: id,
+    entityLabel: existing.name,
+    changes: [{ field: "status", label: "Estado", before: "Archivado", after: "Activo" }],
+  });
+  return serializeClient(updated);
 }
 
 export interface ClientImportRow {
@@ -442,13 +520,21 @@ export async function importClients(
 // ── Client Categories ─────────────────────────────────────────────────────────
 
 export async function listClientCategories(storeId: string): Promise<ClientCategoryResponse[]> {
-  return clientsRepository.listCategories(storeId);
+  const rows = await clientsRepository.listCategories(storeId);
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.archivedAt ? `${row.name} (archivada)` : row.name,
+    archived: Boolean(row.archivedAt),
+  }));
 }
 
 export async function createClientCategory(storeId: string, name: string): Promise<ClientCategoryResponse> {
   const trimmed = name.trim();
   if (!trimmed) throw new ClientsError("Category name required", 400);
   const existing = await clientsRepository.findCategoryByName(storeId, trimmed);
+  if (existing?.archivedAt) {
+    return clientsRepository.updateCategoryArchive(existing.id, null);
+  }
   if (existing) throw new ClientsError("Category already exists", 409);
   const count = await clientsRepository.countCategories(storeId);
   return clientsRepository.createCategory(storeId, trimmed, count);
@@ -462,10 +548,21 @@ export async function renameClientCategory(storeId: string, id: string, name: st
   return clientsRepository.renameCategory(id, trimmed);
 }
 
-export async function deleteClientCategory(storeId: string, id: string): Promise<boolean> {
+export async function deleteClientCategory(storeId: string, id: string, actor?: Actor | null): Promise<boolean> {
   const existing = await clientsRepository.findCategoryInStore(storeId, id);
-  if (!existing) return false;
-  await clientsRepository.clearCategoryAndDelete(storeId, id);
+  if (!existing || existing.archivedAt) return false;
+  await clientsRepository.archiveCategory(storeId, id);
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "category.archived",
+      entityType: "category",
+      entityId: id,
+      entityLabel: existing.name,
+      detail: "Clientes",
+    });
+  }
   return true;
 }
 

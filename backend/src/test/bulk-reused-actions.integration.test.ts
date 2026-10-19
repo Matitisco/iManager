@@ -18,10 +18,10 @@ describe('per-item endpoints reused by bulk tables', () => {
     const inventory = await prisma.inventoryItem.create({ data: { storeId, imei: '', model: 'Segundo equipo', capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '', price: 500, cost: 300, status: 'DISPONIBLE' } });
     const client = await prisma.client.create({ data: { storeId, name: 'Segundo cliente', dni: '456' } });
     const targets = [
-      { url: `/api/inventory/${fixture.inventoryItem.id}`, id: fixture.inventoryItem.id, action: 'inventory.deleted' },
-      { url: `/api/inventory/${inventory.id}`, id: inventory.id, action: 'inventory.deleted' },
-      { url: `/api/clients/${fixture.client.id}`, id: fixture.client.id, action: 'client.deleted' },
-      { url: `/api/clients/${client.id}`, id: client.id, action: 'client.deleted' },
+      { url: `/api/inventory/${fixture.inventoryItem.id}`, id: fixture.inventoryItem.id, action: 'inventory.archived' },
+      { url: `/api/inventory/${inventory.id}`, id: inventory.id, action: 'inventory.archived' },
+      { url: `/api/clients/${fixture.client.id}`, id: fixture.client.id, action: 'client.archived' },
+      { url: `/api/clients/${client.id}`, id: client.id, action: 'client.archived' },
     ];
     for (const target of targets) expect((await app.inject({ method: 'DELETE', url: target.url, headers: staffHeaders })).statusCode).toBe(403);
     expect(await prisma.auditEvent.count({ where: { storeId } })).toBe(0);
@@ -104,7 +104,7 @@ describe('per-item endpoints reused by bulk tables', () => {
       if (source === 'sales') saleIds.push(operation.sale.id);
       else tradeIds.push(operation.tradeIn.id);
     }
-    expect(await prisma.auditEvent.count({ where: { storeId, action: { in: ['sale.cancelled', 'trade.cancelled', 'inventory.deleted', 'client.deleted'] } } })).toBe(0);
+    expect(await prisma.auditEvent.count({ where: { storeId, action: { in: ['sale.cancelled', 'trade.cancelled', 'inventory.archived', 'client.archived'] } } })).toBe(0);
     for (const id of saleIds) {
       expect((await app.inject({ method: 'POST', url: `/api/operations/sales/sales/${id}/cancel`, headers, payload: {} })).statusCode).toBe(200);
     }
@@ -117,8 +117,8 @@ describe('per-item endpoints reused by bulk tables', () => {
     for (const id of clientIds) expect((await app.inject({ method: 'DELETE', url: `/api/clients/${id}`, headers: buildAuthHeaders() })).statusCode).toBe(204);
     const audits = await prisma.auditEvent.findMany({ where: { storeId, actorUserId: owner.user.id }, select: { action: true, entityId: true } });
     const idsFor = (action: string) => audits.filter((event) => event.action === action).map((event) => event.entityId).sort();
-    expect(idsFor('inventory.deleted')).toEqual([...inventoryIds].sort());
-    expect(idsFor('client.deleted')).toEqual([...clientIds].sort());
+    expect(idsFor('inventory.archived')).toEqual([...inventoryIds].sort());
+    expect(idsFor('client.archived')).toEqual([...clientIds].sort());
     expect(idsFor('trade.cancelled')).toEqual([...tradeIds].sort());
     for (const id of saleIds) expect(audits.filter((event) => event.action === 'sale.cancelled' && event.entityId === id)).toHaveLength(1);
     for (const id of tradeIds) expect(audits.filter((event) => event.action === 'trade.cancelled' && event.entityId === id)).toHaveLength(1);

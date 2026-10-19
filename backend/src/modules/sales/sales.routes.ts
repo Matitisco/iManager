@@ -4,6 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
+import { readReason } from "../audit/archive.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { cancelOperationFromSale, createOperation, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
@@ -170,7 +171,7 @@ export async function salesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-      const deleted = await deleteCategory(request.appUser.storeId, id);
+      const deleted = await deleteCategory(request.appUser.storeId, id, await loadActor(request.appUser.userId));
       if (!deleted) return reply.code(404).send({ error: "Category not found" });
       return reply.code(204).send();
     }
@@ -186,7 +187,8 @@ export async function salesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const sales = await listSales(request.appUser.storeId);
+      const voided = z.object({ voided: z.enum(["1", "true"]).optional() }).parse(request.query).voided;
+      const sales = await listSales(request.appUser.storeId, { voided: Boolean(voided) });
       return { sales };
     }
   );
@@ -251,7 +253,7 @@ export async function salesRoutes(app: FastifyInstance) {
         await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
         return reply.code(204).send();
       }
-      const deleted = await deleteSale(request.appUser.storeId, params.id, actor);
+      const deleted = await deleteSale(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });
 
       if (!deleted) {
         return reply.code(404).send({ error: "Sale not found" });

@@ -23,6 +23,8 @@ import {
 } from '../trade-column-filters';
 import { Actions, ChipRow, DeskCta, Field, IconButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { TradeIn } from '../../types';
+import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
+import { rememberVoidedTrades } from '../archive-cache';
 
 const DEFAULT_STATUSES = [
   { id: 'PENDIENTE', label: 'Pendiente' },
@@ -43,7 +45,7 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
 }
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [] } = useAppContext();
+  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [], user } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back } = useDesk();
@@ -57,17 +59,30 @@ export function TradeInsScreen() {
   const [columns, setColumns] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [draftFilters, setDraftFilters] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [voidedMode, setVoidedMode] = useState(false);
+  const [voidedTrades, setVoidedTrades] = useState<TradeIn[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
   const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
+  useEffect(() => {
+    if (!voidedMode || !user) return;
+    let active = true;
+    fetchVoidedTradeIns(user).then((rows) => {
+      if (!active) return;
+      setVoidedTrades(rows);
+      rememberVoidedTrades(rows);
+    }).catch(() => { if (active) setVoidedTrades([]); });
+    return () => { active = false; };
+  }, [voidedMode, user]);
+  const tradeSource = voidedMode ? voidedTrades : tradeIns;
 
   const setColumn = (patch: Partial<TradeColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const setDraft = (patch: Partial<TradeColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const direction = sort === 'Recientes' ? -1 : 1;
-    return tradeIns.filter((item) => {
+    return tradeSource.filter((item) => {
       const name = tradeClientLabel(item, clients);
       const code = tradeCode(tradeIns, item.id);
       const haystack = `${name} ${item.clientName ?? ''} ${item.deviceReceived} ${item.deviceReceivedImei} ${item.deviceGiven} ${code}`.toLowerCase();
@@ -80,7 +95,7 @@ export function TradeInsScreen() {
       if (a == null || b == null) return a == null && b == null ? 0 : a == null ? 1 : -1;
       return direction * (a - b) || direction * ((left.tradeNumber ?? 0) - (right.tradeNumber ?? 0));
     });
-  }, [tradeIns, clients, query, filter, columns, sort]);
+  }, [tradeSource, clients, query, filter, columns, sort]);
   const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
   const quiet = !query.trim() && filter === 'Todos' && !tradeFiltersActive(columns) && !onlyNotices;
   const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
@@ -140,15 +155,16 @@ export function TradeInsScreen() {
           value={filter}
           onChange={setFilter}
         />
+        <button type="button" className={`wchip${voidedMode ? ' on' : ''}`} aria-pressed={voidedMode} onClick={() => setVoidedMode((current) => !current)}>Anulados</button>
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => tradeCode(tradeIns, item.id)}
         action={{
-          label: deleteCancelled ? 'Eliminar selección' : 'Cancelar canjes',
+          label: deleteCancelled ? 'Anular selección' : 'Cancelar canjes',
           explanation: deleteCancelled
-            ? 'Se borrarán los canjes cancelados seleccionados y no se puede deshacer. Se conservan el stock, las ventas, los saldos y los pagos.'
+            ? 'Se anulan los canjes cancelados. No se pueden restaurar. Se conservan el stock, las ventas, los saldos y los pagos.'
             : 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.',
           execute: (item) => isCancelledTrade(item) ? deleteTradeIn(item.id) : cancelTradeOperation('tradeins', item.id),
           unavailable: (item) => mixedSelection

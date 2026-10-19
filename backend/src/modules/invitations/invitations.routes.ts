@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember } from "../../middleware/section-access.js";
+import { actorFor } from "../audit/audit.js";
 import {
   createInvitation,
   listInvitations,
@@ -158,7 +159,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
 
     const { id } = request.params as { id: string };
     try {
-      await revokeInvitation(request.appUser.storeId, id, request.appUser.role);
+      await revokeInvitation(request.appUser.storeId, id, request.appUser.role, await actorFor(request.appUser));
       request.log.info(
         {
           event: "invite_revoke_ok",

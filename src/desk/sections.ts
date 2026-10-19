@@ -43,6 +43,12 @@ export function canSeeFinancials(stored: string[] | null | undefined, role?: str
 }
 
 /** El listado de miembros responde 403 para un empleado. */
+/** El historial es del propietario, salvo el permiso opcional «Ver historial». */
+export function canOpenHistory(stored: string[] | null | undefined, role?: string | null) {
+  if (role === 'OWNER') return true;
+  return Boolean(stored?.includes('history'));
+}
+
 export function canViewTeam(role?: string | null) {
   return role === 'OWNER' || role === 'MANAGER';
 }

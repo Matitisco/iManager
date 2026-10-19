@@ -21,7 +21,7 @@ function paidTerm(remote: RemoteSubscription, months: number) {
 
 export async function getBillingSummary(storeId: string, db: Prisma.TransactionClient = prisma) {
   const store = await db.store.findUniqueOrThrow({ where: { id: storeId } });
-  return billingSummary(store, await db.storeMember.count({ where: { storeId } }));
+  return billingSummary(store, await db.storeMember.count({ where: { storeId, removedAt: null } }));
 }
 export async function assertBillingWrite(storeId: string, db: Prisma.TransactionClient = prisma) {
   if ((await getBillingSummary(storeId, db)).readOnly) {

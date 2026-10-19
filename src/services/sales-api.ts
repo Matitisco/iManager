@@ -40,9 +40,17 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise
   return data.sale;
 }
 
-export async function deleteBackendSale(user: AuthUserLike, saleId: string): Promise<void> {
+export async function fetchVoidedSales(user: AuthUserLike): Promise<Sale[]> {
+  const data = await apiRequest<BackendSalesResponse>(user, '/api/sales?voided=1', {
+    fallback: (status) => `No se pudieron cargar las ventas anuladas (${status})`,
+  });
+  return data.sales ?? [];
+}
+
+export async function deleteBackendSale(user: AuthUserLike, saleId: string, reason?: string): Promise<void> {
   await apiRequest<void>(user, `/api/sales/${saleId}`, {
     method: 'DELETE',
-    fallback: (status) => `No se pudo eliminar la venta (${status})`,
+    ...(reason == null ? {} : { body: { reason } }),
+    fallback: (status) => `No se pudo anular la venta (${status})`,
   });
 }

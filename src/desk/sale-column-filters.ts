@@ -76,7 +76,8 @@ export function matchesSaleColumns(
   if (!includesText(labels.equipment, filters.equipment)) return false;
   if (filters.payments.length > 0 && !filters.payments.includes(paymentLabel(sale.paymentMethod))) return false;
   if (!matchesMoney(sale.amount, filters.amountMin, filters.amountMax)) return false;
-  if (filters.statuses.length > 0 && !filters.statuses.includes(sale.status)) return false;
+  const status = sale.voidedAt ? 'ANULADA' : sale.status;
+  if (filters.statuses.length > 0 && !filters.statuses.includes(status)) return false;
   if (filters.sellers.length > 0 && !filters.sellers.includes(saleSellerKey(sale))) return false;
   return true;
 }

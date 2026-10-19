@@ -93,7 +93,7 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await card.click({ button: 'right' });
   const menu = page.locator('.ctx');
   await expect(menu.getByRole('button', { name: 'Editar' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Eliminar' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Archivar' })).toBeVisible();
   await settle(page);
   await page.screenshot({ path: `${SHOTS}/desktop-1440-menu.png` });
   await page.keyboard.press('Escape');
@@ -115,7 +115,7 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await expect(phoneCard).not.toHaveAttribute('draggable');
   await page.getByRole('button', { name: 'Más acciones' }).click();
   await expect(page.locator('.ctx').getByRole('button', { name: 'Editar' })).toBeVisible();
-  await expect(page.locator('.ctx').getByRole('button', { name: 'Eliminar' })).toBeVisible();
+  await expect(page.locator('.ctx').getByRole('button', { name: 'Archivar' })).toBeVisible();
   await settle(page);
   await page.screenshot({ path: `${SHOTS}/phone-390-menu.png` });
   await page.keyboard.press('Escape');

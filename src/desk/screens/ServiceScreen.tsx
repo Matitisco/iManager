@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
@@ -9,9 +9,12 @@ import { formatShortDate } from '../format';
 import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, presentRepairStatusChange, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, REPAIR_DELIVERED, REPAIR_READY, visibleRepairStatuses } from '../repairs';
 import { usePhoneLayout } from '../section-notices';
 import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
+import type { RepairOrder } from '../../types';
+import { fetchArchivedRepairs } from '../../services/repairs-api';
+import { rememberArchivedRepairs } from '../archive-cache';
 
 export function ServiceScreen() {
-  const { repairOrders = [], repairOrdersError = null, changeRepairStatus } = useAppContext();
+  const { repairOrders = [], repairOrdersError = null, changeRepairStatus, user } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back, toast } = useDesk();
@@ -21,6 +24,8 @@ export function ServiceScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
   const [statusId, setStatusId] = useState('ABIERTAS');
+  const [archivedMode, setArchivedMode] = useState(false);
+  const [archivedOrders, setArchivedOrders] = useState<RepairOrder[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -32,15 +37,27 @@ export function ServiceScreen() {
     [catalogs?.options, repairOrders],
   );
 
+  useEffect(() => {
+    if (!archivedMode || !user) return;
+    let active = true;
+    fetchArchivedRepairs(user).then((rows) => {
+      if (!active) return;
+      setArchivedOrders(rows);
+      rememberArchivedRepairs(rows);
+    }).catch(() => { if (active) setArchivedOrders([]); });
+    return () => { active = false; };
+  }, [archivedMode, user]);
+  const repairSource = archivedMode ? archivedOrders : repairOrders;
+
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rank = new Map(statuses.map((status, index) => [status.id, index]));
-    return repairOrders.filter((order) => {
+    return repairSource.filter((order) => {
       if (!needle) return true;
       const haystack = `${order.code} ${order.clientName} ${order.device} ${order.imei} ${repairFault(order)} ${order.technician}`.toLowerCase();
       return haystack.includes(needle);
     }).sort((left, right) => (rank.get(repairColumnStatus(left.status)) ?? 99) - (rank.get(repairColumnStatus(right.status)) ?? 99) || right.orderNumber - left.orderNumber);
-  }, [repairOrders, query, statuses]);
+  }, [repairSource, query, statuses]);
 
   const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const readyCount = repairOrders.filter((order) => order.status === REPAIR_READY).length;
@@ -145,6 +162,7 @@ export function ServiceScreen() {
           ))}
         </div>
       ) : null}
+      <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
       {repairOrdersError && !suppressLocalNetworkBanner(repairOrdersError, offlineOwned) ? <div className="ferr" role="alert" data-testid={repairOrdersError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{repairOrdersError}</div> : null}
       {phone ? (
         groups.length === 0 ? <div className="wempty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (

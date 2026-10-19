@@ -49,6 +49,14 @@ describe("member sections", () => {
     expect(() => assertSectionList(["ventas"])).toThrow(/no existe/);
   });
 
+  it("keeps history off unless the owner or an explicit grant allows it", () => {
+    expect(canAccessSection("history", { role: "OWNER", sections: null })).toBe(true);
+    expect(canAccessSection("history", { role: "MANAGER", sections: null })).toBe(false);
+    expect(canAccessSection("history", { role: "STAFF", sections: null })).toBe(false);
+    expect(canAccessSection("history", { role: "STAFF", sections: ["history"] })).toBe(true);
+    expect(canAccessSection("history", { role: "STAFF", sections: ["sales"] })).toBe(false);
+  });
+
   it("gives the technical service section the same per-member gate as the other sections", () => {
     expect(canAccessSection("service", { role: "STAFF", sections: ["service"] })).toBe(true);
     expect(canAccessSection("service", { role: "STAFF", sections: ["sales"] })).toBe(false);

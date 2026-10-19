@@ -39,6 +39,7 @@ const prismaMock = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
+    update: vi.fn().mockResolvedValue({}),
     aggregate: vi.fn(),
   },
   $queryRaw: vi.fn().mockResolvedValue([]),
@@ -101,7 +102,7 @@ describe("sales.service", () => {
   it.each([false, true])("deletes cancelled sales without touching stock or client stats (integrated: %s)", async (integratedOperation) => {
     prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "CANCELADA", integratedOperation, tradeInId: "trade-1", inventoryItemId: "item-1", clientId: "client-1" });
     await expect(deleteSale("store-1", "sale-1")).resolves.toBe(true);
-    expect(prismaMock.sale.delete).toHaveBeenCalledWith({ where: { id: "sale-1" } });
+    expect(prismaMock.sale.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "sale-1" }, data: expect.objectContaining({ voidedAt: expect.any(Date), tradeInId: null }) }));
     expect(prismaMock.inventoryItem.updateMany).not.toHaveBeenCalled();
     expect(prismaMock.client.updateMany).not.toHaveBeenCalled();
     expect(prismaMock.sale.aggregate).not.toHaveBeenCalled();
@@ -110,7 +111,7 @@ describe("sales.service", () => {
   it("keeps rejecting direct deletion of active linked sales", async () => {
     prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", integratedOperation: true });
     await expect(deleteSale("store-1", "sale-1")).rejects.toMatchObject({ statusCode: 409 });
-    expect(prismaMock.sale.delete).not.toHaveBeenCalled();
+    expect(prismaMock.sale.update).not.toHaveBeenCalled();
   });
 
   it("keeps restoring stock and recomputing client stats for active historical sales", async () => {

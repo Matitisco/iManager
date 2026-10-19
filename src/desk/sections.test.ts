@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canManageCommissions, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
+import { canManageCommissions, canOpenHistory, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
 
 describe('desk sections', () => {
   it('offers catalog after Inventory to OWNER and first in More to permitted members', () => {
@@ -31,6 +31,10 @@ describe('desk sections', () => {
     expect(canOpenSection('sales', ['inventory'], 'MANAGER')).toBe(false);
     expect(canOpenSection('inventory', ['inventory'], 'MANAGER')).toBe(true);
     expect(canOpenSection('reports', [], 'OWNER')).toBe(true);
+    expect(canOpenHistory(null, 'OWNER')).toBe(true);
+    expect(canOpenHistory(null, 'MANAGER')).toBe(false);
+    expect(canOpenHistory(['history'], 'STAFF')).toBe(true);
+    expect(canOpenHistory(['sales'], 'STAFF')).toBe(false);
   });
 
   it('hides billing, margin and cost unless reports is granted', () => {

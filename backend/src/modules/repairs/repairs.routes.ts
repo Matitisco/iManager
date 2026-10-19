@@ -5,7 +5,8 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
-import { loadActor } from "../audit/audit.js";
+import { actorFor, loadActor } from "../audit/audit.js";
+import { readReason } from "../audit/archive.js";
 import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
 import {
   changeRepairStatus,
@@ -13,6 +14,7 @@ import {
   deleteRepair,
   getRepair,
   listRepairs,
+  restoreRepair,
   updateRepair,
   type RepairOrderInput,
 } from "./repairs.service.js";
@@ -92,7 +94,8 @@ export async function repairsRoutes(app: FastifyInstance) {
   app.get("/", { preHandler }, async (request, reply) => {
     const member = guard(request, reply);
     if (!member) return;
-    return { orders: await listRepairs(member.storeId) };
+    const archived = z.object({ archived: z.enum(["1", "true"]).optional() }).parse(request.query).archived;
+    return { orders: await listRepairs(member.storeId, { archived: Boolean(archived) }) };
   });
 
   app.get("/:id", { preHandler }, async (request, reply) => {
@@ -108,7 +111,7 @@ export async function repairsRoutes(app: FastifyInstance) {
     const member = guard(request, reply);
     if (!member) return;
     const body = repairSchema.parse(request.body) as RepairOrderInput;
-    const result = await createRepair(member.storeId, body);
+    const result = await createRepair(member.storeId, body, await actorFor(member));
     return reply.code(201).send(result);
   });
 
@@ -130,7 +133,7 @@ export async function repairsRoutes(app: FastifyInstance) {
     if (!member) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = statusSchema.parse(request.body);
-    const result = await changeRepairStatus(member.storeId, id, body.status);
+    const result = await changeRepairStatus(member.storeId, id, body.status, await actorFor(member));
     if (!result) return reply.code(404).send({ error: "Orden no encontrada" });
     return result;
   });
@@ -141,8 +144,19 @@ export async function repairsRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const actor = await requireSensitiveActor(member, reply);
     if (!actor) return;
-    const deleted = await deleteRepair(member.storeId, id, actor);
+    const deleted = await deleteRepair(member.storeId, id, actor, { reason: readReason(request.body) });
     if (!deleted) return reply.code(404).send({ error: "Orden no encontrada" });
     return reply.code(204).send();
+  });
+
+  app.post("/:id/restore", { preHandler }, async (request, reply) => {
+    const member = guard(request, reply);
+    if (!member) return;
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const actor = await requireSensitiveActor(member, reply);
+    if (!actor) return;
+    const order = await restoreRepair(member.storeId, id, actor);
+    if (!order) return reply.code(404).send({ error: "Orden no encontrada" });
+    return { order };
   });
 }

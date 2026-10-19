@@ -40,11 +40,13 @@ import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Sale } from '../../types';
+import { fetchVoidedSales } from '../../services/sales-api';
+import { rememberVoidedSales } from '../archive-cache';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers } = useAppContext();
+  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, user } = useAppContext();
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -77,6 +79,7 @@ export function SalesScreen() {
   const [period, setPeriod] = useState<PeriodKey>('Mes');
   const [statusPill, setStatusPill] = useState('Todos');
   const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
+  const [voidedSales, setVoidedSales] = useState<Sale[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('sales');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
@@ -93,7 +96,19 @@ export function SalesScreen() {
     () => sales.filter((sale) => sale.status !== 'CANCELADA' && inWindow(sale)),
     [sales, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone],
   );
-  const listed = useMemo(() => sales.filter((sale) => inWindow(sale)), [sales, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
+  const wantVoided = columns.statuses.includes('ANULADA');
+  useEffect(() => {
+    if (!wantVoided || !user) return;
+    let active = true;
+    fetchVoidedSales(user).then((rows) => {
+      if (!active) return;
+      setVoidedSales(rows);
+      rememberVoidedSales(rows);
+    }).catch(() => { if (active) setVoidedSales([]); });
+    return () => { active = false; };
+  }, [wantVoided, user]);
+  const salePool = wantVoided ? [...sales, ...voidedSales.filter((row) => !sales.some((sale) => sale.id === row.id))] : sales;
+  const listed = useMemo(() => salePool.filter((sale) => inWindow(sale)), [salePool, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
   const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
@@ -137,7 +152,7 @@ export function SalesScreen() {
   const visibleKey = page.visible.map((sale) => sale.id).join('|');
   useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
-  const statuses = [...new Set([...listed.map((sale) => sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA'])].filter(Boolean);
+  const statuses = [...new Set([...listed.map((sale) => sale.voidedAt ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'CANCELADA', 'ANULADA'])].filter(Boolean);
 
   const subtitle = onlyUnassigned && unassignedMonth ? monthLabel(unassignedMonth) : period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
   const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || onlyNotices || statusOn || onlyUnassigned;
@@ -228,9 +243,9 @@ export function SalesScreen() {
       <BulkActions key={scope} selection={selection} total={shown.length}
         label={saleCode}
         action={{
-          label: deleteCancelled ? 'Eliminar selección' : 'Cancelar ventas',
+          label: deleteCancelled ? 'Anular selección' : 'Cancelar ventas',
           explanation: deleteCancelled
-            ? 'Se borrarán las ventas canceladas seleccionadas y no se puede deshacer. Se conservan el stock, los canjes, los saldos y los pagos.'
+            ? 'Se anulan las ventas canceladas. No se pueden restaurar. Se conservan el stock, los canjes, los saldos y los pagos.'
             : 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.',
           execute: (sale) => sale.status === 'CANCELADA' ? deleteSale(sale.id) : updateSale({ ...sale, status: 'CANCELADA' }),
           unavailable: (sale) => mixedSelection
@@ -355,7 +370,7 @@ export function SalesScreen() {
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
-                    <td><Pill status={sale.status} kind="SALE_STATUS" /></td>
+                    <td><Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></td>
                   </PressTarget>
                 );
               })}
@@ -430,7 +445,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
     <span className="sale-card">
       <span className="sale-top">
         <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
-        <Pill status={sale.status} kind="SALE_STATUS" />
+        <Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" />
       </span>
       <span className="sale-who">
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />

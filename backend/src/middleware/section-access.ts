@@ -3,7 +3,7 @@ import { DomainError } from "../lib/domain-error.js";
 import { canAccessSection, type SectionId } from "../modules/stores/sections.js";
 import type { AppUserContext } from "../types/auth.js";
 
-const LABELS: Record<SectionId, string> = { cash: "Cajas", cashBalances: "Saldo de cajas", dashboard: "Dashboard", inventory: "Inventario", publicCatalog: "Catálogo", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", reports: "Reportes", commissions: "Comisiones", notifications: "Notificaciones" };
+const LABELS: Record<SectionId, string> = { cash: "Cajas", cashBalances: "Saldo de cajas", dashboard: "Dashboard", inventory: "Inventario", publicCatalog: "Catálogo", sales: "Ventas", tradeins: "Canjes", clients: "Clientes", service: "Servicio técnico", reports: "Reportes", commissions: "Comisiones", notifications: "Notificaciones", history: "Historial" };
 
 export function requireSectionAccess(section: SectionId) {
   return async (request: FastifyRequest, reply: FastifyReply) => {

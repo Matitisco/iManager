@@ -13,6 +13,7 @@ export const SECTION_IDS = [
   "reports",
   "commissions",
   "notifications",
+  "history",
 ] as const;
 
 export const STAFF_DEFAULT_SECTIONS = ["dashboard", "inventory", "sales", "clients", "tradeins", "service", "notifications"];
@@ -23,7 +24,7 @@ export function canAccessSection(section: SectionId, member: { role: string; sec
   if (member.role === "OWNER") return true;
   const sections = normalizeSections(member.sections);
   if (sections == null) {
-    if (section === "publicCatalog") return false;
+    if (section === "publicCatalog" || section === "history") return false;
     if (member.role === "STAFF") return STAFF_DEFAULT_SECTIONS.includes(section);
     return section !== "cashBalances" && section !== "commissions";
   }

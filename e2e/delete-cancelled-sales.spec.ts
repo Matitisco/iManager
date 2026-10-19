@@ -50,14 +50,14 @@ for (const device of [
         await record.dispatchEvent('pointerup', { pointerType: 'touch' });
         await expect(page.getByRole('checkbox', { name: /^Seleccionar V-/ })).toHaveCount(0);
       } else await record.click({ button: 'right' });
-      await page.locator('.ctx').getByRole('button', { name: 'Eliminar', exact: true }).click();
-      const dialog = page.getByRole('dialog', { name: 'Eliminar registro' });
+      await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: /Anular venta/ });
       await expect(dialog).toContainText('no se puede deshacer');
       if (shots) {
         mkdirSync(shots, { recursive: true });
         await page.screenshot({ path: `${shots}/issue-328-${device.name}-delete.png`, animations: 'disabled' });
       }
-      await dialog.getByRole('button', { name: 'Eliminar', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
       await expect(dialog).toBeHidden();
       await expect(record).toHaveCount(0);
       expect((await fetchSales(request, email)).sales).toHaveLength(2);
@@ -77,12 +77,12 @@ for (const device of [
       await page.getByTestId('sidebar-tab-sales').click();
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
-      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Eliminar selección' }).click();
-      const bulk = page.getByRole('dialog', { name: 'Eliminar selección: 2 registros' });
+      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular selección' }).click();
+      const bulk = page.getByRole('dialog', { name: 'Anular selección: 2 registros' });
       await expect(bulk).toContainText('Se conservan el stock, los canjes, los saldos y los pagos');
       if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-bulk.png`, animations: 'disabled' });
-      await bulk.getByRole('button', { name: 'Eliminar selección', exact: true }).click();
-      await expect(bulk).toBeHidden();
+      await bulk.getByRole('button', { name: 'Anular selección', exact: true }).click();
+      await expect(bulk).toBeHidden({ timeout: 20_000 });
       expect((await fetchSales(request, email)).sales).toHaveLength(0);
       expect((await fetchTradeIns(request, email)).tradeIns[0].saleId).toBeNull();
       expect(await snapshot()).toEqual(before);

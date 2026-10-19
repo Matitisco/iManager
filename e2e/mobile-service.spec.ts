@@ -225,7 +225,7 @@ test.describe('service on a phone', () => {
     await expect(detail.getByText('01/01 · atrasada')).toBeVisible();
     await expect(detail.getByText('US$ 120')).toBeVisible();
     await expect(detail.getByText('US$ 40')).toBeVisible();
-    await expect(detail.getByText('Historial')).toBeVisible();
+    await expect(detail.locator('.svc-log').getByText('Historial', { exact: true })).toBeVisible();
     await expect(detail.locator('.svc-log li')).toHaveCount(1);
     await expect(detail.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
     await expect(detail.getByText(/Tentativo/)).toHaveCount(0);
@@ -245,7 +245,7 @@ test.describe('service on a phone', () => {
     await editor.getByLabel('Seña').fill('50');
     await expectFits(page);
     await editor.getByTestId('repair-delete').click();
-    const confirm = page.getByRole('dialog', { name: 'Eliminar orden' });
+    const confirm = page.getByRole('dialog', { name: 'Archivar orden' });
     await expect(confirm).toContainText('vuelve como saldo a favor del cliente');
     await page.setViewportSize({ width: 360, height: 800 });
     await expectFits(page);

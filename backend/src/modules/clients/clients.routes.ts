@@ -4,10 +4,13 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { requireSensitiveActor } from "../stores/sensitive-access.js";
+import { readReason } from "../audit/archive.js";
+import { loadActor } from "../audit/audit.js";
 import type { ClientInput } from "./clients.service.js";
 import {
   createClient,
   deleteClient,
+  restoreClient,
   listClientPayments,
   registerClientPayment,
   importClients,
@@ -48,7 +51,8 @@ export async function clientsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const clients = await listClients(request.appUser.storeId);
+      const archived = z.object({ archived: z.enum(["1", "true"]).optional() }).parse(request.query).archived;
+      const clients = await listClients(request.appUser.storeId, { archived: Boolean(archived) });
       return { clients };
     }
   );
@@ -62,7 +66,7 @@ export async function clientsRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const body = clientCreateSchema.parse(request.body) as ClientInput;
-      const client = await createClient(request.appUser.storeId, body);
+      const client = await createClient(request.appUser.storeId, body, await loadActor(request.appUser.userId));
 
       return reply.code(201).send({ client });
     }
@@ -78,7 +82,7 @@ export async function clientsRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = clientPatchSchema.parse(request.body);
-      const client = await updateClient(request.appUser.storeId, params.id, body);
+      const client = await updateClient(request.appUser.storeId, params.id, body, await loadActor(request.appUser.userId));
 
       if (!client) {
         return reply.code(404).send({ error: "Client not found" });
@@ -156,7 +160,7 @@ export async function clientsRoutes(app: FastifyInstance) {
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
-      const deleted = await deleteClient(request.appUser.storeId, params.id, actor);
+      const deleted = await deleteClient(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });
 
       if (!deleted) {
         return reply.code(404).send({ error: "Client not found" });
@@ -164,6 +168,20 @@ export async function clientsRoutes(app: FastifyInstance) {
 
       return reply.code(204).send();
     }
+  );
+
+  app.post(
+    "/:id/restore",
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
+    async (request, reply) => {
+      requireMember(request);
+      const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      const client = await restoreClient(request.appUser.storeId, params.id, actor);
+      if (!client) return reply.code(404).send({ error: "Client not found" });
+      return { client };
+    },
   );
 
   // ── Categories ────────────────────────────────────────────────────────────
@@ -207,7 +225,7 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.delete("/categories/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] }, async (request, reply) => {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const deleted = await deleteClientCategory(request.appUser.storeId, id);
+    const deleted = await deleteClientCategory(request.appUser.storeId, id, await loadActor(request.appUser.userId));
     if (!deleted) return reply.code(404).send({ error: "Category not found" });
     return reply.code(204).send();
   });

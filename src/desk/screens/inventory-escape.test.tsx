@@ -89,7 +89,7 @@ describe('Escape en inventario', () => {
     const row = screen.getByText('iPhone 13 · 128 GB').closest('tr') as HTMLElement;
     fireEvent.contextMenu(row, { clientX: 48, clientY: 120 });
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archivar' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
 

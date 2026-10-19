@@ -10,6 +10,7 @@ export type DeskTab =
   | 'service'
   | 'commissions'
   | 'reports'
+  | 'history'
   | 'notifications'
   | 'settings'
   | 'more'

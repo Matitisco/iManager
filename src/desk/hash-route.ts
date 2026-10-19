@@ -2,7 +2,7 @@ import type { DeskTab } from './types';
 
 export const ROUTE: Record<DeskTab, string> = {
   billing: 'plan', cash: 'cajas', publicCatalog: 'catalogo', dashboard: 'dash', inventory: 'inv', sales: 'ven', tradeins: 'canjes',
-  clients: 'clientes', service: 'servicio', reports: 'rep', notifications: 'notif', settings: 'config',
+  clients: 'clientes', service: 'servicio', reports: 'rep', history: 'historial', notifications: 'notif', settings: 'config',
   help: 'ayuda', more: 'mas', commissions: 'comisiones',
 };
 

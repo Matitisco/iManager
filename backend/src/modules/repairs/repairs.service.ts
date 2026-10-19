@@ -7,6 +7,7 @@ import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { cleanReason, type ArchiveMeta } from "../audit/archive.js";
 import { serializeClient, type ClientResponse } from "../clients/clients.service.js";
 import { restoreRepairDeposits } from "../deposits/deposits.service.js";
 import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
@@ -61,6 +62,9 @@ export interface RepairOrderResponse {
   warrantyDays: number | null;
   warrantyUntil: string | null;
   warrantyState: "sin" | "pendiente" | "vigente" | "vencida";
+  archivedAt: string | null;
+  archivedBy: string | null;
+  archiveReason: string | null;
   events: RepairStatusEventResponse[];
 }
 
@@ -131,6 +135,9 @@ function serialize(record: RepairRecord, storeName: string | null): RepairOrderR
     receivedAt: formatArDate(record.receivedAt),
     whatsappUrl,
     ...warrantyView(record),
+    archivedAt: record.archivedAt ? record.archivedAt.toISOString() : null,
+    archivedBy: record.archivedBy ?? null,
+    archiveReason: record.archiveReason ?? null,
     events: record.events.map((event) => ({
       id: event.id,
       status: event.status,
@@ -148,11 +155,11 @@ async function load(storeId: string, id: string) {
   return prisma.repairOrder.findFirst({ where: { id, storeId }, include });
 }
 
-export async function listRepairs(storeId: string): Promise<RepairOrderResponse[]> {
+export async function listRepairs(storeId: string, options?: { archived?: boolean }): Promise<RepairOrderResponse[]> {
   await retireRepairStatuses(storeId);
   const [rows, name] = await Promise.all([
     prisma.repairOrder.findMany({
-      where: { storeId },
+      where: { storeId, archivedAt: options?.archived ? { not: null } : null },
       include,
       orderBy: [{ receivedAt: "desc" }, { orderNumber: "desc" }],
     }),
@@ -192,7 +199,7 @@ async function resolveRepairClient(
   return { clientId: null, clientName: null };
 }
 
-export async function createRepair(storeId: string, input: RepairOrderInput) {
+export async function createRepair(storeId: string, input: RepairOrderInput, actor?: Actor | null) {
   const name = await storeName(storeId);
   const status = input.status?.trim() || REPAIR_RECEIVED;
   if (isRetiredRepairStatus(status)) throw new RepairError("Ese estado ya no está en el flujo");
@@ -229,6 +236,17 @@ export async function createRepair(storeId: string, input: RepairOrderInput) {
       },
       include,
     });
+    if (actor) {
+      await writeAudit(tx, {
+        storeId,
+        actor,
+        action: "repair.created",
+        entityType: "repair",
+        entityId: order.id,
+        entityLabel: `#${String(order.orderNumber).padStart(4, "0")} · ${order.device}`.slice(0, 160),
+        detail: order.device,
+      });
+    }
     await recordCash(tx, { storeId, amount: Number(order.deposit), currency: currency ?? 'ARS', method: 'EFECTIVO', sourceType: 'repair', sourceId: order.id, note: 'Anticipo de reparación · efectivo' });
     return order;
   });
@@ -317,7 +335,7 @@ export async function updateRepair(
   return { order: serialize(updated, name), client: clientPayload(updated.client) };
 }
 
-export async function changeRepairStatus(storeId: string, id: string, status: string) {
+export async function changeRepairStatus(storeId: string, id: string, status: string, actor?: Actor | null) {
   const name = await storeName(storeId);
   const next = status.trim();
   if (!next) throw new RepairError("Elegí un estado");
@@ -329,28 +347,70 @@ export async function changeRepairStatus(storeId: string, id: string, status: st
       return tx.repairOrder.findFirst({ where: { id, storeId }, include });
     }
     await tx.repairStatusEvent.create({ data: { storeId, orderId: id, status: next } });
-    return tx.repairOrder.update({ where: { id }, data: { status: next }, include });
+    const row = await tx.repairOrder.update({ where: { id }, data: { status: next }, include });
+    await writeAudit(tx, {
+      storeId,
+      actor,
+      action: "repair.status",
+      entityType: "repair",
+      entityId: id,
+      entityLabel: `${repairCode(current.orderNumber)} · ${current.device}`.slice(0, 160),
+      source: actor ? "app" : "system",
+      changes: [{ field: "status", label: "Estado", before: current.status, after: next }],
+    });
+    return row;
   });
   if (!updated) return null;
   return { order: serialize(updated, name) };
 }
 
-export async function deleteRepair(storeId: string, id: string, actor?: Actor | null) {
-  const current = await prisma.repairOrder.findFirst({ where: { id, storeId }, select: { id: true, orderNumber: true, device: true } });
-  if (!current) return false;
+export async function deleteRepair(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
+  const current = await prisma.repairOrder.findFirst({
+    where: { id, storeId },
+    select: { id: true, orderNumber: true, device: true, archivedAt: true },
+  });
+  if (!current || current.archivedAt) return false;
+  const reason = cleanReason(meta?.reason);
   await withSerializableRetry(async (tx) => {
     await restoreRepairDeposits(tx, storeId, id, actor);
-    await tx.repairOrder.delete({ where: { id } });
+    await tx.repairOrder.update({
+      where: { id },
+      data: { archivedAt: new Date(), archivedBy: actor?.name ?? null, archiveReason: reason },
+    });
     if (actor) {
       await writeAudit(tx, {
         storeId,
         actor,
-        action: "repair.deleted",
+        action: "repair.archived",
         entityType: "repair",
         entityId: id,
+        entityLabel: `${repairCode(current.orderNumber)} · ${current.device}`.slice(0, 160),
         detail: `${repairCode(current.orderNumber)} · ${current.device}`,
+        reason,
+        source: meta?.source ?? "app",
+        changes: [{ field: "status", label: "Estado", before: "Activa", after: "Archivada" }],
       });
     }
   });
   return true;
+}
+
+export async function restoreRepair(storeId: string, id: string, actor?: Actor | null) {
+  const current = await prisma.repairOrder.findFirst({ where: { id, storeId } });
+  if (!current?.archivedAt) return null;
+  const updated = await prisma.repairOrder.update({
+    where: { id },
+    data: { archivedAt: null, archivedBy: null, archiveReason: null },
+    include,
+  });
+  await writeAudit(prisma, {
+    storeId,
+    actor,
+    action: "repair.restored",
+    entityType: "repair",
+    entityId: id,
+    entityLabel: `${repairCode(current.orderNumber)} · ${current.device}`.slice(0, 160),
+    changes: [{ field: "status", label: "Estado", before: "Archivada", after: "Activa" }],
+  });
+  return serialize(updated, await storeName(storeId));
 }

@@ -408,15 +408,18 @@ export async function getReportsOverview(
 ): Promise<ReportsOverviewResponse> {
   const salesWhere = {
     storeId,
+    voidedAt: null,
     ...buildDateRangeWhere("soldAt", input.startDate, input.endDate),
   };
   const tradeInsWhere = {
     storeId,
+    voidedAt: null,
     ...buildDateRangeWhere("tradeAt", input.startDate, input.endDate),
   };
   const previousWindow = resolvePreviousWindow(input);
   const inventoryWhere = {
     storeId,
+    archivedAt: null,
     ...buildDateRangeWhere("createdAt", input.startDate, input.endDate),
   };
 

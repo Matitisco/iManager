@@ -164,14 +164,14 @@ test.describe('phone patterns', () => {
     expect(menuBox.sheetIndex).toBeGreaterThanOrEqual(0);
     expect(menuBox.tabIndex).toBeGreaterThan(menuBox.sheetIndex);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/patterns-390-menu.png` });
-    await menu.getByRole('button', { name: 'Eliminar' }).click();
-    const confirm = page.getByRole('dialog', { name: 'Eliminar registro' });
+    await menu.getByRole('button', { name: 'Archivar' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Archivar equipo' });
     await expect(confirm).toBeVisible();
-    await settleMotion(page, '.dialog');
+    await settleMotion(page, '.sheet');
     const dialogBox = await confirm.boundingBox();
     const viewport = page.viewportSize()!;
-    expect(dialogBox!.y).toBeGreaterThan(80);
-    expect(dialogBox!.y + dialogBox!.height).toBeLessThan(viewport.height - 40);
+    expect(dialogBox!.y).toBeGreaterThan(40);
+    expect(dialogBox!.y + dialogBox!.height).toBeGreaterThanOrEqual(viewport.height - 2);
     await expectFits(page);
     await confirm.getByRole('button', { name: 'Cancelar' }).click();
 

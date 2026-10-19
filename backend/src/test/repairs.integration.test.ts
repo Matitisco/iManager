@@ -88,8 +88,9 @@ describe("repair orders", () => {
       headers: buildAuthHeaders({ uid: owner.user.firebaseUid, email: owner.user.email ?? undefined, name: "Dueño Ejemplo" }),
     });
     expect(removed.statusCode).toBe(204);
-    expect(await prisma.repairOrder.count({ where: { storeId: owner.store!.id } })).toBe(0);
-    expect(await prisma.repairStatusEvent.count({ where: { storeId: owner.store!.id } })).toBe(0);
+    expect(await prisma.repairOrder.count({ where: { storeId: owner.store!.id, archivedAt: null } })).toBe(0);
+    expect(await prisma.repairOrder.count({ where: { storeId: owner.store!.id, archivedAt: { not: null } } })).toBe(1);
+    expect(await prisma.repairStatusEvent.count({ where: { storeId: owner.store!.id } })).toBe(2);
   });
 
   it("numbers orders per store, keeps delete and budget changes for sensitive members and answers 400 in Spanish", async () => {
@@ -133,8 +134,8 @@ describe("repair orders", () => {
     const ownerDelete = await app.inject({ method: "DELETE", url: `/api/repairs/${orderId}`, headers: buildAuthHeaders({ uid: "rep-owner", email: "rep-owner@example.com", name: "Dueña" }) });
     expect(ownerDelete.statusCode).toBe(204);
     const audit = await prisma.auditEvent.findMany({ where: { storeId, entityType: "repair" }, orderBy: { createdAt: "asc" } });
-    expect(audit.map((event) => event.action)).toEqual(["repair.estimate", "repair.deleted"]);
-    expect(audit[1]?.detail).toBe("OT-0002 · iPhone 12");
+    expect(audit.map((event) => event.action)).toEqual(["repair.created", "repair.created", "repair.status", "repair.estimate", "repair.archived"]);
+    expect(audit.find((event) => event.action === "repair.archived")?.detail).toBe("OT-0002 · iPhone 12");
 
     const next = await app.inject({ method: "POST", url: "/api/repairs", headers: auth("rep-owner"), payload });
     expect(next.json().order.code).toBe("OT-0003");

@@ -173,20 +173,22 @@ describe("sensitive actions", () => {
 
     const grantedDelete = await app.inject({ method: "DELETE", url: `/api/inventory/${spare.id}`, headers: grantedHeaders });
     expect(grantedDelete.statusCode).toBe(204);
-    expect(await prisma.inventoryItem.findUnique({ where: { id: spare.id } })).toBeNull();
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: spare.id, action: "inventory.deleted" } })).toMatchObject({
+    expect((await prisma.inventoryItem.findUnique({ where: { id: spare.id } }))?.archivedAt).toBeTruthy();
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: spare.id, action: "inventory.archived" } })).toMatchObject({
       actorName: "Otto",
     });
 
     const ownerDeleteSale = await app.inject({ method: "DELETE", url: `/api/sales/${importedSale.id}`, headers: ownerHeaders });
     expect(ownerDeleteSale.statusCode).toBe(204);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: importedSale.id, action: "sale.deleted" } })).toMatchObject({
+    expect((await prisma.sale.findUnique({ where: { id: importedSale.id } }))?.voidedAt).toBeTruthy();
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: importedSale.id, action: "sale.voided" } })).toMatchObject({
       actorName: "Ana Dueña",
     });
 
     const ownerDeleteClient = await app.inject({ method: "DELETE", url: `/api/clients/${client.id}`, headers: ownerHeaders });
     expect(ownerDeleteClient.statusCode).toBe(204);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: client.id, action: "client.deleted" } })).toMatchObject({
+    expect((await prisma.client.findUnique({ where: { id: client.id } }))?.archivedAt).toBeTruthy();
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: client.id, action: "client.archived" } })).toMatchObject({
       actorName: "Ana Dueña",
       detail: "Cliente Local",
     });

@@ -10,6 +10,7 @@ import { normalizeCustomFields } from "../../lib/custom-fields.js";
 import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
 import { allocateDocumentNumber } from "../../lib/store-sequence.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { cleanReason, saleCode, type ArchiveMeta } from "../audit/archive.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
@@ -75,6 +76,9 @@ export interface SaleResponse {
   integratedOperation: boolean;
   cancelledBy: string | null;
   cancelledAt: string | null;
+  voidedAt: string | null;
+  voidedBy: string | null;
+  voidReason: string | null;
   warrantyDays: number | null;
   soldAt: string;
 }
@@ -103,6 +107,9 @@ type SaleRecord = {
   integratedOperation: boolean;
   cancelledBy?: string | null;
   cancelledAt?: Date | null;
+  voidedAt?: Date | null;
+  voidedBy?: string | null;
+  voidReason?: string | null;
   warrantyDays?: number | null;
   inventoryItem?: { model: string; capacity: string; condition?: string } | null;
 };
@@ -110,6 +117,7 @@ type SaleRecord = {
 export interface SaleCategoryResponse {
   id: string;
   name: string;
+  archived?: boolean;
 }
 
 class SalesError extends DomainError {}
@@ -149,7 +157,7 @@ async function recomputeClientStats(
   clientId: string
 ) {
   const aggregate = await tx.sale.aggregate({
-    where: { storeId, clientId },
+    where: { storeId, clientId, voidedAt: null },
     _sum: { amount: true },
     _max: { soldAt: true },
   });
@@ -187,14 +195,17 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     integratedOperation: sale.integratedOperation,
     cancelledBy: sale.cancelledBy ?? null,
     cancelledAt: sale.cancelledAt ? sale.cancelledAt.toISOString() : null,
+    voidedAt: sale.voidedAt ? sale.voidedAt.toISOString() : null,
+    voidedBy: sale.voidedBy ?? null,
+    voidReason: sale.voidReason ?? null,
     warrantyDays: sale.warrantyDays ?? null,
     soldAt: sale.soldAt.toISOString(),
   };
 }
 
-export async function listSales(storeId: string) {
+export async function listSales(storeId: string, options?: { voided?: boolean }) {
   const sales = await prisma.sale.findMany({
-    where: { storeId },
+    where: { storeId, voidedAt: options?.voided ? { not: null } : null },
     orderBy: { soldAt: "desc" },
     include: { inventoryItem: { select: { model: true, capacity: true } } },
   });
@@ -450,13 +461,13 @@ export async function updateSale(
   });
 }
 
-export async function deleteSale(storeId: string, id: string, actor?: Actor | null) {
+export async function deleteSale(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
   return withSerializableRetry(async (tx) => {
     const existing = await tx.sale.findFirst({
       where: { id, storeId },
     });
 
-    if (!existing) {
+    if (!existing || existing.voidedAt) {
       return false;
     }
     const cancelled = existing.status === "CANCELADA";
@@ -478,6 +489,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
           storeId,
           clientId: existing.clientId,
           id: { not: id },
+          voidedAt: null,
         },
         _sum: { amount: true },
         _max: { soldAt: true },
@@ -492,22 +504,28 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
       });
     }
 
+    const reason = cleanReason(meta?.reason);
     if (actor) {
       await writeAudit(tx, {
         storeId,
         actor,
-        action: "sale.deleted",
+        action: "sale.voided",
         entityType: "sale",
         entityId: id,
+        entityLabel: [saleCode(existing.saleNumber), existing.deviceLabel || existing.clientName].filter(Boolean).join(" · "),
         detail: existing.deviceLabel || existing.clientName || null,
+        reason,
+        source: meta?.source ?? "app",
+        changes: [{ field: "status", label: "Estado", before: existing.status, after: "Anulada" }],
       });
     }
 
     await voidSaleCommission(tx, storeId, id, "DELETED");
     // A prior cancellation already voided the snapshot. Preserve its date/adjustment month.
     await tx.commissionAccrual.updateMany({ where: { storeId, sourceSaleId: id, voidReason: "CANCELLED" }, data: { voidReason: "DELETED" } });
-    await tx.sale.delete({
+    await tx.sale.update({
       where: { id },
+      data: { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: reason, tradeInId: null },
     });
 
     return true;
@@ -716,15 +734,26 @@ export async function listCategories(storeId: string): Promise<SaleCategoryRespo
   const cats = await prisma.saleCategory.findMany({
     where: { storeId },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, archivedAt: true },
   });
-  return cats;
+  return cats.map((cat) => ({
+    id: cat.id,
+    name: cat.archivedAt ? `${cat.name} (archivada)` : cat.name,
+    archived: Boolean(cat.archivedAt),
+  }));
 }
 
 export async function createCategory(storeId: string, name: string): Promise<SaleCategoryResponse> {
   const trimmed = name.trim();
   if (!trimmed) throw new SalesError("Category name required", 400);
   const existing = await prisma.saleCategory.findFirst({ where: { storeId, name: trimmed } });
+  if (existing?.archivedAt) {
+    return prisma.saleCategory.update({
+      where: { id: existing.id },
+      data: { archivedAt: null },
+      select: { id: true, name: true },
+    });
+  }
   if (existing) throw new SalesError("Category already exists", 409);
   const count = await prisma.saleCategory.count({ where: { storeId } });
   const cat = await prisma.saleCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
@@ -748,15 +777,21 @@ export async function renameCategory(storeId: string, id: string, name: string):
   return updated;
 }
 
-export async function deleteCategory(storeId: string, id: string): Promise<boolean> {
+export async function deleteCategory(storeId: string, id: string, actor?: Actor | null): Promise<boolean> {
   const existing = await prisma.saleCategory.findFirst({ where: { id, storeId } });
-  if (!existing) return false;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.sale.updateMany({ where: { storeId, categoryId: id }, data: { categoryId: null } });
-    await tx.saleCategory.delete({ where: { id } });
-  });
-
+  if (!existing || existing.archivedAt) return false;
+  await prisma.saleCategory.update({ where: { id }, data: { archivedAt: new Date() } });
+  if (actor) {
+    await writeAudit(prisma, {
+      storeId,
+      actor,
+      action: "category.archived",
+      entityType: "category",
+      entityId: id,
+      entityLabel: existing.name,
+      detail: "Ventas",
+    });
+  }
   return true;
 }
 

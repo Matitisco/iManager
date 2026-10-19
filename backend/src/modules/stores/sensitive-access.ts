@@ -19,5 +19,6 @@ export async function requireSensitiveActor(
     reply.code(403).send({ error: SENSITIVE_DENIED });
     return null;
   }
-  return loadActor(member!.userId);
+  const actor = await loadActor(member!.userId);
+  return { ...actor, role: member!.role };
 }

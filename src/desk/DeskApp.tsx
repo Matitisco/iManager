@@ -33,7 +33,8 @@ import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
-import { canManageCommissions, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
+import { canManageCommissions, canOpenHistory, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
+import { HistoryScreen } from './screens/HistoryScreen';
 import { ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import type { NoticeSection } from './unread-count';
@@ -78,7 +79,7 @@ function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, u
 }
 
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, onOpen,
+  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, onOpen,
 }: {
   name: string;
   store: string;
@@ -90,6 +91,7 @@ function MoreScreen({
   commissions: number;
   catalogCount: number;
   ownCommissions: boolean;
+  showHistory: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
   return (
@@ -127,9 +129,14 @@ function MoreScreen({
                 </button>
               );
             })}
+            {showHistory ? <button className="member" type="button" data-testid="sidebar-tab-history" onClick={() => onOpen('history')}>
+              <span className="ico-row"><DeskIcon name="clock" size={18} /></span>
+              <span className="info"><span className="name">Historial</span><span className="role">Quién hizo qué y cuándo</span></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </button> : null}
           </div>
         </>
-      ) : null}
+      ) : rows.length === 0 && showHistory ? <div className="card"><button className="member" type="button" data-testid="sidebar-tab-history" onClick={() => onOpen('history')}><span className="ico-row"><DeskIcon name="clock" size={18} /></span><span className="info"><span className="name">Historial</span><span className="role">Quién hizo qué y cuándo</span></span></button></div> : null}
       <div className="mlabel">Cuenta</div>
       <div className="card">
         <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Guías y primeros pasos</span></span><span className="chev">›</span></button>
@@ -174,7 +181,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
     if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
@@ -296,7 +303,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones'; size: number }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
     { id: 'publicCatalog', label: 'Catálogo', icon: 'list', size: 18 },
@@ -306,6 +313,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
     { id: 'cash', label: 'Cajas', icon: 'grid', size: 20 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
+    { id: 'history', label: 'Historial', icon: 'clock', size: 20 },
     { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
   ];
   const items = nav.filter((item) => allowed(item.id));
@@ -386,6 +394,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'cash' && <CashScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
+            {tab === 'history' && <HistoryScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'billing' && <BillingScreen key={appSession?.store?.id} />}
             {tab === 'settings' && <SettingsScreen />}
@@ -400,6 +409,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 commissions={pendingCommissions}
                 catalogCount={inventory.filter(item => item.catalogIncluded).length}
                 ownCommissions={!commissionAccess}
+                showHistory={allowed('history')}
                 unread={unread.total}
                 onOpen={go}
               />

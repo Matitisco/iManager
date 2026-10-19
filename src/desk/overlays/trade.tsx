@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { getFriendlyErrorMessage } from '../../lib/utils';
+import { voidedTrade } from '../archive-cache';
+import { RecordHistory } from '../screens/HistoryScreen';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
 import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
@@ -100,7 +102,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   const catalogs = useCatalogs();
   const archivedReceivedLink = kind === 'ARCHIVED_TRADE_IN_RECEIVED';
   const [loadedOperation, setLoadedOperation] = useState<Awaited<ReturnType<typeof fetchTradeOperation>> | null>(null);
-  const trade = tradeIns.find((item) => item.id === id) ?? loadedOperation?.tradeIn;
+  const trade = tradeIns.find((item) => item.id === id) ?? voidedTrade(id) ?? loadedOperation?.tradeIn;
   const [detailError, setDetailError] = useState<string | null>(null);
   const [technicalStatus, setTechnicalStatus] = useState(trade?.status || 'PENDIENTE');
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -200,6 +202,8 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     return (
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} className="cj-sheet">
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+        {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
+        <RecordHistory entityType="trade" entityId={trade.id} />
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
         {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Cancelada" by={trade.cancelledBy} at={trade.cancelledAt} /> : null}
         {trade.confirmationStatus !== 'CANCELLED' ? (

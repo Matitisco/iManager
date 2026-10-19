@@ -459,16 +459,16 @@ describe('servicio técnico', () => {
     expect(close).toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith('Orden actualizada');
 
-    await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));
-    const confirm = screen.getByRole('dialog', { name: 'Eliminar orden' });
+    await user.click(screen.getByRole('button', { name: 'Archivar orden' }));
+    const confirm = screen.getByRole('dialog', { name: 'Archivar orden' });
     expect(confirm).toHaveTextContent('vuelve como saldo a favor del cliente');
     await user.click(within(confirm).getByRole('button', { name: 'Cancelar' }));
     expect(deleteRepairOrder).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Eliminar orden' }));
-    await user.click(within(screen.getByRole('dialog', { name: 'Eliminar orden' })).getByRole('button', { name: 'Eliminar' }));
+    await user.click(screen.getByRole('button', { name: 'Archivar orden' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Archivar orden' })).getByRole('button', { name: 'Archivar' }));
     expect(deleteRepairOrder).toHaveBeenCalledWith('95');
     expect(close).toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith('Orden eliminada');
+    expect(toast).toHaveBeenCalledWith('Orden archivada');
   });
 
   it('keeps the budget form open and shows the Spanish error when saving fails', async () => {
@@ -485,8 +485,8 @@ describe('servicio técnico', () => {
     desk(<RepairOrderEditor id="95" busy={false} />, false);
     expect(screen.getByLabelText('Presupuesto')).toBeDisabled();
     expect(screen.getByLabelText('Seña')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Eliminar orden' })).toBeDisabled();
-    expect(screen.getByText('Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o borrar la orden.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archivar orden' })).toBeDisabled();
+    expect(screen.getByText('Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o archivar la orden.')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.not.objectContaining({ estimate: expect.anything() }));
     expect(updateRepairOrder.mock.calls[0]?.[1]).not.toHaveProperty('deposit');
@@ -558,7 +558,7 @@ describe('servicio técnico', () => {
     const menu = { type: 'ctx' as const, kind: 'ot' as const, id: '95', label: '#OT-0095 · iPhone 14', x: 24, y: 36 };
     desk(<DeskOverlays overlay={menu} />);
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archivar' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Editar' }));
     expect(open).toHaveBeenCalledWith({ type: 'edit-ot', id: '95' });
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -569,19 +569,19 @@ describe('servicio técnico', () => {
     cleanup();
     desk(<DeskOverlays overlay={menu} />, false);
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archivar' })).not.toBeInTheDocument();
 
     cleanup();
     deleteRepairOrder.mockResolvedValue(undefined);
     desk(<DeskOverlays overlay={{ type: 'del', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }} />);
-    expect(screen.getByRole('dialog', { name: 'Eliminar orden' })).toHaveTextContent('no se puede deshacer');
+    expect(screen.getByRole('dialog', { name: 'Archivar orden' })).toHaveTextContent('archivada');
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(deleteRepairOrder).not.toHaveBeenCalled();
     cleanup();
     desk(<DeskOverlays overlay={{ type: 'del', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }} />);
-    await user.click(screen.getByRole('button', { name: 'Eliminar' }));
-    expect(deleteRepairOrder).toHaveBeenCalledWith('95');
-    expect(toast).toHaveBeenCalledWith('Orden eliminada');
+    await user.click(screen.getByRole('button', { name: 'Archivar' }));
+    expect(deleteRepairOrder).toHaveBeenCalledWith('95', 'Error de carga');
+    expect(toast).toHaveBeenCalledWith('Archivado');
   });
 });
 
@@ -775,7 +775,7 @@ describe('servicio técnico en el celular', () => {
     await user.type(screen.getByLabelText('Presupuesto'), '150000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 150000, deposit: 0, currency: null }));
-    expect(screen.getByRole('button', { name: 'Eliminar orden' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Archivar orden' })).toBeEnabled();
   });
 
   it('shows the deposit warning on the phone sheet', async () => {
