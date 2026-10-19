@@ -7,6 +7,8 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { requireMember } from "../../middleware/section-access.js";
+import { denyUnlessOwner } from "../expenses/expenses.routes.js";
+import { getNetProfit } from "./net-profit.service.js";
 import {
   getReportsOverview,
   normalizeReportsOverviewInput,
@@ -50,5 +52,20 @@ export async function reportsRoutes(app: FastifyInstance) {
 
       return { overview };
     }
+  );
+
+  app.get(
+    "/net-profit",
+    { preHandler: [authenticate, resolveAppUser] },
+    async (request, reply) => {
+      requireMember(request);
+      if (!denyUnlessOwner(request, reply)) return;
+      const query = z.object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha de inicio no es válida"),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha de fin no es válida"),
+      }).parse(request.query);
+      if (query.from > query.to) return reply.code(400).send({ error: "El período no es válido" });
+      return getNetProfit(request.appUser.storeId, query.from, query.to);
+    },
   );
 }

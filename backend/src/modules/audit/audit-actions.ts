@@ -18,6 +18,8 @@ export const AUDIT_SECTIONS = [
   { id: "cash", label: "Cajas" },
   { id: "commissions", label: "Comisiones" },
   { id: "settings", label: "Configuración" },
+  { id: "suppliers", label: "Proveedores" },
+  { id: "expenses", label: "Gastos" },
 ] as const;
 
 export type AuditSectionId = (typeof AUDIT_SECTIONS)[number]["id"];
@@ -52,6 +54,16 @@ const ACTIONS: Record<string, ActionMeta> = {
   "inventory.restored": { title: "Restauró un equipo", group: "Anulación/Archivo", section: "inventory", verb: "restauró" },
   "inventory.moved": { title: "Movió de categoría", group: "Edición", section: "inventory", verb: "movió de categoría" },
   "inventory.imported": { title: "Importó equipos", group: "Alta", section: "inventory", verb: "importó equipos" },
+  "inventory.supplier": { title: "Cambió el proveedor", group: "Edición", section: "inventory", verb: "cambió el proveedor de" },
+  "purchase.created": { title: "Registró una compra", group: "Alta", section: "suppliers", verb: "registró la compra a" },
+  "supplier.created": { title: "Registró un proveedor", group: "Alta", section: "suppliers", verb: "registró al proveedor" },
+  "supplier.updated": { title: "Editó un proveedor", group: "Edición", section: "suppliers", verb: "editó al proveedor" },
+  "supplier.archived": { title: "Archivó un proveedor", group: "Anulación/Archivo", section: "suppliers", verb: "archivó al proveedor" },
+  "supplier.restored": { title: "Restauró un proveedor", group: "Anulación/Archivo", section: "suppliers", verb: "restauró al proveedor" },
+  "expense.created": { title: "Registró un gasto", group: "Alta", section: "expenses", verb: "registró el gasto" },
+  "expense.updated": { title: "Editó un gasto", group: "Edición", section: "expenses", verb: "editó el gasto" },
+  "expense.archived": { title: "Archivó un gasto", group: "Anulación/Archivo", section: "expenses", verb: "archivó el gasto" },
+  "expense.restored": { title: "Restauró un gasto", group: "Anulación/Archivo", section: "expenses", verb: "restauró el gasto" },
   "inventory.deleted": { title: "Eliminó (antes del historial)", group: "Anulación/Archivo", section: "inventory", verb: "eliminó" },
   "sale.created": { title: "Registró una venta", group: "Alta", section: "sales", verb: "registró la venta" },
   "sale.updated": { title: "Editó una venta", group: "Edición", section: "sales", verb: "editó la venta" },
@@ -106,7 +118,9 @@ export function actionMeta(action: string): ActionMeta {
             : prefix === "inventory" ? "inventory"
               : prefix === "cash" ? "cash"
                 : prefix === "commission" ? "commissions"
-                  : "settings"
+                  : prefix === "supplier" || prefix === "purchase" ? "suppliers"
+                    : prefix === "expense" ? "expenses"
+                      : "settings"
   ) as AuditSectionId;
   const legacy = action.endsWith(".deleted");
   return {

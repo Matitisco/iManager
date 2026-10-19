@@ -27,6 +27,9 @@ export interface Product {
   costChangedBy?: string | null;
   costChangedAt?: string | null;
   categoryId?: string | null;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  stockPurchaseId?: string | null;
   soldAt?: string | null;
   createdAt?: string;
   customFields?: Record<string, any>;

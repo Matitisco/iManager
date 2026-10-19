@@ -14,7 +14,9 @@ import { onboardingRoutes, gettingStartedRoutes } from "./modules/onboarding/onb
 import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { periodicReportRoutes } from "./modules/periodic-reports/routes.js";
+import { expenseRoutes } from "./modules/expenses/expenses.routes.js";
 import { reportsRoutes } from "./modules/reports/reports.routes.js";
+import { supplierRoutes } from "./modules/suppliers/suppliers.routes.js";
 import { salesRoutes } from "./modules/sales/sales.routes.js";
 import { tradeInsRoutes } from "./modules/trade-ins/trade-ins.routes.js";
 import { storesRoutes } from "./modules/stores/stores.routes.js";
@@ -81,6 +83,8 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
   app.register(commissionsRoutes, { prefix: "/api/commissions" });
   app.register(reportsRoutes, { prefix: "/api/reports" });
+  app.register(supplierRoutes, { prefix: "/api/suppliers" });
+  app.register(expenseRoutes, { prefix: "/api/expenses" });
   app.register(salesRoutes, { prefix: "/api/sales" });
   app.register(tradeInsRoutes, { prefix: "/api/trade-ins" });
   app.register(storesRoutes, { prefix: "/api/stores" });

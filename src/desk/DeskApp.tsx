@@ -36,6 +36,8 @@ import { canManageSensitive as memberCanManageSensitive } from './sensitive-acce
 import { MobileTabBar } from './mobile-tab-bar';
 import { canManageCommissions, canOpenHistory, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { ExpensesScreen } from './screens/ExpensesScreen';
+import { SuppliersScreen } from './screens/SuppliersScreen';
 import { ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import { sectionBadge } from './unread-count';
@@ -44,7 +46,7 @@ import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
-const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones' | 'store' | 'register'> = {
+const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones' | 'store' | 'register' | 'card'> = {
   cash: 'register', publicCatalog: 'store', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
@@ -80,7 +82,7 @@ function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, u
 }
 
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, onOpen,
+  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, showSuppliers, showExpenses, onOpen,
 }: {
   name: string;
   store: string;
@@ -93,6 +95,8 @@ function MoreScreen({
   catalogCount: number;
   ownCommissions: boolean;
   showHistory: boolean;
+  showSuppliers: boolean;
+  showExpenses: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
   return (
@@ -112,7 +116,7 @@ function MoreScreen({
         </span>
         <span className="chev" aria-hidden="true">›</span>
       </button>
-      {rows.length > 0 ? (
+      {rows.length > 0 || showHistory || showSuppliers || showExpenses ? (
         <>
           <div className="mlabel">Módulos</div>
           <div className="card">
@@ -135,9 +139,19 @@ function MoreScreen({
               <span className="info"><span className="name">Historial</span><span className="role">Quién hizo qué y cuándo</span></span>
               <span className="chev" aria-hidden="true">›</span>
             </button> : null}
+            {showSuppliers ? <button className="member" type="button" data-testid="sidebar-tab-suppliers" onClick={() => onOpen('suppliers')}>
+              <span className="ico-row"><DeskIcon name="store" size={18} /></span>
+              <span className="info"><span className="name">Proveedores</span><span className="role">Compras y origen del stock</span></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </button> : null}
+            {showExpenses ? <button className="member" type="button" data-testid="sidebar-tab-expenses" onClick={() => onOpen('expenses')}>
+              <span className="ico-row"><DeskIcon name="card" size={18} /></span>
+              <span className="info"><span className="name">Gastos</span><span className="role">Lo que resta en la ganancia neta</span></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </button> : null}
           </div>
         </>
-      ) : rows.length === 0 && showHistory ? <div className="card"><button className="member" type="button" data-testid="sidebar-tab-history" onClick={() => onOpen('history')}><span className="ico-row"><DeskIcon name="clock" size={18} /></span><span className="info"><span className="name">Historial</span><span className="role">Quién hizo qué y cuándo</span></span></button></div> : null}
+      ) : null}
       <div className="mlabel">Cuenta</div>
       <div className="card">
         <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Guías y primeros pasos</span></span><span className="chev">›</span></button>
@@ -178,7 +192,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => id === 'billing' || id === 'expenses' ? role === 'OWNER' : id === 'suppliers' ? canOpenSection('inventory', sections, role) : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
     if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
@@ -275,6 +289,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
     else if (target === 'clients') next = { type: 'cl', id: recordId };
     else if (target === 'service') next = { type: 'ot', id: recordId };
+    else if (target === 'suppliers') next = { type: 'supplier', id: recordId };
+    else if (target === 'expenses') next = { type: 'edit-expense', id: recordId };
     else return;
     setPendingRecordOpen({ tab: target, overlay: next });
     go(target);
@@ -300,15 +316,17 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock' | 'store' | 'register'; size: number }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock' | 'store' | 'register' | 'card'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
+    { id: 'suppliers', label: 'Proveedores', icon: 'store', size: 18 },
     { id: 'publicCatalog', label: 'Catálogo', icon: 'store', size: 18 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
     { id: 'cash', label: 'Cajas', icon: 'register', size: 20 },
+    { id: 'expenses', label: 'Gastos', icon: 'card', size: 18 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
     { id: 'history', label: 'Historial', icon: 'clock', size: 20 },
     { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
@@ -379,16 +397,18 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
-            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
+            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab === 'suppliers' ? 'Proveedores' : tab === 'expenses' ? 'Gastos' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
+            {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
             {tab === 'service' && <ServiceScreen />}
             {tab === 'cash' && <CashScreen />}
+            {tab === 'expenses' && <ExpensesScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
             {tab === 'reports' && <ReportsScreen />}
             {tab === 'history' && <HistoryScreen />}
@@ -407,6 +427,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 catalogCount={inventory.filter(item => item.catalogIncluded).length}
                 ownCommissions={!commissionAccess}
                 showHistory={allowed('history')}
+                showSuppliers={allowed('suppliers')}
+                showExpenses={allowed('expenses')}
                 unread={unread.total}
                 onOpen={go}
               />

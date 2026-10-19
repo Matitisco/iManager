@@ -81,6 +81,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
+      <div className="kv" data-testid="equipment-supplier"><span>Proveedor</span><b>{item.supplierName || 'Sin proveedor cargado.'}</b></div>
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
       {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
@@ -96,8 +97,8 @@ export function EquipmentDetail({ id }: { id: string }) {
   );
 }
 
-export function EquipmentForm({ id, run, busy, error }: FormProps & { id?: string }) {
-  const { inventory, addProduct, updateProduct, appSession } = useAppContext();
+export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & { id?: string; supplierId?: string }) {
+  const { inventory, addProduct, updateProduct, appSession, suppliers, reloadLedger } = useAppContext();
   const money = useMoney();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { close, open, canManageSensitive = true } = useDesk();
@@ -120,6 +121,7 @@ export function EquipmentForm({ id, run, busy, error }: FormProps & { id?: strin
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
   const [price, setPrice] = useState(current ? money.inputValue(current.price, current.currency) : '');
   const [status, setStatus] = useState(current?.status ?? '');
+  const [supplier, setSupplier] = useState(current?.supplierId ?? supplierId ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
   let createdProductId = '';
 
@@ -135,6 +137,14 @@ export function EquipmentForm({ id, run, busy, error }: FormProps & { id?: strin
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
       <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      <Field label="Proveedor">
+        {suppliers === null ? <input disabled value="Cargando proveedores…" /> : (
+          <select aria-label="Proveedor" value={supplier} onChange={(event) => setSupplier(event.target.value)}>
+            <option value="">Sin proveedor</option>
+            {(suppliers ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+        )}
+      </Field>
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={(next) => { setCondition(next); if (!isUsedCondition(next)) setGrade(''); }} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
       {isUsedCondition(condition) ? <QualityField value={grade} onChange={setGrade} /> : null}
@@ -179,6 +189,7 @@ export function EquipmentForm({ id, run, busy, error }: FormProps & { id?: strin
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
+          ...(suppliers === null ? {} : supplier ? { supplierId: supplier } : current ? { supplierId: null } : {}),
         };
         if (current) {
           const next = { ...current, ...payload };
@@ -188,6 +199,7 @@ export function EquipmentForm({ id, run, busy, error }: FormProps & { id?: strin
         else {
           const created = await addProduct(payload);
           createdProductId = created.id;
+          if (supplier) await reloadLedger();
           signalDesk('desk-eq-saved');
         }
         signalDesk('desk-check', 'inv');

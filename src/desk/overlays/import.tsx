@@ -7,9 +7,9 @@ import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
-export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
+export function ImportHost({ kind, supplierId, supplierName }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }) {
   const phone = usePhoneLayout();
-  const { user, reloadInventory, reloadSales, reloadClients } = useAppContext();
+  const { user, reloadInventory, reloadSales, reloadClients, reloadLedger } = useAppContext();
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
     if (kind === 'inv') await reloadInventory();
@@ -19,7 +19,8 @@ export function ImportHost({ kind }: { kind: 'inv' | 'sale' | 'cl' }) {
       await reloadInventory();
     }
     if (kind === 'cl') await reloadClients();
-  }), [kind, reloadInventory, reloadSales, reloadClients]);
+    if (kind === 'inv' && supplierId) await reloadLedger();
+  }, supplierId ? { id: supplierId, name: supplierName } : undefined), [kind, reloadInventory, reloadSales, reloadClients, reloadLedger, supplierId, supplierName]);
   if (!user) return null;
   const noun: Record<typeof kind, [string, string]> = {
     inv: ['equipo importado', 'equipos importados'],
@@ -43,10 +44,10 @@ function sectionFor(kind: 'inv' | 'sale' | 'cl'): ImportSection {
   return 'clients';
 }
 
-function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
+function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, supplier?: { id: string; name?: string }) {
   if (kind === 'inv') {
     return {
-      title: 'Importar equipos',
+      title: supplier?.name ? `Subir stock de ${supplier.name}` : 'Importar equipos',
       nouns: { one: 'equipo', many: 'equipos' },
       unrelatedNotice: 'Este archivo no parece tener equipos para importar.',
       fields: [
@@ -76,7 +77,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>) {
           customFields: row.serial ? { serial: row.serial } : undefined,
           status: row.status,
         }));
-        const result = await importBackendRows(user, 'inventory', payload);
+        const result = await importBackendRows(user, 'inventory', payload, supplier?.id);
         await after();
         return result;
       },

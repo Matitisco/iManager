@@ -17,7 +17,7 @@ function resolveBin(bin: string) {
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/pwa/**', '**/395b-shots.spec.ts', '**/post395-shots.spec.ts', '**/374-shots.spec.ts'],
+  testIgnore: ['**/pwa/**', '**/395b-shots.spec.ts', '**/post395-shots.spec.ts', '**/374-shots.spec.ts', '**/308-shots.spec.ts'],
   timeout: 60_000,
   expect: {
     timeout: 10_000,
