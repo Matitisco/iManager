@@ -123,7 +123,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [user, setUser] = useState<AuthUserLike | null>(() => boot ? cachedAuthUser(boot) : null);
   const [loading, setLoading] = useState(() => !boot);
   const [appSession, setAppSession] = useState<AppSession | null>(() => boot?.session ?? null);
-  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>(() => boot ? 'ready' : 'checking');
+  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
     inventory, setInventory, listsLoaded,

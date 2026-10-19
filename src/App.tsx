@@ -127,11 +127,12 @@ function AppContent() {
     return <StoreActivityPage />;
   }
 
-  if (backendStatus === 'ready' && appSession?.onboardingRequired) {
+  const sessionKnown = backendStatus === 'ready' || (backendStatus === 'checking' && !!appSession);
+  if (sessionKnown && appSession?.onboardingRequired) {
     return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
   }
 
-  if (backendStatus === 'ready' && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly) {
+  if (sessionKnown && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly) {
     return <OnboardingJourney />;
   }
 
