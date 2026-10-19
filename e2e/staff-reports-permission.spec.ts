@@ -76,8 +76,9 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   await page.reload();
   const permissions = page.locator('.team-permissions h1');
   const more = page.getByTestId('sidebar-tab-more');
-  await expect(permissions.or(more)).toBeVisible();
-  if (!(await permissions.isVisible())) {
+  const onPermissions = await permissions.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
+  if (!onPermissions) {
+    await expect(more).toBeVisible();
     await more.click();
     await page.getByTestId('sidebar-tab-settings').click();
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();

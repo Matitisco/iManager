@@ -8,6 +8,7 @@ import { writeAudit, type Actor } from "../audit/audit.js";
 import { serializeClient } from "../clients/clients.service.js";
 import { creditAmount, type DepositBalanceRow } from "../clients/client-balance.js";
 import { balanceStillOwed, bookOpen, type RefundMovement, type RefundTarget } from "../../lib/cancel-refund.js";
+import { assembleFollowUps, type FollowUpDebtLine } from "./follow-ups.js";
 import {
   addDaysYmd,
   allocatePayment,
@@ -17,7 +18,6 @@ import {
   cents,
   fromCents,
   installmentStatus,
-  monthDayWithin,
   ymdInTimeZone,
   type InstallmentSlice,
   type Tone,
@@ -399,34 +399,82 @@ export async function saveFollowUpSettings(storeId: string, input: Partial<typeo
 export async function listFollowUps(storeId: string) {
   const clock = await storeClock(storeId);
   const settings = await getFollowUpSettings(storeId);
-  const [clients, sales] = await Promise.all([
-    prisma.client.findMany({ where: { storeId, archivedAt: null }, select: { id: true, name: true, phone: true, birthday: true, pendingBalance: true, lastPurchaseAt: true } }),
-    prisma.sale.findMany({ where: { storeId, voidedAt: null, status: "COMPLETADA", clientId: { not: null }, warrantyDays: { gt: 0 } }, select: { id: true, saleNumber: true, clientId: true, deviceLabel: true, soldAt: true, warrantyDays: true, client: { select: { name: true, phone: true } } } }),
+  const clients = await prisma.client.findMany({
+    where: { storeId, archivedAt: null },
+    select: { id: true, name: true, phone: true, birthday: true, lastPurchaseAt: true },
+  });
+  const inactiveIds = clients
+    .filter((client) => client.lastPurchaseAt && ymd(client.lastPurchaseAt, clock.timeZone) < addDaysYmd(clock.today, -settings.inactiveDays))
+    .map((client) => client.id);
+  const [sales, debtors] = await Promise.all([
+    prisma.sale.findMany({
+      where: {
+        storeId,
+        voidedAt: null,
+        status: "COMPLETADA",
+        clientId: { not: null },
+        client: { archivedAt: null },
+        OR: [
+          { warrantyDays: { gt: 0 } },
+          ...(inactiveIds.length ? [{ clientId: { in: inactiveIds } }] : []),
+        ],
+      },
+      select: { id: true, clientId: true, deviceLabel: true, soldAt: true, warrantyDays: true, client: { select: { name: true, phone: true } } },
+      orderBy: { soldAt: "desc" },
+    }),
+    settings.includeDebts ? listDebtors(storeId) : Promise.resolve([]),
   ]);
-  const cards: Array<{ id: string; kind: "CUMPLEANOS" | "GARANTIA" | "DEUDA" | "INACTIVO"; clientId: string; name: string; phone: string; title: string; detail: string }> = [];
-  for (const client of clients) {
-    if (client.birthday && monthDayWithin(ymd(client.birthday, "UTC"), clock.today, settings.birthdayLeadDays)) {
-      cards.push({ id: `birthday-${client.id}`, kind: "CUMPLEANOS", clientId: client.id, name: client.name, phone: client.phone ?? "", title: "Cumpleaños", detail: client.name });
-    }
-    if (settings.includeDebts && num(client.pendingBalance) > 0) {
-      cards.push({ id: `debt-${client.id}`, kind: "DEUDA", clientId: client.id, name: client.name, phone: client.phone ?? "", title: "Deuda pendiente", detail: `${client.name} tiene saldo` });
-    }
-    if (client.lastPurchaseAt) {
-      const last = ymd(client.lastPurchaseAt, clock.timeZone);
-      if (last < addDaysYmd(clock.today, -settings.inactiveDays)) {
-        cards.push({ id: `inactive-${client.id}`, kind: "INACTIVO", clientId: client.id, name: client.name, phone: client.phone ?? "", title: "Hace tiempo no compra", detail: `Última compra ${last.split("-").reverse().join("/")}` });
-      }
-    }
-  }
-  const until = addDaysYmd(clock.today, settings.warrantyLeadDays);
+  const active = new Set(clients.map((client) => client.id));
+  const devices: Array<{ clientId: string; deviceLabel: string | null }> = [];
+  const seenDevice = new Set<string>();
+  const warranties = [];
   for (const sale of sales) {
-    if (!sale.clientId || !sale.client) continue;
-    const end = addDaysYmd(ymd(sale.soldAt, clock.timeZone), sale.warrantyDays ?? 0);
-    if (end < clock.today || end > until) continue;
-    cards.push({ id: `warranty-${sale.id}`, kind: "GARANTIA", clientId: sale.clientId, name: sale.client.name, phone: sale.client.phone ?? "", title: "Garantía por vencer", detail: `${sale.deviceLabel || `Venta ${sale.saleNumber}`} · vence ${end.split("-").reverse().join("/")}` });
+    if (!sale.clientId || !sale.client || !active.has(sale.clientId)) continue;
+    if (!seenDevice.has(sale.clientId)) {
+      seenDevice.add(sale.clientId);
+      devices.push({ clientId: sale.clientId, deviceLabel: sale.deviceLabel });
+    }
+    if ((sale.warrantyDays ?? 0) > 0) {
+      warranties.push({
+        saleId: sale.id,
+        clientId: sale.clientId,
+        name: sale.client.name,
+        phone: sale.client.phone ?? "",
+        deviceLabel: sale.deviceLabel,
+        soldOn: ymd(sale.soldAt, clock.timeZone),
+        warrantyDays: sale.warrantyDays ?? 0,
+      });
+    }
   }
-  const order = { CUMPLEANOS: 0, GARANTIA: 1, DEUDA: 2, INACTIVO: 3 };
-  return { today: clock.today, settings, cards: cards.sort((left, right) => order[left.kind] - order[right.kind] || left.name.localeCompare(right.name, "es")) };
+  const debts = debtors
+    .filter((row) => active.has(row.clientId) && row.pendingBalance > 0)
+    .map((row) => ({
+      clientId: row.clientId,
+      name: row.name,
+      phone: row.phone,
+      amount: row.pendingBalance,
+      currency: row.currency ?? clock.currency,
+      lines: row.lines.map((line): FollowUpDebtLine => ({
+        source: line.source,
+        openedAt: line.openedAt,
+        installments: line.installments.map((item) => ({ sequence: item.sequence, dueDate: item.dueDate, status: item.status })),
+      })),
+    }));
+  const followUps = assembleFollowUps({
+    today: clock.today,
+    settings,
+    clients: clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+      phone: client.phone ?? "",
+      birthday: client.birthday ? ymd(client.birthday, "UTC") : null,
+      lastPurchaseAt: client.lastPurchaseAt ? ymd(client.lastPurchaseAt, clock.timeZone) : null,
+    })),
+    warranties,
+    debts,
+    devices,
+  });
+  return { today: clock.today, settings, ...followUps };
 }
 
 export async function recordPriceRise(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDaysYmd, calendarDays, cents, fromCents } from "../modules/accounts/ledger.js";
 import { prisma } from "../plugins/prisma.js";
 import { buildAuthHeaders, seedCatalogFixture, seedStoreContext } from "./db.js";
 import { useIntegrationApp } from "./integration-helpers.js";
@@ -169,5 +170,107 @@ describe("cuenta corriente y cuotas", () => {
     const listed = await getApp().inject({ url: "/api/accounts/follow-ups", headers: f.headers });
     expect(listed.statusCode, listed.body).toBe(200);
     expect(listed.json().cards.some((card: { kind: string; clientId: string }) => card.kind === "CUMPLEANOS" && card.clientId === f.client.id)).toBe(true);
+  });
+
+  it("returns structured follow-up fields, group totals, and stays inside the store", async () => {
+    const f = await fixture();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    const storeDay = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    const soldOn = "2025-04-09";
+    const endsOn = addDaysYmd(today, 2);
+    const warrantyDays = calendarDays(soldOn, endsOn);
+
+    await prisma.client.update({ where: { id: f.client.id }, data: { birthday: new Date(`${today}T12:00:00.000Z`), phone: "2615550101" } });
+    const pending = await sale(f.headers, { clientId: f.client.id, deviceLabel: "Equipo con saldo", amount: 1000, currency: "ARS", paymentMethod: "EFECTIVO", status: "PENDIENTE" });
+    expect(pending.statusCode, pending.body).toBe(201);
+
+    const quiet = await prisma.client.create({ data: { storeId: f.storeId, name: "Laura Méndez", phone: "", dni: "40999001" } });
+    const oldSale = await sale(f.headers, { clientId: quiet.id, deviceLabel: "iPhone 11", amount: 100, currency: "ARS", paymentMethod: "EFECTIVO", status: "COMPLETADA", warrantyDays });
+    expect(oldSale.statusCode, oldSale.body).toBe(201);
+    await prisma.sale.update({ where: { id: oldSale.json().sale.id }, data: { soldAt: new Date(`${soldOn}T15:00:00.000Z`), warrantyDays } });
+    await prisma.client.update({ where: { id: quiet.id }, data: { lastPurchaseAt: new Date(`${soldOn}T15:00:00.000Z`) } });
+
+    const financedClient = await prisma.client.create({ data: { storeId: f.storeId, name: "Nicolás Pereyra", phone: "2615550199", dni: "40999002" } });
+    const firstDue = addDaysYmd(today, 10);
+    const financed = await sale(f.headers, {
+      clientId: financedClient.id,
+      deviceLabel: "Equipo en cuotas",
+      amount: 600,
+      currency: "ARS",
+      paymentMethod: "EFECTIVO",
+      tenders: [{ amount: 200, currency: "ARS", method: "EFECTIVO" }],
+      installments: { count: 3, frequency: "MENSUAL", firstDueDate: firstDue },
+    });
+    expect(financed.statusCode, financed.body).toBe(201);
+    const saleId = financed.json().sale.id as string;
+    const slices = await prisma.saleInstallment.findMany({ where: { saleId }, orderBy: { sequence: "asc" } });
+    expect(slices).toHaveLength(3);
+    const collected = await getApp().inject({
+      method: "POST",
+      url: "/api/accounts/collections",
+      headers: f.headers,
+      payload: { clientId: financedClient.id, saleId, amount: Number(slices[0]!.amount), method: "EFECTIVO", currency: "ARS" },
+    });
+    expect(collected.statusCode, collected.body).toBe(201);
+
+    await prisma.client.create({
+      data: { storeId: f.storeId, name: "Archivado", phone: "2615550000", birthday: new Date(`${today}T12:00:00.000Z`), pendingBalance: 800, archivedAt: new Date() },
+    });
+    const other = await prisma.store.create({ data: { name: "Otra tienda seguimientos" } });
+    await prisma.client.create({
+      data: { storeId: other.id, name: "Ajeno", phone: "2615550001", birthday: new Date(`${today}T12:00:00.000Z`), pendingBalance: 5000 },
+    });
+
+    const listed = await getApp().inject({ url: "/api/accounts/follow-ups", headers: f.headers });
+    expect(listed.statusCode, listed.body).toBe(200);
+    const cards = listed.json().cards as Array<Record<string, unknown>>;
+    expect(cards.some((card) => card.name === "Ajeno" || card.name === "Archivado")).toBe(false);
+
+    expect(cards.find((card) => card.kind === "DEUDA" && card.clientId === f.client.id)).toMatchObject({
+      amount: 1000,
+      dueDate: today,
+      currency: "ARS",
+      lastPurchaseAt: null,
+      warrantyEndsAt: null,
+      deviceLabel: null,
+    });
+    expect(cards.find((card) => card.kind === "CUMPLEANOS" && card.clientId === f.client.id)).toMatchObject({
+      birthdayOn: today,
+      amount: null,
+      dueDate: null,
+      warrantyEndsAt: null,
+    });
+    expect(cards.find((card) => card.kind === "GARANTIA" && card.clientId === quiet.id)).toMatchObject({
+      warrantyEndsAt: endsOn,
+      deviceLabel: "iPhone 11",
+      warrantyDays,
+      amount: null,
+      dueDate: null,
+    });
+    expect(cards.find((card) => card.kind === "INACTIVO" && card.clientId === quiet.id)).toMatchObject({
+      lastPurchaseAt: soldOn,
+      deviceLabel: "iPhone 11",
+      phone: "",
+      amount: null,
+    });
+    expect(cards.find((card) => card.kind === "DEUDA" && card.clientId === financedClient.id)).toMatchObject({
+      installmentSequence: 2,
+      installmentCount: 3,
+      dueDate: storeDay(slices[1]!.dueDate),
+      currency: "ARS",
+    });
+
+    const groups = listed.json().groups as Array<{ kind: string; count: number; totalAmount: number | null; currency: string | null }>;
+    expect(groups.map((group) => group.kind)).toEqual(["DEUDA", "CUMPLEANOS", "GARANTIA", "INACTIVO"]);
+    const debtCards = cards.filter((card) => card.kind === "DEUDA");
+    expect(groups.find((group) => group.kind === "DEUDA")).toEqual({
+      kind: "DEUDA",
+      count: debtCards.length,
+      currency: "ARS",
+      totalAmount: fromCents(debtCards.reduce((sum, card) => sum + cents(Number(card.amount)), 0)),
+    });
+    expect(groups.find((group) => group.kind === "CUMPLEANOS")?.count).toBe(1);
+    expect(groups.find((group) => group.kind === "GARANTIA")?.totalAmount).toBeNull();
+    expect(groups.find((group) => group.kind === "INACTIVO")?.count).toBe(1);
   });
 });
