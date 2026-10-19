@@ -1,7 +1,7 @@
 import { OnboardingInventorySummary } from '../getting-started';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { rememberArchivedProducts } from '../archive-cache';
@@ -32,6 +32,49 @@ import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { StockCountScreen, StockEntryButton } from './StockCountScreen';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
+
+function StatusMenu({ options, pressed, onToggle }: {
+  options: { id: string; label: string }[];
+  pressed: (id: string) => boolean;
+  onToggle: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', down);
+    window.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', down);
+      window.removeEventListener('keydown', key);
+    };
+  }, [open]);
+  const chosen = options.filter((option) => option.id !== 'Todos' && pressed(option.id));
+  const label = chosen.length === 0 ? 'Estado' : chosen.length === 1 ? chosen[0]!.label : `${chosen.length} estados`;
+  return (
+    <div className={`dsel${chosen.length ? ' on' : ''}`} ref={box} data-testid="inventory-status-filter">
+      <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        {label}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open ? (
+        <div className="menu" role="menu" aria-label="Estado">
+          {options.map((option) => (
+            <button key={option.id} type="button" role="menuitemcheckbox" aria-checked={pressed(option.id)} className={pressed(option.id) ? 'on' : ''} onClick={() => onToggle(option.id)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const STATUS_FILTERS = [
   { id: 'DISPONIBLE', label: 'Disponible' },
@@ -209,7 +252,7 @@ export function InventoryScreen() {
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
-        <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />
+        {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>

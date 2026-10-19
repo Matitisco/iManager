@@ -31,7 +31,7 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
   await page.getByTestId('blue-done').click();
 
   await page.getByTestId('sidebar-tab-service').click();
-  await expect(page).toHaveURL(/#\/?servicio/);
+  await expect(page).toHaveURL(/#\/atencion\/servicio/);
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
   await page.getByRole('button', { name: 'Nueva orden' }).click();
   const form = page.getByRole('dialog', { name: 'Nueva orden de reparación' });

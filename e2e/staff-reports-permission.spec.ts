@@ -66,7 +66,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
     await expect(staffDesk.locator('.side')).toBeVisible();
     await staffDesk.getByTestId('sidebar-tab-reports').click();
     await expect(staffDesk.getByRole('heading', { name: 'Reportes' })).toBeVisible();
-    await expect(staffDesk).toHaveURL(/#\/rep/);
+    await expect(staffDesk).toHaveURL(/#\/analisis\/reportes/);
     await shot(staffDesk, 'reports-1440');
   } finally {
     await desk.close();
@@ -96,11 +96,12 @@ test('an employee sees reportes on desktop and phone only after the switch is on
     await loginViaUi(staffPhone, staffEmail);
     const bar = staffPhone.getByTestId('mobile-tab-bar');
     await expect(bar).toBeVisible();
-    await expect(bar.getByTestId('sidebar-tab-reports')).toBeVisible();
+    await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
     await expect(staffPhone.locator('.side')).toHaveCount(0);
-    await bar.getByTestId('sidebar-tab-reports').click();
+    await bar.getByTestId('sidebar-tab-more').click();
+    await staffPhone.getByTestId('sidebar-tab-reports').click();
     await expect(staffPhone.getByRole('heading', { name: 'Reportes' })).toBeVisible();
-    await expect(staffPhone).toHaveURL(/#\/rep/);
+    await expect(staffPhone).toHaveURL(/#\/analisis\/reportes/);
     await shot(staffPhone, 'reports-390');
   } finally {
     await phone.close();

@@ -84,8 +84,9 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toHaveCount(0);
-    const chips = page.locator('.wchips');
-    const chipStyle = await chips.evaluate((node) => {
+    await expect(page.getByTestId('inventory-status-filter')).toBeVisible();
+    const tabs = page.locator('.nav-tabs');
+    const chipStyle = await tabs.evaluate((node) => {
       const style = getComputedStyle(node);
       return { wrap: style.flexWrap, overflow: style.overflowX };
     });
@@ -212,14 +213,17 @@ test.describe('inventory on a phone', () => {
     await page.getByRole('button', { name: 'Limpiar filtros' }).click();
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
 
-    await chips.getByRole('button', { name: 'Disponible' }).click();
-    await chips.getByRole('button', { name: 'Reservado' }).click();
+    const status = page.getByTestId('inventory-status-filter');
+    await status.getByRole('button', { name: 'Estado' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Disponible' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Reservado' }).click();
     await expect(page.getByText('iPhone 13 · 128GB')).toBeVisible();
     await expect(page.getByText('Apartado · 128GB')).toBeVisible();
     await expect(page.getByText('iPhone 14 Pro · 256GB')).toHaveCount(0);
     await expect(page.getByTestId('inventory-total')).toHaveText('3 de 4');
     await expectFits(page);
-    await chips.getByRole('button', { name: 'Todos' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Todos' }).click();
+    await page.keyboard.press('Escape');
     await expect(page.getByText('iPhone 14 Pro · 256GB')).toBeVisible();
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
 

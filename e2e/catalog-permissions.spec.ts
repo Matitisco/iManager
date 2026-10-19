@@ -112,7 +112,7 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
       await patch(memberPath, { sections: sections.filter(id => id !== 'publicCatalog') });
       await review.reload();
       await expect(review.getByTestId('no-section-access')).toContainText('No tenés acceso');
-      await expect(review).toHaveURL(/#\/catalogo$/);
+      await expect(review).toHaveURL(/#\/stock\/catalogo$/);
       await capture('376-sin-acceso-1440');
     }
     expect(await review.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -39,6 +39,7 @@ describe('sidebar unread counts', () => {
     context.appSession.membership.role = 'OWNER';
     context.appSession.membership.sections = null;
     window.location.hash = '#/dash';
+    localStorage.clear();
   });
 
   function usePhone(reducedMotion = false) {
@@ -87,7 +88,7 @@ describe('sidebar unread counts', () => {
     } else {
       expect(screen.queryByTestId('sidebar-tab-publicCatalog')).not.toBeInTheDocument();
       expect(screen.getByTestId('no-section-access')).toHaveTextContent('No tenés acceso');
-      expect(window.location.hash).toBe('#catalogo');
+      expect(window.location.hash).toBe('#/stock/catalogo');
     }
   });
 
@@ -117,11 +118,16 @@ describe('sidebar unread counts', () => {
     ];
     render(<DeskApp />);
     expect(screen.getByLabelText('3 en total')).toHaveTextContent('3');
-    expect(screen.getByLabelText('2 en Inventario')).toHaveTextContent('2');
+    expect(screen.getByLabelText('2 en Stock')).toHaveTextContent('2');
+    expect(screen.getByLabelText('2 en Comercial')).toHaveTextContent('2');
+    fireEvent.click(screen.getByTestId('nav-group-comercial'));
+    fireEvent.click(screen.getByTestId('nav-group-stock'));
+    fireEvent.click(screen.getByTestId('nav-group-atencion'));
+    expect(screen.getByLabelText('2 en Equipos')).toHaveTextContent('2');
     expect(screen.getByLabelText('1 en Ventas')).toHaveTextContent('1');
+    expect(screen.getByLabelText('1 en Canjes')).toHaveTextContent('1');
     expect(screen.queryByLabelText(/en Clientes/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/en Canjes/)).not.toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent(/^Canjes$/);
+    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('Canjes');
     expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('Servicio técnico');
     expect(screen.queryByText('★')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument();
@@ -136,12 +142,12 @@ describe('sidebar unread counts', () => {
     ];
     render(<DeskApp />);
     expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
-    expect(screen.getByText('Todo lo que no entra en la barra')).toBeInTheDocument();
+    expect(screen.getByText('Todas las secciones, agrupadas')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Ana');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Propietario');
     expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1 en curso');
-    expect(screen.getByTestId('sidebar-tab-clients')).toHaveTextContent('Agenda y saldos');
+    expect(screen.getByTestId('more-item-clients')).toHaveTextContent('Agenda y saldos');
     expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('0 abiertas');
     expect(screen.getByTestId('sidebar-tab-notifications')).toHaveTextContent('1 sin leer');
     expect(screen.getByTestId('sidebar-tab-settings')).toHaveTextContent('Configuración');
@@ -287,7 +293,8 @@ describe('sidebar unread counts', () => {
     window.location.hash = '#/servicio';
     render(<DeskApp />);
     expect(screen.getByRole('heading', { name: 'Servicio técnico' })).toBeInTheDocument();
-    expect(screen.getByTestId('page-back')).toBeInTheDocument();
+    expect(screen.queryByTestId('page-back')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-tab-clients')).toHaveClass('on');
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nueva orden' })).toBeInTheDocument();
     expect(screen.queryByText(/Tentativo/i)).not.toBeInTheDocument();
     cleanup();
@@ -308,13 +315,13 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('no-section-access')).toHaveTextContent('No tenés acceso');
     expect(screen.getByText('Pedile acceso a Matías')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pedile acceso a Matías' })).not.toBeInTheDocument();
-    expect(window.location.hash).toBe('#/rep');
+    expect(window.location.hash).toBe('#/analisis/reportes');
     expect(screen.queryByTestId('sidebar-tab-reports')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Volver al Dashboard' }));
-    expect(window.location.hash).toBe('#/dash');
+    expect(window.location.hash).toBe('#/dashboard');
     goHash('#/inv');
-    expect(screen.getByTestId('no-section-access')).toHaveTextContent('Inventario');
-    expect(window.location.hash).toBe('#/inv');
+    expect(screen.getByTestId('no-section-access')).toHaveTextContent('Equipos');
+    expect(window.location.hash).toBe('#/stock/equipos');
   });
 
   it('keeps billing owner-only and shows the calm access screen', () => {
@@ -334,7 +341,8 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('sidebar-tab-dashboard')).toHaveClass('on');
     expect(screen.getByTestId('sidebar-tab-inventory')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-tab-sales')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-tab-tradeins')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-tab-clients')).toBeInTheDocument();
+    expect(within(screen.getByTestId('mobile-tab-bar')).queryByTestId('sidebar-tab-tradeins')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-tab-reports')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-tab-service')).not.toBeInTheDocument();
   });

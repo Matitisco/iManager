@@ -320,7 +320,8 @@ test('mobile Desglose backdrop consumes pointerdown and click over report tabs',
     localStorage.setItem('imanager:install-dismissed:android', 'yes');
   });
   await session(page);
-  await page.getByRole('button', { name: 'Reportes', exact: true }).click();
+  await page.getByTestId('sidebar-tab-more').click();
+  await page.getByTestId('sidebar-tab-reports').click();
   await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
   const select = page.getByRole('combobox', { name: 'Columna de desglose' });
   const tab = page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Stock', exact: true });
@@ -331,7 +332,7 @@ test('mobile Desglose backdrop consumes pointerdown and click over report tabs',
   await expect(page.getByRole('dialog', { name: 'Desglose' })).toBeVisible();
   await page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await expect(page.getByRole('dialog', { name: 'Desglose' })).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/rep$/);
+  await expect(page).toHaveURL(/#\/analisis\/reportes$/);
   await expect(select).toHaveText('Medio de pago');
   await expect(tab).toHaveAttribute('aria-pressed', 'false');
 });

@@ -410,11 +410,13 @@ describe('Inventory phone list', () => {
     expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
     expect(screen.queryByText(/Tocá ⋯ en una fila/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Vendido' }));
+    const menu = screen.getByTestId('inventory-status-filter');
+    await user.click(within(menu).getByRole('button', { name: 'Estado' }));
+    await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Vendido' }));
     expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
     expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Todos' }));
+    await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Todos' }));
     expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
 
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
@@ -463,15 +465,16 @@ describe('Inventory phone list', () => {
     renderScreen();
 
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
-    const chips = document.querySelector('.wchips') as HTMLElement;
-    await user.click(within(chips).getByRole('button', { name: 'Disponible' }));
-    await user.click(within(chips).getByRole('button', { name: 'Reservado' }));
+    const menu = screen.getByTestId('inventory-status-filter');
+    await user.click(within(menu).getByRole('button', { name: 'Estado' }));
+    await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Disponible' }));
+    await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Reservado' }));
     expect(screen.getByText('Libre · 128 GB')).toBeInTheDocument();
     expect(screen.getByText('Apartado · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
 
-    await user.click(within(chips).getByRole('button', { name: 'Todos' }));
+    await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Todos' }));
     expect(screen.getByText('Salida · 128 GB')).toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
 
@@ -482,8 +485,8 @@ describe('Inventory phone list', () => {
     await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
     expect(screen.queryByText('Salida · 128 GB')).not.toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('2 de 3');
-    expect(within(chips).getByRole('button', { name: 'Disponible' })).toHaveClass('on');
-    expect(within(chips).getByRole('button', { name: 'Reservado' })).toHaveClass('on');
+    expect(menu).toHaveClass('on');
+    expect(within(menu).getByRole('button', { name: '2 estados' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('1');
 
     await user.click(screen.getByRole('button', { name: 'Filtros' }));

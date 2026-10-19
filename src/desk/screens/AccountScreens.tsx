@@ -12,6 +12,7 @@ import { usePhoneLayout } from '../section-notices';
 import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ImanagerIcon, notificationIcon } from '../icons';
 import { configHash, configPlace, writeHash } from '../hash-route';
+import { GroupTabs } from '../group-tabs';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
 import { Link2, MessageCircle, X } from 'lucide-react';
@@ -145,6 +146,7 @@ export function NotificationsScreen() {
         {back ? <BackButton onClick={back} /> : null}
         <div className="whead-copy"><h1>Notificaciones</h1></div>
       </div>
+      <GroupTabs />
       <div className="notif-tools">
         <span className="notif-count">{unread.total ? `${unread.total} sin leer` : 'Estás al día'}</span>
         <span className="notif-acts">

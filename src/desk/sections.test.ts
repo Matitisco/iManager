@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { canManageCommissions, canOpenHistory, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, mobileTabs, visibleSections } from './sections';
+import { canManageCommissions, canOpenHistory, canOpenSection, canSeeFinancials, canViewTeam, grantedSections, visibleSections } from './sections';
 
 describe('desk sections', () => {
-  it('offers catalog after Inventory to OWNER and first in More to permitted members', () => {
+  it('offers catalog after Inventory to OWNER and only with the permission', () => {
     expect(visibleSections(null, 'OWNER').slice(0, 3)).toEqual(['dashboard', 'inventory', 'publicCatalog']);
-    expect(mobileTabs(null, 'OWNER').more[0]).toBe('publicCatalog');
     expect(canOpenSection('publicCatalog', ['publicCatalog'], 'STAFF')).toBe(true);
     expect(canOpenSection('publicCatalog', null, 'MANAGER')).toBe(false);
   });
@@ -55,45 +54,15 @@ describe('desk sections', () => {
     expect(canViewTeam(undefined)).toBe(false);
   });
 
-  it('keeps four phone tabs and parks the rest in Más, sliding the next allowed section in', () => {
-    expect(mobileTabs(null, 'OWNER')).toEqual({
-      bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['publicCatalog', 'tradeins', 'clients', 'service', 'cash', 'commissions', 'notifications'],
-    });
-    expect(mobileTabs(null, 'STAFF')).toEqual({
-      bar: ['dashboard', 'inventory', 'sales', 'tradeins'],
-      more: ['clients', 'service', 'commissions', 'notifications'],
-    });
-    expect(mobileTabs(['reports', 'sales'], 'STAFF')).toEqual({
-      bar: ['sales', 'reports'],
-      more: ['commissions'],
-    });
-    expect(mobileTabs(['dashboard', 'inventory', 'sales', 'reports', 'tradeins'], 'STAFF')).toEqual({
-      bar: ['dashboard', 'inventory', 'sales', 'reports'],
-      more: ['tradeins', 'commissions'],
-    });
-    expect(mobileTabs(['dashboard', 'sales', 'reports', 'service'], 'MANAGER')).toEqual({
-      bar: ['dashboard', 'sales', 'reports', 'service'],
-      more: ['commissions'],
-    });
-    expect(mobileTabs(['clients'], 'MANAGER')).toEqual({
-      bar: ['clients'],
-      more: ['commissions'],
-    });
-  });
 });
 
 for (const role of ['STAFF', 'MANAGER', 'OWNER']) {
-  it(`gates catalog consistently for ${role}, including legacy defaults and mobile overflow`, () => {
+  it(`gates catalog consistently for ${role}`, () => {
     for (const stored of [null, [], ['inventory'], ['publicCatalog'], ['dashboard', 'inventory', 'sales', 'tradeins', 'publicCatalog']]) {
       const allowed = role === 'OWNER' || Boolean(stored?.includes('publicCatalog'));
       expect(visibleSections(stored, role).includes('publicCatalog')).toBe(allowed);
       expect(grantedSections(stored, role).includes('publicCatalog')).toBe(allowed);
       expect(canOpenSection('publicCatalog', stored, role)).toBe(allowed);
-      const tabs = mobileTabs(stored, role);
-      expect(tabs.bar).not.toContain('publicCatalog');
-      expect(tabs.more.includes('publicCatalog')).toBe(allowed);
-      if (allowed) expect(tabs.more[0]).toBe('publicCatalog');
     }
   });
 }

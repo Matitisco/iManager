@@ -18,7 +18,7 @@ import {
 } from '../follow-up-copy';
 import { ListSkeleton } from '../list-skeleton';
 import { usePhoneLayout } from '../section-notices';
-import { Actions, ChipRow, Field, Sheet, useDesk } from '../ui';
+import { Actions, ChipRow, Field, ScreenTitle, Sheet, useDesk } from '../ui';
 
 const ICONS = {
   DEUDA: Receipt,
@@ -50,6 +50,16 @@ function WhatsAppAction({ href, name, tipId }: { href: string | null; name: stri
       </button>
       <span role="tooltip" id={tipId} className="fu-tip">Cargá su teléfono para escribirle por WhatsApp</span>
     </span>
+  );
+}
+
+export function FollowUpsScreen() {
+  const { back } = useDesk();
+  return (
+    <div className="dscreen">
+      <ScreenTitle title="Seguimientos" subtitle="A quién escribirle hoy" back={back} desktop={null} />
+      <FollowUps />
+    </div>
   );
 }
 

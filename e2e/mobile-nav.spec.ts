@@ -61,11 +61,12 @@ test.describe('phone navigation', () => {
 
     const bar = page.getByTestId('mobile-tab-bar');
     await expect(bar.getByTestId('sidebar-tab-dashboard')).toHaveClass(/on/);
-    await expect(bar.getByTestId('sidebar-tab-inventory')).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-sales')).toBeVisible();
-    await expect(bar.getByTestId('sidebar-tab-reports')).toBeVisible();
+    await expect(bar.getByTestId('sidebar-tab-inventory')).toBeVisible();
+    await expect(bar.getByTestId('sidebar-tab-clients')).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-more')).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-tradeins')).toHaveCount(0);
+    await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
     await expect(page.getByTestId('sidebar-tab-dashboard').locator('.mtab-label')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.mtab-label')).toBeHidden();
 
@@ -81,9 +82,12 @@ test.describe('phone navigation', () => {
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page).toHaveURL(/#\/mas/);
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await expect(page.getByText('Todo lo que no entra en la barra')).toBeVisible();
+    await expect(page.getByText('Todas las secciones, agrupadas')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('en curso');
-    await expect(page.getByTestId('sidebar-tab-clients')).toContainText('Agenda y saldos');
+    await expect(page.getByTestId('more-item-clients')).toContainText('Agenda y saldos');
+    await expect(page.getByTestId('more-item-dashboard')).toBeVisible();
+    await expect(page.getByTestId('more-item-sales')).toBeVisible();
+    await expect(page.getByTestId('more-item-inventory')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-service')).toContainText('abierta');
     await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('sin leer');
     await expect(page.getByTestId('sidebar-tab-settings')).toContainText('Configuración');
@@ -99,14 +103,15 @@ test.describe('phone navigation', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-360-mas.png` });
 
-    await page.getByTestId('sidebar-tab-clients').click();
-    await expect(page).toHaveURL(/#\/clientes/);
+    await page.getByTestId('more-item-clients').click();
+    await expect(page).toHaveURL(/#\/atencion\/clientes/);
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-more')).toHaveClass(/on/);
+    await expect(bar.getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
+    await expect(page.getByTestId('sidebar-tab-more')).not.toHaveClass(/on/);
     await expectFits(page);
 
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page).toHaveURL(/#\/inv/);
+    await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
     await expect(page.getByTestId('sidebar-tab-more')).not.toHaveClass(/on/);
     await page.getByTestId('blue-widget').click();
@@ -132,11 +137,12 @@ test.describe('phone navigation', () => {
       await expect(bar.getByTestId('sidebar-tab-dashboard')).toBeVisible();
       await expect(bar.getByTestId('sidebar-tab-inventory')).toBeVisible();
       await expect(bar.getByTestId('sidebar-tab-sales')).toBeVisible();
-      await expect(bar.getByTestId('sidebar-tab-tradeins')).toBeVisible();
+      await expect(bar.getByTestId('sidebar-tab-clients')).toBeVisible();
+      await expect(bar.getByTestId('sidebar-tab-tradeins')).toHaveCount(0);
       await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
       await bar.getByTestId('sidebar-tab-more').click();
       await expect(staff.getByTestId('sidebar-tab-service')).toContainText('Servicio técnico');
-      await expect(staff.getByTestId('sidebar-tab-clients')).toBeVisible();
+      await expect(staff.getByTestId('more-item-clients')).toBeVisible();
       await expect(staff.getByTestId('sidebar-tab-notifications')).toBeVisible();
       await expect(staff.getByTestId('sidebar-tab-cash')).toHaveCount(0);
       await expect(staff.getByTestId('sidebar-tab-reports')).toHaveCount(0);

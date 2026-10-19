@@ -8,6 +8,8 @@ export type DeskTab =
   | 'tradeins'
   | 'clients'
   | 'service'
+  | 'followups'
+  | 'stockCount'
   | 'commissions'
   | 'suppliers'
   | 'returns'

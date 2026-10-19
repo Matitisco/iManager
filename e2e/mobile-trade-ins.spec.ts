@@ -171,7 +171,8 @@ test.describe('trade-ins on a phone', () => {
     await page.reload();
     await openTradeIns(page);
 
-    await expect(page.getByTestId('page-back')).toBeVisible();
+    await expect(page.getByTestId('page-back')).toHaveCount(0);
+    await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
     await expect(page.getByText('0 canjes · 0 en curso')).toBeVisible();
     await expect(page.getByTestId('tradeins-empty')).toContainText('No hay canjes');
     await expect(page.getByText('0 resultados')).toBeVisible();
@@ -189,7 +190,7 @@ test.describe('trade-ins on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-empty.png` });
 
-    await page.getByTestId('page-back').click();
+    await page.getByTestId('sidebar-tab-more').click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
     await page.getByTestId('sidebar-tab-tradeins').click();
 
