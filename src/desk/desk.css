@@ -1984,37 +1984,53 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .buy-chips .wchip { padding: 0 8px; font-size: 12px; }
 }
 
-/* Dashboard spacing only (#395); other screens retain their existing geometry. */
-.dscreen.dashboard-screen { max-width: 1184px; padding: 32px 32px 64px; }
-.dashboard-screen .dtop { gap: 16px; margin-bottom: 24px; }
-.dashboard-screen .dgrid { gap: 16px; margin-bottom: 24px; }
-.dashboard-screen .dkpis { gap: 16px; }
-.dashboard-screen .hero, .dashboard-screen .dcard, .dashboard-screen button.mini { padding: 20px; }
-.dashboard-screen .hero-top, .dashboard-screen .hero .sub, .dashboard-screen .dch { margin-bottom: 16px; }
-.dashboard-screen .mini .ico { margin-bottom: 8px; }
-.dashboard-screen .dbtn.p { min-height: 44px; }
-.dashboard-screen .hlist .item { min-height: 56px; padding: 12px 4px; }
-@media (max-width: 760px) {
-  .dscreen.dashboard-screen { padding: 16px 14px 64px; }
-  .dashboard-screen .hero, .dashboard-screen .dcard, .dashboard-screen button.mini { padding: 16px; }
-  .dashboard-screen .dbtn.p { min-height: 56px; }
-}
-
 /* Keep the seller table inside the standard desktop content gutters (#395). */
-.commission-table { table-layout: fixed; }
-.commission-table th:first-child { width: 23%; }
+.commission-table { table-layout: auto; width: 100%; }
+.commission-table th:first-child, .commission-table td:first-child { width: 34%; }
 .commission-table th:nth-child(2) { width: 17%; }
 .commission-table th:nth-child(3) { width: 6%; }
 .commission-table th:last-child { width: 6%; }
 .commission-table th, .commission-table td, .commission-table tfoot td { padding-inline: 10px; }
 .commission-name { width: 100%; }
 .commission-name > span { min-width: 0; }
-.commission-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commission-name b, .commission-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .commission-rule-chip { max-width: 100%; white-space: normal; }
 .reports-screen > .dtop { align-items: flex-start; }
 @media (max-width: 760px) {
-  .reports-screen .gfilters .gperiods { gap: 4px; justify-content: space-between; }
+  .reports-screen .gfilters .gperiods { gap: 4px; justify-content: flex-start; margin-left: 0; flex-wrap: wrap; }
+  .reports-screen .gfilters .gperiods > :first-child { margin-left: 0; }
   .reports-screen .gperiods .gchip { padding-inline: 7px; flex: none; }
+}
+.gtk .gr { text-align: right; }
+.gtk .gamt { text-align: right; white-space: nowrap; }
+.dtable tbody tr.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); }
+.dtable tbody tr.is-void:hover { background: color-mix(in srgb, var(--err) 12%, #fff); }
+.dtable tbody tr.novedad,
+.dtable tbody tr.novedad:hover,
+.dtable tbody tr.is-void.novedad,
+.dtable tbody tr.is-void.novedad:hover { background: var(--lime-soft); box-shadow: inset 3px 0 0 var(--lime); }
+.phone-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); }
+.phone-row.novedad, .phone-row.is-void.novedad { background: var(--lime-soft); border-color: #F0D56B; box-shadow: inset 3px 0 0 var(--lime); }
+.gtk.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); }
+.gtk.is-void:hover { background: color-mix(in srgb, var(--err) 12%, #fff); }
+.bulk-row.bulk-selected, .bulk-row.bulk-selected .phone-row, .bulk-row.bulk-selected .phone-row.is-void { background: #F1F7DC; }
+.dashboard-screen .dtable.compact td:first-child,
+.dashboard-screen .dtable.compact td:first-child b,
+.dashboard-screen .dtable.compact td.r,
+.dashboard-screen .dtable.compact td.r b { white-space: nowrap; }
+.dashboard-screen .dtable.compact td:first-child,
+.dashboard-screen .dtable.compact th:first-child,
+.dashboard-screen .dtable.compact td.r,
+.dashboard-screen .dtable.compact th.r { width: 1%; }
+@media (min-width: 761px) {
+  .sales-screen .bulk-bar { position: fixed; z-index: 40; left: 272px; right: 28px; bottom: 20px; margin: 0; width: auto; max-width: 1120px; box-shadow: 0 8px 28px rgba(22,24,29,.12); }
+  .sales-screen:has(.bulk-bar) { padding-bottom: 120px; }
+}
+@media (max-width: 760px) {
+  .sales-screen .sale-line::before, .sales-screen .sale-node::before { content: none; }
+  .sales-screen .sale-node .phone-row { padding-left: 14px; background: var(--card); border: 1px solid var(--border); }
+  .sales-screen .sale-node .phone-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); }
+  .sales-screen .sale-node .phone-row.novedad { background: var(--lime-soft); border-color: #F0D56B; }
 }
 .history-filters { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
 .history-chip { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding-right: 28px; }
@@ -2024,10 +2040,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .history-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; cursor: pointer; color: inherit; }
 .history-row:last-child { border-bottom: 0; }
 .history-row .av-c { width: 36px; height: 36px; font-size: 12px; }
-.history-row .info { min-width: 0; font-weight: 600; line-height: 1.35; }
+.history-row .info { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; line-height: 1.35; }
 .history-row .info b { font-weight: 750; }
 .history-go { color: var(--section); justify-self: end; }
-.history-diff td, .history-diff th { text-align: left; }
+.history-diff { width: 100%; }
+.history-diff td, .history-diff th { text-align: left; overflow-wrap: anywhere; }
+.history-missing { margin: 14px 0 0; color: var(--secondary); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .sheet.history-detail .sheet-foot { display: block; margin-top: 16px; }
 .sheet.history-detail .sheet-foot .btn2 { width: 100%; }
 .kicker { margin: 16px 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }

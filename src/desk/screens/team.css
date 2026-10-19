@@ -6,9 +6,30 @@
 .team-grid .spill{background:#f0f1f3;color:#4a4f57}.team-grid .spill.off{background:#16181d;color:#fff}.team-grid .spill.mid{background:#fff4bd;color:#6e5900;border:0}.team-grid .av-c.b{background:#e6efff;color:#3159b2}.team-grid .av-c.p{background:#fff4bd;color:#6e5900}.team-grid .av-c.g{background:#f0f1f3;color:#4a4f57}
 @media(max-width:760px){.desk-app:has(.team-permissions) .mtab,.desk-app:has(.team-permissions) .mhead{display:none}.desk-app:has(.team-permissions) .stage{margin-bottom:0}.team-permissions .phone-save{left:0;right:0;bottom:0;max-width:100%;border-radius:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));box-shadow:none;border:0;border-top:1px solid #e6e8ec}.team-permissions .phone-save .sacts{grid-template-columns:1fr 1fr}.team-permissions .phone-save .btn2{border-radius:15px;min-height:50px;box-shadow:none}.team-permissions .phone-save .btn2.s{background:white}.team-permissions.dscreen.has-save{padding-bottom:100px}.team-permissions .whead h1{font-size:20px}}
 .team-page,.team-permissions{max-width:1052px;margin-left:0}.team-grid .card,.team-perm-columns .card,.card.team-sensitive{box-shadow:none}.team-member-head>.whead{padding-bottom:0}.team-member-head .sacts{margin-top:0;grid-template-columns:max-content max-content}.team-member-head .btn2{height:42px;padding:0 16px;border-radius:12px;box-shadow:none}.team-perm.team-nested{padding-left:40px!important}.team-member-head .whead-copy{min-width:0}.team-member-head .wsub{overflow-wrap:anywhere}
-@media(min-width:761px){.team-page>.team-back{display:none}}
+@media(min-width:761px){.team-page .wback{display:inline-flex}}
 @media(max-width:760px){.team-member-head>.whead{padding-bottom:0}.team-member-head{margin-bottom:14px}}
 .team-member-head .sacts{flex-shrink:0}.team-member-head .btn2{white-space:nowrap}.team-member-head .whead-copy{flex:1}
+
+.team-grid,.team-grid.solo{display:block;max-width:none}
+.team-grid>.team-block,.team-card{width:100%;max-width:none}
+.team-desktop-invite{display:none!important}
+.settings-grid>.team-invite-bottom,.team-page .team-invite-bottom{display:none!important}
+.team-grid .av-c.b{background:var(--c-blue);color:#fff}
+.team-grid .av-c.p{background:var(--c-pink);color:#fff}
+.team-grid .av-c.g{background:var(--c-green);color:#fff}
+.team-grid .spill,.team-grid .spill.mid{background:#f0f1f3;color:#4a4f57;border:0}
+.team-grid .spill.off{background:#16181d;color:#fff}
+.you-badge{flex:none;padding:3px 8px;border-radius:999px;background:var(--row);color:var(--secondary);font-size:12px;font-weight:700}
+.team-card .member{flex-wrap:nowrap}
+.team-card .info{min-width:0;flex:1}
+.team-card .name,.team-card .role,.team-invitation b,.team-invitation small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-invitation .info{overflow-wrap:normal;min-width:0}
+.team-card .invite{display:block;text-align:center}
+@media(max-width:760px){
+  .desk-app:has(.team-permissions) .mhead{display:flex}
+  .team-permissions.dscreen{padding-top:8px}
+  .settings-grid>.invite{display:none}
+}
 
 @media(max-width:760px){
   /* Configuración already has its own invite button below teamContent. */

@@ -6,7 +6,7 @@ import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
 import type { ClientDeposit } from '../types';
-import { snapshotIsCurrent } from './record-generation';
+import { beginListWrite, snapshotIsCurrent } from './record-generation';
 import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
@@ -758,7 +758,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para actualizar clientes. Reintenta en unos segundos.'
       );
     }
+    const seen = beginListWrite(recordsGeneration);
     const backendClient = await updateBackendClient(user, updatedClient);
+    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
     setClients(prev => prev.map(client => client.id === backendClient.id ? { ...backendClient, creditBalance: backendClient.creditBalance || client.creditBalance } : client));
     noteLocalMutation();
   };

@@ -112,9 +112,10 @@ describe('Reports custom period', () => {
     expect(screen.getByRole('button', { name: '03/04/2026: $ 300' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Efectivo: 50%' })).toBeInTheDocument();
     expect(document.querySelector('.gtip')).not.toHaveTextContent('en curso');
-    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+    expect(document.querySelectorAll('.gtk')).toHaveLength(4);
     expect(screen.getByText('02/04/2026 · V-0002')).toBeInTheDocument();
-    for (const id of ['4', '5', '6', '7']) expect(screen.queryByText(`Venta ${id}`)).not.toBeInTheDocument();
+    expect(screen.getByText('Venta 6').closest('.gtk')).toHaveClass('is-void');
+    for (const id of ['4', '5', '7']) expect(screen.queryByText(`Venta ${id}`)).not.toBeInTheDocument();
   });
 
   it('keeps unapplied drafts and invalid submissions from changing the applied report', async () => {
@@ -208,7 +209,7 @@ describe('Reports custom period', () => {
     expect(tip).toHaveTextContent('$ 100');
     expect(tip).toHaveTextContent('01/04/2026');
     expect(tip).not.toHaveAttribute('style');
-    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+    expect(document.querySelectorAll('.gtk')).toHaveLength(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Porción Transferencia' }));
     expect(document.querySelectorAll('.gtk')).toHaveLength(1);
@@ -220,7 +221,7 @@ describe('Reports custom period', () => {
     expect(document.querySelectorAll('.gcol')).toHaveLength(3);
 
     fireEvent.click(screen.getByRole('button', { name: 'Porción Transferencia' }));
-    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+    expect(document.querySelectorAll('.gtk')).toHaveLength(4);
   });
 
   it('keeps the custom range inline on a wide screen', async () => {
@@ -365,7 +366,7 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.getByRole('heading', { name: 'Por vendedor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ana: 17%' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sin vendedor: 83%' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.gtk')).toHaveLength(3);
+    expect(document.querySelectorAll('.gtk')).toHaveLength(4);
   });
 
   it('breaks stock and trade-ins down by the chosen column', async () => {

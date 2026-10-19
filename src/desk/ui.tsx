@@ -52,7 +52,7 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
   return (
     <label className="xsearch">
       <SearchIcon />
-      <input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <input value={value} placeholder={placeholder} autoComplete="off" autoCorrect="off" spellCheck={false} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -497,7 +497,7 @@ export function ImportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-type DeskIconName = 'comisiones' | 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal' | 'clock';
+type DeskIconName = 'comisiones' | 'logo' | 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'bars' | 'bell' | 'note' | 'gear' | 'edit' | 'trash' | 'store' | 'lock' | 'card' | 'wrench' | 'board' | 'alert' | 'cal' | 'clock' | 'register';
 
 export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIconName; size?: number; strokeWidth?: number }) {
   if (name === 'comisiones') return <ImanagerIcon name="comisiones" size={nearestIconSize(size)} />;
@@ -516,6 +516,7 @@ export function DeskIcon({ name, size = 18, strokeWidth = 2.1 }: { name: DeskIco
       {name === 'clock' && <><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></>}
       {name === 'note' && <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />}
       {name === 'store' && <path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6" />}
+      {name === 'register' && <><rect x="6" y="3.5" width="12" height="5" rx="1.4" /><path d="M9 6h4M8 8.5V12M16 8.5V12" /><rect x="3.5" y="12" width="17" height="8" rx="1.8" /><path d="M3.5 16h17" /></>}
       {name === 'lock' && <><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>}
       {name === 'card' && <><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18" /></>}
       {name === 'gear' && <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></>}

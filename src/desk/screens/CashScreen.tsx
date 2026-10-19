@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { toUserMessage } from '../../lib/user-message';
 import type { CashCommand, CashFilters, CashHistory, CashMovement, CashRegister, CashSession } from '../../types/cash';
+import { formatArDateTime } from '../format';
+import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, PageHead, Segs, Sheet, useDesk } from '../ui';
 import { DeskSelect } from '../select';
 import { useCommissionBlue } from '../commission-blue';
@@ -16,6 +18,7 @@ type Mode = { type: 'create' } | { type: 'edit' | 'INGRESO' | 'EGRESO' | 'AJUSTE
 export function CashScreen() {
   const { cashData, loadCash, mutateCash, loadCashHistory, loadCashSessions, appSession } = useAppContext();
   const { back, toast } = useDesk();
+  const phone = usePhoneLayout();
   const owner = appSession?.membership?.role === 'OWNER';
   const [selected, setSelected] = useState('');
   const [archived, setArchived] = useState(false);
@@ -70,7 +73,7 @@ export function CashScreen() {
   const rows = cashData?.registers.filter(row => Boolean(row.archivedAt) === archived) ?? [];
   return <div className="dscreen cash-screen" data-testid="cash-screen">
     <div className="cash-content" hidden={mode?.type === 'count'}>
-    <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : 'Ingresos, egresos y cierre diario por moneda y medio'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
+    <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : (phone ? 'Ingresos, egresos y cierre' : 'Ingresos, egresos y cierre diario por moneda y medio')} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
     {loading && !cashData ? <p role="status">Cargando cajas…</p> : null}
     {!selected && cashData ? <>
@@ -107,7 +110,7 @@ export function CashScreen() {
         </form>
         {historyError ? <div className="ferr" role="alert">{historyError}<button className="dbtn s" onClick={() => setRevision(n => n + 1)}>Reintentar historial</button></div> : null}
         {historyLoading ? <p role="status">Cargando movimientos…</p> : history ? <div className="card cash-history">{history.movements.length ? history.movements.map(movement => <div className="cash-movement" key={movement.id}>
-          <div><b>{kind[movement.kind] ?? movement.kind}{movement.voidedAt ? ' · Anulado' : ''}</b><small>{new Date(movement.createdAt).toLocaleString('es-AR')} · {movement.category || 'Sin categoría'}</small>{movement.note ? <p>{movement.note}</p> : null}{movement.exchangeRate ? <small>Cotización guardada: ARS {movement.exchangeRate} por USD</small> : null}</div>
+          <div><b>{kind[movement.kind] ?? movement.kind}{movement.voidedAt ? ' · Anulado' : ''}</b><small>{formatArDateTime(movement.createdAt)} · {movement.category || 'Sin categoría'}</small>{movement.note ? <p>{movement.note}</p> : null}{movement.exchangeRate ? <small>Cotización guardada: ARS {movement.exchangeRate} por USD</small> : null}</div>
           <strong className={movement.amount < 0 ? 'cash-negative' : ''}>{cashMoney(movement.amount, box.currency)}</strong>
           {owner && !movement.voidedAt && !movement.reversalOf && ['INGRESO','EGRESO','AJUSTE','COBRO','DEVOLUCION','TRANSFERENCIA'].includes(movement.kind) ? <div className="cash-row-actions"><button className="dbtn s" aria-label={`Cambiar categoría de ${kind[movement.kind]}`} onClick={() => setMode({ type: 'category', movement, box })}>Categoría</button>{!movement.sourceType ? <button className="dbtn s" aria-label={`Anular ${kind[movement.kind]}`} onClick={() => setMode({ type: 'void', movement, box })}>Anular</button> : <small>Corregir desde el origen</small>}</div> : null}
         </div>) : <p>No hay movimientos en este período.</p>}
@@ -123,7 +126,7 @@ export function CashScreen() {
 }
 
 function CountResult({ session, currency }: { session: CashSession; currency: string }) {
-  return <>{session.counts?.map((count, index) => <div className="cash-count-result" key={count.id}><small>Conteo {index + 1} · {new Date(count.createdAt).toLocaleString('es-AR')}</small><dl><div><dt>Esperado</dt><dd>{cashMoney(count.expected, currency)}</dd></div><div><dt>Contado</dt><dd>{cashMoney(count.counted, currency)}</dd></div><div><dt>Diferencia</dt><dd className={count.difference !== 0 ? 'cash-negative' : ''}>{cashMoney(count.difference, currency)}</dd></div></dl>{count.note ? <p>{count.note}</p> : null}</div>)}</>;
+  return <>{session.counts?.map((count, index) => <div className="cash-count-result" key={count.id}><small>Conteo {index + 1} · {formatArDateTime(count.createdAt)}</small><dl><div><dt>Esperado</dt><dd>{cashMoney(count.expected, currency)}</dd></div><div><dt>Contado</dt><dd>{cashMoney(count.counted, currency)}</dd></div><div><dt>Diferencia</dt><dd className={count.difference !== 0 ? 'cash-negative' : ''}>{cashMoney(count.difference, currency)}</dd></div></dl>{count.note ? <p>{count.note}</p> : null}</div>)}</>;
 }
 
 function CashForm({ mode, boxes, busy, onClose, onSave }: { mode: Mode; boxes: CashRegister[]; busy: boolean; onClose: () => void; onSave: (command: CashCommand) => Promise<void> }) {

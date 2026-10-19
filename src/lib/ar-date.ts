@@ -22,21 +22,34 @@ function calendarDate(year: number, monthIndex: number, day: number, hours = 12)
   return date;
 }
 
-export function formatArDateTime(value: string | Date | null | undefined): string {
-  if (!value) return '—';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  const parts = new Intl.DateTimeFormat('en-GB', {
+function arParts(date: Date, withDate: boolean) {
+  return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+    ...(withDate ? { day: '2-digit' as const, month: '2-digit' as const, year: 'numeric' as const } : {}),
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${pick('day')}/${pick('month')}/${pick('year')} ${pick('hour')}:${pick('minute')}`;
+}
+
+function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
+  return parts.find((item) => item.type === type)?.value ?? '';
+}
+
+export function formatArDateTime(value: string | Date | null | undefined): string {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const parts = arParts(date, true);
+  return `${part(parts, 'day')}/${part(parts, 'month')}/${part(parts, 'year')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+}
+
+export function formatArTime(value: string | Date | null | undefined): string {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const parts = arParts(date, false);
+  return `${part(parts, 'hour')}:${part(parts, 'minute')}`;
 }
 
 export function formatArDate(date: Date): string {

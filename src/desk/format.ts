@@ -222,6 +222,10 @@ export function saleCode(sale: Sale): string {
   return `V-${String(number || 0).padStart(4, '0')}`;
 }
 
+export function isVoidSale(sale: { status?: string | null; voidedAt?: string | null }) {
+  return sale.status === 'CANCELADA' || sale.status === 'ANULADA' || Boolean(sale.voidedAt);
+}
+
 export function tradeCode(tradeIns: TradeIn[], id: string): string {
   const current = tradeIns.find((item) => item.id === id);
   if (current?.tradeNumber) return `C-${String(current.tradeNumber).padStart(4, '0')}`;

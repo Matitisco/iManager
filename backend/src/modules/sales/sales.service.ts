@@ -405,7 +405,7 @@ export async function updateSale(
       if (existing.status === 'PENDIENTE' && updated.status === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(existing.openBalance ?? updated.amount), currency: updated.amountCurrency ?? await storeCurrency(storeId, tx), method: updated.paymentMethod, sourceType: 'sale', sourceId: id, note: 'Saldo de venta cobrado', actor });
     }
     if (!cancelling) await refreshSaleCommission(tx, storeId, id);
-    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id });
+    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id, entityLabel: saleCode(existing.saleNumber) });
     if (cancelling && actor) {
       await writeAudit(tx, {
         storeId,

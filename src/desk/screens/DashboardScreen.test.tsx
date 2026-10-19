@@ -239,7 +239,8 @@ describe('Dashboard team list', () => {
     session('STAFF');
     renderScreen(true);
     expect(screen.getByRole('heading', { name: /Qué hay para/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Invitar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invitar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Canjes en curso/ })).not.toBeInTheDocument();
     expect(membersApi.listMembers).not.toHaveBeenCalled();
   });
 

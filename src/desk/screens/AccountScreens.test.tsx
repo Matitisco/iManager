@@ -32,6 +32,11 @@ vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('../../services/members-api', () => membersApi);
 vi.mock('../../services/invitations-api', () => ({ listInvitations: vi.fn(async () => []) }));
 
+beforeEach(() => {
+  history.replaceState(null, '', '#/config');
+  window.dispatchEvent(new HashChangeEvent('hashchange'));
+});
+
 function renderSettings() {
   return render(
     <DeskProvider value={{ tab: 'settings', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
@@ -379,5 +384,6 @@ it('shows Catálogo below Inventario in the 6 + 5 cards and saves its explicit g
   await userEvent.click(toggle);
   await userEvent.click(screen.getByRole('button', { name: 'Guardar permisos' }));
   await waitFor(() => expect(membersApi.updateMemberSections).toHaveBeenCalledWith(context.user, 's', 'm2', expect.arrayContaining(['publicCatalog']), false));
-  expect(await screen.findByTestId('settings-member-m2')).toHaveTextContent('Catálogo');
+  expect(await screen.findByTestId('settings-member-m2')).toHaveTextContent('luis@test.com');
+  expect(screen.getByTestId('settings-member-m2')).not.toHaveTextContent('Catálogo');
 });

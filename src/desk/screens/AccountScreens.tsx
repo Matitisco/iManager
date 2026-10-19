@@ -11,10 +11,11 @@ import { formatArDate, initials, parseAppDate, relTime } from '../format';
 import { usePhoneLayout } from '../section-notices';
 import { unreadBySection, type NoticeSection } from '../unread-count';
 import { ImanagerIcon, notificationIcon } from '../icons';
+import { configHash, configPlace, writeHash } from '../hash-route';
 import { BackButton, ChipRow, DeskIcon, PageHead, SearchBox, useDesk } from '../ui';
 import { ROLE_LABEL } from '../../lib/roles';
 import { Link2, MessageCircle, X } from 'lucide-react';
-import { canEditMember, memberSectionSummary } from '../team-permissions';
+import { canEditMember } from '../team-permissions';
 import './team.css';
 import { canViewTeam } from '../sections';
 import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
@@ -236,6 +237,10 @@ export function useUnreadCounts() {
   return unreadBySection(operationNotifications);
 }
 
+function countLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function sectionLabel(section: string) {
   return SECTION_LABEL[section as NoticeSection] ?? section;
 }
@@ -264,14 +269,18 @@ export function SettingsScreen() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [invites, setInvites] = useState<Invitation[]>([]);
-  const [teamPage, setTeamPage] = useState(false);
+  const [place, setPlace] = useState(() => configPlace(window.location.hash));
   const [teamError, setTeamError] = useState('');
   const [busyInvite, setBusyInvite] = useState<string | null>(null);
-  const [selected, setSelected] = useState<TeamMember | null>(null);
+  const [revokeId, setRevokeId] = useState<string | null>(null);
 
   const phone = usePhoneLayout();
-  const usePhoneBack = phone ? () => setTeamPage(false) : undefined;
   const seeTeam = canViewTeam(appSession?.membership?.role);
+  useEffect(() => {
+    const sync = () => setPlace(configPlace(window.location.hash));
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
   const loadVersion = useRef(0);
   const load = useCallback(() => {
     const version = ++loadVersion.current;
@@ -286,7 +295,7 @@ export function SettingsScreen() {
   }, [user, appSession?.store?.id, seeTeam]);
 
   useEffect(() => {
-    setMembers([]); setMembersLoaded(false); setInvites([]); setSelected(null); load();
+    setMembers([]); setMembersLoaded(false); setInvites([]); load();
     return () => { loadVersion.current += 1; };
   }, [load]);
   useEffect(() => {
@@ -301,43 +310,57 @@ export function SettingsScreen() {
     try { await navigator.clipboard.writeText(link); track('invite_shared', { channel: 'copy' }); toast('Link copiado'); }
     catch { setTeamError('No se pudo copiar el link. Intentá de nuevo.'); }
   };
-  const inviteButton = <button className="dbtn p team-desktop-invite" type="button" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>;
+  const openMember = (id: string) => {
+    const onTeam = configPlace(window.location.hash).page === 'team' && !configPlace(window.location.hash).memberId;
+    sessionStorage.setItem('team-parent', onTeam ? configHash('team') : configHash('settings'));
+    writeHash(configHash('team', id));
+  };
+  const closeMember = () => writeHash(sessionStorage.getItem('team-parent') || configHash('settings'), 'replace');
+  const revoke = (id: string) => {
+    if (!user) return;
+    setBusyInvite(id); setTeamError('');
+    void revokeInvitation(user, id).then(() => { setInvites(current => current.filter(item => item.id !== id)); setRevokeId(null); toast('Invitación cancelada'); }).catch(err => setTeamError(toUserMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
+  };
   const teamContent = <>
     {teamError ? <p className="ferr" role="alert">{teamError}</p> : null}
-    <div className={`team-grid${members.length <= 1 && !invites.length ? ' solo' : ''}`}>
-      <div><div className="sec"><span>Miembros</span><span className="secr" data-testid="settings-member-count">{membersLoaded ? members.length : '…'}</span></div><div className="card">
+    <div className="team-grid" data-testid="settings-team">
+      <div className="sec"><span>Equipo</span><span className="secr" data-testid="settings-member-count">{membersLoaded ? countLabel(members.length, 'miembro', 'miembros') : '…'}</span></div>
+      <div className="card team-card">
         {members.map((member, index) => {
           const editable = canEditMember(appSession?.membership?.role, me?.id, member);
-          return <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} disabled={!editable} onClick={() => setSelected(member)}>
-            <div className={`av-c ${member.role === 'OWNER' ? 'owner' : ['b', 'p', 'g'][index % 3]}`}>{initials(member.user.displayName || member.user.email || 'U')}</div>
-            <div className="info"><div className="name">{member.user.displayName || member.user.email || 'Miembro'}</div><div className="role">{member.userId === me?.id ? 'Vos · ' : ''}{memberSectionSummary(member)}</div></div>
-            <span className={`spill ${member.role === 'OWNER' ? 'off' : member.role === 'MANAGER' ? 'mid' : ''}`}>{ROLE_LABEL[member.role]}</span>
-            {editable ? <span className="chev">›</span> : null}
+          const label = member.user.displayName || member.user.email || 'Miembro';
+          return <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} disabled={!editable} onClick={() => openMember(member.id)}>
+            <div className={`av-c ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
+            <div className="info"><div className="name">{label}</div><div className="role">{member.user.email || 'Sin email'}</div></div>
+            {member.userId === me?.id ? <span className="you-badge">vos</span> : null}
+            <span className={`spill ${member.role === 'OWNER' ? 'off' : ''}`}>{ROLE_LABEL[member.role]}</span>
+            <span className="chev">›</span>
           </button>;
         })}
-      </div>{members.length === 1 && members[0]?.role === 'OWNER' ? <div className="team-empty"><div className="team-avatars" aria-hidden="true"><i /><i /><i /></div><h2>Sumá a tu equipo</h2><p>Cada persona entra con su usuario y ve solo lo que habilites.</p></div> : null}</div>
-      {invites.length ? <div><div className="sec"><span>Invitaciones pendientes</span><span className="secr">{invites.length}</span></div><div className="card" data-testid="settings-invites">{invites.map(invite => <div className="team-invitation" key={invite.id}>
-        <span className="team-link-icon"><Link2 size={16} /></span><div className="info"><b>{invite.email ? `${invite.email} · ${ROLE_LABEL[invite.role]}` : `Link para ${ROLE_LABEL[invite.role]}`}</b><small>Vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
-        <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a onClick={() => track('invite_shared', { channel: 'whatsapp' })} aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => {
-          if (!user) return; setBusyInvite(invite.id); setTeamError('');
-          void revokeInvitation(user, invite.id).then(() => { setInvites(current => current.filter(item => item.id !== invite.id)); toast('Invitación cancelada'); }).catch(err => setTeamError(toUserMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
-        }}><X size={17} /></button> : null}</div>
-      </div>)}</div></div> : null}
-    </div><button className="dbtn p team-invite-bottom" type="button" data-testid={teamPage ? 'settings-invite' : undefined} onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
+        {invites.map(invite => <div className="team-invitation" key={invite.id} data-testid="settings-invites">
+          <span className="team-link-icon"><Link2 size={16} /></span>
+          <div className="info"><b>{invite.email || `Link para ${ROLE_LABEL[invite.role]}`}</b><small>{ROLE_LABEL[invite.role]} · vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
+          <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a onClick={() => track('invite_shared', { channel: 'whatsapp' })} aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => setRevokeId(invite.id)}><X size={17} /></button> : null}</div>
+        </div>)}
+        <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
+      </div>
+    </div>
+    {revokeId ? <div className="ov center"><div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="revoke-invite-title"><h2 id="revoke-invite-title">¿Cancelás esta invitación?</h2><p>El link deja de servir y la persona no va a poder sumarse.</p><div className="sacts"><button className="btn2 s" type="button" onClick={() => setRevokeId(null)}>Volver</button><button className="btn2 danger" type="button" disabled={busyInvite === revokeId} onClick={() => revoke(revokeId)}>Cancelar invitación</button></div></div></div> : null}
   </>;
+  const selected = place.memberId ? members.find(member => member.id === place.memberId) ?? null : null;
 
-  if (selected) {
+  if (place.memberId && selected) {
     return (
       <MemberPermissions
         member={selected}
-        onBack={() => setSelected(null)}
+        onBack={closeMember}
         onRemoved={load}
         onSaved={(member) => setMembers((current) => current.map((item) => item.id === member.id ? { ...item, ...member } : item))}
       />
     );
   }
 
-  if (teamPage && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><PageHead back={usePhoneBack} title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${members.length} personas · ${invites.length} invitaciones`} action={inviteButton} />{teamContent}</div>;
+  if (place.page === 'team' && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><PageHead back={() => writeHash(configHash('settings'), 'replace')} title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${countLabel(members.length, 'persona', 'personas')} · ${countLabel(invites.length, 'invitación', 'invitaciones')}`} />{teamContent}</div>;
 
   return (
     <div className="dscreen" data-testid="settings-screen">
@@ -355,9 +378,7 @@ export function SettingsScreen() {
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
               <MRow icon={<DeskIcon name="cal" size={18} />} title="Garantías" sub="Usados, sellados y reparaciones" onClick={() => open({ type: 'warranty' })} />
             </div>
-            <div className="sec" data-testid="settings-team"><button type="button" className="team-section-link" onClick={() => setTeamPage(true)}>Equipo ›</button>{inviteButton}</div>
             {teamContent}
-            <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>
           </>
         )}
         <div className="sec" data-testid="settings-account">Mi cuenta</div>
