@@ -7,6 +7,7 @@ export type OperationSaleStatus = 'COMPLETADA' | 'PENDIENTE';
 
 export interface OperationInput {
   depositIds?: string[];
+  creditNoteIds?: string[];
   sellerMemberId?: string | null;
   exchangeRate?: number;
   date?: string;

@@ -92,6 +92,9 @@ model Store {
   suppliers           Supplier[]
   stockPurchases      StockPurchase[]
   expenses            Expense[]
+  returnCases         ReturnCase[]
+  creditNotes         CreditNote[]
+  creditApplications  CreditNoteApplication[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -149,6 +152,8 @@ model Client {
   deposits       ClientDeposit[]
   repairOrders   RepairOrder[]
   installmentPlans SaleInstallmentPlan[]
+  returnCases    ReturnCase[]
+  creditNotes    CreditNote[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -235,6 +240,7 @@ model InventoryItem {
   category      InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales         Sale[]
   receivedTradeIns TradeIn[]       @relation("ReceivedInventory")
+  returnCases   ReturnCase[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -294,6 +300,8 @@ model Sale {
   customFields    Json?
   tenders         SaleTender[]
   installmentPlans SaleInstallmentPlan[]
+  returnCases     ReturnCase[]
+  creditApplications CreditNoteApplication[]
   soldAt          DateTime
   store           Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
@@ -807,6 +815,7 @@ model Supplier {
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   purchases StockPurchase[]
   items     InventoryItem[]
+  returnCases ReturnCase[]
 
   @@index([storeId, deletedAt])
   @@index([storeId, name])
@@ -849,6 +858,103 @@ model Expense {
   store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, deletedAt, spentAt])
+}
+
+// A claim opened from a completed sale. Soft-deleted rows stay. Uniqueness lives only on this new table.
+model ReturnCase {
+  id              String    @id @default(cuid())
+  storeId         String
+  caseNumber      Int
+  saleId          String?
+  clientId        String?
+  clientName      String    @default("") @db.VarChar(120)
+  inventoryItemId String?
+  imei            String    @default("") @db.VarChar(100)
+  deviceLabel     String    @default("") @db.VarChar(160)
+  supplierId      String?
+  reason          String    @db.Text
+  diagnosis       String?   @db.Text
+  openedAt        DateTime
+  resolution      String?   @db.VarChar(20)
+  settlement      String?   @db.VarChar(20)
+  moneyAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  moneyCurrency   String?   @db.VarChar(3)
+  destination     String?   @db.VarChar(20)
+  stockStatus     String?   @db.VarChar(20)
+  previousStatus  String?   @db.VarChar(20)
+  rmaStatus       String?   @db.VarChar(20)
+  status          String    @default("ABIERTO") @db.VarChar(20)
+  resolvedAt      DateTime?
+  deletedAt       DateTime?
+  deletedBy       String?   @db.VarChar(255)
+  createdBy       String?   @db.VarChar(255)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  store           Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale            Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  client          Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  supplier        Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  events          ReturnEvent[]
+  creditNote      CreditNote?
+
+  @@unique([storeId, caseNumber])
+  @@index([storeId, deletedAt, openedAt])
+  @@index([saleId])
+  @@index([clientId])
+  @@index([supplierId])
+}
+
+model ReturnEvent {
+  id         String     @id @default(cuid())
+  storeId    String
+  caseId     String
+  status     String     @db.VarChar(20)
+  note       String?    @db.VarChar(280)
+  createdAt  DateTime   @default(now())
+  returnCase ReturnCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, caseId, createdAt])
+}
+
+// Balance the client can spend on a later sale. Applying it never creates a second cash collection.
+model CreditNote {
+  id           String    @id @default(cuid())
+  storeId      String
+  clientId     String
+  returnCaseId String    @unique
+  saleId       String?
+  amount       Decimal   @db.Decimal(12, 2)
+  remaining    Decimal   @db.Decimal(12, 2)
+  currency     String    @db.VarChar(3)
+  status       String    @default("ABIERTA") @db.VarChar(20)
+  deletedAt    DateTime?
+  deletedBy    String?   @db.VarChar(255)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  returnCase   ReturnCase @relation(fields: [returnCaseId], references: [id], onDelete: Cascade)
+  applications CreditNoteApplication[]
+
+  @@index([storeId, clientId, status])
+  @@index([saleId])
+}
+
+model CreditNoteApplication {
+  id           String     @id @default(cuid())
+  storeId      String
+  creditNoteId String
+  saleId       String?
+  amount       Decimal    @db.Decimal(12, 2)
+  currency     String     @db.VarChar(3)
+  appliedAt    DateTime   @default(now())
+  store        Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  sale         Sale?      @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, saleId])
+  @@index([creditNoteId])
 }
 
 // Opt-in audit mail. One row per store; absent means off. No uniqueness added to existing tables.

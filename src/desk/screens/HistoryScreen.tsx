@@ -177,11 +177,11 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   const rows = historyDetailRows(event);
   const note = historyRecordNote(event);
   const openRecord = () => {
-    const tab = event.section === 'tradeins' ? 'tradeins' : event.section === 'service' ? 'service' : event.section === 'sales' ? 'sales' : event.section === 'clients' ? 'clients' : event.section === 'inventory' ? 'inventory' : event.section === 'suppliers' ? 'suppliers' : event.section === 'expenses' ? 'expenses' : null;
+    const tab = event.section === 'tradeins' ? 'tradeins' : event.section === 'service' ? 'service' : event.section === 'sales' ? 'sales' : event.section === 'clients' ? 'clients' : event.section === 'inventory' ? 'inventory' : event.section === 'suppliers' ? 'suppliers' : event.section === 'expenses' ? 'expenses' : event.section === 'returns' ? 'returns' : null;
     if (!tab || !user || event.recordState === 'gone' || event.legacy) return;
     const open = () => {
       desk.go(tab);
-      const kind = event.entityType === 'inventory' ? 'eq' : event.entityType === 'sale' ? 'sale' : event.entityType === 'trade' ? 'cj' : event.entityType === 'client' ? 'cl' : event.entityType === 'repair' ? 'ot' : event.entityType === 'supplier' ? 'supplier' : event.entityType === 'expense' ? 'edit-expense' : null;
+      const kind = event.entityType === 'inventory' ? 'eq' : event.entityType === 'sale' ? 'sale' : event.entityType === 'trade' ? 'cj' : event.entityType === 'client' ? 'cl' : event.entityType === 'repair' ? 'ot' : event.entityType === 'supplier' ? 'supplier' : event.entityType === 'expense' ? 'edit-expense' : event.entityType === 'return' ? 'return' : null;
       if (kind) desk.open({ type: kind, id: event.entityId } as Overlay);
     };
     if (event.recordState !== 'archived' && event.recordState !== 'voided') {

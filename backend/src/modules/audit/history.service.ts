@@ -119,7 +119,7 @@ function preferredLabel(stored: string | null, lookedUp: string | undefined) {
 async function recordContext(storeId: string, rows: { entityType: string; entityId: string }[]) {
   const ids = (type: string) => [...new Set(rows.filter((row) => row.entityType === type).map((row) => row.entityId))];
   const cashIds = ids("cash");
-  const [items, sales, trades, clients, repairs, registers, sessions, movements, suppliers, expenses, purchases] = await Promise.all([
+  const [items, sales, trades, clients, repairs, registers, sessions, movements, suppliers, expenses, purchases, claims] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { storeId, id: { in: ids("inventory") } }, select: { id: true, archivedAt: true, model: true, capacity: true } }),
     prisma.sale.findMany({ where: { storeId, id: { in: ids("sale") } }, select: { id: true, voidedAt: true, saleNumber: true } }),
     prisma.tradeIn.findMany({ where: { storeId, id: { in: ids("trade") } }, select: { id: true, voidedAt: true, deviceReceived: true } }),
@@ -131,6 +131,7 @@ async function recordContext(storeId: string, rows: { entityType: string; entity
     prisma.supplier.findMany({ where: { storeId, id: { in: ids("supplier") } }, select: { id: true, name: true, deletedAt: true } }),
     prisma.expense.findMany({ where: { storeId, id: { in: ids("expense") } }, select: { id: true, category: true, deletedAt: true } }),
     prisma.stockPurchase.findMany({ where: { storeId, id: { in: ids("purchase") } }, select: { id: true, deletedAt: true, supplier: { select: { name: true } } } }),
+    prisma.returnCase.findMany({ where: { storeId, id: { in: ids("return") } }, select: { id: true, caseNumber: true, deletedAt: true, deviceLabel: true } }),
   ]);
   const state = new Map<string, HistoryEvent["recordState"]>();
   const labels = new Map<string, string>();
@@ -168,6 +169,10 @@ async function recordContext(storeId: string, rows: { entityType: string; entity
   for (const row of purchases) {
     state.set(`purchase:${row.id}`, row.deletedAt ? "archived" : "active");
     labels.set(`purchase:${row.id}`, shortLabel(row.supplier.name) || "Compra");
+  }
+  for (const row of claims) {
+    state.set(`return:${row.id}`, row.deletedAt ? "archived" : "active");
+    labels.set(`return:${row.id}`, shortLabel(`RMA-${String(row.caseNumber).padStart(4, "0")} · ${row.deviceLabel}`) || "Reclamo");
   }
   return { state, labels };
 }

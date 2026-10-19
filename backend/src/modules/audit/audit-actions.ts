@@ -20,6 +20,7 @@ export const AUDIT_SECTIONS = [
   { id: "settings", label: "Configuración" },
   { id: "suppliers", label: "Proveedores" },
   { id: "expenses", label: "Gastos" },
+  { id: "returns", label: "Devoluciones" },
 ] as const;
 
 export type AuditSectionId = (typeof AUDIT_SECTIONS)[number]["id"];
@@ -105,6 +106,13 @@ const ACTIONS: Record<string, ActionMeta> = {
   "invitation.cancelled": { title: "Canceló una invitación", group: "Equipo y permisos", section: "settings", verb: "canceló la invitación de" },
   "store.updated": { title: "Editó la tienda", group: "Edición", section: "settings", verb: "editó los datos de" },
   "catalog.visibility": { title: "Cambió la visibilidad", group: "Edición", section: "settings", verb: "cambió la visibilidad de" },
+  "return.created": { title: "Abrió un reclamo", group: "Alta", section: "returns", verb: "abrió el reclamo" },
+  "return.diagnosis": { title: "Cargó un diagnóstico", group: "Edición", section: "returns", verb: "cargó el diagnóstico de" },
+  "return.resolved": { title: "Resolvió un reclamo", group: "Cambio de estado", section: "returns", verb: "resolvió el reclamo" },
+  "return.rma": { title: "Actualizó un RMA", group: "Cambio de estado", section: "returns", verb: "actualizó el RMA de" },
+  "return.archived": { title: "Archivó un reclamo", group: "Anulación/Archivo", section: "returns", verb: "archivó el reclamo" },
+  "return.restored": { title: "Restauró un reclamo", group: "Anulación/Archivo", section: "returns", verb: "restauró el reclamo" },
+  "credit.applied": { title: "Aplicó una nota de crédito", group: "Cobros", section: "returns", verb: "aplicó la nota de crédito de" },
 };
 
 export function actionMeta(action: string): ActionMeta {
@@ -120,7 +128,8 @@ export function actionMeta(action: string): ActionMeta {
                 : prefix === "commission" ? "commissions"
                   : prefix === "supplier" || prefix === "purchase" ? "suppliers"
                     : prefix === "expense" ? "expenses"
-                      : "settings"
+                      : prefix === "return" || prefix === "credit" ? "returns"
+                        : "settings"
   ) as AuditSectionId;
   const legacy = action.endsWith(".deleted");
   return {

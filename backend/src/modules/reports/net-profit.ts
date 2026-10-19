@@ -23,26 +23,39 @@ export interface NetProfitFigures {
 /**
  * Ganancia bruta = precio de la venta − costo del equipo, igual que el margen de Ventas.
  * Cada importe se proyecta con la cotización de venta, la misma cuenta de Reportes.
- * La ganancia neta resta los gastos del mismo período. El valor tomado de un canje no entra.
+ * La ganancia neta resta los gastos del mismo período y el margen de los cambios y reintegros resueltos en ese período. El valor tomado de un canje no entra.
  */
 export function netProfit(input: {
   currency: MoneyCurrency;
   sellRate: number | null;
   sales: ProfitSale[];
   expenses: ProfitExpense[];
+  returns?: ProfitSale[];
 }): NetProfitFigures | null {
-  const revenue = combineAmounts(
+  const salesRevenue = combineAmounts(
     input.sales.map((sale) => ({ amount: sale.amount, currency: sale.currency })),
     input.currency,
     input.sellRate,
   );
-  const cost = combineAmounts(
+  const salesCost = combineAmounts(
     input.sales.map((sale) => ({ amount: sale.cost, currency: sale.costCurrency })),
     input.currency,
     input.sellRate,
   );
+  const returnedRevenue = combineAmounts(
+    (input.returns ?? []).map((row) => ({ amount: row.amount, currency: row.currency })),
+    input.currency,
+    input.sellRate,
+  );
+  const returnedCost = combineAmounts(
+    (input.returns ?? []).map((row) => ({ amount: row.cost, currency: row.costCurrency })),
+    input.currency,
+    input.sellRate,
+  );
   const expenses = combineAmounts(input.expenses, input.currency, input.sellRate);
-  if (revenue == null || cost == null || expenses == null) return null;
+  if (salesRevenue == null || salesCost == null || returnedRevenue == null || returnedCost == null || expenses == null) return null;
+  const revenue = salesRevenue - returnedRevenue;
+  const cost = salesCost - returnedCost;
   const grossProfit = revenue - cost;
   return { revenue, cost, grossProfit, expenses, netProfit: grossProfit - expenses };
 }

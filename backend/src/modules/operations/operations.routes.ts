@@ -77,6 +77,7 @@ const inputSchema = z.object({
   })).max(8).optional(),
   excess: z.enum(["OMIT", "CREDIT", "CHANGE"]).optional(),
   changeMethod: z.string().trim().min(1).max(50).optional(),
+  creditNoteIds: z.array(z.string().min(1)).max(20).optional(),
   installments: z.object({
     count: z.number().int().min(2).max(36),
     frequency: z.enum(["SEMANAL", "QUINCENAL", "MENSUAL"]),

@@ -24,6 +24,8 @@ export interface ReportsSummary {
   pendingAmount: number;
   marginRate: number;
   approvedTradeIns: number;
+  returnsCount: number;
+  returnsAmount: number;
 }
 
 export interface ReportsSeriesPoint {
@@ -647,6 +649,20 @@ export async function getReportsOverview(
   const openTradeInCash = sumDifference(openTradeInRows);
   const otherTradeInCash = sumDifference(otherTradeInRows);
   const openTradeIns = openTradeInRows.length;
+  const commercialReturns = await prisma.returnCase.findMany({
+    where: {
+      storeId,
+      deletedAt: null,
+      resolution: { in: ["CAMBIO", "REINTEGRO"] },
+      resolvedAt: input.startDate || input.endDate
+        ? {
+          ...(input.startDate ? { gte: input.startDate } : {}),
+          ...(input.endDate ? { lte: input.endDate } : {}),
+        }
+        : { not: null },
+    },
+    select: { moneyAmount: true },
+  });
 
   return {
     filters: {
@@ -663,6 +679,8 @@ export async function getReportsOverview(
       pendingAmount,
       marginRate,
       approvedTradeIns,
+      returnsCount: commercialReturns.length,
+      returnsAmount: commercialReturns.reduce((total, row) => total + toNumber(row.moneyAmount), 0),
     },
     comparison: {
       available: previousWindow !== null,

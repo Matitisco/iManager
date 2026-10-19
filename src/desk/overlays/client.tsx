@@ -34,7 +34,7 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], reloadClients } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], reloadClients, creditNotes = [] } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
@@ -137,6 +137,9 @@ export function ClientDetail({ id }: { id: string }) {
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
+      {(creditNotes ?? []).filter((note) => note.clientId === client.id && note.remaining > 0 && !note.deletedAt).map((note) => (
+        <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency)}</b></div>
+      ))}
       <ClientPurchases clientId={client.id} sales={sales} tradeIns={tradeIns} repairs={repairOrders} inventory={inventory} sellers={commissionSellers} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>

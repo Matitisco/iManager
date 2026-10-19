@@ -32,8 +32,9 @@ import { isActiveTradeOperation } from '../desk/format';
 
 import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
+import { useReturnsState } from './returns-state';
 
-interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState> {
+interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState>, ReturnType<typeof useReturnsState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -378,6 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [user, appSession?.store?.id, appSession?.billing?.plan]);
 
   const gettingStartedState = useGettingStartedState(user, backendStatus === 'ready' ? appSession?.store?.id : undefined);
+  const returnsState = useReturnsState(user, appSession, backendStatus);
 
   const completeOnboarding = async (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => {
     if (!user) {
@@ -898,6 +900,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...gettingStartedState,
       ...commissions,
       ...catalogState,
+      ...returnsState,
       inventory, sales, tradeIns, clients, listsLoaded, customColumns,
       repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder, restoreRepairOrder,
       operationOptions, operationDrafts,
