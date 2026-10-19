@@ -12,7 +12,8 @@ export function historySentence(event: { actorName?: string | null; verb?: strin
   return `${event.actorName?.trim() || 'Alguien'} ${historyAction(event)}`.replace(/\s+/g, ' ').trim();
 }
 
-export function historyRecordNote(event: { legacy: boolean; recordState: string; section: string }) {
+export function historyRecordNote(event: { legacy: boolean; recordState: string; section: string; entityType?: string }) {
+  if (event.entityType === 'stockcount' && event.recordState === 'active') return 'Está en Control de stock, dentro de Inventario.';
   const openable = !event.legacy
     && (event.recordState === 'active' || event.recordState === 'archived' || event.recordState === 'voided')
     && OPENABLE.has(event.section);

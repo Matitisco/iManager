@@ -47,6 +47,10 @@ type ActionMeta = {
 
 const ACTIONS: Record<string, ActionMeta> = {
   "inventory.created": { title: "Registró un equipo", group: "Alta", section: "inventory", verb: "registró" },
+  "stockcount.opened": { title: "Abrió un control de stock", group: "Alta", section: "inventory", verb: "abrió un control de stock" },
+  "stockcount.closed": { title: "Cerró un control de stock", group: "Cambio de estado", section: "inventory", verb: "cerró el control de stock" },
+  "stockcount.adjusted": { title: "Ajustó el control de stock", group: "Anulación/Archivo", section: "inventory", verb: "ajustó el control de stock" },
+  "stockcount.recorded": { title: "Dejó registrado el control", group: "Edición", section: "inventory", verb: "dejó registrado el control de stock" },
   "inventory.updated": { title: "Editó un equipo", group: "Edición", section: "inventory", verb: "editó" },
   "inventory.price": { title: "Cambió el precio", group: "Edición", section: "inventory", verb: "cambió el precio de" },
   "inventory.cost": { title: "Cambió el costo", group: "Edición", section: "inventory", verb: "cambió el costo de" },
@@ -229,6 +233,15 @@ export function describeAudit(input: {
   changes?: Change[] | null;
 }) {
   const meta = actionMeta(input.action);
+  if (input.action.startsWith("stockcount.")) {
+    return {
+      ...meta,
+      verb: input.detail?.trim() || meta.verb,
+      target: "",
+      legacy: false,
+      suffix: "",
+    };
+  }
   const legacy = input.action.endsWith(".deleted");
   const label = cleanLabel(input.entityLabel);
   const batch = batchOf(input.changes);

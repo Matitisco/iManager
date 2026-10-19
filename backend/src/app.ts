@@ -31,6 +31,7 @@ import { repairsRoutes } from "./modules/repairs/repairs.routes.js";
 import { importRoutes } from "./modules/import/import.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { historyRoutes } from "./modules/audit/history.routes.js";
+import { stockCountRoutes } from "./modules/stock-counts/stock-counts.routes.js";
 import { env } from "./config/env.js";
 import { registerApiErrorHandler } from "./lib/api-error.js";
 import { redactFinancials } from "./lib/redact-financials.js";
@@ -82,6 +83,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(accountsRoutes, { prefix: "/api/accounts" });
   app.register(clientsRoutes, { prefix: "/api/clients" });
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
+  app.register(stockCountRoutes, { prefix: "/api/stock-counts" });
   app.register(commissionsRoutes, { prefix: "/api/commissions" });
   app.register(reportsRoutes, { prefix: "/api/reports" });
   app.register(supplierRoutes, { prefix: "/api/suppliers" });
