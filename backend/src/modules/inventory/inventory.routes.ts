@@ -40,6 +40,7 @@ const inventoryItemSchema = z.object({
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
+  supplierId: z.string().trim().min(1).nullable().optional(),
 });
 
 const inventoryPatchSchema = inventoryItemSchema
@@ -198,12 +199,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
             })
           )
           .max(2000),
+        supplierId: z.string().trim().min(1).optional(),
       });
 
-      const { rows } = bodySchema.parse(request.body) as { rows: ImportRow[] };
+      const { rows, supplierId } = bodySchema.parse(request.body) as { rows: ImportRow[]; supplierId?: string };
       const result = await importInventoryItems(request.appUser.storeId, rows, {
         actor: await loadActor(request.appUser.userId),
         lockPrice: !canManageSensitive(request.appUser),
+        supplierId,
       });
       return reply.code(200).send(result);
     }

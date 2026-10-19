@@ -9,6 +9,8 @@ export type DeskTab =
   | 'clients'
   | 'service'
   | 'commissions'
+  | 'suppliers'
+  | 'expenses'
   | 'reports'
   | 'history'
   | 'notifications'
@@ -18,7 +20,7 @@ export type DeskTab =
 
 export type Overlay =
   | { type: 'onboarding-stock' }
-  | { type: 'new-eq' }
+  | { type: 'new-eq'; supplierId?: string }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
   | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string }
@@ -37,7 +39,12 @@ export type Overlay =
   | { type: 'edit-cl'; id: string }
   | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string }
   | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number; onSelect?: () => void }
-  | { type: 'import'; kind: 'inv' | 'sale' | 'cl' }
+  | { type: 'import'; kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }
+  | { type: 'supplier'; id: string }
+  | { type: 'new-supplier' }
+  | { type: 'edit-supplier'; id: string }
+  | { type: 'new-expense' }
+  | { type: 'edit-expense'; id: string }
   | { type: 'store'; focus?: 'phone' }
   | { type: 'warranty' }
   | { type: 'periodic-report' }

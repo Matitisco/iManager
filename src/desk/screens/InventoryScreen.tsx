@@ -381,7 +381,7 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{item.supplierName ? <small className="archive-note">Proveedor: {item.supplierName}</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
                   <td>{(item.color ?? '').trim() || '—'}</td>
@@ -539,7 +539,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
       <span className="inv-status">{item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">
         <b>{equipmentTitle(item.model, item.capacity)}</b>
-        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}
+        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{item.supplierName ? <small className="archive-note">Proveedor: {item.supplierName}</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}
       </span>
       <span className="inv-meta">
         <small>{condition || '—'}</small>

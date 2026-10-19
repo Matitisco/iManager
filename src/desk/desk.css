@@ -337,6 +337,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .spill.no { background: transparent; color: var(--err); border: 1px dashed rgba(220,76,76,.45); }
 
 .dstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 18px; }
+.dstats.net-stats { grid-template-columns: repeat(3, 1fr); }
+.ledger-list .member .info { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.ledger-list .member .name, .ledger-list .member .role { display: block; text-align: left; overflow-wrap: anywhere; }
+.ledger-list .member .rtxt { flex-shrink: 0; }
 .dstat { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 18px 20px; }
 .dstat .eb { font-size: 12px; font-weight: 700; color: var(--secondary); margin-bottom: 8px; }
 .dstat .big { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 8px; }
@@ -871,6 +875,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 @media (max-width: 1100px) {
   .dgrid.dash, .dgrid.two { grid-template-columns: 1fr; }
   .dstats { grid-template-columns: 1fr 1fr; }
+  .dstats.net-stats { grid-template-columns: 1fr; }
   .xsearch { width: 220px; }
   .svc-grid { grid-template-columns: 1fr; }
 }

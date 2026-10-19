@@ -13,6 +13,7 @@ import { diffFields, MONEY } from "../audit/diff-fields.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { assignItemSupplier, attachItemsToPurchase } from "../suppliers/link.js";
 import { inventoryGrade } from "./quality.js";
 
 export interface InventoryItemInput {
@@ -29,6 +30,7 @@ export interface InventoryItemInput {
   status: string;
   categoryId?: string | null;
   customFields?: Record<string, unknown> | null;
+  supplierId?: string | null;
 }
 
 export interface InventoryItemResponse {
@@ -63,6 +65,9 @@ export interface InventoryItemResponse {
   priceChangedAt: string | null;
   costChangedBy: string | null;
   costChangedAt: string | null;
+  supplierId: string | null;
+  supplierName: string | null;
+  stockPurchaseId: string | null;
 }
 
 export interface InventoryCategoryResponse {
@@ -104,6 +109,10 @@ type InventoryRecord = {
   priceChangedAt?: Date | null;
   costChangedBy?: string | null;
   costChangedAt?: Date | null;
+  supplierId?: string | null;
+  stockPurchaseId?: string | null;
+  supplier?: { name: string } | null;
+  supplierName?: string | null;
 };
 
 class InventoryError extends DomainError {}
@@ -172,6 +181,9 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     priceChangedAt: item.priceChangedAt ? new Date(item.priceChangedAt).toISOString() : null,
     costChangedBy: item.costChangedBy ?? null,
     costChangedAt: item.costChangedAt ? new Date(item.costChangedAt).toISOString() : null,
+    supplierId: item.supplierId ?? null,
+    supplierName: item.supplier?.name ?? item.supplierName ?? null,
+    stockPurchaseId: item.stockPurchaseId ?? null,
   };
 }
 
@@ -267,6 +279,9 @@ type RawInventoryRow = {
   priceChangedAt: Date | string | null;
   costChangedBy: string | null;
   costChangedAt: Date | string | null;
+  supplierId?: string | null;
+  stockPurchaseId?: string | null;
+  supplierName?: string | null;
 };
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
@@ -297,6 +312,9 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     priceChangedAt: row.priceChangedAt ? new Date(row.priceChangedAt).toISOString() : null,
     costChangedBy: row.costChangedBy ?? null,
     costChangedAt: row.costChangedAt ? new Date(row.costChangedAt).toISOString() : null,
+    supplierId: row.supplierId ?? null,
+    supplierName: row.supplierName ?? null,
+    stockPurchaseId: row.stockPurchaseId ?? null,
   };
 }
 
@@ -311,7 +329,8 @@ export async function listInventoryPaged(
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "catalogVisible", "quantity", "id", "imei", "model", "capacity", "color", "condition", "grade",
              "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
-             "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt"
+             "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt",
+             "supplierId", "stockPurchaseId"
       FROM "InventoryItem"
       WHERE ${where}
       ORDER BY ${orderBy}
@@ -323,8 +342,17 @@ export async function listInventoryPaged(
   ]);
 
   const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
+  const supplierIds = [...new Set(rows.map((row) => row.supplierId).filter((id): id is string => Boolean(id)))];
+  const suppliers = supplierIds.length
+    ? await prisma.supplier.findMany({ where: { id: { in: supplierIds } }, select: { id: true, name: true } })
+    : [];
+  const supplierName = new Map(suppliers.map((row) => [row.id, row.name]));
   return {
-    items: rows.map(row => deserializeRawRow({ ...row, catalogIncluded: inPublicCatalog(row, catalog) })),
+    items: rows.map(row => deserializeRawRow({
+      ...row,
+      supplierName: row.supplierId ? supplierName.get(row.supplierId) ?? null : null,
+      catalogIncluded: inPublicCatalog(row, catalog),
+    })),
     total: Number(countResult[0].count),
   };
 }
@@ -351,6 +379,7 @@ export async function listInventory(storeId: string, options?: { archived?: bool
         orderBy: { soldAt: "desc" },
         take: 1,
       },
+      supplier: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -428,7 +457,11 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
         kind: "MANUAL_SOLD_PENDING",
       }]);
     }
-    return created;
+    if (input.supplierId) await assignItemSupplier(tx, storeId, created.id, input.supplierId, actor);
+    return tx.inventoryItem.findFirstOrThrow({
+      where: { id: created.id },
+      include: { supplier: { select: { name: true } } },
+    });
   });
 
   return serializeInventoryItem(inventoryItem);
@@ -615,7 +648,13 @@ export async function updateInventoryItem(
         kind: "MANUAL_SOLD_PENDING",
       }]);
     }
-    return updated;
+    if (input.supplierId !== undefined) {
+      await assignItemSupplier(tx, storeId, id, input.supplierId || null, options?.actor);
+    }
+    return tx.inventoryItem.findFirstOrThrow({
+      where: { id },
+      include: { supplier: { select: { name: true } } },
+    });
   });
 
   if (!updated) return null;
@@ -841,10 +880,18 @@ function normalizeBattery(raw: unknown): string {
 export async function importInventoryItems(
   storeId: string,
   rows: ImportRow[],
-  options?: { actor?: Actor | null; lockPrice?: boolean },
+  options?: { actor?: Actor | null; lockPrice?: boolean; supplierId?: string | null },
 ): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, updated: 0, errors: [] };
   const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
+  const createdIds: string[] = [];
+  if (options?.supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: options.supplierId, storeId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!supplier) throw new InventoryError("Ese proveedor no está en esta tienda", 404);
+  }
 
   for (let i = 0; i < rows.length; i++) {
     const raw = rows[i];
@@ -966,7 +1013,7 @@ export async function importInventoryItems(
         }
         result.updated++;
       } else {
-        await inventoryPrisma.inventoryItem.create({
+        const created = await inventoryPrisma.inventoryItem.create({
           data: {
             storeId,
             imei: input.imei,
@@ -983,6 +1030,7 @@ export async function importInventoryItems(
             customFields: raw.customFields ?? {},
           },
         });
+        createdIds.push(created.id);
         result.imported++;
       }
     } catch {
@@ -990,6 +1038,9 @@ export async function importInventoryItems(
     }
   }
 
+  if (options?.supplierId && createdIds.length) {
+    await attachItemsToPurchase(storeId, options.supplierId, createdIds, options.actor);
+  }
   return result;
 }
 

@@ -1,6 +1,6 @@
 export type HistoryDetailRow = { label: string; before: string | null; after: string | null };
 
-const OPENABLE = new Set(['inventory', 'sales', 'tradeins', 'service', 'clients']);
+const OPENABLE = new Set(['inventory', 'sales', 'tradeins', 'service', 'clients', 'suppliers', 'expenses']);
 const OPAQUE = /^(?:sin vendedor|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const CATALOG = /^(ocultar|mostrar):\s*(\d+)\s+equipos?$/i;
 

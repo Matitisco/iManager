@@ -103,10 +103,11 @@ export async function importBackendRows(
   user: AuthUserLike,
   section: ImportSection,
   rows: InventoryImportRow[] | Record<string, string>[],
+  supplierId?: string,
 ): Promise<ImportResult> {
   return apiRequest<ImportResult>(user, `/api/${section}/import`, {
     method: 'POST',
-    body: { rows },
+    body: supplierId ? { rows, supplierId } : { rows },
     fallback: (status) => `Error al importar (${status})`,
   });
 }

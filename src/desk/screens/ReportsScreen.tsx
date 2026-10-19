@@ -8,6 +8,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
+import { FX_WARNING } from '../money';
+import { netProfit } from '../net-profit';
+import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
   saleBuyer,
@@ -82,6 +85,8 @@ export function ReportsScreen() {
     appSession,
     user,
     sessionConfirmed,
+    expenses = [],
+    expensesLoaded = true,
   } = useAppContext();
   const money = useMoney();
   const phone = usePhoneLayout();
@@ -292,6 +297,20 @@ export function ReportsScreen() {
           <Actions primary="Aplicar período" onPrimary={commitRange} onSecondary={closeCustom} />
         </Sheet>
       )}
+      {role === 'OWNER' ? (
+        <NetProfitCard
+          loading={expensesLoaded === false}
+          sales={sales}
+          inventory={inventory}
+          expenses={expenses}
+          start={bounds.start}
+          end={bounds.end}
+          currency={money.active}
+          rate={money.rate}
+          show={money.showActive}
+          warning={money.warning}
+        />
+      ) : null}
       {activeTab === 'Comisiones' && commissionReportError ? <p className="ferr" role="alert">{commissionReportError}</p> : null}
       {activeTab === 'Comisiones' && commissionReportLoading ? <p role="status">Cargando reporte…</p> : null}
       <div className="gtotal">
@@ -658,4 +677,56 @@ function deltaLabel(current: number, previous: number) {
   if (!previous) return current ? 'sin base anterior' : 'sin movimiento';
   const delta = Math.round(((current - previous) / previous) * 100);
   return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% vs período anterior`;
+}
+
+function NetProfitCard({
+  loading, sales, inventory, expenses, start, end, currency, rate, show, warning,
+}: {
+  loading: boolean;
+  sales: Sale[];
+  inventory: Product[];
+  expenses: ExpenseView[] | null;
+  start: Date;
+  end: Date;
+  currency: 'ARS' | 'USD';
+  rate: number | null;
+  show: (amount: number) => string;
+  warning: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="dstats net-stats" data-testid="net-profit-loading" role="status" aria-label="Cargando ganancia neta">
+        <div className="dstat"><span className="list-skel-bar w40" /></div>
+        <div className="dstat"><span className="list-skel-bar w40" /></div>
+        <div className="dstat"><span className="list-skel-bar w40" /></div>
+      </div>
+    );
+  }
+  const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
+  const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
+  const figures = netProfit({
+    currency,
+    sellRate: rate,
+    sales: periodSales.map((sale) => {
+      const item = inventory.find((row) => row.id === sale.productId);
+      return {
+        amount: sale.amount,
+        currency: sale.amountCurrency,
+        cost: item?.cost ?? 0,
+        costCurrency: item?.currency ?? sale.amountCurrency,
+      };
+    }),
+    expenses: periodExpenses.map((row) => ({ amount: row.amount, currency: row.currency })),
+  });
+  const text = (value: number | null | undefined) => (figures && value != null ? show(value) : '—');
+  return (
+    <div data-testid="net-profit">
+      <div className="dstats net-stats">
+        <div className="dstat"><div className="eb">Ganancia bruta</div><div className="big">{text(figures?.grossProfit)}</div></div>
+        <div className="dstat"><div className="eb">Gastos</div><div className="big">{text(figures?.expenses)}</div></div>
+        <div className="dstat"><div className="eb">Ganancia neta</div><div className="big">{text(figures?.netProfit)}</div></div>
+      </div>
+      {figures ? null : <p className="fx-warn" role="status">{warning || FX_WARNING}</p>}
+    </div>
+  );
 }

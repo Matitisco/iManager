@@ -89,6 +89,9 @@ model Store {
   cashCounts          CashCount[]
   followUpSettings    StoreFollowUpSettings?
   periodicReportSettings PeriodicReportSettings?
+  suppliers           Supplier[]
+  stockPurchases      StockPurchase[]
+  expenses            Expense[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -222,6 +225,11 @@ model InventoryItem {
   priceChangedAt DateTime?
   costChangedBy  String?          @db.VarChar(255)
   costChangedAt  DateTime?
+  // Origin of a stock purchase. Null on rows loaded before suppliers existed.
+  supplierId      String?
+  stockPurchaseId String?
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  stockPurchase   StockPurchase? @relation(fields: [stockPurchaseId], references: [id], onDelete: SetNull)
   customFields  Json?
   store         Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category      InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -235,6 +243,8 @@ model InventoryItem {
   @@index([storeId, archivedAt, createdAt])
   @@index([storeId, catalogVisible])
   @@index([reservedDepositId])
+  @@index([supplierId])
+  @@index([stockPurchaseId])
   @@unique([storeId, imei])
 }
 
@@ -780,6 +790,65 @@ model StoreFollowUpSettings {
   inactiveDays     Int     @default(90)
   includeDebts     Boolean @default(true)
   store            Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// Suppliers and the stock lots bought from them. Soft-deleted rows stay for the audit.
+model Supplier {
+  id        String    @id @default(cuid())
+  storeId   String
+  name      String    @db.VarChar(120)
+  phone     String?   @db.VarChar(50)
+  email     String?   @db.VarChar(255)
+  notes     String?   @db.Text
+  deletedAt DateTime?
+  deletedBy String?   @db.VarChar(255)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  purchases StockPurchase[]
+  items     InventoryItem[]
+
+  @@index([storeId, deletedAt])
+  @@index([storeId, name])
+}
+
+model StockPurchase {
+  id          String    @id @default(cuid())
+  storeId     String
+  supplierId  String
+  purchasedAt DateTime
+  notes       String?   @db.Text
+  deletedAt   DateTime?
+  deletedBy   String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  store       Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  items       InventoryItem[]
+
+  @@index([storeId, deletedAt, purchasedAt])
+  @@index([supplierId])
+}
+
+// Operating expenses. They are not cash-register movements: transfers and balance
+// adjustments stay out of profit. Soft-deleted rows stay in the table.
+model Expense {
+  id           String    @id @default(cuid())
+  storeId      String
+  spentAt      DateTime
+  category     String    @db.VarChar(80)
+  amount       Decimal   @db.Decimal(12, 2)
+  currency     String    @db.VarChar(3)
+  exchangeRate Decimal?  @db.Decimal(12, 2)
+  notes        String?   @db.Text
+  deletedAt    DateTime?
+  deletedBy    String?   @db.VarChar(255)
+  createdBy    String?   @db.VarChar(255)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, deletedAt, spentAt])
 }
 
 // Opt-in audit mail. One row per store; absent means off. No uniqueness added to existing tables.

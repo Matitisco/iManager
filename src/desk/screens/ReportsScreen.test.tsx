@@ -14,6 +14,8 @@ const context = vi.hoisted(() => ({
   clientCategories: [] as ClientCategory[],
   customColumns: [] as CustomColumn[],
   appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
+  expenses: [] as Array<{ id: string; date: string; category: string; amount: number; currency: 'ARS' | 'USD'; exchangeRate: number | null; notes: string | null; deletedAt: string | null }>,
+  expensesLoaded: true,
 }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -79,6 +81,8 @@ beforeEach(() => {
   context.clientCategories = [];
   context.customColumns = [];
   context.appSession = null;
+  context.expenses = [];
+  context.expensesLoaded = true;
 });
 
 afterEach(() => {
@@ -457,6 +461,31 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.queryByRole('button', { name: 'Servicio' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ventas' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Columna de desglose' })).toBeInTheDocument();
+    expect(screen.queryByTestId('net-profit')).not.toBeInTheDocument();
+  });
+
+  it('resta los gastos del período en la ganancia neta del dueño', async () => {
+    context.appSession = { membership: { role: 'OWNER' } };
+    context.expensesLoaded = true;
+    context.inventory[0] = { ...context.inventory[0], cost: 40 };
+    context.sales[1] = { ...context.sales[1], productId: '1' };
+    context.expenses = [{ id: 'g1', date: '2026-04-02', category: 'Alquiler', amount: 50, currency: 'ARS', exchangeRate: null, notes: null, deletedAt: null }];
+    render(<ReportsScreen />);
+    await applyRange();
+    const card = screen.getByTestId('net-profit');
+    expect(card).toHaveTextContent('Ganancia bruta');
+    expect(card).toHaveTextContent('$ 560');
+    expect(card).toHaveTextContent('$ 50');
+    expect(card).toHaveTextContent('$ 510');
+  });
+
+  it('espera con un esqueleto y no muestra una ganancia vacía', () => {
+    context.appSession = { membership: { role: 'OWNER' } };
+    context.expensesLoaded = false;
+    context.expenses = [];
+    render(<ReportsScreen />);
+    expect(screen.getByTestId('net-profit-loading')).toBeInTheDocument();
+    expect(screen.queryByText('Ganancia neta')).not.toBeInTheDocument();
   });
 });
 
