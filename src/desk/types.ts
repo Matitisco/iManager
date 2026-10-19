@@ -40,6 +40,7 @@ export type Overlay =
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl' }
   | { type: 'store'; focus?: 'phone' }
   | { type: 'warranty' }
+  | { type: 'periodic-report' }
   | { type: 'contact' }
   | { type: 'profile' }
   | { type: 'password' }

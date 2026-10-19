@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 import { startDailyReprice } from "./modules/billing/reprice-schedule.js";
+import { startPeriodicReports } from "./modules/periodic-reports/service.js";
 
 const app = buildApp();
 
@@ -12,10 +13,12 @@ async function start() {
     });
 
     app.log.info(`API running on port ${env.PORT}`);
-    startDailyReprice({
-      info: (message) => app.log.info(message),
-      warn: (message) => app.log.warn(message),
-    });
+    const log = {
+      info: (message: string) => app.log.info(message),
+      warn: (message: string) => app.log.warn(message),
+    };
+    startDailyReprice(log);
+    startPeriodicReports(log);
   } catch (error) {
     app.log.error(error);
     process.exit(1);
