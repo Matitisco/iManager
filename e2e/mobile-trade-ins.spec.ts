@@ -388,6 +388,7 @@ test.describe('trade-ins on a phone', () => {
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
+      await staff.getByTestId('sidebar-tab-more').click();
       await staff.getByTestId('sidebar-tab-tradeins').click();
       await expect(staff.getByTestId('page-back')).toHaveCount(0);
       const card = staff.getByTestId('tradeins-timeline').getByText(received).locator('xpath=ancestor::button[1]');

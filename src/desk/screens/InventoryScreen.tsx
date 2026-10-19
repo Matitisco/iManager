@@ -58,7 +58,7 @@ function StatusMenu({ options, pressed, onToggle }: {
   const chosen = options.filter((option) => option.id !== 'Todos' && pressed(option.id));
   const label = chosen.length === 0 ? 'Estado' : chosen.length === 1 ? chosen[0]!.label : `${chosen.length} estados`;
   return (
-    <div className={`dsel${chosen.length ? ' on' : ''}`} ref={box} data-testid="inventory-status-filter">
+    <div className={`dsel menu-start${chosen.length ? ' on' : ''}`} ref={box} data-testid="inventory-status-filter">
       <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         {label}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>

@@ -41,7 +41,7 @@ export function registerAccountTests(device: { name: string }) {
     await pay.click();
     await expect(panel.getByText('Nadie tiene saldo pendiente.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Seguimientos' }).click();
+    await page.locator('.clients-filters').getByRole('button', { name: 'Seguimientos' }).click();
     await expect(page.getByTestId('follow-ups')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   });
