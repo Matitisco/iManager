@@ -93,6 +93,7 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   openSubscriptionCheckout: ReturnType<typeof useBillingState>['openSubscriptionCheckout'];
   cancelSubscription: ReturnType<typeof useBillingState>['cancelSubscription'];
   backendStatus: BackendConnectionStatus;
+  sessionConfirmed: boolean;
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
@@ -124,6 +125,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [loading, setLoading] = useState(() => !boot);
   const [appSession, setAppSession] = useState<AppSession | null>(() => boot?.session ?? null);
   const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>(() => boot ? 'ready' : 'checking');
+  const [sessionConfirmed, setSessionConfirmed] = useState(false);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
     inventory, setInventory, listsLoaded,
@@ -144,7 +146,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
-  const commissions = useCommissionState(user, appSession, backendStatus);
+  const commissions = useCommissionState(user, appSession, backendStatus, sessionConfirmed);
   const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
     const visibility = new Map(catalog?.items.map(item => [item.id, item]));
     setInventory(items => items.map(item => {
@@ -240,9 +242,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setCustomColumns([]);
       setAppSession(null);
       setBackendStatus('checking');
+      setSessionConfirmed(false);
       setBackendMessage(null);
       return;
     }
+
+    setSessionConfirmed(false);
 
     let cancelled = false;
     let retryTimeout: number | undefined;
@@ -254,6 +259,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (status === 'unauthorized') {
           clearSessionCaches();
           setBackendStatus('unauthorized');
+          setSessionConfirmed(false);
           setBackendMessage(message);
           setAppSession(null);
           await authAdapter.logout();
@@ -263,6 +269,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           rememberSession(user, session);
           setBackendStatus('ready');
           setAppSession(session);
+          setSessionConfirmed(true);
           setBackendMessage(message);
           if (session.onboardingRequired) {
             retryTimeout = window.setTimeout(() => {
@@ -273,6 +280,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         if (readBootSession()?.uid === user.uid) {
           setBackendStatus('ready');
+          setSessionConfirmed(true);
           setBackendMessage(message);
         } else {
           setBackendStatus(status);
@@ -284,8 +292,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }, 15000);
       } catch (error) {
         if (cancelled) return;
-        if (readBootSession()?.uid === user.uid) setBackendStatus('ready');
-        else setBackendStatus('offline');
+        if (readBootSession()?.uid === user.uid) {
+          setBackendStatus('ready');
+          setSessionConfirmed(true);
+        } else setBackendStatus('offline');
         setBackendMessage(toUserMessage(error));
 
         retryTimeout = window.setTimeout(() => {
@@ -380,6 +390,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const session = await completeBackendOnboarding(user, input);
     // Contact details can be completed later from settings.
     setBackendStatus('ready');
+    setSessionConfirmed(true);
     setBackendMessage(null);
     setAppSession(session);
     rememberSession(user, session);
@@ -398,6 +409,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const data = await acceptInvitationApi(user, token);
     setBackendStatus('ready');
+    setSessionConfirmed(true);
     setBackendMessage(null);
     setAppSession(data.session);
     rememberSession(user, data.session);
@@ -910,7 +922,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       clientCategories,
       updateStore, updateUserProfile, reloadSession,
       ...billingState,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, sessionConfirmed, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>

@@ -166,7 +166,7 @@ function FxBanner() {
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
+  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus, sessionConfirmed } = useAppContext();
   useEffect(() => { void prefetchMainRoutes(); }, []);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
@@ -181,12 +181,12 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
-    if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
+    if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
     setCommissionCountError('');
     void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); });
     return () => { active = false; };
-  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry]);
+  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry, sessionConfirmed]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
 

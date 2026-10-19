@@ -5,7 +5,7 @@ import type { CommissionSummary, CommissionDetail, CommissionRule, CommissionRul
 import * as api from '../services/commissions-api';
 import { canManageCommissions } from '../desk/sections';
 
-export function useCommissionState(user: AuthUserLike | null, session: AppSession | null, status: BackendConnectionStatus) {
+export function useCommissionState(user: AuthUserLike | null, session: AppSession | null, status: BackendConnectionStatus, sessionConfirmed: boolean) {
   const scope = `${user?.uid}:${session?.store?.id}:${session?.membership?.role}:${JSON.stringify(session?.membership?.sections)}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
@@ -20,6 +20,7 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
     setData(old => ({ ...(old.scope === scope ? old : { scope, summaries: {}, details: {}, rules: [], sellers: [] }), ...patch }));
   };
   const loadCommissions = async (period: string) => {
+    if (!sessionConfirmed) return;
     const actor = auth();
     if (canManageCommissions(session?.membership?.sections, session?.membership?.role)) {
       const [summary, rules] = await Promise.all([api.fetchCommissionSummary(actor, period), api.fetchCommissionRules(actor)]);

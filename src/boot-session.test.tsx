@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { readBootSession, readStoreLists, writeBootSession, writeStoreLists } from './lib/boot-cache';
+import * as commissionsApi from './services/commissions-api';
 import type { AppSession } from './types/app-session';
 
 const auth = vi.hoisted(() => ({
@@ -125,6 +126,30 @@ describe('apertura de sesión', () => {
     expect(screen.queryByText('Resolviendo sesión segura')).not.toBeInTheDocument();
     expect(readBootSession()).toBeNull();
     expect(readStoreLists('store-1')).toBeNull();
+  });
+
+  it('no pide comisiones de dueño con el rol cacheado', async () => {
+    signedIn();
+    const summary = vi.spyOn(commissionsApi, 'fetchCommissionSummary').mockResolvedValue({ people: [], summary: { salesCount: 0 }, period: { key: '2026-10' } } as never);
+    const rules = vi.spyOn(commissionsApi, 'fetchCommissionRules').mockResolvedValue([]);
+    const mine = vi.spyOn(commissionsApi, 'fetchMyCommissions').mockResolvedValue({ period: { key: '2026-10' }, person: { pending: { ARS: 0, USD: 0 } } } as never);
+    sessionFetch.mockResolvedValue({
+      status: 'ready',
+      session: {
+        ...session,
+        user: { ...session.user, displayName: 'Sofía' },
+        membership: { role: 'STAFF', isDefault: true, sections: ['dashboard', 'inventory', 'sales', 'tradeins', 'clients', 'notifications'] },
+      },
+      message: null,
+    });
+    render(<App />);
+    expect(await screen.findByText('Hola, Sofía')).toBeInTheDocument();
+    await waitFor(() => expect(mine).toHaveBeenCalled());
+    expect(summary).not.toHaveBeenCalled();
+    expect(rules).not.toHaveBeenCalled();
+    summary.mockRestore();
+    rules.mockRestore();
+    mine.mockRestore();
   });
 
   it('borra la caché al cerrar sesión', async () => {
