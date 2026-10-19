@@ -2137,3 +2137,63 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .val > .list-skel-bar, .big > .list-skel-bar { width: 88px; height: 22px; margin-top: 4px; }
 @keyframes list-skel { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .list-skel-bar::after { animation: none; } }
+
+/* Seguimientos: lista compacta, mobile primero. */
+.fu-screen { min-width: 0; display: grid; gap: 12px; }
+.fu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fu-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.fu-head p { margin: 3px 0 0; color: var(--secondary); font-size: 13px; font-weight: 600; }
+.fu-rules { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: #fff; border: 1px solid var(--border); color: var(--primary); font-size: 13px; font-weight: 700; flex: none; }
+.fu-rules:hover { background: #F3F4F6; }
+.fu-chips { min-width: 0; }
+.fu-chips .wchips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.fu-chips .wchips::-webkit-scrollbar { display: none; }
+.fu-groups { display: grid; gap: 14px; min-width: 0; }
+.fu-group { background: #fff; border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--sh); min-width: 0; }
+.fu-gh { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 14px 4px; }
+.fu-kicker { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--primary); font-size: 13px; font-weight: 800; }
+.fu-kicker span { color: var(--secondary); font-weight: 700; }
+.fu-kicker.deuda svg { color: var(--err); }
+.fu-kicker.cumpleanos svg { color: var(--c-pink); }
+.fu-kicker.garantia svg { color: #C48A12; }
+.fu-kicker.inactivo svg { color: var(--secondary); }
+.fu-aside { color: var(--secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.fu-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who wa" "fact fact"; gap: 2px 10px; align-items: center; padding: 12px 14px; border-top: 1px solid #F0F1F3; min-width: 0; }
+.fu-row.has-extra { grid-template-areas: "who wa" "fact extra"; }
+.fu-who { grid-area: who; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fu-who > span:last-child { min-width: 0; }
+.fu-who b { display: block; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; }
+.fu-who small { display: block; margin-top: 2px; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.fu-fact { grid-area: fact; min-width: 0; padding-left: 50px; }
+.fu-fact strong { display: block; font-size: 14px; font-weight: 800; }
+.fu-fact strong.debt { color: var(--err); }
+.fu-fact span { display: block; margin-top: 1px; color: var(--secondary); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.fu-extra { grid-area: extra; display: flex; align-items: center; justify-content: flex-end; gap: 8px; align-self: start; }
+.fu-nophone { color: var(--secondary); font-size: 12px; font-weight: 600; }
+.fu-add { background: none; border: 0; cursor: pointer; white-space: nowrap; }
+.fu-wa-slot { grid-area: wa; }
+.fu-wa-wrap { position: relative; display: inline-flex; }
+.fu-wa { width: 40px; height: 40px; border-radius: 999px; border: 0; background: #25D366; color: #fff; display: grid; place-items: center; text-decoration: none; }
+.fu-wa:hover { background: #1EBE5D; }
+.fu-wa:disabled { background: #E6E8EC; color: #9AA0AA; cursor: not-allowed; }
+.fu-tip { position: absolute; right: 0; bottom: calc(100% + 8px); width: max-content; max-width: 220px; padding: 8px 10px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; line-height: 1.35; opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity .15s ease, transform .15s ease; z-index: 5; }
+.fu-wa-wrap:hover .fu-tip, .fu-wa-wrap:focus-within .fu-tip { opacity: 1; transform: none; }
+.fu-badge { display: none; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.fu-badge.deuda { background: var(--err-soft); color: #C24141; }
+.fu-badge.cumpleanos { background: #FDE7F1; color: #C4477C; }
+.fu-badge.garantia { background: #FFF4D6; color: #9A6B08; }
+.fu-badge.inactivo { background: var(--row); color: #5C6370; }
+.fu-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 42px 20px; border: 1.5px dashed #D9DCE1; border-radius: 24px; background: #fff; }
+.fu-empty-icon { width: 56px; height: 56px; border-radius: 16px; background: #F3F4F6; color: #9AA0AA; display: grid; place-items: center; margin-bottom: 6px; }
+.fu-empty b { font-size: 18px; font-weight: 800; }
+.fu-empty p { max-width: 38ch; margin: 0 0 8px; color: var(--secondary); font-size: 14px; font-weight: 600; line-height: 1.45; }
+@media (min-width: 761px) {
+  .fu-row, .fu-row.has-extra { grid-template-columns: minmax(240px, 1.4fr) auto minmax(180px, 1fr) auto auto; grid-template-areas: "who badge fact extra wa"; gap: 12px; padding: 14px 16px; align-items: center; }
+  .fu-fact { padding-left: 0; text-align: right; }
+  .fu-badge { display: inline-flex; grid-area: badge; }
+  .fu-extra { align-self: center; }
+  .fu-gh { padding-inline: 16px; }
+}
+@media (hover: none) {
+  .fu-tip { display: none; }
+}

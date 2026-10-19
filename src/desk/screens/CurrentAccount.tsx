@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
 import { toUserMessage } from '../../lib/user-message';
-import { collectAccount, createAccountMovement, fetchDebtors, fetchFollowUps, fetchSaleAccount, saveFollowUpSettings, type Debtor, type FollowUpCard, type FollowUpSettings, type SaleAccount } from '../../services/accounts-api';
+import { collectAccount, createAccountMovement, fetchDebtors, fetchSaleAccount, type Debtor, type SaleAccount } from '../../services/accounts-api';
 import { useMoney } from '../exchange';
 import { formatInputMoney, parseMoney, paymentLabel } from '../format';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
@@ -11,12 +11,6 @@ import { PAYMENTS } from '../overlays/shared';
 const TONE_LABEL = { verde: 'Menos de 7 días', amarillo: '7 a 30 días', rojo: 'Más de 30 días' };
 const STATE_LABEL = { ABIERTA: 'Abierta', NOTA_CREDITO: 'Nota de crédito' };
 const INSTALLMENT_LABEL: Record<string, string> = { PENDIENTE: 'Pendiente', PARCIAL: 'Parcial', PAGADA: 'Pagada', VENCIDA: 'Vencida' };
-const FOLLOW_MESSAGE: Record<FollowUpCard['kind'], (card: FollowUpCard) => string> = {
-  CUMPLEANOS: (card) => `Hola ${card.name}, ¡feliz cumpleaños!`,
-  GARANTIA: (card) => `Hola ${card.name}, te escribo porque se acerca el vencimiento de la garantía. ${card.detail}`,
-  DEUDA: (card) => `Hola ${card.name}, te escribo por el saldo pendiente.`,
-  INACTIVO: (card) => `Hola ${card.name}, hace un tiempo que no nos vemos. ¿Te ayudo con algo?`,
-};
 
 function useReload() {
   const { reloadClients, reloadSales } = useAppContext();
@@ -189,67 +183,3 @@ function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pa
   );
 }
 
-export function FollowUps() {
-  const { user } = useAppContext();
-  const { toast } = useDesk();
-  const [cards, setCards] = useState<FollowUpCard[]>([]);
-  const [settings, setSettings] = useState<FollowUpSettings | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const load = () => {
-    if (!user) return;
-    setLoading(true);
-    fetchFollowUps(user).then((data) => { setCards(data.cards); setSettings(data.settings); setError(''); }).catch((cause: unknown) => setError(toUserMessage(cause, 'No se pudieron cargar los seguimientos'))).finally(() => setLoading(false));
-  };
-  useEffect(load, [user]);
-  return (
-    <section className="acct-screen" aria-label="Seguimientos" data-testid="follow-ups">
-      <div className="acct-head">
-        <div><b>A quién escribir hoy</b><small>Cumpleaños, garantías, deudas y clientes que hace tiempo no compran.</small></div>
-        <button className="btn2 s" type="button" onClick={() => setEditing(true)}>Reglas</button>
-      </div>
-      {error ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
-      {loading ? <p className="eqs-note" role="status">Cargando seguimientos…</p> : null}
-      {!loading && !cards.length ? <div className="wempty">Hoy no hay a quién escribir.</div> : null}
-      <div className="acct-list">
-        {cards.map((card) => {
-          const link = whatsappLink(card.phone, FOLLOW_MESSAGE[card.kind](card));
-          return (
-            <article className="acct-card" key={card.id} data-testid={`follow-${card.kind}`}>
-              <div className="acct-head"><div><b>{card.title}</b><small>{card.detail}</small></div></div>
-              {link ? <a className="btn2 p" href={link} target="_blank" rel="noopener noreferrer">Abrir WhatsApp</a> : <p className="eqs-note">Sin WhatsApp</p>}
-            </article>
-          );
-        })}
-      </div>
-      {editing && settings ? <FollowSettings initial={settings} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); toast('Reglas guardadas'); load(); }} /> : null}
-    </section>
-  );
-}
-
-function FollowSettings({ initial, onClose, onSaved }: { initial: FollowUpSettings; onClose: () => void; onSaved: () => void }) {
-  const { user } = useAppContext();
-  const [form, setForm] = useState(initial);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const set = (patch: Partial<FollowUpSettings>) => setForm((current) => ({ ...current, ...patch }));
-  const save = async () => {
-    if (!user) return;
-    setBusy(true);
-    setError('');
-    try { await saveFollowUpSettings(user, form); onSaved(); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudieron guardar las reglas')); setBusy(false); }
-  };
-  return (
-    <Sheet title="Reglas de seguimiento" onClose={() => { if (!busy) onClose(); }}>
-      {error ? <div className="ferr" role="alert">{error}</div> : null}
-      <Field label="Días de anticipación del cumpleaños"><input aria-label="Anticipación del cumpleaños" inputMode="numeric" value={String(form.birthdayLeadDays)} onChange={(event) => set({ birthdayLeadDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>
-      <Field label="Días de anticipación de la garantía"><input aria-label="Anticipación de la garantía" inputMode="numeric" value={String(form.warrantyLeadDays)} onChange={(event) => set({ warrantyLeadDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>
-      <Field label="Días sin comprar"><input aria-label="Días sin comprar" inputMode="numeric" value={String(form.inactiveDays)} onChange={(event) => set({ inactiveDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>
-      <label className="op-check"><input type="checkbox" checked={form.includeDebts} onChange={(event) => set({ includeDebts: event.target.checked })} />Incluir deudas pendientes</label>
-      <p className="eqs-note">El cumpleaños se carga en la ficha del cliente. La garantía es la de cada venta. El recordatorio automático queda para más adelante: acá solo se abre WhatsApp.</p>
-      <Actions busy={busy} primary="Guardar reglas" onPrimary={() => { void save(); }} onSecondary={onClose} secondary="Cerrar" />
-    </Sheet>
-  );
-}

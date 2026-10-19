@@ -30,14 +30,32 @@ export type Debtor = {
   statement: string;
   lines: AccountLine[];
 };
+export type FollowUpKind = 'CUMPLEANOS' | 'GARANTIA' | 'DEUDA' | 'INACTIVO';
 export type FollowUpCard = {
   id: string;
-  kind: 'CUMPLEANOS' | 'GARANTIA' | 'DEUDA' | 'INACTIVO';
+  kind: FollowUpKind;
   clientId: string;
   name: string;
   phone: string;
   title: string;
   detail: string;
+  amount: number | null;
+  dueDate: string | null;
+  lastPurchaseAt: string | null;
+  warrantyEndsAt: string | null;
+  deviceLabel: string | null;
+  currency: string | null;
+  installmentSequence: number | null;
+  installmentCount: number | null;
+  birthdayOn: string | null;
+  turningAge: number | null;
+  warrantyDays: number | null;
+};
+export type FollowUpGroup = {
+  kind: FollowUpKind;
+  count: number;
+  totalAmount: number | null;
+  currency: string | null;
 };
 export type FollowUpSettings = {
   birthdayLeadDays: number;
@@ -63,7 +81,7 @@ export function fetchDebtors(user: AuthUserLike) {
   return apiRequest<{ debtors: Debtor[] }>(user, '/api/accounts/debtors', { fallback: 'No se pudo cargar la cuenta corriente' });
 }
 export function fetchFollowUps(user: AuthUserLike) {
-  return apiRequest<{ today: string; settings: FollowUpSettings; cards: FollowUpCard[] }>(user, '/api/accounts/follow-ups', { fallback: 'No se pudieron cargar los seguimientos' });
+  return apiRequest<{ today: string; settings: FollowUpSettings; cards: FollowUpCard[]; groups: FollowUpGroup[] }>(user, '/api/accounts/follow-ups', { fallback: 'No se pudieron cargar los seguimientos' });
 }
 export function saveFollowUpSettings(user: AuthUserLike, body: FollowUpSettings) {
   return apiRequest<{ settings: FollowUpSettings }>(user, '/api/accounts/follow-ups/settings', { method: 'PATCH', body, errorFrom: 'friendly', fallback });

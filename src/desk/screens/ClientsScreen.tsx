@@ -26,7 +26,8 @@ import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDo
 import type { Client } from '../../types';
 import { fetchArchivedClients } from '../../services/clients-api';
 import { rememberArchivedClients } from '../archive-cache';
-import { AccountCurrent, FollowUps } from './CurrentAccount';
+import { AccountCurrent } from './CurrentAccount';
+import { FollowUps } from './FollowUps';
 
 const SORTS = ['Deudores', 'Nombre', 'Última compra', 'Gastado'];
 
@@ -130,12 +131,12 @@ export function ClientsScreen() {
         title="Clientes"
         subtitle={`${clients.length === 1 ? '1 cliente' : `${clients.length} clientes`} · ${withBalance} con saldo`}
         back={back}
-        tools={(
+        tools={view === 'lista' ? (
           <span className="rslot">
             <IconButton label="Filtros" name="filtrar" pressed={filterCount > 0} onClick={openFilters} />
             {filterCount > 0 ? <span className="rbadge">{filterCount}</span> : null}
           </span>
-        )}
+        ) : undefined}
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" />
@@ -164,7 +165,7 @@ export function ClientsScreen() {
           onChange={setFilter}
         /> : null}
         {view === 'lista' ? <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button> : null}
-        {phone ? (
+        {phone && view === 'lista' ? (
           <MenuButton
             testId="clients-sort"
             label={sort === 'Deudores' ? 'Ordenar' : sort}
@@ -176,7 +177,7 @@ export function ClientsScreen() {
         ) : null}
       </div>
       {view === 'cuenta' ? <AccountCurrent query={query} /> : null}
-      {view === 'seguimientos' ? <FollowUps /> : null}
+      {view === 'seguimientos' ? <FollowUps query={query} /> : null}
       {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
       {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
