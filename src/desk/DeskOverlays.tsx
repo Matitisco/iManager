@@ -17,6 +17,7 @@ import { SaleForm, SaleDetail } from './overlays/operation';
 import { TradeForm, TradeDetail } from './overlays/trade';
 import { ClientDetail, ClientForm } from './overlays/client';
 import { StoreForm, ContactForm, ProfileForm, PasswordForm, InviteForm, InvitesList, WarrantyForm } from './overlays/account';
+import { PeriodicReportForm } from './overlays/periodic-report';
 import { ImportHost } from './overlays/import';
 
 export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void }) {
@@ -201,6 +202,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} focusPhone={overlay.focus === 'phone'} />;
   if (overlay.type === 'warranty') return <WarrantyForm run={run} busy={busy} error={error} />;
+  if (overlay.type === 'periodic-report') return <PeriodicReportForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'contact') return <ContactForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'profile') return <ProfileForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'password') return <PasswordForm run={run} busy={busy} error={error} />;

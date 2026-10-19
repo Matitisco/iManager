@@ -88,6 +88,7 @@ model Store {
   cashMovements       CashMovement[]
   cashCounts          CashCount[]
   followUpSettings    StoreFollowUpSettings?
+  periodicReportSettings PeriodicReportSettings?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -779,6 +780,18 @@ model StoreFollowUpSettings {
   inactiveDays     Int     @default(90)
   includeDebts     Boolean @default(true)
   store            Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// Opt-in audit mail. One row per store; absent means off. No uniqueness added to existing tables.
+model PeriodicReportSettings {
+  storeId       String    @id
+  enabled       Boolean   @default(false)
+  frequency     String    @default("MONTHLY") @db.VarChar(16)
+  recipients    String    @default("") @db.Text
+  lastPeriodKey String?   @db.VarChar(40)
+  lastSentAt    DateTime?
+  lastError     String?   @db.VarChar(280)
+  store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 // Daily cash ledger: original currency, no relation to deletable sale/payment rows.

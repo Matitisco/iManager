@@ -55,6 +55,18 @@ describe('Settings store contact', () => {
     context.appSession.store.instagram = 'mitienda';
   });
 
+  it('el dueño abre el reporte automático y un encargado no lo ve', async () => {
+    const view = renderSettings();
+    expect(screen.getByRole('button', { name: /Reporte automático/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Reporte automático/ }));
+    expect(open).toHaveBeenCalledWith({ type: 'periodic-report' });
+    view.unmount();
+    context.appSession.membership.role = 'MANAGER';
+    renderSettings();
+    expect(screen.queryByRole('button', { name: /Reporte automático/ })).not.toBeInTheDocument();
+    context.appSession.membership.role = 'OWNER';
+  });
+
   it('shows the saved contact details and opens the store editor', async () => {
     renderSettings();
     expect(screen.getByText('2614001122 · hola@tienda.test · @mitienda')).toBeInTheDocument();

@@ -13,6 +13,7 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { onboardingRoutes, gettingStartedRoutes } from "./modules/onboarding/onboarding.routes.js";
 import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes.js";
+import { periodicReportRoutes } from "./modules/periodic-reports/routes.js";
 import { reportsRoutes } from "./modules/reports/reports.routes.js";
 import { salesRoutes } from "./modules/sales/sales.routes.js";
 import { tradeInsRoutes } from "./modules/trade-ins/trade-ins.routes.js";
@@ -83,6 +84,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(salesRoutes, { prefix: "/api/sales" });
   app.register(tradeInsRoutes, { prefix: "/api/trade-ins" });
   app.register(storesRoutes, { prefix: "/api/stores" });
+  app.register(periodicReportRoutes, { prefix: "/api/stores" });
   app.register(usersRoutes, { prefix: "/api/users" });
   app.register(securityRoutes, { prefix: "/api/security" });
   app.register(invitationsRoutes, { prefix: "/api/invitations" });
