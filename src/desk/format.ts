@@ -166,7 +166,7 @@ export function equipmentTitle(model: string, capacity?: string) {
   return [model, capacity].filter(Boolean).join(' · ');
 }
 
-const CONDITION_NAMES: Record<string, string> = { NUEVO: 'Nuevo', USADO: 'Usado', OUTLET: 'Outlet', 'PRE-OWNED': 'Pre-owned' };
+const CONDITION_NAMES: Record<string, string> = { NUEVO: 'Nuevo', USADO: 'Usado', REACONDICIONADO: 'Reacondicionado', OUTLET: 'Outlet', 'PRE-OWNED': 'Pre-owned' };
 
 export function conditionName(condition: string): string {
   if (!condition) return '';

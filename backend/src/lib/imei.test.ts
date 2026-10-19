@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMEI_FORMAT_MESSAGE, parseOptionalImei, zodOptionalImei } from "./imei.js";
+import { IMEI_FORMAT_MESSAGE, imeiPassesLuhn, parseOptionalImei, zodOptionalImei } from "./imei.js";
 
 describe("parseOptionalImei", () => {
   it("treats empty values as null", () => {
@@ -17,6 +17,15 @@ describe("parseOptionalImei", () => {
     expect(parseOptionalImei("12345")).toEqual({ ok: false, message: IMEI_FORMAT_MESSAGE });
     expect(parseOptionalImei("IMEI-1234567890")).toEqual({ ok: false, message: IMEI_FORMAT_MESSAGE });
     expect(parseOptionalImei("3500000000000951")).toEqual({ ok: false, message: IMEI_FORMAT_MESSAGE });
+  });
+});
+
+describe("imeiPassesLuhn", () => {
+  it("checks the digit without changing the stored format rule", () => {
+    expect(imeiPassesLuhn("490154203237518")).toBe(true);
+    expect(imeiPassesLuhn("352098117744522")).toBe(true);
+    expect(imeiPassesLuhn("352098117744521")).toBe(false);
+    expect(parseOptionalImei("352098117744521")).toEqual({ ok: true, imei: "352098117744521" });
   });
 });
 

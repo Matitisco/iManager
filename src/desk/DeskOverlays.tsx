@@ -13,6 +13,8 @@ import { DeskIcon, Dialog, Sheet, useDesk, useEscape, Actions } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
 import { EquipmentDetail, EquipmentForm } from './overlays/equipment';
+import { BatchLoad } from './overlays/batch-load';
+import { ScanReviewHost } from './overlays/scan-review';
 import { SaleForm, SaleDetail } from './overlays/operation';
 import { TradeForm, TradeDetail } from './overlays/trade';
 import { ClientDetail, ClientForm } from './overlays/client';
@@ -194,6 +196,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
 
   if (overlay.type === 'eq') return <EquipmentDetail id={overlay.id} />;
   if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} supplierId={overlay.type === 'new-eq' ? overlay.supplierId : undefined} run={run} busy={busy} error={error} />;
+  if (overlay.type === 'batch-eq') return <BatchLoad />;
+  if (overlay.type === 'scan-review') return <ScanReviewHost draft={overlay.draft} resume={overlay.resume} run={run} busy={busy} error={error} />;
   if (overlay.type === 'supplier') return <SupplierDetail id={overlay.id} />;
   if (overlay.type === 'new-supplier' || overlay.type === 'edit-supplier') return <SupplierForm id={overlay.type === 'edit-supplier' ? overlay.id : undefined} />;
   if (overlay.type === 'new-expense' || overlay.type === 'edit-expense') return <ExpenseForm id={overlay.type === 'edit-expense' ? overlay.id : undefined} />;
@@ -201,7 +205,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'return') return <ReturnDetail id={overlay.id} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
-    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, clientId: overlay.clientId, productId: overlay.productId, source: overlay.source, tradeInId: overlay.tradeInId } : undefined} run={run} busy={busy} error={error} />;
+    return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, clientId: overlay.clientId, productId: overlay.productId, source: overlay.source, tradeInId: overlay.tradeInId, resumeAmount: overlay.resumeAmount } : undefined} run={run} busy={busy} error={error} />;
   }
   if (overlay.type === 'cj') return <TradeDetail id={overlay.id} source={overlay.source} kind={overlay.kind} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-cj' || overlay.type === 'edit-cj') return <TradeForm id={overlay.type === 'edit-cj' ? overlay.id : undefined} source={overlay.type === 'edit-cj' ? overlay.source : 'tradeins'} run={run} busy={busy} error={error} />;

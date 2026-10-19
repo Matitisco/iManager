@@ -4,7 +4,9 @@ import { toUserMessage } from '../../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
+import { parseDeviceCode } from '../../lib/device-scan';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
+import { createWedgeBuffer } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedSale } from '../archive-cache';
 import { RecordHistory } from '../screens/HistoryScreen';
@@ -24,6 +26,10 @@ import { MISSING_OUTGOING_PRICE, NEGATIVE_TRADE_DIFFERENCE, outgoingTradeDiffere
 import { usePhoneLayout } from '../section-notices';
 import { QualityField } from '../QualityField';
 import { canonicalQuality, displayQuality, isUsedCondition, qualityDetail, tradeQuality } from '../quality';
+import { confirmScan } from '../scan/beep';
+import { CameraScanner } from '../scan/CameraScanner';
+import { draftFromCode, draftFromImei } from '../scan/draft';
+import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
 import { ReportDatePicker } from '../report-date-picker';
@@ -31,7 +37,7 @@ import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAU
 import { SalePaymentsFields, type SettlementState } from './sale-payments';
 import { SaleAccountPanel } from '../screens/CurrentAccount';
 
-export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string } }) {
+export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: string; preset?: { clientName?: string; clientId?: string; productId?: string; source?: OperationSource; tradeInId?: string; resumeAmount?: string } }) {
   return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
 }
 
@@ -49,7 +55,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   saleId?: string;
   tradeId?: string;
   source: OperationSource;
-  preset?: { clientName?: string; clientId?: string; productId?: string };
+  preset?: { clientName?: string; clientId?: string; productId?: string; resumeAmount?: string };
   startWithTrade?: boolean;
 }) {
   const context = useAppContext();
@@ -73,7 +79,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const phone = usePhoneLayout();
   const foldTrade = phone && source === 'sales';
   const [tradeOpen, setTradeOpen] = useState(startWithTrade || Boolean(tradeRef));
-  const { close, go } = useDesk();
+  const { close, go, open } = useDesk();
   const options = operationOptions[source];
   const productOptions = options?.products ?? [];
   const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
@@ -90,7 +96,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
-  const [amount, setAmount] = useState(seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+  const [amount, setAmount] = useState(preset?.resumeAmount ? preset.resumeAmount : (seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : '')));
+  if (preset?.resumeAmount) dirty.current.add('amount');
   const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? '');
   const [sellerError, setSellerError] = useState('');
   useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
@@ -112,6 +119,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const sealedWarrantyDays = context.appSession?.store?.sealedWarrantyDays ?? DEFAULT_SEALED_WARRANTY_DAYS;
   const [warrantyDays, setWarrantyDays] = useState(currentSale?.warrantyDays == null ? '' : String(currentSale.warrantyDays));
   const [bad, setBad] = useState<Record<string, string>>({});
+  const [cameraFor, setCameraFor] = useState<null | 'sale' | 'trade'>(null);
+  const tradeWedge = useRef(createWedgeBuffer());
 
   useEffect(() => {
     if (hasTrade) setTradeOpen(true);
@@ -185,6 +194,40 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
     : undefined;
+  const stockByImei = (imei: string) => equipmentItems.find((item) => (item.imei ?? '').replace(/\D/g, '') === imei && !('archivedAt' in item && item.archivedAt) && isInStock('status' in item ? item.status : 'DISPONIBLE'));
+  const pickStock = (item: (typeof equipmentItems)[number]) => {
+    dirty.current.add('deviceLabel');
+    dirty.current.add('productId');
+    dirty.current.add('amount');
+    setDeviceLabel(equipmentTitle(item.model, item.capacity));
+    setProductId(item.id);
+    setOutgoingCapacity('');
+    setOutgoingColor('');
+    setOutgoingCondition('');
+    setOutgoingImei('');
+    if (!preset?.resumeAmount) setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '');
+    clearBad(setBad, 'equipment');
+  };
+  const applySaleScan = (raw: string) => {
+    const parsed = parseDeviceCode(raw);
+    const imei = parsed.imei;
+    if (!imei) return;
+    confirmScan();
+    const hit = stockByImei(imei);
+    if (hit) {
+      pickStock(hit);
+      return;
+    }
+    if (parsed.rich) {
+      open({ type: 'scan-review', draft: draftFromCode(parsed), resume: { clientName: buyer, clientId, amount, source } });
+      return;
+    }
+    dirty.current.add('deviceLabel');
+    dirty.current.add('productId');
+    setDeviceLabel(formatImei(imei));
+    setProductId('');
+    clearBad(setBad, 'equipment');
+  };
   useEffect(() => {
     if (dirty.current.has('warranty')) return;
     if (currentSale) {
@@ -205,6 +248,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   ];
   const reservedHit = selectedProduct ? null : reservedForOtherClient(reservedPool, deviceLabel, clientId);
   const reservedName = reservedHit ? (reservedHit.reservedClientName || 'otro cliente') : null;
+  const typedImei = deviceLabel.replace(/\s/g, '');
+  const missingSaleImei = /^\d{15}$/.test(typedImei) && !selectedProduct && !reservedName;
   const priceEntered = amount.trim() !== '';
   const tradeGap = outgoingTradeDifference({
     registered: Boolean(selectedProduct),
@@ -359,7 +404,20 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         <>
           <div className="frow">
             <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
-            <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+            <div className="scan-imei">
+              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+                const pushed = tradeWedge.current.push(event.key);
+                if (pushed.type !== 'scan') return;
+                event.preventDefault();
+                const parsed = parseDeviceCode(pushed.value);
+                if (!parsed.imei) return;
+                confirmScan();
+                dirty.current.add('imei');
+                setImei(parsed.imei);
+                if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+              }} /></Field>
+              <ScanCameraButton onClick={() => setCameraFor('trade')} />
+            </div>
           </div>
           <div className="frow">
             <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
@@ -374,6 +432,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     </>
   );
   return (
+    <>
     <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={sheetClass || undefined}>
       {cancelled ? <div className="ferr">Esta venta está cancelada y no se puede editar.</div> : null}
       {error && <div ref={errorRef} className="ferr">{error}</div>}
@@ -392,10 +451,37 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         linked={Boolean(selectedProduct)}
         reservedName={reservedName}
         error={bad.equipment}
-        onValue={(value) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); setDeviceLabel(value); setProductId(''); clearBad(setBad, 'equipment'); }}
-        onPick={(item) => { dirty.current.add('deviceLabel'); dirty.current.add('productId'); dirty.current.add('amount'); setDeviceLabel(equipmentTitle(item.model, item.capacity)); setProductId(item.id); setOutgoingCapacity(''); setOutgoingColor(''); setOutgoingCondition(''); setOutgoingImei(''); setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : ''); clearBad(setBad, 'equipment'); }}
+        imeiMissing={missingSaleImei}
+        onCamera={() => setCameraFor('sale')}
+        onScan={applySaleScan}
+        onValue={(value) => {
+          const digits = value.replace(/\s/g, '');
+          if (/^\d{15}$/.test(digits)) {
+            const hit = stockByImei(digits);
+            if (hit) { pickStock(hit); return; }
+            dirty.current.add('deviceLabel');
+            dirty.current.add('productId');
+            setDeviceLabel(formatImei(digits));
+            setProductId('');
+            clearBad(setBad, 'equipment');
+            return;
+          }
+          dirty.current.add('deviceLabel');
+          dirty.current.add('productId');
+          setDeviceLabel(value);
+          setProductId('');
+          clearBad(setBad, 'equipment');
+        }}
+        onPick={(item) => pickStock(item)}
       />
-      {deviceLabel.trim() && !selectedProduct && !reservedName ? (
+      {missingSaleImei ? (
+        <div className="scan-warn" data-testid="sale-missing-imei">
+          <b>Este IMEI no está en tu stock</b>
+          <p>Registralo ahora y seguís con la venta, sin perder lo que cargaste.</p>
+          <button type="button" className="btn2 s" onClick={() => open({ type: 'scan-review', draft: draftFromImei(typedImei), resume: { clientName: buyer, clientId, amount, source } })}>+ Registrar equipo</button>
+        </div>
+      ) : null}
+      {deviceLabel.trim() && !selectedProduct && !reservedName && !missingSaleImei ? (
         <div className="unlisted-eq" data-testid="unlisted-equipment">
           <p className="eqs-note">Se crea en el inventario marcado para completar. El texto de arriba es el modelo.</p>
           <div className="frow">
@@ -472,6 +558,34 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         <button className="btn2 p" type="button" disabled={busy || cancelled} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
       </div>
     </Sheet>
+    {cameraFor ? (
+      <CameraScanner
+        onClose={() => setCameraFor(null)}
+        onManual={() => setCameraFor(null)}
+        onUse={(parsed) => {
+          const target = cameraFor;
+          setCameraFor(null);
+          if (target === 'trade') {
+            if (!parsed.imei) return;
+            confirmScan();
+            dirty.current.add('imei');
+            setImei(parsed.imei);
+            if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+            return;
+          }
+          if (parsed.imei && stockByImei(parsed.imei)) {
+            applySaleScan(parsed.imei);
+            return;
+          }
+          if (parsed.rich) {
+            open({ type: 'scan-review', draft: draftFromCode(parsed), resume: { clientName: buyer, clientId, amount, source } });
+            return;
+          }
+          applySaleScan(parsed.imei ?? '');
+        }}
+      />
+    ) : null}
+    </>
   );
 }
 

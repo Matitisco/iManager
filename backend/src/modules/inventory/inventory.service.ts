@@ -11,7 +11,7 @@ import { moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { archivedMatch, batchChanges, cleanReason, deviceLabel, type ArchiveMeta } from "../audit/archive.js";
 import { diffFields, MONEY } from "../audit/diff-fields.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
-import { parseOptionalImei } from "../../lib/imei.js";
+import { imeiPassesLuhn, parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { assignItemSupplier, attachItemsToPurchase } from "../suppliers/link.js";
 import { inventoryGrade } from "./quality.js";
@@ -148,12 +148,21 @@ function inPublicCatalog(item: { catalogVisible?: boolean; quantity?: number; st
   return Boolean(catalog?.active && item.catalogVisible && !ruleReason({ ...item, quantity: item.quantity ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog));
 }
 
+function keptImei(customFields: Prisma.JsonValue | null | undefined): string {
+  const value = toCustomFields(customFields ?? null).keptImei;
+  return typeof value === "string" && /^\d{15}$/.test(value) ? value : "";
+}
+
+function visibleImei(imei: string | null | undefined, customFields: Prisma.JsonValue | null | undefined) {
+  return imei || keptImei(customFields);
+}
+
 export function serializeInventoryItem(item: InventoryRecord): InventoryItemResponse {
   return {
     catalogVisible: item.catalogVisible ?? false,
     catalogIncluded: item.catalogIncluded ?? false,
     id: item.id,
-    imei: item.imei ?? "",
+    imei: visibleImei(item.imei, item.customFields),
     model: item.model,
     capacity: item.capacity,
     color: item.color,
@@ -212,6 +221,7 @@ function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams,
     parts.push(
       Prisma.sql`(
         "imei" ILIKE ${search}
+        OR "customFields"->>'keptImei' ILIKE ${search}
         OR "model" ILIKE ${search}
         OR "capacity" ILIKE ${search}
         OR "color" ILIKE ${search}
@@ -289,7 +299,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     catalogVisible: row.catalogVisible ?? false,
     catalogIncluded: row.catalogIncluded ?? false,
     id: row.id,
-    imei: row.imei ?? "",
+    imei: visibleImei(row.imei, row.customFields),
     model: row.model,
     capacity: row.capacity,
     color: row.color,
@@ -400,10 +410,15 @@ function storedGrade(condition: string, grade: string | null | undefined) {
   return parsed.grade;
 }
 
-export async function createInventoryItem(storeId: string, input: InventoryItemInput, actor?: Actor | null) {
+export async function createInventoryItem(
+  storeId: string,
+  input: InventoryItemInput,
+  actor?: Actor | null,
+  options?: { allowRetiredImei?: boolean; source?: "app" | "bulk" | "import" | "system" },
+) {
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   const imei = storedImei(input.imei);
-  if (imei) {
+  if (imei && !options?.allowRetiredImei) {
     const existing = await inventoryPrisma.inventoryItem.findFirst({
       where: { storeId, imei },
       select: { id: true },
@@ -419,6 +434,37 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
   const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, prisma));
   const grade = storedGrade(input.condition, input.grade);
   const inventoryItem = await withSerializableRetry(async (tx) => {
+    if (imei && options?.allowRetiredImei) {
+      const matches = await tx.inventoryItem.findMany({
+        where: { storeId, imei },
+        select: { id: true, status: true, archivedAt: true, customFields: true, model: true, capacity: true },
+      });
+      const blocking = matches.find((row) => !row.archivedAt && row.status !== "VENDIDO");
+      if (blocking) throw new InventoryError("Ya está en tu stock", 409);
+      for (const row of matches) {
+        const fields = toCustomFields(row.customFields);
+        await tx.inventoryItem.update({
+          where: { id: row.id },
+          data: {
+            imei: null,
+            customFields: { ...fields, keptImei: imei } as Prisma.InputJsonValue,
+          },
+        });
+        if (actor) {
+          await writeAudit(tx, {
+            storeId,
+            actor,
+            action: "inventory.updated",
+            entityType: "inventory",
+            entityId: row.id,
+            entityLabel: deviceLabel({ model: row.model, capacity: row.capacity, imei }),
+            detail: "El IMEI volvió a entrar en stock",
+            source: "bulk",
+            changes: [{ field: "imei", label: "IMEI", before: imei, after: "Quedó en el historial" }],
+          });
+        }
+      }
+    }
     const created = await tx.inventoryItem.create({ data: {
       storeId,
       imei,
@@ -446,6 +492,7 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
         entityId: created.id,
         entityLabel: deviceLabel(created),
         detail: created.model,
+        source: options?.source ?? "app",
       });
     }
     if (created.status === "VENDIDO") {
@@ -465,6 +512,49 @@ export async function createInventoryItem(storeId: string, input: InventoryItemI
   });
 
   return serializeInventoryItem(inventoryItem);
+}
+
+export interface BatchCreateResult {
+  created: InventoryItemResponse[];
+  errors: { index: number; imei: string; message: string }[];
+}
+
+export async function createInventoryBatch(
+  storeId: string,
+  items: InventoryItemInput[],
+  actor?: Actor | null,
+): Promise<BatchCreateResult> {
+  const created: InventoryItemResponse[] = [];
+  const errors: BatchCreateResult["errors"] = [];
+  const seen = new Set<string>();
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    let imei = "";
+    try {
+      imei = storedImei(item.imei) ?? "";
+    } catch (error) {
+      errors.push({ index, imei: item.imei ?? "", message: error instanceof Error ? error.message : "El IMEI tiene 15 dígitos" });
+      continue;
+    }
+    if (imei && !imeiPassesLuhn(imei)) {
+      errors.push({ index, imei, message: "El IMEI no pasa el control de dígito" });
+      continue;
+    }
+    if (imei && seen.has(imei)) {
+      errors.push({ index, imei, message: "Repetido en esta carga" });
+      continue;
+    }
+    if (imei) seen.add(imei);
+    try {
+      created.push(await createInventoryItem(storeId, { ...item, imei: imei || null }, actor, { allowRetiredImei: true, source: "bulk" }));
+    } catch (error) {
+      const message = error instanceof InventoryError || error instanceof DomainError
+        ? error.message
+        : "No se pudo cargar el equipo";
+      errors.push({ index, imei, message });
+    }
+  }
+  return { created, errors };
 }
 
 export async function updateInventoryItem(
@@ -519,7 +609,9 @@ export async function updateInventoryItem(
     }
 
     const data: Prisma.InventoryItemUpdateInput = {};
-    if (input.imei !== undefined) data.imei = nextImei;
+    const kept = keptImei(existing.customFields);
+    const keepRetiredImei = input.imei !== undefined && !existing.imei && Boolean(nextImei) && nextImei === kept;
+    if (input.imei !== undefined && !keepRetiredImei) data.imei = nextImei;
     if (input.model !== undefined) data.model = input.model.trim();
     if (input.capacity !== undefined) data.capacity = input.capacity.trim();
     if (input.color !== undefined) data.color = input.color.trim();

@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import { createWedgeBuffer } from '../lib/keyboard-wedge';
 import type { OperationProductOption, Product } from '../types';
 import { equipmentTitle } from './format';
 import { useMoney } from './exchange';
 import { equipmentSuggestions } from './sale-equipment';
+import { ScanCameraButton } from './scan/ImeiScanField';
 import { Field } from './ui';
 
 export function EquipmentField<T extends Product | OperationProductOption>({
@@ -13,6 +16,10 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   onValue,
   onPick,
   reservedName,
+  onScan,
+  onCamera,
+  imeiMissing,
+  placeholder = 'Buscar modelo o escanear IMEI',
 }: {
   items: T[];
   value: string;
@@ -21,8 +28,13 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   reservedName?: string | null;
   onValue: (value: string) => void;
   onPick: (item: T) => void;
+  onScan?: (raw: string) => void;
+  onCamera?: () => void;
+  imeiMissing?: boolean;
+  placeholder?: string;
 }) {
   const money = useMoney();
+  const wedge = useRef(createWedgeBuffer());
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const suggestions = useMemo(() => equipmentSuggestions(items, value), [items, value]);
@@ -35,6 +47,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
 
   return (
     <div className="eqs">
+      <div className={`scan-imei${imeiMissing ? ' scan-missing' : ''}`}>
       <Field label="Equipo" error={error}>
         <input
           role="combobox"
@@ -45,7 +58,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           spellCheck={false}
           aria-controls="sale-equipment-list"
           value={value}
-          placeholder="Escribí el modelo o elegí uno del stock"
+          placeholder={placeholder}
           onChange={(event) => {
             onValue(event.target.value);
             setOpen(true);
@@ -53,7 +66,14 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
-          onKeyDown={(event) => {
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+            const pushed = wedge.current.push(event.key);
+            if (pushed.type === 'scan') {
+              event.preventDefault();
+              onScan?.(pushed.value);
+              setOpen(false);
+              return;
+            }
             if (event.key === 'Escape' && open) {
               event.stopPropagation();
               setOpen(false);
@@ -76,6 +96,8 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           }}
         />
       </Field>
+      {onCamera ? <ScanCameraButton onClick={onCamera} /> : null}
+      </div>
       {visible ? (
         <ul id="sale-equipment-list" role="listbox" className="eqs-list">
           {suggestions.map((item, index) => (
@@ -97,7 +119,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           ))}
         </ul>
       ) : null}
-      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
+      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked && !imeiMissing ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
     </div>
   );
 }

@@ -16,11 +16,12 @@ export async function fetchBackendInventory(user: AuthUserLike): Promise<Product
 
 export async function createBackendInventoryItem(
   user: AuthUserLike,
-  item: Omit<Product, 'id'>
+  item: Omit<Product, 'id'>,
+  options?: { restockRetired?: boolean },
 ): Promise<Product> {
   const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory', {
     method: 'POST',
-    body: item,
+    body: options?.restockRetired ? { ...item, restockRetired: true } : item,
     fallback: (status) => `No se pudo crear el equipo (${status})`,
     errorFrom: 'friendly',
   });
@@ -29,6 +30,19 @@ export async function createBackendInventoryItem(
   }
 
   return data.inventoryItem;
+}
+
+export async function createBackendInventoryBatch(
+  user: AuthUserLike,
+  items: Omit<Product, 'id'>[],
+): Promise<{ created: Product[]; errors: { index: number; imei: string; message: string }[] }> {
+  const data = await apiRequest<{ created?: Product[]; errors?: { index: number; imei: string; message: string }[] }>(user, '/api/inventory/batch', {
+    method: 'POST',
+    body: { items },
+    fallback: (status) => `No se pudo cargar la serie (${status})`,
+    errorFrom: 'friendly',
+  });
+  return { created: data.created ?? [], errors: data.errors ?? [] };
 }
 
 export async function updateBackendInventoryItem(user: AuthUserLike, item: Product): Promise<Product> {
