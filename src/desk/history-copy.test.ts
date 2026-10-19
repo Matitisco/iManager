@@ -34,5 +34,6 @@ describe('history copy', () => {
     expect(historyRecordNote({ legacy: false, recordState: 'active', section: 'cash' })).toBe('El registro ya no existe');
     expect(historyRecordNote({ legacy: false, recordState: 'active', section: 'sales' })).toBeNull();
     expect(historyRecordNote({ legacy: false, recordState: 'archived', section: 'inventory' })).toBeNull();
+    expect(historyRecordNote({ legacy: false, recordState: 'active', section: 'inventory', entityType: 'stockcount' })).toBe('Está en Control de stock, dentro de Inventario.');
   });
 });

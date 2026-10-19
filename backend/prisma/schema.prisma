@@ -95,6 +95,7 @@ model Store {
   returnCases         ReturnCase[]
   creditNotes         CreditNote[]
   creditApplications  CreditNoteApplication[]
+  stockCounts         StockCount[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -1100,4 +1101,69 @@ model ProductEvent {
   @@index([name, createdAt])
   @@index([storeId, createdAt])
   @@index([userId, createdAt])
+}
+
+// Blind physical count. New tables only: no unique constraints on existing models.
+model StockCount {
+  id             String    @id @default(cuid())
+  storeId        String
+  status         String    @default("OPEN") @db.VarChar(16)
+  scope          String    @default("DEVICES") @db.VarChar(16)
+  startedById    String
+  startedByName  String    @db.VarChar(255)
+  closedById     String?
+  closedByName   String?   @db.VarChar(255)
+  closedAt       DateTime?
+  resolution     String?   @db.VarChar(16)
+  excludedNoImei Int       @default(0)
+  result         Json?
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  expected       StockCountExpected[]
+  scans          StockCountScan[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([storeId, status])
+  @@index([storeId, createdAt])
+}
+
+model StockCountExpected {
+  id               String     @id @default(cuid())
+  stockCountId     String
+  storeId          String
+  inventoryItemId  String
+  imei             String     @db.VarChar(32)
+  model            String     @db.VarChar(100)
+  capacity         String     @db.VarChar(50)
+  color            String     @db.VarChar(50)
+  statusAtSnapshot String     @db.VarChar(20)
+  price            Decimal    @db.Decimal(12, 2)
+  currency         String?    @db.VarChar(3)
+  stockCount       StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  createdAt        DateTime   @default(now())
+
+  @@index([stockCountId])
+  @@index([storeId, stockCountId])
+  @@index([stockCountId, imei])
+}
+
+model StockCountScan {
+  id              String     @id @default(cuid())
+  stockCountId    String
+  storeId         String
+  scannedById     String
+  scannedByName   String     @db.VarChar(255)
+  imei            String     @db.VarChar(32)
+  result          String     @db.VarChar(16)
+  counts          Boolean    @default(true)
+  inventoryItemId String?
+  model           String?    @db.VarChar(100)
+  capacity        String?    @db.VarChar(50)
+  color           String?    @db.VarChar(50)
+  stockCount      StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+
+  @@index([stockCountId, scannedById, createdAt])
+  @@index([stockCountId, imei])
+  @@index([storeId, stockCountId])
 }

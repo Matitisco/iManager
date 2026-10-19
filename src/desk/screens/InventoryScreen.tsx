@@ -29,6 +29,7 @@ import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
+import { StockCountScreen, StockEntryButton } from './StockCountScreen';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
@@ -85,6 +86,7 @@ export function InventoryScreen() {
   const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useState('Recientes');
   const [archivedMode, setArchivedMode] = useState(false);
+  const [stockOpen, setStockOpen] = useState(false);
   const [archived, setArchived] = useState<Product[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
@@ -173,6 +175,8 @@ export function InventoryScreen() {
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
+  if (stockOpen) return <StockCountScreen onBack={() => setStockOpen(false)} />;
+
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
@@ -193,6 +197,7 @@ export function InventoryScreen() {
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
+            <StockEntryButton onClick={() => setStockOpen(true)} />
             <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
             <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
           </div>
@@ -200,6 +205,7 @@ export function InventoryScreen() {
       />
       <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
+      {phone ? <StockEntryButton onClick={() => setStockOpen(true)} /> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
