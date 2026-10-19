@@ -43,8 +43,8 @@ import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
-const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
-  cash: 'grid', publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
+const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones' | 'store' | 'register'> = {
+  cash: 'register', publicCatalog: 'store', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
 const MORE_SUB: Record<DeskSectionId, string> = {
@@ -298,15 +298,15 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock'; size: number }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock' | 'store' | 'register'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
-    { id: 'publicCatalog', label: 'Catálogo', icon: 'list', size: 18 },
+    { id: 'publicCatalog', label: 'Catálogo', icon: 'store', size: 18 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
-    { id: 'cash', label: 'Cajas', icon: 'grid', size: 20 },
+    { id: 'cash', label: 'Cajas', icon: 'register', size: 20 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
     { id: 'history', label: 'Historial', icon: 'clock', size: 20 },
     { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },

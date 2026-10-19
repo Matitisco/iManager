@@ -107,6 +107,8 @@ async function installApi(page: Page) {
     if (path === '/api/catalogs') return route.fulfill({ json: { meta: {}, options: [] } });
     if (path.endsWith('/members')) return route.fulfill({ json: { members } });
     if (path === '/api/invitations') return route.fulfill({ json: { invitations: invites } });
+    if (path === '/api/commissions/rules') return route.fulfill({ json: { rules: [] } });
+    if (path === '/api/commissions') return route.fulfill({ json: { period: { key: '2026-10', label: 'octubre', timezone: 'America/Argentina/Buenos_Aires' }, people: [], summary: { salesCount: 0 } } });
     if (path === '/api/commissions/sellers') return route.fulfill({ json: { sellers: [{ id: ownerId, name: 'Matias Tiscornia', role: 'OWNER' }] } });
     if (path === '/api/commissions/exchange-rate') return route.fulfill({ json: { exchangeRate: 1300 } });
     if (path === '/api/cash') return route.fulfill({ json: { registers: [{ id: 'cash', name: 'Caja principal', currency: 'USD', method: 'EFECTIVO', isDefault: true, archivedAt: null, balance: 350, session: { id: 'session', day: '2026-10-18', status: 'OPEN' } }], canViewBalances: true } });
@@ -279,6 +281,35 @@ test.describe('post 395', () => {
       expect(await client.getAttribute('autocomplete')).toBe('off');
     });
   }
+
+  test('iconos distintos en el menú', async ({ page }) => {
+    const icon = (testId: string) => page.getByTestId(testId).locator('svg').first();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/#/dash');
+    await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
+    await expect(icon('sidebar-tab-dashboard')).toHaveAttribute('data-desk-icon', 'grid');
+    await expect(icon('sidebar-tab-inventory')).toHaveAttribute('data-desk-icon', 'list');
+    await expect(icon('sidebar-tab-publicCatalog')).toHaveAttribute('data-desk-icon', 'store');
+    await expect(icon('sidebar-tab-cash')).toHaveAttribute('data-desk-icon', 'register');
+    const catalog = await icon('sidebar-tab-publicCatalog').evaluate((el) => el.innerHTML);
+    const inventory = await icon('sidebar-tab-inventory').evaluate((el) => el.innerHTML);
+    const cash = await icon('sidebar-tab-cash').evaluate((el) => el.innerHTML);
+    const dashboard = await icon('sidebar-tab-dashboard').evaluate((el) => el.innerHTML);
+    expect(catalog).not.toBe(inventory);
+    expect(cash).not.toBe(dashboard);
+    await shot(page, 'iconos-desktop');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/#/mas');
+    const menu = page.getByTestId('more-screen');
+    await expect(menu.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
+    await expect(menu.getByTestId('sidebar-tab-publicCatalog').locator('svg')).toHaveAttribute('data-desk-icon', 'store');
+    await expect(menu.getByTestId('sidebar-tab-cash').locator('svg')).toHaveAttribute('data-desk-icon', 'register');
+    const bar = page.getByTestId('mobile-tab-bar');
+    await expect(bar.getByTestId('sidebar-tab-dashboard').locator('svg')).toHaveAttribute('data-desk-icon', 'grid');
+    await expect(bar.getByTestId('sidebar-tab-inventory').locator('svg')).toHaveAttribute('data-desk-icon', 'list');
+    await shot(page, 'iconos-mobile');
+  });
 
   test('el empleado no ve canjes ni invitar', async ({ page }) => {
     persona = 'staff';
