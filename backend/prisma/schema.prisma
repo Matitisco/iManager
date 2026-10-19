@@ -150,6 +150,7 @@ model Client {
 
   @@index([storeId])
   @@index([storeId, archivedAt])
+  @@index([storeId, archivedAt, createdAt])
   @@unique([storeId, dni])
 }
 
@@ -230,6 +231,7 @@ model InventoryItem {
 
   @@index([storeId])
   @@index([storeId, archivedAt])
+  @@index([storeId, archivedAt, createdAt])
   @@index([storeId, catalogVisible])
   @@index([reservedDepositId])
   @@unique([storeId, imei])
@@ -293,9 +295,11 @@ model Sale {
   @@index([storeId])
   @@index([storeId, soldAt])
   @@index([storeId, voidedAt])
+  @@index([storeId, voidedAt, soldAt])
   @@index([sellerMemberId])
   @@index([clientId])
   @@index([inventoryItemId])
+  @@index([inventoryItemId, soldAt])
   @@unique([storeId, requestKey])
 }
 
@@ -349,6 +353,7 @@ model TradeIn {
   @@index([storeId])
   @@index([storeId, tradeAt])
   @@index([storeId, voidedAt])
+  @@index([storeId, voidedAt, tradeAt])
   @@index([clientId])
   @@unique([storeId, requestKey])
 }

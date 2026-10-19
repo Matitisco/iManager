@@ -196,12 +196,12 @@ describe('sidebar unread counts', () => {
       expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
 
       goHash('#/inv');
-      expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
       expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 
       goHash('#/clientes');
-      expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
       expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
 
       releaseHealth();
@@ -282,7 +282,7 @@ describe('sidebar unread counts', () => {
     context.loadCommissions = undefined;
   });
 
-  it('shows a back arrow on sections that live in Más and a dock on the bar sections', () => {
+  it('shows a back arrow on sections that live in Más and a dock on the bar sections', async () => {
     usePhone();
     window.location.hash = '#/servicio';
     render(<DeskApp />);
@@ -294,7 +294,7 @@ describe('sidebar unread counts', () => {
 
     window.location.hash = '#/inv';
     render(<DeskApp />);
-    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
     expect(screen.queryByTestId('page-back')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
   });

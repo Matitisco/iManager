@@ -9,6 +9,7 @@ import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { OfflineScope } from './offline-banner';
 import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useEffect, useRef, useState } from 'react';
+import { prefetchMainRoutes } from './prefetch-routes';
 import { BrandIsotipo } from '../components/brand-mark';
 import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
@@ -16,15 +17,15 @@ import { initials, isInProgressTrade } from './format';
 import { ImanagerIcon } from './icons';
 import { REPAIR_DELIVERED } from './repairs';
 import { usePhoneLayout } from './section-notices';
-import { ClientsScreen } from './screens/ClientsScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { InventoryScreen } from './screens/InventoryScreen';
+import { SalesScreen } from './screens/SalesScreen';
+import { ClientsScreen } from './screens/ClientsScreen';
+import { TradeInsScreen } from './screens/TradeInsScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
 import { CommissionsScreen } from './screens/CommissionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
-import { SalesScreen } from './screens/SalesScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
-import { TradeInsScreen } from './screens/TradeInsScreen';
 import { BlueDollar } from './BlueDollar';
 import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
@@ -165,7 +166,8 @@ function FxBanner() {
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
+  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus, sessionConfirmed } = useAppContext();
+  useEffect(() => { void prefetchMainRoutes(); }, []);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const commissionAccess = canManageCommissions(sections, role);
@@ -179,12 +181,12 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const allowed = (id: DeskTab) => id === 'billing' ? role === 'OWNER' : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
-    if (!user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
+    if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
     setCommissionCountError('');
     void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); });
     return () => { active = false; };
-  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry]);
+  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry, sessionConfirmed]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
 

@@ -109,17 +109,13 @@ function AppContent() {
     return <AuthActionPage link={authAction.link} onDone={finishAuthAction} />;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   if (inviteToken) return <InviteScreen token={inviteToken} state={inviteState} onLeave={clearInvite} onAccept={() => { void handleAcceptInvite(); }} accepting={inviteAccepting} error={inviteError || (user && ['offline', 'error', 'unconfigured'].includes(backendStatus) ? backendMessage || 'No pudimos preparar tu cuenta. Reintentá en unos segundos.' : '')} ready={backendStatus === 'ready'} />;
 
-  if (!user) {
+  if (loading && !user) {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
+  if (!user || backendStatus === 'unauthorized') {
     const storeName = sessionClosedStore();
     if (storeName) {
       return <SessionClosed key={closedVersion} storeName={storeName} onRelogin={() => setClosedVersion((version) => version + 1)} />;
@@ -139,17 +135,16 @@ function AppContent() {
     return <OnboardingJourney />;
   }
 
-  if (backendStatus === 'checking') {
+  if (backendStatus === 'ready' && (!appSession?.store || !appSession?.membership)) {
     return (
       <BlockingScreen
-        busy
-        title="Resolviendo sesión segura"
-        message="Estamos validando tu sesión, la tienda activa y los permisos antes de abrir el sistema."
+        title="Contexto de tienda incompleto"
+        message="Tu cuenta está autenticada, pero todavía no tiene una tienda y membresía resueltas de forma segura en el backend."
       />
     );
   }
 
-  if (backendStatus !== 'ready') {
+  if (backendStatus !== 'ready' && backendStatus !== 'checking') {
     return (
       <BlockingScreen
         title={backendStatus === 'offline' ? 'Backend no disponible' : 'Backend no configurado'}
@@ -157,15 +152,6 @@ function AppContent() {
           backendMessage ||
           'iManager ahora requiere el backend operativo para cargar datos de negocio y validar la membresía de tienda.'
         }
-      />
-    );
-  }
-
-  if (!appSession?.store || !appSession?.membership) {
-    return (
-      <BlockingScreen
-        title="Contexto de tienda incompleto"
-        message="Tu cuenta está autenticada, pero todavía no tiene una tienda y membresía resueltas de forma segura en el backend."
       />
     );
   }

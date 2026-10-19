@@ -80,7 +80,7 @@ export function CommissionMemberSheet({ person, period, rule, onClose, onRule, o
 }
 
 export function CommissionsScreen() {
-  const { appSession, commissionSummaries = {}, commissionDetails = {}, commissionRules = [], loadCommissions, loadCommissionDetail } = useAppContext();
+  const { appSession, commissionSummaries = {}, commissionDetails = {}, commissionRules = [], loadCommissions, loadCommissionDetail, sessionConfirmed } = useAppContext();
   const { back, go } = useDesk();
   const phone = usePhoneLayout();
   const manage = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
@@ -96,10 +96,11 @@ export function CommissionsScreen() {
   const mine = commissionDetails[`mine:${period}`];
   const detail = member ? commissionDetails[`${member}:${period}`] : undefined;
   useEffect(() => {
+    if (sessionConfirmed === false) return;
     let active = true; setLoading(true); setError(''); setMember(null); setSheet(null);
     loadCommissions(period).catch((cause: unknown) => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [period, manage, appSession?.store?.id, appSession?.user?.id, retry]);
+  }, [period, manage, appSession?.store?.id, appSession?.user?.id, retry, sessionConfirmed]);
   const openMember = async (id: string) => {
     setError('');
     try { await loadCommissionDetail(id, period); setMember(id); } catch (cause) { setError(toUserMessage(cause, 'No se pudo cargar el detalle')); }

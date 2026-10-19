@@ -21,6 +21,7 @@ import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
+import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Client } from '../../types';
 import { fetchArchivedClients } from '../../services/clients-api';
@@ -64,7 +65,8 @@ function sortClients(rows: Client[], sort: string) {
 }
 
 export function ClientsScreen() {
-  const { clients, deleteClient, operationDrafts = [], user } = useAppContext();
+  const { clients, deleteClient, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
@@ -181,7 +183,7 @@ export function ClientsScreen() {
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
       {view === 'lista' && phone ? (
-        listed.length === 0 ? (
+        loadingLists ? <ListSkeleton variant="cards" rows={4} testId="clients-loading" /> : listed.length === 0 ? (
           quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="wempty">No hay clientes con ese filtro.</div>
         ) : (
           <>
@@ -279,7 +281,7 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        {listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       ) : null}

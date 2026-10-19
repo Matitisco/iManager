@@ -109,6 +109,20 @@ describe('backend-session', () => {
     });
   });
 
+  it('treats an invalid token as unauthorized so the app can return to login', async () => {
+    setApiBaseUrl('https://api.imanager.test');
+    vi.mocked(fetchWithTimeout).mockResolvedValue(new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 }));
+
+    await expect(fetchBackendSession(mockUser)).resolves.toEqual({
+      status: 'unauthorized',
+      session: null,
+      message: 'La sesión venció. Volvé a entrar.',
+    });
+
+    mockUser.getIdToken.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }));
+    await expect(fetchBackendSession(mockUser)).resolves.toMatchObject({ status: 'unauthorized' });
+  });
+
   it('returns an offline status when the request throws', async () => {
     setApiBaseUrl('https://api.imanager.test');
     vi.mocked(fetchWithTimeout).mockRejectedValue(new Error('timeout'));

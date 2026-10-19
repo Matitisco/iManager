@@ -117,7 +117,10 @@ test('real service worker reopens the shell offline but never serves API/session
   await page.unroute('**/api/**');
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Backend no disponible' })).toBeVisible();
+  // The shell comes back from the app cache. The session is the last one stored
+  // on the device, not a cached /api/me response.
+  await expect(page.locator('.desk-app')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Backend no disponible' })).toHaveCount(0);
   const apiFailed = await page.evaluate(async () => {
     try { await fetch('/api/me'); return false; } catch { return true; }
   });

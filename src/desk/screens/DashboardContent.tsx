@@ -18,6 +18,7 @@ import {
   tradeCode,
 } from '../format';
 import { ImanagerIcon } from '../icons';
+import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { canOpenSection, canSeeFinancials, canViewTeam } from '../sections';
 import { usePhoneLayout } from '../section-notices';
 import { PhoneRecord, PhoneRecords } from '../section-notice-view';
@@ -34,7 +35,8 @@ const TASKS = [
 ] as const;
 
 export function DashboardContent() {
-  const { appSession, user, sales, inventory, tradeIns, clients, operationNotifications } = useAppContext();
+  const { appSession, user, sales, inventory, tradeIns, clients, operationNotifications, listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { go, open, toast, back } = useDesk();
   const phone = usePhoneLayout();
@@ -194,27 +196,27 @@ export function DashboardContent() {
           <button className="mini" type="button" onClick={() => go('sales')}>
             <div className="ico"><DeskIcon name="cart" size={22} /></div>
             <div className="eyebrow">Ventas del mes</div>
-            <div className="val">{seeFinancials ? (monthTotal == null ? '—' : money.compactActive(monthTotal)) : monthSales.length}</div>
-            <div className="sub">{seeFinancials ? <>{monthSales.length === 1 ? '1 venta' : `${monthSales.length} ventas`}{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
+            <div className="val">{loadingLists ? <span className="list-skel-bar" /> : seeFinancials ? (monthTotal == null ? '—' : money.compactActive(monthTotal)) : monthSales.length}</div>
+            <div className="sub">{loadingLists ? 'Cargando…' : seeFinancials ? <>{monthSales.length === 1 ? '1 venta' : `${monthSales.length} ventas`}{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
           </button>
           <button className="mini" type="button" onClick={() => go('inventory')}>
             <div className="ico"><ImanagerIcon name="equipo" size={20} /></div>
             <div className="eyebrow">En stock</div>
-            <div className="val">{inventory.length} {inventory.length === 1 ? 'equipo' : 'equipos'}</div>
-            <div className="sub">{available} {available === 1 ? 'disponible' : 'disponibles'}</div>
+            <div className="val">{loadingLists ? <span className="list-skel-bar" /> : <>{inventory.length} {inventory.length === 1 ? 'equipo' : 'equipos'}</>}</div>
+            <div className="sub">{loadingLists ? 'Cargando…' : <>{available} {available === 1 ? 'disponible' : 'disponibles'}</>}</div>
             <div className="budget"><i style={{ width: `${stockPct}%` }} /></div>
           </button>
           {seeTrades ? <button className="mini" type="button" onClick={() => go('tradeins')}>
             <div className="ico"><ImanagerIcon name="canje" size={20} /></div>
             <div className="eyebrow">Canjes en curso</div>
-            <div className="val">{openTrades.length}</div>
-            <div className="sub">{tradeIns.length} en total</div>
+            <div className="val">{loadingLists ? <span className="list-skel-bar" /> : openTrades.length}</div>
+            <div className="sub">{loadingLists ? 'Cargando…' : `${tradeIns.length} en total`}</div>
           </button> : null}
           <button className="mini" type="button" onClick={() => go('clients')}>
             <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
-            <div className="val">{balanceTotal == null ? '—' : money.compactActive(balanceTotal)}</div>
-            <div className="sub">{balance.length === 1 ? '1 cliente' : `${balance.length} clientes`}</div>
+            <div className="val">{loadingLists ? <span className="list-skel-bar" /> : balanceTotal == null ? '—' : money.compactActive(balanceTotal)}</div>
+            <div className="sub">{loadingLists ? 'Cargando…' : balance.length === 1 ? '1 cliente' : `${balance.length} clientes`}</div>
           </button>
         </div>
       </div>
@@ -222,7 +224,7 @@ export function DashboardContent() {
       <div className="dgrid two">
         <div className="dcard" data-testid="dashboard-sales">
           <div className="dch"><h3>Ventas recientes</h3><button className="wlink" type="button" onClick={() => go('sales')}>Ver todas</button></div>
-          {recent.length === 0 ? (
+          {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={4} testId="dashboard-sales-loading" /> : recent.length === 0 ? (
             <div className="wempty dashboard-empty">
               <div><b>Todavía no registraste ventas</b><small>Tu primera venta aparece acá</small></div>
               <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
@@ -266,7 +268,7 @@ export function DashboardContent() {
         </div>
         {seeTrades ? <div className="dcard" data-testid="dashboard-trades">
           <div className="dch"><h3>Canjes en curso</h3><button className="wlink" type="button" onClick={() => go('tradeins')}>Ver todos</button></div>
-          {openTrades.length === 0 ? (
+          {loadingLists ? <ListSkeleton variant="cards" rows={3} testId="dashboard-trades-loading" /> : openTrades.length === 0 ? (
             <div className="wempty dashboard-empty">
               <div><b>Sin canjes en curso</b><small>Los equipos que recibas como parte de pago aparecen acá</small></div>
               <button className="dbtn s" type="button" onClick={() => open({ type: 'new-cj' })}><Plus size={16} />Nuevo canje</button>

@@ -81,6 +81,7 @@ export function ReportsScreen() {
     customColumns = [],
     appSession,
     user,
+    sessionConfirmed,
   } = useAppContext();
   const money = useMoney();
   const phone = usePhoneLayout();
@@ -143,11 +144,11 @@ export function ReportsScreen() {
   const commissionReportKey = `${appSession?.store?.id}:${appSession?.user?.id}:${role}:${JSON.stringify(sections)}:${commissionFrom}:${commissionTo}`;
   const commissionRows = commissionReport?.key === commissionReportKey ? commissionReport.data.rows : [];
   useEffect(() => {
-    if (activeTab !== 'Comisiones' || !user) return;
+    if (sessionConfirmed === false || activeTab !== 'Comisiones' || !user) return;
     let active = true; setCommissionReportLoading(true); setCommissionReportError('');
     void fetchCommissionReport(user, commissionFrom, commissionTo).then(data => { if (!Array.isArray(data.rows)) throw new Error('Respuesta inválida del reporte de comisiones'); if (active) setCommissionReport({ key: commissionReportKey, data }); }).catch((cause: unknown) => { if (active) setCommissionReportError(toUserMessage(cause, 'No se pudo cargar el reporte de comisiones')); }).finally(() => { if (active) setCommissionReportLoading(false); });
     return () => { active = false; };
-  }, [activeTab, commissionReportKey, user, commissionReportRetry]);
+  }, [activeTab, commissionReportKey, user, commissionReportRetry, sessionConfirmed]);
   const baseModel = buildReport(activeTab, period, bounds, dimension, dimensions, {
     sales: projectedSales,
     inventory: periodData.inventory,

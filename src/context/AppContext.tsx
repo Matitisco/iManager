@@ -1,4 +1,6 @@
 import { setAnalyticsUser } from '../lib/analytics';
+import { clearSessionCaches, readBootSession, writeBootSession } from '../lib/boot-cache';
+import { cachedAuthUser } from '../lib/cached-auth-user';
 import { useBillingState } from '../hooks/useBillingState';
 import { useCashState } from './cash-state';
 import { useGettingStartedState } from './getting-started-state';
@@ -42,6 +44,7 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   sales: Sale[];
   tradeIns: TradeIn[];
   clients: Client[];
+  listsLoaded: boolean;
   clientDeposits: Record<string, ClientDeposit[]>;
   loadClientDeposits: (clientId: string) => Promise<ClientDeposit[]>;
   addClientDeposit: (clientId: string, input: DepositInput) => Promise<ClientDeposit>;
@@ -90,6 +93,7 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   openSubscriptionCheckout: ReturnType<typeof useBillingState>['openSubscriptionCheckout'];
   cancelSubscription: ReturnType<typeof useBillingState>['cancelSubscription'];
   backendStatus: BackendConnectionStatus;
+  sessionConfirmed: boolean;
   backendMessage: string | null;
   updateStore: (data: StoreUpdateInput) => Promise<void>;
   updateUserProfile: (data: { displayName: string }) => Promise<void>;
@@ -104,15 +108,27 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
+function rememberSession(currentUser: AuthUserLike, session: AppSession) {
+  writeBootSession({
+    uid: currentUser.uid,
+    email: currentUser.email,
+    displayName: currentUser.displayName,
+    photoURL: currentUser.photoURL ?? null,
+    session,
+  });
+}
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
-  const [user, setUser] = useState<AuthUserLike | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [appSession, setAppSession] = useState<AppSession | null>(null);
-  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
+  const boot = readBootSession();
+  const [user, setUser] = useState<AuthUserLike | null>(() => boot ? cachedAuthUser(boot) : null);
+  const [loading, setLoading] = useState(() => !boot);
+  const [appSession, setAppSession] = useState<AppSession | null>(() => boot?.session ?? null);
+  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>(() => boot ? 'ready' : 'checking');
+  const [sessionConfirmed, setSessionConfirmed] = useState(false);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
-    inventory, setInventory,
+    inventory, setInventory, listsLoaded,
     repairOrders, setRepairOrders, repairOrdersError,
     sales, setSales,
     tradeIns, setTradeIns,
@@ -130,7 +146,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
-  const commissions = useCommissionState(user, appSession, backendStatus);
+  const commissions = useCommissionState(user, appSession, backendStatus, sessionConfirmed);
   const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
     const visibility = new Map(catalog?.items.map(item => [item.id, item]));
     setInventory(items => items.map(item => {
@@ -203,8 +219,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
       setAnalyticsUser(currentUser);
-      setUser(currentUser);
       setLoading(false);
+      if (!currentUser) {
+        clearSessionCaches();
+        setUser(null);
+        return;
+      }
+      setUser(currentUser);
     });
     return () => unsubscribe();
   }, [authAdapter]);
@@ -221,6 +242,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setCustomColumns([]);
       setAppSession(null);
       setBackendStatus('checking');
+      setSessionConfirmed(false);
       setBackendMessage(null);
       return;
     }
@@ -228,31 +250,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let cancelled = false;
     let retryTimeout: number | undefined;
 
-    setBackendStatus('checking');
-    setBackendMessage(null);
-
     const loadBackendSession = async () => {
       try {
-        const { status, session, message } = await refreshBackendSession(user);
+        const { status, session, message } = await fetchBackendSession(user);
         if (cancelled) return;
-
-        const shouldRetry = status !== 'ready' || session?.onboardingRequired;
-        if (shouldRetry) {
-          retryTimeout = window.setTimeout(() => {
-            if (!cancelled) {
-              void loadBackendSession();
-            }
-          }, 15000);
+        if (status === 'unauthorized') {
+          clearSessionCaches();
+          setBackendStatus('unauthorized');
+          setSessionConfirmed(false);
+          setBackendMessage(message);
+          setAppSession(null);
+          await authAdapter.logout();
+          return;
         }
+        if (status === 'ready' && session) {
+          rememberSession(user, session);
+          setBackendStatus('ready');
+          setAppSession(session);
+          setSessionConfirmed(true);
+          setBackendMessage(message);
+          if (session.onboardingRequired) {
+            retryTimeout = window.setTimeout(() => {
+              if (!cancelled) void loadBackendSession();
+            }, 15000);
+          }
+          return;
+        }
+        if (readBootSession()?.uid === user.uid) {
+          setBackendStatus('ready');
+          setBackendMessage(message);
+        } else {
+          setBackendStatus(status);
+          setAppSession(session);
+          setBackendMessage(message);
+        }
+        retryTimeout = window.setTimeout(() => {
+          if (!cancelled) void loadBackendSession();
+        }, 15000);
       } catch (error) {
         if (cancelled) return;
-        setBackendStatus('offline');
+        if (readBootSession()?.uid === user.uid) setBackendStatus('ready');
+        else setBackendStatus('offline');
         setBackendMessage(toUserMessage(error));
 
         retryTimeout = window.setTimeout(() => {
-          if (!cancelled) {
-            void loadBackendSession();
-          }
+          if (!cancelled) void loadBackendSession();
         }, 15000);
       }
     };
@@ -298,6 +340,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const logout = async () => {
+    clearSessionCaches();
     await authAdapter.logout();
   };
 
@@ -342,8 +385,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const session = await completeBackendOnboarding(user, input);
     // Contact details can be completed later from settings.
     setBackendStatus('ready');
+    setSessionConfirmed(true);
     setBackendMessage(null);
     setAppSession(session);
+    rememberSession(user, session);
   };
 
   const reloadSession = async () => {
@@ -359,8 +404,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const data = await acceptInvitationApi(user, token);
     setBackendStatus('ready');
+    setSessionConfirmed(true);
     setBackendMessage(null);
     setAppSession(data.session);
+    rememberSession(user, data.session);
   };
 
   const applyOperationResult = (result: OperationResult, requestScope = currentScope) => {
@@ -842,19 +889,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     noteLocalMutation();
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-pulse flex flex-col items-center"><div className="w-12 h-12 bg-black rounded-full mb-4"></div><div className="text-gray-500 font-medium tracking-wide">Cargando...</div></div></div>;
-  }
-
-
-
   return (
     <AppContext.Provider value={{
       ...cashState,
       ...gettingStartedState,
       ...commissions,
       ...catalogState,
-      inventory, sales, tradeIns, clients, customColumns,
+      inventory, sales, tradeIns, clients, listsLoaded, customColumns,
       repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder, restoreRepairOrder,
       operationOptions, operationDrafts,
       operationNotifications,
@@ -876,7 +917,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       clientCategories,
       updateStore, updateUserProfile, reloadSession,
       ...billingState,
-      user, loading, appSession, backendStatus, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
+      user, loading, appSession, backendStatus, sessionConfirmed, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>
       {children}
     </AppContext.Provider>
