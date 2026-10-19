@@ -52,7 +52,7 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
   return (
     <label className="xsearch">
       <SearchIcon />
-      <input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <input value={value} placeholder={placeholder} autoComplete="off" autoCorrect="off" spellCheck={false} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

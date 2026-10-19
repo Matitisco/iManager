@@ -87,6 +87,15 @@ describe("dashboard de cuenta nueva", () => {
     expect(go).toHaveBeenLastCalledWith("tradeins");
   });
 
+  it("oculta canjes e invitar cuando el empleado no tiene ese permiso", () => {
+    context.appSession.membership = { role: "STAFF", sections: ["dashboard", "sales", "inventory", "clients"] };
+    renderDashboard(<DashboardScreen />);
+    expect(screen.queryByRole("button", { name: /Canjes en curso/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nuevo canje" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ventas del mes/ })).toBeInTheDocument();
+  });
+
   it("conserva las cantidades reales de stock", () => {
     context.inventory = [
       { id: "available", status: "DISPONIBLE" },

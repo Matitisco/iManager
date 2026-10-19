@@ -41,6 +41,9 @@ export function ClientField<T extends Client | OperationClientOption>({
           role="combobox"
           aria-expanded={visible}
           aria-autocomplete="list"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
           aria-controls="trade-client-list"
           value={value}
           maxLength={120}

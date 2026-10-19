@@ -16,3 +16,9 @@ export function unreadBySection(notes: Array<{ section: string; readAt?: string 
   }
   return { total: NOTICE_SECTIONS.reduce((sum, section) => sum + bySection[section], 0), bySection };
 }
+
+/** Nav badges for Inventario, Ventas, Canjes and Clientes. Each section keeps its own count. */
+export function sectionBadge(counts: UnreadCounts['bySection'], id: string) {
+  if (id === 'inventory' || id === 'sales' || id === 'tradeins' || id === 'clients') return counts[id];
+  return 0;
+}

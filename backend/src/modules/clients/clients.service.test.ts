@@ -17,6 +17,7 @@ const prismaMock = vi.hoisted(() => ({
     count: vi.fn(),
     create: vi.fn(),
   },
+  sale: { findFirst: vi.fn() },
   $transaction: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ import {
   createClientCategory,
   importClients,
   serializeClient,
+  updateClient,
 } from "./clients.service.js";
 
 describe("clients.service", () => {
@@ -139,5 +141,47 @@ describe("clients.service", () => {
 
     expect(created.createdAt).toBe("2026-04-02T15:00:00.000Z");
     expect(created.totalSpent).toBe(0);
+  });
+
+  it("renames a client who already has a sale and blocks only a real balance change", async () => {
+    const existing = {
+      id: "client-1",
+      dni: null,
+      name: "Juan",
+      email: null,
+      phone: null,
+      instagram: null,
+      categoryId: null,
+      lastPurchaseAt: null,
+      totalSpent: new Decimal(100),
+      pendingBalance: new Decimal(40),
+      balanceCurrency: "ARS",
+      tag: null,
+      birthday: null,
+      customFields: {},
+      createdAt: new Date("2026-04-02T15:00:00.000Z"),
+      archivedAt: null,
+      archivedBy: null,
+    };
+    prismaMock.client.findFirst.mockResolvedValue(existing);
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1" });
+    const updated = { ...existing, name: "Ana" };
+    prismaMock.$transaction.mockImplementation(async (run: (tx: unknown) => Promise<typeof updated>) => run({
+      client: { update: vi.fn().mockResolvedValue(updated) },
+      inventoryItem: { updateMany: vi.fn() },
+      sale: { updateMany: vi.fn() },
+      tradeIn: { updateMany: vi.fn() },
+      auditEvent: { create: vi.fn() },
+    }));
+
+    await expect(updateClient("store-1", "client-1", { name: "Ana", totalSpent: 100, pendingBalance: 40 })).resolves.toMatchObject({ name: "Ana" });
+    expect(prismaMock.sale.findFirst).not.toHaveBeenCalled();
+
+    prismaMock.sale.findFirst.mockClear();
+    await expect(updateClient("store-1", "client-1", { name: "Ana", pendingBalance: 80 })).rejects.toMatchObject({
+      message: "Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos",
+      statusCode: 409,
+    });
+    expect(prismaMock.sale.findFirst).toHaveBeenCalled();
   });
 });

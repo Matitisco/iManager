@@ -17,6 +17,7 @@ import {
   isInProgressTrade,
   periodBounds,
   saleEquipment,
+  isVoidSale,
   saleCode,
   statusLabel,
   tradeClientLabel,
@@ -177,7 +178,8 @@ export function ReportsScreen() {
   const saleLabel = (sale: Sale) => saleBreakdownLabel(sale, activeTab === 'Ventas' ? dimension : 'payment', inventory, customColumns);
   const stockLabel = (item: Product) => stockBreakdownLabel(item, activeTab === 'Stock' ? dimension : 'status');
   const tradeLabel = (item: TradeIn) => tradeBreakdownLabel(item, activeTab === 'Canjes' ? dimension : 'status', tradeClientLabel(item, clients));
-  const saleRows = periodData.sales.filter((sale) => activeTab !== 'Ventas' || matchesBreakdown(saleLabel(sale), cat, model.otherLabels));
+  const periodSalesListed = sales.filter((sale) => inReportPeriod(sale.date, bounds.start, bounds.end));
+  const saleRows = (activeTab === 'Ventas' ? periodSalesListed : periodData.sales).filter((sale) => activeTab !== 'Ventas' || matchesBreakdown(saleLabel(sale), cat, model.otherLabels));
   const stockRows = periodData.inventory.filter((item) => activeTab !== 'Stock' || matchesBreakdown(stockLabel(item), cat, model.otherLabels));
   const tradeRows = periodData.tradeIns.filter((item) => activeTab !== 'Canjes' || matchesBreakdown(tradeLabel(item), cat, model.otherLabels));
   const clientRows = clientReport.rows.filter((row) => activeTab !== 'Clientes' || matchesBreakdown(clientBreakdownLabel(row, dimension), cat, model.otherLabels));
@@ -354,7 +356,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
-            <button key={sale.id} className="gtk" type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
+            <button key={sale.id} className={`gtk${isVoidSale(sale) ? ' is-void' : ''}`} type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
               <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{money.compact(sale.amount, sale.amountCurrency)}</div></div>
               <span className="gchev">›</span>

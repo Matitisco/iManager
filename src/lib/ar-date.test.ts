@@ -24,6 +24,7 @@ describe('Argentine dates', () => {
 
   it('formats an instant as day/month/year and 24-hour time in Argentina', () => {
     expect(formatArDateTime('2026-10-09T15:04:00.000Z')).toBe('09/10/2026 12:04');
+    expect(formatArDateTime('2026-10-18T22:16:00.000Z')).toBe('18/10/2026 19:16');
   });
 
   it('rejects impossible days and non-dates', () => {

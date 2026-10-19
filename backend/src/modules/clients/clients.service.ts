@@ -224,11 +224,6 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     return null;
   }
 
-  if (input.totalSpent !== undefined || input.pendingBalance !== undefined) {
-    const activeIntegratedSale = await clientsRepository.findActiveIntegratedSale(storeId, id);
-    if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
-  }
-
   if (input.dni !== undefined) {
     const nextDni = normalizeDni(input.dni);
     if (nextDni) {
@@ -246,6 +241,10 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   const spentChanges = input.totalSpent !== undefined && moneyChanged(existing.totalSpent, input.totalSpent);
   const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
+  if (spentChanges || balanceChanges) {
+    const activeIntegratedSale = await clientsRepository.findActiveIntegratedSale(storeId, id);
+    if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
+  }
   const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, prisma) : "ARS");
 
   const updated = await clientsRepository.transaction(async (tx) => {
