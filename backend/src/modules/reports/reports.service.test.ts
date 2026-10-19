@@ -8,6 +8,7 @@ const {
   inventoryCountMock,
   inventoryAggregateMock,
   inventoryFindManyMock,
+  returnCaseFindManyMock,
 } = vi.hoisted(() => ({
   saleFindManyMock: vi.fn(),
   tradeInFindManyMock: vi.fn(),
@@ -16,6 +17,7 @@ const {
   inventoryCountMock: vi.fn(),
   inventoryAggregateMock: vi.fn(),
   inventoryFindManyMock: vi.fn(),
+  returnCaseFindManyMock: vi.fn(),
 }));
 
 vi.mock("../../plugins/prisma.js", () => ({
@@ -34,6 +36,9 @@ vi.mock("../../plugins/prisma.js", () => ({
       count: inventoryCountMock,
       aggregate: inventoryAggregateMock,
       findMany: inventoryFindManyMock,
+    },
+    returnCase: {
+      findMany: returnCaseFindManyMock,
     },
   },
 }));
@@ -92,6 +97,8 @@ describe("getReportsOverview", () => {
     vi.clearAllMocks();
     saleFindManyMock.mockReset();
     inventoryFindManyMock.mockReset();
+    returnCaseFindManyMock.mockReset();
+    returnCaseFindManyMock.mockResolvedValue([]);
 
     saleFindManyMock.mockResolvedValue([
       {
