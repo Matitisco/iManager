@@ -87,7 +87,7 @@ for (const device of [
       }
       await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
       await expect(dialog).toBeHidden();
-      await expect(page.getByText('Anulado')).toBeVisible();
+      await expect(page.getByText('Anulado', { exact: true })).toBeVisible();
       await expect(record).toHaveCount(0);
       expect((await fetchTradeIns(request, email)).tradeIns).toHaveLength(2);
       expect(await snapshot()).toEqual(before);

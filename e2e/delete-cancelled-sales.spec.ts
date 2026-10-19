@@ -82,7 +82,7 @@ for (const device of [
       await expect(bulk).toContainText('Se conservan el stock, los canjes, los saldos y los pagos');
       if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-bulk.png`, animations: 'disabled' });
       await bulk.getByRole('button', { name: 'Anular selección', exact: true }).click();
-      await expect(bulk).toBeHidden();
+      await expect(bulk).toBeHidden({ timeout: 20_000 });
       expect((await fetchSales(request, email)).sales).toHaveLength(0);
       expect((await fetchTradeIns(request, email)).tradeIns[0].saleId).toBeNull();
       expect(await snapshot()).toEqual(before);

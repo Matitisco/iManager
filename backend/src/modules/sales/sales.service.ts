@@ -525,7 +525,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     await tx.commissionAccrual.updateMany({ where: { storeId, sourceSaleId: id, voidReason: "CANCELLED" }, data: { voidReason: "DELETED" } });
     await tx.sale.update({
       where: { id },
-      data: { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: reason },
+      data: { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: reason, tradeInId: null },
     });
 
     return true;

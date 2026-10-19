@@ -225,7 +225,7 @@ test.describe('service on a phone', () => {
     await expect(detail.getByText('01/01 · atrasada')).toBeVisible();
     await expect(detail.getByText('US$ 120')).toBeVisible();
     await expect(detail.getByText('US$ 40')).toBeVisible();
-    await expect(detail.getByText('Historial')).toBeVisible();
+    await expect(detail.locator('.svc-log').getByText('Historial', { exact: true })).toBeVisible();
     await expect(detail.locator('.svc-log li')).toHaveCount(1);
     await expect(detail.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
     await expect(detail.getByText(/Tentativo/)).toHaveCount(0);
