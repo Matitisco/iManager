@@ -84,7 +84,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
   const receipts = useClientDeposits(currentSale ? '' : clientId);
   const [depositIds, setDepositIds] = useState<string[]>([]);
-  useEffect(() => { setDepositIds([]); }, [clientId, productId]);
+  const [creditNoteIds, setCreditNoteIds] = useState<string[]>([]);
+  const openNotes = (context.creditNotes ?? []).filter((note) => note.clientId === clientId && note.remaining > 0 && !note.deletedAt);
+  useEffect(() => { setDepositIds([]); setCreditNoteIds([]); }, [clientId, productId]);
   const [buyer, setBuyer] = useState(currentSale?.clientName?.trim() || currentTrade?.clientName?.trim() || preset?.clientName || clients.find((client) => client.id === (currentSale?.clientId || currentTrade?.clientId || preset?.clientId))?.name || '');
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
@@ -228,6 +230,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   };
   const buildInput = (draft: boolean): OperationInput => ({
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
+    ...(!currentSale && !draft && creditNoteIds.length ? { creditNoteIds } : {}),
     sellerMemberId: sellerMemberId || null,
     ...(!currentSale && (settlement.payload?.exchangeRate || money.rate) ? { exchangeRate: settlement.payload?.exchangeRate || money.rate || undefined } : {}),
     date: arFromIso(saleDate),
@@ -432,6 +435,23 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       <p className="op-summary">{dueCopy}</p>
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
+      {!currentSale && openNotes.length ? (
+        <div data-testid="sale-credit-notes">
+          <Field label="Notas de crédito"><span /></Field>
+          {openNotes.map((note) => (
+            <label className="op-check" key={note.id}>
+              <input
+                type="checkbox"
+                checked={creditNoteIds.includes(note.id)}
+                disabled={busy || settlement.active}
+                onChange={(event) => setCreditNoteIds((current) => event.target.checked ? [...current, note.id] : current.filter((id) => id !== note.id))}
+              />
+              {note.code} · quedan {money.show(note.remaining, note.currency)}
+            </label>
+          ))}
+          {settlement.active ? <p className="eqs-note">La nota se aplica en un cobro simple, sin cuotas ni varios medios.</p> : null}
+        </div>
+      ) : null}
       {!currentSale ? <SalePaymentsFields clientId={clientId} due={Math.max(0, cashDue - appliedDeposits)} currency={typedCurrency === 'USD' ? 'USD' : 'ARS'} suggestedRate={money.rate} onChange={setSettlement} /> : null}
       {settlement.active ? null : <><Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} /></>}
@@ -521,6 +541,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
           <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
           {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
           {sale.status !== 'CANCELADA' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+          {sale.status === 'COMPLETADA' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button> : null}
           <button className="btn2 p" type="button" onClick={() => {
             const text = [
               saleCode(sale),

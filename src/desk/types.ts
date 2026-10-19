@@ -10,6 +10,7 @@ export type DeskTab =
   | 'service'
   | 'commissions'
   | 'suppliers'
+  | 'returns'
   | 'expenses'
   | 'reports'
   | 'history'
@@ -45,6 +46,8 @@ export type Overlay =
   | { type: 'edit-supplier'; id: string }
   | { type: 'new-expense' }
   | { type: 'edit-expense'; id: string }
+  | { type: 'new-return'; saleId?: string }
+  | { type: 'return'; id: string }
   | { type: 'store'; focus?: 'phone' }
   | { type: 'warranty' }
   | { type: 'periodic-report' }

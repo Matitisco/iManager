@@ -32,7 +32,7 @@ export interface AuditReport {
   periodLabel: string;
   currency: MoneyCurrency;
   sales: ReportMoney & { delta: string | null; payments: Array<{ label: string; total: number }> };
-  returns: { cancelled: ReportMoney; refunds: ReportMoney };
+  returns: { cancelled: ReportMoney; refunds: ReportMoney; credits: ReportMoney };
   stock: { entered: number; available: number; physicalCounts: number };
 }
 
@@ -131,6 +131,7 @@ export function buildAuditReport(input: {
   sellRate: number | null;
   sales: ReportSale[];
   refunds: ReportRefund[];
+  credits?: ReportRefund[];
   stock: ReportStockItem[];
   physicalCounts?: number;
 }): AuditReport {
@@ -141,6 +142,7 @@ export function buildAuditReport(input: {
   const previousTotal = combineAmounts(previous.map((sale) => ({ amount: sale.amount, currency: sale.currency })), active, input.sellRate);
   const cancelled = input.sales.filter((sale) => sale.status === "CANCELADA" && inWindow(saleDay(sale, input.timeZone), input.period.start, input.period.end));
   const refunds = input.refunds.filter((row) => row.kind === "DEVOLUCION" && inWindow(calendarDay(row.paidAt, input.timeZone), input.period.start, input.period.end));
+  const credits = (input.credits ?? []).filter((row) => inWindow(calendarDay(row.paidAt, input.timeZone), input.period.start, input.period.end));
   const entered = input.stock.filter((item) => inWindow(calendarDay(item.createdAt, input.timeZone), input.period.start, input.period.end));
   return {
     periodLabel: periodLabel(input.period.start, input.period.end),
@@ -154,6 +156,7 @@ export function buildAuditReport(input: {
     returns: {
       cancelled: moneyOf(cancelled.map((sale) => ({ amount: sale.amount, currency: sale.currency })), active, input.sellRate),
       refunds: moneyOf(refunds.map((row) => ({ amount: row.amount, currency: row.currency })), active, input.sellRate),
+      credits: moneyOf(credits.map((row) => ({ amount: row.amount, currency: row.currency })), active, input.sellRate),
     },
     stock: {
       entered: entered.length,
@@ -195,6 +198,7 @@ export function renderAuditReport(storeName: string, report: AuditReport) {
     "RMA / devoluciones",
     `Ventas canceladas: ${pair(report.returns.cancelled)}`,
     `Reintegros: ${pair(report.returns.refunds)}`,
+    `Notas de crédito: ${pair(report.returns.credits)}`,
     "",
     "Stock",
     `Equipos ingresados: ${report.stock.entered}`,

@@ -37,6 +37,7 @@ import { MobileTabBar } from './mobile-tab-bar';
 import { canManageCommissions, canOpenHistory, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
+import { ReturnsScreen } from './screens/ReturnsScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
 import { ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
@@ -82,7 +83,7 @@ function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, u
 }
 
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, showSuppliers, showExpenses, onOpen,
+  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, showSuppliers, showReturns, showExpenses, onOpen,
 }: {
   name: string;
   store: string;
@@ -96,6 +97,7 @@ function MoreScreen({
   ownCommissions: boolean;
   showHistory: boolean;
   showSuppliers: boolean;
+  showReturns: boolean;
   showExpenses: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
@@ -116,7 +118,7 @@ function MoreScreen({
         </span>
         <span className="chev" aria-hidden="true">›</span>
       </button>
-      {rows.length > 0 || showHistory || showSuppliers || showExpenses ? (
+      {rows.length > 0 || showHistory || showSuppliers || showReturns || showExpenses ? (
         <>
           <div className="mlabel">Módulos</div>
           <div className="card">
@@ -142,6 +144,11 @@ function MoreScreen({
             {showSuppliers ? <button className="member" type="button" data-testid="sidebar-tab-suppliers" onClick={() => onOpen('suppliers')}>
               <span className="ico-row"><DeskIcon name="store" size={18} /></span>
               <span className="info"><span className="name">Proveedores</span><span className="role">Compras y origen del stock</span></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </button> : null}
+            {showReturns ? <button className="member" type="button" data-testid="sidebar-tab-returns" onClick={() => onOpen('returns')}>
+              <span className="ico-row"><DeskIcon name="swap" size={18} /></span>
+              <span className="info"><span className="name">Devoluciones</span><span className="role">Reclamos, notas de crédito y RMA</span></span>
               <span className="chev" aria-hidden="true">›</span>
             </button> : null}
             {showExpenses ? <button className="member" type="button" data-testid="sidebar-tab-expenses" onClick={() => onOpen('expenses')}>
@@ -192,7 +199,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'billing' || id === 'expenses' ? role === 'OWNER' : id === 'suppliers' ? canOpenSection('inventory', sections, role) : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => id === 'billing' || id === 'expenses' ? role === 'OWNER' : id === 'suppliers' ? canOpenSection('inventory', sections, role) : id === 'returns' ? canOpenSection('sales', sections, role) : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   useEffect(() => {
     if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
@@ -236,13 +243,15 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [toastOn, message]);
 
   useEffect(() => {
-    const apply = () => {
-      const next = tabFromHash(window.location.hash);
-      setTab(next);
-      setOverlay(null);
+    const apply = (closeOverlay: boolean) => {
+      setTab(tabFromHash(window.location.hash));
+      if (closeOverlay) setOverlay(null);
     };
     if (!window.location.hash) history.replaceState(null, '', '#/dash');
-    const onHash = () => { apply(); setEntered(true); };
+    // Role arrives after the first paint. Read the hash again so a navigation
+    // that landed before this listener was attached still opens that screen.
+    apply(false);
+    const onHash = () => { apply(true); setEntered(true); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [sections, role]);
@@ -290,6 +299,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     else if (target === 'clients') next = { type: 'cl', id: recordId };
     else if (target === 'service') next = { type: 'ot', id: recordId };
     else if (target === 'suppliers') next = { type: 'supplier', id: recordId };
+    else if (target === 'returns') next = { type: 'return', id: recordId };
     else if (target === 'expenses') next = { type: 'edit-expense', id: recordId };
     else return;
     setPendingRecordOpen({ tab: target, overlay: next });
@@ -322,6 +332,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     { id: 'suppliers', label: 'Proveedores', icon: 'store', size: 18 },
     { id: 'publicCatalog', label: 'Catálogo', icon: 'store', size: 18 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
+    { id: 'returns', label: 'Devoluciones', icon: 'swap', size: 18 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
@@ -397,13 +408,14 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <div key={tab} className={entered ? 'enter-f' : undefined}>
-            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab === 'suppliers' ? 'Proveedores' : tab === 'expenses' ? 'Gastos' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
+            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab === 'suppliers' ? 'Proveedores' : tab === 'returns' ? 'Devoluciones' : tab === 'expenses' ? 'Gastos' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
             {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
+            {tab === 'returns' && <ReturnsScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
             {tab === 'service' && <ServiceScreen />}
@@ -428,6 +440,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 ownCommissions={!commissionAccess}
                 showHistory={allowed('history')}
                 showSuppliers={allowed('suppliers')}
+                showReturns={allowed('returns')}
                 showExpenses={allowed('expenses')}
                 unread={unread.total}
                 onOpen={go}

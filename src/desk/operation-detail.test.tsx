@@ -217,8 +217,8 @@ describe('operation detail', () => {
     }
   });
 
-  it.each([2, 3, 4])('keeps all %s sale actions together in the shared footer grid', (count) => {
-    ctx.sales = [sale(count === 2 ? { status: 'PENDIENTE' } : count === 3 ? { integratedOperation: false, tradeInId: null } : {})];
+  it.each([2, 4, 5])('keeps all %s sale actions together in the shared footer grid', (count) => {
+    ctx.sales = [sale(count === 2 ? { status: 'PENDIENTE' } : count === 4 ? { integratedOperation: false, tradeInId: null } : {})];
     renderOverlay({ type: 'sale', id: 's1' }, count !== 2);
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
@@ -227,8 +227,8 @@ describe('operation detail', () => {
     expect(buttons).toHaveLength(count);
     for (const button of buttons) expect(button.parentElement).toBe(grid);
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
-    if (count === 3) {
-      expect(buttons.map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Compartir comprobante']);
+    if (count === 4) {
+      expect(buttons.map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante']);
       expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
     }
   });
@@ -250,13 +250,13 @@ describe('operation detail', () => {
     expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
   });
 
-  it('opens a three-action sale without trade-in from Reportes and closes from its footer', async () => {
+  it('opens a sale without trade-in from Reportes and closes from its footer', async () => {
     ctx.sales = [sale({ date: new Date().toISOString(), integratedOperation: false, tradeInId: null })];
     render(<ReportsWithOverlay />);
     await userEvent.click(screen.getByRole('button', { name: /V-0004.*Ana Pérez/ }));
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
-    expect(within(footer).getAllByRole('button').map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Compartir comprobante']);
+    expect(within(footer).getAllByRole('button').map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante']);
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
     expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
     await userEvent.click(within(footer).getByRole('button', { name: 'Cerrar' }));

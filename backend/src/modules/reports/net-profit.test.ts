@@ -59,6 +59,17 @@ describe("net profit", () => {
     })).toBeNull();
   });
 
+  it("reverses the returned margin before expenses", () => {
+    const result = netProfit({
+      currency: "ARS",
+      sellRate: null,
+      sales: [{ amount: 1200, currency: "ARS", cost: 800, costCurrency: "ARS" }],
+      expenses: [],
+      returns: [{ amount: 1200, currency: "ARS", cost: 800, costCurrency: "ARS" }],
+    });
+    expect(result).toEqual({ revenue: 0, cost: 0, grossProfit: 0, expenses: 0, netProfit: 0 });
+  });
+
   it("returns zeros when the period has no sales and no expenses", () => {
     expect(netProfit({ currency: "ARS", sellRate: null, sales: [], expenses: [] })).toEqual({
       revenue: 0,

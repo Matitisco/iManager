@@ -139,7 +139,7 @@ export async function savePeriodicReportSettings(storeId: string, input: Periodi
 
 async function loadReport(store: StoreMail, period: ReturnType<typeof latestDuePeriod>) {
   const window = queryWindow(period.previousStart, period.end);
-  const [sales, stock, refunds, rate] = await Promise.all([
+  const [sales, stock, refunds, credits, rate] = await Promise.all([
     prisma.sale.findMany({
       where: { storeId: store.id, soldAt: { gte: window.gte, lt: window.lt } },
       select: { dateLabel: true, soldAt: true, status: true, amount: true, amountCurrency: true, paymentMethod: true },
@@ -151,6 +151,10 @@ async function loadReport(store: StoreMail, period: ReturnType<typeof latestDueP
     prisma.clientPayment.findMany({
       where: { storeId: store.id, kind: "DEVOLUCION", paidAt: { gte: window.gte, lt: window.lt } },
       select: { paidAt: true, amount: true, currency: true, kind: true },
+    }),
+    prisma.creditNote.findMany({
+      where: { storeId: store.id, deletedAt: null, createdAt: { gte: window.gte, lt: window.lt } },
+      select: { createdAt: true, amount: true, currency: true },
     }),
     sellRate(store),
   ]);
@@ -173,6 +177,12 @@ async function loadReport(store: StoreMail, period: ReturnType<typeof latestDueP
       amount: money(row.amount),
       currency: row.currency,
       kind: row.kind,
+    })),
+    credits: credits.map((row): ReportRefund => ({
+      paidAt: row.createdAt,
+      amount: money(row.amount),
+      currency: row.currency,
+      kind: "NOTA_CREDITO",
     })),
     stock: stock.map((item): ReportStockItem => ({ createdAt: item.createdAt, status: item.status })),
   });

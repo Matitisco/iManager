@@ -10,6 +10,7 @@ const prismaMock = vi.hoisted(() => ({
   sale: { findMany: vi.fn() },
   inventoryItem: { findMany: vi.fn() },
   clientPayment: { findMany: vi.fn() },
+  creditNote: { findMany: vi.fn() },
 }));
 
 vi.mock("../../plugins/prisma.js", () => ({ prisma: prismaMock }));
@@ -49,6 +50,7 @@ describe("opt-in del reporte", () => {
     ]);
     prismaMock.inventoryItem.findMany.mockResolvedValue([]);
     prismaMock.clientPayment.findMany.mockResolvedValue([]);
+    prismaMock.creditNote.findMany.mockResolvedValue([]);
     prismaMock.periodicReportSettings.update.mockResolvedValue({});
   });
 

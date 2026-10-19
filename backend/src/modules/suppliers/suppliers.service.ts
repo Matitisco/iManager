@@ -51,6 +51,9 @@ function blank(value: string | null | undefined) {
 
 function problemLabel(status: string, inService: boolean) {
   const review = status === "EN_REVISION";
+  const rma = status === "EN_RMA";
+  if (rma && inService) return "En RMA con el proveedor y en servicio técnico";
+  if (rma) return "En RMA con el proveedor";
   if (review && inService) return "En revisión y en servicio técnico";
   if (review) return "En revisión";
   if (inService) return "En servicio técnico";

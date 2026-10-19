@@ -69,6 +69,7 @@ describe("el reporte usa las mismas cuentas que Reportes", () => {
     expect(report.sales.delta).toBeNull();
     expect(report.sales.payments).toEqual([]);
     const text = renderAuditReport("Casa\nNorte", report);
+    expect(text).toContain("Notas de crédito: 0 · $ 0");
     expect(text).toContain("Facturación: sin cotización");
     expect(text).toContain("Diferencias de conteo físico: no hay un conteo cargado en este período.");
     expect(text).not.toContain("\nNorte");

@@ -9,7 +9,9 @@ import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
-import { netProfit } from '../net-profit';
+import { netProfit, returnReversal } from '../net-profit';
+import { combineAmounts } from '../money';
+import type { ReturnCaseView } from '../../services/returns-api';
 import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
@@ -87,6 +89,7 @@ export function ReportsScreen() {
     sessionConfirmed,
     expenses = [],
     expensesLoaded = true,
+    returns,
   } = useAppContext();
   const money = useMoney();
   const phone = usePhoneLayout();
@@ -299,10 +302,11 @@ export function ReportsScreen() {
       )}
       {role === 'OWNER' ? (
         <NetProfitCard
-          loading={expensesLoaded === false}
+          loading={expensesLoaded === false || returns === null}
           sales={sales}
           inventory={inventory}
           expenses={expenses}
+          returns={returns ?? []}
           start={bounds.start}
           end={bounds.end}
           currency={money.active}
@@ -680,12 +684,13 @@ function deltaLabel(current: number, previous: number) {
 }
 
 function NetProfitCard({
-  loading, sales, inventory, expenses, start, end, currency, rate, show, warning,
+  loading, sales, inventory, expenses, returns = [], start, end, currency, rate, show, warning,
 }: {
   loading: boolean;
   sales: Sale[];
   inventory: Product[];
   expenses: ExpenseView[] | null;
+  returns?: ReturnCaseView[];
   start: Date;
   end: Date;
   currency: 'ARS' | 'USD';
@@ -704,6 +709,9 @@ function NetProfitCard({
   }
   const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
+  const periodReturns = returns.filter((row) => !row.deletedAt && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.resolvedOn ?? undefined, start, end));
+  const reversals = periodReturns.map((row) => returnReversal(row));
+  const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({
     currency,
     sellRate: rate,
@@ -717,11 +725,13 @@ function NetProfitCard({
       };
     }),
     expenses: periodExpenses.map((row) => ({ amount: row.amount, currency: row.currency })),
+    returns: reversals,
   });
   const text = (value: number | null | undefined) => (figures && value != null ? show(value) : '—');
   return (
     <div data-testid="net-profit">
       <div className="dstats net-stats">
+        {returned ? <div className="dstat" data-testid="net-profit-returns"><div className="eb">Devoluciones</div><div className="big">{show(returned)}</div></div> : null}
         <div className="dstat"><div className="eb">Ganancia bruta</div><div className="big">{text(figures?.grossProfit)}</div></div>
         <div className="dstat"><div className="eb">Gastos</div><div className="big">{text(figures?.expenses)}</div></div>
         <div className="dstat"><div className="eb">Ganancia neta</div><div className="big">{text(figures?.netProfit)}</div></div>

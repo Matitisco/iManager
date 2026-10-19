@@ -20,6 +20,7 @@ import { StoreForm, ContactForm, ProfileForm, PasswordForm, InviteForm, InvitesL
 import { PeriodicReportForm } from './overlays/periodic-report';
 import { ImportHost } from './overlays/import';
 import { ExpenseForm } from './overlays/expense';
+import { ReturnDetail, ReturnForm } from './overlays/return-case';
 import { SupplierDetail, SupplierForm } from './overlays/supplier';
 
 export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void }) {
@@ -42,6 +43,10 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="ctxh">{overlay.label}</div>
         {!cancelledSale ? <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
+        {overlay.kind === 'sale' && (() => {
+          const sale = sales.find((row) => row.id === overlay.id);
+          return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
+        })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
         {canManageSensitive ? <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
       </div>
@@ -192,6 +197,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'supplier') return <SupplierDetail id={overlay.id} />;
   if (overlay.type === 'new-supplier' || overlay.type === 'edit-supplier') return <SupplierForm id={overlay.type === 'edit-supplier' ? overlay.id : undefined} />;
   if (overlay.type === 'new-expense' || overlay.type === 'edit-expense') return <ExpenseForm id={overlay.type === 'edit-expense' ? overlay.id : undefined} />;
+  if (overlay.type === 'new-return') return <ReturnForm saleId={overlay.saleId} />;
+  if (overlay.type === 'return') return <ReturnDetail id={overlay.id} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
     return <SaleForm id={overlay.type === 'edit-sale' ? overlay.id : undefined} preset={overlay.type === 'new-sale' ? { clientName: overlay.clientName, clientId: overlay.clientId, productId: overlay.productId, source: overlay.source, tradeInId: overlay.tradeInId } : undefined} run={run} busy={busy} error={error} />;

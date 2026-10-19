@@ -3,7 +3,7 @@ import { devices, expect, test, type Locator, type Page } from '@playwright/test
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, importSalesViaApi, fetchSales } from './utils';
 
 const shots = process.env.ISSUE_286_SHOTS?.trim();
-const tradeActions = ['Cerrar', 'Cancelar operación', 'Editar', 'Compartir comprobante'];
+const tradeActions = ['Cerrar', 'Cancelar operación', 'Editar', 'Devolver', 'Compartir comprobante'];
 const tradeLabels = ['Equipo recibido', 'Calidad recibida', 'Valor tomado', 'Diferencia del canje', 'Estado técnico', 'Confirmación'];
 const { defaultBrowserType: iphoneBrowser, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType: iphoneBrowser });
@@ -53,11 +53,16 @@ async function expectReachableActions(detail: Locator, names: string[], width: n
   if (names.length > 2) {
     expect(boxes[2].y - boxes[0].y - boxes[0].height).toBeCloseTo(10, 0);
     expect(boxes[2].x).toBeCloseTo(boxes[0].x, 0);
-    if (names.length % 2) expect(boxes[2].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
+    if (names.length === 3) expect(boxes[2].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
     else {
       expect(boxes[2].width).toBeCloseTo(boxes[0].width, 0);
       expect(boxes[3].width).toBeCloseTo(boxes[1].width, 0);
       expect(boxes[2].y).toBeCloseTo(boxes[3].y, 0);
+      if (names.length === 5) {
+        expect(boxes[4].x).toBeCloseTo(boxes[0].x, 0);
+        expect(boxes[4].y - boxes[2].y - boxes[2].height).toBeCloseTo(10, 0);
+        expect(boxes[4].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
+      }
     }
   }
 }
@@ -164,7 +169,7 @@ for (const device of [
     });
 
     for (const pending of [false, true]) {
-      test(`keeps ${pending ? 2 : 3} actions evenly spaced for a sale without trade-in from Reportes`, async ({ page, request }, testInfo) => {
+      test(`keeps ${pending ? 2 : 4} actions evenly spaced for a sale without trade-in from Reportes`, async ({ page, request }, testInfo) => {
         const email = buildTestEmail(testInfo, `sale-no-trade-${device.name}`);
         await mockDollar(page);
         await bootstrapStoreViaApi(page, request, email, 'iManager · Reportes');
@@ -182,7 +187,7 @@ for (const device of [
         await navigate(page, 'reports', device.phone);
         await page.locator('.gtk').filter({ hasText: code }).click();
         const detail = page.getByRole('dialog', { name: code });
-        const names = pending ? ['Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Compartir comprobante'];
+        const names = pending ? ['Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante'];
         await expectSharedLayout(page, detail, names, false);
         if (!pending) {
           if (device.name === 'desktop-800') await screenshot(page, 'issue-286-fix-desktop-sin-canje.png');

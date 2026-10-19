@@ -2,6 +2,7 @@ import { currentBlueRate } from "../../lib/blue-rate.js";
 import { prisma } from "../../plugins/prisma.js";
 import { calendarDay } from "../periodic-reports/schedule.js";
 import type { MoneyCurrency } from "../periodic-reports/report-math.js";
+import { returnReversal } from "../returns/returns-math.js";
 import { netProfit } from "./net-profit.js";
 
 const ZONE = "America/Argentina/Buenos_Aires";
@@ -45,6 +46,15 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     where: { storeId, deletedAt: null },
     select: { amount: true, currency: true, spentAt: true },
   });
+  const claims = await prisma.returnCase.findMany({
+    where: { storeId, deletedAt: null, resolution: { in: ["CAMBIO", "REINTEGRO"] }, resolvedAt: { not: null } },
+    select: {
+      resolvedAt: true,
+      moneyAmount: true,
+      moneyCurrency: true,
+      sale: { select: { amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
+    },
+  });
   const inRange = (day: string) => day >= from && day <= to;
   const figures = netProfit({
     currency,
@@ -65,6 +75,20 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       const day = calendarDay(expense.spentAt, zone);
       if (!inRange(day)) return [];
       return [{ amount: Number(expense.amount), currency: expense.currency }];
+    }),
+    returns: claims.flatMap((claim) => {
+      if (!claim.resolvedAt || !inRange(calendarDay(claim.resolvedAt, zone))) return [];
+      const reversal = returnReversal({
+        saleAmount: Number(claim.sale?.amount ?? claim.moneyAmount),
+        moneyAmount: Number(claim.moneyAmount),
+        itemCost: Number(claim.sale?.inventoryItem?.cost ?? 0),
+      });
+      return [{
+        amount: reversal.amount,
+        currency: claim.moneyCurrency ?? currency,
+        cost: reversal.cost,
+        costCurrency: claim.sale?.inventoryItem?.currency ?? claim.moneyCurrency ?? currency,
+      }];
     }),
   });
   return {

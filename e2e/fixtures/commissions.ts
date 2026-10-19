@@ -4,7 +4,10 @@ import { commissionFixturePeople, commissionFixturePeriod, commissionFixtureRule
 import type { CommissionPaymentInput, CommissionRuleInput } from '../../src/types/commissions';
 
 export async function mockCommissions(page: Page, issue334 = false) {
-  page.on('pageerror', error => { throw error; });
+  page.on('pageerror', error => {
+    if (/ResizeObserver loop/.test(error.message)) return;
+    throw error;
+  });
   const people = structuredClone(commissionFixturePeople);
   const rules = structuredClone(commissionFixtureRules);
   if (issue334) {
