@@ -47,6 +47,20 @@ describe('iManager icons', () => {
     rerender(<DeskIcon name="edit" size={15} />);
     expect(glyph()).toHaveAttribute('data-icon', 'editar');
     expect(glyph()).toHaveAttribute('width', '16');
+
+    rerender(<DeskIcon name="store" size={18} />);
+    const storefront = glyph().innerHTML;
+    expect(glyph()).toHaveAttribute('data-desk-icon', 'store');
+    expect(glyph()).toHaveAttribute('stroke-width', '2.1');
+    rerender(<DeskIcon name="list" size={22} />);
+    expect(glyph().innerHTML).not.toBe(storefront);
+
+    rerender(<DeskIcon name="register" size={20} />);
+    const register = glyph().innerHTML;
+    expect(glyph()).toHaveAttribute('data-desk-icon', 'register');
+    expect(glyph()).toHaveAttribute('width', '20');
+    rerender(<DeskIcon name="grid" size={22} />);
+    expect(glyph().innerHTML).not.toBe(register);
   });
 
   it('picks the icon of what the notification is about', () => {

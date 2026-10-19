@@ -40,6 +40,9 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           role="combobox"
           aria-expanded={visible}
           aria-autocomplete="list"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
           aria-controls="sale-equipment-list"
           value={value}
           placeholder="Escribí el modelo o elegí uno del stock"

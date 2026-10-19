@@ -18,6 +18,7 @@ import {
   inPeriod,
   paymentLabel,
   periodBounds,
+  isVoidSale,
   saleCode,
   saleEquipment,
   statusLabel,
@@ -160,7 +161,7 @@ export function SalesScreen() {
   const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || onlyNotices || statusOn || onlyUnassigned;
   const filteredTotal = money.sum(shown.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const summaryText = filtersOn
-    ? `${shown.length} de ${listed.length} ventas · ${filteredTotal == null ? '—' : money.showActive(filteredTotal)}`
+    ? `${shown.length} de ${listed.length} ${listed.length === 1 ? 'venta' : 'ventas'} · ${filteredTotal == null ? '—' : money.showActive(filteredTotal)}`
     : `${shown.length} de ${listed.length}`;
   const clearFilters = () => {
     setColumns(EMPTY_SALE_FILTERS);
@@ -173,7 +174,7 @@ export function SalesScreen() {
   const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
-    <div className={`dscreen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
+    <div className={`dscreen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
       <ScreenTitle
         title="Ventas"
         subtitle={subtitle}
@@ -225,7 +226,7 @@ export function SalesScreen() {
         />
       ) : phone ? null : (
       <div className="dstats">
-        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length} ventas</span></div> : null}
+        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length === 1 ? '1 venta' : `${periodSales.length} ventas`}</span></div> : null}
         <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
         {seeFinancials ? (
           <div className="dstat">
@@ -258,7 +259,7 @@ export function SalesScreen() {
       >
         {manageCommissions ? <button type="button" className="dbtn s" disabled={selection.locked || selection.selected.length === 0} onClick={() => setAssignOpen(true)}>Asignar vendedor</button> : null}
       </BulkActions>
-      {assignOpen && manageCommissions ? <AssignSellerSheet saleIds={selection.selected.map(sale => sale.id)} subtitle={`${selection.selected.length} ventas: ${selection.selected.map(saleCode).join(', ')}`} onClose={() => setAssignOpen(false)} onSaved={() => { setAssignOpen(false); selection.clear(); }} /> : null}
+      {assignOpen && manageCommissions ? <AssignSellerSheet saleIds={selection.selected.map(sale => sale.id)} subtitle={`${selection.selected.length === 1 ? '1 venta' : `${selection.selected.length} ventas`}: ${selection.selected.map(saleCode).join(', ')}`} onClose={() => setAssignOpen(false)} onSaved={() => { setAssignOpen(false); selection.clear(); }} /> : null}
       {phone && filtersOn ? <FilterSummary text={summaryText} onClear={clearFilters} /> : null}
       {phone ? (
         loadingLists ? <ListSkeleton variant="cards" rows={4} testId="sales-loading" /> : shown.length === 0 ? (
@@ -270,9 +271,10 @@ export function SalesScreen() {
               {page.visible.map((sale) => {
                 const reason = notices.reasonFor(sale.id);
                 return (
-                  <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${sale.status === 'CANCELADA' ? ' cancelled' : ''}`}>
+                  <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${isVoidSale(sale) ? ' cancelled' : ''}`}>
                     <PhoneRecord
                       selection={selection.row(sale.id, saleCode(sale))}
+                      className={isVoidSale(sale) ? 'is-void' : undefined}
                       reason={reason}
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
@@ -361,7 +363,7 @@ export function SalesScreen() {
                     selection={selection.row(sale.id, saleCode(sale))}
                     key={sale.id}
                     as="tr"
-                    className={notices.reasonFor(sale.id) ? 'novedad' : undefined}
+                    className={[notices.reasonFor(sale.id) ? 'novedad' : '', isVoidSale(sale) ? 'is-void' : ''].filter(Boolean).join(' ') || undefined}
                     onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                   >

@@ -11,6 +11,7 @@ import {
   isInStock,
   parseAppDate,
   paymentLabel,
+  isVoidSale,
   saleCode,
   saleEquipment,
   tradeClientLabel,
@@ -127,6 +128,8 @@ export function DashboardContent() {
   }).slice(0, 5), [sales]);
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const canNotify = canOpenSection('notifications', appSession?.membership?.sections, appSession?.membership?.role);
+  const seeTrades = canOpenSection('tradeins', appSession?.membership?.sections, appSession?.membership?.role);
+  const seeTeam = canViewTeam(appSession?.membership?.role);
   const unread = unreadBySection(operationNotifications ?? []);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const stockPct = inventory.length ? Math.round((available / inventory.length) * 100) : 0;
@@ -140,7 +143,7 @@ export function DashboardContent() {
       {shownAvatars.map((person, index) => (
         <div key={`${person.name}-${index}`} className={`av ${['b', 'p', 'g'][index % 3]}`} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>
       ))}
-      <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button>
+      {seeTeam ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}
     </div>
   );
 
@@ -194,7 +197,7 @@ export function DashboardContent() {
             <div className="ico"><DeskIcon name="cart" size={22} /></div>
             <div className="eyebrow">Ventas del mes</div>
             <div className="val">{loadingLists ? <span className="list-skel-bar" /> : seeFinancials ? (monthTotal == null ? '—' : money.compactActive(monthTotal)) : monthSales.length}</div>
-            <div className="sub">{loadingLists ? 'Cargando…' : seeFinancials ? <>{monthSales.length} ventas{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
+            <div className="sub">{loadingLists ? 'Cargando…' : seeFinancials ? <>{monthSales.length === 1 ? '1 venta' : `${monthSales.length} ventas`}{monthDelta == null ? '' : <> · <span className={monthDelta >= 0 ? 'up' : 'down'}>{monthDelta >= 0 ? '▲' : '▼'} {Math.abs(monthDelta)}%</span></>}</> : 'operaciones'}</div>
           </button>
           <button className="mini" type="button" onClick={() => go('inventory')}>
             <div className="ico"><ImanagerIcon name="equipo" size={20} /></div>
@@ -203,12 +206,12 @@ export function DashboardContent() {
             <div className="sub">{loadingLists ? 'Cargando…' : <>{available} {available === 1 ? 'disponible' : 'disponibles'}</>}</div>
             <div className="budget"><i style={{ width: `${stockPct}%` }} /></div>
           </button>
-          <button className="mini" type="button" onClick={() => go('tradeins')}>
+          {seeTrades ? <button className="mini" type="button" onClick={() => go('tradeins')}>
             <div className="ico"><ImanagerIcon name="canje" size={20} /></div>
             <div className="eyebrow">Canjes en curso</div>
             <div className="val">{loadingLists ? <span className="list-skel-bar" /> : openTrades.length}</div>
             <div className="sub">{loadingLists ? 'Cargando…' : `${tradeIns.length} en total`}</div>
-          </button>
+          </button> : null}
           <button className="mini" type="button" onClick={() => go('clients')}>
             <div className="ico"><ImanagerIcon name="cliente" size={20} /></div>
             <div className="eyebrow">Saldos a cobrar</div>
@@ -231,6 +234,7 @@ export function DashboardContent() {
               {recent.map((sale) => (
                 <PhoneRecord
                   key={sale.id}
+                  className={isVoidSale(sale) ? 'is-void' : undefined}
                   onActivate={() => open({ type: 'sale', id: sale.id })}
                   onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                 >
@@ -249,7 +253,7 @@ export function DashboardContent() {
               <tbody>
                 {recent.map((sale) => {
                   return (
-                    <PressTarget key={sale.id} as="tr" onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
+                    <PressTarget key={sale.id} as="tr" className={isVoidSale(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
                       <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
                       <td>{saleBuyer(sale, clients)}</td>
                       <td>{saleEquipment(sale, inventory)}</td>
@@ -262,7 +266,7 @@ export function DashboardContent() {
             </table>
           )}
         </div>
-        <div className="dcard" data-testid="dashboard-trades">
+        {seeTrades ? <div className="dcard" data-testid="dashboard-trades">
           <div className="dch"><h3>Canjes en curso</h3><button className="wlink" type="button" onClick={() => go('tradeins')}>Ver todos</button></div>
           {loadingLists ? <ListSkeleton variant="cards" rows={3} testId="dashboard-trades-loading" /> : openTrades.length === 0 ? (
             <div className="wempty dashboard-empty">
@@ -279,7 +283,7 @@ export function DashboardContent() {
               </div>
             </PressTarget>
           ))}
-        </div>
+        </div> : null}
       </div>
     </div>
   );

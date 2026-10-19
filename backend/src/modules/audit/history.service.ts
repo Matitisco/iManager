@@ -11,6 +11,7 @@ import {
   roleLabel,
   sectionLabel,
 } from "./audit-actions.js";
+import { saleCode } from "./archive.js";
 import type { AuditChange } from "./diff-fields.js";
 
 const PAGE = 50;
@@ -103,22 +104,57 @@ async function searchIds(storeId: string, q: string) {
   return rows.map((row) => row.id);
 }
 
-async function recordStates(storeId: string, rows: { entityType: string; entityId: string; action: string }[]) {
+const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function shortLabel(value: string) {
+  return value.trim().slice(0, 160);
+}
+
+function preferredLabel(stored: string | null, lookedUp: string | undefined) {
+  const text = stored?.trim() ?? "";
+  if (text && !OPAQUE_ID.test(text)) return text;
+  return lookedUp ?? null;
+}
+
+async function recordContext(storeId: string, rows: { entityType: string; entityId: string }[]) {
   const ids = (type: string) => [...new Set(rows.filter((row) => row.entityType === type).map((row) => row.entityId))];
-  const [items, sales, trades, clients, repairs] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { storeId, id: { in: ids("inventory") } }, select: { id: true, archivedAt: true } }),
-    prisma.sale.findMany({ where: { storeId, id: { in: ids("sale") } }, select: { id: true, voidedAt: true } }),
-    prisma.tradeIn.findMany({ where: { storeId, id: { in: ids("trade") } }, select: { id: true, voidedAt: true } }),
-    prisma.client.findMany({ where: { storeId, id: { in: ids("client") } }, select: { id: true, archivedAt: true } }),
-    prisma.repairOrder.findMany({ where: { storeId, id: { in: ids("repair") } }, select: { id: true, archivedAt: true } }),
+  const cashIds = ids("cash");
+  const [items, sales, trades, clients, repairs, registers, sessions, movements] = await Promise.all([
+    prisma.inventoryItem.findMany({ where: { storeId, id: { in: ids("inventory") } }, select: { id: true, archivedAt: true, model: true, capacity: true } }),
+    prisma.sale.findMany({ where: { storeId, id: { in: ids("sale") } }, select: { id: true, voidedAt: true, saleNumber: true } }),
+    prisma.tradeIn.findMany({ where: { storeId, id: { in: ids("trade") } }, select: { id: true, voidedAt: true, deviceReceived: true } }),
+    prisma.client.findMany({ where: { storeId, id: { in: ids("client") } }, select: { id: true, archivedAt: true, name: true } }),
+    prisma.repairOrder.findMany({ where: { storeId, id: { in: ids("repair") } }, select: { id: true, archivedAt: true, orderNumber: true, device: true } }),
+    cashIds.length ? prisma.cashRegister.findMany({ where: { storeId, id: { in: cashIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    cashIds.length ? prisma.cashSession.findMany({ where: { storeId, id: { in: cashIds } }, select: { id: true, register: { select: { name: true } } } }) : Promise.resolve([]),
+    cashIds.length ? prisma.cashMovement.findMany({ where: { storeId, id: { in: cashIds } }, select: { id: true, register: { select: { name: true } } } }) : Promise.resolve([]),
   ]);
   const state = new Map<string, HistoryEvent["recordState"]>();
-  for (const row of items) state.set(`inventory:${row.id}`, row.archivedAt ? "archived" : "active");
-  for (const row of sales) state.set(`sale:${row.id}`, row.voidedAt ? "voided" : "active");
-  for (const row of trades) state.set(`trade:${row.id}`, row.voidedAt ? "voided" : "active");
-  for (const row of clients) state.set(`client:${row.id}`, row.archivedAt ? "archived" : "active");
-  for (const row of repairs) state.set(`repair:${row.id}`, row.archivedAt ? "archived" : "active");
-  return state;
+  const labels = new Map<string, string>();
+  for (const row of items) {
+    state.set(`inventory:${row.id}`, row.archivedAt ? "archived" : "active");
+    labels.set(`inventory:${row.id}`, shortLabel([row.model, row.capacity].filter(Boolean).join(" ")) || "Equipo");
+  }
+  for (const row of sales) {
+    state.set(`sale:${row.id}`, row.voidedAt ? "voided" : "active");
+    labels.set(`sale:${row.id}`, saleCode(row.saleNumber));
+  }
+  for (const row of trades) {
+    state.set(`trade:${row.id}`, row.voidedAt ? "voided" : "active");
+    labels.set(`trade:${row.id}`, shortLabel(row.deviceReceived) || "Canje");
+  }
+  for (const row of clients) {
+    state.set(`client:${row.id}`, row.archivedAt ? "archived" : "active");
+    labels.set(`client:${row.id}`, shortLabel(row.name) || "Cliente");
+  }
+  for (const row of repairs) {
+    state.set(`repair:${row.id}`, row.archivedAt ? "archived" : "active");
+    labels.set(`repair:${row.id}`, shortLabel(`OT-${String(row.orderNumber).padStart(4, "0")} · ${row.device}`));
+  }
+  for (const row of registers) labels.set(`cash:${row.id}`, shortLabel(row.name) || "Caja");
+  for (const row of sessions) if (row.register.name) labels.set(`cash:${row.id}`, shortLabel(row.register.name));
+  for (const row of movements) if (row.register?.name) labels.set(`cash:${row.id}`, shortLabel(row.register.name));
+  return { state, labels };
 }
 
 export async function listHistory(storeId: string, query: HistoryQuery) {
@@ -162,7 +198,7 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
     take: limit + 1,
   });
   const page = rows.slice(0, limit);
-  const states = await recordStates(storeId, page);
+  const { state: states, labels } = await recordContext(storeId, page);
   const events: HistoryEvent[] = [];
   const seenBatches = new Set<string>();
   for (const row of page) {
@@ -173,9 +209,10 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
       seenBatches.add(batch.id);
     }
     const legacy = row.action.endsWith(".deleted");
+    const entityLabel = preferredLabel(row.entityLabel, labels.get(`${row.entityType}:${row.entityId}`));
     const described = describeAudit({
       action: row.action,
-      entityLabel: row.entityLabel,
+      entityLabel,
       detail: row.detail,
       reason: row.reason,
       changes,
@@ -194,7 +231,7 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
       actorRoleLabel: roleLabel(row.actorRole),
       entityType: row.entityType,
       entityId: row.entityId,
-      entityLabel: row.entityLabel,
+      entityLabel,
       detail: row.detail,
       changes: changes.filter((change) => !hiddenChange(change.field)),
       reason: row.reason,

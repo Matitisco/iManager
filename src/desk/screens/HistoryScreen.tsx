@@ -8,6 +8,8 @@ import { fetchArchivedRepairs } from '../../services/repairs-api';
 import { rememberArchivedClients, rememberArchivedProducts, rememberArchivedRepairs, rememberVoidedSales, rememberVoidedTrades } from '../archive-cache';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
+import { historyAction, historyDetailRows, historyRecordNote, historySentence } from '../history-copy';
+import { formatArDateTime, formatArTime } from '../../lib/ar-date';
 import { avatarTone, initials } from '../format';
 import { usePhoneLayout } from '../section-notices';
 import { ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
@@ -47,16 +49,7 @@ function dayKey(iso: string) {
 }
 
 function clock(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function actionText(event: HistoryEvent) {
-  const what = event.legacy ? 'eliminó (antes del historial)' : `${event.verb} ${event.target}`.trim();
-  return `${what}${event.suffix ? ` ${event.suffix}` : ''}`.replace(/\s+/g, ' ').trim();
-}
-
-function sentence(event: HistoryEvent) {
-  return `${event.actorName || 'Alguien'} ${actionText(event)}`.replace(/\s+/g, ' ').trim();
+  return formatArTime(iso);
 }
 
 function FilterChip({ label, value, onChange, options }: {
@@ -157,9 +150,9 @@ export function HistoryScreen() {
     {groups.map((day) => <section key={day.label}>
       <div className="sale-sec"><span>{day.label.toUpperCase()}</span><span>{day.rows.length} {day.rows.length === 1 ? 'movimiento' : 'movimientos'}</span></div>
       <div className="card history-list">
-        {day.rows.map((event) => <button key={event.id} type="button" className="history-row" onClick={() => setSelected(event)}>
+        {day.rows.map((event) => <button key={event.id} type="button" className="history-row" title={historySentence(event)} onClick={() => setSelected(event)}>
           <span className={`av-c ${event.actorName === 'Sistema' ? 'k' : avatarTone(event.actorName || 'S')}`}>{initials(event.actorName || 'S')}</span>
-          <span className="info"><b>{event.actorName || 'Alguien'}</b> {actionText(event)}</span>
+          <span className="info"><b>{event.actorName || 'Alguien'}</b> {historyAction(event)}</span>
           <span className="spill mid">{event.sectionLabel}</span>
           <span className="mut">{clock(event.createdAt)}</span>
           <svg className="history-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
@@ -180,7 +173,9 @@ export function HistoryScreen() {
 function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () => void }) {
   const desk = useDesk();
   const { user } = useAppContext();
-  const when = new Date(event.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const when = formatArDateTime(event.createdAt);
+  const rows = historyDetailRows(event);
+  const note = historyRecordNote(event);
   const openRecord = () => {
     const tab = event.section === 'tradeins' ? 'tradeins' : event.section === 'service' ? 'service' : event.section === 'sales' ? 'sales' : event.section === 'clients' ? 'clients' : event.section === 'inventory' ? 'inventory' : null;
     if (!tab || !user || event.recordState === 'gone' || event.legacy) return;
@@ -201,16 +196,17 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
               : Promise.resolve();
     void load.then(open).catch(open);
   };
-  return <Sheet className="history-detail" title={event.title} subtitle={event.entityLabel ?? undefined} onClose={onClose} footer={
-    <button className="btn2 p" type="button" disabled={event.recordState === 'gone' || event.legacy} onClick={openRecord}>
+  return <Sheet className="history-detail" title={event.title} subtitle={event.entityLabel ?? undefined} onClose={onClose} footer={note ? undefined : (
+    <button className="btn2 p" type="button" onClick={openRecord}>
       {event.recordState === 'archived' ? 'Ver en archivados' : 'Ver registro'}
     </button>
-  }>
+  )}>
     <p className="eqs-note">{event.actorName}{event.actorRoleLabel ? ` · ${event.actorRoleLabel}` : ''} · {when}</p>
-    {event.changes.length ? <table className="dtable history-diff"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
-      {event.changes.map((change) => <tr key={change.field}><td>{change.label}</td><td>{change.before || '—'}</td><td>{change.after || '—'}</td></tr>)}
-    </tbody></table> : <p>{event.detail || sentence(event)}</p>}
+    {rows.length ? <table className="dtable history-diff"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
+      {rows.map((change, index) => <tr key={`${change.label}-${index}`}><td>{change.label}</td><td>{change.before || '—'}</td><td>{change.after || '—'}</td></tr>)}
+    </tbody></table> : null}
     {event.reason ? <p><b>Motivo</b> {event.reason}</p> : null}
+    {note ? <p className="history-missing">{note}</p> : null}
   </Sheet>;
 }
 
@@ -228,7 +224,7 @@ export function RecordHistory({ entityType, entityId }: { entityType: string; en
   }, [user, entityType, entityId, open]);
   return <div className="record-history">
     <button type="button" className="wlink" onClick={() => setOpen((current) => !current)}>{open ? 'Ocultar historial' : 'Ver historial'}</button>
-    {open && events ? <ul>{events.length ? events.map((event) => <li key={event.id}>{sentence(event)} · {clock(event.createdAt)}</li>) : <li>Sin movimientos recientes</li>}</ul> : null}
+    {open && events ? <ul>{events.length ? events.map((event) => <li key={event.id}>{historySentence(event)} · {clock(event.createdAt)}</li>) : <li>Sin movimientos recientes</li>}</ul> : null}
     {open ? <button type="button" className="wlink" onClick={() => { desk.close(); desk.go('history'); }}>Ver todo</button> : null}
   </div>;
 }

@@ -35,7 +35,7 @@ import { canManageCommissions, canOpenHistory, canOpenSection, DESK_SECTIONS, mo
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
-import type { NoticeSection } from './unread-count';
+import { sectionBadge } from './unread-count';
 import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
@@ -46,8 +46,8 @@ const SalesScreen = lazy(() => import('./screens/SalesScreen').then((module) => 
 const ClientsScreen = lazy(() => import('./screens/ClientsScreen').then((module) => ({ default: module.ClientsScreen })));
 const TradeInsScreen = lazy(() => import('./screens/TradeInsScreen').then((module) => ({ default: module.TradeInsScreen })));
 
-const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
-  cash: 'grid', publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
+const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones' | 'store' | 'register'> = {
+  cash: 'register', publicCatalog: 'store', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
   clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
 };
 const MORE_SUB: Record<DeskSectionId, string> = {
@@ -125,7 +125,7 @@ function MoreScreen({
                   <span className="ico-row"><DeskIcon name={NAV_ICON[id]} size={18} /></span>
                   <span className="info">
                     <span className="name">{id === 'commissions' && ownCommissions ? 'Mis comisiones' : sectionLabel(id)}</span>
-                    <span className="role">{MORE_SUB[id]}</span>
+                    <span className="role">{id === 'commissions' && ownCommissions ? 'Solo las tuyas, de este mes' : MORE_SUB[id]}</span>
                   </span>
                   {count ? <span className="rtxt">{count}</span> : null}
                   <span className="chev" aria-hidden="true">›</span>
@@ -154,11 +154,6 @@ function MoreScreen({
       </div>
     </div>
   );
-}
-
-function sectionUnread(counts: Record<NoticeSection, number>, id: DeskTab) {
-  if (id === 'inventory' || id === 'sales' || id === 'tradeins' || id === 'clients') return counts[id];
-  return 0;
 }
 
 function SectionUnread({ label, count }: { label: string; count: number }) {
@@ -307,15 +302,15 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock'; size: number }[] = [
+  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock' | 'store' | 'register'; size: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
     { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
-    { id: 'publicCatalog', label: 'Catálogo', icon: 'list', size: 18 },
+    { id: 'publicCatalog', label: 'Catálogo', icon: 'store', size: 18 },
     { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
     { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
     { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
     { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
-    { id: 'cash', label: 'Cajas', icon: 'grid', size: 20 },
+    { id: 'cash', label: 'Cajas', icon: 'register', size: 20 },
     { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
     { id: 'history', label: 'Historial', icon: 'clock', size: 20 },
     { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
@@ -355,7 +350,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
                   <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
                   <span>{item.label}</span>
-                  <SectionUnread label={item.label} count={sectionUnread(unread.bySection, item.id)} />
+                  <SectionUnread label={item.label} count={sectionBadge(unread.bySection, item.id)} />
                 </button>
               ))}
             </div>
@@ -428,7 +423,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <MobileTabBar
             buttons={[
               ...mobile.bar.map((id) => {
-                const pending = sectionUnread(unread.bySection, id);
+                const pending = sectionBadge(unread.bySection, id);
                 return {
                   id,
                   label: sectionLabel(id),

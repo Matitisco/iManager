@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatArDate, formatArDateTime, parseArDate } from './ar-date';
+import { formatArDate, formatArDateTime, formatArTime, parseArDate } from './ar-date';
 
 describe('Argentine dates', () => {
   it('formats a calendar day as DD/MM/YYYY', () => {
@@ -24,6 +24,9 @@ describe('Argentine dates', () => {
 
   it('formats an instant as day/month/year and 24-hour time in Argentina', () => {
     expect(formatArDateTime('2026-10-09T15:04:00.000Z')).toBe('09/10/2026 12:04');
+    expect(formatArDateTime('2026-10-18T22:16:00.000Z')).toBe('18/10/2026 19:16');
+    expect(formatArTime('2026-10-18T22:41:00.000Z')).toBe('19:41');
+    expect(formatArTime('2026-10-18T22:41:00.000Z')).not.toMatch(/p\.?\s*m/i);
   });
 
   it('rejects impossible days and non-dates', () => {
