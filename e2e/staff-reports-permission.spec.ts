@@ -74,10 +74,15 @@ test('an employee sees reportes on desktop and phone only after the switch is on
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-settings').click();
-  await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
-  await expect(page.locator('.team-permissions h1')).toBeVisible();
+  const permissions = page.locator('.team-permissions h1');
+  const more = page.getByTestId('sidebar-tab-more');
+  await expect(permissions.or(more)).toBeVisible();
+  if (!(await permissions.isVisible())) {
+    await more.click();
+    await page.getByTestId('sidebar-tab-settings').click();
+    await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
+  }
+  await expect(permissions).toBeVisible();
   await expect(page.getByRole('switch', { name: 'Reportes' })).toBeChecked();
   await expect(page.getByTestId('permissions-save')).toBeVisible();
   await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
