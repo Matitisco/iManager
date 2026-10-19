@@ -38,6 +38,7 @@ import {
 import { salesMatchingSellers, sellerChipLabel, sellerFilterOptions } from '../sale-sellers';
 import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
+import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Sale } from '../../types';
 import { fetchVoidedSales } from '../../services/sales-api';
@@ -46,7 +47,8 @@ import { rememberVoidedSales } from '../archive-cache';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, user } = useAppContext();
+  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, user, listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
   const seeFinancials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -259,7 +261,7 @@ export function SalesScreen() {
       {assignOpen && manageCommissions ? <AssignSellerSheet saleIds={selection.selected.map(sale => sale.id)} subtitle={`${selection.selected.length} ventas: ${selection.selected.map(saleCode).join(', ')}`} onClose={() => setAssignOpen(false)} onSaved={() => { setAssignOpen(false); selection.clear(); }} /> : null}
       {phone && filtersOn ? <FilterSummary text={summaryText} onClear={clearFilters} /> : null}
       {phone ? (
-        shown.length === 0 ? (
+        loadingLists ? <ListSkeleton variant="cards" rows={4} testId="sales-loading" /> : shown.length === 0 ? (
           listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="wempty">No hay ventas con ese filtro.</div>
         ) : (
           <>
@@ -376,7 +378,7 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        {shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}

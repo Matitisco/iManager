@@ -1,5 +1,5 @@
 import type { BillingSummary } from './billing';
-export type BackendConnectionStatus = 'checking' | 'ready' | 'unconfigured' | 'offline' | 'error';
+export type BackendConnectionStatus = 'checking' | 'ready' | 'unconfigured' | 'offline' | 'error' | 'unauthorized';
 
 export type AppMembershipRole = 'OWNER' | 'MANAGER' | 'STAFF';
 

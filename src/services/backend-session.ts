@@ -1,4 +1,5 @@
 import { analyticsDeviceHeader } from '../lib/analytics-device';
+import { isInvalidAuthError } from '../lib/boot-cache';
 import type { AppSession, AppSessionResponse, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -31,9 +32,25 @@ export async function fetchBackendSession(user: AuthUserLike): Promise<{
     };
   }
 
+  let token: string;
   try {
-    const token = await user.getIdToken();
+    token = await user.getIdToken();
+  } catch (error) {
+    if (isInvalidAuthError(error)) {
+      return {
+        status: 'unauthorized',
+        session: null,
+        message: 'La sesión venció. Volvé a entrar.',
+      };
+    }
+    return {
+      status: 'offline',
+      session: null,
+      message: toUserMessage(error),
+    };
+  }
 
+  try {
     const response = await fetchWithTimeout(`${baseUrl}/api/me`, {
       headers: {
         'x-im-device': analyticsDeviceHeader(),
@@ -41,6 +58,14 @@ export async function fetchBackendSession(user: AuthUserLike): Promise<{
         Accept: 'application/json',
       },
     });
+
+    if (response.status === 401) {
+      return {
+        status: 'unauthorized',
+        session: null,
+        message: 'La sesión venció. Volvé a entrar.',
+      };
+    }
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);

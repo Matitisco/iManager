@@ -8,7 +8,9 @@ import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
 import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { OfflineScope } from './offline-banner';
 import { useOfflineRecovery } from '../lib/offline-recovery';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { ListSkeleton } from './list-skeleton';
+import { prefetchMainRoutes } from './prefetch-routes';
 import { BrandIsotipo } from '../components/brand-mark';
 import { hasStoreContactOffer } from '../lib/store-contact';
 import { useAppContext } from '../context/AppContext';
@@ -16,15 +18,11 @@ import { initials, isInProgressTrade } from './format';
 import { ImanagerIcon } from './icons';
 import { REPAIR_DELIVERED } from './repairs';
 import { usePhoneLayout } from './section-notices';
-import { ClientsScreen } from './screens/ClientsScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
-import { InventoryScreen } from './screens/InventoryScreen';
 import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
 import { CommissionsScreen } from './screens/CommissionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
-import { SalesScreen } from './screens/SalesScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
-import { TradeInsScreen } from './screens/TradeInsScreen';
 import { BlueDollar } from './BlueDollar';
 import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
@@ -42,6 +40,11 @@ import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
+
+const InventoryScreen = lazy(() => import('./screens/InventoryScreen').then((module) => ({ default: module.InventoryScreen })));
+const SalesScreen = lazy(() => import('./screens/SalesScreen').then((module) => ({ default: module.SalesScreen })));
+const ClientsScreen = lazy(() => import('./screens/ClientsScreen').then((module) => ({ default: module.ClientsScreen })));
+const TradeInsScreen = lazy(() => import('./screens/TradeInsScreen').then((module) => ({ default: module.TradeInsScreen })));
 
 const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones'> = {
   cash: 'grid', publicCatalog: 'list', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
@@ -171,6 +174,7 @@ function FxBanner() {
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
   const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus } = useAppContext();
+  useEffect(() => { void prefetchMainRoutes(); }, []);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const commissionAccess = canManageCommissions(sections, role);
@@ -381,6 +385,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <SampleStockBanner />
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
+          <Suspense fallback={<ListSkeleton variant={phone ? 'cards' : 'rows'} rows={5} testId="route-loading" />}>
           <div key={tab} className={entered ? 'enter-f' : undefined}>
             {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
@@ -416,6 +421,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             )}
             </>}
           </div>
+          </Suspense>
           </OfflineScope>
         </main>
         {phone ? (

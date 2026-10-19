@@ -10,6 +10,7 @@ import { useMoney } from '../exchange';
 import { formatShortDate, isCancelledTrade, isInProgressTrade, parseAppDate, statusColor, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
 import { qualityDetail, tradeQuality } from '../quality';
 import { ImanagerIcon } from '../icons';
+import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
@@ -45,7 +46,8 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
 }
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [], user } = useAppContext();
+  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back } = useDesk();
@@ -180,7 +182,7 @@ export function TradeInsScreen() {
             <div className="sale-sec"><span>Canjes</span><span>{listed.length} de {tradeIns.length}</span></div>
           ) : null}
           {tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
-          {listed.length === 0 ? (
+          {loadingLists ? <ListSkeleton variant="cards" rows={4} testId="tradeins-loading" /> : listed.length === 0 ? (
             quiet ? <TradeEmpty onCreate={() => open({ type: 'new-cj' })} /> : <div className="wempty">{emptyCopy}</div>
           ) : (
             <>
@@ -287,7 +289,7 @@ export function TradeInsScreen() {
             </tbody>
           </table>
         </div>
-        {listed.length === 0 ? <div className="wempty">{emptyCopy}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="tradeins-loading" /> : listed.length === 0 ? <div className="wempty">{emptyCopy}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}

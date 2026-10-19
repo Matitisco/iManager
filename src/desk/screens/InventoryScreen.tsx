@@ -28,6 +28,7 @@ import { TablePager, usePagedRows } from '../pager';
 import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
+import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
@@ -68,7 +69,8 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, deleteProduct, operationDrafts = [], user } = useAppContext();
+  const { inventory, deleteProduct, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell } = useDisplayQuote();
   const catalogs = useCatalogs();
@@ -175,7 +177,7 @@ export function InventoryScreen() {
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Inventario"
-        subtitle={`${inventory.length} ${inventory.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
+        subtitle={loadingLists ? 'Cargando equipos…' : `${inventory.length} ${inventory.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
         back={back}
         tools={(
           <>
@@ -397,7 +399,7 @@ export function InventoryScreen() {
           </table>
         </>
         )}
-        {listed.length === 0 ? (
+        {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={phone ? 4 : 6} testId="inventory-loading" /> : listed.length === 0 ? (
           quietEmpty
             ? <InventoryEmpty showActions={phone} onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
             : <div className="wempty">No hay equipos con ese filtro.</div>
