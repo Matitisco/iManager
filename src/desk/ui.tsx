@@ -1,29 +1,17 @@
-import React, { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { Children, cloneElement, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import type { DeskTab, Overlay } from './types';
 import { useCatalogs } from './catalog';
 import { statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
 import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
 import { ModalCloseButton } from './close-button';
 import { ImanagerIcon, nearestIconSize, statusIcon, type ImanagerIconName } from './icons';
+import { GroupTabs } from './group-tabs';
 import { usePhoneLayout } from './section-notices';
 import { SelectionCheckbox, type RowSelection } from './bulk-selection';
 
-type DeskUi = {
-  tab: DeskTab;
-  go: (tab: DeskTab) => void;
-  open: (overlay: Overlay) => void;
-  openRecord: (section: string, recordId: string, kind?: string) => void;
-  close: () => void;
-  toast: (message: string) => void;
-  isStaff: boolean;
-  canManageSensitive?: boolean;
-  /** En celular, vuelve a Más cuando la sección no está en la barra. */
-  back?: () => void;
-};
-
-const DeskContext = createContext<DeskUi | null>(null);
+import type { DeskUi } from './desk-context';
+import { DeskContext } from './desk-context';
 
 export function DeskProvider({ value, children }: { value: DeskUi; children: React.ReactNode }) {
   return <DeskContext.Provider value={value}>{children}</DeskContext.Provider>;
@@ -137,14 +125,17 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
 
 export function PageHead({ title, subtitle, action, back }: { title: string; subtitle?: string; action?: React.ReactNode; back?: () => void }) {
   return (
-    <div className="whead">
-      {back ? <BackButton onClick={back} /> : null}
-      <div className="whead-copy">
-        <h1>{title}</h1>
-        {subtitle ? <div className="wsub">{subtitle}</div> : null}
+    <>
+      <div className="whead">
+        {back ? <BackButton onClick={back} /> : null}
+        <div className="whead-copy">
+          <h1>{title}</h1>
+          {subtitle ? <div className="wsub">{subtitle}</div> : null}
+        </div>
+        {action}
       </div>
-      {action}
-    </div>
+      <GroupTabs />
+    </>
   );
 }
 
@@ -181,14 +172,17 @@ export function ScreenTitle({ title, subtitle, back, tools, desktop }: {
 }) {
   const phone = usePhoneLayout();
   return (
-    <div className="dtop">
-      {phone && back ? <BackButton onClick={back} /> : null}
-      <div className="dtitle">
-        {typeof title === 'string' ? <h1>{title}</h1> : title}
-        {subtitle == null ? null : typeof subtitle === 'string' ? <div className="dsub">{subtitle}</div> : subtitle}
+    <>
+      <div className="dtop">
+        {phone && back ? <BackButton onClick={back} /> : null}
+        <div className="dtitle">
+          {typeof title === 'string' ? <h1>{title}</h1> : title}
+          {subtitle == null ? null : typeof subtitle === 'string' ? <div className="dsub">{subtitle}</div> : subtitle}
+        </div>
+        {phone ? <div className="mtools">{tools}</div> : desktop}
       </div>
-      {phone ? <div className="mtools">{tools}</div> : desktop}
-    </div>
+      <GroupTabs />
+    </>
   );
 }
 

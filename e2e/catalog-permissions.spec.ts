@@ -90,7 +90,7 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
     await review.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
     if (width === 390) {
       await review.getByTestId('sidebar-tab-more').click();
-      await expect(review.locator('.mmore .card').first().getByRole('button').first()).toHaveAttribute('data-testid', 'sidebar-tab-publicCatalog');
+      await expect(review.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
       await expect(review.getByTestId('mobile-tab-bar').getByText('Catálogo')).toHaveCount(0);
       await capture('376-m-mas', true);
     }
@@ -112,7 +112,7 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
       await patch(memberPath, { sections: sections.filter(id => id !== 'publicCatalog') });
       await review.reload();
       await expect(review.getByTestId('no-section-access')).toContainText('No tenés acceso');
-      await expect(review).toHaveURL(/#\/catalogo$/);
+      await expect(review).toHaveURL(/#\/stock\/catalogo$/);
       await capture('376-sin-acceso-1440');
     }
     expect(await review.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

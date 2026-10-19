@@ -58,7 +58,7 @@ test.describe('mobile tab indicator', () => {
 
     await page.addStyleTag({ content: '.mtab-indicator { transition-duration: 1200ms !important; }' });
     await bar.getByTestId('sidebar-tab-sales').click();
-    await expect(page).toHaveURL(/#\/ven/);
+    await expect(page).toHaveURL(/#\/comercial\/ventas/);
     await expect(indicator).toBeVisible();
     const started = await indicatorState(page);
     expect(started?.transition).toContain('transform 220ms ease-out');
@@ -77,13 +77,13 @@ test.describe('mobile tab indicator', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-after.png` });
 
     await page.evaluate(() => { window.location.hash = '#/inv'; });
-    await expect(page).toHaveURL(/#\/inv/);
+    await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(indicator).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
     await expect(indicator).toHaveCount(0);
 
     await page.goBack();
-    await expect(page).toHaveURL(/#\/ven/);
+    await expect(page).toHaveURL(/#\/comercial\/ventas/);
     await expect(indicator).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
     await expect(indicator).toHaveCount(0);
@@ -108,7 +108,7 @@ test.describe('mobile tab indicator', () => {
     await expect(page.getByTestId('sidebar-tab-dashboard')).toHaveClass(/on/);
 
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page).toHaveURL(/#\/inv/);
+    await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
   });
@@ -131,7 +131,7 @@ test.describe('desktop tab indicator stays out of the sidebar', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/desktop-1440.png` });
 
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page).toHaveURL(/#\/inv/);
+    await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.locator('.mtab-indicator')).toHaveCount(0);
   });

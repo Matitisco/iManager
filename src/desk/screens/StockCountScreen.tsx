@@ -22,6 +22,7 @@ import { formatImei, formatMoney } from '../format';
 import { ListSkeleton } from '../list-skeleton';
 import { canManageStockCount } from '../stock-count-access';
 import { usePhoneLayout } from '../section-notices';
+import { GroupTabs } from '../group-tabs';
 import { Actions, BackButton, Sheet, useDesk } from '../ui';
 
 type View = 'list' | 'count' | 'result';
@@ -109,7 +110,7 @@ export function StockEntryButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function StockCountScreen({ onBack }: { onBack: () => void }) {
+export function StockCountScreen({ onBack, standalone = false }: { onBack: () => void; standalone?: boolean }) {
   const { user, appSession, reloadInventory } = useAppContext();
   const desk = useDesk();
   const phone = usePhoneLayout();
@@ -313,7 +314,7 @@ export function StockCountScreen({ onBack }: { onBack: () => void }) {
   return (
     <div className={`dscreen stock-page${phone ? ' has-dock' : ''}`} data-testid="stock-count-page">
       <div className="dtop">
-        <BackButton onClick={leave} />
+        {standalone && view === 'list' ? null : <BackButton onClick={leave} />}
         <div className="dtitle">
           <h1>Control de stock</h1>
           <div className="dsub">{subtitle}</div>
@@ -321,6 +322,7 @@ export function StockCountScreen({ onBack }: { onBack: () => void }) {
         {!phone && view === 'count' && canManage ? <div className="dright"><button className="dbtn s" type="button" data-testid="stock-close" onClick={() => void finish()} disabled={busy}>Cerrar control</button></div> : null}
         {!phone && view === 'list' && canManage && !hasOpen && counts.length > 0 ? <div className="dright"><button className="dbtn p" type="button" onClick={openStart}>Iniciar control</button></div> : null}
       </div>
+      <GroupTabs />
       {error ? <div className="ferr" role="alert">{error}</div> : null}
       {loading ? <ListSkeleton variant="cards" testId="stock-loading" /> : null}
 

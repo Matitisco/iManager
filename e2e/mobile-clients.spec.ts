@@ -104,7 +104,8 @@ test.describe('clients on a phone', () => {
     await page.reload();
     await openClients(page);
 
-    await expect(page.getByTestId('page-back')).toBeVisible();
+    await expect(page.getByTestId('page-back')).toHaveCount(0);
+    await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
     await expect(page.getByText('0 clientes · 0 con saldo')).toBeVisible();
     await expect(page.getByTestId('clients-empty')).toContainText('No hay clientes');
     await expect(page.getByText('0 resultados')).toBeVisible();
@@ -309,7 +310,8 @@ test.describe('clients on a phone', () => {
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await openClients(staff);
-      await expect(staff.getByTestId('page-back')).toBeVisible();
+      await expect(staff.getByTestId('page-back')).toHaveCount(0);
+      await expect(staff.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
       const row = staff.getByTestId('phone-rows').locator('[data-testid^="client-row-"]').filter({ hasText: 'Cliente staff' });
       await expect(row).toBeVisible();
       await row.locator('xpath=..').getByTestId('row-menu').click();

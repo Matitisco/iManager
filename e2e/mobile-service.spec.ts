@@ -141,8 +141,9 @@ test.describe('service on a phone', () => {
     await page.reload();
     await openService(page);
 
-    await expect(page.getByTestId('page-back')).toBeVisible();
-    await page.getByTestId('page-back').click();
+    await expect(page.getByTestId('page-back')).toHaveCount(0);
+    await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
+    await page.getByTestId('sidebar-tab-more').click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
     await page.getByTestId('sidebar-tab-service').click();
     await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();

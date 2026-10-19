@@ -65,6 +65,7 @@ for (const mobile of [false, true]) {
         await page.getByTestId('login-password').fill('test123456');
         await page.getByTestId('login-submit').click();
         const openReports = async () => {
+          if (mobile) await page.getByTestId('sidebar-tab-more').click();
           await page.getByTestId('sidebar-tab-reports').click();
           await expect(page.locator('.gc b')).toBeVisible();
           await expect(page.locator('.gamount')).toContainText(new Intl.NumberFormat('es-AR').format(amount));

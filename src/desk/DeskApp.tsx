@@ -34,71 +34,97 @@ import { DeskToast } from './toast';
 import { DeskIcon, DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
-import { canManageCommissions, canOpenHistory, canOpenSection, DESK_SECTIONS, mobileTabs, type DeskSectionId } from './sections';
+import { canManageCommissions } from './sections';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
+import { FollowUpsScreen } from './screens/FollowUps';
 import { ReturnsScreen } from './screens/ReturnsScreen';
+import { StockCountScreen } from './screens/StockCountScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
-import { ROUTE, tabFromHash } from './hash-route';
+import { canonicalHash, ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
-import { sectionBadge } from './unread-count';
+import { NavChrome } from './group-tabs';
+import {
+  accessLabel,
+  barOwns,
+  desktopNav,
+  EMPTY_PENDING,
+  groupOf,
+  groupPending,
+  mobileBar,
+  moreTestId,
+  NAV_GROUPS,
+  openGroupsKey,
+  readOpenGroups,
+  sectionAllowed,
+  sectionPending,
+  toggleOpenGroup,
+  visibleOpenGroups,
+  type NavGroupId,
+  type NavIcon,
+  type PendingInput,
+} from './nav';
+import { fetchFollowUps } from '../services/accounts-api';
 import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
 
-const NAV_ICON: Record<DeskSectionId, 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'bell' | 'comisiones' | 'store' | 'register' | 'card'> = {
-  cash: 'register', publicCatalog: 'store', dashboard: 'grid', inventory: 'list', sales: 'cart', tradeins: 'swap',
-  clients: 'user', service: 'wrench', reports: 'bars', commissions: 'comisiones', notifications: 'bell',
-};
-const MORE_SUB: Record<DeskSectionId, string> = {
-  cash: 'Ingresos, egresos y cierre diario',
-  dashboard: 'Resumen de la tienda',
-  inventory: 'Equipos y stock',
-  publicCatalog: 'Tu lista de precios pública',
-  sales: 'Registro de ventas',
-  reports: 'Ventas, stock, canjes, clientes y servicio',
-  tradeins: 'Equipos dados y recibidos',
-  clients: 'Agenda y saldos',
-  service: 'Órdenes de reparación',
-  commissions: 'Vendedores y pagos',
-  notifications: 'Avisos de la tienda',
-};
-
-function sectionLabel(id: DeskSectionId) {
-  return DESK_SECTIONS.find((section) => section.id === id)?.label ?? id;
-}
+const E2E_NAV = import.meta.env.VITE_TEST_AUTH_MODE === 'e2e';
 
 function countWords(count: number, words: string) {
   return `${count} ${words}`;
 }
 
-function moreCount(id: DeskSectionId, openTrades: number, openRepairs: number, unreadTotal: number, commissions: number, catalogCount: number) {
+function sectionAside(id: DeskTab, pending: PendingInput, catalogCount: number) {
   if (id === 'publicCatalog') return countWords(catalogCount, catalogCount === 1 ? 'visible' : 'visibles');
-  if (id === 'commissions') return countWords(commissions, 'pendientes');
-  if (id === 'tradeins') return countWords(openTrades, 'en curso');
-  if (id === 'service') return countWords(openRepairs, openRepairs === 1 ? 'abierta' : 'abiertas');
-  if (id === 'notifications') return countWords(unreadTotal, 'sin leer');
+  if (id === 'commissions') return countWords(pending.commissions, 'pendientes');
+  if (id === 'tradeins') return countWords(pending.openTrades, 'en curso');
+  if (id === 'service') return countWords(pending.openRepairs, pending.openRepairs === 1 ? 'abierta' : 'abiertas');
+  if (id === 'notifications') return countWords(pending.notifications, 'sin leer');
+  if (id === 'followups' && pending.followUps > 0) return countWords(pending.followUps, 'para hoy');
   return undefined;
 }
 
+function NavGlyph({ name, size }: { name: NavIcon; size: number }) {
+  if (name === 'help') return <CircleHelp size={size} />;
+  return <DeskIcon name={name} size={size} />;
+}
+
+function badgeLabel(id: DeskTab, label: string, count: number) {
+  return id === 'notifications' ? `${count} en total` : `${count} en ${label}`;
+}
+
+function MoreRow({ id, label, subtitle, icon, aside, onOpen }: {
+  id: DeskTab;
+  label: string;
+  subtitle: string;
+  icon: NavIcon;
+  aside?: string;
+  onOpen: (id: DeskTab) => void;
+}) {
+  return (
+    <button className="member" type="button" data-testid={moreTestId(id)} onClick={() => onOpen(id)}>
+      <span className="ico-row"><NavGlyph name={icon} size={18} /></span>
+      <span className="info">
+        <span className="name">{label}</span>
+        <span className="role">{subtitle}</span>
+      </span>
+      {aside ? <span className="rtxt">{aside}</span> : null}
+      <span className="chev" aria-hidden="true">›</span>
+    </button>
+  );
+}
+
 function MoreScreen({
-  name, store, role, rows, openTrades, openRepairs, unread, commissions, catalogCount, ownCommissions, showHistory, showSuppliers, showReturns, showExpenses, onOpen,
+  name, store, role, nav, pending, catalogCount, onOpen,
 }: {
   name: string;
   store: string;
   role: string;
-  rows: DeskSectionId[];
-  openTrades: number;
-  openRepairs: number;
-  unread: number;
-  commissions: number;
+  nav: ReturnType<typeof desktopNav>;
+  pending: PendingInput;
   catalogCount: number;
-  ownCommissions: boolean;
-  showHistory: boolean;
-  showSuppliers: boolean;
-  showReturns: boolean;
-  showExpenses: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
   return (
@@ -106,7 +132,7 @@ function MoreScreen({
       <div className="whead">
         <div>
           <h1>Más</h1>
-          <div className="wsub">Todo lo que no entra en la barra</div>
+          <div className="wsub">Todas las secciones, agrupadas</div>
         </div>
       </div>
       <InstallCard />
@@ -118,66 +144,44 @@ function MoreScreen({
         </span>
         <span className="chev" aria-hidden="true">›</span>
       </button>
-      {rows.length > 0 || showHistory || showSuppliers || showReturns || showExpenses ? (
-        <>
-          <div className="mlabel">Módulos</div>
+      {nav.main.map((block) => block.kind === 'link' ? (
+        <div className="card" key={block.item.id}>
+          <MoreRow {...block.item} aside={sectionAside(block.item.id, pending, catalogCount)} onOpen={onOpen} />
+        </div>
+      ) : (
+        <div key={block.id}>
+          <div className="mlabel">{block.label}</div>
           <div className="card">
-            {rows.map((id) => {
-              const count = moreCount(id, openTrades, openRepairs, unread, commissions, catalogCount);
-              return (
-                <button key={id} className="member" type="button" data-testid={`sidebar-tab-${id}`} onClick={() => onOpen(id)}>
-                  <span className="ico-row"><DeskIcon name={NAV_ICON[id]} size={18} /></span>
-                  <span className="info">
-                    <span className="name">{id === 'commissions' && ownCommissions ? 'Mis comisiones' : sectionLabel(id)}</span>
-                    <span className="role">{id === 'commissions' && ownCommissions ? 'Solo las tuyas, de este mes' : MORE_SUB[id]}</span>
-                  </span>
-                  {count ? <span className="rtxt">{count}</span> : null}
-                  <span className="chev" aria-hidden="true">›</span>
-                </button>
-              );
-            })}
-            {showHistory ? <button className="member" type="button" data-testid="sidebar-tab-history" onClick={() => onOpen('history')}>
-              <span className="ico-row"><DeskIcon name="clock" size={18} /></span>
-              <span className="info"><span className="name">Historial</span><span className="role">Quién hizo qué y cuándo</span></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </button> : null}
-            {showSuppliers ? <button className="member" type="button" data-testid="sidebar-tab-suppliers" onClick={() => onOpen('suppliers')}>
-              <span className="ico-row"><DeskIcon name="store" size={18} /></span>
-              <span className="info"><span className="name">Proveedores</span><span className="role">Compras y origen del stock</span></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </button> : null}
-            {showReturns ? <button className="member" type="button" data-testid="sidebar-tab-returns" onClick={() => onOpen('returns')}>
-              <span className="ico-row"><DeskIcon name="swap" size={18} /></span>
-              <span className="info"><span className="name">Devoluciones</span><span className="role">Reclamos, notas de crédito y RMA</span></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </button> : null}
-            {showExpenses ? <button className="member" type="button" data-testid="sidebar-tab-expenses" onClick={() => onOpen('expenses')}>
-              <span className="ico-row"><DeskIcon name="card" size={18} /></span>
-              <span className="info"><span className="name">Gastos</span><span className="role">Lo que resta en la ganancia neta</span></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </button> : null}
+            {block.items.map((item) => (
+              <MoreRow key={item.id} {...item} aside={sectionAside(item.id, pending, catalogCount)} onOpen={onOpen} />
+            ))}
           </div>
-        </>
-      ) : null}
+        </div>
+      ))}
       <div className="mlabel">Cuenta</div>
       <div className="card">
-        <button className="member" type="button" data-testid="sidebar-tab-help" onClick={() => onOpen('help')}><span className="ico-row"><CircleHelp size={18} /></span><span className="info"><span className="name">Ayuda</span><span className="role">Guías y primeros pasos</span></span><span className="chev">›</span></button>
-        <button className="member" type="button" data-testid="sidebar-tab-settings" onClick={() => onOpen('settings')}>
-          <span className="ico-row"><DeskIcon name="gear" size={18} /></span>
-          <span className="info">
-            <span className="name">Configuración</span>
-            <span className="role">Tienda, equipo y tu cuenta</span>
-          </span>
-          <span className="chev" aria-hidden="true">›</span>
-        </button>
+        {nav.cuenta.map((item) => (
+          <MoreRow key={item.id} {...item} aside={sectionAside(item.id, pending, catalogCount)} onOpen={onOpen} />
+        ))}
       </div>
     </div>
   );
 }
 
-function SectionUnread({ label, count }: { label: string; count: number }) {
-  if (count <= 0) return null;
-  return <span className="dcount" aria-label={`${count} en ${label}`}>{count}</span>;
+function SideLink({ item, on, count, sub, onOpen }: {
+  item: { id: DeskTab; label: string; icon: NavIcon };
+  on: boolean;
+  count: number;
+  sub?: boolean;
+  onOpen: (id: DeskTab) => void;
+}) {
+  return (
+    <button className={`ditem${sub ? ' sub' : ''}${on ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
+      <span className="dic"><NavGlyph name={item.icon} size={18} /></span>
+      <span>{item.label}</span>
+      {count > 0 ? <span className="dcount" aria-label={badgeLabel(item.id, item.label, count)}>{count}</span> : null}
+    </button>
+  );
 }
 
 function FxBanner() {
@@ -198,9 +202,12 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   useOfflineRecovery(commissionCountError, () => setCommissionRetry(value => value + 1));
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
-  const mobile = mobileTabs(sections, role);
-  const allowed = (id: DeskTab) => id === 'billing' || id === 'expenses' ? role === 'OWNER' : id === 'suppliers' ? canOpenSection('inventory', sections, role) : id === 'returns' ? canOpenSection('sales', sections, role) : id === 'history' ? canOpenHistory(sections, role) : id === 'help' || id === 'more' || canOpenSection(id, sections, role);
+  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
+  const [followUpCount, setFollowUpCount] = useState(0);
+  const [storedGroups, setStoredGroups] = useState<NavGroupId[]>(() => (
+    E2E_NAV ? NAV_GROUPS.map((group) => group.id) : readOpenGroups(localStorage.getItem(openGroupsKey(user?.uid || '')))
+  ));
   useEffect(() => {
     if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
@@ -210,6 +217,26 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry, sessionConfirmed]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
+  useEffect(() => {
+    if (E2E_NAV) {
+      setStoredGroups(NAV_GROUPS.map((group) => group.id));
+      return;
+    }
+    setStoredGroups(readOpenGroups(localStorage.getItem(openGroupsKey(user?.uid || 'local'))));
+  }, [user?.uid]);
+  useEffect(() => {
+    if (E2E_NAV) return;
+    localStorage.setItem(openGroupsKey(user?.uid || 'local'), JSON.stringify(storedGroups));
+  }, [storedGroups, user?.uid]);
+  useEffect(() => {
+    if (!user || !sectionAllowed('followups', sections, role)) {
+      setFollowUpCount(0);
+      return;
+    }
+    let active = true;
+    void fetchFollowUps(user).then((data) => { if (active) setFollowUpCount(data.cards.length); }).catch(() => { if (active) setFollowUpCount(0); });
+    return () => { active = false; };
+  }, [user, sections, role, appSession?.store?.id]);
 
   const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
@@ -244,10 +271,12 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
 
   useEffect(() => {
     const apply = (closeOverlay: boolean) => {
+      const canonical = canonicalHash(window.location.hash);
+      if (canonical && canonical !== window.location.hash) history.replaceState(null, '', canonical);
       setTab(tabFromHash(window.location.hash));
       if (closeOverlay) setOverlay(null);
     };
-    if (!window.location.hash) history.replaceState(null, '', '#/dash');
+    if (!window.location.hash) history.replaceState(null, '', '#/dashboard');
     // Role arrives after the first paint. Read the hash again so a navigation
     // that landed before this listener was attached still opens that screen.
     apply(false);
@@ -306,7 +335,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     go(target);
   };
 
-  const showBack = phone && tab !== 'more' && !(mobile.bar as readonly string[]).includes(tab);
+  const slots = mobileBar(sections, role);
+  const showBack = phone && tab !== 'more' && !barOwns(tab, slots);
   const ui = {
     tab,
     go,
@@ -326,24 +356,19 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => go('more') : undefined,
   };
 
-  const nav: { id: DeskTab; label: string; icon: 'grid' | 'list' | 'cart' | 'swap' | 'user' | 'wrench' | 'bars' | 'comisiones' | 'clock' | 'store' | 'register' | 'card'; size: number }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', size: 22 },
-    { id: 'inventory', label: 'Inventario', icon: 'list', size: 22 },
-    { id: 'suppliers', label: 'Proveedores', icon: 'store', size: 18 },
-    { id: 'publicCatalog', label: 'Catálogo', icon: 'store', size: 18 },
-    { id: 'sales', label: 'Ventas', icon: 'cart', size: 22 },
-    { id: 'returns', label: 'Devoluciones', icon: 'swap', size: 18 },
-    { id: 'tradeins', label: 'Canjes', icon: 'swap', size: 18 },
-    { id: 'clients', label: 'Clientes', icon: 'user', size: 18 },
-    { id: 'service', label: 'Servicio técnico', icon: 'wrench', size: 18 },
-    { id: 'cash', label: 'Cajas', icon: 'register', size: 20 },
-    { id: 'expenses', label: 'Gastos', icon: 'card', size: 18 },
-    { id: 'reports', label: 'Reportes', icon: 'bars', size: 22 },
-    { id: 'history', label: 'Historial', icon: 'clock', size: 20 },
-    { id: 'commissions', label: commissionAccess ? 'Comisiones' : 'Mis comisiones', icon: 'comisiones', size: 20 },
-  ];
-  const items = nav.filter((item) => allowed(item.id));
-  const moreActive = !mobile.bar.some((id) => id === tab);
+  const nav = desktopNav(sections, role);
+  const pending: PendingInput = {
+    ...EMPTY_PENDING,
+    unread: unread.bySection,
+    openTrades,
+    openRepairs,
+    followUps: followUpCount,
+    notifications: unread.total,
+    commissions: pendingCommissions,
+  };
+  const activeGroup = groupOf(tab);
+  const openGroups = visibleOpenGroups(storedGroups, activeGroup);
+  const moreActive = !barOwns(tab, slots);
 
   return (
     <CatalogProvider>
@@ -373,24 +398,27 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           </div>
           <div className="dnav">
             <div className="dgroup">
-              {items.map((item) => (
-                <button key={item.id} className={`ditem${tab === item.id ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => go(item.id)}>
-                  <span className="dic"><DeskIcon name={item.icon} size={item.size} /></span>
-                  <span>{item.label}</span>
-                  <SectionUnread label={item.label} count={sectionBadge(unread.bySection, item.id)} />
-                </button>
+              {nav.main.map((block) => block.kind === 'link' ? (
+                <SideLink key={block.item.id} item={block.item} on={tab === block.item.id} count={sectionPending(block.item.id, pending)} onOpen={go} />
+              ) : (
+                <div key={block.id}>
+                  <button className={`ditem dgroup-h${openGroups.has(block.id) ? ' open' : ''}`} type="button" data-testid={`nav-group-${block.id}`} aria-expanded={openGroups.has(block.id)} onClick={() => setStoredGroups((current) => toggleOpenGroup(current, block.id, activeGroup))}>
+                    <span className="dic"><NavGlyph name={block.icon} size={18} /></span>
+                    <span>{block.label}</span>
+                    {!openGroups.has(block.id) && groupPending(block.items.map((item) => item.id), pending) > 0 ? <span className="dcount" aria-label={`${groupPending(block.items.map((item) => item.id), pending)} en ${block.label}`}>{groupPending(block.items.map((item) => item.id), pending)}</span> : null}
+                    <span className="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg></span>
+                  </button>
+                  {openGroups.has(block.id) ? block.items.map((item) => (
+                    <SideLink key={item.id} item={item} sub on={tab === item.id} count={sectionPending(item.id, pending)} onOpen={go} />
+                  )) : null}
+                </div>
               ))}
             </div>
             <div className="dlabel">Cuenta</div>
             <div className="dgroup">
-              <button className={`ditem${tab === 'help' ? ' on' : ''}`} type="button" data-testid="sidebar-tab-help" onClick={() => go('help')}><span className="dic"><CircleHelp size={18} /></span><span>Ayuda</span></button>
-              {allowed('notifications') ? <button className={`ditem${tab === 'notifications' ? ' on' : ''}`} type="button" data-testid="sidebar-tab-notifications" onClick={() => go('notifications')}>
-                <span className="dic"><DeskIcon name="bell" size={18} /></span><span>Notificaciones</span>
-                {unread.total > 0 ? <span className="dcount" aria-label={`${unread.total} en total`}>{unread.total}</span> : null}
-              </button> : null}
-              <button className={`ditem${tab === 'settings' ? ' on' : ''}`} type="button" data-testid="sidebar-tab-settings" onClick={() => go('settings')}>
-                <span className="dic"><DeskIcon name="gear" size={18} /></span><span>Configuración</span>
-              </button>
+              {nav.cuenta.map((item) => (
+                <SideLink key={item.id} item={item} on={tab === item.id} count={sectionPending(item.id, pending)} onOpen={go} />
+              ))}
             </div>
           </div>
           <BlueDollar />
@@ -407,17 +435,20 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <SampleStockBanner />
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
+          <NavChrome pending={pending}>
           <div key={tab} className={entered ? 'enter-f' : undefined}>
-            {!allowed(tab) ? <NoSectionAccess section={DESK_SECTIONS.find(section => section.id === tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab === 'suppliers' ? 'Proveedores' : tab === 'returns' ? 'Devoluciones' : tab === 'expenses' ? 'Gastos' : tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
+            {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
+            {tab === 'stockCount' && <StockCountScreen standalone onBack={() => go('inventory')} />}
             {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
             {tab === 'returns' && <ReturnsScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
+            {tab === 'followups' && <FollowUpsScreen />}
             {tab === 'service' && <ServiceScreen />}
             {tab === 'cash' && <CashScreen />}
             {tab === 'expenses' && <ExpensesScreen />}
@@ -432,39 +463,29 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 name={name}
                 store={appSession?.store?.name || 'Tienda'}
                 role={ROLE_LABEL[role ?? 'STAFF']}
-                rows={mobile.more}
-                openTrades={openTrades}
-                openRepairs={openRepairs}
-                commissions={pendingCommissions}
+                nav={nav}
+                pending={pending}
                 catalogCount={inventory.filter(item => item.catalogIncluded).length}
-                ownCommissions={!commissionAccess}
-                showHistory={allowed('history')}
-                showSuppliers={allowed('suppliers')}
-                showReturns={allowed('returns')}
-                showExpenses={allowed('expenses')}
-                unread={unread.total}
                 onOpen={go}
               />
             )}
             </>}
           </div>
+          </NavChrome>
           </OfflineScope>
         </main>
         {phone ? (
           <MobileTabBar
             buttons={[
-              ...mobile.bar.map((id) => {
-                const pending = sectionBadge(unread.bySection, id);
-                return {
-                  id,
-                  label: sectionLabel(id),
-                  active: tab === id,
-                  pending,
-                  testId: `sidebar-tab-${id}`,
-                  icon: <DeskIcon name={NAV_ICON[id]} size={22} />,
-                  onClick: () => go(id),
-                };
-              }),
+              ...slots.map((slot) => ({
+                id: slot.id,
+                label: slot.label,
+                active: slot.activeIds.includes(tab),
+                pending: groupPending(slot.activeIds, pending),
+                testId: slot.testId,
+                icon: <NavGlyph name={slot.icon} size={22} />,
+                onClick: () => go(slot.target),
+              })),
               {
                 id: 'more',
                 label: 'Más',

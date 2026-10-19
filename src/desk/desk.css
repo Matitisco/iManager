@@ -52,9 +52,15 @@
 .dbrand small { display: block; font-size: 13px; line-height: 1.2; color: var(--secondary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dgroup { display: flex; flex-direction: column; gap: 2px; }
 .dlabel { font-size: 11px; font-weight: 800; color: var(--secondary); text-transform: uppercase; letter-spacing: .06em; padding: 18px 12px 6px; }
-.ditem { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--secondary); text-align: left; width: 100%; transition: background .15s; user-select: none; }
+.ditem { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--secondary); text-align: left; width: 100%; transition: background .15s; user-select: none; white-space: nowrap; }
 .ditem:hover { background: #F3F4F6; color: var(--primary); }
 .ditem.on { background: var(--lime-soft); color: var(--primary); }
+.ditem.sub { height: 38px; padding-left: 44px; font-size: 13.5px; }
+.ditem.sub .dic { display: none; }
+.dgroup-h .chev { margin-left: auto; display: inline-flex; color: var(--secondary); transition: transform .15s; transform: rotate(-90deg); }
+.dgroup-h .dcount { margin-left: auto; }
+.dgroup-h .dcount + .chev { margin-left: 8px; }
+.dgroup-h.open .chev { transform: none; }
 .dic { display: flex; width: 20px; justify-content: center; color: #737984; }
 .ditem.on .dic { color: #16181D; }
 .dcount { margin-left: auto; min-width: 20px; height: 20px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
@@ -254,6 +260,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }
 .sale-pills .dsel { flex: none; }
 .sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }
+.dsel.menu-start .menu { left: 0; right: auto; max-width: min(280px, calc(100vw - 32px)); transform-origin: top left; }
 .sale-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
 .sale-sec span:last-child { letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 700; }
 .sale-line { position: relative; display: flex; flex-direction: column; gap: 10px; margin: 0 0 8px; max-width: 100%; }
@@ -523,6 +530,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sg { height: 38px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 0; }
 .sgs.stg .sg { padding: 0 11px; }
 .sg.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.desk-app button.sg { height: 38px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--border); background: #fff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 0; color: var(--primary); }
+.desk-app .sgs.stg button.sg { padding: 0 11px; }
+.desk-app button.sg.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.nav-tabs { margin: 2px 0 14px; }
 .sg-edit { width: 38px; height: 38px; border-radius: 50%; border: 1.5px dashed var(--border); display: inline-flex; align-items: center; justify-content: center; color: var(--secondary); }
 .sg-edit:hover { border-color: var(--primary); color: var(--primary); }
 .ov.subov { z-index: 120; background: rgba(17,17,17,.32); }

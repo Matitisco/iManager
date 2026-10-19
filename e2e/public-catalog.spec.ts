@@ -22,15 +22,14 @@ for (const device of [
     const openCatalog = async () => {
       if (device.mobile) {
         await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
-        const rows = page.locator('.mmore .card').first();
-        await expect(rows.locator('button').first()).toContainText('Catálogo');
+        await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
       }
       await page.getByTestId('sidebar-tab-publicCatalog').click();
     };
     await openCatalog(); await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
     const slug = link.split('/c/')[1];
-    if (device.mobile) await page.getByRole('button', { name: 'Equipos', exact: true }).click();
+    if (device.mobile) await page.getByTestId('catalog-screen').getByRole('button', { name: 'Equipos', exact: true }).click();
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 14 256GB' }).check();

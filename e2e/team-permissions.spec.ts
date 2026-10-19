@@ -36,9 +36,9 @@ for (const width of [390, 1440]) {
     await expect(page.getByTestId('page-back')).toBeVisible();
     await page.goBack();
     await expect(page.getByTestId('settings-screen')).toBeVisible();
-    await expect(page).toHaveURL(/#\/config$/);
+    await expect(page).toHaveURL(/#\/cuenta\/configuracion$/);
     await page.getByRole('button', { name: /Lucía Gómez/ }).click();
-    await expect(page).toHaveURL(/#\/config\/equipo\//);
+    await expect(page).toHaveURL(/#\/cuenta\/configuracion\/equipo\//);
     await page.goBack();
     await expect(page.getByTestId('settings-screen')).toBeVisible();
     await expect(page).not.toHaveURL(/#\/dash/);
@@ -60,7 +60,7 @@ for (const width of [390, 1440]) {
       await guest.goto('/#/rep');
       await expect(guest.getByTestId('no-section-access')).toBeVisible();
       await expect(guest.getByText('Pedile acceso a Matías Tiscornia')).toBeVisible();
-      await expect(guest).toHaveURL(/#\/rep$/);
+      await expect(guest).toHaveURL(/#\/analisis\/reportes$/);
       await guest.screenshot({ path: `/tmp/issue71-denied-${width}.png` });
       expect(await guest.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     } finally { await context.close(); }

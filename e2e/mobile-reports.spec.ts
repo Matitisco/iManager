@@ -70,6 +70,8 @@ async function expectFits(page: Page) {
 }
 
 async function openReports(page: Page) {
+  const more = page.getByTestId('sidebar-tab-more');
+  if (await more.isVisible()) await more.click();
   await page.getByTestId('sidebar-tab-reports').click();
   await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
 }
@@ -121,7 +123,7 @@ test.describe('reports on a phone', () => {
 
     await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
-    await expect(page.getByTestId('page-back')).toHaveCount(0);
+    await expect(page.getByTestId('page-back')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Exportar' })).toBeVisible();
     await expect(reportTabs(page).getByRole('button', { name: 'Ventas' })).toBeVisible();
     await expect(reportTabs(page).getByRole('button', { name: 'Stock' })).toBeVisible();
@@ -288,7 +290,7 @@ test.describe('reports on a phone', () => {
       await expectFits(staff);
       await staff.goto('/#/rep');
       await expect(staff.getByTestId('no-section-access')).toContainText('No tenés acceso');
-      await expect(staff).toHaveURL(/#\/rep$/);
+      await expect(staff).toHaveURL(/#\/analisis\/reportes$/);
       await expect(staff.getByRole('heading', { name: 'Reportes', exact: true })).toHaveCount(0);
       await expectFits(staff);
     } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configPlace, tabFromHash, writeHash } from './hash-route';
+import { canonicalHash, configHash, configPlace, tabFromHash, writeHash } from './hash-route';
 
 describe('ruta del escritorio', () => {
   it('abre Plan y facturación aunque Mercado Pago agregue query al hash', () => {
@@ -18,6 +18,40 @@ describe('ruta del escritorio', () => {
     expect(configPlace('#/config')).toEqual({ page: 'settings', memberId: null });
     expect(configPlace('#/config/equipo')).toEqual({ page: 'team', memberId: null });
     expect(configPlace('#/config/equipo/m2')).toEqual({ page: 'team', memberId: 'm2' });
+  });
+
+  it('redirige las rutas viejas y deja quieto lo que no es del escritorio', () => {
+    expect(canonicalHash('#/ven')).toBe('#/comercial/ventas');
+    expect(canonicalHash('#/canjes')).toBe('#/comercial/canjes');
+    expect(canonicalHash('#/inv')).toBe('#/stock/equipos');
+    expect(canonicalHash('#/proveedores')).toBe('#/stock/proveedores');
+    expect(canonicalHash('#/catalogo')).toBe('#/stock/catalogo');
+    expect(canonicalHash('#/servicio')).toBe('#/atencion/servicio');
+    expect(canonicalHash('#/cajas')).toBe('#/finanzas/cajas');
+    expect(canonicalHash('#/gastos')).toBe('#/finanzas/gastos');
+    expect(canonicalHash('#/rep')).toBe('#/analisis/reportes');
+    expect(canonicalHash('#/comisiones')).toBe('#/analisis/comisiones');
+    expect(canonicalHash('#/historial')).toBe('#/analisis/historial');
+    expect(canonicalHash('#/notif')).toBe('#/cuenta/notificaciones');
+    expect(canonicalHash('#/config/equipo/m2?tab=permisos')).toBe('#/cuenta/configuracion/equipo/m2?tab=permisos');
+    expect(canonicalHash('')).toBe('#/dashboard');
+    expect(canonicalHash('#/comercial/ventas')).toBe('#/comercial/ventas');
+    expect(canonicalHash('#/restablecer?mode=resetPassword')).toBeNull();
+    expect(canonicalHash('#/salida')).toBeNull();
+    expect(canonicalHash('#/no-existe')).toBeNull();
+    expect(tabFromHash('#/tradeins')).toBe('tradeins');
+    expect(tabFromHash('#/returns')).toBe('returns');
+    expect(tabFromHash('#/suppliers')).toBe('suppliers');
+    expect(tabFromHash('#/expenses')).toBe('expenses');
+    expect(tabFromHash('#/history')).toBe('history');
+    expect(tabFromHash('#/commissions')).toBe('commissions');
+    expect(tabFromHash('#/publicCatalog')).toBe('publicCatalog');
+    expect(tabFromHash('#/cash')).toBe('cash');
+    expect(tabFromHash('#/service')).toBe('service');
+    expect(tabFromHash('#/stockCount')).toBe('stockCount');
+    expect(tabFromHash('#/followups')).toBe('followups');
+    expect(configHash('team', 'm2')).toBe('#/cuenta/configuracion/equipo/m2');
+    expect(configPlace('#/cuenta/configuracion/equipo/m2')).toEqual({ page: 'team', memberId: 'm2' });
   });
 
   it('pushes one history entry per level so browser back climbs a single step', () => {
