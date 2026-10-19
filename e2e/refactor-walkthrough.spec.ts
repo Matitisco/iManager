@@ -222,9 +222,9 @@ for (const viewport of viewports) {
       await shot(page, `${prefix}-16-invitacion.png`);
       await page.keyboard.press('Escape');
       await expect(invite).toBeHidden();
-      await expect(page.getByTestId('settings-invites')).toBeVisible();
-      const share = page.getByTestId('settings-invites').getByRole('link', { name: 'Compartir por WhatsApp' })
-        .and(page.locator(`a[href*="${encodeURIComponent(inviteUrl)}"]`));
+      const pending = page.getByTestId('settings-invites').filter({ has: page.locator(`a[href*="${encodeURIComponent(inviteUrl)}"]`) });
+      await expect(pending).toBeVisible();
+      const share = pending.getByRole('link', { name: 'Compartir por WhatsApp' });
       await expect(share).toBeVisible();
       await expect(share).toHaveAttribute('href', `https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${storeName}: ${inviteUrl}`)}`);
       await shot(page, `${prefix}-17-invitaciones.png`);

@@ -53,8 +53,7 @@ test('captures archive, history and void screens', async ({ page, request }, tes
   await page.screenshot({ path: `${shots}/natan1-inventario-archivados-1440.png`, animations: 'disabled' });
 
   await page.getByTestId('sidebar-tab-settings').click();
-  await page.getByRole('button', { name: 'Equipo ›' }).click();
-  await page.getByTestId('team-screen').getByRole('button', { name: /Lucia Gomez/ }).click();
+  await page.getByTestId('settings-screen').getByRole('button', { name: /Lucia Gomez/ }).click();
   await expect(page.getByRole('switch', { name: 'Ver historial' })).toBeVisible();
   await page.screenshot({ path: `${shots}/natan1-permisos-1440.png`, animations: 'disabled' });
   await page.getByRole('button', { name: 'Cancelar' }).click();

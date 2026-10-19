@@ -49,7 +49,7 @@ test.describe('report periods on desktop', () => {
 
 test.describe('report periods on iPhone', () => {
   for (const width of [393, 320, 760]) {
-    test(`right-aligns fitting chips and preserves scroll at ${width}px`, async ({ playwright, request, baseURL }, testInfo) => {
+    test(`left-aligns the period chips and preserves scroll at ${width}px`, async ({ playwright, request, baseURL }, testInfo) => {
       const browser = await playwright.webkit.launch();
       try {
         const page = await browser.newPage({
@@ -72,14 +72,15 @@ test.describe('report periods on iPhone', () => {
         const first = periods.getByRole('button').first();
         const last = periods.getByRole('button').last();
         const overflows = await periods.evaluate(node => node.scrollWidth > node.clientWidth);
-        // At 760px all chips fit: their right edge must align without scrolling.
+        // At 760px the chips fit on one line and start at the left of the row.
         if (width === 760) expect(overflows).toBe(false);
         if (overflows) {
           await periods.evaluate(node => { node.scrollLeft = node.scrollWidth; });
           expect(await periods.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
+          expect(Math.abs(await rightEdge(last) - await rightEdge(periods))).toBeLessThanOrEqual(2);
         }
-        expect(Math.abs(await rightEdge(last) - await rightEdge(periods))).toBeLessThanOrEqual(2);
         await periods.evaluate(node => { node.scrollLeft = 0; });
+        expect(Math.abs((await first.boundingBox())!.x - (await periods.boundingBox())!.x)).toBeLessThanOrEqual(2);
         expect((await first.boundingBox())!.x).toBeGreaterThanOrEqual((await periods.boundingBox())!.x - 1);
         if (overflows) {
           expect(Math.abs((await first.boundingBox())!.x - (await periods.boundingBox())!.x)).toBeLessThanOrEqual(2);

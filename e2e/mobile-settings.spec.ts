@@ -219,6 +219,9 @@ test.describe('settings on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-links.png` });
     await links.getByRole('button', { name: 'Cancelar invitación' }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm.getByRole('heading', { name: '¿Cancelás esta invitación?' })).toBeVisible();
+    await confirm.getByRole('button', { name: 'Cancelar invitación' }).click();
     await expect(page.locator('.toast.show')).toContainText('Invitación cancelada');
     await expect(links).toHaveCount(0);
 
