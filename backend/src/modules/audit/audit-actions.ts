@@ -92,6 +92,7 @@ const ACTIONS: Record<string, ActionMeta> = {
   "member.permissions": { title: "Cambió los permisos", group: "Equipo y permisos", section: "settings", verb: "cambió los permisos de" },
   "invitation.cancelled": { title: "Canceló una invitación", group: "Equipo y permisos", section: "settings", verb: "canceló la invitación de" },
   "store.updated": { title: "Editó la tienda", group: "Edición", section: "settings", verb: "editó los datos de" },
+  "catalog.visibility": { title: "Cambió la visibilidad", group: "Edición", section: "settings", verb: "cambió la visibilidad de" },
 };
 
 export function actionMeta(action: string): ActionMeta {
@@ -155,6 +156,48 @@ export function batchOf(changes: Change[] | null | undefined) {
   return { id, size: Number.isFinite(size) ? size : 0 };
 }
 
+const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function cleanLabel(value: string | null | undefined) {
+  const text = (value ?? "").trim();
+  if (!text || OPAQUE_ID.test(text) || text.includes("→")) return "";
+  return text;
+}
+
+function reasonSuffix(reason: string | null | undefined) {
+  const text = reason?.trim();
+  return text ? ` · ${text}` : "";
+}
+
+function needsNeutralObject(verb: string) {
+  if (/(?:\s(?:de|a|en|al|del))$/.test(verb)) return true;
+  return !verb.includes(" ");
+}
+
+function neutralObject(action: string) {
+  if (action.startsWith("cash.")) return "una caja";
+  if (action === "sale.seller.changed") return "la venta";
+  if (action.startsWith("commission.")) return "una comisión";
+  if (action.startsWith("catalog.")) return "el catálogo";
+  if (action.startsWith("member.") || action.startsWith("invitation.")) return "una persona";
+  return "un registro";
+}
+
+function catalogCount(detail: string | null | undefined, changes: Change[] | null | undefined) {
+  const fromChange = Number(changes?.find((change) => change.field === "count")?.after ?? "");
+  if (Number.isInteger(fromChange) && fromChange > 0) return fromChange;
+  const match = detail?.match(/(\d+)\s+equipo/i);
+  if (!match) return null;
+  const count = Number(match[1]);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
+function objectName(action: string, verb: string, label: string) {
+  if (action === "sale.seller.changed") return label.match(/\bV-\d+\b/)?.[0] || label || "la venta";
+  if (label) return label;
+  return needsNeutralObject(verb) ? neutralObject(action) : "";
+}
+
 export function describeAudit(input: {
   action: string;
   entityLabel?: string | null;
@@ -164,7 +207,7 @@ export function describeAudit(input: {
 }) {
   const meta = actionMeta(input.action);
   const legacy = input.action.endsWith(".deleted");
-  const label = (input.entityLabel || input.detail || "").trim();
+  const label = cleanLabel(input.entityLabel);
   const batch = batchOf(input.changes);
   if (batch.size > 1 && input.action === "inventory.archived") {
     return {
@@ -173,29 +216,40 @@ export function describeAudit(input: {
       verb: "archivó",
       target: `${batch.size} equipos`,
       legacy: false,
-      suffix: input.reason ? ` · ${input.reason}` : "",
+      suffix: reasonSuffix(input.reason),
     };
   }
   if (legacy) {
     const what = label || "un registro";
     return {
       ...meta,
-      verb: "",
-      target: `Eliminó ${what} (antes del historial)`,
+      title: `Eliminó ${what}`,
+      verb: "eliminó",
+      target: `${what} (antes del historial)`,
       legacy: true,
       suffix: "",
+    };
+  }
+  if (input.action === "catalog.visibility") {
+    const count = catalogCount(input.detail, input.changes);
+    const target = count == null ? (label || "el catálogo") : count === 1 ? "1 equipo" : `${count} equipos`;
+    return {
+      ...meta,
+      verb: "cambió la visibilidad de",
+      target,
+      legacy: false,
+      suffix: reasonSuffix(input.reason),
     };
   }
   const price = input.changes?.find((change) => change.field === "price");
   const verb = input.action === "inventory.updated" && price ? "cambió el precio de" : meta.verb;
   const title = input.action === "inventory.updated" && price ? "Cambió el precio" : meta.title;
-  const reason = input.reason?.trim();
   return {
     ...meta,
     title,
     verb,
-    target: label,
+    target: objectName(input.action, verb, label),
     legacy: false,
-    suffix: reason ? ` · ${reason}` : "",
+    suffix: reasonSuffix(input.reason),
   };
 }

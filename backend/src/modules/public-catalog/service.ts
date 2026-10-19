@@ -39,7 +39,15 @@ export async function setVisibility(storeId: string, ids: string[], visible: boo
     const count = await tx.inventoryItem.count({ where: { storeId, id: { in: unique }, archivedAt: null } });
     if (count !== unique.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
     await tx.inventoryItem.updateMany({ where: { storeId, id: { in: unique }, archivedAt: null }, data: { catalogVisible: visible } });
-    await writeAudit(tx, { storeId, actor, action: 'catalog.visibility', entityType: 'catalog', entityId: storeId, detail: `${visible ? 'Mostrar' : 'Ocultar'}: ${unique.length} ${unique.length === 1 ? 'equipo' : 'equipos'}` });
+    const noun = unique.length === 1 ? 'equipo' : 'equipos';
+    await writeAudit(tx, {
+      storeId, actor, action: 'catalog.visibility', entityType: 'catalog', entityId: storeId,
+      detail: `${visible ? 'Mostrar' : 'Ocultar'}: ${unique.length} ${noun}`,
+      changes: [
+        { field: 'catalog', label: 'Catálogo', before: visible ? 'Visible' : 'Oculto', after: visible ? 'Oculto' : 'Visible' },
+        { field: 'count', label: 'Equipos', before: null, after: String(unique.length) },
+      ],
+    });
   });
   return getSettings(storeId);
 }

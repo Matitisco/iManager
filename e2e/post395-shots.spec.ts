@@ -36,6 +36,50 @@ function note(id: string, section: string) {
   return { id, storeId: 'store-1', section, title: section, message: section, kind: 'updated', createdAt: '2026-10-18T22:16:00.000Z', readAt: null };
 }
 
+function historyEvent(partial: Record<string, unknown>) {
+  return {
+    group: 'Edición',
+    actorUserId: ownerId,
+    actorName: 'Matias Tiscornia',
+    actorRole: 'OWNER',
+    actorRoleLabel: 'Propietario',
+    entityLabel: null,
+    detail: null,
+    changes: [],
+    reason: null,
+    source: 'app',
+    legacy: false,
+    suffix: '',
+    recordState: 'active',
+    ...partial,
+  };
+}
+const historyEvents = [
+  historyEvent({
+    id: 'h-seller', createdAt: '2026-10-18T22:41:00.000Z', action: 'sale.seller.changed', section: 'sales', sectionLabel: 'Ventas',
+    entityType: 'sale', entityId: 's20', entityLabel: 'V-0190', title: 'Cambió el vendedor', verb: 'cambió el vendedor de', target: 'V-0190',
+    changes: [{ field: 'seller', label: 'Vendedor', before: 'Ana', after: 'Matias' }],
+  }),
+  historyEvent({
+    id: 'h-long', createdAt: '2026-10-18T22:40:00.000Z', action: 'inventory.updated', section: 'inventory', sectionLabel: 'Inventario',
+    entityType: 'inventory', entityId: 'p1', entityLabel: 'iPhone 13 Pro Max 1TB', title: 'Editó un equipo', verb: 'editó',
+    target: 'iPhone 13 Pro Max 1TB Negro con funda y vidrio templado de la sucursal centro',
+  }),
+  historyEvent({
+    id: 'h-legacy', createdAt: '2026-10-17T18:00:00.000Z', action: 'inventory.deleted', group: 'Anulación/Archivo', section: 'inventory', sectionLabel: 'Inventario',
+    entityType: 'inventory', entityId: 'gone-item', title: 'Eliminó iPhone 13', verb: 'eliminó', target: 'iPhone 13 (antes del historial)', legacy: true, recordState: 'gone',
+  }),
+  historyEvent({
+    id: 'h-catalog', createdAt: '2026-10-17T17:00:00.000Z', action: 'catalog.visibility', section: 'settings', sectionLabel: 'Configuración',
+    entityType: 'catalog', entityId: 'store-1', title: 'Cambió la visibilidad', verb: 'cambió la visibilidad de', target: '1 equipo',
+    detail: 'Ocultar: 1 equipo', recordState: 'gone',
+  }),
+  historyEvent({
+    id: 'h-cash', createdAt: '2026-10-17T16:00:00.000Z', action: 'cash.opened', group: 'Cobros', section: 'cash', sectionLabel: 'Cajas',
+    entityType: 'cash', entityId: 'missing-session', title: 'Abrió una caja', verb: 'abrió', target: 'una caja', recordState: 'gone',
+  }),
+];
+
 let persona: 'owner' | 'staff' = 'owner';
 
 async function installApi(page: Page) {
@@ -70,6 +114,8 @@ async function installApi(page: Page) {
     if (path.includes('/sessions')) return route.fulfill({ json: { sessions: [] } });
     if (path.includes('/drafts')) return route.fulfill({ json: { tradeIns: [] } });
     if (path.includes('/options')) return route.fulfill({ json: { products: [], clients: [] } });
+    if (path === '/api/history/actors') return route.fulfill({ json: { actors: [{ userId: ownerId, name: 'Matias Tiscornia', removed: false }] } });
+    if (path === '/api/history') return route.fulfill({ json: { events: historyEvents, nextCursor: null } });
     return route.fulfill({ json: {} });
   });
 }
@@ -245,4 +291,60 @@ test.describe('post 395', () => {
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await shot(page, 'dashboard-empleado');
   });
+
+  for (const width of [1440, 390]) {
+    test(`historial a ${width}`, async ({ page }) => {
+      const mobile = width === 390;
+      await page.setViewportSize({ width, height: mobile ? 844 : 1000 });
+      await page.goto('/#/historial');
+      await expect(page.getByTestId('history-screen')).toBeVisible();
+      const seller = page.locator('.history-row', { hasText: 'cambió el vendedor de V-0190' });
+      await expect(seller).toBeVisible();
+      await expect(seller).toContainText('19:41');
+      await expect(page.getByText(/p\.\s*m\./i)).toHaveCount(0);
+      const sellerInfo = seller.locator('.info');
+      expect(await sellerInfo.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+      expect(await sellerInfo.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap');
+      expect(await sellerInfo.evaluate((el) => el.textContent ?? '')).toContain('cambió el vendedor de V-0190');
+      const longInfo = page.locator('.history-row', { hasText: 'vidrio templado' }).locator('.info');
+      expect(await longInfo.evaluate((el) => el.textContent ?? '')).toContain('vidrio templado de la sucursal centro');
+      expect(await longInfo.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(mobile);
+      await shot(page, `historial-${mobile ? 'mobile' : 'desktop'}`);
+
+      await seller.click();
+      const sheet = page.getByRole('dialog', { name: 'Cambió el vendedor' });
+      await expect(sheet.getByRole('columnheader', { name: 'Campo' })).toBeVisible();
+      await expect(sheet.getByRole('cell', { name: 'Vendedor' })).toBeVisible();
+      await expect(sheet.getByRole('cell', { name: 'Ana' })).toBeVisible();
+      await expect(sheet.getByRole('cell', { name: 'Matias' })).toBeVisible();
+      await expect(sheet.getByText('18/10/2026 19:41')).toBeVisible();
+      const open = sheet.getByRole('button', { name: 'Ver registro' });
+      await expect(open).toBeEnabled();
+      expect(await open.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+      const box = await sheet.boundingBox();
+      expect(box).not.toBeNull();
+      if (mobile) expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(760);
+      else expect((box?.y ?? 0)).toBeLessThan(400);
+      await shot(page, `historial-detalle-${mobile ? 'mobile' : 'desktop'}`);
+      await page.keyboard.press('Escape');
+
+      await page.locator('.history-row', { hasText: 'eliminó iPhone 13 (antes del historial)' }).click();
+      await expect(page.getByText('Movimiento anterior al historial: no tiene detalle')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Ver registro' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.locator('.history-row', { hasText: 'cambió la visibilidad de 1 equipo' }).click();
+      const catalog = page.getByRole('dialog', { name: 'Cambió la visibilidad' });
+      await expect(catalog.getByRole('cell', { name: 'Catálogo' })).toBeVisible();
+      await expect(catalog.getByRole('cell', { name: 'Visible' })).toBeVisible();
+      await expect(catalog.getByRole('cell', { name: 'Oculto' })).toBeVisible();
+      await expect(catalog.getByRole('cell', { name: '1', exact: true })).toBeVisible();
+      await expect(catalog.getByText('El registro ya no existe')).toBeVisible();
+      await expect(catalog.getByRole('button', { name: 'Ver registro' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      await page.locator('.history-row', { hasText: 'abrió una caja' }).click();
+      await expect(page.getByRole('dialog', { name: 'Abrió una caja' }).getByText('El registro ya no existe')).toBeVisible();
+    });
+  }
 });

@@ -2040,10 +2040,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .history-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; cursor: pointer; color: inherit; }
 .history-row:last-child { border-bottom: 0; }
 .history-row .av-c { width: 36px; height: 36px; font-size: 12px; }
-.history-row .info { min-width: 0; font-weight: 600; line-height: 1.35; }
+.history-row .info { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; line-height: 1.35; }
 .history-row .info b { font-weight: 750; }
 .history-go { color: var(--section); justify-self: end; }
-.history-diff td, .history-diff th { text-align: left; }
+.history-diff { width: 100%; }
+.history-diff td, .history-diff th { text-align: left; overflow-wrap: anywhere; }
+.history-missing { margin: 14px 0 0; color: var(--secondary); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .sheet.history-detail .sheet-foot { display: block; margin-top: 16px; }
 .sheet.history-detail .sheet-foot .btn2 { width: 100%; }
 .kicker { margin: 16px 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }

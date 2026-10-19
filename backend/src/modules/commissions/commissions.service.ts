@@ -4,6 +4,7 @@ import { DomainError } from "../../lib/domain-error.js";
 import { currentBlueRate } from "../../lib/blue-rate.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
+import { saleCode } from "../audit/archive.js";
 import { assertSeller, refreshSaleCommission } from "./commission-ledger.js";
 import { convert, currentPeriodKey, emptyTotals, projectBalance, monthBounds, roundMoney, zonedDayStart, type CommissionBasis, type Currency, type CurrencyTotals } from "./commission-math.js";
 
@@ -234,13 +235,14 @@ export async function bulkAssignSeller(storeId: string, actor: Actor, saleIds: s
   return withSerializableRetry(async tx => {
     await assertSeller(tx, storeId, sellerMemberId);
     const ids = [...new Set(saleIds)];
-    const sales = await tx.sale.findMany({ where: { storeId, id: { in: ids } }, select: { id: true, sellerMemberId: true } });
+    const sales = await tx.sale.findMany({ where: { storeId, id: { in: ids } }, select: { id: true, sellerMemberId: true, saleNumber: true } });
     if (sales.length !== ids.length) throw new DomainError("Una venta no pertenece a la tienda", 404);
     for (const sale of sales) {
       if (sale.sellerMemberId === sellerMemberId) continue;
       await tx.sale.update({ where: { id: sale.id }, data: { sellerMemberId } });
       await refreshSaleCommission(tx, storeId, sale.id);
       await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id,
+        entityLabel: saleCode(sale.saleNumber),
         detail: `${sale.sellerMemberId ?? "Sin vendedor"} → ${sellerMemberId ?? "Sin vendedor"}` });
     }
     return { updated: sales.length };
