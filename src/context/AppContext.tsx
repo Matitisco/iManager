@@ -247,8 +247,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    setSessionConfirmed(false);
-
     let cancelled = false;
     let retryTimeout: number | undefined;
 
@@ -280,7 +278,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         if (readBootSession()?.uid === user.uid) {
           setBackendStatus('ready');
-          setSessionConfirmed(true);
           setBackendMessage(message);
         } else {
           setBackendStatus(status);
@@ -292,10 +289,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }, 15000);
       } catch (error) {
         if (cancelled) return;
-        if (readBootSession()?.uid === user.uid) {
-          setBackendStatus('ready');
-          setSessionConfirmed(true);
-        } else setBackendStatus('offline');
+        if (readBootSession()?.uid === user.uid) setBackendStatus('ready');
+        else setBackendStatus('offline');
         setBackendMessage(toUserMessage(error));
 
         retryTimeout = window.setTimeout(() => {
