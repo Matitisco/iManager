@@ -243,13 +243,15 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [toastOn, message]);
 
   useEffect(() => {
-    const apply = () => {
-      const next = tabFromHash(window.location.hash);
-      setTab(next);
-      setOverlay(null);
+    const apply = (closeOverlay: boolean) => {
+      setTab(tabFromHash(window.location.hash));
+      if (closeOverlay) setOverlay(null);
     };
     if (!window.location.hash) history.replaceState(null, '', '#/dash');
-    const onHash = () => { apply(); setEntered(true); };
+    // Role arrives after the first paint. Read the hash again so a navigation
+    // that landed before this listener was attached still opens that screen.
+    apply(false);
+    const onHash = () => { apply(true); setEntered(true); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [sections, role]);

@@ -108,14 +108,21 @@ export function MobileTabBar({ buttons }: { buttons: MobileTabButton[] }) {
   useEffect(() => {
     const nav = navRef.current;
     if (!nav) return undefined;
+    let frameId = 0;
     const remember = () => {
-      const next = readIndicatorFrame(nav);
-      if (!next) return;
-      lastFrame.current = next;
-      // A resize during the slide (rotating, or a test narrowing the phone)
-      // must pull the pill back inside the bar. Leaving the old translate
-      // paints it past the viewport.
-      if (sliding) setFrame((current) => current && !sameIndicatorFrame(current, next) ? next : current);
+      // Measuring and writing the pill inside the observer callback makes
+      // WebKit throw "ResizeObserver loop completed with undelivered
+      // notifications", which the commission suite treats as a page error.
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const next = readIndicatorFrame(nav);
+        if (!next) return;
+        lastFrame.current = next;
+        // A resize during the slide (rotating, or a test narrowing the phone)
+        // must pull the pill back inside the bar. Leaving the old translate
+        // paints it past the viewport.
+        if (sliding) setFrame((current) => current && !sameIndicatorFrame(current, next) ? next : current);
+      });
     };
     let observer: ResizeObserver | undefined;
     if (typeof ResizeObserver !== 'undefined') {
@@ -124,6 +131,7 @@ export function MobileTabBar({ buttons }: { buttons: MobileTabButton[] }) {
     }
     window.addEventListener('resize', remember);
     return () => {
+      window.cancelAnimationFrame(frameId);
       observer?.disconnect();
       window.removeEventListener('resize', remember);
     };
