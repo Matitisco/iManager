@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory } from './utils';
 
@@ -25,7 +26,7 @@ test('archives a device, shows it in history and restores it', async ({ page, re
   await expect(page.getByText('iPhone Historial')).toHaveCount(0);
   expect((await fetchInventory(request, email)).inventory.map((item) => item.model)).not.toContain('iPhone Historial');
 
-  await page.getByTestId('sidebar-tab-history').click();
+  await openDeskSection(page, 'history');
   await expect(page.getByRole('heading', { name: 'Historial' })).toBeVisible();
   await expect(page.getByText(/archivó/i).first()).toBeVisible();
 

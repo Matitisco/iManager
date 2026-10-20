@@ -60,8 +60,6 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'settings', label: 'Configuración', subtitle: 'Tienda, equipo y tu cuenta', icon: 'gear', group: 'cuenta' },
 ];
 
-const GROUP_IDS = new Set(NAV_GROUPS.map((group) => group.id));
-
 export function sectionAllowed(id: DeskTab, stored: string[] | null | undefined, role?: string | null) {
   if (id === 'billing') return role === 'OWNER';
   if (id === 'expenses') return role === 'OWNER';
@@ -223,32 +221,6 @@ const BAR_TEST_IDS = new Set<DeskTab>(['dashboard', 'sales', 'inventory', 'clien
 /** En Más, los ítems de la barra usan otro id para no duplicar el de la barra. */
 export function moreTestId(id: DeskTab) {
   return BAR_TEST_IDS.has(id) ? `more-item-${id}` : `sidebar-tab-${id}`;
-}
-
-export function openGroupsKey(userId: string) {
-  return `imanager.nav.open-groups:${userId || 'local'}`;
-}
-
-export function readOpenGroups(raw: string | null): NavGroupId[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is NavGroupId => typeof id === 'string' && GROUP_IDS.has(id as NavGroupId));
-  } catch {
-    return [];
-  }
-}
-
-export function visibleOpenGroups(stored: NavGroupId[], active: NavGroupId | null) {
-  const open = new Set(stored);
-  if (active) open.add(active);
-  return open;
-}
-
-export function toggleOpenGroup(stored: NavGroupId[], id: NavGroupId, active: NavGroupId | null) {
-  if (id === active) return stored;
-  return stored.includes(id) ? stored.filter((item) => item !== id) : [...stored, id];
 }
 
 export function accessLabel(tab: DeskTab) {

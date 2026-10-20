@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, fetchInventory } from './utils';
 
@@ -25,7 +26,7 @@ test('saves equipment, a trade-in and a repair without an IMEI on desktop', asyn
   const { inventory } = await fetchInventory(request, email);
   expect(inventory.find((item) => item.model === model)).toMatchObject({ imei: '' });
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const trade = page.getByRole('dialog', { name: 'Nuevo canje' });
   await expect(trade.getByLabel('IMEI (opcional)')).toHaveValue('');
@@ -37,7 +38,7 @@ test('saves equipment, a trade-in and a repair without an IMEI on desktop', asyn
   await page.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(trade).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-service').click();
+  await openDeskSection(page, 'service');
   await page.getByRole('button', { name: 'Nueva orden' }).click();
   const repair = page.getByRole('dialog', { name: 'Nueva orden de reparación' });
   await expect(repair.getByLabel('IMEI (opcional)')).toHaveValue('');
@@ -71,7 +72,7 @@ test.describe('optional IMEI on a phone', () => {
     expect(inventory.find((item) => item.model === model)).toMatchObject({ imei: '' });
 
     await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nueva orden' }).click();
     const repair = page.getByRole('dialog', { name: 'Nueva orden de reparación' });
     await expect(repair.getByLabel('IMEI (opcional)')).toBeVisible();

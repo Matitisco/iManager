@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -40,12 +41,7 @@ async function settle(page: Page) {
 }
 
 async function openSection(page: Page, id: string, heading: string | RegExp) {
-  const tab = page.getByTestId(`sidebar-tab-${id}`);
-  if (!(await tab.isVisible())) {
-    await page.getByTestId('sidebar-tab-more').click();
-    await expect(tab).toBeVisible();
-  }
-  await tab.click();
+  await openDeskSection(page, id);
   const headingLocator = typeof heading === 'string'
     ? page.getByRole('heading', { name: heading, exact: true, level: 1 })
     : page.getByRole('heading', { name: heading, level: 1 });

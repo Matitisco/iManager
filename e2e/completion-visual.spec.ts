@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 
@@ -72,7 +73,7 @@ test('hides a negative trade difference and keeps completion marks compact', asy
     color: 'Negro',
   });
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const desktopTrade = await fillNegativeTrade(page);
   await settleSheet(page);
@@ -136,7 +137,7 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await filters.getByRole('button', { name: 'Cerrar' }).click();
 
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' }).click();
   const phoneTrade = await fillNegativeTrade(page);
   await settleSheet(page);

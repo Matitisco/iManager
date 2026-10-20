@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, updateStoreViaApi } from './utils';
 
@@ -30,9 +31,9 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await updateStoreViaApi(request, email, { currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1200 });
   await createClientViaApi(request, email, { name: clientName });
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-tradeins')).toBeVisible();
+  await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const form = page.getByRole('dialog', { name: 'Nuevo canje' });
   await form.getByLabel('Cliente').fill(clientName);
@@ -67,7 +68,7 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await shot(page, 'notificaciones-390x844');
 
   await page.getByTestId('page-back').click();
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await expect(page.getByTestId('tradeins-timeline')).toContainText('US$ 200');
   await expect(page.getByTestId('tradeins-timeline')).toContainText('dif. US$ 875');
   await shot(page, 'canjes-390x844');

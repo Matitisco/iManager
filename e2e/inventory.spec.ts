@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory, fetchSales, importInventoryViaApi } from './utils';
@@ -146,7 +147,7 @@ test('a device received in a trade-in can be sold after it is marked vendido', a
   const buyer = `Comprador recibido ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Trade Sale ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const tradeDialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await tradeDialog.getByLabel('Cliente').fill(clientName);

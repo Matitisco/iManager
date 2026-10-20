@@ -4,11 +4,8 @@ import {
   desktopNav,
   groupPending,
   mobileBar,
-  readOpenGroups,
   sectionAllowed,
   sectionPending,
-  toggleOpenGroup,
-  visibleOpenGroups,
   type PendingInput,
 } from './nav';
 
@@ -124,19 +121,5 @@ describe('barra del celular', () => {
   it('saca de la barra un grupo sin secciones', () => {
     expect(mobileBar(['reports'], 'STAFF').map((slot) => slot.id)).toEqual([]);
     expect(mobileBar(['clients'], 'MANAGER').map((slot) => slot.label)).toEqual(['Clientes']);
-  });
-});
-
-describe('grupos abiertos', () => {
-  it('recuerda lo que abrió la persona y deja abierto el grupo actual', () => {
-    expect(readOpenGroups(null)).toEqual([]);
-    expect(readOpenGroups('no')).toEqual([]);
-    expect(readOpenGroups(JSON.stringify(['stock', 'cuenta', 'comercial']))).toEqual(['stock', 'comercial']);
-    expect(visibleOpenGroups(['stock'], 'comercial').has('stock')).toBe(true);
-    expect(visibleOpenGroups(['stock'], 'comercial').has('comercial')).toBe(true);
-    expect(visibleOpenGroups([], 'atencion').has('atencion')).toBe(true);
-    expect(toggleOpenGroup(['stock'], 'comercial', 'comercial')).toEqual(['stock']);
-    expect(toggleOpenGroup(['stock'], 'finanzas', 'comercial')).toEqual(['stock', 'finanzas']);
-    expect(toggleOpenGroup(['stock', 'finanzas'], 'stock', 'comercial')).toEqual(['finanzas']);
   });
 });

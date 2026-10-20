@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createRepairViaApi } from './utils';
 
@@ -36,7 +37,7 @@ test('drags a repair across columns and still changes status from the keyboard b
     estimate: 45000,
   });
   await page.reload();
-  await page.getByTestId('sidebar-tab-service').click();
+  await openDeskSection(page, 'service');
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
   await expect(page.getByTestId('repair-column-RECIBIDO')).toContainText('#OT-0001');
   await expect(page.getByTestId('repair-column-EN_DIAGNOSTICO')).toHaveCount(0);
@@ -85,7 +86,7 @@ test.describe('phone', () => {
     });
     await page.reload();
     await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await expect(page.getByTestId('service-chips')).toContainText('Recibido');
     await expect(page.getByTestId('service-chips')).not.toContainText('En diagnóstico');
     await expect(page.getByTestId('service-chips')).not.toContainText('Esperando');

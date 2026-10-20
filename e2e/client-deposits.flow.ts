@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, updateStoreViaApi } from './utils';
@@ -6,11 +7,7 @@ const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:310
 const shots = process.env.ISSUE_315_SHOTS;
 
 async function navigate(page: Page, tab: string) {
-  const target = page.getByTestId(`sidebar-tab-${tab}`);
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(target.or(more).first()).toBeVisible();
-  if (!(await target.isVisible())) await more.click();
-  await target.click();
+  await openDeskSection(page, tab);
 }
 async function dismiss(page: Page, name?: string) {
   const dialog = name ? page.getByRole('dialog', { name }) : page.getByRole('dialog').last();

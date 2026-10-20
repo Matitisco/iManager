@@ -53,14 +53,8 @@ import {
   groupPending,
   mobileBar,
   moreTestId,
-  NAV_GROUPS,
-  openGroupsKey,
-  readOpenGroups,
   sectionAllowed,
   sectionPending,
-  toggleOpenGroup,
-  visibleOpenGroups,
-  type NavGroupId,
   type NavIcon,
   type PendingInput,
 } from './nav';
@@ -69,8 +63,6 @@ import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
-
-const E2E_NAV = import.meta.env.VITE_TEST_AUTH_MODE === 'e2e';
 
 function countWords(count: number, words: string) {
   return `${count} ${words}`;
@@ -168,11 +160,10 @@ function MoreScreen({
   );
 }
 
-function SideLink({ item, on, count, sub, onOpen }: {
+function SideLink({ item, on, count, onOpen }: {
   item: { id: DeskTab; label: string; icon: NavIcon };
   on: boolean;
   count: number;
-  sub?: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -180,7 +171,7 @@ function SideLink({ item, on, count, sub, onOpen }: {
     if (on) ref.current?.scrollIntoView?.({ block: 'nearest' });
   }, [on]);
   return (
-    <button ref={ref} className={`ditem${sub ? ' sub' : ''}${on ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
+    <button ref={ref} className={`ditem${on ? ' on' : ''}`} type="button" aria-current={on ? 'page' : undefined} data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
       <span className="dic"><NavGlyph name={item.icon} size={18} /></span>
       <span>{item.label}</span>
       {count > 0 ? <span className="dcount" aria-label={badgeLabel(item.id, item.label, count)}>{count}</span> : null}
@@ -209,9 +200,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   const [followUpCount, setFollowUpCount] = useState(0);
-  const [storedGroups, setStoredGroups] = useState<NavGroupId[]>(() => (
-    E2E_NAV ? NAV_GROUPS.map((group) => group.id) : readOpenGroups(localStorage.getItem(openGroupsKey(user?.uid || '')))
-  ));
   useEffect(() => {
     if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
@@ -221,17 +209,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry, sessionConfirmed]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
-  useEffect(() => {
-    if (E2E_NAV) {
-      setStoredGroups(NAV_GROUPS.map((group) => group.id));
-      return;
-    }
-    setStoredGroups(readOpenGroups(localStorage.getItem(openGroupsKey(user?.uid || 'local'))));
-  }, [user?.uid]);
-  useEffect(() => {
-    if (E2E_NAV) return;
-    localStorage.setItem(openGroupsKey(user?.uid || 'local'), JSON.stringify(storedGroups));
-  }, [storedGroups, user?.uid]);
   useEffect(() => {
     if (!user || !sectionAllowed('followups', sections, role)) {
       setFollowUpCount(0);
@@ -371,7 +348,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     commissions: pendingCommissions,
   };
   const activeGroup = groupOf(tab);
-  const openGroups = visibleOpenGroups(storedGroups, activeGroup);
   const moreActive = !barOwns(tab, slots);
 
   return (
@@ -405,16 +381,13 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
               {nav.main.map((block) => block.kind === 'link' ? (
                 <SideLink key={block.item.id} item={block.item} on={tab === block.item.id} count={sectionPending(block.item.id, pending)} onOpen={go} />
               ) : (
-                <div key={block.id}>
-                  <button className={`ditem dgroup-h${openGroups.has(block.id) ? ' open' : ''}`} type="button" data-testid={`nav-group-${block.id}`} aria-expanded={openGroups.has(block.id)} onClick={() => setStoredGroups((current) => toggleOpenGroup(current, block.id, activeGroup))}>
-                    <span className="dic"><NavGlyph name={block.icon} size={18} /></span>
-                    <span>{block.label}</span>
-                    {!openGroups.has(block.id) && groupPending(block.items.map((item) => item.id), pending) > 0 ? <span className="dcount" aria-label={`${groupPending(block.items.map((item) => item.id), pending)} en ${block.label}`}>{groupPending(block.items.map((item) => item.id), pending)}</span> : null}
-                    <span className="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg></span>
-                  </button>
-                  {openGroups.has(block.id) ? block.items.map((item) => (
-                    <SideLink key={item.id} item={item} sub on={tab === item.id} count={sectionPending(item.id, pending)} onOpen={go} />
-                  )) : null}
+                <div key={block.id} data-testid={`nav-group-${block.id}`}>
+                  <SideLink
+                    item={{ id: block.items[0].id, label: block.label, icon: block.icon }}
+                    on={activeGroup === block.id}
+                    count={groupPending(block.items.map((item) => item.id), pending)}
+                    onOpen={go}
+                  />
                 </div>
               ))}
             </div>

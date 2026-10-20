@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, createInventoryItemViaApi, fetchSales, fetchTradeIns } from './utils';
@@ -119,7 +120,7 @@ for (const device of [
       // Reload to prove the message comes from persisted history, not an optimistic UI label.
       await page.reload();
       if (device.phone) await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidebar-tab-tradeins').click();
+      await openDeskSection(page, 'tradeins');
       const record = device.phone ? page.getByTestId('tradeins-timeline') : page.getByRole('table', { name: 'Canjes' });
       await expect(record.getByText(`Canje quitado de la venta ${code}`, { exact: true })).toBeVisible();
       await expect(record).not.toContainText('Operación cancelada');

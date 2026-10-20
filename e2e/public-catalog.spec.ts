@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory } from './utils';
@@ -24,7 +25,7 @@ for (const device of [
         await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
         await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
       }
-      await page.getByTestId('sidebar-tab-publicCatalog').click();
+      await openDeskSection(page, 'publicCatalog');
     };
     await openCatalog(); await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();

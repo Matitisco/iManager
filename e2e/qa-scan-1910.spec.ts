@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { authHeaders, buildTestEmail, loginViaUi } from './utils';
 import { bootStore, installFakeCamera, inviteStaffWithoutInventory, registerScanQa } from './qa-scan-1910';
@@ -45,10 +46,10 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   await expect(page.getByTestId('nav-group-stock')).toBeVisible();
   await expect(page.getByTestId('nav-group-atencion')).toBeVisible();
   await expect(page.getByTestId('nav-group-finanzas')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-followups')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-returns')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-expenses')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-suppliers')).toBeVisible();
+  await expect(page.locator('aside').getByTestId('sidebar-tab-followups')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-returns')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-expenses')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toHaveCount(0);
 
   const routes: Array<[string, string, string]> = [
     ['#/inv', '#/stock/equipos', 'Inventario'],
@@ -69,7 +70,7 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
     await expect(page.getByTestId('group-tab-inventory').or(page.getByTestId('group-tab-sales')).or(page.getByTestId('group-tab-clients')).or(page.getByTestId('group-tab-cash')).or(page.getByTestId('group-tab-reports'))).toBeVisible();
   }
 
-  await page.getByTestId('sidebar-tab-followups').click();
+  await openDeskSection(page, 'followups');
   await expect(page).toHaveURL(/#\/atencion\/seguimientos$/);
   await page.goto('/#/cuenta/configuracion');
   await page.getByRole('button', { name: /Reporte automático/ }).click();

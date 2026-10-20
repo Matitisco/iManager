@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
 
@@ -40,12 +41,7 @@ async function expectInside(page: Page, selector: string) {
 }
 
 async function openService(page: Page) {
-  const tab = page.getByTestId('sidebar-tab-service');
-  if (!(await tab.isVisible())) {
-    await page.getByTestId('sidebar-tab-more').click();
-    await expect(tab).toBeVisible();
-  }
-  await tab.click();
+  await openDeskSection(page, 'service');
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
   await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
   await expect(page.getByText(/propuesta exploratoria/)).toHaveCount(0);
@@ -93,7 +89,7 @@ test('the owner edits the budget and deletes the order, and an employee without 
   try {
     await mockDollar(staff);
     await acceptInvitationViaUi(staff, staffEmail, invitation.token, storeName);
-    await expect(staff.getByTestId('sidebar-tab-service')).toBeVisible();
+    await expect(staff.getByTestId('nav-group-atencion')).toBeVisible();
     await openService(staff);
     await staff.locator('[data-testid^="repair-card-"]').first().click();
     const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });

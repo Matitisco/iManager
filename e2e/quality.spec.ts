@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory, fetchSales, fetchTradeIns } from './utils';
 
@@ -88,7 +89,7 @@ test('records the quality of a device taken in a trade-in', async ({ page, reque
   const email = buildTestEmail(testInfo, 'quality-trade');
   const received = `Recibido ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Calidad canje ${testInfo.parallelIndex}`);
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(`Cliente ${Date.now()}`);

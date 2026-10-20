@@ -1,3 +1,4 @@
+import { openDeskSection } from '../navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { NETWORK_ERROR_MESSAGE, SERVER_ERROR_MESSAGE } from '../../src/lib/user-message';
 import { data, me } from './fixtures.mjs';
@@ -17,7 +18,7 @@ async function openCanjeConfirmation(page: Page) {
   if (mobile) {
     await page.getByTestId('sidebar-tab-more').click();
     await page.getByTestId('more-screen').getByTestId('sidebar-tab-tradeins').click();
-  } else await page.locator('aside').getByTestId('sidebar-tab-tradeins').click();
+  } else await openDeskSection(page, 'tradeins');
   await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
   const row = page.locator(mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'iPhone recibido 1' });
   await expect(row).toBeVisible();

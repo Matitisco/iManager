@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail } from './utils';
 
@@ -30,7 +31,7 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/dolar-detalle.png` });
   await page.getByTestId('blue-done').click();
 
-  await page.getByTestId('sidebar-tab-service').click();
+  await openDeskSection(page, 'service');
   await expect(page).toHaveURL(/#\/atencion\/servicio/);
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
   await page.getByRole('button', { name: 'Nueva orden' }).click();

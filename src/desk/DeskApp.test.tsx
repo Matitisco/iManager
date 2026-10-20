@@ -108,7 +108,7 @@ describe('sidebar unread counts', () => {
     }
   });
 
-  it('shows the unread total and a badge on each section that has unread notes', () => {
+  it('keeps group badges in the flat sidebar and subsection badges in page tabs', async () => {
     window.location.hash = '#/dash';
     context.operationNotifications = [
       { id: '1', storeId: 's', section: 'inventory', title: 'Equipo vendido', message: 'iPhone 13 vendido', recordId: 'p', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
@@ -120,15 +120,25 @@ describe('sidebar unread counts', () => {
     expect(screen.getByLabelText('3 en total')).toHaveTextContent('3');
     expect(screen.getByLabelText('2 en Stock')).toHaveTextContent('2');
     expect(screen.getByLabelText('2 en Comercial')).toHaveTextContent('2');
-    fireEvent.click(screen.getByTestId('nav-group-comercial'));
-    fireEvent.click(screen.getByTestId('nav-group-stock'));
-    fireEvent.click(screen.getByTestId('nav-group-atencion'));
-    expect(screen.getByLabelText('2 en Equipos')).toHaveTextContent('2');
-    expect(screen.getByLabelText('1 en Ventas')).toHaveTextContent('1');
-    expect(screen.getByLabelText('1 en Canjes')).toHaveTextContent('1');
-    expect(screen.queryByLabelText(/en Clientes/)).not.toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('Canjes');
-    expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('Servicio técnico');
+    const sidebar = within(document.querySelector('aside.side')! as HTMLElement);
+    expect(sidebar.queryByText('Equipos')).not.toBeInTheDocument();
+    expect(sidebar.queryByText('Canjes')).not.toBeInTheDocument();
+    expect(sidebar.queryByText('Servicio técnico')).not.toBeInTheDocument();
+    expect(document.querySelector('aside [aria-expanded], aside .chev, aside .sub')).toBeNull();
+
+    fireEvent.click(sidebar.getByRole('button', { name: /Comercial/ }));
+    expect(await screen.findByRole('tab', { name: 'Ventas · 1' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Canjes · 1' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Canjes · 1' })).toHaveAttribute('aria-selected', 'true'));
+    expect(sidebar.getByRole('button', { name: /Comercial/ })).toHaveAttribute('aria-current', 'page');
+    expect(sidebar.getByLabelText('2 en Comercial')).toHaveTextContent('2');
+
+    fireEvent.click(sidebar.getByRole('button', { name: /Stock/ }));
+    expect(await screen.findByRole('tab', { name: 'Equipos · 2' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Control de stock' })).toHaveAttribute('aria-selected', 'true'));
+    expect(sidebar.getByRole('button', { name: /Stock/ })).toHaveAttribute('aria-current', 'page');
+    expect(sidebar.queryByText('Control de stock')).not.toBeInTheDocument();
     expect(screen.queryByText('★')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();

@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
 
@@ -59,7 +60,7 @@ test('a trade-in saved as pending resumes after reload and confirms with zero di
   const clientName = `Cliente canje ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Operations Draft ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   let dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Equipo recibido').fill(received);
@@ -69,7 +70,7 @@ test('a trade-in saved as pending resumes after reload and confirms with zero di
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
   await page.getByRole('button', { name: 'Retomar' }).click();
   dialog = page.getByRole('dialog', { name: 'Retomar canje' });
@@ -132,7 +133,7 @@ test('a linked canje edit updates both records and cancellation keeps the client
   const received = `Equipo editar ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Linked Trade ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   let dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(clientName);
@@ -187,7 +188,7 @@ test('a cancellation notification survives reload, opens the archived received d
   const received = `Equipo archivado ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Notification Link ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   let dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(clientName);
@@ -231,7 +232,7 @@ test('a failed linked confirmation keeps the form and entered values open', asyn
   await bootstrapStoreViaApi(page, request, email, `Linked Error ${testInfo.parallelIndex}`);
   await createInventoryItemViaApi(request, email, { imei: duplicateImei, model: `IMEI holder ${Date.now()}`, price: 1500 });
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(`Cliente error ${Date.now()}`);

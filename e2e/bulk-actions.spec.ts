@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -100,7 +101,7 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await fetchSales(request, email)).sales.every((sale) => sale.status === 'CANCELADA')).toBe(true);
   for (let index = 0; index < 2; index++) {
-    await page.getByTestId('sidebar-tab-tradeins').click(); await page.getByRole('button', { name: 'Nuevo canje', exact: true }).click();
+    await openDeskSection(page, 'tradeins'); await page.getByRole('button', { name: 'Nuevo canje', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Nuevo canje' });
     await form.getByLabel('Cliente').fill(`Cliente canje ${index}`);
     await form.getByLabel('Equipo recibido').fill(`Recibido ${index}`); await form.getByLabel('Valor tomado').fill('400');

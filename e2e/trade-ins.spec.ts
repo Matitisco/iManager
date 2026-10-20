@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 ﻿import { expect, test } from '@playwright/test';
 
 import {
@@ -33,7 +34,7 @@ test('confirms a free-output trade-in and persists a new sale and received devic
   await page.getByRole('button', { name: 'Guardar cliente' }).click();
   await expect(page.getByRole('button', { name: 'Guardar cliente' })).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
   const dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Cliente').fill(clientName);

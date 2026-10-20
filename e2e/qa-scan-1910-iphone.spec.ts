@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { devices, expect, test } from '@playwright/test';
 import { bootStore, registerScanQa } from './qa-scan-1910';
 
@@ -24,7 +25,7 @@ test('barra, Más y redirecciones en el iPhone', async ({ page, request }, testI
   await expect(page.getByTestId('sidebar-tab-followups')).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-returns')).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-stockCount')).toBeVisible();
-  await page.getByTestId('sidebar-tab-followups').click();
+  await openDeskSection(page, 'followups');
   await expect(page.getByRole('heading', { name: 'Seguimientos', level: 1 })).toBeVisible();
   await expect(page.getByTestId('group-tab-clients')).toBeVisible();
   await page.goto('/#/gastos');

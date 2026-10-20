@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -31,11 +32,7 @@ async function shot(page: Page, name: string) {
 }
 
 async function openSection(page: Page, id: string) {
-  const tab = page.getByTestId(`sidebar-tab-${id}`);
-  if (!(await tab.isVisible())) {
-    await page.getByTestId('sidebar-tab-more').click();
-  }
-  await tab.click();
+  await openDeskSection(page, id);
 }
 
 async function closeDialog(page: Page) {

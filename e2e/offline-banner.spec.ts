@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { devices, expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 
@@ -19,7 +20,7 @@ for (const device of [
     await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', cost: 600, price: 920 });
     await page.reload();
     if (device.mobile) await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
-    await page.getByTestId('sidebar-tab-publicCatalog').click();
+    await openDeskSection(page, 'publicCatalog');
     await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
     if (device.mobile) await page.getByTestId('catalog-screen').getByRole('button', { name: 'Equipos', exact: true }).click();

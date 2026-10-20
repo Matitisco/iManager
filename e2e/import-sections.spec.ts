@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
@@ -21,9 +22,7 @@ async function mockDollar(page: Page) {
 }
 
 async function openTab(page: Page, id: string) {
-  const tab = page.getByTestId(`sidebar-tab-${id}`);
-  if (!(await tab.isVisible())) await page.getByTestId('sidebar-tab-more').click();
-  await tab.click();
+  await openDeskSection(page, id);
 }
 
 const viewports = [

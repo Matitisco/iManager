@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createRepairViaApi } from './utils';
@@ -29,12 +30,7 @@ async function settle(page: Page) {
 async function openService(page: Page) {
   const heading = page.getByRole('heading', { name: 'Servicio técnico' });
   if (await heading.isVisible()) return;
-  const tab = page.getByTestId('sidebar-tab-service');
-  if (!(await tab.isVisible())) {
-    await page.getByTestId('sidebar-tab-more').click();
-    await expect(tab).toBeVisible();
-  }
-  await tab.click();
+  await openDeskSection(page, 'service');
   await expect(heading).toBeVisible();
 }
 

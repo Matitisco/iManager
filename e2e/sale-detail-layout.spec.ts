@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test, type Locator, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, importSalesViaApi, fetchSales } from './utils';
@@ -15,9 +16,7 @@ async function mockDollar(page: Page) {
 }
 
 async function navigate(page: Page, tab: string, phone: boolean) {
-  const target = page.getByTestId(`sidebar-tab-${tab}`);
-  if (phone && !(await target.isVisible())) await page.getByTestId('sidebar-tab-more').click();
-  await target.click();
+  await openDeskSection(page, tab);
 }
 
 async function settle(detail: Locator) {

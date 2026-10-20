@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { initials } from '../src/desk/format';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchSales } from './utils';
@@ -77,7 +78,7 @@ export function editSaleSellerTests(phone: boolean) {
       expect(persisted).toMatchObject({ sellerMemberId: seller.id, amount: 1500.31, amountCurrency: currency, status: sale.status, clientId: client.id });
 
       if (phone) await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidebar-tab-commissions').click();
+      await openDeskSection(page, 'commissions');
       await expect(page.getByRole('heading', { name: 'Comisiones', exact: true })).toBeVisible();
       await page.locator(phone ? '.commission-person' : '.commission-name').filter({ hasText: seller.name }).click();
       const commission = page.locator('.commission-detail');

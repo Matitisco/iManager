@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
@@ -94,7 +95,7 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
       await expect(review.getByTestId('mobile-tab-bar').getByText('Catálogo')).toHaveCount(0);
       await capture('376-m-mas', true);
     }
-    await review.getByTestId('sidebar-tab-publicCatalog').click();
+    await openDeskSection(review, 'publicCatalog');
     await expect(review.getByTestId('catalog-screen')).toBeVisible();
     await review.getByRole('button', { name: width === 390 ? 'Editar ›' : 'Reglas y precio', exact: true }).click();
     const sheet = review.getByRole('dialog', { name: 'Reglas y precio' });

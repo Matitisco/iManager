@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -9,15 +10,7 @@ test.use({ defaultBrowserType });
 test.describe.configure({ mode: 'serial' });
 
 async function openTradeIns(page: import('@playwright/test').Page) {
-  const direct = page.locator('aside').getByTestId('sidebar-tab-tradeins');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(direct.or(more)).toBeVisible();
-  if (await more.isVisible()) {
-    await more.click();
-    await page.getByTestId('more-screen').getByTestId('sidebar-tab-tradeins').click();
-    return;
-  }
-  await direct.click();
+  await openDeskSection(page, 'tradeins');
 }
 
 for (const device of [
