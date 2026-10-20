@@ -11,6 +11,7 @@ import { zodOptionalImei } from "../../lib/imei.js";
 import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
+  createInventoryBatch,
   deleteInventoryItem,
   importInventoryItems,
   listInventory,
@@ -41,6 +42,10 @@ const inventoryItemSchema = z.object({
   customFields: z.record(z.unknown()).optional().nullable(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   supplierId: z.string().trim().min(1).nullable().optional(),
+});
+
+const inventoryCreateSchema = inventoryItemSchema.extend({
+  restockRetired: z.boolean().optional(),
 });
 
 const inventoryPatchSchema = inventoryItemSchema
@@ -136,10 +141,34 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const body = inventoryItemSchema.parse(request.body) as InventoryItemInput;
-      const inventoryItem = await createInventoryItem(request.appUser.storeId, body, await loadActor(request.appUser.userId));
+      const body = inventoryCreateSchema.parse(request.body);
+      const { restockRetired, ...item } = body;
+      const inventoryItem = await createInventoryItem(
+        request.appUser.storeId,
+        item as InventoryItemInput,
+        await loadActor(request.appUser.userId),
+        restockRetired ? { allowRetiredImei: true, source: "app" } : undefined,
+      );
 
       return reply.code(201).send({ inventoryItem });
+    }
+  );
+
+  app.post(
+    "/batch",
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] },
+    async (request, reply) => {
+      requireMember(request);
+      const body = z.object({
+        items: z.array(inventoryItemSchema).min(1).max(200),
+      }).parse(request.body);
+      const seeCosts = canSeeFinancials(request.appUser);
+      const items = body.items.map((item) => ({
+        ...item,
+        cost: seeCosts ? item.cost : 0,
+      })) as InventoryItemInput[];
+      const result = await createInventoryBatch(request.appUser.storeId, items, await loadActor(request.appUser.userId));
+      return reply.code(201).send(result);
     }
   );
 

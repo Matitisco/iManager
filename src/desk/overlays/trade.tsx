@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { parseDeviceCode } from '../../lib/device-scan';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
+import { createWedgeBuffer } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedTrade } from '../archive-cache';
 import { RecordHistory } from '../screens/HistoryScreen';
@@ -16,6 +18,9 @@ import type { CatalogKind } from '../../services/catalogs-api';
 import { ClientField } from '../ClientField';
 import { QualityField } from '../QualityField';
 import { canonicalQuality, displayQuality, qualityDetail, tradeQuality } from '../quality';
+import { confirmScan } from '../scan/beep';
+import { CameraScanner } from '../scan/CameraScanner';
+import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Actions, Field, Pill, Segs, Sheet, useDesk } from '../ui';
 import { clearBad, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, type FormProps } from './shared';
 import { operationMoneyInput, OperationForm } from './operation';
@@ -41,9 +46,12 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const [status, setStatus] = useState(trade.status || 'PENDIENTE');
   const [grade, setGrade] = useState<string>(canonicalQuality(trade.grade));
   const [bad, setBad] = useState<Record<string, string>>({});
+  const [camera, setCamera] = useState(false);
+  const wedge = useRef(createWedgeBuffer());
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   return (
+    <>
     <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} className="cj-sheet">
       {error && <div className="ferr">{error}</div>}
       <ClientField clients={clients} value={buyer} linked={Boolean(clientId)} error={bad.client}
@@ -51,7 +59,19 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
         onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }} />
       <div className="frow">
         <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} /></Field>
-        <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+        <div className="scan-imei">
+          <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+            const pushed = wedge.current.push(event.key);
+            if (pushed.type !== 'scan') return;
+            event.preventDefault();
+            const parsed = parseDeviceCode(pushed.value);
+            if (!parsed.imei) return;
+            confirmScan();
+            setImei(parsed.imei);
+            if (parsed.model && !received.trim()) setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' '));
+          }} /></Field>
+          <ScanCameraButton onClick={() => setCamera(true)} />
+        </div>
       </div>
       <Field label="Equipo entregado" error={bad.given}><input value={given} onChange={(event) => { setGiven(event.target.value); clearBad(setBad, 'given'); }} /></Field>
       <div className="frow">
@@ -92,6 +112,8 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
         }), 'Canje actualizado');
       }} />
     </Sheet>
+    {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={(parsed) => { setCamera(false); if (!parsed.imei) return; confirmScan(); setImei(parsed.imei); if (parsed.model && !received.trim()) setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }} /> : null}
+    </>
   );
 }
 

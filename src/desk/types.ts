@@ -1,3 +1,5 @@
+import type { ScanDraft } from './scan/draft';
+
 export type DeskTab =
   | 'billing'
   | 'cash'
@@ -21,12 +23,21 @@ export type DeskTab =
   | 'more'
   | 'help';
 
+export type SaleResume = {
+  clientName?: string;
+  clientId?: string;
+  amount?: string;
+  source?: 'inventory' | 'sales' | 'tradeins' | 'clients';
+};
+
 export type Overlay =
   | { type: 'onboarding-stock' }
   | { type: 'new-eq'; supplierId?: string }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
-  | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string }
+  | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string; resumeAmount?: string }
+  | { type: 'scan-review'; draft: ScanDraft; resume?: SaleResume }
+  | { type: 'batch-eq' }
   | { type: 'sale'; id: string }
   | { type: 'edit-sale'; id: string }
   | { type: 'new-cj' }

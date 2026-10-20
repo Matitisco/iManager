@@ -242,6 +242,7 @@ export function InventoryScreen() {
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
             <StockEntryButton onClick={() => setStockOpen(true)} />
             <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
+            <button className="dbtn s" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button>
             <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
           </div>
         )}
@@ -249,6 +250,7 @@ export function InventoryScreen() {
       <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
       {phone ? <StockEntryButton onClick={() => setStockOpen(true)} /> : null}
+      {phone ? <button className="dbtn s stock-entry" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
@@ -452,7 +454,7 @@ export function InventoryScreen() {
         )}
         {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={phone ? 4 : 6} testId="inventory-loading" /> : listed.length === 0 ? (
           quietEmpty
-            ? <InventoryEmpty showActions={phone} onImport={() => open({ type: 'import', kind: 'inv' })} onCreate={() => open({ type: 'new-eq' })} />
+            ? <InventoryEmpty showActions={phone} onImport={() => open({ type: 'import', kind: 'inv' })} onSeries={() => open({ type: 'batch-eq' })} onCreate={() => open({ type: 'new-eq' })} />
             : <div className="wempty">No hay equipos con ese filtro.</div>
         ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
@@ -602,7 +604,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
   );
 }
 
-function InventoryEmpty({ showActions, onImport, onCreate }: { showActions: boolean; onImport: () => void; onCreate: () => void }) {
+function InventoryEmpty({ showActions, onImport, onSeries, onCreate }: { showActions: boolean; onImport: () => void; onSeries: () => void; onCreate: () => void }) {
   return (
     <div className="inv-empty" data-testid="inventory-empty">
       <div className="inv-empty-box">
@@ -615,6 +617,7 @@ function InventoryEmpty({ showActions, onImport, onCreate }: { showActions: bool
               <ImanagerIcon name="importar" size={16} />
               Importar
             </button>
+            <button className="dbtn s" type="button" onClick={onSeries}>Carga en serie</button>
             <button className="dbtn p" type="button" onClick={onCreate}>
               <ImanagerIcon name="agregar" size={16} />
               Registrar equipo

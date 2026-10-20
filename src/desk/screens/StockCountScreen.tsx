@@ -18,7 +18,10 @@ import {
   type StockCountPreview,
   type StockScanResult,
 } from '../../services/stock-counts-api';
+import { extractImeiLoose } from '../../lib/device-scan';
 import { formatImei, formatMoney } from '../format';
+import { CameraScanner } from '../scan/CameraScanner';
+import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
 import { ListSkeleton } from '../list-skeleton';
 import { canManageStockCount } from '../stock-count-access';
 import { usePhoneLayout } from '../section-notices';
@@ -128,6 +131,7 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   const [preview, setPreview] = useState<StockCountPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [imei, setImei] = useState('');
+  const [camera, setCamera] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -191,9 +195,9 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
     }
   };
 
-  const submitScan = async () => {
+  const submitScan = async (raw?: string) => {
     if (!user || !blind || busy) return;
-    const value = imei.trim();
+    const value = (raw ?? imei).trim();
     if (!value) return;
     setBusy(true);
     setError('');
@@ -353,23 +357,39 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
         <>
           <div className="blind"><EyeIcon /><span>Conteo a ciegas: escaneá todo lo que ves en el local.</span></div>
           <form onSubmit={(event) => { event.preventDefault(); void submitScan(); }}>
-            <label className="scan">
-              <ScanIcon />
-              <input
-                ref={inputRef}
-                value={imei}
-                placeholder="Escaneá o escribí el IMEI"
-                inputMode="numeric"
-                enterKeyHint="done"
-                autoComplete="off"
-                autoFocus
-                aria-label="Escaneá o escribí el IMEI"
-                data-testid="stock-scan-input"
-                onChange={(event) => setImei(event.target.value)}
-              />
-              {phone ? null : <span className="k">Enter para sumar</span>}
-            </label>
+            <div className="scan-imei stock-scan-row">
+              <label className="scan">
+                <ScanIcon />
+                <input
+                  ref={inputRef}
+                  value={imei}
+                  placeholder="Escaneá o escribí el IMEI"
+                  inputMode="numeric"
+                  enterKeyHint="done"
+                  autoComplete="off"
+                  autoFocus
+                  aria-label="Escaneá o escribí el IMEI"
+                  data-testid="stock-scan-input"
+                  onChange={(event) => setImei(event.target.value)}
+                />
+                {phone ? null : <span className="k">Enter para sumar</span>}
+              </label>
+              <ScanCameraButton onClick={() => setCamera(true)} />
+            </div>
+            <ScanReady />
           </form>
+          {camera ? (
+            <CameraScanner
+              loose
+              onClose={() => { setCamera(false); inputRef.current?.focus(); }}
+              onManual={() => { setCamera(false); inputRef.current?.focus(); }}
+              onUse={(parsed) => {
+                setCamera(false);
+                const value = parsed.imei ?? extractImeiLoose(parsed.imei ?? '') ?? '';
+                if (value) void submitScan(value);
+              }}
+            />
+          ) : null}
           {latest ? <div className={`fb ${latest.tone}`} role="status"><span className="i">{latest.tone === 'ok' ? '✓' : '!'}</span><div><b>{latest.banner}</b><small>{latest.bannerDetail}</small></div></div> : null}
           <div className="cnt"><b>Tus escaneos</b><small>{yours(blind.mine, blind.total)}</small></div>
           <div className="dcard flush">

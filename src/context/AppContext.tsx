@@ -72,7 +72,7 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
   updateSale: (sale: Sale) => Promise<OperationResult | void>;
   deleteSale: (id: string, reason?: string) => Promise<OperationResult | void>;
-  addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
+  addProduct: (product: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string, reason?: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
@@ -699,14 +699,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     noteLocalMutation();
   };
 
-  const addProduct = async (productData: Omit<Product, 'id'>) => {
+  const addProduct = async (productData: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => {
     if (!user) throw new Error('No authenticated user');
     if (!backendInventoryEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para guardar inventario. Reintenta en unos segundos.'
       );
     }
-    const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData)], canAccess('reports'))[0];
+    const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData, options)], canAccess('reports'))[0];
     setInventory(prev => [createdProduct, ...prev]);
     noteLocalMutation();
     if (createdProduct.status === 'VENDIDO' && canAccess('notifications')) void refreshNotifications().catch(() => undefined);

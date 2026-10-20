@@ -1,8 +1,11 @@
 import { formatShortDate } from '../format';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
+import { parseDeviceCode } from '../../lib/device-scan';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
+import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
+import { frequentModels } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Product } from '../../types';
 import { batteryPercent, conditionLabel, equipmentTitle, isInStock, formatImei, formatInputMoney, parseMoney } from '../format';
@@ -15,7 +18,12 @@ import { ImanagerIcon } from '../icons';
 import { usePhoneLayout } from '../section-notices';
 import { QualityField } from '../QualityField';
 import { displayQuality, isUsedCondition, qualityDetail } from '../quality';
+import { confirmScan } from '../scan/beep';
+import { CameraScanner } from '../scan/CameraScanner';
+import { draftFromCode, type ScanDraft } from '../scan/draft';
+import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
 import { Actions, Field, Segs, Sheet, signalDesk, useDesk } from '../ui';
+import { ScanReviewSheet, scanProduct } from './scan-review';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, AuditLine, type FormProps } from './shared';
 import { archivedProduct } from '../archive-cache';
 import { RecordHistory } from '../screens/HistoryScreen';
@@ -123,9 +131,48 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [status, setStatus] = useState(current?.status ?? '');
   const [supplier, setSupplier] = useState(current?.supplierId ?? supplierId ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
+  const [review, setReview] = useState<ScanDraft | null>(null);
+  const [camera, setCamera] = useState(false);
+  const phone = usePhoneLayout();
+  const imeiRef = useRef<HTMLInputElement>(null);
+  const wedge = useRef(createWedgeBuffer());
   let createdProductId = '';
+  useEffect(() => {
+    if (!current && !phone) imeiRef.current?.focus();
+  }, [current, phone]);
+
+  const openReview = (parsed: ReturnType<typeof parseDeviceCode>) => {
+    setCamera(false);
+    setReview(draftFromCode(parsed, { battery, condition, price }));
+  };
+
+  if (review && !current) {
+    return (
+      <>
+        <ScanReviewSheet
+          initial={review}
+          frequent={frequentModels(inventory, models, 4)}
+          seeCosts={seeCosts}
+          busy={busy}
+          error={error}
+          onClose={() => setReview(null)}
+          onRescan={() => { setReview(null); setCamera(true); }}
+          onSave={(draft) => {
+            const payload = scanProduct(draft, money.active === 'USD' ? 'USD' : 'ARS', seeCosts);
+            void run(async () => {
+              await addProduct(payload, { restockRetired: true });
+              signalDesk('desk-eq-saved');
+              signalDesk('desk-check', 'inv');
+            }, 'Equipo cargado');
+          }}
+        />
+        {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={openReview} /> : null}
+      </>
+    );
+  }
 
   return (
+    <>
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
@@ -136,7 +183,26 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
       </div>
-      <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" /></Field>
+      <div className="scan-block">
+        <div className="scan-imei">
+          <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
+            <input ref={imeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+              const pushed = wedge.current.push(event.key);
+              if (pushed.type !== 'scan' || current) return;
+              event.preventDefault();
+              const parsed = parseDeviceCode(pushed.value);
+              confirmScan();
+              if (parsed.rich) openReview(parsed);
+              else if (parsed.imei) {
+                setImei(parsed.imei);
+                focusNextControl(event.currentTarget);
+              }
+            }} />
+          </Field>
+          {current ? null : <ScanCameraButton onClick={() => setCamera(true)} />}
+        </div>
+        {current ? null : <ScanReady />}
+      </div>
       <Field label="Proveedor">
         {suppliers === null ? <input disabled value="Cargando proveedores…" /> : (
           <select aria-label="Proveedor" value={supplier} onChange={(event) => setSupplier(event.target.value)}>
@@ -210,5 +276,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       });
       }} />
     </Sheet>
+    {camera && !current ? <CameraScanner onClose={() => setCamera(false)} onManual={() => { setCamera(false); imeiRef.current?.focus(); }} onUse={openReview} /> : null}
+    </>
   );
 }
