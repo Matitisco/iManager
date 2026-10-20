@@ -38,13 +38,10 @@ async function createDetector() {
   }
 }
 
-function captureViewfinder(video: HTMLVideoElement, frame: HTMLElement | null, canvas: HTMLCanvasElement) {
+function paintFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement, crop: Crop | null) {
   const width = video.videoWidth;
   const height = video.videoHeight;
   if (width < 2 || height < 2) return false;
-  const display = video.getBoundingClientRect();
-  const region = frame?.getBoundingClientRect();
-  const crop = region && region.width > 0 ? viewfinderCrop({ width, height }, display, region) : null;
   const sx = crop?.sx ?? 0;
   const sy = crop?.sy ?? 0;
   const sw = crop?.sw ?? width;
@@ -57,6 +54,15 @@ function captureViewfinder(video: HTMLVideoElement, frame: HTMLElement | null, c
   if (!context) return false;
   context.drawImage(video, sx, sy, sw, sh, 0, 0, destW, destH);
   return true;
+}
+
+function viewfinder(video: HTMLVideoElement, frame: HTMLElement | null) {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width < 2 || height < 2) return null;
+  const region = frame?.getBoundingClientRect();
+  if (!region || region.width <= 0) return null;
+  return viewfinderCrop({ width, height }, video.getBoundingClientRect(), region);
 }
 
 function sliceCanvas(source: HTMLCanvasElement, region: Crop) {
@@ -120,29 +126,44 @@ async function readFrames(
   signal: AbortSignal,
 ) {
   let detector = await createDetector();
-  const canvas = document.createElement('canvas');
+  const cropCanvas = document.createElement('canvas');
+  const fullCanvas = document.createElement('canvas');
   let lastZxing = 0;
+  void ensureZxing();
 
   const loop = async () => {
     if (signal.aborted) return;
     try {
-      const painted = captureViewfinder(video, frame, canvas);
+      const crop = viewfinder(video, frame);
+      const paintedCrop = crop ? paintFrame(video, cropCanvas, crop) : false;
+      const paintedFull = paintFrame(video, fullCanvas, null);
       let hits: ScanHit[] = [];
       if (detector) {
-        try {
-          const found = await detector.detect(painted ? canvas : video);
-          hits = found.map((hit) => ({ rawValue: hit.rawValue, format: hit.format }));
-        } catch {
-          detector = null;
+        const sources: CanvasImageSource[] = [];
+        if (paintedCrop) sources.push(cropCanvas);
+        if (paintedFull) sources.push(fullCanvas);
+        if (sources.length === 0) sources.push(video);
+        for (const source of sources) {
+          try {
+            const found = await detector.detect(source);
+            hits.push(...found.map((hit) => ({ rawValue: hit.rawValue, format: hit.format })));
+          } catch {
+            detector = null;
+            break;
+          }
+          if (rawHasImei(selectBarcodeRaw(hits))) break;
         }
       }
       let chosen = selectBarcodeRaw(hits);
       const now = performance.now();
-      if (!rawHasImei(chosen) && painted && now - lastZxing >= 200) {
+      if (!rawHasImei(chosen) && (paintedCrop || paintedFull) && now - lastZxing >= 200) {
         lastZxing = now;
         const decoder = await ensureZxing();
         if (!signal.aborted && decoder) {
-          chosen = selectBarcodeRaw([...hits, ...decoder.read(canvas)]);
+          const extra: ScanHit[] = [];
+          if (paintedCrop) extra.push(...decoder.read(cropCanvas));
+          if (!rawHasImei(selectBarcodeRaw([...hits, ...extra])) && paintedFull) extra.push(...decoder.read(fullCanvas));
+          chosen = selectBarcodeRaw([...hits, ...extra]);
         }
       }
       if (chosen && !signal.aborted) onCode(chosen);
