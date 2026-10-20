@@ -219,6 +219,16 @@ describe('control de stock', () => {
     expect(screen.queryByText('Faltan')).not.toBeInTheDocument();
   });
 
+  it('extrae el IMEI de una etiqueta de caja', async () => {
+    api.fetchCurrentStockCount.mockResolvedValue(blind);
+    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    desk(<StockCountScreen onBack={vi.fn()} />);
+    const input = await screen.findByTestId('stock-scan-input');
+    await actor.type(input, 'MLPF3LE/A F2LXK9POQ1 351204883022116');
+    await actor.keyboard('{Enter}');
+    await waitFor(() => expect(api.scanStockCount).toHaveBeenCalledWith(user, 'count-1', '351204883022116'));
+  });
+
   it('en el teléfono el empleado tampoco ve cerrar', async () => {
     phone();
     context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };

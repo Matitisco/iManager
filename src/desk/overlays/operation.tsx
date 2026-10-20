@@ -6,7 +6,7 @@ import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { parseDeviceCode } from '../../lib/device-scan';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
-import { createWedgeBuffer } from '../../lib/keyboard-wedge';
+import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedSale } from '../archive-cache';
 import { RecordHistory } from '../screens/HistoryScreen';
@@ -121,6 +121,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [bad, setBad] = useState<Record<string, string>>({});
   const [cameraFor, setCameraFor] = useState<null | 'sale' | 'trade'>(null);
   const tradeWedge = useRef(createWedgeBuffer());
+  const tradeImeiRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (hasTrade) setTradeOpen(true);
@@ -405,7 +406,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
           <div className="frow">
             <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
             <div className="scan-imei">
-              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input ref={tradeImeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
                 const pushed = tradeWedge.current.push(event.key);
                 if (pushed.type !== 'scan') return;
                 event.preventDefault();
@@ -415,6 +416,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
                 dirty.current.add('imei');
                 setImei(parsed.imei);
                 if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+                focusNextControl(event.currentTarget);
               }} /></Field>
               <ScanCameraButton onClick={() => setCameraFor('trade')} />
             </div>
@@ -571,6 +573,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
             dirty.current.add('imei');
             setImei(parsed.imei);
             if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+            if (tradeImeiRef.current) focusNextControl(tradeImeiRef.current);
             return;
           }
           if (parsed.imei && stockByImei(parsed.imei)) {

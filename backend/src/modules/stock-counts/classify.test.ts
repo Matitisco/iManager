@@ -22,6 +22,8 @@ function device(id: string, imei: string, status = "DISPONIBLE") {
 describe("stock count classification", () => {
   it("keeps only 15 digit IMEIs and the countable statuses", () => {
     expect(normalizeImei("35 209 811 774 4521")).toBe("352098117744521");
+    expect(normalizeImei("MLPF3LE/A F2LXK9POQ1 351204883022116")).toBe("351204883022116");
+    expect(normalizeImei("35 209811 774452 2")).toBe("352098117744522");
     expect(normalizeImei("123")).toBe("");
     expect(isCountableStatus("En revisión")).toBe(true);
     expect(isCountableStatus("RESERVADO")).toBe(true);

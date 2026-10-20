@@ -1,3 +1,5 @@
+import { imeiPassesLuhn } from "../../lib/imei.js";
+
 export type ScanResult = "FOUND" | "NOT_LOADED" | "SOLD" | "REPEATED";
 
 export type SnapshotRow = {
@@ -68,8 +70,30 @@ export function isSoldStatus(status: string) {
   return statusKey(status) === "VENDIDO";
 }
 
+function luhnWindow(digits: string) {
+  for (let index = 0; index + 15 <= digits.length; index += 1) {
+    const slice = digits.slice(index, index + 15);
+    if (imeiPassesLuhn(slice)) return slice;
+  }
+  return "";
+}
+
+/** A box label keeps the IMEI as its own 15-digit run. Stripping every digit would glue the serial to it. */
 export function normalizeImei(value: string | null | undefined) {
-  const digits = (value ?? "").replace(/\D/g, "");
+  const text = (value ?? "").replace(/\u001d/g, " ");
+  const spaced = text.match(/(\d{2})\s+(\d{6})\s+(\d{6})\s+(\d)/);
+  if (spaced) {
+    const joined = `${spaced[1]}${spaced[2]}${spaced[3]}${spaced[4]}`;
+    if (imeiPassesLuhn(joined)) return joined;
+  }
+  const runs = text.match(/\d{15,}/g) ?? [];
+  for (const run of runs) {
+    const found = luhnWindow(run);
+    if (found) return found;
+  }
+  const loose = text.match(/\d{15}/);
+  if (loose) return loose[0];
+  const digits = text.replace(/\D/g, "");
   return digits.length === 15 ? digits : "";
 }
 

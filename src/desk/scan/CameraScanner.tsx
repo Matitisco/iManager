@@ -44,8 +44,14 @@ export function CameraScanner({
       if (seen.current.value === raw && now - seen.current.at < 1500) return;
       seen.current = { value: raw, at: now };
       const next = parseDeviceCode(raw);
-      const imei = loose ? (next.imei ?? extractImeiLoose(raw)) : next.imei;
+      const looseImei = extractImeiLoose(raw);
+      const imei = loose ? (next.imei ?? looseImei) : next.imei;
       if (!imei || (!loose && !imeiPassesLuhn(imei))) {
+        if (burst && looseImei && imeiPassesLuhn(looseImei) === false && /^\d{15}$/.test(looseImei)) {
+          next.imei = looseImei;
+          onBurstRef.current?.(raw, next);
+          return;
+        }
         if (!burst) setUnreadable(true);
         return;
       }

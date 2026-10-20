@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
+import { extractImeiLoose, parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
 import { imeiPassesLuhn } from '../../lib/imei';
 import { batchCounts, classifyScannedImei, loadButtonLabel, rowSummary } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import { createBackendInventoryBatch } from '../../services/inventory-api';
+import { createBackendInventoryBatch, fetchArchivedInventory } from '../../services/inventory-api';
 import type { Product } from '../../types';
 import { conditionName, formatImei, formatInputMoney, parseMoney, statusLabel } from '../format';
 import { useMoney } from '../exchange';
@@ -84,12 +84,20 @@ export function BatchLoad() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entry, setEntry] = useState('');
+  const [archived, setArchived] = useState<Product[]>([]);
 
-  const stock = useMemo(() => inventory.map((item) => ({
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    fetchArchivedInventory(user).then((rows) => { if (active) setArchived(rows); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user]);
+
+  const stock = useMemo(() => [...inventory, ...archived].map((item) => ({
     imei: item.imei ?? '',
     status: item.status,
     archivedAt: item.archivedAt,
-  })), [inventory]);
+  })), [archived, inventory]);
 
   const ordered = [...rows].sort((left, right) => right.order - left.order);
   const classes = ordered.map((row) => classifyScannedImei(row.imei, {
@@ -101,9 +109,9 @@ export function BatchLoad() {
   const missingShared = !shared.model.trim() || !parseMoney(shared.price);
   const blocked = counts.loadable === 0 || missingShared;
 
-  const addParsed = (parsed: ParsedDeviceCode) => {
-    const imei = parsed.imei ?? '';
-    if (!imei) {
+  const addParsed = (parsed: ParsedDeviceCode, raw = '') => {
+    const imei = parsed.imei ?? extractImeiLoose(raw) ?? '';
+    if (!/^\d{15}$/.test(imei)) {
       setError('El código no trae un IMEI de 15 dígitos.');
       return;
     }
@@ -236,8 +244,8 @@ export function BatchLoad() {
               placeholder="15 dígitos"
               onChange={(value) => setEntry(value.replace(/\D/g, '').slice(0, 15))}
               onCamera={() => setCamera(true)}
-              onEnter={() => { if (entry.trim()) addParsed(parseDeviceCode(entry)); }}
-              onScan={(raw) => { if (raw) addParsed(parseDeviceCode(raw)); }}
+              onEnter={() => { if (entry.trim()) addParsed(parseDeviceCode(entry), entry); }}
+              onScan={(raw) => { if (raw) addParsed(parseDeviceCode(raw), raw); }}
             />
           </section>
           <section className="batch-list">
@@ -291,7 +299,7 @@ export function BatchLoad() {
           counts={{ ready: counts.loadable, scanned: rows.length }}
           onClose={() => setCamera(false)}
           onManual={() => setCamera(false)}
-          onBurst={(_raw, parsed) => addParsed(parsed)}
+          onBurst={(raw, parsed) => addParsed(parsed, raw)}
         />
       ) : null}
     </>
