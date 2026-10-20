@@ -11,6 +11,8 @@
 .team-member-head .sacts{flex-shrink:0}.team-member-head .btn2{white-space:nowrap}.team-member-head .whead-copy{flex:1}
 
 .team-grid,.team-grid.solo{display:block;max-width:none}
+.settings-grid > .team-grid { margin-block: 24px; }
+.settings-grid > .team-grid > .sec { margin-top: 0; margin-bottom: 12px; }
 .team-grid>.team-block,.team-card{width:100%;max-width:none}
 .team-desktop-invite{display:none!important}
 .settings-grid>.team-invite-bottom,.team-page .team-invite-bottom{display:none!important}
