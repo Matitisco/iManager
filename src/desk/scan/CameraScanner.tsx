@@ -24,6 +24,7 @@ export function CameraScanner({
   loose?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const onBurstRef = useRef(onBurst);
   onBurstRef.current = onBurst;
   const [denied, setDenied] = useState(false);
@@ -64,7 +65,7 @@ export function CameraScanner({
       confirmScan();
       setParsed(next);
       signal.abort();
-    }, signal.signal).then((opened) => {
+    }, signal.signal, frameRef.current).then((opened) => {
       setCanTorch(torchSupported(opened));
     }).catch((error: unknown) => {
       if (signal.signal.aborted) return;
@@ -101,7 +102,7 @@ export function CameraScanner({
       <div className="scan-stage">
         {burst && counts ? <span className="scan-pill" data-testid="scan-burst-count">{counts.ready === 1 ? '1 listo' : `${counts.ready} listos`} · {counts.scanned} escaneados</span> : null}
         <video ref={videoRef} className="scan-video" muted playsInline autoPlay />
-        <div className={`scan-frame${live ? '' : ' ok'}`} aria-hidden="true">
+        <div ref={frameRef} className={`scan-frame${live ? '' : ' ok'}`} aria-hidden="true">
           <i /><i /><i /><i />
           {live ? <span className="scan-laser" /> : null}
         </div>

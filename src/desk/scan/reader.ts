@@ -1,7 +1,12 @@
-type BarcodeHit = { rawValue?: string };
+import { CameraDenied, type Crop, openRearStream, viewfinderCrop } from './camera-profile';
+import { buildZxingHints, rawHasImei, SCAN_FORMATS, selectBarcodeRaw, type ScanHit, zxingRegions } from './select-code';
+
+export { CameraDenied };
+
+type NativeHit = { rawValue?: string; format?: string };
 
 type NativeDetector = {
-  detect: (source: CanvasImageSource) => Promise<BarcodeHit[]>;
+  detect: (source: CanvasImageSource) => Promise<NativeHit[]>;
 };
 
 type NativeDetectorCtor = {
@@ -9,92 +14,196 @@ type NativeDetectorCtor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
-export class CameraDenied extends Error {
-  constructor() {
-    super('camera-denied');
-    this.name = 'CameraDenied';
-  }
-}
+type ZxingReader = {
+  read: (canvas: HTMLCanvasElement) => ScanHit[];
+};
 
 function nativeDetector() {
   return (window as Window & { BarcodeDetector?: NativeDetectorCtor }).BarcodeDetector;
 }
 
-export async function attachCamera(video: HTMLVideoElement) {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: 'environment' } },
-    });
-    video.srcObject = stream;
-    await video.play();
-    return stream;
-  } catch (error) {
-    const name = error instanceof DOMException ? error.name : '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
-      throw new CameraDenied();
-    }
-    throw error;
-  }
-}
-
-async function watchNative(video: HTMLVideoElement, onCode: (raw: string) => void, signal: AbortSignal) {
+async function createDetector() {
   const Detector = nativeDetector();
-  if (!Detector) return false;
-  let formats = ['code_128', 'qr_code'];
+  if (!Detector) return null;
   try {
+    let formats: string[] = [...SCAN_FORMATS];
     if (Detector.getSupportedFormats) {
-      const supported = await Detector.getSupportedFormats();
-      formats = formats.filter((format) => supported.includes(format));
+      const supported = new Set(await Detector.getSupportedFormats());
+      formats = formats.filter((format) => supported.has(format));
     }
-    if (!formats.length) return false;
-    const detector = new Detector({ formats });
-    const loop = async () => {
-      if (signal.aborted) return;
-      try {
-        const hits = await detector.detect(video);
-        const raw = hits.find((hit) => hit.rawValue)?.rawValue;
-        if (raw) onCode(raw);
-      } catch {
-        // A frame can fail while the camera is still starting.
-      }
-      if (!signal.aborted) requestAnimationFrame(() => void loop());
-    };
-    void loop();
-    return true;
+    if (formats.length === 0) return null;
+    return new Detector({ formats });
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function watchZxing(video: HTMLVideoElement, onCode: (raw: string) => void, signal: AbortSignal) {
-  const [{ BrowserMultiFormatReader }, zxing] = await Promise.all([
+function paintFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement, crop: Crop | null) {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width < 2 || height < 2) return false;
+  const sx = crop?.sx ?? 0;
+  const sy = crop?.sy ?? 0;
+  const sw = crop?.sw ?? width;
+  const sh = crop?.sh ?? height;
+  const destW = Math.max(1, Math.round(sw));
+  const destH = Math.max(1, Math.round(sh));
+  if (canvas.width !== destW) canvas.width = destW;
+  if (canvas.height !== destH) canvas.height = destH;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+  context.drawImage(video, sx, sy, sw, sh, 0, 0, destW, destH);
+  return true;
+}
+
+function viewfinder(video: HTMLVideoElement, frame: HTMLElement | null) {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width < 2 || height < 2) return null;
+  const region = frame?.getBoundingClientRect();
+  if (!region || region.width <= 0) return null;
+  return viewfinderCrop({ width, height }, video.getBoundingClientRect(), region);
+}
+
+function sliceCanvas(source: HTMLCanvasElement, region: Crop) {
+  if (region.sx === 0 && region.sy === 0 && region.sw === source.width && region.sh === source.height) return source;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(region.sw));
+  canvas.height = Math.max(1, Math.round(region.sh));
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return source;
+  context.drawImage(source, region.sx, region.sy, region.sw, region.sh, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+let zxingReader: Promise<ZxingReader | null> | null = null;
+
+function ensureZxing() {
+  if (!zxingReader) zxingReader = loadZxing().catch(() => null);
+  return zxingReader;
+}
+
+async function loadZxing(): Promise<ZxingReader> {
+  const [browser, zxing] = await Promise.all([
     import('@zxing/browser'),
     import('@zxing/library'),
   ]);
-  const hints = new Map();
-  hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [zxing.BarcodeFormat.CODE_128, zxing.BarcodeFormat.QR_CODE]);
-  const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
-  const controls = await reader.decodeFromVideoElement(video, (result) => {
-    if (!signal.aborted && result) onCode(result.getText());
-  });
-  signal.addEventListener('abort', () => controls.stop(), { once: true });
+  const hints = buildZxingHints(zxing);
+  const reader = new zxing.MultiFormatReader();
+  reader.setHints(hints as Parameters<typeof reader.setHints>[0]);
+  const readOne = (canvas: HTMLCanvasElement): ScanHit | null => {
+    if (canvas.width < 8 || canvas.height < 8) return null;
+    try {
+      const source = new browser.HTMLCanvasElementLuminanceSource(canvas);
+      const bitmap = new zxing.BinaryBitmap(new zxing.HybridBinarizer(source));
+      const result = reader.decodeWithState(bitmap);
+      const formatId = result.getBarcodeFormat();
+      const format = zxing.BarcodeFormat[formatId] ?? '';
+      return { rawValue: result.getText(), format };
+    } catch {
+      return null;
+    } finally {
+      reader.reset();
+    }
+  };
+  return {
+    read(canvas) {
+      const hits: ScanHit[] = [];
+      for (const region of zxingRegions(canvas.width, canvas.height)) {
+        const hit = readOne(sliceCanvas(canvas, region));
+        if (hit?.rawValue) hits.push(hit);
+        if (rawHasImei(selectBarcodeRaw(hits))) break;
+      }
+      return hits;
+    },
+  };
 }
 
-/** Native BarcodeDetector when the browser has it. ZXing loads only as a fallback. */
-export async function watchCodes(video: HTMLVideoElement, onCode: (raw: string) => void, signal: AbortSignal) {
-  const stream = await attachCamera(video);
+async function readFrames(
+  video: HTMLVideoElement,
+  frame: HTMLElement | null,
+  onCode: (raw: string) => void,
+  signal: AbortSignal,
+) {
+  let detector = await createDetector();
+  const cropCanvas = document.createElement('canvas');
+  const fullCanvas = document.createElement('canvas');
+  let lastZxing = 0;
+
+  const loop = async () => {
+    if (signal.aborted) return;
+    try {
+      const crop = viewfinder(video, frame);
+      const paintedCrop = crop ? paintFrame(video, cropCanvas, crop) : false;
+      const paintedFull = paintFrame(video, fullCanvas, null);
+      let hits: ScanHit[] = [];
+      if (detector) {
+        const sources: CanvasImageSource[] = [];
+        if (paintedCrop) sources.push(cropCanvas);
+        if (paintedFull) sources.push(fullCanvas);
+        if (sources.length === 0) sources.push(video);
+        for (const source of sources) {
+          try {
+            const found = await detector.detect(source);
+            hits.push(...found.map((hit) => ({ rawValue: hit.rawValue, format: hit.format })));
+          } catch {
+            detector = null;
+            break;
+          }
+          if (rawHasImei(selectBarcodeRaw(hits))) break;
+        }
+      }
+      let chosen = selectBarcodeRaw(hits);
+      const now = performance.now();
+      if (!rawHasImei(chosen) && (paintedCrop || paintedFull) && now - lastZxing >= 200) {
+        lastZxing = now;
+        const decoder = await ensureZxing();
+        if (!signal.aborted && decoder) {
+          const extra: ScanHit[] = [];
+          if (paintedCrop) extra.push(...decoder.read(cropCanvas));
+          if (!rawHasImei(selectBarcodeRaw([...hits, ...extra])) && paintedFull) extra.push(...decoder.read(fullCanvas));
+          chosen = selectBarcodeRaw([...hits, ...extra]);
+        }
+      }
+      if (chosen && !signal.aborted) onCode(chosen);
+    } catch {
+      // A single frame can fail while the camera is still starting.
+    }
+    if (signal.aborted) return;
+    if (detector) requestAnimationFrame(() => void loop());
+    else window.setTimeout(() => void loop(), 160);
+  };
+
+  void loop();
+}
+
+export async function watchCodes(
+  video: HTMLVideoElement,
+  onCode: (raw: string) => void,
+  signal: AbortSignal,
+  frame?: HTMLElement | null,
+) {
+  const stream = await openRearStream();
   const release = () => {
     for (const track of stream.getTracks()) track.stop();
-    video.srcObject = null;
+    if (video.srcObject === stream) video.srcObject = null;
   };
   if (signal.aborted) {
     release();
     throw new DOMException('aborted', 'AbortError');
   }
   signal.addEventListener('abort', release, { once: true });
-  const native = await watchNative(video, onCode, signal);
-  if (!native && !signal.aborted) await watchZxing(video, onCode, signal);
+  try {
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', 'true');
+    await video.play();
+  } catch (error) {
+    release();
+    throw error;
+  }
+  if (!signal.aborted) void readFrames(video, frame ?? null, onCode, signal);
   return stream;
 }
 
