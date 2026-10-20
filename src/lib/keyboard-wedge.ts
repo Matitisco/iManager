@@ -36,13 +36,22 @@ export function createWedgeBuffer(gapMs = 80) {
 }
 
 export function focusNextControl(current: HTMLElement) {
-  const root = current.closest('.sheet, form, .dscreen') ?? document.body;
-  const controls = [...root.querySelectorAll<HTMLElement>('input, select, textarea')].filter((control) => {
-    if (control === current) return true;
-    if ((control as HTMLInputElement).disabled) return false;
-    if (control.tabIndex < 0) return false;
-    return control.getClientRects().length > 0;
-  });
-  const index = controls.indexOf(current);
-  controls[index + 1]?.focus();
+  const move = () => {
+    if (!current.isConnected) return;
+    const root = current.closest('.sheet, form, .dscreen') ?? document.body;
+    const controls = [...root.querySelectorAll<HTMLElement>('input, select, textarea')].filter((control) => {
+      if (control === current) return true;
+      if ((control as HTMLInputElement).disabled) return false;
+      if (control.tabIndex < 0) return false;
+      return control.getClientRects().length > 0;
+    });
+    const index = controls.indexOf(current);
+    const next = controls[index + 1];
+    if (!next) return;
+    next.scrollIntoView({ block: 'nearest' });
+    current.blur();
+    next.focus();
+  };
+  move();
+  window.setTimeout(move, 0);
 }

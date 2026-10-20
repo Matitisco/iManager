@@ -197,8 +197,11 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
 
   const submitScan = async (raw?: string) => {
     if (!user || !blind || busy) return;
-    const value = (raw ?? imei).trim();
-    if (!value) return;
+    const value = extractImeiLoose((raw ?? imei).trim()) ?? "";
+    if (!value) {
+      setError('El IMEI tiene 15 dígitos');
+      return;
+    }
     setBusy(true);
     setError('');
     try {

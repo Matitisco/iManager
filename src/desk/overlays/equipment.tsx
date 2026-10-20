@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { parseDeviceCode } from '../../lib/device-scan';
-import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
+import { IMEI_FORMAT_MESSAGE, IMEI_LUHN_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError, imeiPassesLuhn } from '../../lib/imei';
 import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { frequentModels } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -188,7 +188,17 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
             <input ref={imeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
               const pushed = wedge.current.push(event.key);
-              if (pushed.type !== 'scan' || current) return;
+              if (current) return;
+              if (pushed.type === 'enter') {
+                const digits = event.currentTarget.value.replace(/\D/g, '');
+                if (digits.length === 15 && !imeiPassesLuhn(digits)) {
+                  event.preventDefault();
+                  setImei('');
+                  setBad((prev) => ({ ...prev, imei: IMEI_LUHN_MESSAGE }));
+                }
+                return;
+              }
+              if (pushed.type !== 'scan') return;
               event.preventDefault();
               const parsed = parseDeviceCode(pushed.value);
               confirmScan();
