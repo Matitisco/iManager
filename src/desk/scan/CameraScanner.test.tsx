@@ -53,4 +53,31 @@ describe('camera scanner', () => {
     expect(screen.getByText('35 209811 774452 2')).toBeInTheDocument();
     expect(screen.getByText('15 dígitos · control de dígito correcto')).toBeInTheDocument();
   });
+
+  it('prefers the luhn imei when the label also has an ean-13', async () => {
+    class Detector {
+      static async getSupportedFormats() { return ['code_128', 'ean_13', 'qr_code']; }
+      async detect() {
+        return [
+          { rawValue: '8806094745610', format: 'ean_13' },
+          { rawValue: '355150550080984', format: 'code_128' },
+        ];
+      }
+    }
+    vi.stubGlobal('BarcodeDetector', Detector);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({
+          getVideoTracks: () => [{ getCapabilities: () => ({ torch: true }), stop: vi.fn() }],
+          getTracks: () => [{ stop: vi.fn() }],
+        })),
+      },
+    });
+    render(<CameraScanner onClose={vi.fn()} onManual={vi.fn()} onUse={vi.fn()} />);
+    expect(await screen.findByText('35 515055 008098 4')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Linterna' })).toBeInTheDocument();
+    expect(screen.queryByText('8806094745610')).not.toBeInTheDocument();
+  });
 });
