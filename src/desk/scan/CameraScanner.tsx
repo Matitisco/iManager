@@ -34,6 +34,7 @@ export function CameraScanner({
   const [canTorch, setCanTorch] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const seen = useRef<{ value: string; at: number }>({ value: '', at: 0 });
+  const burstSeen = useRef(new Set<string>());
   const holding = Boolean(parsed) && !burst;
 
   useEffect(() => {
@@ -42,13 +43,19 @@ export function CameraScanner({
     const signal = new AbortController();
     watchCodes(video, (raw) => {
       const now = Date.now();
-      if (seen.current.value === raw && now - seen.current.at < 1500) return;
-      seen.current = { value: raw, at: now };
+      if (!burst && seen.current.value === raw && now - seen.current.at < 1500) return;
+      if (!burst) seen.current = { value: raw, at: now };
       const next = parseDeviceCode(raw);
       const looseImei = extractImeiLoose(raw);
       const imei = loose ? (next.imei ?? looseImei) : next.imei;
+      const rememberBurst = (value: string) => {
+        if (burstSeen.current.has(value)) return false;
+        burstSeen.current.add(value);
+        return true;
+      };
       if (!imei || (!loose && !imeiPassesLuhn(imei))) {
         if (burst && looseImei && imeiPassesLuhn(looseImei) === false && /^\d{15}$/.test(looseImei)) {
+          if (!rememberBurst(looseImei)) return;
           next.imei = looseImei;
           onBurstRef.current?.(raw, next);
           return;
@@ -59,6 +66,7 @@ export function CameraScanner({
       next.imei = imei;
       setUnreadable(false);
       if (burst) {
+        if (!rememberBurst(imei)) return;
         onBurstRef.current?.(raw, next);
         return;
       }

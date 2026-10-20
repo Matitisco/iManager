@@ -128,7 +128,8 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
   const [price, setPrice] = useState(current ? money.inputValue(current.price, current.currency) : '');
-  const [status, setStatus] = useState(current?.status ?? '');
+  const [cost, setCost] = useState(current && seeCosts ? money.inputValue(current.cost, current.currency) : '');
+  const [status, setStatus] = useState(current?.status || 'DISPONIBLE');
   const [supplier, setSupplier] = useState(current?.supplierId ?? supplierId ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
   const [review, setReview] = useState<ScanDraft | null>(null);
@@ -224,6 +225,12 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       <Field label="Condición"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', conditions)} value={condition} onChange={(next) => { setCondition(next); if (!isUsedCondition(next)) setGrade(''); }} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CONDITION') : undefined} />
       {isUsedCondition(condition) ? <QualityField value={grade} onChange={setGrade} /> : null}
+      {seeCosts ? <Field label="Costo" mark={money.active} error={bad.cost}><input aria-label="Costo" value={cost} inputMode="decimal" onChange={(event) => {
+        const raw = event.target.value;
+        if (raw.includes('-')) { setCost(raw); return; }
+        setCost(formatInputMoney(parseMoney(raw)));
+        clearBad(setBad, 'cost');
+      }} placeholder="Opcional" /></Field> : null}
       <Field label="Precio de venta" mark={money.active} error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
         const raw = event.target.value;
         if (raw.includes('-')) { setPrice(raw); return; }
@@ -239,6 +246,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
         if (color.trim().length > INPUT_LIMITS.color) next.color = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
         if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
+        if (seeCosts && cost.includes('-')) next.cost = 'El costo no puede ser negativo';
         if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
         else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
         setBad(next);
@@ -259,7 +267,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           condition,
           grade: isUsedCondition(condition) ? grade : '',
           batteryHealth: battery ? `${battery}%` : '',
-          cost: seeCosts ? (current?.cost ?? 0) : 0,
+          cost: seeCosts ? parseMoney(cost) : (current?.cost ?? 0),
           price: priced.amounts[0]?.amount ?? parseMoney(price),
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,

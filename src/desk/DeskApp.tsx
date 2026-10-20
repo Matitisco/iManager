@@ -175,8 +175,12 @@ function SideLink({ item, on, count, sub, onOpen }: {
   sub?: boolean;
   onOpen: (id: DeskTab) => void;
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (on) ref.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [on]);
   return (
-    <button className={`ditem${sub ? ' sub' : ''}${on ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
+    <button ref={ref} className={`ditem${sub ? ' sub' : ''}${on ? ' on' : ''}`} type="button" data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
       <span className="dic"><NavGlyph name={item.icon} size={18} /></span>
       <span>{item.label}</span>
       {count > 0 ? <span className="dcount" aria-label={badgeLabel(item.id, item.label, count)}>{count}</span> : null}

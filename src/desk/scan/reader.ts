@@ -1,5 +1,5 @@
 import { CameraDenied, type Crop, openRearStream, viewfinderCrop } from './camera-profile';
-import { buildZxingHints, rawHasImei, SCAN_FORMATS, selectBarcodeRaw, type ScanHit, zxingRegions } from './select-code';
+import { rawHasImei, SCAN_FORMATS, selectBarcodeRaw, type ScanHit, zxingRegions } from './select-code';
 
 export { CameraDenied };
 
@@ -88,22 +88,27 @@ async function loadZxing(): Promise<ZxingReader> {
     import('@zxing/browser'),
     import('@zxing/library'),
   ]);
-  const hints = buildZxingHints(zxing);
-  const reader = new zxing.MultiFormatReader();
-  reader.setHints(hints as Parameters<typeof reader.setHints>[0]);
+  const readers = [new zxing.Code128Reader(), new zxing.QRCodeReader(), new zxing.EAN13Reader()];
   const readOne = (canvas: HTMLCanvasElement): ScanHit | null => {
     if (canvas.width < 8 || canvas.height < 8) return null;
     try {
       const source = new browser.HTMLCanvasElementLuminanceSource(canvas);
       const bitmap = new zxing.BinaryBitmap(new zxing.HybridBinarizer(source));
-      const result = reader.decodeWithState(bitmap);
-      const formatId = result.getBarcodeFormat();
-      const format = zxing.BarcodeFormat[formatId] ?? '';
-      return { rawValue: result.getText(), format };
+      for (const reader of readers) {
+        try {
+          const result = reader.decode(bitmap);
+          const formatId = result.getBarcodeFormat();
+          const format = zxing.BarcodeFormat[formatId] ?? '';
+          return { rawValue: result.getText(), format };
+        } catch {
+          // Un frame without a code is normal. These readers throw; they do not warn.
+        } finally {
+          reader.reset();
+        }
+      }
+      return null;
     } catch {
       return null;
-    } finally {
-      reader.reset();
     }
   };
   return {
