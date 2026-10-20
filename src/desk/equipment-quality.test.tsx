@@ -78,6 +78,22 @@ describe('equipment quality', () => {
     await waitFor(() => expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({
       condition: 'NUEVO',
       grade: '',
+      status: 'DISPONIBLE',
+    })));
+  });
+
+  it('saves a purchase cost and starts the device as available', async () => {
+    const user = userEvent.setup();
+    renderOverlay({ type: 'new-eq' });
+    await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone 13');
+    await user.type(screen.getByPlaceholderText('$ 0'), '650000');
+    await user.type(screen.getByLabelText('Costo'), '400000');
+    expect(screen.getByRole('button', { name: 'Disponible' })).toHaveClass('on');
+    await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
+    await waitFor(() => expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({
+      cost: 400000,
+      price: 650000,
+      status: 'DISPONIBLE',
     })));
   });
 

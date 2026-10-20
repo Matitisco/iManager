@@ -204,7 +204,7 @@ export function ReturnDetail({ id }: { id: string }) {
   }
 
   return (
-    <Sheet title={current.code} subtitle={[current.clientName, current.deviceLabel].filter(Boolean).join(' · ') || 'Devolución'} onClose={close} className="eq-sheet">
+    <Sheet title={current.code} subtitle={[current.clientName, current.deviceLabel].filter(Boolean).join(' · ') || 'Devolución'} onClose={close} className="eq-sheet" footer={open && canManageSensitive ? <Actions busy={busy} primary="Resolver reclamo" onSecondary={close} onPrimary={() => { void resolve(); }} /> : undefined}>
       {error ? <div className="ferr">{error}</div> : null}
       <div className="pending-sale" data-testid="return-detail">
         <div>
@@ -253,7 +253,6 @@ export function ReturnDetail({ id }: { id: string }) {
                   <p className="eqs-note">Tiene que ser distinto al estado anterior de la venta.</p>
                 </>
               ) : null}
-              <Actions busy={busy} primary="Resolver reclamo" onSecondary={close} onPrimary={() => { void resolve(); }} />
             </div>
           ) : <p className="eqs-note">Podés cargar el diagnóstico. Resolver el reclamo lo hace el propietario o quien tenga permiso.</p>}
           {canManageSensitive ? <button className="wlink" type="button" onClick={() => setConfirm(true)}>Archivar reclamo</button> : null}
