@@ -14,6 +14,7 @@ Issue #440 records navigation decisions and an intermittent Prisma P2034 from th
 ### New Capabilities
 - `desk-navigation`: supplier grouping, compatible routes and persistent mobile labels.
 - `operation-conflict-recovery`: bounded transaction retries and atomic concurrent cancellation.
+- `scan-camera-control`: readable camera preview, native zoom and safe rear-lens switching after a physical Galaxy S23 test showed blur and failed IMEI reads.
 
 ### Modified Capabilities
 None.

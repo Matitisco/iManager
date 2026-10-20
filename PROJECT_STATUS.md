@@ -9,6 +9,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - La investigación del CI ubicó P2034 en el alta de una venta, antes de la anulación. Se reprodujo además una carrera real entre anulaciones simultáneas: P2002 sobre la reversa de caja. Venta/canje ahora bloquean su registro antes de anular para mantener idempotencia; agotar reintentos Serializable devuelve 409 con un mensaje para reintentar.
 - TypeScript frontend/backend, 50 tests frontend, 12 unitarios backend, 99 integraciones y 20 E2E distintos aprobados. Cinco escenarios de cámara WebKit no se validan en Windows por falta de MediaStream/captureStream; Chromium desktop y Android emulado sí aprobaron. Sin build ni cambios de Prisma; solo bases PostgreSQL locales aisladas.
 - Las pruebas de escáner con Samsung/iPhone/PWA, lector físico y condiciones difíciles siguen pendientes. SMTP queda pospuesto por indicación del usuario. Evidencia y reproducción: `docs/post-qa-follow-ups-440.md`; OpenSpec: `resolve-post-qa-follow-ups`.
+- Prueba física posterior en Galaxy S23/Chrome: imagen borrosa y sin lectura, reportada con captura. Corrección del frontend: captura HD sin zoom agregado, enfoque/zoom independientes, liberación exclusiva de lentes y limpieza al cerrar, recuperación ante cambio fallido y botón Cambiar cámara. Vista previa sin oscurecer. Pasaron 27 tests del escáner y siete E2E Android, incluido cambio de lente exclusivo seguido de lectura Code128. El resultado físico sigue pendiente de repetir con la versión desplegada.
 
 
 ## Corrección — Editar vendedor de ventas — 2026-10-18

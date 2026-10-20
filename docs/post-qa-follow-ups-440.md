@@ -48,6 +48,18 @@ El WebKit de Playwright instalado en Windows no expone `MediaStream` ni `HTMLCan
 
 La configuración `SMTP_HOST` / `SMTP_FROM` en Railway queda expresamente para después por indicación del usuario. No se modificaron variables ni se enviaron correos.
 
+## Prueba física Galaxy S23 — 2026-10-20
+
+El usuario abrió el escáner en Chrome de un Galaxy S23 y reportó imagen borrosa, peor que la aplicación Cámara, sin conseguir leer el IMEI. La captura adjunta muestra la etiqueta desenfocada; la prueba física de lectura **falló**. No se obtuvo todavía un diagnóstico de lente, resolución ni distancia real, por lo que no se atribuye una causa única al teléfono.
+
+Se corrigieron tres problemas observables en el código: la lente nueva se pedía con la anterior aún activa; se forzaba zoom de aproximadamente 1.75×; la vista previa se oscurecía con opacidad 0.55. La nueva captura solicita HD, arranca con zoom nativo, aplica enfoque y zoom por separado, libera la cámara antes del cambio y permite elegir otra cámara trasera con **Cambiar cámara**. El video conserva su brillo y las instrucciones tienen una superficie propia de contraste.
+
+Veintisiete tests unitarios del escáner y siete E2E Chromium/Android aprobados. Las regresiones incluyen un dispositivo que rechaza cámaras simultáneas, recuperación automática/manual, startup cancelado, stream tardío, autofocus rechazado sin bloquear zoom y cambio de lente seguido de lectura Code128. [Captura de la nueva interfaz con cámara simulada](pr-shots/440-camera-android.png).
+
+El cambio de lente requiere [liberar los recursos de la cámara antes de solicitar otra](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia). Las capacidades y ajustes reales siguen dependiendo del navegador y hardware, según la [especificación de captura de imágenes](https://www.w3.org/TR/image-capture/).
+
+La lectura en el S23 continúa pendiente de repetición después del deploy. Revisar que aparezca Cambiar cámara cuando Chrome exponga varias lentes, comparar la nitidez a una distancia algo mayor y escanear el IMEI impreso. No marcar como aprobada hasta recibir el resultado del usuario.
+
 ## Reproducción
 
 Validación del 2026-10-20: TypeScript frontend/backend, 50 tests frontend, 12 tests unitarios backend y 99 integraciones aprobados. Veinte E2E distintos aprobados: 13 en la primera pasada y siete adicionales después de corregir la URL fija de la prueba de permisos y agregar los seis escenarios Chromium/Android. La primera pasada también incluyó cinco fallos de cámara WebKit por las APIs ausentes en Windows, documentados arriba; no se computan como aprobados.

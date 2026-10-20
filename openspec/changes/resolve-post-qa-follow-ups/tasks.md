@@ -13,3 +13,9 @@
 - [x] 3.1 Run relevant unit/integration/E2E tests and frontend/backend TypeScript checks without building.
 - [x] 3.2 Document actual scanner coverage, pending physical tests and explicitly deferred SMTP configuration.
 - [x] 3.3 Review the final diff and prepare only this session's changes for the required main push.
+
+## 4. Physical Galaxy S23 follow-up
+
+- [x] 4.1 Fix exclusive camera switching, recovery and cancellation cleanup; add regressions.
+- [x] 4.2 Start at HD/native zoom, apply focus independently and show a sharp preview with a rear-camera switch.
+- [x] 4.3 Validate unit, TypeScript and camera E2E checks, document the physical failure, and push the fix to main.

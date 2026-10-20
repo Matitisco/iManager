@@ -187,8 +187,10 @@ export async function watchCodes(
   onCode: (raw: string) => void,
   signal: AbortSignal,
   frame?: HTMLElement | null,
+  deviceId?: string,
+  fallbackDeviceId?: string,
 ) {
-  const stream = await openRearStream();
+  const stream = await openRearStream(deviceId, signal, fallbackDeviceId);
   const release = () => {
     for (const track of stream.getTracks()) track.stop();
     if (video.srcObject === stream) video.srcObject = null;

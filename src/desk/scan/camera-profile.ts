@@ -19,7 +19,7 @@ export type Box = { left: number; top: number; width: number; height: number };
 
 export type Crop = { sx: number; sy: number; sw: number; sh: number };
 
-export type TrackEnhancement = { focusMode?: 'continuous'; zoom?: number };
+export type TrackEnhancement = { focusMode?: 'continuous' | 'single-shot'; zoom?: number };
 
 export class CameraDenied extends Error {
   constructor() {
@@ -44,14 +44,14 @@ function cameraIndex(label: string) {
 
 /**
  * Chrome on Android serves 640×480 when the request has no width or height.
- * Ask for 1920×1080 or higher first, then relax until the camera accepts.
+ * Target HD without forcing a costly 4K stream, then relax until the camera accepts.
  */
 export function videoConstraintLadder(deviceId?: string): ScanVideoConstraints[] {
   const device = deviceId
     ? { deviceId: { exact: deviceId } }
     : { facingMode: { ideal: 'environment' as const } };
   return [
-    { ...device, width: { min: 1920, ideal: 3840 }, height: { min: 1080, ideal: 2160 } },
+    { ...device, width: { min: 1920, ideal: 1920 }, height: { min: 1080, ideal: 1080 } },
     { ...device, width: { ideal: 1920 }, height: { ideal: 1080 } },
     { ...device, width: { ideal: 1280 }, height: { ideal: 720 } },
     { ...device },
@@ -59,11 +59,15 @@ export function videoConstraintLadder(deviceId?: string): ScanVideoConstraints[]
 }
 
 /** Rear main sensor. Skips front, ultra-wide, macro and tele lenses when the label says so. */
-export function pickMainCamera(devices: CameraDevice[]): string | null {
+function rearCandidates(devices: CameraDevice[]): CameraDevice[] {
   const videos = devices.filter((device) => device.kind === 'videoinput' && device.deviceId);
-  if (videos.length === 0 || videos.every((device) => device.label.trim() === '')) return null;
   const rear = videos.filter((device) => REAR.test(device.label) && !FRONT.test(device.label));
-  const pool = rear.length > 0 ? rear : videos.filter((device) => !FRONT.test(device.label));
+  return rear.length > 0 ? rear : videos.filter((device) => !FRONT.test(device.label));
+}
+
+export function pickMainCamera(devices: CameraDevice[]): string | null {
+  const pool = rearCandidates(devices);
+  if (pool.every((device) => device.label.trim() === '')) return null;
   if (pool.length === 0) return null;
   const preferred = pool.filter((device) => !AUX.test(device.label));
   const choices = (preferred.length > 0 ? preferred : pool).slice().sort((a, b) => {
@@ -73,19 +77,17 @@ export function pickMainCamera(devices: CameraDevice[]): string | null {
   return choices[0]?.deviceId ?? null;
 }
 
-/** About 1.5×–2× when the track advertises a zoom range. Null when that range cannot do it. */
-export function moderateZoom(range: ZoomRange | null | undefined): number | null {
+/** Start at the native view rather than magnifying an already soft image. */
+export function nativeZoom(range: ZoomRange | null | undefined): number | null {
   const min = range?.min;
   const max = range?.max;
   if (typeof min !== 'number' || typeof max !== 'number' || !(max > min)) return null;
-  let chosen = Math.min(max, 2, Math.max(min, 1.75));
+  let chosen = Math.min(max, Math.max(min, 1));
   const step = range?.step;
   if (typeof step === 'number' && step > 0) {
     const steps = Math.round((chosen - min) / step);
     chosen = Math.min(max, Math.max(min, min + steps * step));
-    chosen = Math.min(chosen, 2);
   }
-  if (chosen < 1.5 || chosen > 2 || !(chosen > min)) return null;
   return Math.round(chosen * 100) / 100;
 }
 
@@ -93,7 +95,8 @@ export function enhancementConstraints(caps: TrackCaps | null | undefined): Trac
   if (!caps) return [];
   const advanced: TrackEnhancement[] = [];
   if (caps.focusMode?.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-  const zoom = moderateZoom(caps.zoom);
+  else if (caps.focusMode?.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
+  const zoom = nativeZoom(caps.zoom);
   if (zoom != null) advanced.push({ zoom });
   return advanced;
 }
@@ -128,11 +131,16 @@ export function viewfinderCrop(video: { width: number; height: number }, display
   return { sx, sy, sw, sh };
 }
 
-async function requestStream(deviceId?: string): Promise<MediaStream> {
+function assertActive(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+}
+
+async function requestStream(deviceId?: string, signal?: AbortSignal): Promise<MediaStream> {
   const media = navigator.mediaDevices;
   if (!media?.getUserMedia) throw new Error('camera-unavailable');
   let last: unknown;
   for (const video of videoConstraintLadder(deviceId)) {
+    assertActive(signal);
     try {
       return await media.getUserMedia({ audio: false, video: video as MediaTrackConstraints });
     } catch (error) {
@@ -147,18 +155,18 @@ function stopStream(stream: MediaStream) {
   for (const track of stream.getTracks()) track.stop();
 }
 
-async function listMainCamera() {
+export async function listRearCameras(): Promise<CameraDevice[]> {
   try {
     const enumerate = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
-    if (!enumerate) return null;
+    if (!enumerate) return [];
     const devices = await enumerate();
-    return pickMainCamera(devices.map((device) => ({
+    return rearCandidates(devices.map((device) => ({
       deviceId: device.deviceId,
       kind: device.kind,
       label: device.label,
     })));
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -171,35 +179,63 @@ export async function enhanceTrack(track: MediaStreamTrack) {
   }
   const advanced = enhancementConstraints(caps);
   if (advanced.length === 0 || !track.applyConstraints) return;
-  const together = Object.assign({}, ...advanced) as TrackEnhancement;
-  const attempts = advanced.length > 1 ? [together, ...advanced] : advanced;
-  for (const entry of attempts) {
+  for (const entry of advanced) {
     try {
       await track.applyConstraints({ advanced: [entry] } as MediaTrackConstraints);
-      return;
     } catch {
       // Try the next set. Focus and zoom are independent.
     }
   }
 }
 
-export async function openRearStream(): Promise<MediaStream> {
-  let stream = await requestStream();
-  const currentId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
-  const picked = await listMainCamera();
-  if (picked && picked !== currentId) {
+let opening: Promise<void> = Promise.resolve();
+
+export function openRearStream(deviceId?: string, signal?: AbortSignal, fallbackDeviceId?: string): Promise<MediaStream> {
+  const request = opening.then(() => openRearStreamNow(deviceId, signal, fallbackDeviceId));
+  opening = request.then(() => undefined, () => undefined);
+  return request;
+}
+
+async function openRearStreamNow(deviceId?: string, signal?: AbortSignal, fallbackDeviceId?: string): Promise<MediaStream> {
+  let stream: MediaStream | null = null;
+  const release = () => {
+    if (stream) stopStream(stream);
+    stream = null;
+  };
+  signal?.addEventListener('abort', release, { once: true });
+  try {
     try {
-      const next = await requestStream(picked);
-      stopStream(stream);
-      stream = next;
+      stream = await requestStream(deviceId, signal);
     } catch (error) {
-      if (error instanceof CameraDenied) {
-        stopStream(stream);
-        throw error;
+      assertActive(signal);
+      if (error instanceof CameraDenied || !fallbackDeviceId || fallbackDeviceId === deviceId) throw error;
+      stream = await requestStream(fallbackDeviceId, signal);
+    }
+    assertActive(signal);
+    const currentId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+    const picked = deviceId ? null : pickMainCamera(await listRearCameras());
+    assertActive(signal);
+    if (picked && picked !== currentId) {
+      // Many phones expose several lenses but can open only one at a time.
+      release();
+      try {
+        stream = await requestStream(picked, signal);
+      } catch (error) {
+        assertActive(signal);
+        if (error instanceof CameraDenied) throw error;
+        stream = await requestStream(currentId, signal);
       }
     }
+    assertActive(signal);
+    if (!stream) throw new Error('camera-unavailable');
+    const track = stream.getVideoTracks()[0];
+    if (track) await enhanceTrack(track);
+    assertActive(signal);
+    return stream;
+  } catch (error) {
+    release();
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', release);
   }
-  const track = stream.getVideoTracks()[0];
-  if (track) await enhanceTrack(track);
-  return stream;
 }

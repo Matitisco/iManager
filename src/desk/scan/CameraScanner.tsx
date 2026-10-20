@@ -4,6 +4,7 @@ import { imeiPassesLuhn } from '../../lib/imei';
 import { formatImei } from '../format';
 import { confirmScan } from './beep';
 import { CameraDenied, setTorch, torchSupported, watchCodes } from './reader';
+import { listRearCameras, type CameraDevice } from './camera-profile';
 
 export function CameraScanner({
   onClose,
@@ -33,6 +34,11 @@ export function CameraScanner({
   const [torchOn, setTorchOn] = useState(false);
   const [canTorch, setCanTorch] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [cameraId, setCameraId] = useState<string>();
+  const [activeCameraId, setActiveCameraId] = useState<string>();
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
+  const [cameraReady, setCameraReady] = useState(false);
+  const lastWorkingCameraId = useRef<string | undefined>(undefined);
   const seen = useRef<{ value: string; at: number }>({ value: '', at: 0 });
   const burstSeen = useRef(new Set<string>());
   const holding = Boolean(parsed) && !burst;
@@ -41,6 +47,10 @@ export function CameraScanner({
     const video = videoRef.current;
     if (!video || denied || holding) return;
     const signal = new AbortController();
+    setCameraReady(false);
+    setCanTorch(false);
+    setTorchOn(false);
+    setUnreadable(false);
     watchCodes(video, (raw) => {
       const now = Date.now();
       if (!burst && seen.current.value === raw && now - seen.current.at < 1500) return;
@@ -73,15 +83,24 @@ export function CameraScanner({
       confirmScan();
       setParsed(next);
       signal.abort();
-    }, signal.signal, frameRef.current).then((opened) => {
+    }, signal.signal, frameRef.current, cameraId, lastWorkingCameraId.current).then(async (opened) => {
+      if (signal.signal.aborted) return;
       setCanTorch(torchSupported(opened));
+      const openedId = opened.getVideoTracks()[0]?.getSettings?.().deviceId;
+      lastWorkingCameraId.current = openedId;
+      setActiveCameraId(openedId);
+      const available = await listRearCameras();
+      if (signal.signal.aborted) return;
+      setCameras(available);
+      setCameraReady(true);
     }).catch((error: unknown) => {
       if (signal.signal.aborted) return;
+      setCameraReady(true);
       if (error instanceof CameraDenied) setDenied(true);
       else setUnreadable(true);
     });
     return () => signal.abort();
-  }, [attempt, burst, denied, holding, loose]);
+  }, [attempt, burst, cameraId, denied, holding, loose]);
 
   if (denied) {
     return <CameraPermission onClose={onClose} onManual={onManual} onRetry={() => { setDenied(false); setAttempt((value) => value + 1); }} />;
@@ -114,10 +133,22 @@ export function CameraScanner({
           <i /><i /><i /><i />
           {live ? <span className="scan-laser" /> : null}
         </div>
+        {live && cameras.length > 1 ? (
+          <div className="scan-camera-controls">
+            <button type="button" className="scan-camera-switch" disabled={!cameraReady} onClick={() => {
+              const current = cameras.findIndex((camera) => camera.deviceId === (cameraId ?? activeCameraId));
+              const next = cameras[(current + 1) % cameras.length];
+              if (!next) return;
+              setCameraId(next.deviceId);
+              setAttempt((value) => value + 1);
+            }}>Cambiar cámara</button>
+          </div>
+        ) : null}
         {live ? (
           <div className="scan-copy">
             <b>Apuntá al código de barras del IMEI</b>
             <p>En la etiqueta de la caja, en Ajustes › General › Información o en la bandeja SIM. También lee QR.</p>
+            <p className="scan-focus-hint">Si no enfoca, alejá un poco el teléfono.</p>
             {unreadable ? <p className="scan-bad-copy">No pudimos leer un IMEI válido. Probá de nuevo o escribilo a mano.</p> : null}
           </div>
         ) : null}

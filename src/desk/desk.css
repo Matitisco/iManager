@@ -2258,7 +2258,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .scan-round.ghost { background: transparent; }
 .scan-round.on { background: #E8B931; color: #16181D; }
 .scan-stage { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
-.scan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
+.scan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .scan-frame { position: relative; width: min(320px, 86vw); height: 168px; }
 .scan-frame i { position: absolute; width: 28px; height: 28px; border: 3px solid #E8B931; }
 .scan-frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
@@ -2267,7 +2267,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .scan-frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
 .scan-frame.ok i { border-color: var(--ok); }
 .scan-laser { position: absolute; left: 12px; right: 12px; top: 50%; height: 2px; background: #E8B931; box-shadow: 0 0 12px #E8B931; }
-.scan-copy { position: relative; margin-top: 28px; text-align: center; max-width: 340px; }
+.scan-copy { position: relative; margin-top: 20px; padding: 12px 14px; border-radius: 16px; background: rgba(12,13,16,.78); text-align: center; max-width: 340px; }
+.scan-camera-controls { position: relative; margin-top: 16px; }
+.desk-app button.scan-camera-switch { min-height: 44px; padding: 10px 16px; border: 1px solid rgba(255,255,255,.3); border-radius: 14px; background: rgba(12,13,16,.8); color: #fff; font-size: 13px; font-weight: 700; }
+.scan-camera-switch:disabled { opacity: .5; }
+.scan-copy .scan-focus-hint { margin-top: 8px; color: #fff; }
 .scan-copy b { display: block; font-size: 18px; margin-bottom: 8px; }
 .scan-copy p { margin: 0; color: #C6CAD1; font-size: 14px; line-height: 1.4; }
 .scan-bad-copy { color: #F0B4B4 !important; margin-top: 10px !important; }

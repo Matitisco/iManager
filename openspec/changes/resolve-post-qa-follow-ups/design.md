@@ -25,3 +25,11 @@ Resolve the navigation decisions and investigate real PostgreSQL concurrency. Do
 ## Migration Plan
 
 No database migration. Deploy through the normal main push. Revert the commit to roll back; the old supplier hash remains supported.
+
+## Physical Galaxy S23 follow-up
+
+The user reports a blurred preview and no IMEI read on a Galaxy S23. The screenshot proves a failed physical test; it does not identify which lens/resolution was selected. Inspection found forced 1.75× zoom, 55% video opacity, and a lens switch that requests the replacement stream while the previous camera is still active. Android devices may reject that replacement and silently retain the original lens.
+
+Use a 1920×1080 target rather than requesting 4K by default. Keep the high-resolution fallback ladder. Stop the original tracks before opening a chosen camera; reopen the original device if replacement fails. Abort must stop any stream arriving late. Apply native zoom and autofocus independently so one unsupported adjustment cannot block the other. Expose a rear-camera switch when multiple rear devices are available, preserving burst deduplication across switches. Keep the video at full brightness and put contrast behind the instructions instead.
+
+Automated regressions must emulate a phone that refuses two cameras at once, a failed replacement/recovery, independently rejected constraints, and a late stream after abort. Validate the control with fake multiple rear cameras and repeat the physical test on the user's S23 after deploy; do not claim physical success before that reply.
