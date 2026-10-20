@@ -24,7 +24,11 @@ describe('ruta del escritorio', () => {
     expect(canonicalHash('#/ven')).toBe('#/comercial/ventas');
     expect(canonicalHash('#/canjes')).toBe('#/comercial/canjes');
     expect(canonicalHash('#/inv')).toBe('#/stock/equipos');
-    expect(canonicalHash('#/proveedores')).toBe('#/stock/proveedores');
+    expect(canonicalHash('#/proveedores')).toBe('#/finanzas/proveedores');
+    expect(canonicalHash('#/stock/proveedores?from=stock')).toBe('#/finanzas/proveedores?from=stock');
+    expect(canonicalHash('#/finanzas/proveedores')).toBe('#/finanzas/proveedores');
+    expect(tabFromHash('#/stock/proveedores')).toBe('suppliers');
+    expect(tabFromHash('#/finanzas/proveedores')).toBe('suppliers');
     expect(canonicalHash('#/catalogo')).toBe('#/stock/catalogo');
     expect(canonicalHash('#/servicio')).toBe('#/atencion/servicio');
     expect(canonicalHash('#/cajas')).toBe('#/finanzas/cajas');

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { authHeaders, buildTestEmail, loginViaUi } from './utils';
 import { bootStore, installFakeCamera, inviteStaffWithoutInventory, registerScanQa } from './qa-scan-1910';
 
+const API = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
+
 test.use({ browserName: 'chromium', viewport: { width: 1440, height: 900 } });
 
 registerScanQa(1440);
@@ -11,7 +13,7 @@ test('permisos por tienda y por sección', async ({ page, request, browser }, te
   const owner = await bootStore(page, request, testInfo, 'permisos');
   const staffEmail = buildTestEmail(testInfo, 'empleado');
   await inviteStaffWithoutInventory(request, owner, staffEmail);
-  const denied = await request.post('http://127.0.0.1:3100/api/inventory/batch', {
+  const denied = await request.post(`${API}/api/inventory/batch`, {
     headers: { ...authHeaders(staffEmail), 'Content-Type': 'application/json' },
     data: { items: [{ imei: '352098117744522', model: 'iPhone 13', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%', cost: 1, price: 2, status: 'DISPONIBLE' }] },
   });
@@ -51,7 +53,8 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   const routes: Array<[string, string, string]> = [
     ['#/inv', '#/stock/equipos', 'Inventario'],
     ['#/control', '#/stock/control', 'Control de stock'],
-    ['#/proveedores', '#/stock/proveedores', 'Proveedores'],
+    ['#/proveedores', '#/finanzas/proveedores', 'Proveedores'],
+    ['#/stock/proveedores', '#/finanzas/proveedores', 'Proveedores'],
     ['#/ven', '#/comercial/ventas', 'Ventas'],
     ['#/canjes', '#/comercial/canjes', 'Canjes'],
     ['#/devoluciones', '#/comercial/devoluciones', 'Devoluciones'],

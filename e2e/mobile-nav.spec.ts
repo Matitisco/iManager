@@ -46,7 +46,7 @@ async function expectFits(page: Page) {
 test.describe('phone navigation', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('keeps dashboard, inventory, sales and reports in the bar and the rest in Más', async ({ page, request }, testInfo) => {
+  test('labels every bar button and keeps other sections in Más', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'mobile-nav');
     const store = `Nav ${testInfo.parallelIndex}`;
     await mockDollar(page);
@@ -68,7 +68,7 @@ test.describe('phone navigation', () => {
     await expect(bar.getByTestId('sidebar-tab-tradeins')).toHaveCount(0);
     await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
     await expect(page.getByTestId('sidebar-tab-dashboard').locator('.mtab-label')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-inventory').locator('.mtab-label')).toBeHidden();
+    for (const label of await bar.locator('.mtab-label').all()) await expect(label).toBeVisible();
 
     const scrolling = await page.evaluate(() => ({
       stage: getComputedStyle(document.querySelector('.stage')!).overflowY,
@@ -99,8 +99,16 @@ test.describe('phone navigation', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-390-mas.png` });
 
-    await page.setViewportSize({ width: 360, height: 800 });
-    await expectFits(page);
+    for (const width of [320, 360]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expectFits(page);
+      for (const button of await bar.getByRole('button').all()) {
+        await expect(button.locator('.mtab-label')).toBeVisible();
+        const box = await button.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+    }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-360-mas.png` });
 
     await page.getByTestId('more-item-clients').click();

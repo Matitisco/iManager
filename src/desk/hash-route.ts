@@ -7,7 +7,7 @@ export const ROUTE: Record<DeskTab, string> = {
   returns: 'comercial/devoluciones',
   inventory: 'stock/equipos',
   stockCount: 'stock/control',
-  suppliers: 'stock/proveedores',
+  suppliers: 'finanzas/proveedores',
   publicCatalog: 'stock/catalogo',
   clients: 'atencion/clientes',
   followups: 'atencion/seguimientos',
@@ -26,6 +26,7 @@ export const ROUTE: Record<DeskTab, string> = {
 
 /** Rutas viejas y el id interno de cada pestaña. */
 const LEGACY: Record<string, DeskTab> = {
+  'stock/proveedores': 'suppliers',
   dash: 'dashboard',
   dashboard: 'dashboard',
   ven: 'sales',
@@ -114,6 +115,7 @@ export function tabFromHash(hash: string): DeskTab {
   const nested = parts.slice(0, 2).join('/');
   const match = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full || path === nested);
   if (match) return match[0];
+  if (LEGACY[full]) return LEGACY[full];
   return LEGACY[parts[0] ?? ''] ?? 'dashboard';
 }
 
@@ -130,7 +132,7 @@ export function canonicalHash(hash: string): string | null {
   const full = parts.join('/');
   const exact = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full);
   if (exact) return `#/${exact[1]}${query}`;
-  const legacy = parts.length === 1 ? LEGACY[parts[0] ?? ''] : undefined;
+  const legacy = LEGACY[full];
   if (legacy) return `#/${ROUTE[legacy]}${query}`;
   return null;
 }

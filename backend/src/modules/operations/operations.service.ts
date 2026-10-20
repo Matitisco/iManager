@@ -1486,6 +1486,9 @@ function creditSummary(credit: number, currency?: string | null) {
 
 export async function cancelSaleOperation(storeId: string, saleId: string, actor?: Actor | null) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
+    // Lock before inspecting side effects: concurrent cancellations must not
+    // race on the unique cash reversal before reaching the sale status update.
+    await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
     if (!sale) throw new OperationError("Sale not found", 404);
     if (!sale.integratedOperation) throw new OperationError("Esta venta no pertenece a una operación integrada", 409);
@@ -1555,6 +1558,7 @@ export async function cancelTradeFromSale(storeId: string, tradeId: string, acto
 
 export async function cancelTradeOperation(storeId: string, tradeId: string, actor?: Actor | null) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
+    await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${tradeId} AND "storeId" = ${storeId} FOR UPDATE`;
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
     if (!trade) throw new OperationError("Trade-in not found", 404);
     if (trade.confirmationStatus == null) throw new OperationError("Este canje histórico no pertenece a una operación integrada", 409);

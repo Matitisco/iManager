@@ -1,7 +1,14 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-18**
+**Ultima actualizacion: 2026-10-20**
+
+## Issue #440 — Pendientes post-QA — 2026-10-20
+
+- Proveedores queda en Finanzas junto a Gastos; conserva el permiso de Inventario y los enlaces anteriores. La barra mobile muestra todas las etiquetas y mantiene botones de al menos 44×44px sin overflow entre 320 y 390px.
+- La investigación del CI ubicó P2034 en el alta de una venta, antes de la anulación. Se reprodujo además una carrera real entre anulaciones simultáneas: P2002 sobre la reversa de caja. Venta/canje ahora bloquean su registro antes de anular para mantener idempotencia; agotar reintentos Serializable devuelve 409 con un mensaje para reintentar.
+- TypeScript frontend/backend, 50 tests frontend, 12 unitarios backend, 99 integraciones y 20 E2E distintos aprobados. Cinco escenarios de cámara WebKit no se validan en Windows por falta de MediaStream/captureStream; Chromium desktop y Android emulado sí aprobaron. Sin build ni cambios de Prisma; solo bases PostgreSQL locales aisladas.
+- Las pruebas de escáner con Samsung/iPhone/PWA, lector físico y condiciones difíciles siguen pendientes. SMTP queda pospuesto por indicación del usuario. Evidencia y reproducción: `docs/post-qa-follow-ups-440.md`; OpenSpec: `resolve-post-qa-follow-ups`.
 
 
 ## Corrección — Editar vendedor de ventas — 2026-10-18
