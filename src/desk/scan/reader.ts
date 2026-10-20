@@ -129,7 +129,6 @@ async function readFrames(
   const cropCanvas = document.createElement('canvas');
   const fullCanvas = document.createElement('canvas');
   let lastZxing = 0;
-  void ensureZxing();
 
   const loop = async () => {
     if (signal.aborted) return;
