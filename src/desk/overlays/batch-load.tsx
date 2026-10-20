@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { extractImeiLoose, parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
 import { imeiPassesLuhn } from '../../lib/imei';
@@ -85,7 +85,6 @@ export function BatchLoad() {
   const [error, setError] = useState<string | null>(null);
   const [entry, setEntry] = useState('');
   const [archived, setArchived] = useState<Product[]>([]);
-  const seenImeis = useRef(new Set<string>());
 
   useEffect(() => {
     if (!user) return;
@@ -116,12 +115,6 @@ export function BatchLoad() {
       setError('El código no trae un IMEI de 15 dígitos.');
       return;
     }
-    if (seenImeis.current.has(imei)) {
-      setEntry('');
-      setError('Ese IMEI ya está en esta carga.');
-      return;
-    }
-    seenImeis.current.add(imei);
     setError(null);
     setEntry('');
     setShared((current) => current.model.trim() || !parsed.model ? current : {
@@ -281,7 +274,7 @@ export function BatchLoad() {
                     </span>
                     <span className="batch-chevron" aria-hidden="true">{row.open ? '⌃' : '›'}</span>
                   </button>
-                  <button type="button" className="batch-x" aria-label="Quitar equipo" onClick={() => { seenImeis.current.delete(row.imei); setRows((current) => current.filter((item) => item.id !== row.id)); }}>×</button>
+                  <button type="button" className="batch-x" aria-label="Quitar equipo" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}>×</button>
                   {row.open ? (
                     <div className="batch-edit">
                       {row.partNumber ? <div className="scan-kv"><div><dt>Part number</dt><dd>{row.partNumber}</dd></div></div> : null}

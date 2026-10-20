@@ -112,7 +112,7 @@ test.describe('inventory on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar equipo' }).click();
     const form = page.getByRole('dialog', { name: 'Registrar equipo' });
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Guardar equipo' })).toBeVisible();
-    await expect(form.getByText(/ARS/)).toBeVisible();
+    await expect(form.getByText(/ARS/).first()).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-new.png` });
