@@ -1,3 +1,4 @@
+import { useNavigationState } from '../route-viewport';
 import { OnboardingInventorySummary } from '../getting-started';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
@@ -31,7 +32,7 @@ import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { StockCountScreen, StockEntryButton } from './StockCountScreen';
-import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
 function StatusMenu({ options, pressed, onToggle }: {
@@ -121,16 +122,16 @@ export function InventoryScreen() {
   const catalogs = useCatalogs();
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useNavigationState('Inventory.searchOpen', false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorQuery, setColorQuery] = useState('');
   const [draftFilters, setDraftFilters] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const notices = useSectionNotices('inventory');
-  const [onlyNotices, setOnlyNotices] = useState(false);
-  const [query, setQuery] = useState('');
-  const [columns, setColumns] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
-  const [sort, setSort] = useState('Recientes');
-  const [archivedMode, setArchivedMode] = useState(false);
+  const [onlyNotices, setOnlyNotices] = useNavigationState('Inventory.onlyNotices', false);
+  const [query, setQuery] = useNavigationState('Inventory.query', '');
+  const [columns, setColumns] = useNavigationState<InventoryColumnFilters>('Inventory.columns', EMPTY_COLUMN_FILTERS);
+  const [sort, setSort] = useNavigationState('Inventory.sort', 'Recientes');
+  const [archivedMode, setArchivedMode] = useNavigationState('Inventory.archivedMode', false);
   const [stockOpen, setStockOpen] = useState(false);
   const [archived, setArchived] = useState<Product[]>([]);
   const menu = useColumnMenu();
@@ -173,7 +174,7 @@ export function InventoryScreen() {
     return list;
   }, [source, query, columns, sort, money, phone]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
-  const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`);
+  const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`, undefined, 'Inventory');
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
   const visibleKey = page.visible.map((item) => item.id).join('|');
@@ -222,10 +223,15 @@ export function InventoryScreen() {
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
+  const listOptions = <>
+    <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode(current => !current)}>Archivados</button>
+    <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
+  </>;
+
   if (stockOpen) return <StockCountScreen onBack={() => setStockOpen(false)} />;
 
   return (
-    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+    <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Inventario"
         subtitle={loadingLists ? 'Cargando equipos…' : phone
@@ -253,17 +259,19 @@ export function InventoryScreen() {
       />
       <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
-      {phone ? <StockEntryButton onClick={() => setStockOpen(true)} /> : null}
-      {phone ? <button className="dbtn s stock-entry" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
         {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
-        <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
-        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
+        {phone ? <MobileListOptions active={[archivedMode ? 'Archivados' : '', sort !== 'Recientes' ? sort : ''].filter(Boolean).join(' · ')}>
+          <StockEntryButton onClick={() => setStockOpen(true)} />
+          <button className="dbtn s" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button>
+          {listOptions}
+          <button className="dbtn s" type="button" disabled={listed.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
+        </MobileListOptions> : listOptions}
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={listed.length}
+      <BulkActions hideStart key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item) => deleteProduct(item.id) }}
       />
@@ -465,7 +473,7 @@ export function InventoryScreen() {
       </div>
       {showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
       {inventory.length === 0 ? null : <div className="dhint">{phone ? 'Mantené presionado un equipo para seleccionarlo. Tocá ⋯ para más acciones.' : 'Tip: usá los checkboxes para seleccionar varios equipos. Clic derecho para más acciones.'}</div>}
-      {phone && selection.selected.length === 0 ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
+      {phone && !selection.mode ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">

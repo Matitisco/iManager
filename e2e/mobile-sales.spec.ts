@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, fetchClients, fetchSales } from './utils';
@@ -165,6 +166,7 @@ test.describe('sales on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sales-390-list.png`, fullPage: true });
 
+    await expandListOptions(page);
     await page.getByTestId('sales-status').getByRole('button', { name: 'Estado' }).click();
     await page.getByRole('button', { name: 'Pendiente' }).click();
     await expect(page.getByText('No hay ventas con ese filtro.')).toBeVisible();

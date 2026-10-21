@@ -25,3 +25,11 @@ export async function openDeskSection(page: Page, id: string) {
   }
   await expect(page).toHaveURL(url => url.hash === `#/${ROUTE[tab]}`);
 }
+
+/** Expand secondary mobile list controls only when that list provides them. */
+export async function expandListOptions(page: Page) {
+  const options = page.locator('.mobile-list-options');
+  if (await options.isVisible() && !(await options.evaluate(node => (node as HTMLDetailsElement).open))) {
+    await options.locator('summary').click();
+  }
+}

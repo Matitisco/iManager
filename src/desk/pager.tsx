@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useNavigationState } from './route-viewport';
 
 export const TABLE_PAGE_SIZE = 8;
 
-export function usePagedRows<T>(rows: T[], resetKey: string, pageSize = TABLE_PAGE_SIZE) {
-  const [page, setPage] = useState(1);
-  const [seenKey, setSeenKey] = useState(resetKey);
+export function usePagedRows<T>(rows: T[], resetKey: string, pageSize = TABLE_PAGE_SIZE, remember?: string) {
+  const [page, setPage] = useNavigationState(remember ? `${remember}.page` : null, 1);
+  const [seenKey, setSeenKey] = useNavigationState(remember ? `${remember}.pageKey` : null, resetKey);
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const requested = seenKey === resetKey ? page : 1;
   const current = Math.min(Math.max(requested, 1), pages);
@@ -12,7 +12,9 @@ export function usePagedRows<T>(rows: T[], resetKey: string, pageSize = TABLE_PA
   if (seenKey !== resetKey) {
     setSeenKey(resetKey);
     setPage(1);
-  } else if (page !== current) {
+  } else if (page !== current && (!remember || rows.length > 0)) {
+    // A restored archive may be empty until its request resolves. Keep the
+    // requested page until there are rows to clamp against.
     setPage(current);
   }
 

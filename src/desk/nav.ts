@@ -226,3 +226,18 @@ export function moreTestId(id: DeskTab) {
 export function accessLabel(tab: DeskTab) {
   return navSection(tab)?.label ?? (tab === 'billing' ? 'Plan y facturación' : tab);
 }
+
+/** Explain exactly the same terms used by sectionPending; never add hidden sections. */
+export function pendingDescription(ids: DeskTab[], input: PendingInput) {
+  return ids.flatMap(id => {
+    const count = Math.max(0, sectionPending(id, input));
+    if (!count) return [];
+    if (id === 'tradeins') return [`${count} ${count === 1 ? 'canje en curso' : 'canjes en curso'}`];
+    if (id === 'service') return [`${count} ${count === 1 ? 'orden de servicio abierta' : 'órdenes de servicio abiertas'}`];
+    if (id === 'followups') return [`${count} ${count === 1 ? 'seguimiento para hoy' : 'seguimientos para hoy'}`];
+    if (id === 'commissions') return [`${count} ${count === 1 ? 'persona con comisiones pendientes' : 'personas con comisiones pendientes'}`];
+    const label = navSection(id)?.label ?? id;
+    if (id === 'notifications') return [`${count} ${count === 1 ? 'notificación sin leer' : 'notificaciones sin leer'}`];
+    return [`${count} ${count === 1 ? 'aviso sin leer' : 'avisos sin leer'} en ${label}`];
+  }).join('; ');
+}

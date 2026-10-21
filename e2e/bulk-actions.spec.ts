@@ -49,9 +49,11 @@ for (const device of [
       await expect(bar.getByRole('button', { name: 'Archivar selección' })).toBeInViewport({ ratio: 1 });
       if (device.mobile) {
         await expect(bar).toHaveCSS('position', 'fixed');
-        const box = (await bar.boundingBox())!; expect(box.y + box.height).toBeCloseTo(page.viewportSize()!.height, 0);
+        const box = (await bar.boundingBox())!;
+        const navBox = (await page.getByTestId('mobile-tab-bar').boundingBox())!;
+        expect(box.y + box.height).toBeLessThanOrEqual(navBox.y);
         for (const button of await bar.getByRole('button').all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-        await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
+        await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
       if (shots) { mkdirSync(shots, { recursive: true }); await page.screenshot({ path: `${shots}/issue-303-${device.mobile ? 'mobile-selection' : 'desktop'}.png`, animations: 'disabled' }); }

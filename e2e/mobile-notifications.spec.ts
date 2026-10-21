@@ -126,7 +126,7 @@ test.describe('notifications on a phone', () => {
     await page.getByRole('button', { name: 'Confirmar venta' }).click();
     await expect(dialog).toBeHidden();
 
-    await expect(page.getByLabel('1 en Equipos')).toHaveText('1');
+    await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveText('1');
     await page.getByTestId('sidebar-tab-more').click();
     const moreNote = page.getByTestId('sidebar-tab-notifications');
     await expect(moreNote).toContainText(/[1-9]\d* sin leer/);
@@ -171,10 +171,10 @@ test.describe('notifications on a phone', () => {
     await expect(page.getByTestId('section-notices')).toContainText('1 novedad');
     await expect(list.getByText(model)).toBeVisible();
     await expect(list.getByTestId('notice-reason')).toHaveText('Vendido');
-    await expect(page.getByLabel('1 en Equipos')).toHaveCount(0);
+    await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
     await page.getByTestId('sidebar-tab-sales').click();
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page.getByLabel('1 en Equipos')).toHaveCount(0);
+    await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
     await expect(page.getByTestId('notice-reason')).toHaveCount(0);
 
     await openNotifications(page);

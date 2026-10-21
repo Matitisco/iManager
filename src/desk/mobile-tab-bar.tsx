@@ -64,6 +64,7 @@ export type MobileTabButton = {
   label: string;
   active: boolean;
   pending: number;
+  pendingDescription?: string;
   testId: string;
   icon: ReactNode;
   onClick: () => void;
@@ -166,12 +167,14 @@ export function MobileTabBar({ buttons }: { buttons: MobileTabButton[] }) {
           type="button"
           data-testid={button.testId}
           aria-label={button.label}
+          aria-describedby={button.pendingDescription ? `mobile-pending-${button.id}` : undefined}
           aria-current={button.active ? 'page' : undefined}
           onClick={button.onClick}
         >
           {button.icon}
           <span className="mtab-label">{button.label}</span>
-          {button.pending > 0 ? <span className="dcount" aria-label={`${button.pending} en ${button.label}`}>{button.pending}</span> : null}
+          {button.pending > 0 ? <span className="dcount" aria-hidden="true">{button.pending}</span> : null}
+          {button.pendingDescription ? <span className="mtab-description" id={`mobile-pending-${button.id}`}>{button.pendingDescription}</span> : null}
         </button>
       ))}
     </nav>

@@ -117,9 +117,9 @@ describe('sidebar unread counts', () => {
       { id: '4', storeId: 's', section: 'clients', title: 'Saldo pendiente', message: 'Juan Pérez debe $ 50.000', recordId: 'c', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: '2026-10-08T13:00:00.000Z' },
     ];
     render(<DeskApp />);
-    expect(screen.getByLabelText('3 en total')).toHaveTextContent('3');
-    expect(screen.getByLabelText('2 en Stock')).toHaveTextContent('2');
-    expect(screen.getByLabelText('2 en Comercial')).toHaveTextContent('2');
+    expect(screen.getByLabelText('3 notificaciones sin leer')).toHaveTextContent('3');
+    expect(screen.getByLabelText('2 avisos sin leer en Equipos')).toHaveTextContent('2');
+    expect(screen.getByLabelText('1 aviso sin leer en Ventas; 1 canje en curso')).toHaveTextContent('2');
     const sidebar = within(document.querySelector('aside.side')! as HTMLElement);
     expect(sidebar.queryByText('Equipos')).not.toBeInTheDocument();
     expect(sidebar.queryByText('Canjes')).not.toBeInTheDocument();
@@ -131,7 +131,7 @@ describe('sidebar unread counts', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Canjes · 1' }));
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Canjes · 1' })).toHaveAttribute('aria-selected', 'true'));
     expect(sidebar.getByRole('button', { name: /Comercial/ })).toHaveAttribute('aria-current', 'page');
-    expect(sidebar.getByLabelText('2 en Comercial')).toHaveTextContent('2');
+    expect(sidebar.getByLabelText('1 aviso sin leer en Ventas; 1 canje en curso')).toHaveTextContent('2');
 
     fireEvent.click(sidebar.getByRole('button', { name: /Stock/ }));
     expect(await screen.findByRole('tab', { name: 'Equipos · 2' })).toHaveAttribute('aria-selected', 'true');
@@ -386,6 +386,24 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('sidebar-tab-sales')).toHaveClass('on');
     expect(screen.getByTestId('mobile-tab-indicator')).toHaveStyle({ transform: 'translateX(220px)', width: '96px' });
     restore();
+  });
+
+  it('explains the complete mobile group badge with an accessible description and visible disclosure', () => {
+    usePhone();
+    window.location.hash = '#/comercial/ventas';
+    context.operationNotifications = [
+      { id: 'explain', storeId: 's', section: 'sales', title: 'Venta', message: 'Aviso de prueba', recordId: 'missing', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
+    ];
+    render(<DeskApp />);
+    const sales = within(screen.getByTestId('mobile-tab-bar')).getByRole('button', { name: 'Ventas' });
+    expect(sales).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 1 canje en curso');
+    expect(sales.querySelector('.dcount')).toHaveTextContent('2');
+    expect(sales).toHaveAttribute('aria-current', 'page');
+    const explanation = screen.getByText('1 aviso sin leer en Ventas; 1 canje en curso.');
+    expect(explanation).not.toBeVisible();
+    fireEvent.click(screen.getByText('Qué cuenta cada indicador'));
+    expect(explanation).toBeVisible();
+    context.operationNotifications = [];
   });
 
   it('keeps the indicator still when reduced motion is requested', () => {

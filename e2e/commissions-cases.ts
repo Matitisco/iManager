@@ -1,5 +1,5 @@
 import { sheetAction } from './sheet-actions';
-import { openDeskSection } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { mockCommissions } from './fixtures/commissions';
 
@@ -21,7 +21,7 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await navigate(phone ? '#/mas' : '#/ven');
       const entry = phone ? page.getByTestId('sidebar-tab-commissions') : page.getByTestId('nav-group-analisis');
       await expect(entry).toBeVisible();
-      if (phone) { await expect(entry).toContainText('Vendedores y pagos'); await expect(entry).toContainText('2 pendientes'); }
+      if (phone) { await expect(entry).toContainText('Vendedores y pagos'); await expect(entry).toContainText('2 personas con comisiones pendientes'); }
       await noExport(); await shot('01', phone ? 'entrada-mas' : 'entrada-sidebar');
       await openDeskSection(page, 'commissions');
       await expect(page.getByRole('heading', { level: 1, name: 'Comisiones', exact: true })).toBeVisible();
@@ -97,7 +97,10 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await sale.getByRole('button', { name: 'Confirmar venta' }).click();
       await expect.poll(() => state.createdSales.length).toBe(1);
       expect(state.createdSales[0]).toMatchObject({ sellerMemberId: null, exchangeRate: 1300 });
-      if (phone) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+      if (phone) {
+        await expandListOptions(page);
+        await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+      }
       for (const code of ['V-0156', 'V-0155', 'V-0154']) await page.getByRole('checkbox', { name: `Seleccionar ${code}`, exact: true }).check();
       await expect(page.getByRole('button', { name: 'Asignar vendedor', exact: true })).toBeVisible();
       await page.locator('.stage').evaluate(node => { node.scrollTop = 0; });
@@ -141,7 +144,12 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await expect(page.getByRole('button', { name: 'Registrar pago', exact: true })).toHaveCount(0);
       await noExport(); await shot('09', 'mis-comisiones');
       expect(state.calls.filter(path => path.startsWith('/api/commissions') && !['/api/commissions/mine', '/api/commissions/sellers'].includes(path))).toEqual([]);
-      await navigate('#/ven'); if (phone) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+      await navigate('#/ven');
+      await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
+      if (phone) {
+        await expandListOptions(page);
+        await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+      }
       await page.getByRole('checkbox', { name: 'Seleccionar V-0158', exact: true }).check();
       await expect(page.getByRole('button', { name: 'Asignar vendedor', exact: true })).toHaveCount(0);
       await noExport();

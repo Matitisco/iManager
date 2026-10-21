@@ -141,7 +141,7 @@ export function canonicalHash(hash: string): string | null {
 export function writeHash(hash: string, mode: 'push' | 'replace' = 'push') {
   if (window.location.hash === hash) return;
   if (mode === 'replace') {
-    history.replaceState(null, '', hash);
+    history.replaceState(history.state, '', hash);
     window.dispatchEvent(new HashChangeEvent('hashchange'));
     return;
   }

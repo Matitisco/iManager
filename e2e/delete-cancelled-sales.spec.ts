@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -75,6 +76,7 @@ for (const device of [
       await expect(clientRow).toContainText(net > 0 ? `Saldo $ ${formatted}` : net < 0 ? `A favor $ ${formatted}` : 'Sin saldo');
       await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total gastado' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
       await page.getByTestId('sidebar-tab-sales').click();
+      await expandListOptions(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
       await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular selección' }).click();
