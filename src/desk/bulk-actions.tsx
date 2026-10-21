@@ -19,8 +19,8 @@ export function useBulkScope() {
   return `${appSession?.store?.id ?? ''}|${appSession?.user?.id ?? ''}`;
 }
 
-export function BulkActions<T extends { id: string }>({ selection, total, label, action, children }: {
-  selection: BulkSelection<T>; total: number; label: (row: T) => string; action: BulkAction<T>; children?: ReactNode;
+export function BulkActions<T extends { id: string }>({ selection, total, label, action, children, hideStart = false }: {
+  selection: BulkSelection<T>; total: number; label: (row: T) => string; action: BulkAction<T>; children?: ReactNode; hideStart?: boolean;
 }) {
   const { canManageSensitive, toast } = useDesk();
   const { backendStatus, appSession } = useAppContext();
@@ -72,7 +72,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
     }
   };
   return <>
-    {phone && !selection.mode ? <div className="bulk-select-filter"><button className="dbtn s" type="button" disabled={total === 0} onClick={() => selection.start()}>Seleccionar</button></div> : null}
+    {phone && !selection.mode && !hideStart ? <div className="bulk-select-filter"><button className="dbtn s" type="button" disabled={total === 0} onClick={() => selection.start()}>Seleccionar</button></div> : null}
     {phone && selection.mode ? <div className="bulk-select-filter"><SelectFiltered selection={selection} total={total} /><span>Seleccionar todos</span></div> : null}
     {selection.selected.length > 0 || (phone && selection.mode) ? (
       <div className={`bulk-bar${phone ? ' mobile' : ''}`} role="region" aria-label="Acciones masivas" data-testid="bulk-action-bar" aria-busy={busy}>

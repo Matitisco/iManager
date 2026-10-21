@@ -1,0 +1,64 @@
+# Navegación móvil (#450)
+
+## Reproducción y versión
+
+- Fecha: 21/10/2026. HEAD y `origin/main` al iniciar: `2e5f50bd415643b0e3c3cd1759b5c9b5f5512853`, con #447–#449 incluidos. Working tree inicial limpio.
+- El fixture automatizado ejecutó el DeskApp y las listas reales del commit base, con contexto sintético. En 320 y 390 px, abrir Reportes desde una fila baja de Más conservaba un desplazamiento mayor a 100 px y dejaba la cabecera fuera del inicio. La regresión vuelve a medir el contenedor `.stage`, no window.
+- Lectura HTTP sin caché de navegador/PWA: `https://app.imanager.com.ar/version.json` devolvió `buildId=60658746e56ddaa2`. HTML servido: `/assets/index-9zHD6QKo.js`; SHA-256 del bundle: `dca4253e024fd69d7f44b172d253644c1a50e9f547ae8b036cf76877049d79fa`.
+- No hubo sesión autenticada productiva para reproducir el recorrido servido. El buildId no demuestra un commit específico. La reproducción funcional y las capturas corresponden al código de main y al cambio local, sin operar sobre producción. Los contextos nuevos del fixture no registran service workers y bloquean servicios remotos.
+
+## Comportamiento
+
+Cada entrada nueva del historial abre su módulo en el inicio de `.stage`. Atrás/Adelante recuperan la posición de esa entrada; Volver desde un módulo abierto directamente desde Más recorre el historial a Más y recupera su posición. Un enlace directo conserva su ruta y usa Más como destino de respaldo.
+
+Inventario, Ventas y Clientes guardan en memoria la búsqueda, filtros, orden, vista y página de cada entrada. Una visita nueva parte del estado inicial. Usuario, tienda o permisos diferentes invalidan esa memoria. No se guardan registros, selecciones, errores ni formularios. Abrir/cerrar un modal, escribir o recibir datos no reinicia scroll ni remonta la lista. Una posición que requiere contenido demorado se restaura al alcanzar la altura suficiente, y deja de intervenir ante interacción del usuario. Las páginas de listas archivadas no pierden la página solicitada durante una respuesta inicialmente vacía.
+
+Los indicadores conservan las sumas y explican sus componentes: avisos sin leer, canjes en curso, órdenes de servicio abiertas, seguimientos para hoy, personas con comisiones pendientes y notificaciones sin leer. El número de Comisiones representa personas, como ya lo calcula el shell. La barra inferior usa una descripción accesible completa conservando el nombre y la etiqueta del botón. Las pestañas mantienen sus nombres, con descripción y título. “Qué cuenta cada indicador” despliega la explicación visible del grupo; Más explica cada sección. Las descripciones usan únicamente las secciones permitidas.
+
+Las opciones de menor frecuencia quedan bajo “Opciones de lista”: selección, archivados, orden y accesos auxiliares según módulo; en Ventas incluye vendedor y estado. Los filtros aplicados siguen identificados en el resumen plegado. Se mantienen búsqueda/filtros principales, acción primaria e Importar. Los menús desplegados se distribuyen dentro del ancho móvil y sus acciones miden al menos 44 px.
+
+Durante selección, incluso con cero seleccionados, la barra masiva reemplaza al dock principal y queda sobre la navegación inferior. Su altura real reserva el espacio del contenedor, evitando acumulaciones de padding y permitiendo recorrer la última fila y paginación. El ajuste se limita a las tres listas; otros módulos conservan sus barras actuales.
+
+Se preservan lateral simplificado, etiquetas móviles, grupos activos, rutas anteriores, permisos, Proveedores en Finanzas, escáner y modales/filtros compartidos. Sin cambios de backend, API, AppContext, Prisma ni reglas financieras.
+
+## Validación
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run test:frontend -- --maxWorkers=2` | 157 archivos, 1128 pruebas aprobadas |
+| `npm --prefix backend run test:unit -- --maxWorkers=2` | 76 archivos, 516 pruebas aprobadas |
+| `npm --prefix backend run test:integration` | 39 archivos, 322 pruebas aprobadas |
+| `npm run lint` y `npm --prefix backend run lint` en paralelo | Ambos aprobados |
+| `node scripts/test-mobile-navigation.mjs` | Ambos aprobados en 320×844, 390×844 y 1440×900 |
+
+La integración usa exclusivamente `127.0.0.1:5432/imanager_test`, con DATABASE_URL explícita. No hubo cambios de schema ni comandos de sincronización de Prisma.
+
+El fixture sirve exclusivamente el shell y componentes reales con contexto sintético, sin backend ni despliegue completo de la aplicación. Comprueba scroll inicial/restaurado, búsquedas y página al volver, ausencia de reset por actualización de datos o cierre de modal, nueva visita sin filtros heredados, ancho y blancos táctiles de menús, ausencia de overflow horizontal, sustitución del dock por selección y paginación por encima de las barras. Incluye inventario vacío, carga y error de borradores. Corre con StrictMode y exige cero errores de página. Las pruebas unitarias agregan aislamiento por usuario/tienda/permisos, deep links con query, metadata ajena de history.state, restauración demorada e interrupción del usuario, descripciones accesibles y conteos sin cambios.
+
+Se actualizaron los recorridos E2E afectados para expandir las opciones y reconocer descripciones, junto con la regresión Más → Reportes → Volver. Se comprobó el descubrimiento/sintaxis de la suite (304 casos en 78 archivos); no se ejecutó la suite E2E de despliegue completo, conforme a la validación acotada solicitada.
+
+No hubo build, commit, push, rama nueva ni operaciones productivas. Chromium con viewport emulado no acredita Safari/PWA o iPhone físico.
+
+## Evidencia visual sintética
+
+| Estado | 320×844 | 390×844 | 1440×900 |
+| --- | --- | --- | --- |
+| Reportes, antes | [Captura](before-reports-320.png) | [Captura](before-reports-390.png) | [Captura](before-reports-1440.png) |
+| Reportes, después | [Captura](after-reports-320.png) | [Captura](after-reports-390.png) | [Captura](after-reports-1440.png) |
+| Inventario, antes | [Captura](before-inventario-320.png) | [Captura](before-inventario-390.png) | [Captura](before-inventario-1440.png) |
+| Inventario, después | [Captura](after-inventario-320.png) | [Captura](after-inventario-390.png) | [Captura](after-inventario-1440.png) |
+| Ventas, antes | [Captura](before-ventas-320.png) | [Captura](before-ventas-390.png) | [Captura](before-ventas-1440.png) |
+| Ventas, después | [Captura](after-ventas-320.png) | [Captura](after-ventas-390.png) | [Captura](after-ventas-1440.png) |
+| Clientes, antes | [Captura](before-clientes-320.png) | [Captura](before-clientes-390.png) | [Captura](before-clientes-1440.png) |
+| Clientes, después | [Captura](after-clientes-320.png) | [Captura](after-clientes-390.png) | [Captura](after-clientes-1440.png) |
+| Paginación de Inventario sobre barras | [Captura](after-inventario-pagination-320.png) | [Captura](after-inventario-pagination-390.png) | — |
+| Paginación de Ventas sobre barras | [Captura](after-ventas-pagination-320.png) | [Captura](after-ventas-pagination-390.png) | — |
+| Paginación de Clientes sobre barras | [Captura](after-clientes-pagination-320.png) | [Captura](after-clientes-pagination-390.png) | — |
+| Selección en Inventario | [Captura](after-inventario-selection-320.png) | [Captura](after-inventario-selection-390.png) | — |
+| Selección en Ventas | [Captura](after-ventas-selection-320.png) | [Captura](after-ventas-selection-390.png) | — |
+| Selección en Clientes | [Captura](after-clientes-selection-320.png) | [Captura](after-clientes-selection-390.png) | — |
+| Inventario vacío | [Captura](after-empty-320.png) | [Captura](after-empty-390.png) | [Captura](after-empty-1440.png) |
+| Inventario cargando | [Captura](after-loading-320.png) | [Captura](after-loading-390.png) | [Captura](after-loading-1440.png) |
+| Error de borradores | [Captura](after-error-320.png) | [Captura](after-error-390.png) | [Captura](after-error-1440.png) |
+
+[Contrato y diseño OpenSpec](../../openspec/changes/fix-mobile-navigation-450/design.md).

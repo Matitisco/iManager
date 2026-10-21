@@ -155,6 +155,7 @@ describe('Clients on a phone', () => {
     expect(screen.getAllByTestId('row-menu').length).toBe(2);
     expect(screen.queryByRole('columnheader', { name: /Cliente/ })).not.toBeInTheDocument();
 
+    await user.click(screen.getByText('Opciones de lista'));
     await user.click(screen.getByRole('button', { name: 'Con saldo pendiente' }));
     expect(screen.getByText('Zoe Díaz')).toBeInTheDocument();
     expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();

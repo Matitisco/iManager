@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { DeskContext } from './desk-context';
-import { pageTabs, sectionPending, type PendingInput } from './nav';
+import { pageTabs, sectionPending, pendingDescription, type PendingInput } from './nav';
 import type { DeskTab } from './types';
 
 const PendingContext = createContext<PendingInput | null>(null);
@@ -16,7 +16,9 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
   const role = appSession?.membership?.role;
   const tabs = pageTabs(tab, sections, role);
   if (tabs.length < 2) return null;
+  const description = pendingDescription(tabs.map(item => item.id), pending);
   return (
+    <>
     <div className="wchips nav-tabs" role="tablist" aria-label="Secciones del grupo">
       {tabs.map((item) => {
         const count = sectionPending(item.id, pending);
@@ -27,6 +29,8 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
             type="button"
             role="tab"
             aria-selected={on}
+            title={pendingDescription([item.id], pending) || undefined}
+            aria-description={pendingDescription([item.id], pending) || undefined}
             className={`sg${on ? ' on' : ''}`}
             data-testid={`group-tab-${item.id}`}
             onClick={() => go(item.id)}
@@ -36,6 +40,11 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
         );
       })}
     </div>
+    {description ? <details className="nav-pending-help">
+      <summary>Qué cuenta cada indicador</summary>
+      <p>{description}.</p>
+    </details> : null}
+    </>
   );
 }
 

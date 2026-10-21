@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import path from 'node:path';
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi } from './utils';
@@ -322,6 +323,7 @@ test.describe('issue 375 ventas, garantía y ficha en iPhone', () => {
     await expect(page.getByTestId('sales-seller-chip')).toHaveText('Vendedor');
     await expectNoOverflow(page);
 
+    await expandListOptions(page);
     await page.getByTestId('sales-seller-chip').click();
     const sheet = page.getByRole('dialog', { name: 'Vendedor' });
     await expect(sheet.getByRole('checkbox', { name: /Lucía/ })).toBeVisible();

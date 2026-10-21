@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-21**
 
+## Issue #450 — Navegación móvil y significado de indicadores — 2026-10-21
+
+- Cada módulo nuevo abre `.stage` arriba. Atrás/Adelante y Volver desde Más restauran la entrada anterior; Inventario, Ventas y Clientes recuperan búsqueda, filtros, orden y página por entrada. La memoria se aísla por usuario/tienda/permisos, sin guardar datos de negocio ni formularios. Edición, búsqueda y cargas no reinician el scroll.
+- Indicadores conservan las sumas y explican avisos sin leer, canjes en curso, órdenes abiertas, seguimientos y personas con comisiones pendientes. Descripciones accesibles en barra/lateral/pestañas, explicación desplegable en el grupo y detalle en Más; Proveedores sigue en Finanzas y todas las etiquetas móviles permanecen visibles.
+- Opciones móviles secundarias plegadas; menús contenidos y acciones táctiles. Selección reemplaza al dock desde cero seleccionados, conserva navegación y reserva altura real para llegar a última fila/paginación a 320/390 px. Sin cambios de backend, API, AppContext, Prisma ni escáner.
+- Validación: 1128 pruebas frontend, 516 unitarias backend, 322 integraciones PostgreSQL locales y TypeScript/lint aprobados; evidencia en `docs/issue-450/README.md`. Fixture automatizado del shell real con contexto sintético, antes/después en 320×844, 390×844 y 1440×900, incluyendo historial, búsqueda, página, modales, selección, carga, vacío y error. Sin despliegue local completo.
+- Main base `2e5f50b`; versión HTTP servida `60658746e56ddaa2` registrada sin caché/PWA, sin sesión productiva para acreditar el recorrido servido. OpenSpec: `fix-mobile-navigation-450`. Cambios en working tree, sin build, commit ni push.
+
 ## Issue #449 — Filtros legibles en inventario móvil — 2026-10-21
 
 - Etiquetas de ancho completo y altura automática con blancos táctiles de 44 px, sin heredar los 18×18 de `.chk`. Corrección exclusiva del panel, compatible con el Sheet/acciones de #447.

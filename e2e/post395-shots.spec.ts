@@ -156,10 +156,10 @@ test.describe('post 395', () => {
         const amount = page.locator('.dashboard-screen .dtable.compact td.r b').filter({ hasText: '300' });
         await expect(amount).toBeVisible();
         expect(await amount.evaluate(el => el.scrollWidth > el.clientWidth + 1)).toBe(false);
-        await expect(page.getByLabel('1 en Clientes')).toBeVisible();
+        await expect(page.getByTestId('sidebar-tab-clients').locator('.dcount')).toHaveText('1');
       }
-      await expect(page.getByLabel('3 en Inventario')).toBeVisible();
-      await expect(page.getByLabel('22 en Ventas')).toBeVisible();
+      await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveText('3');
+      await expect(page.getByTestId('sidebar-tab-sales').locator('.dcount')).toHaveText('22');
       await shot(page, `dashboard-${mobile ? 'mobile' : 'desktop'}`);
 
       await page.goto('/#/ven');

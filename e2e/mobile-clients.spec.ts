@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -111,6 +112,7 @@ test.describe('clients on a phone', () => {
     await expect(page.getByTestId('clients-empty')).toContainText('No hay clientes');
     await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.getByPlaceholder('Buscar por nombre, DNI o teléfono')).toBeVisible();
+    await expandListOptions(page);
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Con saldo pendiente', exact: true })).toBeVisible();
     await expect(page.getByTestId('clients-sort')).toContainText('Ordenar');
