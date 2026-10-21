@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { usePhoneLayout } from './section-notices';
+import { useModalLayer } from './modal-layer';
 
 export interface SelectOption {
   value: string;
@@ -53,6 +54,7 @@ export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, o
     search.current = { text: '', time: 0 };
     if (restore) trigger.current?.focus({ preventScroll: true });
   };
+  useModalLayer({ ref: popup, onClose: close, enabled: open && phone, initialFocus: list });
   const show = (edge?: 'first' | 'last') => {
     if (disabled || !enabled.length) return;
     const current = options.findIndex((option) => option.value === value && !option.disabled);

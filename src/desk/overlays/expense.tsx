@@ -79,7 +79,7 @@ export function ExpenseForm({ id }: { id?: string }) {
   };
 
   return (
-    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} subtitle="Resta en la ganancia neta. No mueve la caja." onClose={close}>
+    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} subtitle="Resta en la ganancia neta. No mueve la caja." onClose={close} busy={busy}>
       {error ? <div className="ferr">{error}</div> : null}
       {current?.deletedAt ? <p className="archive-note">Archivado. Ya no resta en la ganancia neta.</p> : null}
       <Field label="Fecha" error={bad.date}><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field>

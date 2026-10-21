@@ -9,6 +9,7 @@ import { ImanagerIcon, nearestIconSize, statusIcon, type ImanagerIconName } from
 import { GroupTabs } from './group-tabs';
 import { usePhoneLayout } from './section-notices';
 import { SelectionCheckbox, type RowSelection } from './bulk-selection';
+import { ModalLayerContext, useModalLayer } from './modal-layer';
 
 import type { DeskUi } from './desk-context';
 import { DeskContext } from './desk-context';
@@ -355,20 +356,24 @@ export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, ca
   className?: string;
   extra?: { label: string; onClick: () => void } | null;
 }) {
-  useEscape(onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const modal = useModalLayer({ ref, onClose, busy, initialFocus: cancelRef });
   return (
-    <div className="ov center" onMouseDown={onClose}>
-      <div className={`dialog${className ? ` ${className}` : ''}`} role="dialog" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+    <ModalLayerContext.Provider value={modal.scope}>
+    <div className="ov center" onMouseDown={modal.requestClose}>
+      <div ref={ref} tabIndex={-1} className={`dialog${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         <h3>{title}</h3>
         <p>{text}</p>
         {error ? <div className="ferr">{error}</div> : null}
         <div className="row">
-          <button type="button" className="cancel" onClick={onClose} disabled={busy}>{cancel}</button>
+          <button ref={cancelRef} type="button" className="cancel" onClick={modal.requestClose} disabled={busy}>{cancel}</button>
           {extra ? <button type="button" className="ok" onClick={extra.onClick} disabled={busy}>{extra.label}</button> : null}
           <button type="button" className={`ok${danger ? ' danger' : ''}`} onClick={onOk} disabled={busy}>{ok}</button>
         </div>
       </div>
     </div>
+    </ModalLayerContext.Provider>
   );
 }
 
@@ -379,21 +384,23 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, subtitle, children, onClose, wide, className, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; wide?: boolean; className?: string }) {
-  useEscape(onClose);
+export function Sheet({ title, subtitle, children, onClose, busy = false, wide, className, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const modal = useModalLayer({ ref, onClose, busy });
   const phone = usePhoneLayout();
   const nodes = Children.toArray(children);
   const foot = footer !== undefined ? Children.toArray(footer) : nodes.filter(isSheetFooter);
   const body = footer !== undefined ? nodes : nodes.filter((node) => !isSheetFooter(node));
 
   return (
-    <div className="ov" onMouseDown={onClose}>
-      <div className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+    <ModalLayerContext.Provider value={modal.scope}>
+    <div className="ov" onMouseDown={modal.requestClose}>
+      <div ref={ref} tabIndex={-1} className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="sheet-scroll">
           <div className="sheet-h">
             <h3>{title}</h3>
-            {phone ? <ModalCloseButton onClick={onClose} /> : null}
+            {phone ? <ModalCloseButton onClick={modal.requestClose} disabled={busy} /> : null}
           </div>
           {subtitle ? <p className="sub">{subtitle}</p> : null}
           {body}
@@ -401,6 +408,7 @@ export function Sheet({ title, subtitle, children, onClose, wide, className, foo
         {foot.length > 0 ? <div className="sheet-foot">{foot}</div> : null}
       </div>
     </div>
+    </ModalLayerContext.Provider>
   );
 }
 

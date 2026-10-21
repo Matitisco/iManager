@@ -55,15 +55,15 @@ export function ReportDatePicker({ label, value, onChange, invalid, describedBy,
     if (!open) return;
     const outside = (event: Event) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); setOpen(false); field.current?.focus({ preventScroll: true }); }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); setOpen(false); field.current?.focus({ preventScroll: true }); }
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', outside);
-    document.addEventListener('keydown', escape);
+    document.addEventListener('keydown', escape, true);
     return () => {
       document.removeEventListener('pointerdown', outside);
       document.removeEventListener('focusin', outside);
-      document.removeEventListener('keydown', escape);
+      document.removeEventListener('keydown', escape, true);
     };
   }, [open]);
 
