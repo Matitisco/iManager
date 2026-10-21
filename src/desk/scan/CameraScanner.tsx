@@ -14,6 +14,7 @@ export function CameraScanner({
   onBurst,
   counts,
   loose,
+  allowCameraSwitch = true,
 }: {
   onClose: () => void;
   onUse?: (parsed: ParsedDeviceCode) => void;
@@ -23,6 +24,8 @@ export function CameraScanner({
   counts?: { ready: number; scanned: number };
   /** Stock codes already in the store may not pass the Luhn check. */
   loose?: boolean;
+  /** Show rear-lens switching only in scanner contexts that support it. */
+  allowCameraSwitch?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -89,7 +92,7 @@ export function CameraScanner({
       const openedId = opened.getVideoTracks()[0]?.getSettings?.().deviceId;
       lastWorkingCameraId.current = openedId;
       setActiveCameraId(openedId);
-      const available = await listRearCameras();
+      const available = allowCameraSwitch ? await listRearCameras() : [];
       if (signal.signal.aborted) return;
       setCameras(available);
       setCameraReady(true);
@@ -100,7 +103,7 @@ export function CameraScanner({
       else setUnreadable(true);
     });
     return () => signal.abort();
-  }, [attempt, burst, cameraId, denied, holding, loose]);
+  }, [allowCameraSwitch, attempt, burst, cameraId, denied, holding, loose]);
 
   if (denied) {
     return <CameraPermission onClose={onClose} onManual={onManual} onRetry={() => { setDenied(false); setAttempt((value) => value + 1); }} />;
@@ -133,7 +136,7 @@ export function CameraScanner({
           <i /><i /><i /><i />
           {live ? <span className="scan-laser" /> : null}
         </div>
-        {live && cameras.length > 1 ? (
+        {allowCameraSwitch && live && cameras.length > 1 ? (
           <div className="scan-camera-controls">
             <button type="button" className="scan-camera-switch" disabled={!cameraReady} onClick={() => {
               const current = cameras.findIndex((camera) => camera.deviceId === (cameraId ?? activeCameraId));

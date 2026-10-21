@@ -38,6 +38,7 @@ export function ScanReviewHost({
   if (camera) {
     return (
       <CameraScanner
+        allowCameraSwitch={Boolean(resume?.source && resume.source !== 'sales' && resume.source !== 'inventory')}
         onClose={() => setCamera(false)}
         onManual={() => setCamera(false)}
         onUse={(parsed) => {

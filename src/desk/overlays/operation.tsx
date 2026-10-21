@@ -562,6 +562,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     </Sheet>
     {cameraFor ? (
       <CameraScanner
+        allowCameraSwitch={source !== 'sales' && source !== 'inventory'}
         onClose={() => setCameraFor(null)}
         onManual={() => setCameraFor(null)}
         onUse={(parsed) => {

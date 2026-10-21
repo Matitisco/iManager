@@ -46,6 +46,7 @@ const FAKE_CAMERA = `
   win.__torch = false;
   win.__denyCamera = false;
   win.__lastTorch = null;
+  win.__multipleRearCameras = false;
   try {
     localStorage.setItem('imanager:install-dismissed:ios', 'yes');
     localStorage.setItem('imanager:install-dismissed:android', 'yes');
@@ -108,7 +109,11 @@ const FAKE_CAMERA = `
       },
     });
   }
-  const listDevices = async () => [{
+  const listDevices = async () => win.__multipleRearCameras ? [
+    { kind: 'videoinput', deviceId: 'main', label: 'camera2 0, facing back', groupId: 'fake', toJSON() { return this; } },
+    { kind: 'videoinput', deviceId: 'alternate', label: 'camera2 2, facing back', groupId: 'fake', toJSON() { return this; } },
+    { kind: 'videoinput', deviceId: 'front', label: 'camera2 1, facing front', groupId: 'fake', toJSON() { return this; } },
+  ] : [{
     kind: 'videoinput',
     deviceId: 'fake-cam',
     label: 'Cámara de prueba',
@@ -157,6 +162,24 @@ export async function useBarcode(page: Page, name: keyof typeof PNG, options?: {
     win.__torch = Boolean(torch);
     win.__denyCamera = Boolean(deny);
   }, { png: dataUrl(name), torch: options?.torch ?? false, deny: options?.deny ?? false });
+}
+
+export async function enableFakeTorch(page: Page) {
+  await page.evaluate(() => {
+    (window as Window & { __torch?: boolean }).__torch = true;
+  });
+}
+
+export async function clearBarcode(page: Page) {
+  await page.evaluate(() => {
+    (window as Window & { __barcodePng?: string }).__barcodePng = '';
+  });
+}
+
+export async function useMultipleRearCameras(page: Page) {
+  await page.evaluate(() => {
+    (window as Window & { __multipleRearCameras?: boolean }).__multipleRearCameras = true;
+  });
 }
 
 export async function bootStore(page: Page, request: Parameters<typeof bootstrapStoreViaApi>[1], testInfo: TestInfo, slug: string) {
@@ -225,11 +248,15 @@ export function registerScanQa(width: 390 | 1440) {
     page.on('request', (req) => {
       if (req.url().includes('zxing')) zxing.push(req.url());
     });
-    await useBarcode(page, 'qr-short', { torch: true });
+    await useMultipleRearCameras(page);
+    await enableFakeTorch(page);
     await form.getByRole('button', { name: 'Escanear con la cámara' }).click();
     const viewer = page.getByTestId('scan-viewer');
     await expect(viewer).toBeVisible();
+    await expect(viewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
     await expect(viewer.getByText('Apuntá al código de barras del IMEI')).toBeVisible();
+    if (width === 1440) await page.screenshot({ path: 'docs/pr-shots/issue-455-inventory-desktop.png', animations: 'disabled' });
+    await useBarcode(page, 'qr-short', { torch: true });
     await expect(viewer.getByRole('button', { name: 'Linterna' })).toBeVisible();
     await viewer.getByRole('button', { name: 'Linterna' }).click();
     await expect.poll(() => page.evaluate(() => (window as Window & { __lastTorch?: boolean | null }).__lastTorch)).toBe(true);
@@ -370,6 +397,15 @@ export function registerScanQa(width: 390 | 1440) {
     await batch.getByRole('button', { name: 'Editar' }).click();
     await batch.getByLabel('Modelo de la serie').fill('iPhone 13');
     await batch.getByLabel('Precio de la serie').fill('850000');
+    await useMultipleRearCameras(page);
+    await batch.getByRole('button', { name: 'Escanear con la cámara' }).click();
+    const batchViewer = page.getByTestId('scan-viewer');
+    await expect(batchViewer).toBeVisible();
+    await expect(batchViewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
+    await useBarcode(page, 'imei');
+    await expect(batch.getByRole('button', { name: 'Quitar equipo' })).toBeVisible({ timeout: 15_000 });
+    await batchViewer.getByRole('button', { name: 'Cerrar' }).click();
+    await batch.getByRole('button', { name: 'Quitar equipo' }).click();
     await batch.getByRole('button', { name: 'Listo' }).click();
     const imei = batch.getByLabel('IMEI');
     await wedge(page, imei, BAD_LUHN);
@@ -457,8 +493,13 @@ export function registerScanQa(width: 390 | 1440) {
 
     await page.getByRole('button', { name: 'Registrar venta' }).first().click();
     const again = page.getByRole('dialog', { name: 'Registrar venta' });
-    await useBarcode(page, 'imei');
+    await useMultipleRearCameras(page);
     await again.getByRole('button', { name: 'Escanear con la cámara' }).click();
+    const saleViewer = page.getByTestId('scan-viewer');
+    await expect(saleViewer).toBeVisible();
+    await expect(saleViewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
+    if (width === 1440) await page.screenshot({ path: 'docs/pr-shots/issue-455-sales-desktop.png', animations: 'disabled' });
+    await useBarcode(page, 'imei');
     await expect(page.getByText('IMEI leído')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Usar' }).click();
     await expect(again.getByRole('combobox', { name: 'Equipo' })).toHaveValue(/iPhone 13/);
@@ -469,8 +510,12 @@ export function registerScanQa(width: 390 | 1440) {
     await page.getByRole('button', { name: 'Nuevo canje' }).first().click();
     const trade = page.getByRole('dialog', { name: 'Nuevo canje' });
     const received = trade.locator('.scan-imei').filter({ has: page.getByLabel('IMEI (opcional)') });
-    await useBarcode(page, 'box', { torch: false });
+    await clearBarcode(page);
+    await useMultipleRearCameras(page);
     await received.getByRole('button', { name: 'Escanear con la cámara' }).click();
+    const tradeViewer = page.getByTestId('scan-viewer');
+    await expect(tradeViewer.getByRole('button', { name: 'Cambiar cámara' })).toBeVisible();
+    await useBarcode(page, 'box', { torch: false });
     await expect(page.getByText('IMEI leído')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Usar' }).click();
     await expect(trade.getByLabel('IMEI (opcional)')).toHaveValue(IMEI);
