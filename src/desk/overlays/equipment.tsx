@@ -167,7 +167,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
             }, 'Equipo cargado');
           }}
         />
-        {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={openReview} /> : null}
+        {camera ? <CameraScanner allowCameraSwitch={false} onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={openReview} /> : null}
       </>
     );
   }
@@ -294,7 +294,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       });
       }} />
     </Sheet>
-    {camera && !current ? <CameraScanner onClose={() => setCamera(false)} onManual={() => { setCamera(false); imeiRef.current?.focus(); }} onUse={openReview} /> : null}
+    {camera && !current ? <CameraScanner allowCameraSwitch={false} onClose={() => setCamera(false)} onManual={() => { setCamera(false); imeiRef.current?.focus(); }} onUse={openReview} /> : null}
     </>
   );
 }

@@ -54,19 +54,24 @@ describe('camera scanner', () => {
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
   });
 
-  it('confirms a mocked BarcodeDetector read', async () => {
-    let frames = 0;
+  it('reads a code without exposing lens switching when the caller disables it', async () => {
+    let readBarcode = false;
+    let nextFrame: FrameRequestCallback | undefined;
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      frames += 1;
-      if (frames < 4) callback(0);
-      return frames;
+      nextFrame = callback;
+      return 1;
     });
     class Detector {
       static async getSupportedFormats() { return ['code_128', 'qr_code']; }
-      async detect() { return [{ rawValue: '352098117744522' }]; }
+      async detect() { return readBarcode ? [{ rawValue: '352098117744522' }] : []; }
     }
     vi.stubGlobal('BarcodeDetector', Detector);
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const enumerateDevices = vi.fn(async () => [
+      { kind: 'videoinput', deviceId: 'main', label: 'camera2 0, facing back' },
+      { kind: 'videoinput', deviceId: 'alternate', label: 'camera2 2, facing back' },
+      { kind: 'videoinput', deviceId: 'front', label: 'camera2 1, facing front' },
+    ]);
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
@@ -74,9 +79,16 @@ describe('camera scanner', () => {
           getVideoTracks: () => [{ getCapabilities: () => ({}), stop: vi.fn() }],
           getTracks: () => [{ stop: vi.fn() }],
         })),
+        enumerateDevices,
       },
     });
-    render(<CameraScanner onClose={vi.fn()} onManual={vi.fn()} onUse={vi.fn()} />);
+    render(<CameraScanner allowCameraSwitch={false} onClose={vi.fn()} onManual={vi.fn()} onUse={vi.fn()} />);
+    expect(await screen.findByTestId('scan-viewer')).toBeInTheDocument();
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    await waitFor(() => expect(enumerateDevices).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'Cambiar cámara' })).not.toBeInTheDocument();
+    readBarcode = true;
+    nextFrame?.(0);
     expect(await screen.findByText('IMEI leído')).toBeInTheDocument();
     expect(screen.getByText('35 209811 774452 2')).toBeInTheDocument();
     expect(screen.getByText('15 dígitos · control de dígito correcto')).toBeInTheDocument();

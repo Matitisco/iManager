@@ -11,7 +11,7 @@ test.use({
 
 registerScanQa(390);
 
-test('switches exclusive rear lenses and reads Code128 without darkening the preview', async ({ page, request }, info) => {
+test('Inventory uses the default rear lens without a switch and reads Code128', async ({ page, request }, info) => {
   await bootStore(page, request, info, 'rear-lens');
   await openEquipos(page);
   await page.evaluate(() => {
@@ -42,17 +42,13 @@ test('switches exclusive rear lenses and reads Code128 without darkening the pre
       },
     } });
   });
-  await useBarcode(page, 'qr-short');
   await page.getByRole('button', { name: 'Registrar equipo' }).first().click();
   await page.getByRole('button', { name: 'Escanear con la cámara' }).click();
   const viewer = page.getByTestId('scan-viewer');
   await expect(viewer.locator('video')).toHaveCSS('opacity', '1');
-  const change = viewer.getByRole('button', { name: 'Cambiar cámara' });
-  await expect(change).toBeEnabled();
-  await change.click();
-  await expect(change).toBeEnabled();
-  await expect.poll(() => page.evaluate(() => (window as Window & { __lensRequests?: string[] }).__lensRequests)).toEqual(['main', 'alternate']);
-  await page.screenshot({ path: 'docs/pr-shots/440-camera-android.png', animations: 'disabled' });
+  await expect(viewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as Window & { __lensRequests?: string[] }).__lensRequests)).toEqual(['main']);
+  await page.screenshot({ path: 'docs/pr-shots/issue-455-inventory-android-390.png', animations: 'disabled' });
   await useBarcode(page, 'box');
   await expect(viewer.getByText('IMEI leído')).toBeVisible({ timeout: 15_000 });
 });

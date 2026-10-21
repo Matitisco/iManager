@@ -296,6 +296,7 @@ export function BatchLoad() {
       {camera ? (
         <CameraScanner
           burst
+          allowCameraSwitch={false}
           counts={{ ready: counts.loadable, scanned: rows.length }}
           onClose={() => setCamera(false)}
           onManual={() => setCamera(false)}
