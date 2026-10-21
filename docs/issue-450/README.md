@@ -1,5 +1,15 @@
 # Navegación móvil (#450)
 
+## Corrección del check CI
+
+El run `39671052307` falló en `Test PWA on iPhone WebKit and Android Chromium`: el escenario de actualización después del guardado esperaba una navegación y observaba dos en los tres proyectos. `framenavigated` incluye el `history.replaceState` que registra la entrada del shell después de recargar; ese evento adicional no representa otra carga de documento.
+
+El test ahora cuenta exclusivamente peticiones de navegación del documento principal y espera `load`. Conserva las condiciones de seguridad: ninguna recarga durante el POST retenido, formulario y aviso visibles mientras persiste, una única recarga al terminar, desaparición del aviso y cliente guardado visible después de cargar.
+
+Revalidación: 1128 pruebas frontend, 516 unitarias backend, 322 integraciones contra PostgreSQL local y 15 pruebas de assets/worker/servidor PWA aprobadas; TypeScript/lint de ambos paquetes aprobado. El fixture de navegación volvió a aprobar antes/después en 320, 390 y 1440 px. Sin build, despliegue completo, cambios de schema, commit ni push.
+
+El mismo escenario PWA que falló en CI aprobó en desktop Chromium (1440 px), Android Chromium e iPhone 13 WebKit (390 px), sin retries. Se ejecutó con un servidor Vite de prueba en modo producción, API y versiones sintéticas y service workers bloqueados, como exige ese escenario. Las dependencias faltantes de WebKit/EGL se extrajeron dentro del workspace; sin instalación en el sistema. El descubrimiento de los 93 casos PWA también aprobó. No se ejecutó la suite PWA completa que requiere build ni la suite de despliegue completo; esta comprobación no acredita un iPhone físico.
+
 ## Reproducción y versión
 
 - Fecha: 21/10/2026. HEAD y `origin/main` al iniciar: `2e5f50bd415643b0e3c3cd1759b5c9b5f5512853`, con #447–#449 incluidos. Working tree inicial limpio.
