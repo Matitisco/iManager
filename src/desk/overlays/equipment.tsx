@@ -22,7 +22,7 @@ import { confirmScan } from '../scan/beep';
 import { CameraScanner } from '../scan/CameraScanner';
 import { draftFromCode, type ScanDraft } from '../scan/draft';
 import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
-import { Actions, Field, Segs, Sheet, signalDesk, useDesk } from '../ui';
+import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, signalDesk, useDesk } from '../ui';
 import { ScanReviewSheet, scanProduct } from './scan-review';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, AuditLine, type FormProps } from './shared';
 import { archivedProduct } from '../archive-cache';
@@ -67,7 +67,11 @@ export function EquipmentDetail({ id }: { id: string }) {
     }
   };
   return (
-    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} className="eq-sheet">
+    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
+      <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+      {isInStock(item.status) ? <SheetActionMenu><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button></SheetActionMenu> : null}
+      <button className="btn2 p sheet-primary" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
+    </SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <RecordHistory entityType="inventory" entityId={item.id} />
@@ -95,12 +99,6 @@ export function EquipmentDetail({ id }: { id: string }) {
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <div className="sacts">
-        {isInStock(item.status)
-          ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button>
-          : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 p" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
-      </div>
     </Sheet>
   );
 }
@@ -174,7 +172,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
 
   return (
     <>
-    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close} className="eq-sheet">
+    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close} busy={busy} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>

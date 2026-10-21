@@ -397,12 +397,14 @@ export function Sheet({ title, subtitle, children, onClose, busy = false, wide, 
     <div className="ov" onMouseDown={modal.requestClose}>
       <div ref={ref} tabIndex={-1} className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
-        <div className="sheet-scroll">
-          <div className="sheet-h">
+        <div className="sheet-h">
+          <div className="sheet-title">
             <h3>{title}</h3>
-            {phone ? <ModalCloseButton onClick={modal.requestClose} disabled={busy} /> : null}
+            {subtitle ? <p className="sub">{subtitle}</p> : null}
           </div>
-          {subtitle ? <p className="sub">{subtitle}</p> : null}
+          <ModalCloseButton onClick={modal.requestClose} disabled={busy} />
+        </div>
+        <div className="sheet-scroll">
           {body}
         </div>
         {foot.length > 0 ? <div className="sheet-foot">{foot}</div> : null}
@@ -444,20 +446,55 @@ export function Segs({ options, value, onChange, onEdit, allowClear }: { options
   );
 }
 
-export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, danger }: {
+export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, danger, more }: {
   primary: string;
   onPrimary: () => void;
   secondary?: string;
   onSecondary: () => void;
   busy?: boolean;
   danger?: boolean;
+  more?: React.ReactNode;
 }) {
   return (
-    <div className="sacts">
-      <button type="button" className="btn2 s" onClick={onSecondary} disabled={busy}>{secondary}</button>
-      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'}`} onClick={onPrimary} disabled={busy}>{busy ? 'Guardando…' : primary}</button>
+    <div className="sacts sheet-actions">
+      <button type="button" className="btn2 s sheet-secondary" onClick={onSecondary} disabled={busy}>{secondary}</button>
+      {more ? <SheetActionMenu>{more}</SheetActionMenu> : null}
+      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'} sheet-primary`} onClick={onPrimary} disabled={busy}>{busy ? 'Guardando…' : primary}</button>
     </div>
   );
+}
+
+/** Native disclosure for actions that are valid but secondary to the current state. */
+export function SheetActionMenu({ children, label = 'Más acciones' }: { children: React.ReactNode; label?: string }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
+  const close = (returnFocus: boolean) => {
+    if (!ref.current?.open) return;
+    ref.current.open = false;
+    if (returnFocus) summaryRef.current?.focus();
+  };
+  return (
+    <details
+      className="sheet-action-menu"
+      ref={ref}
+      onKeyDownCapture={(event) => {
+        if (event.key !== 'Escape' || !ref.current?.open) return;
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+      }}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('button')) close(true);
+      }}
+    >
+      <summary ref={summaryRef}>{label}</summary>
+      <div className="sheet-action-menu-list" role="group" aria-label={label}>{children}</div>
+    </details>
+  );
+}
+
+export function SheetActions({ children }: { children: React.ReactNode }) {
+  return <div className="sacts sheet-actions">{children}</div>;
 }
 
 export function Battery({ value }: { value: string | number }) {

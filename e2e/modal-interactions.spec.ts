@@ -1,5 +1,14 @@
+import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { data, me } from './pwa/fixtures.mjs';
+
+const shots = process.env.ISSUE_447_SHOTS?.trim();
+
+async function screenshot(page: import('@playwright/test').Page, name: string) {
+  if (!shots) return;
+  mkdirSync(shots, { recursive: true });
+  await page.screenshot({ path: `${shots}/${name}`, animations: 'disabled' });
+}
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 1536, height: 640 }, { width: 390, height: 844 }, { width: 320, height: 844 }]) {
   test.describe(`modal interactions ${viewport.width}`, () => {
@@ -43,7 +52,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1536, height: 640
         await page.keyboard.press('Shift+Tab');
         await expect(form.getByRole('button', { name: 'Guardar gasto' })).toBeFocused();
         await page.keyboard.press('Tab');
-        const first = viewport.width < 760 ? form.getByRole('button', { name: 'Cerrar', exact: true }) : form.getByLabel('Fecha');
+        const first = form.getByRole('button', { name: 'Cerrar', exact: true });
         await expect(first).toBeFocused();
         await form.getByLabel('Categoría').fill('Alquiler sintético');
         await form.getByLabel('Monto').fill('123');
@@ -56,11 +65,13 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1536, height: 640
         if (viewport.width < 760) await expect(form.getByRole('button', { name: 'Cerrar', exact: true })).toBeDisabled();
         await expect(form).toBeVisible();
         expect(writes).toBe(1);
+        await screenshot(page, `${viewport.width}x${viewport.height}-expense-busy.png`);
         release();
         await expect(form.getByRole('button', { name: 'Guardar gasto' })).toBeEnabled();
         await expect(form.locator('.ferr')).not.toBeEmpty();
         await expect(form.getByLabel('Notas')).toHaveValue('Conservar este borrador');
         await expect(page.locator('.toast.show')).toHaveCount(0);
+        await screenshot(page, `${viewport.width}x${viewport.height}-expense-error.png`);
         await page.keyboard.press('Escape');
         await expect(form).toHaveCount(0);
         await expect(trigger).toBeFocused();

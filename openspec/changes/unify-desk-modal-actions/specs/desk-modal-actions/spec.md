@@ -28,11 +28,26 @@ backdrop and close-button dismissal without changing persistence behavior.
 - **THEN** only that child closes, and a busy child prevents dismissal of its parent
 
 ### Requirement: Shared layout and action hierarchy
-The later #447 visual delivery SHALL use a persistent header/close, scrolling
-body and non-shrinking footer, preserving existing permitted actions and
-financial confirmations. At most one primary action is shown per state.
+Sheet SHALL use a persistent header/close, internally scrolling body and
+non-shrinking footer. The seven #447 flows SHALL show at most one primary
+action per state and keep every previously permitted action reachable, with
+the same authorization condition, callback, confirmation and financial
+behavior.
 
 #### Scenario: Constrained viewport
 - **WHEN** rules, expense, sale, trade-in, equipment, client or repair UI opens at 1440x900, 1536x640, 390x844 or 320px wide
 - **THEN** close and footer controls remain fully reachable before and after body scroll, with no horizontal clipping or bottom-navigation obstruction
 - **THEN** the final field remains readable and actionable, and secondary/destructive actions remain discoverable
+
+#### Scenario: Secondary action disclosure
+- **WHEN** a footer or saved rule has secondary actions
+- **THEN** a keyboard-operable disclosure exposes every allowed action with a labelled group and a target at least 44px high
+- **WHEN** Escape is pressed while the disclosure is open
+- **THEN** only the disclosure closes and focus returns to its summary
+- **THEN** a disclosure in the scrolling body expands without clipping its actions
+
+#### Scenario: Busy modal action
+- **WHEN** a migrated sheet is saving
+- **THEN** its X, backdrop and Escape dismissal remain blocked, and its form actions remain disabled
+- **WHEN** persistence succeeds
+- **THEN** existing programmatic close behavior continues

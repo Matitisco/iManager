@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { devices, expect, test, type Locator, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, importSalesViaApi, fetchSales } from './utils';
 
-const shots = process.env.ISSUE_286_SHOTS?.trim();
+const shots = process.env.ISSUE_447_SHOTS?.trim();
 const tradeActions = ['Cerrar', 'Cancelar operación', 'Editar', 'Devolver', 'Compartir comprobante'];
 const tradeLabels = ['Equipo recibido', 'Calidad recibida', 'Valor tomado', 'Diferencia del canje', 'Estado técnico', 'Confirmación'];
 const { defaultBrowserType: iphoneBrowser, ...iphone } = devices['iPhone 13'];
@@ -25,44 +25,33 @@ async function settle(detail: Locator) {
   });
 }
 
-async function expectReachableActions(detail: Locator, names: string[], width: number, height: number) {
+async function expectReachableActions(page: Page, detail: Locator, names: string[], width: number, height: number) {
   const footer = detail.locator('.sheet-foot');
-  await expect(footer.getByRole('button')).toHaveCount(names.length);
+  const menu = footer.locator('.sheet-action-menu');
+  const summary = menu.locator('summary');
+  if (await menu.count()) {
+    await summary.click();
+    await expect(menu).toHaveJSProperty('open', true);
+  }
+  await expect(footer.locator('.sheet-primary')).toHaveCount(1);
   for (const name of names) {
     const button = footer.getByRole('button', { name, exact: true });
     await expect(button).toBeInViewport({ ratio: 1 });
     const box = (await button.boundingBox())!;
-    expect(box.height).toBeGreaterThanOrEqual(48);
+    expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
     expect(box.y + box.height).toBeLessThanOrEqual(height);
     await button.click({ trial: true });
   }
-  const boxes = await footer.getByRole('button').evaluateAll((buttons) => buttons.map((button) => {
-    const { x, y, width, height } = button.getBoundingClientRect();
-    return { x, y, width, height };
-  }));
   const grid = footer.locator('.sacts');
   await expect(grid).toHaveCSS('display', 'grid');
-  await expect(grid).toHaveCSS('gap', '10px');
   await expect(grid).toHaveCSS('margin-top', '0px');
-  expect(boxes[0].width).toBeCloseTo(boxes[1].width, 0);
-  expect(boxes[0].y).toBeCloseTo(boxes[1].y, 0);
-  expect(boxes[1].x - boxes[0].x - boxes[0].width).toBeCloseTo(10, 0);
-  if (names.length > 2) {
-    expect(boxes[2].y - boxes[0].y - boxes[0].height).toBeCloseTo(10, 0);
-    expect(boxes[2].x).toBeCloseTo(boxes[0].x, 0);
-    if (names.length === 3) expect(boxes[2].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
-    else {
-      expect(boxes[2].width).toBeCloseTo(boxes[0].width, 0);
-      expect(boxes[3].width).toBeCloseTo(boxes[1].width, 0);
-      expect(boxes[2].y).toBeCloseTo(boxes[3].y, 0);
-      if (names.length === 5) {
-        expect(boxes[4].x).toBeCloseTo(boxes[0].x, 0);
-        expect(boxes[4].y - boxes[2].y - boxes[2].height).toBeCloseTo(10, 0);
-        expect(boxes[4].width).toBeCloseTo(boxes[0].width + boxes[1].width + 10, 0);
-      }
-    }
+  if (await menu.count()) {
+    await summary.focus();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveJSProperty('open', false);
+    await expect(summary).toBeFocused();
   }
 }
 
@@ -86,12 +75,12 @@ async function expectSharedLayout(page: Page, detail: Locator, names: string[], 
     expect(await trade.locator('.kv').evaluateAll((rows) => rows[0].getBoundingClientRect().top - rows[1].getBoundingClientRect().top)).toBe(0);
   } else await expect(trade).toHaveCount(0);
   const viewport = page.viewportSize()!;
-  await expectReachableActions(detail, names, viewport.width, viewport.height);
+  await expectReachableActions(page, detail, names, viewport.width, viewport.height);
   const before = (await footer.boundingBox())!;
   await body.evaluate((node) => { node.scrollTop = node.scrollHeight; });
   const after = (await footer.boundingBox())!;
   expect(after.y).toBeCloseTo(before.y, 0);
-  await expectReachableActions(detail, names, viewport.width, viewport.height);
+  await expectReachableActions(page, detail, names, viewport.width, viewport.height);
   await body.evaluate((node) => { node.scrollTop = 0; });
 }
 
@@ -103,10 +92,10 @@ async function screenshot(page: Page, name: string) {
 }
 
 for (const device of [
-  { name: 'desktop-640', phone: false, options: { viewport: { width: 1280, height: 640 } } },
-  { name: 'desktop-800', phone: false, options: { viewport: { width: 1280, height: 800 } } },
+  { name: 'desktop-640', phone: false, options: { viewport: { width: 1536, height: 640 } } },
   { name: 'desktop-900', phone: false, options: { viewport: { width: 1440, height: 900 } } },
   { name: 'mobile-iphone', phone: true, options: { ...iphone } },
+  { name: 'mobile-320', phone: true, options: { viewport: { width: 320, height: 844 }, isMobile: true, hasTouch: true } },
 ]) {
   test.describe(`sale detail ${device.name}`, () => {
     test.use(device.options);
@@ -154,8 +143,9 @@ for (const device of [
         if (path === 'reports') {
           // Capture the whole trade block with the fixed actions after scrolling.
           await detail.locator('.sheet-scroll').evaluate((node) => { node.scrollTop = node.scrollHeight; });
-          if (device.name === 'desktop-640') await screenshot(page, 'issue-286-fix-desktop-canje.png');
-          if (device.phone) await screenshot(page, 'issue-286-fix-mobile-iphone-canje.png');
+          if (device.name === 'desktop-640') await screenshot(page, 'issue-447-desktop-1536-canje.png');
+          if (device.name === 'mobile-iphone') await screenshot(page, 'issue-447-mobile-390-canje.png');
+          if (device.name === 'mobile-320') await screenshot(page, 'issue-447-mobile-320-canje.png');
           const viewport = page.viewportSize()!;
           await page.setViewportSize({ width: viewport.width, height: 500 });
           await expectSharedLayout(page, detail, tradeActions, true);
@@ -186,11 +176,13 @@ for (const device of [
         await navigate(page, 'reports', device.phone);
         await page.locator('.gtk').filter({ hasText: code }).click();
         const detail = page.getByRole('dialog', { name: code });
-        const names = pending ? ['Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante'];
+      const names = pending ? ['Cerrar', 'Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante'];
         await expectSharedLayout(page, detail, names, false);
         if (!pending) {
-          if (device.name === 'desktop-800') await screenshot(page, 'issue-286-fix-desktop-sin-canje.png');
-          if (device.phone) await screenshot(page, 'issue-286-fix-mobile-iphone-sin-canje.png');
+          if (device.name === 'desktop-640') await screenshot(page, 'issue-447-desktop-1536-sin-canje.png');
+          if (device.name === 'mobile-iphone') await screenshot(page, 'issue-447-mobile-390-sin-canje.png');
+          if (device.name === 'mobile-320') await screenshot(page, 'issue-447-mobile-320-sin-canje.png');
+          await detail.locator('.sheet-foot .sheet-action-menu summary').click();
           await detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true }).click();
           await expect(page.getByRole('dialog', { name: 'Editar operación' })).toBeVisible();
         } else {

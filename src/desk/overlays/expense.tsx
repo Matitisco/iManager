@@ -79,7 +79,13 @@ export function ExpenseForm({ id }: { id?: string }) {
   };
 
   return (
-    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} subtitle="Resta en la ganancia neta. No mueve la caja." onClose={close} busy={busy}>
+    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} subtitle="Resta en la ganancia neta. No mueve la caja." onClose={close} busy={busy} footer={
+      current?.deletedAt ? (
+        <Actions busy={busy} primary="Restaurar" onSecondary={close} onPrimary={() => { void restore(); }} />
+      ) : (
+        <Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar gasto'} onSecondary={close} onPrimary={() => { void save(); }} more={id ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirm(true)}>Archivar gasto</button> : undefined} />
+      )
+    }>
       {error ? <div className="ferr">{error}</div> : null}
       {current?.deletedAt ? <p className="archive-note">Archivado. Ya no resta en la ganancia neta.</p> : null}
       <Field label="Fecha" error={bad.date}><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field>
@@ -91,12 +97,6 @@ export function ExpenseForm({ id }: { id?: string }) {
       <Field label="Moneda"><span /></Field>
       <Segs options={[{ id: 'ARS', label: 'Pesos' }, { id: 'USD', label: 'Dólares' }]} value={currency} onChange={(value) => setCurrency(value === 'USD' ? 'USD' : 'ARS')} />
       <Field label="Notas"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></Field>
-      {current?.deletedAt ? (
-        <Actions busy={busy} primary="Restaurar" onSecondary={close} onPrimary={() => { void restore(); }} />
-      ) : (
-        <Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar gasto'} onSecondary={close} onPrimary={() => { void save(); }} />
-      )}
-      {id && !current?.deletedAt ? <button className="wlink" type="button" onClick={() => setConfirm(true)}>Archivar gasto</button> : null}
       {confirm ? (
         <Dialog
           title="Archivar gasto"

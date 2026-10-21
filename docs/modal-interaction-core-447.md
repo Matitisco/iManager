@@ -1,149 +1,130 @@
-# Issue #447 — interaction core and Luna handoff
+# Issue #447 — shared modal layout and action hierarchy
 
-Base: `ba2d91830ce7bd1b2dd3e79c1e33b51225912671` (main, 2026-10-21).
-Branch: `fix/447-modal-interaction-core`. OpenSpec:
-`openspec/changes/unify-desk-modal-actions/`.
+Base: `ba2d91830ce7bd1b2dd3e79c1e33b51225912671` (`main`). Branch:
+`fix/447-modal-interaction-core`. Sol's tested interaction-core commit remains
+`666fa5b31b65e7e19bd05f5a92a26a58b0c52ff2`.
 
-This is the approved Sol high exception for shared focus/dismissal behavior.
-The visual migration remains for Luna max. No CSS, backend, AppContext,
-permissions, money calculations, dependencies or schema changes. No build,
-production writes, issue closure, merge or deployed-QA claim.
+This delivery completes the shared modal frame and action hierarchy for
+commission rules/payments, expenses, sales, trade-ins, equipment, clients and
+repairs. It preserves the yellow/black desk tokens and leaves permissions,
+callbacks, confirmation text and financial calculations owned by their current
+flows. It adds no backend work, dependency or build output.
 
-## Reproduction and result
+## Shared `Sheet` contract
 
-On the base, Nuevo gasto closes on Escape while its synthetic save is pending;
-opening Sheet leaves focus outside it. Nested layers have independent Escape
-handlers. The new unit regressions fail 10/12 cases against the base and pass
-with this core (the other two cases exercise existing success/selector behavior).
+`Sheet` renders a persistent title/subtitle header and close button, a
+`min-height: 0` internally scrolling body, and a non-shrinking footer. Its
+existing optional `busy` prop gates X/backdrop/Escape. Pass the same live busy
+state to the footer controls; caller-owned actions remain explicitly disabled
+while their request is pending. A successful callback can still close the sheet
+programmatically after persistence completes.
 
-The core contains focus inside the top registered surface, consumes only its
-Escape, blocks user dismissal while busy, and restores connected trigger focus.
-Tests include React StrictMode, a child initially rendered through a portal,
-whole-branch removal, prop changes, disabled/hidden controls, mobile selectors,
-the state editor, calendar Escape, and failed/successful expense persistence.
-
-## Public contract for Luna
-
-`Sheet` adds optional `busy?: boolean` (default `false`). `Dialog` keeps its
-existing busy prop and applies it consistently to dismissal. Existing DOM/CSS,
-children/footer extraction, footer prop and action APIs remain compatible.
+An explicit `footer` places that content in the fixed footer and leaves children
+in the scroll body. Without `footer`, the existing `Actions` component and
+direct children with an `.sacts` class continue to be extracted automatically.
+That keeps unmigrated/manual Sheet consumers working.
 
 ```tsx
 <Sheet
   title="Editar registro"
   busy={busy}
   onClose={close}
-  footer={<Actions busy={busy} primary="Guardar" onPrimary={() => void save()} onSecondary={close} />}
+  footer={
+    <Actions
+      busy={busy}
+      secondary="Cancelar"
+      onSecondary={close}
+      primary="Guardar"
+      onPrimary={() => void save()}
+      more={<button className="btn2 danger" type="button" disabled={busy} onClick={archive}>Archivar</button>}
+    />
+  }
 >
-  {error ? <div className="ferr" role="alert">{error}</div> : null}
-  {/* Existing fields and callbacks. */}
+  {/* Existing fields, error state and callbacks. */}
 </Sheet>
 ```
 
-- Pass the same actual pending state to **both Sheet and its Actions**, including
-  local `saving` or `ruleAction` states as appropriate. The core does not infer
-  busy from DOM, child buttons or business state. Only ExpenseForm is wired in
-  this delivery; the remaining callers are intentionally pending.
-- Busy blocks the shared X, backdrop and Escape. Dialog also guards its cancel
-  button. Caller-owned buttons/callbacks still belong to the caller: keep them
-  disabled/guarded while incompatible requests are pending.
-- Keep successful persistence calling the existing `close()` directly after
-  await. Busy blocks user dismissal, not programmatic success. Preserve failure
-  handling and values; do not put a busy guard around the success callback.
-- Default initial Sheet focus is its dialog surface (`tabIndex=-1`), so opening
-  does not scroll to a field/action. Dialog initially focuses Cancelar, falling
-  back to the surface while its buttons are disabled.
-- Context preserves ownership through React portals. Closing a child returns
-  focus inside the parent; removing a whole branch tries surviving outer
-  triggers. Disconnected, disabled, hidden and inert targets are skipped.
-- The hook contains focus; it does not add an inert or scroll-lock system.
-  DeskSelect retains its existing inert/scroll ownership. Avoid competing traps.
-- Descendant Escape handlers run first. A custom popover must consume Escape
-  before it reaches the shared document handler. DeskSelect already does this;
-  ReportDatePicker now does so in capture. Do not attach another raw window
-  Escape listener to Sheet/Dialog.
-
-For an existing custom modal that needs to join the stack, use the internal
-adapter already demonstrated by CatalogEditor. Do not register a second layer
-around a Sheet/Dialog:
+`Actions` keeps its two existing required callbacks and accepts optional
+`more`. `SheetActions` is the wrapper for a state-specific custom footer; mark
+one visible action `.sheet-primary` and the supporting action
+`.sheet-secondary`. `SheetActionMenu` uses the native `<details>/<summary>`
+disclosure and gives its contents a labelled `role="group"`. Its default label
+is “Más acciones”; rule cards use “Acciones de la regla”. Enter or Space opens
+it. Escape closes only that disclosure and returns focus to its summary before
+the shared modal layer handles Escape. Selecting an action closes it and
+restores focus. Menus anchored in a footer float above it; saved-rule menus
+expand inline inside the scroll body so that the body never clips their
+buttons.
 
 ```tsx
-const ref = useRef<HTMLDivElement>(null);
-const modal = useModalLayer({ ref, onClose, busy });
-return (
-  <ModalLayerContext.Provider value={modal.scope}>
-    <div className="ov" onMouseDown={modal.requestClose}>
-      <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true"
-        aria-label={title} onMouseDown={event => event.stopPropagation()}>
-        {/* Surface contents; close controls call modal.requestClose. */}
-      </div>
-    </div>
-  </ModalLayerContext.Provider>
-);
+<SheetActions>
+  <button className="btn2 s sheet-secondary" type="button" onClick={close}>Cerrar</button>
+  <SheetActionMenu>
+    <button className="btn2 s" type="button" onClick={edit}>Editar</button>
+    <button className="btn2 danger" type="button" onClick={confirmCancel}>Cancelar operación</button>
+  </SheetActionMenu>
+  <button className="btn2 p sheet-primary" type="button" onClick={save}>Guardar</button>
+</SheetActions>
 ```
 
-The adapter supports optional `enabled` and `initialFocus` refs for an existing
-conditionally opened surface. Its scope is Sheet/Dialog, CatalogEditor and the
-mobile DeskSelect; it does not automatically migrate every custom modal in the
-application. Camera behavior is untouched.
+Footer controls have at least 48px height, menu items at least 44px; wrapping
+and two-column compact footers preserve the full 320px viewport. The fixed
+footer respects the mobile safe area. Existing yellow/black colors, round
+controls and button tokens remain in use.
 
-## Remaining Luna scope
+## Migrated flows
 
-1. `ui.tsx`, `desk.css`, `close-button.tsx`: persistent header/X, body with
-   `min-height: 0` and internal scroll, explicit non-shrinking footer, dvh/safe
-   areas and compact desktop controls. Preserve yellow/black desk tokens and
-   the working sale/equipment fixes. Be careful with manual `.sheet` consumers.
-2. `screens/commission-sheets.tsx`, `screens/CommissionsScreen.tsx`,
-   `overlays/expense.tsx`, `operation.tsx`, `trade.tsx`, `equipment.tsx`,
-   `client.tsx`, `RepairForms.tsx`: explicit footers, correct busy state and
-   state-specific primary/secondary hierarchy. Preserve all current allowed
-   actions, financial callbacks and confirmations. No commission redesign #463.
-3. `DeskOverlays.tsx`, `overlays/shared.tsx` and necessary compatibility adapters:
-   preserve confirmation/error behavior. Smoke-test filters, Cajas, Proveedores,
-   señas, catalog, batch loading/import and invitations without expanding scope.
-4. Update `operation-detail.test.tsx` and `e2e/sale-detail-layout.spec.ts` for the
-   new hierarchy: test every action inside the secondary disclosure instead of
-   requiring five large buttons. Preserve entry points from Ventas, Reportes,
-   Dashboard and notifications. Keep `e2e/row-actions-sheet.spec.ts` coverage.
-5. Before/after visual QA at 1440x900, 1536x640, 390x844 and 320px wide, including
-   last-field reachability, long/empty/loading/error states, keyboard and menu/
-   confirmation layers. The core browser tests do not establish layout fixes.
+- Commission rules keep `Guardar regla` primary and `Cancelar` secondary.
+  Activate/deactivate and delete stay attached to each saved rule; delete and
+  state changes still use the existing confirmation dialog. Commission payment
+  remains `Registrar pago` plus `Cancelar`; member detail keeps payment/`Listo`
+  primary and `Cambiar regla` secondary.
+- Expenses keep save/restore primary and close secondary. Archive appears in
+  the menu only for an existing, non-archived expense and still uses its
+  confirmation. A failed save keeps the current draft and error.
+- Sale forms keep confirm/save primary and close secondary. `Guardar pendiente`
+  remains available in the menu under the existing draft condition. A pending
+  sale uses `Marcar cobrada` primary; a completed sale uses `Compartir
+  comprobante`. Edit, return and cancellation remain available only in the
+  same prior states and permission conditions.
+- Trade-in actions remain state-specific: pending operations keep `Retomar`
+  primary; a confirmed operation uses `Editar` or `Guardar estado` depending on
+  whether its technical status changed. Cancellation stays permission-gated
+  and confirmation-backed. The legacy progress flow keeps advance primary and
+  reject/after secondary.
+- Equipment keeps `Guardar estado` primary and `Cerrar` secondary; `Vender`
+  stays in the menu when the existing stock predicate permits it.
+- Client detail uses `Registrar pago` as primary for an outstanding balance,
+  otherwise `Nueva venta`. Close remains secondary; deposit, edit and any
+  additional sale action remain under their prior conditions. The payment
+  sheet keeps its existing confirmation callback.
+- Repair detail uses the next status as primary while one exists, and
+  `Compartir comprobante` at the terminal status. Close, receipt, deposit and
+  edit stay discoverable in the menu under their existing conditions.
 
-## Verification and release gates
+## Validation and visual evidence
 
-Core regression files: `src/desk/modal-layer.test.tsx`,
-`src/desk/overlays/expense-modal.test.tsx`, `e2e/modal-interactions.spec.ts`.
-The E2E uses entirely intercepted synthetic APIs and the test auth adapter,
-without credentials or real persistence. Its held save is released as a 503;
-Escape/backdrop/X cannot dismiss it, and error/draft survive without success.
+- Frontend and backend TypeScript checks passed: `npm run lint` and
+  `npm --prefix backend run lint`.
+- Six focused Vitest files passed: **91 passed**. The temporary
+  Vitest config only points Playwright's browser-only unit cases at the
+  installed `/usr/bin/chromium`.
+- The synthetic browser matrix passed **8/8** at 1440×900, 1536×640, 390×844
+  and 320×844. It checks sale action menus, fixed footers, last-field reach,
+  commission-rule action menus, keyboard dismissal/focus return, 44px menu
+  targets and horizontal overflow. Every API response is intercepted and uses
+  synthetic fixtures.
+- The pending/failed expense persistence regression passed **4/4** at the same
+  sizes. It verifies focus containment and that a 503 preserves the draft.
+- After screenshots were captured and visually checked for clipping and
+  reachable controls. The synthetic evidence is persisted in
+  `docs/issue-447/visual-qa/`: sale-detail menus, rule menus, rule-sheet
+  last-field states and per-viewport expense busy/error states. No production
+  or real-account data was used.
+- `git diff --check` passed. No build was run. The database-backed sale-detail
+  suite was not run because local API port 3100 is unavailable; its modal and
+  geometry coverage was replaced here by fully intercepted synthetic data.
 
-Required checks remain frontend/backend TypeScript and the frontend suite;
-no build. The environment lacks Playwright's downloaded Chromium executable.
-Browser-only Vitest cases can use the existing `/usr/bin/chromium` through a
-temporary test configuration; no repository dependency/config change is needed.
-
-Results on 2026-10-21:
-
-- `npm run lint` and `npm --prefix backend run lint`: passed in parallel.
-- New unit regressions: 12 passed; against base ba2d918, 10 failed and 2 passed.
-  Temporary base files were restored before the final verification.
-- Full frontend suite: **155 files / 1089 tests passed**, using
-  `/tmp/imanager447/vitest.full.config.ts`. Its extra setup only supplies
-  `/usr/bin/chromium` to Playwright launch; application code is unchanged by it.
-  The earlier ordinary full run passed 1080 tests but could not start four
-  browser-only files (seven cases) because the downloaded executable is absent;
-  the final full rerun resolved that environment limitation.
-- New `e2e/modal-interactions.spec.ts`: **4 passed, no retries**, at 1440x900,
-  1536x640, 390x844 and 320x844. Ran with Vite test-auth mode and a separate API
-  origin to exercise CORS fixtures, using
-  `/tmp/imanager447/playwright.core.config.ts`. Every API was intercepted; no
-  backend process, database or real credentials were needed.
-- `git diff --check`: passed. OpenSpec's four artifacts and normative scenarios
-  were checked locally; the OpenSpec CLI is not installed in this environment.
-- No build or production endpoint retry.
-
-Merge requires green CI and Sol high review without bypass. Keep #447 open
-until authenticated browser QA after deployment records the served version.
-The earlier read of production `version.json` was denied by a 403 tunnel; this
-delivery does not retry it or claim production validation. #455's separate
-post-deploy QA remains pending as already recorded by the parent.
+Merge remains gated on green CI and Sol high review without bypass. #447 stays
+open until authenticated browser QA after deployment records the served
+version. Production QA is not claimed in this delivery.

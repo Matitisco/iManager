@@ -6,18 +6,16 @@ background, and independent Escape handlers can dismiss nested layers together.
 
 ## What Changes
 
-- First delivery: a small shared interaction hook for Sheet/Dialog, plus adapters
-  for the existing nested selector and state editor. Contain/restore focus and
-  dismiss only the top layer; busy blocks user dismissal.
-- Wire Nuevo gasto's busy state to Sheet to cover the reproduced regression.
-- Define the contract and focused tests for the later Luna implementation.
-- Later delivery: shared header/body/footer layout and state-specific action
-  hierarchy for commissions, expenses, sales, trade-ins, equipment, clients and
-  repairs. Preserve the guarantees of compact-sale-detail and #439.
+- A small shared interaction hook for Sheet/Dialog, plus adapters for existing
+  nested selectors and state editors. Contain/restore focus and dismiss only
+  the top layer; busy blocks user dismissal.
+- A shared Sheet header/body/footer frame and state-specific action hierarchy
+  for commissions, expenses, sales, trade-ins, equipment, clients and repairs.
+- Preserve the guarantees of compact-sale-detail and #439; one visible primary
+  action per state, with every permitted secondary action discoverable.
 
 ## Non-goals
 
-This first delivery does not migrate the seven flows or change their visual
-hierarchy. No backend, AppContext, financial logic, permissions, dependencies,
+No backend, AppContext, financial logic, permissions, dependencies,
 Prisma/schema changes, camera changes, production operations or build. No issue
 closure, merge, or deployed-QA claim.

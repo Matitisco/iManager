@@ -1,19 +1,21 @@
 ## Interaction core — Sol high
 
 - [x] Add the minimal focus/layer/dismissal hook with explicit busy handling.
-- [x] Integrate Sheet/Dialog without changing layout or footer compatibility.
-- [x] Register existing nested selector/state editor, preserve calendar Escape and wire expense busy.
+- [x] Integrate Sheet/Dialog without breaking existing footer extraction.
+- [x] Register nested selector/state editor, preserve calendar Escape and wire expense busy.
 - [x] Add regressions, including pending/failed synthetic expense persistence.
 - [x] Run frontend/backend TypeScript and focused regressions, without build.
-- [x] Document the Luna contract and commit this core on the #447 branch.
+- [x] Document and commit the tested interaction core on the #447 branch.
 
-## Visual migration — Luna max, later delivery
+## Visual migration — Luna max
 
-- [ ] Apply shared persistent header, scrolling body and explicit footer layout.
-- [ ] Migrate rules/expenses/sales/trade-ins/equipment/clients/repairs and action hierarchy.
-- [ ] Update behavioral/geometry E2E, preserve every permitted action and test error/busy states.
-- [ ] Capture before/after at 1440x900, 1536x640, 390x844 and 320px wide.
-- [ ] Run required checks and obtain Sol high review before merge, without bypass.
-- [ ] Record main/deploy version and finish authenticated browser QA before closing #447.
+- [x] Apply the shared persistent header, internally scrolling body and fixed footer layout.
+- [x] Migrate commission rules/payments, expenses, sales, trade-ins, equipment, clients and repairs with state-specific action hierarchy.
+- [x] Preserve current callbacks, authorization predicates, confirmation flows, drafts and financial calculations.
+- [x] Update behavioral/geometry E2E and focused tests for menus, busy/error states, fixed footers and final-field reachability.
+- [x] Capture and inspect synthetic screenshots at 1440x900, 1536x640, 390x844 and 320x844.
+- [x] Run frontend/backend TypeScript and focused UI tests; no build.
+- [ ] Sol high review and green CI before merge; do not bypass.
+- [ ] After deployment, perform authenticated browser QA and record the served version before closing #447.
 
-No backend, AppContext or schema work is planned.
+No backend, AppContext, schema or dependency work is planned. No production or real-account data was used for local browser checks.

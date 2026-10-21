@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../types';
@@ -46,6 +46,19 @@ describe('equipment quality', () => {
     ctx.addProduct.mockResolvedValue({ id: 'created' });
     ctx.updateProduct.mockReset();
     ctx.updateProduct.mockResolvedValue(undefined);
+  });
+
+  it('keeps the equipment status primary and sells an available item from the secondary disclosure', async () => {
+    const user = userEvent.setup();
+    ctx.inventory = [product()];
+    renderOverlay({ type: 'eq', id: 'eq-1' });
+    const dialog = screen.getByRole('dialog', { name: 'iPhone 13 · 128GB' });
+    const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
+    expect(within(footer).getByRole('button', { name: 'Guardar estado' })).toHaveClass('sheet-primary');
+    const menu = footer.querySelector('.sheet-action-menu') as HTMLDetailsElement;
+    await user.click(menu.querySelector('summary') as HTMLElement);
+    expect(menu.open).toBe(true);
+    expect(within(menu).getByRole('button', { name: 'Vender' })).toBeInTheDocument();
   });
 
   it('offers quality only for used devices, explains each grade, and clears it for new ones', async () => {

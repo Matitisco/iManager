@@ -111,6 +111,12 @@ describe('Comisiones', () => {
     if (action === 'Activar') context.commissionRules[0].active = false;
     const onClose = vi.fn();
     render(<CommissionRuleSheet memberId={null} period="2026-10" onClose={onClose} />);
+    const rule = document.querySelector('.commission-saved-rule') as HTMLElement;
+    const actions = within(rule).getByText('Acciones de la regla', { exact: true });
+    const disclosure = actions.closest('details') as HTMLDetailsElement;
+    expect(within(screen.getByRole('dialog', { name: 'Regla del equipo' }).querySelector('.sheet-foot') as HTMLElement).getByRole('button', { name: 'Guardar regla' })).toHaveClass('sheet-primary');
+    await userEvent.click(actions);
+    expect(disclosure.open).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: `${action} regla de Todo el equipo` }));
     const confirmation = screen.getByRole('dialog', { name: `${action} regla` });
     expect(confirmation).toHaveTextContent('comisiones ya registradas se conservan');
@@ -119,6 +125,7 @@ describe('Comisiones', () => {
     await userEvent.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: `${action} regla` })).not.toBeInTheDocument();
+    await userEvent.click(actions);
     await userEvent.click(screen.getByRole('button', { name: `${action} regla de Todo el equipo` }));
     await userEvent.click(within(screen.getByRole('dialog', { name: `${action} regla` })).getByRole('button', { name: `${action} regla` }));
     if (action === 'Eliminar') expect(context.deleteCommissionRule).toHaveBeenCalledWith('team-rule');
@@ -127,6 +134,7 @@ describe('Comisiones', () => {
   it('keeps rule confirmation open on a persistence error', async () => {
     context.deleteCommissionRule.mockRejectedValueOnce(new Error('No se pudo eliminar'));
     render(<CommissionRuleSheet memberId={null} period="2026-10" onClose={vi.fn()} />);
+    await userEvent.click(within(document.querySelector('.commission-saved-rule') as HTMLElement).getByText('Acciones de la regla', { exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'Eliminar regla de Todo el equipo' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Eliminar regla' })).getByRole('button', { name: 'Eliminar regla' }));
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Eliminar regla' })).toHaveTextContent('No se pudo eliminar'));
