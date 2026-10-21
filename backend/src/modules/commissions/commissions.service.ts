@@ -5,7 +5,7 @@ import { currentBlueRate } from "../../lib/blue-rate.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { saleCode } from "../audit/archive.js";
-import { assertSeller, refreshSaleCommission } from "./commission-ledger.js";
+import { assertSeller, loadCommissionBatch, refreshSaleCommission } from "./commission-ledger.js";
 import { convert, currentPeriodKey, emptyTotals, projectBalance, monthBounds, roundMoney, zonedDayStart, type CommissionBasis, type Currency, type CurrencyTotals } from "./commission-math.js";
 
 export interface CommissionRuleInput {
@@ -85,6 +85,15 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
   // Only legacy accruals need the current quote; historical entries use their frozen rate.
   const needsRate = rows.some(row => row.exchangeRate == null);
   const currentRate = needsRate ? await currentBlueRate() : null;
+  return projectCommissionPeriod(period, store.timezone, members, rows, payments, currentRate, financials, unassignedSalesCount);
+}
+
+type CommissionMember = Prisma.StoreMemberGetPayload<{ include: { user: { select: { displayName: true; email: true } } } }>;
+function projectCommissionPeriod(
+  period: NonNullable<ReturnType<typeof monthBounds>>, timezone: string,
+  members: CommissionMember[], rows: CommissionAccrual[], payments: CommissionPayment[],
+  currentRate: number | null, financials = false, unassignedSalesCount = 0,
+) {
   const people = members.map(member => {
     const previousBalance = emptyTotals();
     const earned = emptyTotals();
@@ -148,7 +157,7 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
     }
     summary.salesCount += person.salesCount;
   }
-  return { period: { key: period.key, label: period.label, timezone: store.timezone }, summary, people };
+  return { period: { key: period.key, label: period.label, timezone }, summary, people };
 }
 
 export async function getCommissionPerson(storeId: string, memberId: string, period?: string, financials = false) {
@@ -235,12 +244,15 @@ export async function bulkAssignSeller(storeId: string, actor: Actor, saleIds: s
   return withSerializableRetry(async tx => {
     await assertSeller(tx, storeId, sellerMemberId);
     const ids = [...new Set(saleIds)];
-    const sales = await tx.sale.findMany({ where: { storeId, id: { in: ids } }, select: { id: true, sellerMemberId: true, saleNumber: true } });
+    const batch = await loadCommissionBatch(tx, storeId, ids);
+    const sales = [...batch.sales.values()];
     if (sales.length !== ids.length) throw new DomainError("Una venta no pertenece a la tienda", 404);
+    const changed = sales.filter(sale => sale.sellerMemberId !== sellerMemberId);
+    await tx.sale.updateMany({ where: { storeId, id: { in: changed.map(sale => sale.id) } }, data: { sellerMemberId } });
     for (const sale of sales) {
       if (sale.sellerMemberId === sellerMemberId) continue;
-      await tx.sale.update({ where: { id: sale.id }, data: { sellerMemberId } });
-      await refreshSaleCommission(tx, storeId, sale.id);
+      batch.sales.set(sale.id, { ...sale, sellerMemberId });
+      await refreshSaleCommission(tx, storeId, sale.id, batch);
       await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id,
         entityLabel: saleCode(sale.saleNumber),
         detail: `${sale.sellerMemberId ?? "Sin vendedor"} → ${sellerMemberId ?? "Sin vendedor"}` });
@@ -250,16 +262,23 @@ export async function bulkAssignSeller(storeId: string, actor: Actor, saleIds: s
 }
 
 export async function getCommissionReport(storeId: string, from: string, to: string) {
-  await periodContext(storeId, from);
+  const { store } = await periodContext(storeId, from);
   await periodContext(storeId, to);
   if (from > to) throw new DomainError("Períodos invertidos");
   const start = Number(from.slice(0, 4)) * 12 + Number(from.slice(5));
   const end = Number(to.slice(0, 4)) * 12 + Number(to.slice(5));
   if (end - start > 119) throw new DomainError("El reporte admite hasta 120 meses");
+  const [members, accruals, payments] = await Promise.all([
+    prisma.storeMember.findMany({ where: { storeId }, include: { user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } }),
+    prisma.commissionAccrual.findMany({ where: { storeId, period: { lte: to } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
+    prisma.commissionPayment.findMany({ where: { storeId, period: { lte: to } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
+  ]);
+  const currentRate = accruals.some(row => row.exchangeRate == null) ? await currentBlueRate() : null;
   const rows = [];
   for (let n = start; n <= end; n++) {
     const period = `${Math.floor((n - 1) / 12)}-${String((n - 1) % 12 + 1).padStart(2, "0")}`;
-    const data = await getCommissionPeriod(storeId, period);
+    const bounds = monthBounds(period, new Date(), store.timezone)!;
+    const data = projectCommissionPeriod(bounds, store.timezone, members, accruals.filter(row => row.period <= period), payments.filter(row => row.period <= period), currentRate);
     rows.push(...data.people.map(({ memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted }) => ({ period, memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted })));
   }
   return { from, to, rows };

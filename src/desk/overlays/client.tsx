@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import { fetchClientPayments, restoreBackendClient, type ClientPaymentRecord } from '../../services/clients-api';
+import { fetchClientPayments, restoreBackendClient, type ClientPaymentRecord, type ClientPatch } from '../../services/clients-api';
 import type { Client } from '../../types';
 import { formatInputMoney, formatShortDate, parseMoney, paymentLabel } from '../format';
 import { useMoney } from '../exchange';
@@ -184,6 +184,9 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const [instagram, setInstagram] = useState(current?.instagram ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
   const [balance, setBalance] = useState(current ? money.inputValue(current.pendingBalance, current.balanceCurrency) : '');
+  const [initial] = useState(current);
+  const [initialBalance] = useState(balance);
+  const balanceEdited = balance !== initialBalance;
   const [tag, setTag] = useState(current?.tag ?? '');
   const [birthday, setBirthday] = useState(current?.birthday ?? '');
   const [bad, setBad] = useState<Record<string, string>>({});
@@ -212,8 +215,8 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
         const next: Record<string, string> = {};
         if (!name.trim()) next.name = 'Completá este dato';
         else if (name.trim().length > INPUT_LIMITS.clientName) next.name = `El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`;
-        const priced = current
-          ? money.commitGroup([{ typed: parseMoney(balance), original: current.pendingBalance, currency: current.balanceCurrency }])
+        const priced = current && balanceEdited
+          ? money.commitGroup([{ typed: parseMoney(balance), original: (initial ?? current).pendingBalance, currency: (initial ?? current).balanceCurrency }])
           : { blocked: false, amounts: [{ amount: 0, currency: null as string | null }] };
         if (priced.blocked) next.balance = FX_WARNING;
         setBad(next);
@@ -234,8 +237,18 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
           categoryId: current?.categoryId,
           customFields: current?.customFields,
         };
-        if (current) await updateClient({ ...current, ...payload });
-        else await addClient(payload);
+        if (current) {
+          const patch: ClientPatch = { id: current.id };
+          const original = initial ?? current;
+          for (const field of ['name', 'dni', 'phone', 'instagram', 'email', 'tag', 'birthday'] as const) {
+            if ((payload[field] ?? '') !== (original[field] ?? '')) Object.assign(patch, { [field]: payload[field] });
+          }
+          if (balanceEdited && (priced.amounts[0]?.amount !== original.pendingBalance || (priced.amounts[0]?.currency ?? null) !== (original.balanceCurrency ?? null))) {
+            patch.pendingBalance = priced.amounts[0]?.amount ?? 0;
+            patch.balanceCurrency = priced.amounts[0]?.currency ?? null;
+          }
+          await updateClient(patch);
+        } else await addClient(payload);
       }, current ? 'Cliente actualizado' : 'Cliente guardado');
       }} />
     </Sheet>

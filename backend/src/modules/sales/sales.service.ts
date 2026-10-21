@@ -612,7 +612,8 @@ export async function importSales(
       const dateLabel = formatArDate(soldAt);
       const rowCurrency = normalizeCurrencyToken(r.currency);
 
-      const saleId = await prisma.$transaction(async (tx) => {
+      const committed = await withSerializableRetry(async (tx) => {
+        let newClient: ImportClient | null = null;
         const clientLink = clientName || dni || phone
           ? decideClientLink(clients, { name: clientName, dni, phone })
           : { action: "skip" as const };
@@ -628,18 +629,21 @@ export async function importSales(
             },
             select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
           });
-          clients.push(created);
+          newClient = created;
           clientId = created.id;
         }
 
-        const item = imei
+        let item = imei
           ? await tx.inventoryItem.findFirst({
             where: { storeId, imei },
             select: { id: true, status: true, archivedAt: true, reservedDepositId: true },
           })
           : null;
+        if (item) {
+          await lockInventory(tx, storeId, item.id);
+          item = await tx.inventoryItem.findFirst({ where: { id: item.id, storeId }, select: { id: true, status: true, archivedAt: true, reservedDepositId: true } });
+        }
         if (item?.reservedDepositId) throw new SalesError("El equipo está reservado. Registrá la venta aplicando la seña desde Nueva venta", 409);
-        if (item) await lockInventory(tx, storeId, item.id);
         const activeSale = item
           ? await tx.sale.findFirst({
             where: { storeId, inventoryItemId: item.id, status: { not: "CANCELADA" } },
@@ -662,7 +666,7 @@ export async function importSales(
         if (tradeIn) customFields.canje = tradeIn;
         if (imei && !inventoryItemId) customFields.imei = imei;
         const deviceLabel = [device, !inventoryItemId && imei ? imei : ""].filter(Boolean).join(" · ").slice(0, 120) || null;
-        const linkedClient = clientId ? clients.find((client) => client.id === clientId) : undefined;
+        const linkedClient = clientId ? await tx.client.findFirst({ where: { storeId, id: clientId } }) : null;
         const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
         const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
 
@@ -701,21 +705,19 @@ export async function importSales(
         }
 
         if (linkedClient) {
-          const nextSpent = new Decimal(linkedClient.totalSpent.toString()).add(amount);
           const nextPurchase = !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt
             ? soldAt
             : linkedClient.lastPurchaseAt;
           await tx.client.update({
             where: { id: linkedClient.id },
-            data: { totalSpent: nextSpent, lastPurchaseAt: nextPurchase },
+            data: { totalSpent: { increment: toDecimal(amount) }, lastPurchaseAt: nextPurchase },
           });
-          linkedClient.totalSpent = nextSpent;
-          linkedClient.lastPurchaseAt = nextPurchase;
         }
-        return sale.id;
+        return { saleId: sale.id, newClient };
       });
 
-      void trackFirstSale(storeId, saleId, 'import', actor?.userId);
+      if (committed.newClient) clients.push(committed.newClient);
+      void trackFirstSale(storeId, committed.saleId, 'import', actor?.userId);
       imported++;
     } catch (e) {
       errors.push({

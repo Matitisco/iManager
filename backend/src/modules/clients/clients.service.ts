@@ -1,3 +1,4 @@
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { recordCash } from '../cash/service.js';
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
@@ -81,12 +82,12 @@ class ClientsError extends DomainError {}
 
 const toDecimal = (value?: number) => new Decimal(value ?? 0);
 
-async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null) {
+async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null, db: Prisma.TransactionClient = prisma) {
   if (categoryId === undefined || categoryId === null) {
     return;
   }
 
-  const category = await clientsRepository.findCategory(storeId, categoryId);
+  const category = await db.clientCategory.findFirst({ where: { id: categoryId, storeId }, select: { id: true } });
 
   if (!category) {
     throw new ClientsError("Category not found", 404);
@@ -218,60 +219,52 @@ export async function createClient(storeId: string, input: ClientInput, actor?: 
 }
 
 export async function updateClient(storeId: string, id: string, input: Partial<ClientInput>, actor?: Actor | null) {
-  const existing = await clientsRepository.findInStore(storeId, id);
+  const updated = await withSerializableRetry(async (tx) => {
+    const existing = await tx.client.findFirst({ where: { id, storeId } });
 
-  if (!existing) {
-    return null;
-  }
+    if (!existing) {
+      return null;
+    }
 
-  if (input.dni !== undefined) {
-    const nextDni = normalizeDni(input.dni);
-    if (nextDni) {
-      const duplicate = await clientsRepository.findDniDuplicate(storeId, nextDni, id);
+    if (input.dni !== undefined) {
+      const nextDni = normalizeDni(input.dni);
+      if (nextDni) {
+        const duplicate = await tx.client.findFirst({ where: { storeId, dni: nextDni, id: { not: id } } });
 
-      if (duplicate?.archivedAt) {
-        throw archivedMatch("Este cliente está archivado. ¿Restaurarlo?", duplicate.id, "client");
-      }
-      if (duplicate) {
-        throw new ClientsError("Client already exists", 409);
+        if (duplicate?.archivedAt) {
+          throw archivedMatch("Este cliente está archivado. ¿Restaurarlo?", duplicate.id, "client");
+        }
+        if (duplicate) {
+          throw new ClientsError("Client already exists", 409);
+        }
       }
     }
-  }
 
-  await assertCategoryBelongsToStore(storeId, input.categoryId);
-  const spentChanges = input.totalSpent !== undefined && moneyChanged(existing.totalSpent, input.totalSpent);
-  const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
-  if (spentChanges || balanceChanges) {
-    const activeIntegratedSale = await clientsRepository.findActiveIntegratedSale(storeId, id);
-    if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
-  }
-  const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, prisma) : "ARS");
+    await assertCategoryBelongsToStore(storeId, input.categoryId, tx);
+    const spentChanges = input.totalSpent !== undefined && moneyChanged(existing.totalSpent, input.totalSpent);
+    const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
+    if (spentChanges || balanceChanges) {
+      const activeIntegratedSale = await tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } });
+      if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
+    }
+    const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, tx) : "ARS");
 
-  const updated = await clientsRepository.transaction(async (tx) => {
     const client = await tx.client.update({
       where: { id },
       data: {
-      dni: input.dni !== undefined ? normalizeDni(input.dni) : existing.dni,
-      name: input.name !== undefined ? input.name.trim() : existing.name,
-      email: input.email !== undefined ? input.email || null : existing.email,
-      phone: input.phone !== undefined ? input.phone || null : existing.phone,
-      instagram: input.instagram !== undefined ? normalizeImportedInstagram(input.instagram ?? undefined) || null : existing.instagram,
-      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
-      lastPurchaseAt:
-        input.lastPurchaseDate !== undefined
-          ? parseLastPurchaseDate(input.lastPurchaseDate)
-          : existing.lastPurchaseAt,
-      totalSpent:
-        input.totalSpent !== undefined ? toDecimal(input.totalSpent) : existing.totalSpent,
-      pendingBalance:
-        input.pendingBalance !== undefined ? toDecimal(input.pendingBalance) : existing.pendingBalance,
-      ...(nextCurrency ? { balanceCurrency: nextCurrency } : {}),
-      tag: input.tag !== undefined ? input.tag || null : existing.tag,
-      birthday: input.birthday !== undefined ? parseBirthday(input.birthday) : existing.birthday,
-      customFields:
-        input.customFields !== undefined
-          ? normalizeCustomFields(input.customFields)
-          : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
+        ...(input.dni !== undefined ? { dni: normalizeDni(input.dni) } : {}),
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.email !== undefined ? { email: input.email || null } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone || null } : {}),
+        ...(input.instagram !== undefined ? { instagram: normalizeImportedInstagram(input.instagram ?? undefined) || null } : {}),
+        ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+        ...(input.lastPurchaseDate !== undefined ? { lastPurchaseAt: parseLastPurchaseDate(input.lastPurchaseDate) } : {}),
+        ...(input.totalSpent !== undefined ? { totalSpent: toDecimal(input.totalSpent) } : {}),
+        ...(input.pendingBalance !== undefined ? { pendingBalance: toDecimal(input.pendingBalance) } : {}),
+        ...(nextCurrency ? { balanceCurrency: nextCurrency } : {}),
+        ...(input.tag !== undefined ? { tag: input.tag || null } : {}),
+        ...(input.birthday !== undefined ? { birthday: parseBirthday(input.birthday) } : {}),
+        ...(input.customFields !== undefined ? { customFields: normalizeCustomFields(input.customFields) } : {}),
       },
     });
     if (input.name !== undefined && client.name !== existing.name) {
@@ -306,7 +299,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     return client;
   });
 
-  return serializeClient(updated);
+  return updated ? serializeClient(updated) : null;
 }
 
 export async function listClientPayments(storeId: string, clientId: string) {
@@ -332,7 +325,7 @@ export async function registerClientPayment(
   clientId: string,
   input: { amount: number; method: string; currency?: string | null }
 ) {
-  return clientsRepository.transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
     const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
     if (!client) return null;
 
@@ -364,25 +357,16 @@ export async function registerClientPayment(
 }
 
 export async function deleteClient(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
-  const existing = await clientsRepository.findForDelete(storeId, id);
-
-  if (!existing || existing.archivedAt) {
-    return false;
-  }
-
-  const activeOperation = await clientsRepository.findActiveIntegratedSale(storeId, id);
-  const activeTrade = await clientsRepository.findActiveTrade(storeId, id);
-  if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede archivar", 409);
-
-  await prisma.$transaction(async (tx) => {
-    const [client, deposits] = await Promise.all([
-      tx.client.findFirst({ where: { id, storeId }, select: { balanceCurrency: true } }),
-      tx.clientDeposit.findMany({
-        where: { storeId, clientId: id },
-        select: { status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
-      }),
+  return withSerializableRetry(async (tx) => {
+    const existing = await tx.client.findFirst({ where: { id, storeId } });
+    if (!existing || existing.archivedAt) return false;
+    const [activeOperation, activeTrade, deposits] = await Promise.all([
+      tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } }),
+      tx.tradeIn.findFirst({ where: { storeId, clientId: id, confirmationStatus: { not: "CANCELLED" }, voidedAt: null }, select: { id: true } }),
+      tx.clientDeposit.findMany({ where: { storeId, clientId: id }, select: { status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true } }),
     ]);
-    const refusal = clientDeleteRefusal(deposits, client?.balanceCurrency ?? null);
+    if (activeOperation || activeTrade) throw new ClientsError("El cliente tiene una operación activa y no se puede archivar", 409);
+    const refusal = clientDeleteRefusal(deposits, existing.balanceCurrency ?? null);
     if (refusal) throw new ClientsError(refusal, 409);
     const reason = cleanReason(meta?.reason);
     await tx.client.update({
@@ -403,9 +387,8 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
         changes: [{ field: "status", label: "Estado", before: "Activo", after: "Archivado" }],
       });
     }
+    return true;
   });
-
-  return true;
 }
 
 export async function restoreClient(storeId: string, id: string, actor?: Actor | null) {

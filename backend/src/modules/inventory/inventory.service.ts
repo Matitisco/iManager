@@ -754,48 +754,36 @@ export async function updateInventoryItem(
   return serializeInventoryItem({ ...updated, catalogIncluded: inPublicCatalog(updated, catalog) });
 }
 
-export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
-  const existing = await inventoryPrisma.inventoryItem.findFirst({
-    where: { id, storeId },
-  });
-
-  if (!existing || existing.archivedAt) {
-    return false;
-  }
-
-  const linkedSale = await inventoryPrisma.sale.findFirst({ where: { storeId, inventoryItemId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } });
-  const activeReceivedTrade = await inventoryPrisma.tradeIn.findFirst({ where: { storeId, receivedInventoryItemId: id, confirmationStatus: "CONFIRMED", voidedAt: null }, select: { id: true } });
-  if (linkedSale || activeReceivedTrade) throw new InventoryError("El equipo pertenece a una operación activa", 409);
-
-  await withSerializableRetry(async (tx) => {
-    await lockInventory(tx, storeId, id);
-    const reserved = await tx.inventoryItem.findFirst({ where: { id, storeId, reservedDepositId: { not: null } } });
-    if (reserved) throw new InventoryError("Cancelá la seña antes de archivar el equipo reservado", 409);
-    const reason = cleanReason(meta?.reason);
-    await tx.inventoryItem.update({
-      where: { id },
-      data: { archivedAt: new Date(), archivedBy: actor?.name ?? null, archiveReason: reason },
-    });
-    if (actor || meta?.source === "system") {
+/** Caller owns the transaction. Lock all items in a stable order before checking associations. */
+export async function archiveInventoryItems(tx: Prisma.TransactionClient, storeId: string, ids: string[], actor?: Actor | null, meta?: ArchiveMeta) {
+  const ordered = [...new Set(ids)].sort();
+  if (!ordered.length) return 0;
+  await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "InventoryItem" WHERE "storeId" = ${storeId} AND "id" IN (${Prisma.join(ordered)}) ORDER BY "id" FOR UPDATE`);
+  const items = await tx.inventoryItem.findMany({ where: { storeId, id: { in: ordered }, archivedAt: null } });
+  const activeIds = items.map(item => item.id);
+  if (!activeIds.length) return 0;
+  const [sales, trades] = await Promise.all([
+    tx.sale.findMany({ where: { storeId, inventoryItemId: { in: activeIds }, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { inventoryItemId: true } }),
+    tx.tradeIn.findMany({ where: { storeId, receivedInventoryItemId: { in: activeIds }, confirmationStatus: "CONFIRMED", voidedAt: null }, select: { receivedInventoryItemId: true } }),
+  ]);
+  if (sales.length || trades.length) throw new InventoryError("El equipo pertenece a una operación activa", 409);
+  if (items.some(item => item.reservedDepositId)) throw new InventoryError("Cancelá la seña antes de archivar el equipo reservado", 409);
+  const reason = cleanReason(meta?.reason);
+  await tx.inventoryItem.updateMany({ where: { storeId, id: { in: activeIds }, archivedAt: null }, data: { archivedAt: new Date(), archivedBy: actor?.name ?? null, archiveReason: reason } });
+  if (actor || meta?.source === "system") {
+    for (const item of items) {
       await writeAudit(tx, {
-        storeId,
-        actor,
-        action: "inventory.archived",
-        entityType: "inventory",
-        entityId: id,
-        entityLabel: deviceLabel(existing),
-        detail: existing.model,
-        reason,
-        source: meta?.source ?? "app",
-        changes: [
-          { field: "status", label: "Estado", before: "Activo", after: "Archivado" },
-          ...batchChanges(meta),
-        ],
+        storeId, actor, action: "inventory.archived", entityType: "inventory", entityId: item.id,
+        entityLabel: deviceLabel(item), detail: item.model, reason, source: meta?.source ?? "app",
+        changes: [{ field: "status", label: "Estado", before: "Activo", after: "Archivado" }, ...batchChanges(meta)],
       });
     }
-  });
+  }
+  return items.length;
+}
 
-  return true;
+export async function deleteInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
+  return withSerializableRetry(async tx => (await archiveInventoryItems(tx, storeId, [id], actor, meta)) > 0);
 }
 
 export async function restoreInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {

@@ -12,6 +12,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Opciones móviles secundarias plegadas; menús contenidos y acciones táctiles. Selección reemplaza al dock desde cero seleccionados, conserva navegación y reserva altura real para llegar a última fila/paginación a 320/390 px. Sin cambios de backend, API, AppContext, Prisma ni escáner.
 - Validación: 1128 pruebas frontend, 516 unitarias backend, 322 integraciones PostgreSQL locales y TypeScript/lint aprobados; evidencia en `docs/issue-450/README.md`. Fixture automatizado del shell real con contexto sintético, antes/después en 320×844, 390×844 y 1440×900, incluyendo historial, búsqueda, página, modales, selección, carga, vacío y error. Sin despliegue local completo.
 - Main base `2e5f50b`; versión HTTP servida `60658746e56ddaa2` registrada sin caché/PWA, sin sesión productiva para acreditar el recorrido servido. OpenSpec: `fix-mobile-navigation-450`. Cambios en working tree, sin build, commit ni push.
+## Issue #461 — Concurrencia y consultas por lote — 2026-10-21
+
+- Cobros/movimientos, edición y archivo de clientes, importaciones y presupuesto de reparaciones usan lecturas actuales dentro de reintentos Serializable. Los cambios de estado de reparación, archivos/restauraciones de gastos/proveedores y ajustes de stock bloquean y revalidan antes de escribir. Resolución de stock, inventario y auditorías se confirman juntos.
+- Catálogos inicializan/guardan con el mismo lock. Comisiones y elegibilidad de stock precargan relaciones e historial por lote; pruebas de equivalencia y presupuestos para 120 meses y 30 registros.
+- Frontend invalida lecturas antes de mutar, usa scope/época, generaciones y tickets; protege respuestas y rollback por registro y reconcilia superposiciones. El formulario de clientes envía solo campos editados, preservando saldos y contactos concurrentes, sin cambios visuales.
+- Validación: 1.157 tests frontend, 516 unitarios backend y 362 integraciones aprobados; TypeScript/lint de ambos paquetes y `git diff --check` aprobados. 78 regresiones nuevas; reproducción rojo/verde y presupuestos de consultas en `docs/issue-461/README.md`. OpenSpec: `fix-concurrency-query-batching-461`. Sin schema, build, despliegue, commit ni push; exclusivamente PostgreSQL local `imanager_test`.
 
 ## Issue #449 — Filtros legibles en inventario móvil — 2026-10-21
 

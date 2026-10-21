@@ -5,12 +5,13 @@ import type { AppSession } from '../types/app-session';
 import type { Sale } from '../types';
 import { fetchBackendClients, fetchClientCategoriesApi } from '../services/clients-api';
 import { fetchBackendInventory } from '../services/inventory-api';
-import { fetchNotifications } from '../services/operations-api';
+import { fetchNotifications, fetchOperationDrafts } from '../services/operations-api';
 import { fetchBackendRepairs } from '../services/repairs-api';
 import { fetchBackendSales } from '../services/sales-api';
 import { fetchBackendTradeIns } from '../services/trade-ins-api';
 import { useStoreRecords } from './store-records';
 
+vi.mock('../lib/list-sync', async importOriginal => ({ ...await importOriginal<typeof import('../lib/list-sync')>(), publishListMutation: vi.fn() }));
 vi.mock('../services/inventory-api', () => ({ fetchBackendInventory: vi.fn() }));
 vi.mock('../services/sales-api', () => ({ fetchBackendSales: vi.fn() }));
 vi.mock('../services/clients-api', () => ({ fetchBackendClients: vi.fn(), fetchClientCategoriesApi: vi.fn() }));
@@ -46,6 +47,7 @@ function seed(storeId: string, clientName: string) {
 }
 
 beforeEach(() => {
+  vi.mocked(fetchOperationDrafts).mockResolvedValue({ tradeIns: [] });
   vi.mocked(fetchBackendInventory).mockResolvedValue([]);
   vi.mocked(fetchBackendClients).mockResolvedValue([]);
   vi.mocked(fetchClientCategoriesApi).mockResolvedValue([]);
@@ -119,5 +121,62 @@ describe('caché de listas por tienda', () => {
     clearSessionCaches();
     expect(readBootSession()).toBeNull();
     expect(readStoreLists('store-1')).toBeNull();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe('concurrent scoped list reads #461', () => {
+  it('does not restore an initial list after a mutation', async () => {
+    const pending = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    await waitFor(() => expect(fetchBackendSales).toHaveBeenCalled());
+    act(() => {
+      result.current.noteLocalMutation();
+      result.current.setSales([sale('new', 'Committed')]);
+    });
+    await act(async () => pending.resolve([sale('old', 'Stale')]));
+    expect(result.current.sales.map(row => row.id)).toEqual(['new']);
+    expect(result.current.listsLoaded).toBe(true);
+  });
+  it('keeps the newest refresh when responses arrive in reverse order', async () => {
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    await waitFor(() => expect(result.current.listsLoaded).toBe(true));
+    const older = deferred<Sale[]>(), newer = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    let a!: Promise<void>, b!: Promise<void>;
+    act(() => { a = result.current.refreshLists(); b = result.current.refreshLists(); });
+    await act(async () => { newer.resolve([sale('new', 'New')]); await b; });
+    await act(async () => { older.resolve([sale('old', 'Old')]); await a; });
+    expect(result.current.sales.map(row => row.id)).toEqual(['new']);
+  });
+  it.each(['store', 'logout'])('ignores refreshes and setters from a previous scope (%s)', async mode => {
+    const { result, rerender } = renderHook(({ active }: { active: boolean }) => useStoreRecords({
+      user: !active && mode === 'logout' ? null : user,
+      appSession: !active && mode === 'logout' ? null : active ? session : { ...session, store: { ...session.store!, id: 'store-2' } },
+      backendStatus: !active && mode === 'logout' ? 'checking' : 'ready',
+    }), { initialProps: { active: true } });
+    await waitFor(() => expect(result.current.listsLoaded).toBe(true));
+    const pending = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(pending.promise);
+    const staleSetter = result.current.setSales;
+    let read!: Promise<void>;
+    act(() => { read = result.current.refreshLists(); });
+    rerender({ active: false });
+    await act(async () => { pending.resolve([sale('old', 'Previous scope')]); await read; staleSetter([sale('stale-setter', 'Previous scope')]); });
+    expect(result.current.sales).toEqual([]);
+  });
+  it('does not apply a list read started during a pending write', async () => {
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    await waitFor(() => expect(result.current.listsLoaded).toBe(true));
+    act(() => { result.current.pendingWrites.current = 1; result.current.noteLocalMutation(); result.current.setSales([sale('local', 'Pending')]); });
+    vi.mocked(fetchBackendSales).mockResolvedValue([sale('old', 'Old')]);
+    await act(() => result.current.refreshLists());
+    expect(result.current.sales.map(row => row.id)).toEqual(['local']);
   });
 });

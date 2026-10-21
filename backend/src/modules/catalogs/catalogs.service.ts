@@ -1,4 +1,5 @@
 import type { CatalogKind, Prisma } from "@prisma/client";
+import { lockTransactionKey } from "../../lib/advisory-lock.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { retireRepairStatuses } from "../repairs/retire-repair-statuses.js";
@@ -104,31 +105,22 @@ function slug(label: string) {
 }
 
 async function seedMissing(storeId: string) {
-  for (const kind of CATALOG_KINDS) {
-    const rows = await prisma.storeCatalogOption.findMany({ where: { storeId, kind } });
-    if (rows.some((row) => !row.archivedAt)) continue;
-    for (const [index, option] of DEFAULTS[kind].entries()) {
-      const archived = rows.find((row) => row.value === option.value);
-      if (archived) {
-        await prisma.storeCatalogOption.update({
-          where: { id: archived.id },
-          data: { archivedAt: null, label: option.label, color: option.color, isSystem: option.isSystem, sortOrder: index },
-        });
-        continue;
+  await prisma.$transaction(async tx => {
+    await lockTransactionKey(tx, `catalogs:${storeId}`);
+    const rows = await tx.storeCatalogOption.findMany({ where: { storeId } });
+    const additions: Prisma.StoreCatalogOptionCreateManyInput[] = [];
+    for (const kind of CATALOG_KINDS) {
+      const options = rows.filter(row => row.kind === kind);
+      if (options.some(row => !row.archivedAt)) continue;
+      for (const [index, option] of DEFAULTS[kind].entries()) {
+        const archived = options.find(row => row.value === option.value);
+        if (archived) {
+          await tx.storeCatalogOption.update({ where: { id: archived.id }, data: { ...option, archivedAt: null, sortOrder: index } });
+        } else additions.push({ storeId, kind, ...option, sortOrder: index });
       }
-      await prisma.storeCatalogOption.create({
-        data: {
-          storeId,
-          kind,
-          value: option.value,
-          label: option.label,
-          color: option.color,
-          isSystem: option.isSystem,
-          sortOrder: index,
-        },
-      });
     }
-  }
+    if (additions.length) await tx.storeCatalogOption.createMany({ data: additions });
+  });
 }
 
 async function usageCounts(storeId: string) {
@@ -217,6 +209,7 @@ export async function saveCatalog(storeId: string, kind: Kind, options: CatalogO
   const textKind = kind === "INVENTORY_CAPACITY" || kind === "INVENTORY_CONDITION";
   const labelIsValue = textKind || kind === "CLIENT_TAG";
   return prisma.$transaction(async (tx) => {
+    await lockTransactionKey(tx, `catalogs:${storeId}`);
     const existing = await tx.storeCatalogOption.findMany({ where: { storeId, kind } });
     const removed = new Set<string>();
 

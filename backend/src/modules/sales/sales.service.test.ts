@@ -270,6 +270,7 @@ describe("sales.service", () => {
       lastPurchaseAt: null,
     }]);
 
+    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1", name: "Ana Gómez", lastPurchaseAt: null });
     const result = await importSales("store-1", [{ clientName: "ana gómez", device: "iPhone 13", amount: "1000" }]);
 
     expect(result.imported).toBe(1);
@@ -279,7 +280,7 @@ describe("sales.service", () => {
     });
     expect(prismaMock.client.update).toHaveBeenCalledWith({
       where: { id: "client-1" },
-      data: expect.objectContaining({ totalSpent: new Decimal(1010) }),
+      data: expect.objectContaining({ totalSpent: { increment: new Decimal(1000) } }),
     });
   });
 

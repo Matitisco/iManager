@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
@@ -60,8 +62,8 @@ function problemLabel(status: string, inService: boolean) {
   return null;
 }
 
-async function assertName(storeId: string, name: string, ignoreId?: string) {
-  const clash = await prisma.supplier.findFirst({
+async function assertName(storeId: string, name: string, ignoreId?: string, db: Prisma.TransactionClient = prisma) {
+  const clash = await db.supplier.findFirst({
     where: {
       storeId,
       deletedAt: null,
@@ -228,11 +230,12 @@ export async function createSupplier(storeId: string, input: SupplierInput, acto
 }
 
 export async function updateSupplier(storeId: string, id: string, input: SupplierInput, actor: Actor) {
-  const existing = await prisma.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
-  if (!existing) return null;
-  const name = input.name.trim();
-  await assertName(storeId, name, id);
-  const row = await prisma.$transaction(async (tx) => {
+  const row = await withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Supplier" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
+    if (!existing) return null;
+    const name = input.name.trim();
+    await assertName(storeId, name, id, tx);
     const updated = await tx.supplier.update({
       where: { id },
       data: {
@@ -253,14 +256,16 @@ export async function updateSupplier(storeId: string, id: string, input: Supplie
     });
     return updated;
   });
+  if (!row) return null;
   const counts = await countsFor(storeId, [id]);
   return present(row, { devices: counts.devices.get(id) ?? 0, problems: counts.problems.get(id) ?? 0 });
 }
 
 export async function archiveSupplier(storeId: string, id: string, actor: Actor) {
-  const existing = await prisma.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
-  if (!existing) return false;
-  await prisma.$transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Supplier" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
+    if (!existing) return false;
     await tx.supplier.update({
       where: { id },
       data: { deletedAt: new Date(), deletedBy: actor.name },
@@ -274,15 +279,16 @@ export async function archiveSupplier(storeId: string, id: string, actor: Actor)
       entityLabel: existing.name,
       detail: `Quedó archivado el proveedor ${existing.name}. Los equipos conservan el origen.`,
     });
+    return true;
   });
-  return true;
 }
 
 export async function restoreSupplier(storeId: string, id: string, actor: Actor) {
-  const existing = await prisma.supplier.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
-  if (!existing) return null;
-  await assertName(storeId, existing.name, id);
-  const row = await prisma.$transaction(async (tx) => {
+  const row = await withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Supplier" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.supplier.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
+    if (!existing) return null;
+    await assertName(storeId, existing.name, id, tx);
     const restored = await tx.supplier.update({
       where: { id },
       data: { deletedAt: null, deletedBy: null },
@@ -298,6 +304,7 @@ export async function restoreSupplier(storeId: string, id: string, actor: Actor)
     });
     return restored;
   });
+  if (!row) return null;
   const counts = await countsFor(storeId, [id]);
   return present(row, { devices: counts.devices.get(id) ?? 0, problems: counts.problems.get(id) ?? 0 });
 }
