@@ -99,6 +99,19 @@ test.describe('phone navigation', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-390-mas.png` });
 
+    // A low row of Más must not lend its scroll position to the destination.
+    const stage = page.locator('.stage');
+    await page.getByTestId('sidebar-tab-reports').scrollIntoViewIfNeeded();
+    await page.getByTestId('sidebar-tab-reports').focus();
+    const moreTop = await stage.evaluate(node => node.scrollTop);
+    expect(moreTop).toBeGreaterThan(0);
+    await page.getByTestId('sidebar-tab-reports').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Reportes', level: 1 })).toBeVisible();
+    await expect.poll(() => stage.evaluate(node => node.scrollTop)).toBe(0);
+    await page.getByTestId('page-back').click();
+    await expect(page).toHaveURL(/#\/mas$/);
+    await expect.poll(() => stage.evaluate(node => node.scrollTop)).toBeCloseTo(moreTop, 0);
+
     for (const width of [320, 360]) {
       await page.setViewportSize({ width, height: 800 });
       await expectFits(page);

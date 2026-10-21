@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { expect, test, type Locator } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { mockCommissions } from './fixtures/commissions';
@@ -101,6 +102,7 @@ for (const width of [390, 1440]) {
       if (name === 'ayuda' && !mobile) expect(titleBox.x).toBe(284);
       await shot(name);
       if (name === 'ventas' && mobile) {
+        await expandListOptions(page);
         await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
         const check = await box(page.locator('.sale-node input[type=checkbox]').first());
         expect(check.x).toBeGreaterThanOrEqual(14);

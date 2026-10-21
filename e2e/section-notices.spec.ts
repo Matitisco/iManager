@@ -29,19 +29,19 @@ test('a sale highlights the sold phone in inventory and clears that section coun
   await page.getByRole('button', { name: 'Confirmar venta' }).click();
   await expect(dialog).toBeHidden();
 
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveText('1');
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveText('1');
   await openDeskSection(page, 'inventory');
   const row = page.getByRole('row').filter({ hasText: model });
   await expect(page.getByTestId('section-notices')).toContainText('1 novedad');
   await expect(row.getByTestId('notice-reason')).toHaveText('Vendido');
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
   await expect(row.getByTestId('notice-reason')).toHaveText('Vendido');
 
   await page.getByTestId('sidebar-tab-sales').click();
   await expect(sales).toBeVisible();
   await openDeskSection(page, 'inventory');
   await expect(page.getByRole('heading', { name: 'Inventario', exact: true })).toBeVisible();
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
   await expect(page.getByTestId('notice-reason')).toHaveCount(0);
 });
 
@@ -70,12 +70,12 @@ test.describe('phone', () => {
     await page.getByRole('button', { name: 'Confirmar venta' }).click();
     await expect(dialog).toBeHidden();
 
-    await expect(page.getByLabel('1 en Equipos')).toHaveText('1');
+    await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveText('1');
     await page.getByTestId('sidebar-tab-inventory').click();
     const list = page.getByTestId('phone-rows');
     await expect(page.getByTestId('section-notices')).toContainText('1 novedad');
     await expect(list.getByText(model, { exact: false })).toBeVisible();
     await expect(list.getByTestId('notice-reason')).toHaveText('Vendido');
-    await expect(page.getByLabel('1 en Equipos')).toHaveCount(0);
+    await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
   });
 });

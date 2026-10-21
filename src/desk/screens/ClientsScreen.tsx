@@ -1,3 +1,4 @@
+import { useNavigationState } from '../route-viewport';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { clientNet } from '../client-balance';
 import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
@@ -22,7 +23,7 @@ import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Client } from '../../types';
 import { fetchArchivedClients } from '../../services/clients-api';
 import { rememberArchivedClients } from '../archive-cache';
@@ -72,15 +73,15 @@ export function ClientsScreen() {
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('clients');
-  const [onlyNotices, setOnlyNotices] = useState(false);
-  const [query, setQuery] = useState('');
-  const [view, setView] = useState('lista');
-  const [filter, setFilter] = useState('Todos');
-  const [sort, setSort] = useState('Deudores');
-  const [columns, setColumns] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
+  const [onlyNotices, setOnlyNotices] = useNavigationState('Clients.onlyNotices', false);
+  const [query, setQuery] = useNavigationState('Clients.query', '');
+  const [view, setView] = useNavigationState('Clients.view', 'lista');
+  const [filter, setFilter] = useNavigationState('Clients.filter', 'Todos');
+  const [sort, setSort] = useNavigationState('Clients.sort', 'Deudores');
+  const [columns, setColumns] = useNavigationState<ClientColumnFilters>('Clients.columns', EMPTY_CLIENT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [archivedMode, setArchivedMode] = useState(false);
+  const [archivedMode, setArchivedMode] = useNavigationState('Clients.archivedMode', false);
   const [archivedClients, setArchivedClients] = useState<Client[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
@@ -112,7 +113,7 @@ export function ClientsScreen() {
   }, [clientSource, query, filter, columns]);
   const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
   const ordered = phone ? sortClients(listed, sort) : listed;
-  const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`);
+  const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`, undefined, 'Clients');
   const scope = useBulkScope();
   const selection = useBulkSelection(ordered, scope);
   const visibleKey = page.visible.map((client) => client.id).join('|');
@@ -125,8 +126,13 @@ export function ClientsScreen() {
     setFiltersOpen(true);
   };
 
+  const listOptions = <>
+    <ChipRow options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]} value={filter} onChange={setFilter} />
+    <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode(current => !current)}>Archivados</button>
+  </>;
+
   return (
-    <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+    <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Clientes"
         subtitle={`${clients.length === 1 ? '1 cliente' : `${clients.length} clientes`} · ${withBalance} con saldo`}
@@ -159,27 +165,16 @@ export function ClientsScreen() {
             onChange={setView}
           />
         </div>
-        {view === 'lista' ? <ChipRow
-          options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
-          value={filter}
-          onChange={setFilter}
-        /> : null}
-        {view === 'lista' ? <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button> : null}
-        {phone && view === 'lista' ? (
-          <MenuButton
-            testId="clients-sort"
-            label={sort === 'Deudores' ? 'Ordenar' : sort}
-            options={SORTS}
-            value={sort}
-            active={sort !== 'Deudores'}
-            onChange={setSort}
-          />
-        ) : null}
+        {view === 'lista' ? phone ? <MobileListOptions active={[filter !== 'Todos' ? 'Con saldo pendiente' : '', archivedMode ? 'Archivados' : '', sort !== 'Deudores' ? sort : ''].filter(Boolean).join(' · ')}>
+          {listOptions}
+          <MenuButton testId="clients-sort" label={sort === 'Deudores' ? 'Ordenar' : sort} options={SORTS} value={sort} active={sort !== 'Deudores'} onChange={setSort} />
+          <button className="dbtn s" type="button" disabled={ordered.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
+        </MobileListOptions> : listOptions : null}
       </div>
       {view === 'cuenta' ? <AccountCurrent query={query} /> : null}
       {view === 'seguimientos' ? <FollowUps query={query} /> : null}
       {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
-      {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
+      {view === 'lista' ? <BulkActions hideStart key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
@@ -286,7 +281,7 @@ export function ClientsScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       ) : null}
-      {view === 'lista' && phone && selection.selected.length === 0 ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
+      {view === 'lista' && phone && !selection.mode ? <MobileDock primary="Nuevo cliente" onPrimary={() => open({ type: 'new-cl' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'cl' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="cl-sheet">
           <div className="inv-filters">
