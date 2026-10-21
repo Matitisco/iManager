@@ -149,3 +149,32 @@ Validation after the correction:
 
 A new normal CI run is required for the corrected commit before merge. #447
 remains open until authenticated deployed QA; no production QA is claimed here.
+
+
+## CI geometry synchronization follow-up
+
+The PR workflow for `6944f2779bf7b83a2171e9f38995e65e354acdb2` completed
+successfully ([run 39625781474](https://github.com/Matitisco/iManager/actions/runs/39625781474)).
+It verified 1102 frontend tests, 516 backend unit tests, 322 backend integration
+tests and the configured PWA checks. E2E reported 295 passed, 2 flaky and 7
+existing skips; both initially failing cases passed the configured retry.
+
+One initial failure belongs to the new modal layout coverage: at 390px, the
+footer's vertical position changed by 0.770px between measurements because the
+sheet's opening translation was still running. A temporary synthetic diagnostic
+extended that real animation to 2 seconds and reproduced the unchanged 0.5px
+geometry assertion failing with a 1.564px movement. The test now awaits the
+sheet's actual animation completion before taking the first measurement. No
+assertion, tolerance, timeout, retry, skip or application behavior changed.
+
+The controlled slow-opening case then passed five consecutive repetitions with
+zero retries. This diagnostic adapter exists only under `/tmp`; the repository
+change is the explicit animation synchronization in the existing test. The other
+initial failure was `mobile-notifications.spec.ts:174` (an inventory unread
+counter). Its cause is unclassified; this report does not claim it predates
+#447, and its assertions were not modified.
+
+The full local synthetic matrix also passed 16/16 tests with zero retries after
+synchronization. Frontend/backend TypeScript and whitespace checks passed; no
+build was run. The synchronized test requires normal CI on its own commit
+before merge.

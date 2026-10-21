@@ -110,6 +110,8 @@ for (const viewport of [
       await entry.click();
       const detail = page.getByRole('dialog', { name: 'V-0447' });
       await expect(detail).toBeVisible();
+      // Compare scrolling only after the opening transform has stopped moving the footer.
+      await detail.evaluate(async node => { await Promise.all(node.getAnimations().map(animation => animation.finished)); });
       const body = detail.locator('.sheet-scroll');
       const footer = detail.locator('.sheet-foot');
       const menu = footer.locator('.sheet-action-menu');
