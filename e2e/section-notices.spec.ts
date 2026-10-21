@@ -1,5 +1,11 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
+
+// The quote is a fixture; sale persistence and section notices use the real API.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/commissions/exchange-rate', (route) => route.fulfill({ json: { exchangeRate: 1300 } }));
+});
 
 test('a sale highlights the sold phone in inventory and clears that section counter', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'section-notices');
@@ -23,19 +29,19 @@ test('a sale highlights the sold phone in inventory and clears that section coun
   await page.getByRole('button', { name: 'Confirmar venta' }).click();
   await expect(dialog).toBeHidden();
 
-  await expect(page.getByLabel('1 en Equipos')).toHaveText('1');
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveText('1');
+  await openDeskSection(page, 'inventory');
   const row = page.getByRole('row').filter({ hasText: model });
   await expect(page.getByTestId('section-notices')).toContainText('1 novedad');
   await expect(row.getByTestId('notice-reason')).toHaveText('Vendido');
-  await expect(page.getByLabel('1 en Equipos')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveCount(0);
   await expect(row.getByTestId('notice-reason')).toHaveText('Vendido');
 
   await page.getByTestId('sidebar-tab-sales').click();
   await expect(sales).toBeVisible();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByRole('heading', { name: 'Inventario', exact: true })).toBeVisible();
-  await expect(page.getByLabel('1 en Equipos')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').getByLabel('1 en Stock')).toHaveCount(0);
   await expect(page.getByTestId('notice-reason')).toHaveCount(0);
 });
 

@@ -299,7 +299,7 @@ export async function createInvitationViaApi(
 export async function importSalesViaApi(
   request: APIRequestContext,
   email: string,
-  rows: Array<{ date: string; clientName: string; device: string; amount: string; status: 'COMPLETADA' | 'PENDIENTE' }>,
+  rows: Array<{ date: string; clientName: string; device: string; amount: string; status: 'COMPLETADA' | 'PENDIENTE'; exchangeRate?: number }>,
 ) {
   const response = await request.post(`${DEFAULT_API_BASE_URL}/api/sales/import`, {
     headers: { ...authHeaders(email), 'Content-Type': 'application/json' },

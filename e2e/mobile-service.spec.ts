@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
   bootstrapStoreViaApi,
@@ -67,7 +68,7 @@ test.describe('desktop service stays on the board', () => {
     const email = buildTestEmail(testInfo, 'service-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Servicio desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('service-groups')).toHaveCount(0);
@@ -90,7 +91,7 @@ test.describe('desktop service stays on the board', () => {
       status: 'RECIBIDO',
     });
     await page.reload();
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await expect(page.getByTestId('repair-column-RECIBIDO')).toContainText('#OT-0001');
     await expect(page.getByTestId('repair-column-RECIBIDO')).toContainText('iPhone escritorio');
     await expect(page.locator('[data-testid^="repair-card-"]')).toHaveCount(1);

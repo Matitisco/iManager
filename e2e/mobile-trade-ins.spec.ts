@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
   bootstrapStoreViaApi,
@@ -68,7 +69,7 @@ test.describe('desktop trade-ins stays put', () => {
     const email = buildTestEmail(testInfo, 'tradeins-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Canjes desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-tradeins').click();
+    await openDeskSection(page, 'tradeins');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('tradeins-timeline')).toHaveCount(0);
@@ -91,7 +92,7 @@ test.describe('desktop trade-ins stays put', () => {
       takeValue: 1000,
     });
     await page.reload();
-    await page.getByTestId('sidebar-tab-tradeins').click();
+    await openDeskSection(page, 'tradeins');
     await expect(page.getByRole('columnheader', { name: /Canje/ })).toBeVisible();
     await expect(page.getByRole('cell', { name: /Recibido escritorio/ })).toBeVisible();
     await expect(page.getByTestId('tradeins-timeline')).toHaveCount(0);
@@ -120,7 +121,7 @@ test.describe('desktop trade-ins stays put', () => {
       takeValue: 800000,
     });
     await page.reload();
-    await page.getByTestId('sidebar-tab-tradeins').click();
+    await openDeskSection(page, 'tradeins');
     await expect(page.getByText('2 de 2')).toBeVisible();
 
     await page.getByRole('button', { name: 'Filtrar cliente' }).click();

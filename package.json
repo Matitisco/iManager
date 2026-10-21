@@ -40,15 +40,21 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.1.2",
+    "@vitest/coverage-v8": "^4.1.12",
     "jsdom": "^29.0.1",
     "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.8.2",
-    "vite": "^6.4.2",
-    "vitest": "^4.1.2"
+    "vite": "^6.4.4",
+    "vitest": "^4.1.12"
   },
   "overrides": {
-    "protobufjs": "7.5.5"
+    "protobufjs": "7.6.6",
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "~1.13.7"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   }
 }

@@ -31,6 +31,14 @@ async function session(page: Page) {
   await expect(page.locator('.desk-app')).toBeVisible();
 }
 
+async function openInventory(page: Page) {
+  // Desktop opens the Stock group; mobile retains the Equipos shortcut.
+  const stock = page.getByRole('button', { name: 'Stock', exact: true });
+  if (await stock.isVisible()) await stock.click();
+  else await page.getByRole('button', { name: 'Equipos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
+}
+
 test('iPhone Safari guide is delayed, fits the screen and stays dismissed after reload', async ({ page }, info) => {
   test.skip(info.project.name !== 'iphone-webkit', 'Safari installation guide');
   await page.clock.install();
@@ -146,7 +154,7 @@ test('Android retains its own install action after the legacy iOS guide and clos
 test('standalone dollar uses brand keyboard focus and no tap outline; captures real inventory for the manifest', async ({ page }, info) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await session(page);
-  await page.getByRole('button', { name: 'Equipos', exact: true }).click();
+  await openInventory(page);
   await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
   await expect(page.getByText(/iPhone 16 Pro/).first()).toBeVisible();
   const dollar = page.locator('.dolar-hit');
@@ -343,7 +351,7 @@ test('new worker activates after a hard reload with multiple controlled tabs ope
   const second = await context.newPage();
   await second.goto('/', { waitUntil: 'domcontentloaded' }); await controlled(second);
   // An open form keeps both clients alive while controllerchange occurs.
-  await page.getByRole('button', { name: 'Equipos', exact: true }).click();
+  await openInventory(page);
   await page.getByRole('button', { name: 'Registrar equipo', exact: true }).click();
   const before = await page.evaluate(() => caches.keys());
   const release = Number(await (await page.request.post('/__test__/deploy?mode=sw')).text());
