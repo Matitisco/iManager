@@ -21,6 +21,7 @@ import {
   compareInventoryColor,
   inventoryColorOptions,
   inventoryConditionOptions,
+  searchInventoryColors,
   matchesInventoryColumns,
   type InventoryColumnFilters,
 } from '../inventory-filters';
@@ -122,6 +123,7 @@ export function InventoryScreen() {
   const phone = usePhoneLayout();
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [colorQuery, setColorQuery] = useState('');
   const [draftFilters, setDraftFilters] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const notices = useSectionNotices('inventory');
   const [onlyNotices, setOnlyNotices] = useState(false);
@@ -195,6 +197,7 @@ export function InventoryScreen() {
     () => inventoryColorOptions(inventory.map((item) => item.color)),
     [inventory],
   );
+  const visibleColorOptions = searchInventoryColors(colorOptions, colorQuery);
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const toggleStatus = (id: string) => setColumns((current) => {
     if (id === 'PARA_COMPLETAR') return { ...current, needsCompletion: !current.needsCompletion };
@@ -214,6 +217,7 @@ export function InventoryScreen() {
   const quietEmpty = inventory.length === 0 && !query.trim() && !columnFiltersActive(columns) && !onlyNotices;
   const openFilters = () => {
     setDraftFilters(columns);
+    setColorQuery('');
     setFiltersOpen(true);
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
@@ -465,6 +469,8 @@ export function InventoryScreen() {
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
           <div className="inv-filters">
+            <p className="inv-filter-count" role="status">{activeColumnCount(draftFilters)} {activeColumnCount(draftFilters) === 1 ? 'filtro seleccionado' : 'filtros seleccionados'}</p>
+            <p className="mut">Los cambios, incluso Limpiar filtros, se confirman con Aplicar filtros.</p>
             <p className="sec">Para completar</p>
             <div className="inv-checks">
               <label className="chk">
@@ -473,7 +479,7 @@ export function InventoryScreen() {
                   checked={draftFilters.needsCompletion}
                   onChange={(event) => setDraftFilters((current) => ({ ...current, needsCompletion: event.target.checked }))}
                 />
-                Solo equipos para completar
+                <span>Solo equipos para completar</span>
               </label>
             </div>
             <p className="sec">Estado</p>
@@ -488,7 +494,7 @@ export function InventoryScreen() {
                       statuses: withStatus(current.statuses, option.id, event.target.checked),
                     }))}
                   />
-                  {option.label}
+                  <span>{option.label}</span>
                 </label>
               ))}
             </div>
@@ -504,28 +510,10 @@ export function InventoryScreen() {
                       conditions: withStatus(current.conditions, option.id, event.target.checked),
                     }))}
                   />
-                  {option.label}
+                  <span>{option.label}</span>
                 </label>
               ))}
             </div>
-            <p className="sec">Color</p>
-            {colorOptions.length === 0 ? <p className="mut">Todavía no hay colores en el stock.</p> : (
-              <div className="inv-checks">
-                {colorOptions.map((label) => (
-                  <label key={label} className="chk">
-                    <input
-                      type="checkbox"
-                      checked={draftFilters.colors.includes(label)}
-                      onChange={(event) => setDraftFilters((current) => ({
-                        ...current,
-                        colors: withStatus(current.colors, label, event.target.checked),
-                      }))}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            )}
             <p className="sec">Calidad</p>
             <div className="inv-checks">
               {DEVICE_QUALITIES.map((item) => (
@@ -540,14 +528,14 @@ export function InventoryScreen() {
                         : current.qualities.filter((grade) => grade !== item.value),
                     }))}
                   />
-                  {item.value} · {item.name}
+                  <span>{item.value} · {item.name}</span>
                 </label>
               ))}
             </div>
             <p className="sec">Batería</p>
             <div className="inv-opts">
               {BATTERY_FILTERS.map((option) => (
-                <button key={option.label} className={`wchip${draftFilters.battery === option.id ? ' on' : ''}`} type="button" onClick={() => setDraftFilters((current) => ({ ...current, battery: option.id }))}>{option.label}</button>
+                <button key={option.label} className={`wchip${draftFilters.battery === option.id ? ' on' : ''}`} type="button" aria-pressed={draftFilters.battery === option.id} onClick={() => setDraftFilters((current) => ({ ...current, battery: option.id }))}>{option.label}</button>
               ))}
             </div>
             <p className="sec">Precio</p>
@@ -559,6 +547,32 @@ export function InventoryScreen() {
                 <MoneyFilterInput label="Máximo" value={draftFilters.priceMax} onChange={(digits) => setDraftFilters((current) => ({ ...current, priceMax: digits }))} />
               </Field>
             </div>
+            <details className="inv-colors" open={colorOptions.length <= 6}>
+              <summary>Color · {draftFilters.colors.length} {draftFilters.colors.length === 1 ? 'seleccionado' : 'seleccionados'}</summary>
+              {colorOptions.length === 0 ? <p className="mut">Todavía no hay colores en el stock.</p> : (
+                <>
+                  <Field label="Buscar color">
+                    <input type="search" value={colorQuery} placeholder="Nombre del color" onChange={(event) => setColorQuery(event.target.value)} />
+                  </Field>
+                  <div className="inv-checks">
+                    {visibleColorOptions.map((label) => (
+                      <label key={label} className="chk">
+                        <input
+                          type="checkbox"
+                          checked={draftFilters.colors.includes(label)}
+                          onChange={(event) => setDraftFilters((current) => ({
+                            ...current,
+                            colors: withStatus(current.colors, label, event.target.checked),
+                          }))}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {visibleColorOptions.length === 0 ? <p className="mut" role="status">No hay colores con esa búsqueda. Probá otro nombre.</p> : null}
+                </>
+              )}
+            </details>
           </div>
           <Actions
             secondary="Limpiar filtros"

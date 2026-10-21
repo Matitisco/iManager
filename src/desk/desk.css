@@ -232,8 +232,18 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-filters .sec { margin-top: 4px; }
 .inv-filters .mut { margin: 0 0 12px; }
 .inv-checks { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
-.inv-checks .chk { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 14px; font-weight: 700; }
+.inv-filter-sheet .inv-checks .chk { display: flex; align-items: center; gap: 8px; width: 100%; height: auto; min-width: 0; min-height: 44px; padding: 8px 0; font-size: 14px; font-weight: 700; line-height: 1.4; cursor: pointer; }
+.inv-filter-sheet .inv-checks .chk span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .inv-checks .chk input { width: 16px; height: 16px; accent-color: var(--primary); flex: none; }
+.inv-filter-count { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
+.inv-filter-sheet .inv-opts .wchip { min-height: 44px; }
+.inv-colors { margin-top: 18px; border-top: 1px solid var(--border); }
+.inv-colors summary { min-height: 48px; padding: 14px 0; font-size: 14px; font-weight: 700; cursor: pointer; overflow-wrap: anywhere; }
+.inv-colors summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.inv-filter-sheet input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .inv-filter-sheet .fl input { font-size: 16px; min-height: 44px; }
+}
 .inv-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; max-width: 100%; }
 .inv-range { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; max-width: 100%; }
 .rslot { position: relative; display: inline-flex; }

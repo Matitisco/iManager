@@ -660,6 +660,85 @@ describe('Inventory phone list', () => {
   });
 });
 
+describe('Inventory filter panel draft and color search', () => {
+  beforeEach(() => {
+    usePhone();
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    context.operationNotifications = [];
+    context.inventory = [
+      item('1', { model: 'Histórico', color: 'Azul océano / Plata', status: 'EN_REVISION' }),
+      item('2', { model: 'Otra variante', color: 'AZUL OCEANO / PLATA' }),
+      ...['Negro', 'Verde', 'Rojo', 'Rosa', 'Dorado', 'Blanco'].map((color, i) => item(String(i + 3), { color })),
+    ];
+  });
+
+  it('folds long color lists after price and preserves selections through searches with no matches', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    const colors = sheet.querySelector('details')!;
+    expect(colors).not.toHaveAttribute('open');
+    expect(sheet.querySelector('.inv-range')!.compareDocumentPosition(colors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(within(sheet).getByText('Color · 0 seleccionados'));
+    const search = within(sheet).getByRole('searchbox', { name: 'Buscar color' });
+    await user.type(search, 'oceano');
+    const historical = within(sheet).getByRole('checkbox', { name: 'Azul océano / Plata' });
+    await user.click(historical.closest('label')!);
+    expect(historical).toBeChecked();
+    expect(within(sheet).getByRole('checkbox', { name: 'AZUL OCEANO / PLATA' })).not.toBeChecked();
+    await user.clear(search);
+    await user.type(search, 'sin coincidencias');
+    expect(within(sheet).getByText('No hay colores con esa búsqueda. Probá otro nombre.')).toBeInTheDocument();
+    expect(within(sheet).getByText('Color · 1 seleccionado')).toBeInTheDocument();
+    expect(within(sheet).getByText('1 filtro seleccionado')).toBeInTheDocument();
+    await user.clear(search);
+    expect(within(sheet).getByRole('checkbox', { name: 'Azul océano / Plata' })).toBeChecked();
+    expect(colors.querySelectorAll('input[type="checkbox"]')).toHaveLength(8);
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 8');
+    expect(screen.getByText('Histórico · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Otra variante · 128 GB')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    const reopened = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(reopened).getByText('Color · 1 seleccionado'));
+    expect(within(reopened).getByRole('searchbox', { name: 'Buscar color' })).toHaveValue('');
+    expect(within(reopened).getByRole('checkbox', { name: 'Azul océano / Plata' })).toBeChecked();
+  });
+
+  it.each(['Cerrar', 'Escape', 'fondo'])('discards unconfirmed edits and clearing when closing by %s', async (method) => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    let sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('checkbox', { name: 'En revisión' }).closest('label')!);
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 8');
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    await user.click(within(sheet).getByRole('button', { name: 'Limpiar filtros' }));
+    expect(within(sheet).getByText('0 filtros seleccionados')).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' }).closest('label')!);
+    await user.click(within(sheet).getByRole('button', { name: '≥ 90%' }));
+    await user.type(within(sheet).getByRole('textbox', { name: 'Máximo' }), '5000');
+    if (method === 'Escape') await user.keyboard('{Escape}');
+    else if (method === 'fondo') await user.click(sheet.parentElement!);
+    else await user.click(within(sheet).getByRole('button', { name: 'Cerrar' }));
+    expect(screen.queryByRole('dialog', { name: 'Filtros' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 8');
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    sheet = screen.getByRole('dialog', { name: 'Filtros' });
+    expect(within(sheet).getByRole('checkbox', { name: 'En revisión' })).toBeChecked();
+    expect(within(sheet).getByRole('checkbox', { name: 'Solo equipos para completar' })).not.toBeChecked();
+    expect(within(sheet).getByRole('textbox', { name: 'Máximo' })).toHaveValue('');
+    expect(within(sheet).getByRole('button', { name: '≥ 90%' })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(within(sheet).getByRole('button', { name: 'Limpiar filtros' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('8 de 8');
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+});
+
 describe('Inventory para completar', () => {
   beforeEach(() => {
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({

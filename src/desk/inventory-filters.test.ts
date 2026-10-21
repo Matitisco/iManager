@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, compareInventoryColor, inventoryColorOptions, inventoryConditionOptions, matchesInventoryColor, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, type InventoryColumnFilters } from './inventory-filters';
+import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, compareInventoryColor, inventoryColorOptions, inventoryConditionOptions, matchesInventoryColor, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, searchInventoryColors, type InventoryColumnFilters } from './inventory-filters';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -24,6 +24,14 @@ function filters(overrides: Partial<InventoryColumnFilters> = {}): InventoryColu
 }
 
 describe('inventory column filters', () => {
+  it('searches compound and historical colors without changing their exact filter values', () => {
+    const colors = inventoryColorOptions(['Azul océano', 'AZUL OCEANO', 'Azul / Plata', 'Negro', 'Azul océano']);
+    expect(searchInventoryColors(colors, '  OCEANO ')).toEqual(['Azul océano', 'AZUL OCEANO']);
+    expect(searchInventoryColors(colors, '/ plata')).toEqual(['Azul / Plata']);
+    expect(searchInventoryColors(colors, 'inexistente')).toEqual([]);
+    expect(searchInventoryColors(colors, '  ')).toEqual(colors);
+    expect(matchesInventoryColor('AZUL OCEANO', ['Azul océano'])).toBe(false);
+  });
   it('matches the visible equipment text, condition label, battery floor and price range together', () => {
     const item = product();
     expect(matchesInventoryColumns(item, EMPTY_COLUMN_FILTERS)).toBe(true);
