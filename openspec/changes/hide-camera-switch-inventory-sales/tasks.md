@@ -2,7 +2,7 @@
 
 - [x] Add a default-enabled camera-switch option to the shared scanner and apply it to Inventory and Sales entry points only.
 - [x] Preserve other scanner contexts and existing scan behavior.
-- [x] Add unit and E2E regressions for multiple-camera Inventory/Sales flows and an unaffected flow.
+- [x] Add unit and E2E regressions for multiple-camera Inventory/Sales flows, rescanning, and an unaffected flow.
 
 ## Backend
 
@@ -14,3 +14,5 @@
 - [x] Capture synthetic screenshots for Inventory and Sales scanners and attach them to the pull request.
 - [x] Review the diff and leave the pull request open for Sol's review; do not merge or close #455.
 - [ ] After Sol review, CI, merge, and confirmed deploy, verify the deployed UI in a browser at desktop and mobile sizes using read-only navigation; save evidence and close #455 manually only after the check passes. Report any unavailable authenticated session as a blocker.
+
+Post-deploy QA access is currently blocked: the deployed app shows login and neither browser environment has an authorized authenticated session. Synthetic local checks do not satisfy this gate.

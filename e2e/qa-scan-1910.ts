@@ -270,6 +270,13 @@ export function registerScanQa(width: 390 | 1440) {
 
     const review = page.getByRole('dialog', { name: 'Revisá el equipo' });
     await expect(review.getByText('iPhone 13 · 128GB')).toBeVisible();
+    await clearBarcode(page);
+    await review.getByRole('button', { name: 'Escanear otro' }).click();
+    await expect(viewer).toBeVisible();
+    await expect(viewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
+    await useBarcode(page, 'box', { torch: true });
+    await expect(viewer.getByText('IMEI leído')).toBeVisible({ timeout: 15_000 });
+    await viewer.getByRole('button', { name: 'Usar' }).click();
     await expect(review.getByText('Medianoche')).toBeVisible();
     await expect(review.getByText('MLPF3LE/A')).toBeVisible();
     await expect(review.getByText('detectado', { exact: true })).toBeVisible();
@@ -481,6 +488,14 @@ export function registerScanQa(width: 390 | 1440) {
     if (phone) await shoot(page, 'venta-390');
     await sale.getByRole('button', { name: '+ Registrar equipo' }).click();
     const review = page.getByRole('dialog', { name: 'Revisá el equipo' });
+    await useMultipleRearCameras(page);
+    await clearBarcode(page);
+    await review.getByRole('button', { name: 'Escanear otro' }).click();
+    const reviewViewer = page.getByTestId('scan-viewer');
+    await expect(reviewViewer).toBeVisible();
+    await expect(reviewViewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
+    await reviewViewer.getByRole('button', { name: 'Cerrar' }).click();
+    await expect(review).toBeVisible();
     await review.getByRole('button', { name: 'iPhone 13' }).click();
     await review.getByLabel('Precio de venta').fill('250000');
     await review.getByRole('button', { name: 'Guardar equipo' }).click();
