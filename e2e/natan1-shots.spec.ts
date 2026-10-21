@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { acceptInvitationViaApi, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, createInvitationViaApi, importSalesViaApi } from './utils';
@@ -19,13 +20,15 @@ test('captures archive, history and void screens', async ({ page, request }, tes
     batteryHealth: '84%',
     price: 560000,
   });
-  await importSalesViaApi(request, email, [{
+  const imported = await importSalesViaApi(request, email, [{
     date: '18/10/2026',
     clientName: 'Martín Acosta',
     device: 'iPhone 14 128GB',
     amount: '760000',
     status: 'COMPLETADA',
+    exchangeRate: 1300,
   }]);
+  expect(imported).toMatchObject({ imported: 1, errors: [] });
   const invitation = await createInvitationViaApi(request, email, 'MANAGER', 'lucia.gomez@example.com');
   await acceptInvitationViaApi(request, 'lucia.gomez@example.com', invitation.token);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -38,7 +41,7 @@ test('captures archive, history and void screens', async ({ page, request }, tes
   await expect(page.getByText('iPhone 13')).toHaveCount(0);
   await expect(page.locator('.toast.show')).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-history').click();
+  await openDeskSection(page, 'history');
   await expect(page.getByRole('heading', { name: 'Historial' })).toBeVisible();
   await expect(page.getByText(/archivó/i).first()).toBeVisible();
   await page.screenshot({ path: `${shots}/natan1-historial-1440.png`, animations: 'disabled' });

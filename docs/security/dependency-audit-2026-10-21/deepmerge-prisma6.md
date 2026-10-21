@@ -54,4 +54,4 @@ La recomendación es conservar este override acotado con su regresión automáti
 
 ## CI revisado
 
-El run [39540191740](https://github.com/Matitisco/iManager/actions/runs/39540191740), correspondiente al primer commit `cca8287` del PR #446, seguía en curso al revisar: instalaciones, PostgreSQL, ambos lints, frontend y PWA assets aprobados; PWA navegador en progreso. No se declara CI verde ni se confunde esa ejecución con la del commit que incorpora este override. La actualización del PR debe completar su propio CI.
+La revisión con override `00158bf` aprobó generación/instalación, TypeScript, 516 unitarias y 322 integraciones en ambos CI. Los runs finales fallaron en cinco E2E con selectores de navegación preexistentes. La evidencia y la corrección acotada de pruebas están en [el informe general](README.md#seguimiento-de-ci-y-selectores-preexistentes). Cada nueva revisión debe completar su propio CI antes del merge; no se declara verde una ejecución anterior ni una pendiente.

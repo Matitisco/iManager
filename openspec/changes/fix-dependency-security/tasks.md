@@ -10,3 +10,6 @@
 - [x] Reproducir advisory deepmerge-ts y validar override 8.0.2 acotado a Prisma config 6.19.3.
 - [x] Validar generación sin/con config, reinstalación, 516 unitarias, 322 integraciones y auditoría 0/0.
 - [x] Revisar CI remoto y distinguir ejecución pendiente de validación local.
+
+- [x] Diagnosticar los cinco fallos preexistentes de CI, adaptar selectores/fixtures con autorización posterior y validar 6/6 E2E sin retries.
+- [ ] Completar CI de la revisión con corrección de tests; integrar solo con checks y revisión aprobados.
