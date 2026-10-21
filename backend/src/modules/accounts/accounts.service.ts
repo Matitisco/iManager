@@ -2,6 +2,7 @@ import { recordCash } from '../cash/service.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../plugins/prisma.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { storeCurrency } from "../../lib/money-currency.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
@@ -65,8 +66,8 @@ function lineTone(openedAt: string, today: string): { days: number; tone: Tone }
   return { days, tone: balanceTone(days) };
 }
 
-async function storeClock(storeId: string) {
-  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true, currency: true, name: true } });
+async function storeClock(storeId: string, db: Prisma.TransactionClient = prisma) {
+  const store = await db.store.findUnique({ where: { id: storeId }, select: { timezone: true, currency: true, name: true } });
   const timeZone = store?.timezone || "America/Argentina/Buenos_Aires";
   return { timeZone, today: ymd(new Date(), timeZone), currency: store?.currency || "ARS", name: store?.name || "la tienda" };
 }
@@ -223,8 +224,8 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
   return debtors.sort((left, right) => right.days - left.days || right.pendingBalance - left.pendingBalance || left.name.localeCompare(right.name, "es"));
 }
 
-async function currencyFor(storeId: string, client: { balanceCurrency: string | null; pendingBalance: Decimal }, requested?: string | null) {
-  const store = await storeCurrency(storeId, prisma);
+async function currencyFor(tx: Prisma.TransactionClient, storeId: string, client: { balanceCurrency: string | null; pendingBalance: Decimal }, requested?: string | null) {
+  const store = await storeCurrency(storeId, tx);
   const next = requested === "ARS" || requested === "USD" ? requested : client.balanceCurrency ?? store;
   if (client.balanceCurrency && client.balanceCurrency !== next && num(client.pendingBalance) !== 0) {
     throw new DomainError(`El cliente tiene saldos en ${client.balanceCurrency}. Registrá el movimiento en esa moneda`, 409);
@@ -239,10 +240,10 @@ export async function addMovement(
   actor?: Actor,
 ) {
   if (!(input.amount > 0)) throw new DomainError("El monto tiene que ser mayor a cero");
-  return prisma.$transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
     const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
     if (!client) throw new DomainError("Cliente no encontrado", 404);
-    const currency = await currencyFor(storeId, client, input.currency);
+    const currency = await currencyFor(tx, storeId, client, input.currency);
     const amount = dec(input.amount);
     const note = input.note?.trim().slice(0, 200) || null;
     let sale: { id: string; status: string; openBalance: Decimal | null; amount: Decimal; depositAppliedAmount: Decimal; clientId: string | null } | null = null;
@@ -283,11 +284,11 @@ export async function collectAccount(
   if (!(input.amount > 0)) throw new DomainError("El monto tiene que ser mayor a cero");
   if (!input.method.trim()) throw new DomainError("Elegí el medio de pago");
   if (!input.saleId && !input.repairId) throw new DomainError("Elegí la venta o la reparación");
-  const clock = await storeClock(storeId);
-  return prisma.$transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
+    const clock = await storeClock(storeId, tx);
     const client = await tx.client.findFirst({ where: { id: input.clientId, storeId } });
     if (!client) throw new DomainError("Cliente no encontrado", 404);
-    const currency = await currencyFor(storeId, client, input.currency);
+    const currency = await currencyFor(tx, storeId, client, input.currency);
     const amount = dec(input.amount);
     if (input.repairId) {
       const repair = await tx.repairOrder.findFirst({ where: { id: input.repairId, storeId, clientId: client.id } });

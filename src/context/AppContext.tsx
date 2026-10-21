@@ -9,12 +9,11 @@ import { usePublicCatalogState } from './public-catalog-state';
 import { depositLoadIsCurrent, depositLoadTicket, noteDepositMutation } from './deposit-cache';
 import { fetchClientDeposits, createClientDeposit, cancelClientDeposit, applyClientDepositToRepair, type DepositInput } from '../services/deposits-api';
 import type { ClientDeposit } from '../types';
-import { beginListWrite, snapshotIsCurrent } from './record-generation';
 import { toUserMessage } from '../lib/user-message';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Sale, TradeIn, Client, CustomColumn, ClientCategory, RepairOrder } from '../types';
 import { fetchBackendSession } from '../services/backend-session';
-import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment } from '../services/clients-api';
+import { createBackendClient, deleteBackendClient, fetchBackendClients, updateBackendClient, registerBackendClientPayment, type ClientPatch } from '../services/clients-api';
 import { createBackendInventoryItem, deleteBackendInventoryItem, fetchBackendInventory, updateBackendInventoryItem } from '../services/inventory-api';
 import { deleteBackendSale, fetchBackendSales, updateBackendSale } from '../services/sales-api';
 import { deleteBackendTradeIn, fetchBackendTradeIns, updateBackendTradeIn } from '../services/trade-ins-api';
@@ -76,7 +75,7 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string, reason?: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
-  updateClient: (client: Client) => Promise<void>;
+  updateClient: (client: ClientPatch) => Promise<void>;
   registerClientPayment: (clientId: string, input: { amount: number; method: string; currency?: string | null }) => Promise<Client>;
   deleteClient: (id: string, reason?: string) => Promise<void>;
   updateTradeIn: (tradeIn: TradeIn) => Promise<OperationResult | void>;
@@ -143,8 +142,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
-    recordsGeneration,
+    recordsGeneration, pendingWrites, initialReads, beginRead, refreshLists,
   } = useStoreRecords({ user, appSession, backendStatus });
+
+  const writes = React.useRef({ scope: currentScope, count: 0, overlapped: false, active: new Map<string, number>() });
+  const recordVersions = React.useRef(new Map<string, number>());
+  const beginRecordWrite = (resource: string, id: string) => {
+    const key = `${currentScope}:${resource}:${id}`;
+    const version = (recordVersions.current.get(key) ?? 0) + 1;
+    recordVersions.current.set(key, version);
+    return () => scopeRef.current === currentScope && recordVersions.current.get(key) === version;
+  };
+  const withListWrite = <Args extends unknown[], Result,>(write: (...args: Args) => Promise<Result>, recordKey: (...args: Args) => string = () => '*') => async (...args: Args): Promise<Result> => {
+    if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir el formulario.');
+    if (writes.current.scope !== currentScope) writes.current = { scope: currentScope, count: 0, overlapped: false, active: new Map() };
+    const group = writes.current;
+    const key = recordKey(...args);
+    group.overlapped ||= initialReads.current > 0 || (group.count > 0 && (key === '*' || group.active.has('*') || group.active.has(key)));
+    group.active.set(key, (group.active.get(key) ?? 0) + 1);
+    group.count += 1;
+    pendingWrites.current += 1;
+    noteLocalMutation();
+    try {
+      return await write(...args);
+    } finally {
+      group.count -= 1;
+      const remaining = (group.active.get(key) ?? 1) - 1;
+      if (remaining) group.active.set(key, remaining);
+      else group.active.delete(key);
+      if (scopeRef.current === currentScope) {
+        pendingWrites.current -= 1;
+        noteLocalMutation();
+        // Reconcile overlapping writes and initial reads interrupted by a write.
+        // Include shared client balances and records omitted from a discarded initial list.
+        if (group.count === 0 && group.overlapped) {
+          group.overlapped = false;
+          await refreshLists();
+        }
+      }
+    }
+  };
 
   const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
@@ -169,8 +206,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   const loadClientDeposits = async (clientId: string) => {
     const ticket = depositLoadTicket(depositGenerations.current, clientId);
+    const current = beginRead(`deposits:${clientId}`);
     const rows = await fetchClientDeposits(requireDeposits(), clientId);
-    if (scopeRef.current === currentScope && depositLoadIsCurrent(depositGenerations.current, clientId, ticket)) {
+    if (current() && scopeRef.current === currentScope && depositLoadIsCurrent(depositGenerations.current, clientId, ticket)) {
       setDepositState(old => ({ scope: currentScope, rows: { ...(old.scope === currentScope ? old.rows : {}), [clientId]: rows } }));
       rememberCredit(clientId, rows);
     }
@@ -213,6 +251,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
+    if (scopeRef.current !== currentScope) return { status, session, message };
     setBackendStatus(status);
     setAppSession(session);
     setBackendMessage(message);
@@ -350,6 +389,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateStore = async (data: StoreUpdateInput) => {
     if (!user) throw new Error('No authenticated user');
     const updatedStore = await updateStoreApi(user, data);
+    if (scopeRef.current !== currentScope) return;
     setAppSession(prev => prev ? {
       ...prev,
       store: { ...updatedStore, ownerDisplayName: prev.store?.id === updatedStore.id ? prev.store.ownerDisplayName : undefined },
@@ -360,6 +400,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateUserProfile = async (data: { displayName: string }) => {
     if (!user) throw new Error('No authenticated user');
     const updatedUser = await updateUserProfileApi(user, data);
+    if (scopeRef.current !== currentScope) return;
     setAppSession(prev => prev ? { ...prev, user: updatedUser } : prev);
   };
 
@@ -387,6 +428,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const session = await completeBackendOnboarding(user, input);
+    if (scopeRef.current !== currentScope) return;
     // Contact details can be completed later from settings.
     setBackendStatus('ready');
     setSessionConfirmed(true);
@@ -397,8 +439,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const reloadSession = async () => {
     if (!user) return;
-    const { status, session } = await refreshBackendSession(user);
-    if (status === 'ready' && session) setAppSession(session);
+    await refreshBackendSession(user);
   };
 
   const acceptStoreInvitation = async (token: string) => {
@@ -407,6 +448,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const data = await acceptInvitationApi(user, token);
+    if (scopeRef.current !== currentScope) return;
     setBackendStatus('ready');
     setSessionConfirmed(true);
     setBackendMessage(null);
@@ -464,11 +506,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshNotifications = async () => {
     const currentUser = requireNotificationAccess();
     const requestScope = currentScope;
+    const current = beginRead('notifications');
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
       const { notifications } = await fetchNotifications(currentUser);
-      if (scopeRef.current !== requestScope || !canAccess('notifications')) return;
+      if (!current() || scopeRef.current !== requestScope || !canAccess('notifications')) return;
       setOperationNotifications(notifications.filter((notification) => {
         return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
           && canAccess(notification.section as OperationSource);
@@ -512,8 +555,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadOperationOptions = async (source: OperationSource) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
+    const current = beginRead(`options:${source}`);
     const options = await fetchOperationOptions(currentUser, source);
-    if (scopeRef.current === requestScope && canAccess(source)) {
+    if (current() && scopeRef.current === requestScope && canAccess(source)) {
       setOperationOptions((current) => ({ ...current, [source]: options }));
     }
     return options;
@@ -522,19 +566,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadOperationDrafts = async (source: OperationSource) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
+    const current = beginRead('drafts');
     const { tradeIns: drafts } = await fetchOperationDrafts(currentUser, source);
-    if (scopeRef.current === requestScope && canAccess(source)) setOperationDrafts(drafts);
+    if (current() && scopeRef.current === requestScope && canAccess(source)) setOperationDrafts(drafts);
     return drafts;
   };
 
-  const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>, mutate = false) => {
+  const runOperation = async (source: OperationSource, call: (currentUser: AuthUserLike) => Promise<OperationResult>, mutate = false, readKey = source as string) => {
     const currentUser = requireOperationSource(source);
     const requestScope = currentScope;
-    const seen = recordsGeneration.current;
+    const current = mutate ? () => true : beginRead(`operation:${readKey}`);
     if (mutate) recordsGeneration.current += 1;
     const result = await call(currentUser);
     if (scopeRef.current === requestScope && canAccess(source)) {
-      if (mutate || snapshotIsCurrent(seen, recordsGeneration.current)) applyOperationResult(result, requestScope);
+      if (current()) applyOperationResult(result, requestScope);
       if (mutate) {
         noteLocalMutation();
         // Invalidate receipts after consumption/restoration; the next sheet loads authoritative state.
@@ -565,9 +610,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const runCancelTradeOperation = (source: OperationSource, id: string) =>
     runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id), true);
   const runFetchSaleOperation = (id: string) =>
-    runOperation('sales', (currentUser) => fetchSaleOperation(currentUser, id));
+    runOperation('sales', (currentUser) => fetchSaleOperation(currentUser, id), false, `sale:${id}`);
   const runFetchTradeOperation = (source: OperationSource, id: string) =>
-    runOperation(source, (currentUser) => fetchTradeOperation(currentUser, source, id));
+    runOperation(source, (currentUser) => fetchTradeOperation(currentUser, source, id), false, `trade:${id}`);
 
   const updateSale = async (updatedSale: Sale) => {
     if (!user) return;
@@ -667,36 +712,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateRepairOrder = async (id: string, input: Partial<RepairOrderInput>) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const current = beginRecordWrite('repair', id);
     const result = await updateBackendRepair(user, id, input);
-    setRepairOrders((current) => current.map((item) => item.id === id ? result.order : item));
-    rememberClient(result.client);
-    noteLocalMutation();
+    if (current()) {
+      setRepairOrders((current) => current.map((item) => item.id === id ? result.order : item));
+      rememberClient(result.client);
+      noteLocalMutation();
+    }
     return result.order;
   };
 
   const changeRepairStatus = async (id: string, status: string) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const current = beginRecordWrite('repair', id);
     const order = await changeBackendRepairStatus(user, id, status);
-    setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
-    noteLocalMutation();
+    if (current()) {
+      setRepairOrders((current) => current.map((item) => item.id === id ? order : item));
+      noteLocalMutation();
+    }
     return order;
   };
 
   const deleteRepairOrder = async (id: string, reason?: string) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const current = beginRecordWrite('repair', id);
     await deleteBackendRepair(user, id, reason);
-    setRepairOrders((current) => current.filter((item) => item.id !== id));
-    noteLocalMutation();
+    if (current()) {
+      setRepairOrders((current) => current.filter((item) => item.id !== id));
+      noteLocalMutation();
+    }
   };
 
   const restoreRepairOrder = async (id: string) => {
     if (!user) throw new Error('No hay sesión');
     if (!loadRepairsEnabled) throw new Error(backendMessage || 'El backend todavía no está listo para guardar órdenes de servicio.');
+    const current = beginRecordWrite('repair', id);
     const order = await restoreBackendRepair(user, id);
-    setRepairOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
-    noteLocalMutation();
+    if (current()) {
+      setRepairOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
+      noteLocalMutation();
+    }
   };
 
   const addProduct = async (productData: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => {
@@ -715,8 +772,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
+    const current = beginRecordWrite('inventory', updatedProduct.id);
     const visibleUpdate = canAccess('reports') ? updatedProduct : withoutStoredCost(updatedProduct);
-    let previousItem: Product | undefined;
+    let previousItem = inventory.find(product => product.id === visibleUpdate.id);
     setInventory(prev => {
       previousItem = prev.find(p => p.id === visibleUpdate.id);
       return prev.map(product => product.id === visibleUpdate.id ? visibleUpdate : product);
@@ -728,13 +786,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
       const backendProduct = visibleInventory([await updateBackendInventoryItem(user, updatedProduct)], canAccess('reports'))[0];
-      setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
+      if (current()) setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
       noteLocalMutation();
       if (backendProduct.status === 'VENDIDO' && previousItem?.status !== 'VENDIDO' && canAccess('notifications')) {
         void refreshNotifications().catch(() => undefined);
       }
     } catch (error) {
-      if (previousItem) {
+      if (previousItem && current()) {
         setInventory(prev => prev.map(product => product.id === updatedProduct.id ? previousItem! : product));
       }
       throw error;
@@ -748,43 +806,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para eliminar inventario. Reintenta en unos segundos.'
       );
     }
+    const current = beginRecordWrite('inventory', id);
     await deleteBackendInventoryItem(user, id, reason);
-    setInventory(prev => prev.filter(product => product.id !== id));
-    noteLocalMutation();
+    if (current()) {
+      setInventory(prev => prev.filter(product => product.id !== id));
+      noteLocalMutation();
+    }
   };
 
   const reloadInventory = async () => {
     if (!user) return;
+    const current = beginRead('inventory');
     const items = await fetchBackendInventory(user);
+    if (!current()) return;
     setInventory(visibleInventory(items, canAccess('reports')));
-    noteLocalMutation();
   };
 
   const reloadSales = async () => {
     if (!user) return;
-    recordsGeneration.current += 1;
-    const seen = recordsGeneration.current;
+    const current = beginRead('sales');
     const items = await fetchBackendSales(user);
-    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
+    if (!current()) return;
     setSales(items);
-    noteLocalMutation();
   };
 
   const reloadClients = async () => {
     if (!user) return;
-    recordsGeneration.current += 1;
-    const seen = recordsGeneration.current;
+    const current = beginRead('clients');
     const items = await fetchBackendClients(user);
-    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
+    if (!current()) return;
     setClients(items);
-    noteLocalMutation();
   };
 
   const reloadTradeIns = async () => {
     if (!user) return;
+    const current = beginRead('tradeIns');
     const items = await fetchBackendTradeIns(user);
+    if (!current()) return;
     setTradeIns(items);
-    noteLocalMutation();
   };
 
   const addClient = async (clientData: Omit<Client, 'id'>) => {
@@ -802,18 +861,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return createdClient;
   };
 
-  const updateClient = async (updatedClient: Client) => {
+  const updateClient = async (updatedClient: ClientPatch) => {
     if (!user) return;
     if (!backendClientsEnabled) {
       throw new Error(
         backendMessage || 'El backend todavia no esta listo para actualizar clientes. Reintenta en unos segundos.'
       );
     }
-    const seen = beginListWrite(recordsGeneration);
+    const current = beginRecordWrite('client', updatedClient.id);
     const backendClient = await updateBackendClient(user, updatedClient);
-    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return;
-    setClients(prev => prev.map(client => client.id === backendClient.id ? { ...backendClient, creditBalance: backendClient.creditBalance || client.creditBalance } : client));
-    noteLocalMutation();
+    if (current()) {
+      setClients(prev => prev.map(client => client.id === backendClient.id ? { ...backendClient, creditBalance: backendClient.creditBalance || client.creditBalance } : client));
+      noteLocalMutation();
+    }
   };
 
   const registerClientPayment = async (clientId: string, input: { amount: number; method: string; currency?: string | null }) => {
@@ -821,13 +881,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!backendClientsEnabled) {
       throw new Error(backendMessage || 'El backend todavía no está listo para registrar pagos.');
     }
-    recordsGeneration.current += 1;
-    const seen = recordsGeneration.current;
+    const current = beginRecordWrite('client', clientId);
     const updated = await registerBackendClientPayment(user, clientId, input);
-    if (!snapshotIsCurrent(seen, recordsGeneration.current)) return updated;
-    setClients(prev => prev.map(client => client.id === updated.id ? { ...updated, creditBalance: updated.creditBalance || client.creditBalance } : client));
-    noteLocalMutation();
+    if (current()) {
+      setClients(prev => prev.map(client => client.id === updated.id ? { ...updated, creditBalance: updated.creditBalance || client.creditBalance } : client));
+      noteLocalMutation();
+    }
     return updated;
+
   };
 
   const deleteClient = async (id: string, reason?: string) => {
@@ -837,9 +898,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para eliminar clientes. Reintenta en unos segundos.'
       );
     }
+    const current = beginRecordWrite('client', id);
     await deleteBackendClient(user, id, reason);
-    setClients(prev => prev.filter(client => client.id !== id));
-    noteLocalMutation();
+    if (current()) {
+      setClients(prev => prev.filter(client => client.id !== id));
+      noteLocalMutation();
+    }
   };
 
   const updateTradeIn = async (updatedTradeIn: TradeIn) => {
@@ -902,23 +966,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...catalogState,
       ...returnsState,
       inventory, sales, tradeIns, clients, listsLoaded, customColumns,
-      repairOrders, repairOrdersError, addRepairOrder, updateRepairOrder, changeRepairStatus, deleteRepairOrder, restoreRepairOrder,
+      repairOrders, repairOrdersError, addRepairOrder: withListWrite(addRepairOrder), updateRepairOrder: withListWrite(updateRepairOrder, id => `repair:${id}`), changeRepairStatus: withListWrite(changeRepairStatus, id => `repair:${id}`), deleteRepairOrder: withListWrite(deleteRepairOrder, id => `repair:${id}`), restoreRepairOrder: withListWrite(restoreRepairOrder, id => `repair:${id}`),
       operationOptions, operationDrafts,
       operationNotifications,
-      notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead,
+      notificationsLoading, notificationsError, refreshNotifications, markNotificationRead: withListWrite(markNotificationRead), markAllNotificationsRead: withListWrite(markAllNotificationsRead),
       loadOperationOptions, loadOperationDrafts,
-      createOperation: runCreateOperation,
-      updateSaleOperation: runUpdateSaleOperation,
-      updateTradeOperation: runUpdateTradeOperation,
-      confirmTradeOperation: runConfirmTradeOperation,
-      cancelTradeOperation: runCancelTradeOperation,
+      createOperation: withListWrite(runCreateOperation),
+      updateSaleOperation: withListWrite(runUpdateSaleOperation),
+      updateTradeOperation: withListWrite(runUpdateTradeOperation),
+      confirmTradeOperation: withListWrite(runConfirmTradeOperation),
+      cancelTradeOperation: withListWrite(runCancelTradeOperation),
       fetchSaleOperation: runFetchSaleOperation,
       fetchTradeOperation: runFetchTradeOperation,
-      updateSale, deleteSale,
-      addProduct, updateProduct, deleteProduct,
-      addClient, updateClient, registerClientPayment, deleteClient,
-      clientDeposits, loadClientDeposits, addClientDeposit, cancelClientDeposit: runCancelClientDeposit, applyClientDepositToRepair: runApplyClientDepositToRepair,
-      updateTradeIn, deleteTradeIn,
+      updateSale: withListWrite(updateSale), deleteSale: withListWrite(deleteSale),
+      addProduct: withListWrite(addProduct), updateProduct: withListWrite(updateProduct, product => `inventory:${product.id}`), deleteProduct: withListWrite(deleteProduct, id => `inventory:${id}`),
+      addClient: withListWrite(addClient), updateClient: withListWrite(updateClient, client => `client:${client.id}`), registerClientPayment: withListWrite(registerClientPayment, id => `client:${id}`), deleteClient: withListWrite(deleteClient, id => `client:${id}`),
+      clientDeposits, loadClientDeposits, addClientDeposit: withListWrite(addClientDeposit), cancelClientDeposit: withListWrite(runCancelClientDeposit), applyClientDepositToRepair: withListWrite(runApplyClientDepositToRepair),
+      updateTradeIn: withListWrite(updateTradeIn), deleteTradeIn: withListWrite(deleteTradeIn),
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       clientCategories,
       updateStore, updateUserProfile, reloadSession,

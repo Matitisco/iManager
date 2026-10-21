@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
@@ -102,10 +103,11 @@ export async function createExpense(storeId: string, input: ExpenseInput, actor:
 }
 
 export async function updateExpense(storeId: string, id: string, input: ExpenseInput, actor: Actor) {
-  const existing = await prisma.expense.findFirst({ where: { id, storeId, deletedAt: null } });
-  if (!existing) return null;
-  const data = dataOf(input);
-  const row = await prisma.$transaction(async (tx) => {
+  const row = await withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Expense" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.expense.findFirst({ where: { id, storeId, deletedAt: null } });
+    if (!existing) return null;
+    const data = dataOf(input);
     const updated = await tx.expense.update({ where: { id }, data });
     await writeAudit(tx, {
       storeId,
@@ -118,13 +120,14 @@ export async function updateExpense(storeId: string, id: string, input: ExpenseI
     });
     return updated;
   });
-  return present(row);
+  return row ? present(row) : null;
 }
 
 export async function archiveExpense(storeId: string, id: string, actor: Actor) {
-  const existing = await prisma.expense.findFirst({ where: { id, storeId, deletedAt: null } });
-  if (!existing) return false;
-  await prisma.$transaction(async (tx) => {
+  return withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Expense" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.expense.findFirst({ where: { id, storeId, deletedAt: null } });
+    if (!existing) return false;
     await tx.expense.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: actor.name } });
     await writeAudit(tx, {
       storeId,
@@ -135,14 +138,15 @@ export async function archiveExpense(storeId: string, id: string, actor: Actor) 
       entityLabel: existing.category,
       detail: `Quedó archivado el gasto de ${existing.category} y dejó de restar en la ganancia neta.`,
     });
+    return true;
   });
-  return true;
 }
 
 export async function restoreExpense(storeId: string, id: string, actor: Actor) {
-  const existing = await prisma.expense.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
-  if (!existing) return null;
-  const row = await prisma.$transaction(async (tx) => {
+  const row = await withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Expense" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+    const existing = await tx.expense.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
+    if (!existing) return null;
     const restored = await tx.expense.update({ where: { id }, data: { deletedAt: null, deletedBy: null } });
     await writeAudit(tx, {
       storeId,
@@ -155,5 +159,5 @@ export async function restoreExpense(storeId: string, id: string, actor: Actor) 
     });
     return restored;
   });
-  return present(row);
+  return row ? present(row) : null;
 }

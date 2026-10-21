@@ -167,9 +167,9 @@ describe("clients.service", () => {
     prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1" });
     const updated = { ...existing, name: "Ana" };
     prismaMock.$transaction.mockImplementation(async (run: (tx: unknown) => Promise<typeof updated>) => run({
-      client: { update: vi.fn().mockResolvedValue(updated) },
+      client: { findFirst: prismaMock.client.findFirst, update: vi.fn().mockResolvedValue(updated) },
       inventoryItem: { updateMany: vi.fn() },
-      sale: { updateMany: vi.fn() },
+      sale: { findFirst: prismaMock.sale.findFirst, updateMany: vi.fn() },
       tradeIn: { updateMany: vi.fn() },
       auditEvent: { create: vi.fn() },
     }));

@@ -28,7 +28,9 @@ export async function createBackendClient(user: AuthUserLike, client: Omit<Clien
   return data.client;
 }
 
-export async function updateBackendClient(user: AuthUserLike, client: Client): Promise<Client> {
+export type ClientPatch = Pick<Client, 'id'> & Partial<Omit<Client, 'id'>>;
+
+export async function updateBackendClient(user: AuthUserLike, client: ClientPatch): Promise<Client> {
   const data = await apiRequest<BackendClientResponse>(user, `/api/clients/${client.id}`, {
     method: 'PATCH',
     body: client,
