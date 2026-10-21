@@ -127,6 +127,7 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   const [filter, setFilter] = useState<Bucket>('missing');
   const [selectedMissing, setSelectedMissing] = useState<string[]>([]);
   const [selectedSurplus, setSelectedSurplus] = useState<string[]>([]);
+  const [confirmAdjust, setConfirmAdjust] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [preview, setPreview] = useState<StockCountPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -134,6 +135,7 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   const [camera, setCamera] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirmErrorRef = useRef<HTMLDivElement>(null);
 
   const loadList = async () => {
     if (!user) return [];
@@ -166,6 +168,10 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   useEffect(() => {
     if (view === 'count') inputRef.current?.focus();
   }, [view, blind?.scans[0]?.id]);
+
+  useEffect(() => {
+    if (confirmAdjust && error) confirmErrorRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [confirmAdjust, error]);
 
   const openStart = () => {
     setSheet(true);
@@ -218,8 +224,9 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   const showClosed = (next: ClosedStockCount) => {
     setClosed(next);
     setFilter('missing');
-    setSelectedMissing(next.buckets.missing.flatMap((line) => line.inventoryItemId ? [line.inventoryItemId] : []));
-    setSelectedSurplus(next.buckets.surplus.map((line) => line.imei));
+    setSelectedMissing([]);
+    setSelectedSurplus([]);
+    setConfirmAdjust(false);
     setView('result');
   };
 
@@ -268,18 +275,22 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   };
 
   const resolve = async (mode: 'ADJUST' | 'RECORD') => {
-    if (!user || !closed || busy || closed.resolution) return;
+    if (!user || !closed || !canManage || busy || closed.resolution) return;
+    if (mode === 'ADJUST' && (!confirmAdjust || selectedHere === 0)) return;
     setBusy(true);
     setError('');
     try {
       const next = await resolveStockCount(user, closed.id, {
         mode,
-        missingIds: mode === 'ADJUST' ? selectedMissing : [],
-        surplusImeis: mode === 'ADJUST' ? selectedSurplus : [],
+        missingIds: mode === 'ADJUST' && filter === 'missing' ? selectedMissing : [],
+        surplusImeis: mode === 'ADJUST' && filter === 'surplus' ? selectedSurplus : [],
       });
+      setClosed(next);
+      setConfirmAdjust(false);
+      setSelectedMissing([]);
+      setSelectedSurplus([]);
       if (mode === 'ADJUST') await reloadInventory();
       desk.toast(mode === 'ADJUST' ? 'Ajustamos el conteo. Quedó en el historial.' : 'Quedó registrado, sin cambiar el inventario.');
-      setClosed(next);
       await loadList();
       setView('list');
     } catch (cause: unknown) {
@@ -290,6 +301,10 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   };
 
   const leave = () => {
+    if (busy) return;
+    setSelectedMissing([]);
+    setSelectedSurplus([]);
+    setConfirmAdjust(false);
     if (view === 'list') onBack();
     else setView('list');
   };
@@ -302,14 +317,27 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
       : 'Conteos físicos del local';
   const latest = blind?.scans[0] ? scanCopy(blind.scans[0]) : null;
   const lines = closed ? closed.buckets[filter] : [];
-  const selectable = !closed?.resolution && (filter === 'missing' || filter === 'surplus');
+  const selectable = canManage && !closed?.resolution && (filter === 'missing' || filter === 'surplus');
   const selectedHere = filter === 'missing'
     ? lines.filter((line) => line.inventoryItemId && selectedMissing.includes(line.inventoryItemId)).length
     : filter === 'surplus'
       ? lines.filter((line) => selectedSurplus.includes(line.imei)).length
       : 0;
+  const adjustmentLabel = `${filter === 'surplus' ? 'Cargar' : 'Archivar'} ${selectedHere} ${selectedHere === 1 ? 'equipo seleccionado' : 'equipos seleccionados'}`;
+  const selectedLines = lines.filter((line) => filter === 'missing'
+    ? Boolean(line.inventoryItemId && selectedMissing.includes(line.inventoryItemId))
+    : filter === 'surplus' && selectedSurplus.includes(line.imei));
+
+  const changeFilter = (next: Bucket) => {
+    if (busy || next === filter) return;
+    setFilter(next);
+    setSelectedMissing([]);
+    setSelectedSurplus([]);
+    setConfirmAdjust(false);
+  };
 
   const toggle = (line: StockCountLine) => {
+    if (!selectable || busy) return;
     if (filter === 'missing' && line.inventoryItemId) {
       setSelectedMissing((current) => current.includes(line.inventoryItemId!) ? current.filter((id) => id !== line.inventoryItemId) : [...current, line.inventoryItemId!]);
     }
@@ -330,7 +358,7 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
         {!phone && view === 'list' && canManage && !hasOpen && counts.length > 0 ? <div className="dright"><button className="dbtn p" type="button" onClick={openStart}>Iniciar control</button></div> : null}
       </div>
       <GroupTabs />
-      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      {error && !confirmAdjust ? <div className="ferr" role="alert">{error}</div> : null}
       {loading ? <ListSkeleton variant="cards" testId="stock-loading" /> : null}
 
       {!loading && view === 'list' && counts.length === 0 ? (
@@ -413,23 +441,31 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
 
       {!loading && view === 'result' && closed ? (
         <>
+          <div className={`fb ${closed.scanCount === 0 || closed.buckets.missing.length > 0 ? 'warn' : 'ok'}`} data-testid="stock-coverage">
+            <div>
+              <b>{closed.scanCount === 0 ? 'Sin escaneos' : closed.buckets.missing.length > 0 ? 'Conteo con equipos sin escanear' : 'Sin faltantes en la comparación'}</b>
+              <small>{closed.scanCount === 0
+                ? 'Este control se cerró sin escanear equipos. Los faltantes indican equipos esperados que no se escanearon; no confirman pérdidas.'
+                : `${closed.scanCount} IMEI distintos registrados. ${closed.buckets.missing.length > 0 ? `${closed.buckets.missing.length} ${closed.buckets.missing.length === 1 ? 'equipo esperado no se escaneó' : 'equipos esperados no se escanearon'}. Revisalos antes de confirmar faltantes.` : 'Esto no confirma que se haya revisado todo el local. Revisá también los demás grupos.'}`}</small>
+            </div>
+          </div>
           <div className="dstats">
             <div className="dstat"><div className="eb">Coinciden</div><div className="big g">{closed.buckets.matched.length}</div></div>
-            <div className="dstat"><div className="eb">Faltan</div><div className="big r">{closed.buckets.missing.length}</div><small className="mut">Disponibles que nadie escaneó</small></div>
+            <div className="dstat"><div className="eb">Faltan</div><div className="big r">{closed.buckets.missing.length}</div><small className="mut">Esperados que no se escanearon</small></div>
             <div className="dstat"><div className="eb">Sobran</div><div className="big a">{closed.buckets.surplus.length}</div><small className="mut">Escaneados y no cargados</small></div>
-            <div className="dstat"><div className="eb">Figuran vendidos</div><div className="big a">{closed.buckets.sold.length}</div><small className="mut">{closed.excludedNoImei} sin IMEI quedaron afuera</small></div>
+            <div className="dstat"><div className="eb">Figuran vendidos</div><div className="big a">{closed.buckets.sold.length}</div></div>
           </div>
+          <div className="blind" data-testid="stock-excluded"><span><b>{closed.excludedNoImei} {closed.excludedNoImei === 1 ? 'equipo excluido' : 'equipos excluidos'} sin IMEI</b>. Quedaron fuera del conteo y no se consideran faltantes. Revisalos por separado en Inventario.</span></div>
           <div className="dbar"><div className="wchips stock-chips">
-            {FILTERS.map((item) => <button key={item.id} className={`wchip${filter === item.id ? ' on' : ''}`} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label(closed)}</button>)}
+            {FILTERS.map((item) => <button key={item.id} className={`wchip${filter === item.id ? ' on' : ''}`} type="button" aria-pressed={filter === item.id} onClick={() => changeFilter(item.id)} disabled={busy}>{item.label(closed)}</button>)}
           </div></div>
           <div className="dcard flush">
-            {selectable ? <div className="sel-bar"><span>{selectedHere} seleccionados</span><button className="dbtn s" type="button" onClick={() => void resolve('ADJUST')} disabled={busy || selectedHere === 0}>{filter === 'surplus' ? 'Cargar' : 'Archivar · Faltante'}</button></div> : null}
+            {selectable ? <div className="sel-bar"><span>{selectedHere} seleccionados</span><button className="dbtn s" type="button" data-testid="stock-adjust" onClick={() => { setError(''); setConfirmAdjust(true); }} disabled={busy || selectedHere === 0}>{adjustmentLabel}</button></div> : null}
             {lines.length === 0 ? <div className="srow"><div className="m"><b>Nada en este grupo</b></div></div> : lines.map((line) => {
               const checked = filter === 'missing' ? Boolean(line.inventoryItemId && selectedMissing.includes(line.inventoryItemId)) : selectedSurplus.includes(line.imei);
               return (
                 <div className="srow" key={line.key}>
-                  {selectable ? <input className="chk" type="checkbox" checked={checked} aria-label={deviceName(line.model, line.capacity) || tail(line.imei)} onChange={() => toggle(line)} /> : null}
-                  <div className="m"><b>{deviceName(line.model, line.capacity) || tail(line.imei)}</b><small>{lineDetail(line)}</small></div>
+                  {selectable ? <label className="stock-select"><input className="chk" type="checkbox" checked={checked} disabled={busy || (filter === 'missing' && !line.inventoryItemId)} aria-label={`${deviceName(line.model, line.capacity) || 'Equipo'} · ${tail(line.imei)}`} onChange={() => toggle(line)} /><span className="m"><b>{deviceName(line.model, line.capacity) || tail(line.imei)}</b><small>{lineDetail(line)}</small></span></label> : <div className="m"><b>{deviceName(line.model, line.capacity) || tail(line.imei)}</b><small>{lineDetail(line)}</small></div>}
                   {line.price != null ? <b>{formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS')}</b> : null}
                 </div>
               );
@@ -439,13 +475,21 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
             <>
               <div className="ctl-acts">
                 <button className="dbtn s" type="button" data-testid="stock-record" onClick={() => void resolve('RECORD')} disabled={busy}>Solo dejar registrado</button>
-                <button className="dbtn p" type="button" data-testid="stock-adjust" onClick={() => void resolve('ADJUST')} disabled={busy}>Ajustar al conteo</button>
               </div>
-              <p className="eqs-note stock-note">Las dos opciones quedan en Historial. Ajustar archiva los faltantes y carga los sobrantes que elijas.</p>
+              <p className="eqs-note stock-note">Seleccioná equipos de un grupo para archivarlos o cargarlos. Solo dejar registrado conserva el inventario. Cada resolución queda en Historial.</p>
             </>
           ) : null}
           {closed.resolution ? <p className="eqs-note stock-note">{closed.resolution === 'ADJUSTED' ? 'Este control ya se ajustó.' : 'Este control quedó solo registrado.'}</p> : null}
         </>
+      ) : null}
+
+      {confirmAdjust && closed && selectable ? (
+        <Sheet className="compact stock-confirm" title={adjustmentLabel} onClose={() => { setConfirmAdjust(false); setError(''); }} busy={busy} footer={<Actions primary={adjustmentLabel} danger={filter === 'missing'} onPrimary={() => void resolve('ADJUST')} onSecondary={() => { setConfirmAdjust(false); setError(''); }} busy={busy} />}>
+          {error ? <div className="ferr" ref={confirmErrorRef} role="alert">{error}</div> : null}
+          {filter === 'missing' ? <><div className="kv"><span>Motivo de archivo</span><b>Faltante</b></div><p>Se archivarán {selectedHere} {selectedHere === 1 ? 'equipo del inventario' : 'equipos del inventario'}. Podés consultarlos en Archivados.</p></> : <p>Se cargarán {selectedHere} {selectedHere === 1 ? 'equipo disponible' : 'equipos disponibles'}, pendientes de completar sus datos.</p>}
+          <ul className="stock-confirm-list">{selectedLines.map((line) => <li key={line.key}><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>IMEI {line.imei}</small></li>)}</ul>
+          <p className="eqs-note">Este control quedará ajustado y la acción quedará en Historial. Los demás equipos no se modificarán. No podrás volver a ajustar este control.</p>
+        </Sheet>
       ) : null}
 
       {sheet ? (

@@ -72,6 +72,12 @@ describe('shared sheet action targets', () => {
       // CI caught a real target-size regression during the existing pop animation:
       // 48 CSS px become only 45.12 rendered px at its initial desktop scale.
       const samples = await page.getByRole('dialog').evaluate(node => {
+        // setContent may finish after the 200ms opening animation (fonts/load).
+        // Restart the real CSS animation and pause in the same browser task.
+        const sheet = node as HTMLElement;
+        sheet.style.animation = 'none';
+        void sheet.offsetWidth;
+        sheet.style.animation = '';
         const animation = node.getAnimations()[0];
         animation.pause();
         return [0, 50, 100, 200].map(time => {
