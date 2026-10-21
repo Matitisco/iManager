@@ -104,3 +104,48 @@ startup expectation after an earlier local 5-second startup timeout under load.
 WebKit is exercised by CI, not by substituting Chromium for a WebKit device.
 The final selector changes passed frontend TypeScript; backend TypeScript also
 passed in this publication follow-up. No build was run.
+
+
+## CI regression follow-up — run 39605091284
+
+[The PR-head workflow](https://github.com/Matitisco/iManager/actions/runs/39605091284)
+for `88e5844f76efb0681d5da49d5c051899542b74a3` passed frontend/backend
+TypeScript, the full frontend suite, PWA including WebKit/Chromium, backend unit
+and integration checks. Its E2E step had **296 passed, 1 failed, 7 existing
+skips**. The only failure was `account-current.flow.ts:40`: the desktop payment
+button measured 46.084px, then 47.592px on retry, against the unchanged 48px
+minimum assertion.
+
+The shared footer had reduced the former desktop `.btn2` height from 52px to
+48px. The inherited `pop` opening animation scales from 0.94; the target therefore
+fell below 48px until the animation ended. A Chromium comparison using the CSS
+from the exact base commit and PR head, with the real animation paused at its
+initial frame, establishes that this was introduced by #447:
+
+| Version | CSS button height | Rendered opening height |
+| --- | --- | --- |
+| Base `ba2d918` | 52px | 48.88px |
+| PR head `88e5844` | 48px | 45.12px |
+| Corrected shared desktop footer | 52px | 48.88px |
+
+The correction restores the original generic desktop action height and aligns
+its footer disclosure with it. Mobile retains 48px targets and its existing
+translation animation. Saved-rule disclosures and manual sheets retain their
+existing sizing. No original E2E assertion, timeout, retry count or skip was
+changed.
+
+Validation after the correction:
+
+- The unchanged desktop account-current E2E passed **5 consecutive repetitions,
+  0 retries** against isolated PostgreSQL/test authentication and the same
+  temporary synthetic external-quote adapter described above.
+- **7 browser compatibility tests passed**, including four new deterministic
+  tests sampling opening at 0/50/100/200ms at all four required viewports. They
+  retain the 48px minimum during animation and verify final viewport containment.
+- **16 synthetic modal E2E passed, 0 retries**. All 36 captures were regenerated;
+  the desktop set and full-size low-height/mobile samples were visually checked
+  for complete actions, contained menus and accessible footers.
+- Frontend/backend TypeScript and whitespace checks passed. No build was run.
+
+A new normal CI run is required for the corrected commit before merge. #447
+remains open until authenticated deployed QA; no production QA is claimed here.

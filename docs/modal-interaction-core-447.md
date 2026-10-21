@@ -77,7 +77,9 @@ unchanged by this compatibility adapter.
 </SheetActions>
 ```
 
-Footer controls have at least 48px height, menu items at least 44px; wrapping
+Generic desktop footer controls keep the original 52px height, so the inherited
+0.94 opening scale still leaves at least 48px. Mobile footer controls retain
+48px height; menu items have at least 44px; wrapping
 and two-column compact footers preserve the full 320px viewport. The fixed
 footer respects the mobile safe area. Existing yellow/black colors, round
 controls and button tokens remain in use.

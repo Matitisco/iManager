@@ -50,3 +50,43 @@ describe('manual sheet compatibility', () => {
     } finally { await page.close(); }
   });
 });
+
+describe('shared sheet action targets', () => {
+  it.each([
+    { width: 1440, height: 900 }, { width: 1536, height: 640 },
+    { width: 390, height: 844 }, { width: 320, height: 844 },
+  ])('keeps footer targets at least 48px throughout opening at $width×$height', async viewport => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(`<style>${css}</style><div class="desk-app"><div class="ov">
+        <div class="sheet sheet-frame acct-sheet" role="dialog" aria-label="Registrar pago">
+          <div class="sheet-h"><h3>Registrar pago</h3></div>
+          <div class="sheet-scroll"><label class="fl">Monto<input value="500"></label></div>
+          <div class="sheet-foot"><div class="sacts sheet-actions">
+            <button class="btn2 s sheet-secondary">Cancelar</button>
+            <details class="sheet-action-menu"><summary>Más acciones</summary><button>Otra acción</button></details>
+            <button class="btn2 p sheet-primary">Registrar pago</button>
+          </div></div>
+        </div>
+      </div></div>`);
+      // CI caught a real target-size regression during the existing pop animation:
+      // 48 CSS px become only 45.12 rendered px at its initial desktop scale.
+      const samples = await page.getByRole('dialog').evaluate(node => {
+        const animation = node.getAnimations()[0];
+        animation.pause();
+        return [0, 50, 100, 200].map(time => {
+          animation.currentTime = time;
+          return { time, targets: [...node.querySelectorAll('.sheet-actions > button, .sheet-actions > details > summary')].map(target => {
+            const box = target.getBoundingClientRect();
+            return { height: box.height, inside: box.top >= 0 && box.bottom <= innerHeight && box.left >= 0 && box.right <= innerWidth };
+          }) };
+        });
+      });
+      for (const sample of samples) for (const target of sample.targets) {
+        expect(target.height).toBeGreaterThanOrEqual(48);
+        // Mobile translates up from below the viewport instead of scaling.
+        if (viewport.width > 760 || sample.time === 200) expect(target.inside).toBe(true);
+      }
+    } finally { await page.close(); }
+  });
+});

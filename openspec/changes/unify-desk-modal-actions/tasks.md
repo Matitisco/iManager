@@ -17,6 +17,7 @@
 - [x] Run frontend/backend TypeScript and focused UI tests; no build.
 - [x] Sol high local review: fix busy reason-sheet dismissal, disclosure focus, manual-sheet CSS compatibility, scanner layer ownership and clipped/obstructing footer menus; add regressions and rerun the full frontend suite.
 - [x] Receive specific approval to publish #447 to Matitisco/iManager after the denied push; no alternate publication route.
+- [x] Correct the CI-reproduced desktop target-size regression during opening; preserve the unchanged account-current assertion and verify repeated E2E plus deterministic animation geometry.
 - [ ] Green CI before merge; do not bypass.
 - [ ] After deployment, perform authenticated browser QA and record the served version before closing #447.
 

@@ -21,3 +21,8 @@ These local captures do not represent deployed or authenticated QA.
 The local Sol review refreshed this set after fixing the repair menu's left
 edge clipping and the legacy mobile footer rules. All 36 captures use synthetic
 data; no camera hardware or deployed session was used.
+
+The CI follow-up refreshed the set after restoring the original generic desktop
+52px action height (mobile remains 48px). The 16 synthetic modal checks passed
+again at all four sizes; the desktop contact sheet and full-size low-height and
+320px samples were inspected. See [the CI diagnosis](../local-review.md#ci-regression-follow-up--run-39605091284).

@@ -2346,7 +2346,8 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sheet-actions:has(.sheet-action-menu) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr); }
 .sheet-actions:has(.sheet-action-menu):not(:has(.sheet-secondary)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); }
 .sheet-actions:not(:has(> :nth-child(2))) { grid-template-columns: minmax(0, 1fr); }
-.sheet-actions > .btn2 { width: 100%; min-width: 0; min-height: 48px; height: auto; padding: 10px 12px; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.sheet-actions > .btn2 { width: 100%; min-width: 0; min-height: 52px; height: auto; padding: 10px 12px; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.sheet-actions > .sheet-action-menu > summary { min-height: 52px; }
 .sheet-actions:has(.sheet-action-menu) > .sheet-primary { grid-column: auto; }
 .sheet-action-menu { position: relative; z-index: 4; min-width: 0; }
 .sheet-action-menu > summary { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 999px; background: var(--row); color: var(--primary); font-size: 14px; font-weight: 700; text-align: center; cursor: pointer; list-style: none; overflow-wrap: anywhere; }
@@ -2361,6 +2362,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sheet-action-menu-list > .btn2.s:hover:not(:disabled) { background: var(--row); }
 .sheet-action-menu-list > .btn2:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 @media (max-width: 760px) {
+  .sheet-actions > .btn2, .sheet-actions > .sheet-action-menu > summary { min-height: 48px; }
   .sheet-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
   .sheet-actions:has(.sheet-action-menu) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .sheet-actions:has(.sheet-action-menu):not(:has(.sheet-secondary)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
