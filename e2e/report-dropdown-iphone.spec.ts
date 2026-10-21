@@ -1,7 +1,8 @@
 import { devices, expect, test } from '@playwright/test';
 import { reports, screenshot } from './report-dropdown';
 
-test.use({ ...devices['iPhone 13'], browserName: 'webkit' });
+// Focus, keyboard and close behavior are measured after the popup reaches its final position.
+test.use({ ...devices['iPhone 13'], browserName: 'webkit', reducedMotion: 'reduce' });
 
 test.describe('report dropdown iPhone', () => {
   test('opens a bottom sheet above navigation, traps focus and selects a dimension', async ({ page, request }, testInfo) => {

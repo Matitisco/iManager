@@ -1,0 +1,772 @@
+{
+  "baseRevision": "8115347807f50d8379a6a13205dd3ac4d40e1253",
+  "afterRevision": "base + uncommitted issue #451 working tree",
+  "clock": "2026-10-21T15:00:00Z",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "locale": "es-AR",
+  "tool": "Playwright 1.59.1",
+  "fixtures": "e2e/451-fixtures.ts; e2e/451-deltas.tsx for variation states",
+  "sourceSha256": {
+    "src/desk/screens/ReportsScreen.tsx": "a164d1a07214ab9f4b2eda599bc7a5ec07b252f34f1cd58ad2ff52ba5d77fc7c",
+    "src/desk/report-period.ts": "808c2b1411afc1d1920b10abc42d6d9be44557f663e74dd6beae13efc6b2dbed",
+    "src/desk/report-metrics.ts": "79ad0965cf5c156362b7db7bd45abdb6df571d4e00a1226a3ed18afdcd08b5fa",
+    "src/desk/report-breakdown.ts": "cf7af2859c65b3e198196443bfd9837d1a17fcdf8100c9cbeaf4d73a54d82f57",
+    "src/desk/desk.css": "a80aa5a45369b21f2b6b72432a4a9cae87ef9aea74009a588666cd587853cd9c",
+    "src/context/store-records.ts": "ba2e6546dfc107085e40cbd6975d7a4a02915dbbd9386aa2384eda39cc8900df",
+    "src/context/AppContext.tsx": "06492e7d2c6e59a2ec3a06a3623ba21a7c1ffe6c6d86bd9563e4db4f6171e910",
+    "e2e/451-fixtures.ts": "79b7c5eac2f12ba55883d86848cb5054e9eaefda4c03fa2f7492099b004fbcff",
+    "e2e/451-deltas.tsx": "695c8689b050d3bf67d62c329e7178b43ec78434e5bc3a2b0ca0f08f5cdd2ccb",
+    "e2e/451-shots.spec.ts": "f8495360e9a0485598ac93e0f468602c4cdc0a06b7ffa92357c0297106a7a480",
+    "e2e/451-reports.spec.ts": "4cc4f59298f98383504a7f722f21918c5de1a106427adbf7fe6361eef0dc52b0"
+  },
+  "screenshots": [
+    {
+      "file": "after-calendar-1440x900.png",
+      "phase": "after",
+      "scenario": "calendar",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "0beb776eeaa3fdc7d31842fc9c39acbcdfeff47c59ab9a8b7ebfaa6f3e2ca630"
+    },
+    {
+      "file": "after-calendar-1536x640.png",
+      "phase": "after",
+      "scenario": "calendar",
+      "viewport": {
+        "width": 1536,
+        "height": 640
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "607ca1e64ae92ed91504084c50461da551c20a485b5525bdbe4c7dfcd1193d8f"
+    },
+    {
+      "file": "after-calendar-320x844.png",
+      "phase": "after",
+      "scenario": "calendar",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "82e2e5dd5ecc66ae2dec20ce54b3fdd9e17a87fd6d0fb58ca6a1f37d9cc942f9"
+    },
+    {
+      "file": "after-calendar-390x844.png",
+      "phase": "after",
+      "scenario": "calendar",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "2262027e24cff4290d704e51f6e8866f3ff069e3a43f7d288ba23507573ab7dd"
+    },
+    {
+      "file": "after-canjes-empty-1440.png",
+      "phase": "after",
+      "scenario": "canjes-empty",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "20bd9c0498d11358984e3a0d84891a4950c366af660c9aa7bfd2dfab4c563a52"
+    },
+    {
+      "file": "after-canjes-empty-390.png",
+      "phase": "after",
+      "scenario": "canjes-empty",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "5ee520f685045404a2952a60a01147bb745ca5067c8608614fe89779a8c323c9"
+    },
+    {
+      "file": "after-clientes-1440.png",
+      "phase": "after",
+      "scenario": "clientes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "6cbe3445c4cf036ef6d55cff3022b3975f7807fc279b879c61c2b9b6d63951f1"
+    },
+    {
+      "file": "after-clientes-390.png",
+      "phase": "after",
+      "scenario": "clientes",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "1db4eca1cb02d6c787f108208648bb40b563d6689e7188cf00e45784118ea876"
+    },
+    {
+      "file": "after-clientes-breakdown-390.png",
+      "phase": "after",
+      "scenario": "clientes-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "316b0b72eee7c620cbac3f1242e46375f6fb4e1b31b5ba4b96af74c4687b4a17"
+    },
+    {
+      "file": "after-comisiones-1440.png",
+      "phase": "after",
+      "scenario": "comisiones",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b62ca4f706c05b5e32e8f147e0a901576b7848bb3605320d694e00e7f9223e98"
+    },
+    {
+      "file": "after-comisiones-390.png",
+      "phase": "after",
+      "scenario": "comisiones",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "0c4d9fc0bc4857b075059d3460a4468f51e1c361c42505cfb1d25f35db90a8c2"
+    },
+    {
+      "file": "after-comisiones-breakdown-390.png",
+      "phase": "after",
+      "scenario": "comisiones-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "4e4498ec48b6dc16b2645ffef834bcbeb2df4799da9b9434aa488279b7c62736"
+    },
+    {
+      "file": "after-comisiones-signed-1440.png",
+      "phase": "after",
+      "scenario": "comisiones-signed",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "e0bffdfde2918db62edbc18ad7ea060931b5f6e2d3ef7c9200ba44db5ddd13d8"
+    },
+    {
+      "file": "after-comisiones-signed-390.png",
+      "phase": "after",
+      "scenario": "comisiones-signed",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "95ee50f55592c84c8d9109327c8ecff1b14fad7d2591947f61881bc0c83fbd9f"
+    },
+    {
+      "file": "after-custom-applied-1440.png",
+      "phase": "after",
+      "scenario": "custom-applied",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "f0553d1fb73e6d71a94b4e93f6dbbced328515696369da97058648225833aacf"
+    },
+    {
+      "file": "after-custom-applied-390.png",
+      "phase": "after",
+      "scenario": "custom-applied",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "d6b313e4e89673905579f829f48d77e5272e7b9669b0d21b5016cfa613d71c67"
+    },
+    {
+      "file": "after-custom-breakdown-390.png",
+      "phase": "after",
+      "scenario": "custom-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "28ac72dc1ff4fc918a190cee9e98cd4b240a77af16da8f44d961b7efe9bc786e"
+    },
+    {
+      "file": "after-custom-editor-1440.png",
+      "phase": "after",
+      "scenario": "custom-editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "ee17d0dd355ae750af1c641bab741f914171ac4a69003ee9154c74cdb6822d0b"
+    },
+    {
+      "file": "after-custom-editor-390.png",
+      "phase": "after",
+      "scenario": "custom-editor",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "5e0113cf30cb8ea7b4beba8d6800902b9ef07104edc0b4c61b4ed15a61b3244d"
+    },
+    {
+      "file": "after-custom-evolution-390.png",
+      "phase": "after",
+      "scenario": "custom-evolution",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "40caeab7b2cbbf4be1dfe53564a4244bf1fd4f3a2328448128210a6a18a5e434"
+    },
+    {
+      "file": "after-deltas-1440.png",
+      "phase": "after",
+      "scenario": "deltas",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "216a39dccf68836d3dd3339bdc4a586df682ac67b9fa8b9d21a59165ecbf83da"
+    },
+    {
+      "file": "after-deltas-390.png",
+      "phase": "after",
+      "scenario": "deltas",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "e4b91c1177b6565d502c462304cb4c07776a071f237190c002a1ee3acddf5b08"
+    },
+    {
+      "file": "after-deltas-lower-390.png",
+      "phase": "after",
+      "scenario": "deltas-lower",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b49d8eb399cdb74e94a2235a870eb93c2c564f12cf30e9ef23d7822d77ec2bff"
+    },
+    {
+      "file": "after-error-1440.png",
+      "phase": "after",
+      "scenario": "error",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b5072948017808b849b2d7ef0dc3f00a0fb2f242769495812046f7360518505e"
+    },
+    {
+      "file": "after-error-390.png",
+      "phase": "after",
+      "scenario": "error",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "1d078b02447f3d761d8bb32ec2e7eeb92b2e37f2c89e9fc967c31854977acb8a"
+    },
+    {
+      "file": "after-fit-1440x900.png",
+      "phase": "after",
+      "scenario": "fit",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "71f0c7be48fd8fad0ab687db8e94f9233890de9002fd9a41d9eed45d203a21e8"
+    },
+    {
+      "file": "after-fit-1536x640.png",
+      "phase": "after",
+      "scenario": "fit",
+      "viewport": {
+        "width": 1536,
+        "height": 640
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "44c168d7d1b0a2fdc2db89bc8b718a54ee1639cb038f7fc55183ac2349013c40"
+    },
+    {
+      "file": "after-fit-320x844.png",
+      "phase": "after",
+      "scenario": "fit",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "7dea393bb3d0823e534ce4581d1e7395b64823464f39fd8940989c5137223140"
+    },
+    {
+      "file": "after-fit-390x844.png",
+      "phase": "after",
+      "scenario": "fit",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "40a5a7860d4689df0a0bb1a0edbae770d5b227b43800b9dfeb2c2cee3f387b6a"
+    },
+    {
+      "file": "after-loading-1440.png",
+      "phase": "after",
+      "scenario": "loading",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "1ff9c2d83e02dbb792c0f2ef496a02328f78ae0788f814476a3c570e8cdb14a9"
+    },
+    {
+      "file": "after-loading-390.png",
+      "phase": "after",
+      "scenario": "loading",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "235896c7369e754264e97cdb34d49b20b610dca62ff714ba7f08121c80015a1c"
+    },
+    {
+      "file": "after-servicio-1440.png",
+      "phase": "after",
+      "scenario": "servicio",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "d2fdce330167a9d685937b5b63305a2040e728d824943b772d5d233e546018b7"
+    },
+    {
+      "file": "after-servicio-390.png",
+      "phase": "after",
+      "scenario": "servicio",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "099ead14a3dece0f7b6d6da08ce5db5d49feefb5cb993612dfa3f7827175a94b"
+    },
+    {
+      "file": "after-servicio-breakdown-390.png",
+      "phase": "after",
+      "scenario": "servicio-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "d16b1e3067cc43a1c4a47845f338e56a7e0a5e38ab1d0d35609cd4e1975a23e9"
+    },
+    {
+      "file": "after-servicio-evolution-390.png",
+      "phase": "after",
+      "scenario": "servicio-evolution",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "5358a95814ecadd300ca5d304c3ce6ac787db3a1ced5a287fc201469071aa7b5"
+    },
+    {
+      "file": "after-stock-1440.png",
+      "phase": "after",
+      "scenario": "stock",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "e7dad6cf33a98a7bb7218fc9bc232489f6f488d4cb5357a968eeee8da958df9b"
+    },
+    {
+      "file": "after-stock-390.png",
+      "phase": "after",
+      "scenario": "stock",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "2368073891dd506fb12009a3c9f20e3508e4a2926737d17c5b7ac15229fee699"
+    },
+    {
+      "file": "after-stock-breakdown-390.png",
+      "phase": "after",
+      "scenario": "stock-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "f8400222fc07205f6b386b0a6b8963b7d797330f52067e228c27142006f41ac3"
+    },
+    {
+      "file": "after-stock-evolution-390.png",
+      "phase": "after",
+      "scenario": "stock-evolution",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "89e6d81d6207ea1f11c3ae43fe601c7e0797b25fca1c4239cc719919b1d1661d"
+    },
+    {
+      "file": "after-unavailable-1440.png",
+      "phase": "after",
+      "scenario": "unavailable",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b84a60925cd5d97592b2d57019b4c8bf4e6dcd27893b49a9963f05584a17a301"
+    },
+    {
+      "file": "after-unavailable-390.png",
+      "phase": "after",
+      "scenario": "unavailable",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "20aaa8b709144e7fd4ce88b8dc597542515d540a98e4a29c8d53e2888a09dafa"
+    },
+    {
+      "file": "after-ventas-1440.png",
+      "phase": "after",
+      "scenario": "ventas",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b0de356522d34d58fac9badbc3ecfe7295e321f40b068a93e00052f75e1c39aa"
+    },
+    {
+      "file": "after-ventas-390.png",
+      "phase": "after",
+      "scenario": "ventas",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b2db41c49e22c72b8c5fe56264df4bdfdd38b59115d3be8f664d097399a16569"
+    },
+    {
+      "file": "after-ventas-breakdown-390.png",
+      "phase": "after",
+      "scenario": "ventas-breakdown",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "8df93c37a37662e239ccae7cb97066402137466e79398e840b81d3c524f68d23"
+    },
+    {
+      "file": "after-ventas-business-390.png",
+      "phase": "after",
+      "scenario": "ventas-business",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "53c61f16230885e8f2c813ee26deb70642d50e722b5d126d16612fb94932e652"
+    },
+    {
+      "file": "after-ventas-details-390.png",
+      "phase": "after",
+      "scenario": "ventas-details",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "d55436e28b9f2eb2762c358cd0d9253eb9fb1761ff88cd5921f83c89ab9bb6de"
+    },
+    {
+      "file": "before-canjes-empty-1440.png",
+      "phase": "before",
+      "scenario": "canjes-empty",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "35777c2a5a950d064cd74a51b0f5f7171ee45bb72a40fea36b7c0aab5aea8f2f"
+    },
+    {
+      "file": "before-canjes-empty-390.png",
+      "phase": "before",
+      "scenario": "canjes-empty",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "6b7e7faa92799b8fbc183ac7ec29727d05353b420c6f955172950d8d79cba2ce"
+    },
+    {
+      "file": "before-clientes-1440.png",
+      "phase": "before",
+      "scenario": "clientes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "6515f64ff6dbf4103eba4fe0fb478d3d421231aa818de60525267bd1ab2e278e"
+    },
+    {
+      "file": "before-clientes-390.png",
+      "phase": "before",
+      "scenario": "clientes",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "dfce7df82b700ad53bf14d57066a6d969fd80faecd7bc57fdce2389f577611c6"
+    },
+    {
+      "file": "before-comisiones-1440.png",
+      "phase": "before",
+      "scenario": "comisiones",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b6f65fbf8d0b72c7b6d5f75e91d93c418e60c40b2c714c377f1fbd1202b307cb"
+    },
+    {
+      "file": "before-comisiones-390.png",
+      "phase": "before",
+      "scenario": "comisiones",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "a38fae88f992c86935d5bb3122c6f205e802e671ea460b68865192c1ac38ecd7"
+    },
+    {
+      "file": "before-custom-applied-1440.png",
+      "phase": "before",
+      "scenario": "custom-applied",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "ba35db883eefaa698a55cb2321f952a3f2cb31e57ccceaef096f27c0ad0b94c4"
+    },
+    {
+      "file": "before-custom-applied-390.png",
+      "phase": "before",
+      "scenario": "custom-applied",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "00218802bcff5bb477e8a6d70d319136acc3602532c6c56bedb2221499981432"
+    },
+    {
+      "file": "before-custom-editor-1440.png",
+      "phase": "before",
+      "scenario": "custom-editor",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "626e55c45bc6b485077821f0015e0baced7e42fec7bdb5828b7425ed371db200"
+    },
+    {
+      "file": "before-custom-editor-390.png",
+      "phase": "before",
+      "scenario": "custom-editor",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "cd850f992a8add6fc3a58ca973888fe7c6f4624a8073380c2a3efcd8328d20e4"
+    },
+    {
+      "file": "before-error-1440.png",
+      "phase": "before",
+      "scenario": "error",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "dafa22356f7a40af933f8359e7e1c912cdbcd792c9f3663935d5fd87e4136d43"
+    },
+    {
+      "file": "before-error-390.png",
+      "phase": "before",
+      "scenario": "error",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "8033a66484aac17c3dcff688647b276a19eb13946b724450d7f19a707154b829"
+    },
+    {
+      "file": "before-loading-1440.png",
+      "phase": "before",
+      "scenario": "loading",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "dafa22356f7a40af933f8359e7e1c912cdbcd792c9f3663935d5fd87e4136d43"
+    },
+    {
+      "file": "before-loading-390.png",
+      "phase": "before",
+      "scenario": "loading",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "8033a66484aac17c3dcff688647b276a19eb13946b724450d7f19a707154b829"
+    },
+    {
+      "file": "before-servicio-1440.png",
+      "phase": "before",
+      "scenario": "servicio",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "985acc39777e29c1ca88ccd8b21fb3b37464eaf3e439cbe623c58a1ec34a0e00"
+    },
+    {
+      "file": "before-servicio-390.png",
+      "phase": "before",
+      "scenario": "servicio",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "92d895a063dc2745b7c117913eda10ae3c7cfbdd237ec5a083e85e58686b21e8"
+    },
+    {
+      "file": "before-stock-1440.png",
+      "phase": "before",
+      "scenario": "stock",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "20017b35b48d6192141c05bd24c9016460efbf17e00093be8ccb166e5375f6ea"
+    },
+    {
+      "file": "before-stock-390.png",
+      "phase": "before",
+      "scenario": "stock",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "b3c0c7659a18ee87976428b00b2c9c354a6dab035d7f68ee8e1067912131d33b"
+    },
+    {
+      "file": "before-unavailable-1440.png",
+      "phase": "before",
+      "scenario": "unavailable",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "d58f6fb435d075fe9795b44ef1b0860a82d42bb3c220cb5c6cc9ff89a57b2550"
+    },
+    {
+      "file": "before-unavailable-390.png",
+      "phase": "before",
+      "scenario": "unavailable",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "eb6f1221a44bbd2362fdc390f7d601e7542495802e40862e5950cb487e960cf4"
+    },
+    {
+      "file": "before-ventas-1440.png",
+      "phase": "before",
+      "scenario": "ventas",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "5af7403ccf22848eac55bebadc5d7c69d364987b5187834ba898993c1f7df23a"
+    },
+    {
+      "file": "before-ventas-390.png",
+      "phase": "before",
+      "scenario": "ventas",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "browser": "Chromium 147.0.7727.15",
+      "sha256": "6446e5b1a80e52bf8fb0366e432203038e39eb54bea35a7723ec823773b092ce"
+    }
+  ]
+}

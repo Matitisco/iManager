@@ -27,17 +27,18 @@ test.describe('report periods on desktop', () => {
     const filters = page.locator('.gfilters');
     const tabs = filters.getByRole('group', { name: 'Tipo de reporte' });
     const periods = filters.getByRole('group', { name: 'Período', exact: true });
-    await expect(periods.getByRole('button')).toHaveText(['Semana', 'Mes', '3 meses', 'Año', 'Personalizado']);
+    await expect(periods.getByRole('button')).toHaveText(['7 días', '30 días', '90 días', '12 meses', 'Este mes', 'Personalizado']);
     expect(Math.abs(await rightEdge(periods) - await rightEdge(filters))).toBeLessThanOrEqual(2);
     const tabBox = (await tabs.boundingBox())!;
     const periodBox = (await periods.boundingBox())!;
-    // Chips retain their different heights and the row's existing center alignment.
-    expect(Math.abs(periodBox.y + periodBox.height / 2 - tabBox.y - tabBox.height / 2)).toBeLessThanOrEqual(2);
+    // The additional preset can move the right-aligned periods onto their own line.
+    if (periodBox.y < tabBox.y + tabBox.height) expect(Math.abs(periodBox.y + periodBox.height / 2 - tabBox.y - tabBox.height / 2)).toBeLessThanOrEqual(2);
     expect(Math.abs(tabBox.x - (await filters.boundingBox())!.x)).toBeLessThanOrEqual(2);
     await capture(page, 'desktop');
 
     await tabs.getByRole('button', { name: 'Comisiones', exact: true }).click();
-    await expect(periods).toBeVisible();
+    await expect(periods).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Mes de comisiones' })).toBeVisible();
     await tabs.getByRole('button', { name: 'Ventas', exact: true }).click();
 
     await page.setViewportSize({ width: 1000, height: 800 });

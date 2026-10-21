@@ -180,3 +180,75 @@ describe('concurrent scoped list reads #461', () => {
     expect(result.current.sales.map(row => row.id)).toEqual(['local']);
   });
 });
+
+describe('report availability #451', () => {
+  it('does not treat cached lists or settled failures as confirmed empty data and recovers on retry', async () => {
+    seed('store-1', 'Cached history');
+    const pending = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    expect(result.current.listsLoaded).toBe(true);
+    expect(result.current.recordsAvailability.sales.status).toBe('loading');
+    await act(async () => pending.resolve([]));
+    await waitFor(() => expect(result.current.recordsAvailability.sales.status).toBe('success'));
+    vi.mocked(fetchBackendSales).mockRejectedValueOnce(new Error('Offline'));
+    await act(async () => result.current.refreshLists());
+    expect(result.current.recordsAvailability.sales.status).toBe('error');
+    expect(result.current.recordsAvailability.sales.error).toBeTruthy();
+    expect(result.current.recordsAvailability.inventory.status).toBe('success');
+    await act(async () => result.current.refreshLists());
+    expect(result.current.recordsAvailability.sales).toEqual({ status: 'success' });
+  });
+  it('scopes error and success metadata to the store and permission epoch', async () => {
+    vi.mocked(fetchBackendSales).mockRejectedValueOnce(new Error('Store A unavailable'));
+    const { result, rerender } = renderHook(({ appSession }) => useStoreRecords({ user, appSession, backendStatus: 'ready' }), { initialProps: { appSession: session } });
+    await waitFor(() => expect(result.current.recordsAvailability.sales.status).toBe('error'));
+    const pending = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(pending.promise);
+    const other = { ...session, store: { ...session.store!, id: 'store-b' } };
+    rerender({ appSession: other });
+    expect(result.current.recordsAvailability.sales).toEqual({ status: 'loading' });
+    rerender({ appSession: { ...other, membership: { ...other.membership!, role: 'STAFF', sections: ['reports', 'clients'] } } });
+    expect(result.current.recordsAvailability.sales.status).toBe('denied');
+    await act(async () => pending.resolve([sale('late', 'Wrong scope')]));
+    expect(result.current.recordsAvailability.sales.status).toBe('denied');
+    expect(result.current.sales).toEqual([]);
+  });
+  it('ignores an obsolete refresh failure after a newer successful read', async () => {
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    await waitFor(() => expect(result.current.recordsAvailability.sales.status).toBe('success'));
+    let rejectOld!: (reason: Error) => void;
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(new Promise((_resolve, reject) => { rejectOld = reject; }));
+    let old!: Promise<void>;
+    act(() => { old = result.current.refreshLists(); });
+    await act(async () => result.current.refreshLists());
+    await act(async () => { rejectOld(new Error('Old failure')); await old; });
+    expect(result.current.recordsAvailability.sales.status).toBe('success');
+  });
+});
+
+it('waits for business context and never expands sales requests for reports-only client access', async () => {
+  vi.mocked(fetchBackendSales).mockClear();
+  const limited = { ...session, membership: { ...session.membership!, role: 'STAFF' as const, sections: ['reports', 'clients'] } };
+  const { result, rerender } = renderHook(({ ready }) => useStoreRecords({ user, appSession: ready ? limited : null, backendStatus: ready ? 'ready' : 'checking' }), { initialProps: { ready: false } });
+  await act(async () => {});
+  expect(fetchBackendSales).not.toHaveBeenCalled();
+  rerender({ ready: true });
+  await waitFor(() => expect(result.current.recordsAvailability.clients.status).toBe('success'));
+  expect(result.current.recordsAvailability.sales.status).toBe('denied');
+  expect(fetchBackendSales).not.toHaveBeenCalled();
+});
+
+it('exposes category failures without discarding loaded client rows, and clears errors on retry', async () => {
+  vi.mocked(fetchClientCategoriesApi).mockRejectedValueOnce(new Error('Category request failed'));
+  const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+  await waitFor(() => expect(result.current.recordsAvailability.clients.status).toBe('error'));
+  expect(result.current.clients).toEqual([]);
+  await act(async () => result.current.refreshLists());
+  expect(result.current.recordsAvailability.clients.status).toBe('success');
+});
+it('distinguishes unavailable backend from denied module permission', () => {
+  const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'offline' }));
+  expect(result.current.recordsAvailability.sales.status).toBe('error');
+  expect(result.current.recordsAvailability.sales.error).toContain('conectar');
+});
