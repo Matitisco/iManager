@@ -60,8 +60,9 @@ model or financial formula was changed.
 
 ## Remaining gates
 
-This is local code/Chromium review. The database-backed sale-detail suite was
-not run because the local API is unavailable. Safari, physical camera/lens
+This is local code/Chromium review. A follow-up run uses an isolated disposable
+PostgreSQL database and the test-auth backend to exercise existing persistence
+flows. Its final result is recorded separately below. Safari, physical camera/lens
 behavior and authenticated browser QA after deployment remain unverified.
 CI, main/deploy version checks and deployed QA are still required before issue
 closure; local captures do not replace them.
@@ -71,3 +72,19 @@ denial of the branch push. Specific approval to publish #447 to
 `Matitisco/iManager` was subsequently received on 2026-10-21. Normal CI/review
 gates still apply. No push retry, alternate upload, PR, merge, remote change or
 permission change was performed during the local review itself.
+
+## Publication follow-up
+
+The branch was pushed and PR #471 was opened after the specific publication
+approval. Existing E2E flows now reveal secondary actions using the native
+footer disclosure before clicking them. Header dismissal is explicitly scoped
+where the new desktop X duplicates the footer label. No permission, confirmation,
+financial-result or persistence assertions were removed. Confirmed trade-ins now
+assert Edit at rest and Save state after an actual status change. Rule actions
+reopen their disclosure after each confirmation. Negative sensitive-action
+checks include hidden elements so a closed menu cannot mask an unauthorized action.
+
+The local database run is in progress. External backend exchange-rate retrieval
+is unavailable locally; some unmodified cash-flow setup paths fail with the
+existing server error when no frozen rate is supplied. WebKit is exercised by
+CI, not by substituting Chromium for a WebKit device.

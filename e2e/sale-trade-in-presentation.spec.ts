@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -76,7 +77,7 @@ for (const device of [
       const code = `V-${String(initial.saleNumber).padStart(4, '0')}`;
       const detail = await openSale(page, device.phone, code);
       if (device.phone) await expectPhoneSheetCoversNavigation(page, detail);
-      await detail.getByRole('button', { name: 'Editar', exact: true }).click();
+      await (await sheetAction(detail, 'Editar')).click();
       const editor = page.getByRole('dialog', { name: 'Editar operación' });
       await expect(editor).toBeVisible();
       if (device.phone) {
@@ -108,7 +109,7 @@ for (const device of [
       await expect(page.locator('.toast.show')).toBeHidden();
       if (device.phone) await expectPhoneSheetCoversNavigation(page, savedDetail);
       await shot(page, `${device.name}-detalle-venta`);
-      await savedDetail.getByRole('button', { name: 'Editar', exact: true }).click();
+      await (await sheetAction(savedDetail, 'Editar')).click();
       await expect(editor.getByRole('checkbox', { name: 'Tiene canje' })).toBeChecked();
       await editor.getByRole('checkbox', { name: 'Tiene canje' }).uncheck();
       await editor.getByRole('button', { name: 'Guardar cambios' }).click();

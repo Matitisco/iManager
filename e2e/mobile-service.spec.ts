@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -259,7 +260,7 @@ test.describe('service on a phone', () => {
     await readyCard.click();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 200')).toBeVisible();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 50')).toBeVisible();
-    await page.getByRole('dialog', { name: /#OT-0001/ }).locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await (await sheetAction(page.getByRole('dialog', { name: /#OT-0001/ }), 'Cerrar')).click();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ })).toBeHidden();
 
     const staffEmail = buildTestEmail(testInfo, 'service-staff');

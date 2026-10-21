@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, fetchSales, fetchTradeIns, fetchInventory, createInventoryItemViaApi } from './utils';
@@ -8,7 +9,7 @@ async function openEditor(page: Page, phone: boolean) {
   if (phone) await page.getByTestId('row-menu').click();
   else {
     await page.getByRole('row').filter({ hasText: 'Ana Pérez' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Editar', exact: true }).click();
+    await (await sheetAction(page.getByRole('dialog'), 'Editar')).click();
   }
   if (phone) await page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Editar operación' });

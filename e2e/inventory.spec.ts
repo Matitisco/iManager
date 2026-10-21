@@ -84,7 +84,7 @@ test('a VENDIDO change can be closed and resumed after reload to register the sa
   await detail.getByRole('button', { name: 'Vendido' }).click();
   await detail.getByRole('button', { name: 'Guardar estado' }).click();
   await expect(page.getByRole('dialog', { name: 'Registrar venta' })).toBeVisible();
-  await page.getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByRole('dialog', { name: 'Registrar venta' }).locator('.sheet-h .modal-x').click();
 
   await page.getByRole('row').filter({ hasText: model }).getByRole('button', { name: 'Retomar' }).waitFor();
   await page.reload();

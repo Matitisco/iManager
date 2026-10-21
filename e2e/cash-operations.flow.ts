@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchInventory, fetchSales } from './utils';
 
@@ -52,14 +53,14 @@ async function detail(page: Page, phone: boolean) {
 }
 async function cancelSale(page: Page, phone: boolean) {
   const sheet = await detail(page, phone);
-  await sheet.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+  await (await sheetAction(sheet, 'Cancelar operación')).click();
   const confirm = page.getByRole('dialog', { name: 'Cancelar operación', exact: true });
   await confirm.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
   await expect(confirm).toBeHidden();
 }
 async function editPrice(page: Page, phone: boolean, amount: number) {
   const sheet = await detail(page, phone);
-  await sheet.getByRole('button', { name: 'Editar', exact: true }).click();
+  await (await sheetAction(sheet, 'Editar')).click();
   const editor = page.getByRole('dialog', { name: 'Editar operación' });
   await editor.getByLabel('Precio completo de salida').fill(String(amount));
   await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
@@ -127,7 +128,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
     const before = await get(request, email, `/cash/${boxId}/sessions`);
     await page.reload({ waitUntil: 'domcontentloaded' });
     const sheet = await detail(page, phone);
-    await sheet.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+    await (await sheetAction(sheet, 'Cancelar operación')).click();
     const confirm = page.getByRole('dialog', { name: 'Cancelar operación', exact: true });
     await confirm.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
     await expect(confirm).toBeHidden();
@@ -221,7 +222,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
     const before = await get(request, email, `/cash/${boxId}/sessions`);
     await page.reload({ waitUntil: 'domcontentloaded' });
     const sheet = await detail(page, phone);
-    await sheet.getByRole('button', { name: 'Editar', exact: true }).click();
+    await (await sheetAction(sheet, 'Editar')).click();
     const editor = page.getByRole('dialog', { name: 'Editar operación' });
     await editor.getByLabel('Precio completo de salida').fill('130');
     await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();

@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { mockCommissions } from './fixtures/commissions';
@@ -113,7 +114,7 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await sellerRecord.click();
       const soldDetail = page.getByRole('dialog', { name: 'V-0158', exact: true });
       await expect(soldDetail.getByText('Sofía Pérez', { exact: true })).toBeVisible();
-      await soldDetail.getByRole('button', { name: 'Editar', exact: true }).click();
+      await (await sheetAction(soldDetail, 'Editar')).click();
       const editSale = page.getByRole('dialog', { name: 'Editar operación', exact: true });
       await expect(editSale.getByRole('combobox', { name: 'Vendedor' })).toContainText('Sofía Pérez');
       await editSale.getByRole('combobox', { name: 'Vendedor' }).click(); await page.getByRole('option', { name: /Martín Gómez/ }).click();

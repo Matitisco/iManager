@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { initials } from '../src/desk/format';
@@ -49,7 +50,7 @@ export function editSaleSellerTests(phone: boolean) {
       await row().click();
       let detail = page.getByRole('dialog', { name: /V-/ });
       await expect(detail.getByText('Vendedor', { exact: true }).locator('..')).toContainText('Sin vendedor');
-      await detail.getByRole('button', { name: 'Editar', exact: true }).click();
+      await (await sheetAction(detail, 'Editar')).click();
       const editor = page.getByRole('dialog', { name: 'Editar operación' });
       await editor.getByRole('combobox', { name: 'Vendedor', exact: true }).click();
       await page.getByRole('option').filter({ hasText: seller.name }).click();
@@ -87,7 +88,7 @@ export function editSaleSellerTests(phone: boolean) {
 
       // Clearing the seller persists and leaves no active accrual in the API view.
       await salesTab(page); await row().click();
-      await page.getByRole('dialog', { name: /V-/ }).getByRole('button', { name: 'Editar', exact: true }).click();
+      await (await sheetAction(page.getByRole('dialog', { name: /V-/ }), 'Editar')).click();
       await editor.getByRole('combobox', { name: 'Vendedor', exact: true }).click();
       await page.getByRole('option', { name: 'Sin vendedor', exact: true }).click();
       await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
@@ -100,10 +101,10 @@ export function editSaleSellerTests(phone: boolean) {
       expect((await cleared.json()).person.earned).toEqual({ ARS: 0, USD: 0 });
       await post(request, email, `/operations/sales/sales/${sale.id}/cancel`, {});
       await page.reload({ waitUntil: 'domcontentloaded' }); await salesTab(page); await row().click();
-      await expect(page.getByRole('dialog', { name: /V-/ }).getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: /V-/ }).getByRole('button', { name: 'Editar', exact: true, includeHidden: true })).toHaveCount(0);
       await page.keyboard.press('Escape');
       await row().click({ button: 'right' });
-      await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true, includeHidden: true })).toHaveCount(0);
       await expect(page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });

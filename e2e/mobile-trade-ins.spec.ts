@@ -1,3 +1,4 @@
+import { openSheetActions, sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -239,7 +240,7 @@ test.describe('trade-ins on a phone', () => {
     const draft = page.getByRole('dialog', { name: 'Nuevo canje' });
     await draft.getByLabel('Equipo recibido').fill(received);
     await draft.getByLabel('Valor tomado').fill('300000');
-    await draft.locator('.sheet-foot').getByRole('button', { name: 'Guardar pendiente' }).click();
+    await (await sheetAction(draft, 'Guardar pendiente')).click();
     await expect(draft).toBeHidden();
     await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
@@ -304,9 +305,11 @@ test.describe('trade-ins on a phone', () => {
     await expect(detail.getByRole('button', { name: 'Peritaje téc.' })).toBeVisible();
     await expect(detail.getByRole('button', { name: 'En revisión' })).toBeVisible();
     await expect(detail.getByRole('button', { name: 'Aprobado' })).toBeVisible();
-    await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Guardar estado' })).toBeVisible();
+    await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Guardar estado' })).toHaveCount(0);
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
+    await openSheetActions(detail);
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
+    await detail.locator('.sheet-foot summary').click();
     await detail.getByRole('button', { name: 'Peritaje téc.' }).click();
     await detail.locator('.sheet-foot').getByRole('button', { name: 'Guardar estado' }).click();
     await expect.poll(async () => (await fetchTradeIns(request, email)).tradeIns.find((item) => item.deviceReceived === received)?.status).toBe('PERITAJE TÉC.');
@@ -333,15 +336,16 @@ test.describe('trade-ins on a phone', () => {
 
     await card.click();
     const again = page.getByRole('dialog', { name: new RegExp(clientName) });
-    await again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' }).click();
+    await (await sheetAction(again, 'Cancelar operación')).click();
     const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
     await expect(confirm).toBeVisible();
     await settleMotion(page, '.dialog');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-cancel.png` });
     await confirm.getByRole('button', { name: 'Volver', exact: true }).click();
+    await openSheetActions(again);
     await expect(again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
-    await again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' }).click();
+    await (await sheetAction(again, 'Cancelar operación')).click();
     await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
     await expect(page.locator('.toast.show')).toContainText('Operación cancelada');
     await expect(page.locator('.toast.show')).toBeHidden();
@@ -396,9 +400,10 @@ test.describe('trade-ins on a phone', () => {
       await expect(card).toBeVisible();
       await card.click();
       const detail = staff.getByRole('dialog', { name: /Cliente staff/ });
+      await openSheetActions(detail);
       await expect(detail.getByRole('button', { name: 'Guardar estado' })).toBeVisible();
       await expect(detail.getByRole('button', { name: 'Retomar' })).toBeVisible();
-      await expect(detail.getByRole('button', { name: 'Cancelar operación' })).toHaveCount(0);
+      await expect(detail.getByRole('button', { name: 'Cancelar operación', includeHidden: true })).toHaveCount(0);
       await settleMotion(staff, '.sheet');
       await expectFits(staff);
       if (SHOTS) await staff.screenshot({ path: `${SHOTS}/tradeins-390-staff.png` });
