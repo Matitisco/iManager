@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-20**
 
+## Seguridad de dependencias — 2026-10-21
+
+- Rama `fix/dependency-security-audit` basada en `main`/`7f4b7ce`: auditoría raíz 53 → 0, backend 50 → 3 altas (sin críticas), landing 0 → 0.
+- Locks compatibles, protobufjs 7.6.6, gRPC 1.13.7, Vitest 4.1.12, tsx 4.23.15 y overrides uuid 11.1.1 por consumidor; sin cambios funcionales ni schema.
+- Excepción explícita: deepmerge-ts 7.1.5 fijada por Prisma 6.19.3; afecta también el árbol de producción y requiere backport o migración revisada. Detalles, alcance y alternativas en `docs/security/dependency-audit-2026-10-21/README.md`.
+- Builds y TypeScript de los tres paquetes, 1077 pruebas frontend, 510 unitarias backend y 322 integraciones aprobadas usando únicamente PostgreSQL local. Resultados de navegador y limitaciones en el informe.
+- Sin cambios en Railway, despliegues ni push/merge a main.
+
 ## Issue #440 — Pendientes post-QA — 2026-10-20
 
 - Proveedores queda en Finanzas junto a Gastos; conserva el permiso de Inventario y los enlaces anteriores. La barra mobile muestra todas las etiquetas y mantiene botones de al menos 44×44px sin overflow entre 320 y 390px.
