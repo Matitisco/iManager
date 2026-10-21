@@ -65,7 +65,7 @@ export function CommissionMemberSheet({ person, period, rule, onClose, onRule, o
   const [confirming, setConfirming] = useState(false);
   const negative = hasDeduction(person.pending);
   const payable = person.pending.ARS > 0 || person.pending.USD > 0;
-  return <Sheet title={phone ? person.name : `${person.name} · ${monthLabel(period).replace(' de ', ' ')}`} subtitle={`${ROLE_LABEL[person.role]} · ${rule?.memberId ? 'regla personal' : 'regla del equipo'}: ${ruleLabel(rule)}`} onClose={() => { if (!confirming) onClose(); }} className="commission-detail" wide>
+  return <Sheet title={phone ? person.name : `${person.name} · ${monthLabel(period).replace(' de ', ' ')}`} subtitle={`${ROLE_LABEL[person.role]} · ${rule?.memberId ? 'regla personal' : 'regla del equipo'}: ${ruleLabel(rule)}`} onClose={() => { if (!confirming) onClose(); }} className="commission-detail" wide footer={<Actions secondary="Cambiar regla" onSecondary={onRule} primary={payable ? 'Registrar pago' : 'Listo'} onPrimary={payable ? onPay : onClose} />}>
     <div className="commission-detail-kpis">
       <div><span>{person.adjustments.length ? 'Comisión del mes' : 'Saldo anterior'}</span><CurrencyTotals value={person.adjustments.length ? person.earned : person.previousBalance} /></div>
       <div className={person.adjustments.length ? 'commission-negative' : ''}><span>{person.adjustments.length ? 'Ajustes' : 'Comisión del mes'}</span><CurrencyTotals value={person.adjustments.length ? person.adjustmentsTotal : person.earned} /></div>
@@ -75,7 +75,6 @@ export function CommissionMemberSheet({ person, period, rule, onClose, onRule, o
     {person.adjustments.length && (person.previousBalance.ARS !== 0 || person.previousBalance.USD !== 0) ? <div className="kv"><span>Saldo anterior</span><b>{commissionTotal(person.previousBalance)}</b></div> : null}
     <p className={`commission-carry${negative ? ' deduction' : ''}`}><DeskIcon name="cal" size={16} /><span>{negative ? `Se le pagó de más: ${commissionTotal({ ARS: Math.max(0, -person.pending.ARS), USD: Math.max(0, -person.pending.USD) })} se descuentan de su comisión de ${monthLabel(period, 1)}.` : `Si no se paga este mes, ${commissionTotal(person.pending)} pasan a ${monthLabel(period, 1)}.`}</span></p>
     <CommissionLines person={person} period={period} onConfirmChange={setConfirming} financials={canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role)} />
-    <Actions secondary="Cambiar regla" onSecondary={onRule} primary={payable ? 'Registrar pago' : 'Listo'} onPrimary={payable ? onPay : onClose} />
   </Sheet>;
 }
 

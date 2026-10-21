@@ -1,3 +1,4 @@
+import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, fetchClients, fetchSales } from './utils';
 
@@ -132,6 +133,7 @@ test.describe('sales on a phone', () => {
     const tradeForm = page.getByRole('dialog', { name: 'Nuevo canje' });
     await expect(tradeForm.getByLabel('Equipo recibido')).toBeVisible();
     await expect(tradeForm.getByLabel('Valor tomado')).toBeVisible();
+    await openSheetActions(tradeForm);
     await expect(tradeForm.locator('.sheet-foot').getByRole('button', { name: 'Guardar pendiente' })).toBeVisible();
     await tradeForm.getByLabel('Equipo recibido').scrollIntoViewIfNeeded();
     await settleMotion(page, '.sheet');
@@ -174,6 +176,7 @@ test.describe('sales on a phone', () => {
     const detail = page.getByRole('dialog', { name: /V-/ });
     await expect(detail.getByText(clientName)).toBeVisible();
     await expect(detail.getByText('Efectivo')).toBeVisible();
+    await openSheetActions(detail);
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Compartir comprobante' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
@@ -196,13 +199,14 @@ test.describe('sales on a phone', () => {
     await again.locator('.sheet-foot').getByRole('button', { name: 'Compartir comprobante' }).click();
     await expect(page.getByText('Comprobante copiado')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
-    await again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' }).click();
+    await (await sheetAction(again, 'Cancelar operación')).click();
     const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
     await expect(confirm).toBeVisible();
     await settleMotion(page, '.dialog');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sales-390-cancel.png` });
     await confirm.getByRole('button', { name: 'Volver' }).click();
+    await openSheetActions(again);
     await expect(again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
     await again.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
 

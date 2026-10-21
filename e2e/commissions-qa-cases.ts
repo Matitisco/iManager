@@ -46,6 +46,12 @@ export function commissionsQaTests(phone: boolean) {
     await expect(page.getByText('Cargando comisiones…')).toHaveCount(0);
     await page.getByRole('button', { name: 'Reglas', exact: true }).first().click();
     await expect(page.getByRole('region', { name: 'Reglas guardadas' })).toBeVisible();
+    const teamRule = page.locator('.commission-saved-rule').filter({ hasText: 'Todo el equipo' });
+    const openRuleActions = async () => {
+      const menu = teamRule.locator('details');
+      if (!(await menu.evaluate((node) => (node as HTMLDetailsElement).open))) await menu.locator('summary').click();
+    };
+    await openRuleActions();
     await shot('rule-actions');
     const deactivate = page.getByRole('button', { name: 'Desactivar regla de Todo el equipo', exact: true });
     await deactivate.click();
@@ -53,9 +59,11 @@ export function commissionsQaTests(phone: boolean) {
     expect(state.ruleActions).toHaveLength(0);
     await shot('rule-confirm');
     await ruleConfirm.getByRole('button', { name: 'Desactivar regla', exact: true }).click();
+    await openRuleActions();
     await expect(page.getByRole('button', { name: 'Activar regla de Todo el equipo', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Activar regla de Todo el equipo', exact: true }).click();
     await page.getByRole('dialog', { name: 'Activar regla', exact: true }).getByRole('button', { name: 'Activar regla', exact: true }).click();
+    await openRuleActions();
     await page.getByRole('button', { name: 'Eliminar regla de Todo el equipo', exact: true }).click();
     await page.getByRole('dialog', { name: 'Eliminar regla', exact: true }).getByRole('button', { name: 'Eliminar regla', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Eliminar regla de Todo el equipo', exact: true })).toHaveCount(0);

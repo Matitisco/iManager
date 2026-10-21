@@ -15,7 +15,7 @@ import { FX_WARNING } from './money';
 import { ReportDatePicker } from './report-date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
 import { usePhoneLayout } from './section-notices';
-import { Actions, Dialog, Field, Pill, Segs, Sheet, useDesk } from './ui';
+import { Actions, Dialog, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from './ui';
 import { DEFAULT_REPAIR_WARRANTY_DAYS, parseWarrantyDaysInput, repairWarrantyView } from '../lib/warranty';
 import { shareOrCopy } from './overlays/shared';
 
@@ -106,7 +106,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   };
 
   return (
-    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" subtitle={isPhone ? 'Arranca en «Recibido».' : undefined} onClose={close}>
+    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" subtitle={isPhone ? 'Arranca en «Recibido».' : undefined} onClose={close} busy={busy || saving}>
       {error || bad.form ? <div className="ferr">{error || bad.form}</div> : null}
       <div className="svc-grid">
         <div>
@@ -232,17 +232,21 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   };
   const warrantyRow = <div className="kv" data-testid="repair-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>;
   const footer = (
-    <div className={`sacts${next ? ' svc-acts' : ''}`}>
-      <button type="button" className="btn2 s" onClick={close}>Cerrar</button>
-      <button type="button" className="btn2 s" onClick={shareReceipt}>Compartir comprobante</button>
-      {order.clientId ? <button type="button" className="btn2 s" disabled={busy || saving} onClick={() => open({ type: 'repair-deposit', id: order.id })}>Aplicar seña</button> : null}
-      <button type="button" className="btn2 s" data-testid="repair-open-edit" onClick={() => open({ type: 'edit-ot', id: order.id })}>Editar</button>
-      {next ? <button type="button" className="btn2 p" disabled={busy || saving} onClick={() => { void advance(); }}>{saving ? 'Guardando…' : `Pasar a ${next.label}`}</button> : null}
-    </div>
+    <SheetActions>
+      <SheetActionMenu>
+        <button type="button" className="btn2 s" disabled={busy || saving} onClick={close}>Cerrar</button>
+        {next ? <button type="button" className="btn2 s" onClick={shareReceipt}>Compartir comprobante</button> : null}
+        {order.clientId ? <button type="button" className="btn2 s" disabled={busy || saving} onClick={() => open({ type: 'repair-deposit', id: order.id })}>Aplicar seña</button> : null}
+        <button type="button" className="btn2 s" data-testid="repair-open-edit" disabled={busy || saving} onClick={() => open({ type: 'edit-ot', id: order.id })}>Editar</button>
+      </SheetActionMenu>
+      {next
+        ? <button type="button" className="btn2 p sheet-primary" disabled={busy || saving} onClick={() => { void advance(); }}>{saving ? 'Guardando…' : `Pasar a ${next.label}`}</button>
+        : <button type="button" className="btn2 p sheet-primary" onClick={shareReceipt}>Compartir comprobante</button>}
+    </SheetActions>
   );
 
   if (!phone) return (
-    <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${received}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close}>
+    <Sheet className="svc-sheet" title={`#${order.code} · ${order.device}`} subtitle={`Ingresó el ${received}${order.estimatedDelivery ? ` · entrega estimada ${dayMonth(order.estimatedDelivery)}` : ''}`} onClose={close} busy={busy || saving} footer={footer}>
       <div className="svc-steps" aria-hidden="true">
         {statuses.map((status, step) => <i key={status.id} className={index >= 0 && step <= index ? 'on' : ''} />)}
       </div>
@@ -281,7 +285,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           <a href={order.whatsappUrl} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
         </div>
       ) : null}
-      {footer}
     </Sheet>
   );
 
@@ -291,7 +294,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const step = index >= 0 ? index + 1 : 0;
   const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
   return (
-    <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close}>
+    <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close} busy={busy || saving} footer={footer}>
       <div className="svc-steps" aria-hidden="true">
         {statuses.map((status, item) => <i key={status.id} className={index >= 0 && item <= index ? 'on' : ''} />)}
       </div>
@@ -351,7 +354,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
           </a>
         </div>
       ) : null}
-      {footer}
     </Sheet>
   );
 }
@@ -460,7 +462,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
 
   return (
     <>
-      <Sheet wide className="svc-sheet" title="Editar orden" subtitle={phone ? `#${order.code} · ${order.device}` : `#${order.code}`} onClose={close}>
+      <Sheet wide className="svc-sheet" title="Editar orden" subtitle={phone ? `#${order.code} · ${order.device}` : `#${order.code}`} onClose={close} busy={busy || saving}>
         {error && !confirmDelete ? <div className="ferr">{error}</div> : null}
         <div className="svc-grid">
           <div>

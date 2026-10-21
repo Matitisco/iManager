@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
@@ -87,6 +87,12 @@ function renderOverlay(overlay: Overlay, canManageSensitive = true) {
   );
 }
 
+async function openMoreActions(user: ReturnType<typeof userEvent.setup>) {
+  const summary = screen.queryByText('Más acciones', { exact: true });
+  const disclosure = summary?.closest('details');
+  if (summary && disclosure && !(disclosure as HTMLDetailsElement).open) await user.click(summary);
+}
+
 function ReportsWithOverlay() {
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   return <DeskProvider value={{ tab: 'reports', go: vi.fn(), open: setOverlay, openRecord: vi.fn(), close: () => setOverlay(null), toast, isStaff: false, canManageSensitive: true }}>
@@ -141,6 +147,27 @@ describe('operation detail', () => {
     expect(ctx.deleteSale).toHaveBeenCalledWith('s1', 'Error de carga');
     expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.updateSale).not.toHaveBeenCalled();
+  });
+
+  it('keeps the shared reason sheet open while a destructive request is pending', async () => {
+    const user = userEvent.setup();
+    let reject: (cause: Error) => void = () => undefined;
+    ctx.sales = [sale({ status: 'CANCELADA' })];
+    ctx.deleteSale.mockImplementationOnce(() => new Promise((_resolve, rejectPromise) => { reject = rejectPromise; }));
+    renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004' });
+    const dialog = screen.getByRole('dialog', { name: 'Anular venta V-0004' });
+    await user.type(within(dialog).getByLabelText('Detalle'), 'Conservar el motivo');
+    await user.click(within(dialog).getByRole('button', { name: 'Anular' }));
+    expect(within(dialog).getByRole('button', { name: 'Guardando…' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cerrar' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(close).not.toHaveBeenCalled();
+    await act(async () => { reject(new Error('Anulación sintética fallida')); });
+    expect(dialog).toHaveTextContent('Anulación sintética fallida');
+    expect(within(dialog).getByLabelText('Detalle')).toHaveValue('Conservar el motivo');
+    expect(toast).not.toHaveBeenCalled();
+    expect(ctx.deleteSale).toHaveBeenCalledOnce();
   });
 
   it('deletes a cancelled trade and keeps a failed delete on screen', async () => {
@@ -207,28 +234,42 @@ describe('operation detail', () => {
       expect(footer?.parentElement).toBe(dialog);
       expect(body).not.toContainElement(footer as HTMLElement);
       expect(body).toContainElement(within(dialog).getByRole('region', { name: 'Canje como parte de pago' }));
-      for (const name of ['Cerrar', 'Cancelar operación', 'Editar', 'Compartir comprobante']) {
-        const action = within(footer as HTMLElement).getByRole('button', { name });
-        expect(body).not.toContainElement(action);
-      }
+      expect(within(footer as HTMLElement).getByRole('button', { name: /^Cerrar$/ })).toBeInTheDocument();
+      expect(within(footer as HTMLElement).getByRole('button', { name: /^Compartir comprobante$/ })).toBeInTheDocument();
+      expect(footer?.querySelector('.sheet-action-menu-list')).not.toBeNull();
+      expect(footer?.querySelector('.sheet-action-menu-list')).toHaveTextContent('Cancelar operaciónEditarDevolver');
+      expect(body).not.toContainElement(footer as HTMLElement);
     } finally {
       window.matchMedia = original;
       cleanup();
     }
   });
 
-  it.each([2, 4, 5])('keeps all %s sale actions together in the shared footer grid', (count) => {
+  it.each([2, 4, 5])('keeps %s sale actions in a primary and secondary footer hierarchy', (count) => {
     ctx.sales = [sale(count === 2 ? { status: 'PENDIENTE' } : count === 4 ? { integratedOperation: false, tradeInId: null } : {})];
     renderOverlay({ type: 'sale', id: 's1' }, count !== 2);
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
     const grid = footer.querySelector('.sacts') as HTMLElement;
-    const buttons = within(footer).getAllByRole('button');
-    expect(buttons).toHaveLength(count);
-    for (const button of buttons) expect(button.parentElement).toBe(grid);
+    const primary = within(footer).getByRole('button', { name: count === 2 ? 'Marcar cobrada' : 'Compartir comprobante' });
+    expect(primary).toHaveClass('sheet-primary');
+    expect(grid.querySelectorAll('.sheet-primary')).toHaveLength(1);
+    expect(within(footer).getByRole('button', { name: 'Cerrar' })).toBeInTheDocument();
+    const menu = footer.querySelector('.sheet-action-menu-list');
+    if (count === 2) {
+      expect(menu).toHaveTextContent('Editar');
+      expect(menu).not.toHaveTextContent('Cancelar venta');
+    } else if (count === 4) {
+      expect(menu).toHaveTextContent('Editar');
+      expect(menu).toHaveTextContent('Devolver');
+    } else {
+      expect(menu).toHaveTextContent('Cancelar operación');
+      expect(menu).toHaveTextContent('Editar');
+      expect(menu).toHaveTextContent('Devolver');
+    }
+    expect(footer.querySelectorAll('.sheet-action-menu')).toHaveLength(1);
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
     if (count === 4) {
-      expect(buttons.map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante']);
       expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
     }
   });
@@ -247,6 +288,8 @@ describe('operation detail', () => {
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
     expect(footer.parentElement).toBe(dialog);
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+    const user = userEvent.setup();
+    await openMoreActions(user);
     expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
   });
 
@@ -256,28 +299,53 @@ describe('operation detail', () => {
     await userEvent.click(screen.getByRole('button', { name: /V-0004.*Ana Pérez/ }));
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
-    expect(within(footer).getAllByRole('button').map((button) => button.textContent)).toEqual(['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante']);
+    expect(within(footer).getByRole('button', { name: 'Compartir comprobante' })).toHaveClass('sheet-primary');
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
     expect(within(dialog).queryByRole('region', { name: 'Canje como parte de pago' })).not.toBeInTheDocument();
-    await userEvent.click(within(footer).getByRole('button', { name: 'Cerrar' }));
+    const user = userEvent.setup();
+    await openMoreActions(user);
+    expect(within(footer.querySelector('.sheet-action-menu-list') as HTMLElement).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    await user.click(within(footer).getByRole('button', { name: 'Cerrar' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('keeps pending sale actions in the footer and respects cancellation permissions', () => {
+  it('keeps pending sale actions in the footer and respects cancellation permissions', async () => {
     ctx.sales = [sale({ status: 'PENDIENTE' })];
     renderOverlay({ type: 'sale', id: 's1' }, false);
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
     expect(within(footer).getByRole('button', { name: 'Marcar cobrada' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await openMoreActions(user);
     expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Cancelar venta' })).not.toBeInTheDocument();
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
+  });
+
+  it('opens the secondary-action disclosure accessibly and gives Escape priority over the sheet', async () => {
+    const user = userEvent.setup();
+    renderOverlay({ type: 'sale', id: 's1' });
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    const disclosure = dialog.querySelector('.sheet-action-menu') as HTMLDetailsElement;
+    const summary = within(disclosure).getByText('Más acciones', { exact: true });
+
+    await user.click(summary);
+    expect(disclosure.open).toBe(true);
+    expect(within(disclosure).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+    summary.focus();
+    fireEvent.keyDown(summary, { key: 'Escape', code: 'Escape', bubbles: true });
+    expect(disclosure.open).toBe(false);
+    expect(dialog).toBeInTheDocument();
+    expect(document.activeElement).toBe(summary);
+    fireEvent.keyDown(summary, { key: 'Escape', code: 'Escape', bubbles: true });
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('asks before cancelling a trade and only cancels after confirmation', async () => {
     const user = userEvent.setup();
     renderOverlay({ type: 'cj', id: 't1' });
 
+    await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('C-0003 se cancelará y quedará en el historial. Se devolverán $ 500.');
@@ -286,6 +354,7 @@ describe('operation detail', () => {
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
 
+    await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1'));
@@ -295,6 +364,7 @@ describe('operation detail', () => {
     const user = userEvent.setup();
     renderOverlay({ type: 'sale', id: 's1' });
 
+    await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
     expect(screen.getByText('V-0004 se cancelará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
@@ -318,6 +388,7 @@ describe('operation detail', () => {
     ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 600 }];
     renderOverlay({ type: 'sale', id: 's1' });
 
+    await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog', { name: 'Cancelar operación' });
@@ -342,6 +413,7 @@ describe('operation detail', () => {
     ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 900 }];
     renderOverlay({ type: 'sale', id: 's1' });
 
+    await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
     const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
     expect(dialog).toHaveTextContent('V-0004 se cancelará y quedará en el historial.');
@@ -355,9 +427,11 @@ describe('operation detail', () => {
     expect(screen.getByRole('button', { name: 'Peritaje téc.' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'En revisión' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aprobado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Guardar estado' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Editar' })).toHaveClass('sheet-primary');
+    expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'En revisión' }));
+    expect(screen.getByRole('button', { name: 'Guardar estado' })).toHaveClass('sheet-primary');
     await user.click(screen.getByRole('button', { name: 'Guardar estado' }));
     await waitFor(() => expect(ctx.updateTradeOperation).toHaveBeenCalledWith('tradeins', 't1', {
       tradeIn: expect.objectContaining({ deviceReceived: 'iPhone 11', takeValue: 1000, status: 'EN REVISIÓN' }),
@@ -589,7 +663,7 @@ describe('operation detail', () => {
     }
   });
 
-  it('keeps the trade sheet actions on a phone and hides cancel without permission', () => {
+  it('keeps the trade sheet actions on a phone and hides cancel without permission', async () => {
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: String(query).includes('760'),
@@ -605,13 +679,15 @@ describe('operation detail', () => {
       renderOverlay({ type: 'cj', id: 't1' });
       expect(screen.getByRole('dialog')).toHaveClass('cj-sheet');
       expect(screen.getByRole('button', { name: 'Peritaje téc.' })).toBeInTheDocument();
+      const user = userEvent.setup();
+      await openMoreActions(user);
       expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
       cleanup();
       renderOverlay({ type: 'cj', id: 't1' }, false);
       expect(screen.getByRole('dialog')).toHaveClass('cj-sheet');
       expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Guardar estado' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Editar' })).toHaveClass('sheet-primary');
     } finally {
       window.matchMedia = original;
     }

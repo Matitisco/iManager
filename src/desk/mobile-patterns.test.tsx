@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Actions, PageHead, PressTarget, Sheet } from './ui';
@@ -30,7 +30,8 @@ describe('mobile sheet patterns', () => {
     expect(dialog.querySelector('.sheet-scroll')).toContainElement(screen.getByLabelText('Modelo'));
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Guardar equipo' }));
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
+    expect(dialog.querySelector('.sheet-h')).toContainElement(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(screen.getByRole('button', { name: 'Cerrar' }));
   });
 
   it('keeps an explicit footer outside the body even when its actions are wrapped', () => {
@@ -47,7 +48,7 @@ describe('mobile sheet patterns', () => {
     const footer = dialog.querySelector('.sheet-foot');
     expect(body).toContainElement(screen.getByText('Canje como parte de pago'));
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Compartir comprobante' }));
-    expect(body).not.toContainElement(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(body).not.toContainElement(within(footer as HTMLElement).getByRole('button', { name: 'Cerrar' }));
   });
 
   it('shows the shared close button on a phone sheet', () => {

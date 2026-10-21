@@ -248,7 +248,7 @@ test.describe('inventory on a phone', () => {
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-detail.png` });
-    await detail.getByRole('button', { name: 'Cerrar' }).click();
+    await detail.locator('.sheet-h .modal-x').click();
 
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(page.getByTestId('mobile-dock')).toBeVisible();

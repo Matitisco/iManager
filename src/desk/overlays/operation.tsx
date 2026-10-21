@@ -30,7 +30,7 @@ import { confirmScan } from '../scan/beep';
 import { CameraScanner } from '../scan/CameraScanner';
 import { draftFromCode, draftFromImei } from '../scan/draft';
 import { ScanCameraButton } from '../scan/ImeiScanField';
-import { Field, Pill, Segs, Sheet, useDesk } from '../ui';
+import { Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
 import { ReportDatePicker } from '../report-date-picker';
 import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView, warrantyDueCopy } from '../../lib/warranty';
@@ -435,7 +435,13 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   );
   return (
     <>
-    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} className={sheetClass || undefined}>
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} busy={busy} className={sheetClass || undefined} footer={
+      <SheetActions>
+          <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+        {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <SheetActionMenu><button className="btn2 s" type="button" disabled={busy || cancelled} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button></SheetActionMenu> : null}
+        <button className="btn2 p sheet-primary" type="button" disabled={busy || cancelled} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
+      </SheetActions>
+    }>
       {cancelled ? <div className="ferr">Esta venta está cancelada y no se puede editar.</div> : null}
       {error && <div ref={errorRef} className="ferr">{error}</div>}
       {optionError && <div className="ferr">{optionError}</div>}
@@ -480,7 +486,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         <div className="scan-warn" data-testid="sale-missing-imei">
           <b>Este IMEI no está en tu stock</b>
           <p>Registralo ahora y seguís con la venta, sin perder lo que cargaste.</p>
-          <button type="button" className="btn2 s" onClick={() => open({ type: 'scan-review', draft: draftFromImei(typedImei), resume: { clientName: buyer, clientId, amount, source } })}>+ Registrar equipo</button>
+          <button type="button" className="btn2 s" disabled={busy} onClick={() => open({ type: 'scan-review', draft: draftFromImei(typedImei), resume: { clientName: buyer, clientId, amount, source } })}>+ Registrar equipo</button>
         </div>
       ) : null}
       {deviceLabel.trim() && !selectedProduct && !reservedName && !missingSaleImei ? (
@@ -514,7 +520,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
           <span>No hay equipos disponibles en el inventario.</span>
-          <button type="button" className="wlink" onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
+          <button type="button" className="wlink" disabled={busy} onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
         </div>
       ) : null}
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
@@ -554,11 +560,6 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {sellerError ? <div className="ferr" role="alert">{sellerError}</div> : null}
       <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <div className="sacts">
-        <button className="btn2 s" type="button" disabled={busy} onClick={close}>Cerrar</button>
-        {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <button className="btn2 s" type="button" disabled={busy || cancelled} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button> : null}
-        <button className="btn2 p" type="button" disabled={busy || cancelled} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
-      </div>
     </Sheet>
     {cameraFor ? (
       <CameraScanner
@@ -647,20 +648,25 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
   const coverage = saleWarrantyView(sale);
   return (
-    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} className="sale-sheet sale-detail-sheet" footer={
-      sale.voidedAt ? <div className="sacts"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div> : sale.status === 'PENDIENTE' ? (
-        <div className="sacts">
-          {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
-          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
-          {integrated ? <button className="btn2 p" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
-        </div>
+    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} busy={busy} className="sale-sheet sale-detail-sheet" footer={
+      sale.voidedAt ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
+        <SheetActions>
+          <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+          {canManageSensitive || integrated ? <SheetActionMenu>
+            {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
+            {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+          </SheetActionMenu> : null}
+          <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
+        </SheetActions>
       ) : (
-        <div className="sacts">
-          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {integrated && canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-          {sale.status !== 'CANCELADA' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
-          {sale.status === 'COMPLETADA' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button> : null}
-          <button className="btn2 p" type="button" onClick={() => {
+        <SheetActions>
+          <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+          {integrated && canManageSensitive || sale.status !== 'CANCELADA' ? <SheetActionMenu>
+            {integrated && canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+            {sale.status !== 'CANCELADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+            {sale.status === 'COMPLETADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button> : null}
+          </SheetActionMenu> : null}
+          <button className="btn2 p sheet-primary" type="button" onClick={() => {
             const text = [
               saleCode(sale),
               saleBuyer(sale, clients),
@@ -675,7 +681,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
             const copy = () => navigator.clipboard.writeText(text).then(() => toast('Comprobante copiado'));
             shareOrCopy({ title: saleCode(sale), text }, copy);
           }}>Compartir comprobante</button>
-        </div>
+        </SheetActions>
       )
     }>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}

@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -241,7 +242,7 @@ test.describe('service on a phone', () => {
     await expect(detail.locator('.svc-log li')).toHaveCount(2);
     await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
 
-    await detail.getByTestId('repair-open-edit').click();
+    await (await sheetAction(detail, 'Editar')).click();
     const editor = page.getByRole('dialog', { name: 'Editar orden' });
     await editor.getByLabel('Presupuesto').fill('200');
     await editor.getByLabel('Seña').fill('50');
@@ -259,7 +260,7 @@ test.describe('service on a phone', () => {
     await readyCard.click();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 200')).toBeVisible();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ }).getByText('US$ 50')).toBeVisible();
-    await page.getByRole('dialog', { name: /#OT-0001/ }).locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await (await sheetAction(page.getByRole('dialog', { name: /#OT-0001/ }), 'Cerrar')).click();
     await expect(page.getByRole('dialog', { name: /#OT-0001/ })).toBeHidden();
 
     const staffEmail = buildTestEmail(testInfo, 'service-staff');
@@ -273,7 +274,7 @@ test.describe('service on a phone', () => {
       await staff.locator('[data-testid^="repair-card-"]').filter({ hasText: 'iPhone 14' }).click();
       const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });
       await expect(staffDetail.getByText('US$ 200')).toBeVisible();
-      await staffDetail.getByTestId('repair-open-edit').click();
+      await (await sheetAction(staffDetail, 'Editar')).click();
       const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
       await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
       await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();

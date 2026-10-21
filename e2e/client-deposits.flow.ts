@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
@@ -45,7 +46,7 @@ export function registerDepositTests(device: { name: string; mobile: boolean }) 
     const { client: customer } = await createClientViaApi(request, email, { name: 'Ana Pérez', dni: '30111222' });
     const { inventoryItem } = await createInventoryItemViaApi(request, email, { model: 'iPhone 14', imei: '359123456789012', price: 500, cost: 300 });
     await page.reload(); await client(page, device.mobile);
-    await page.getByRole('button', { name: 'Agregar seña' }).click();
+    await (await sheetAction(page.getByRole('dialog'), 'Agregar seña')).click();
     const form = page.getByRole('dialog', { name: 'Agregar seña' });
     await form.getByRole('button', { name: 'ARS', exact: true }).click();
     await form.getByLabel('Monto de la seña').fill('100000'); await form.getByLabel('Cotización guardada').fill('1000');
@@ -93,7 +94,7 @@ export function registerDepositTests(device: { name: string; mobile: boolean }) 
     await expect(page.getByRole('dialog', { name: 'Ana Pérez' })).toContainText('Aplicada');
     await dismiss(page, 'Ana Pérez');
     await navigate(page, 'sales'); const sale = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'iPhone 14' }); await sale.click();
-    await page.getByRole('button', { name: 'Cancelar venta', exact: true }).click();
+    await (await sheetAction(page.getByRole('dialog'), 'Cancelar venta')).click();
     const cancel = page.getByRole('dialog', { name: 'Cancelar operación' }); await expect(cancel).toContainText('vuelven como saldo a favor');
     await cancel.getByRole('button', { name: 'Cancelar operación' }).click(); await expect(cancel).toBeHidden();
     await client(page, device.mobile); const detail = page.getByRole('dialog', { name: 'Ana Pérez' }); await expect(detail).toContainText('Saldo a favor');
@@ -121,7 +122,7 @@ export function registerDepositTests(device: { name: string; mobile: boolean }) 
     expect((await fetchInventory(request, email)).inventory[0]).toMatchObject({ status: 'DISPONIBLE', reservedClientId: null });
     const repair = await request.post(`${api}/api/repairs`, { headers, data: { clientId: customer.id, device: 'iPhone 13', fault: 'Pantalla rota', estimate: 200, deposit: 20, currency: 'USD' } }); expect(repair.status()).toBe(201); const order = (await repair.json()).order;
     await page.reload(); await navigate(page, 'service');
-    await page.getByText('iPhone 13', { exact: true }).first().click(); await page.getByRole('button', { name: 'Aplicar seña', exact: true }).click();
+    await page.getByText('iPhone 13', { exact: true }).first().click(); await (await sheetAction(page.getByRole('dialog'), 'Aplicar seña')).click();
     const applying = page.getByRole('dialog', { name: 'Aplicar seña a reparación' }); await applying.getByRole('button', { name: 'Aplicar', exact: true }).click();
     await fits(page); await capture(page, device.name, 'repair-payment');
     await applying.getByRole('button', { name: 'Confirmar aplicación' }).click(); await expect(applying).toBeHidden();

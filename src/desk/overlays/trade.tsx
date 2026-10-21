@@ -21,7 +21,7 @@ import { canonicalQuality, displayQuality, qualityDetail, tradeQuality } from '.
 import { confirmScan } from '../scan/beep';
 import { CameraScanner } from '../scan/CameraScanner';
 import { ScanCameraButton } from '../scan/ImeiScanField';
-import { Actions, Field, Pill, Segs, Sheet, useDesk } from '../ui';
+import { Actions, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { clearBad, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, type FormProps } from './shared';
 import { operationMoneyInput, OperationForm } from './operation';
 
@@ -52,7 +52,35 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   return (
     <>
-    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} className="cj-sheet">
+    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} busy={busy} className="cj-sheet" footer={<Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
+        const next: Record<string, string> = {};
+        if (!received.trim()) next.received = 'Completá este dato';
+        if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
+        if (!given.trim()) next.given = 'Completá este dato';
+        setBad(next);
+        if (Object.keys(next).length) return;
+        const priced = money.commitGroup([
+          { typed: parseMoney(take), original: trade.takeValue, currency: trade.currency },
+          { typed: parseMoney(difference), original: trade.differencePaid, currency: trade.currency },
+        ]);
+        if (priced.blocked) {
+          setBad({ take: FX_WARNING });
+          return;
+        }
+        void run(async () => await updateTradeIn({
+          ...trade,
+          clientId,
+          clientName: buyer.trim(),
+          deviceReceived: received.trim(),
+          deviceReceivedImei: imei.trim(),
+          deviceGiven: given.trim(),
+          takeValue: priced.amounts[0]?.amount ?? trade.takeValue,
+          differencePaid: priced.amounts[1]?.amount ?? trade.differencePaid,
+          currency: stampedCurrency(priced.amounts[0]?.currency),
+          status,
+          grade,
+        }), 'Canje actualizado');
+      }} />}>
       {error && <div className="ferr">{error}</div>}
       <ClientField clients={clients} value={buyer} linked={Boolean(clientId)} error={bad.client}
         onValue={(value) => { setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
@@ -82,35 +110,6 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
       <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
       <QualityField label="Calidad del recibido" value={grade} onChange={setGrade} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
-        const next: Record<string, string> = {};
-        if (!received.trim()) next.received = 'Completá este dato';
-        if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
-        if (!given.trim()) next.given = 'Completá este dato';
-        setBad(next);
-        if (Object.keys(next).length) return;
-        const priced = money.commitGroup([
-          { typed: parseMoney(take), original: trade.takeValue, currency: trade.currency },
-          { typed: parseMoney(difference), original: trade.differencePaid, currency: trade.currency },
-        ]);
-        if (priced.blocked) {
-          setBad({ take: FX_WARNING });
-          return;
-        }
-        void run(async () => await updateTradeIn({
-          ...trade,
-          clientId,
-          clientName: buyer.trim(),
-          deviceReceived: received.trim(),
-          deviceReceivedImei: imei.trim(),
-          deviceGiven: given.trim(),
-          takeValue: priced.amounts[0]?.amount ?? trade.takeValue,
-          differencePaid: priced.amounts[1]?.amount ?? trade.differencePaid,
-          currency: stampedCurrency(priced.amounts[0]?.currency),
-          status,
-          grade,
-        }), 'Canje actualizado');
-      }} />
     </Sheet>
     {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={(parsed) => { setCamera(false); if (!parsed.imei) return; confirmScan(); setImei(parsed.imei); if (parsed.model && !received.trim()) setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }} /> : null}
     </>
@@ -152,7 +151,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   if (archivedReceivedLink) {
     const archivedReceived = loadedOperation?.inventory.find((item) => item.archivedAt);
     return (
-      <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close} className="cj-sheet">
+      <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close} busy={busy} className="cj-sheet" footer={<SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
         {detailError && <div className="ferr">{detailError}</div>}
         {archivedReceived ? <>
           <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
@@ -162,7 +161,6 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
           <div className="kv"><span>Fecha</span><b>{formatShortDate(trade.date)}</b></div>
         </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <div className="wempty">Cargando equipo recibido...</div>}
-        <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
       </Sheet>
     );
   }
@@ -206,6 +204,32 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         soldAt: linkedSaleForRefund.date,
       }, refundSales, movements, buyer?.pendingBalance ?? 0)
       : { refund: 0, credit: 0 };
+    const statusChanged = technicalStatus !== trade.status;
+    const detailFooter = trade.confirmationStatus === 'CANCELLED'
+      ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>
+      : trade.confirmationStatus === 'PENDING'
+        ? <SheetActions>
+            <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+            <SheetActionMenu>
+              <button className="btn2 s" type="button" disabled={busy || !statusChanged} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
+              {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+            </SheetActionMenu>
+            <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button>
+          </SheetActions>
+        : statusChanged
+          ? <SheetActions>
+              <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+              <SheetActionMenu>
+                <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
+                {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+              </SheetActionMenu>
+              <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
+            </SheetActions>
+          : <SheetActions>
+              <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+              {canManageSensitive ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button></SheetActionMenu> : null}
+              <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
+            </SheetActions>;
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
@@ -222,7 +246,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       );
     }
     return (
-      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} className="cj-sheet">
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} busy={busy} className="cj-sheet" footer={detailFooter}>
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
         <RecordHistory entityType="trade" entityId={trade.id} />
@@ -243,13 +267,6 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           <div className="kv"><span>Diferencia</span><b>{money.show(trade.differencePaid, trade.currency)}</b></div>
             <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? money.show(trade.differencePaid - (linkedSale?.depositAppliedAmount ?? 0), trade.currency) : money.showActive(0)}</b></div>
         </> : null}
-        <div className="sacts">
-          <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-          {trade.confirmationStatus !== 'CANCELLED' ? <button className="btn2 s" type="button" disabled={busy || technicalStatus === trade.status} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button> : null}
-          {trade.confirmationStatus === 'PENDING' ? <button className="btn2 p" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button> : null}
-          {trade.confirmationStatus === 'CONFIRMED' ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button> : null}
-          {trade.confirmationStatus !== 'CANCELLED' && canManageSensitive ? <button className="btn2 p" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-        </div>
       </Sheet>
     );
   }
@@ -259,7 +276,10 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} className="cj-sheet">
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next ? <SheetActions>
+      <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={trade.status === 'APROBADO' ? close : () => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>{trade.status === 'APROBADO' ? 'Después' : 'Rechazar'}</button>
+      <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
+    </SheetActions> : <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
@@ -268,14 +288,6 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
-      {next ? (
-        <div className="sacts">
-          {trade.status === 'APROBADO'
-            ? <button className="btn2 s" type="button" onClick={close}>Después</button>
-            : <button className="btn2 s" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>Rechazar</button>}
-          <button className="btn2 p" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
-        </div>
-      ) : <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>}
     </Sheet>
   );
 }

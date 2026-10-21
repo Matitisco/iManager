@@ -1,3 +1,4 @@
+import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import {
   bootstrapStoreViaApi,
@@ -229,6 +230,7 @@ test.describe('clients on a phone', () => {
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('US$ 0');
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('0 vigentes');
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' })).toBeVisible();
+    await openSheetActions(detail);
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Nueva venta' })).toBeVisible();
     await expect(detail.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(0);
@@ -246,7 +248,7 @@ test.describe('clients on a phone', () => {
     await expect(detail.getByText('Efectivo')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
 
-    await detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true }).click();
+    await (await sheetAction(detail, 'Editar')).click();
     const editor = page.getByRole('dialog', { name: 'Editar cliente' });
     await expect(editor.getByLabel('Nombre y apellido')).toHaveValue(debtorName);
     await expect(editor.locator('.fl-mark', { hasText: 'USD' })).toBeVisible();

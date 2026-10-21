@@ -1,9 +1,10 @@
 import { toUserMessage } from '../lib/user-message';
-import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
 import { ModalCloseButton } from './close-button';
 import { ImanagerIcon } from './icons';
+import { ModalLayerContext, useModalLayer } from './modal-layer';
 
 const PALETTE = [
   ['#25A66A', 'Verde'], ['#0F9D8A', 'Turquesa'], ['#3B82F6', 'Azul'],
@@ -103,6 +104,8 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
   const [badRow, setBadRow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const modal = useModalLayer({ ref: dialogRef, onClose, busy });
   const focusAdded = useRef(false);
 
   useEffect(() => {
@@ -112,17 +115,6 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
     focusAdded.current = false;
   }, [rows.length]);
 
-  useLayoutEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (!busy) onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [busy, onClose]);
-
   const noun = (count: number) => (count === 1 ? meta.noun[0] : meta.noun[1]);
   const kept = rows.filter((row) => !row.deleted);
   const thing = kind === 'CLIENT_TAG' ? 'esta etiqueta'
@@ -131,7 +123,6 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
   const targets = kept.filter((row) => row.label.trim());
   const targetFor = (row: Draft) => targets.find((target) => (target.value || target.label.trim()) === row.reassignTo)
     ?? targets[0];
-  const close = () => { if (!busy) onClose(); };
 
   const save = async () => {
     if (!catalogs) return;
@@ -166,11 +157,12 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
   };
 
   return (
-    <div className="ov center subov" onMouseDown={close}>
-      <div className={`dialog stx${colored ? '' : ' nc'}`} role="dialog" aria-modal="true" aria-label={meta.title} onMouseDown={(event) => event.stopPropagation()}>
+    <ModalLayerContext.Provider value={modal.scope}>
+    <div className="ov center subov" onMouseDown={modal.requestClose}>
+      <div ref={dialogRef} tabIndex={-1} className={`dialog stx${colored ? '' : ' nc'}`} role="dialog" aria-modal="true" aria-label={meta.title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="stx-h">
           <h3>{meta.title}</h3>
-          <ModalCloseButton disabled={busy} onClick={close} />
+          <ModalCloseButton disabled={busy} onClick={modal.requestClose} />
         </div>
         <p className="stx-sub">{colored ? 'Tocá el color para cambiarlo. ' : ''}Si renombrás, se actualizan los {meta.noun[1]} que {thing.startsWith('esta') ? 'la' : 'lo'} usan.</p>
         <div className="stx-list" ref={listRef}>
@@ -224,10 +216,11 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
         }}>+ {meta.add}</button>
         {error ? <div className="stx-err" role="alert">{error}</div> : null}
         <div className="row">
-          <button className="cancel" type="button" onClick={close} disabled={busy}>Cancelar</button>
+          <button className="cancel" type="button" onClick={modal.requestClose} disabled={busy}>Cancelar</button>
           <button className="ok" type="button" onClick={() => { void save(); }} disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
         </div>
       </div>
     </div>
+    </ModalLayerContext.Provider>
   );
 }

@@ -13,7 +13,7 @@ import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
 import type { CatalogKind } from '../../services/catalogs-api';
 import { usePhoneLayout } from '../section-notices';
-import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
+import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
 import { clientCredit, creditTotal } from '../client-balance';
 import { ClientPurchases } from '../ClientPurchases';
@@ -99,7 +99,7 @@ export function ClientDetail({ id }: { id: string }) {
   };
   if (paying) {
     return (
-      <Sheet title="Registrar pago" subtitle={client.name} onClose={() => { if (!busy) setPaying(false); }} className="cl-sheet">
+      <Sheet title="Registrar pago" subtitle={client.name} onClose={() => { if (!busy) setPaying(false); }} busy={busy} className="cl-sheet" footer={<Actions busy={busy} primary="Confirmar pago" secondary="Volver" onSecondary={() => { if (!busy) setPaying(false); }} onPrimary={() => { void pay(); }} />}>
         {error && <div className="ferr">{error}</div>}
         <Field label="Monto" mark={money.active}><input aria-label="Monto" value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
           amountDirty.current = true;
@@ -114,7 +114,6 @@ export function ClientDetail({ id }: { id: string }) {
         }} /></Field>
         <Field label="Forma de pago"><span /></Field>
         <Segs options={PAYMENTS} value={method} onChange={setMethod} />
-        <Actions busy={busy} primary="Confirmar pago" secondary="Volver" onSecondary={() => { if (!busy) setPaying(false); }} onPrimary={() => { void pay(); }} />
       </Sheet>
     );
   }
@@ -123,7 +122,17 @@ export function ClientDetail({ id }: { id: string }) {
   const credit = !deposits.loading && !deposits.error ? creditTotal(deposits.rows, client.balanceCurrency ?? null) : clientCredit(client);
   const net = client.pendingBalance - credit;
   return (
-    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} className="cl-sheet">
+    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} busy={busy} className="cl-sheet" footer={<SheetActions>
+      <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+      <SheetActionMenu>
+        <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
+        {phone ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
+        {client.pendingBalance > 0 ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button> : null}
+      </SheetActionMenu>
+      {client.pendingBalance > 0
+        ? <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
+        : <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>}
+    </SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       {client.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{client.archivedBy ? `por ${client.archivedBy}` : 'Este cliente está archivado'}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendClient(user, client.id); await reloadClients(); toast('Cliente restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <RecordHistory entityType="client" entityId={client.id} />
@@ -156,14 +165,6 @@ export function ClientDetail({ id }: { id: string }) {
           ))}
         </>
       ) : null}
-      <div className="sacts deposit-actions">
-        {client.pendingBalance > 0
-          ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
-          : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>}
-        <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
-        {phone ? <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
-        <button className="btn2 p" type="button" onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>
-      </div>
     </Sheet>
   );
 }
@@ -188,7 +189,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close} className="cl-sheet">
+    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close} busy={busy} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       {current ? (

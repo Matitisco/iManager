@@ -1,3 +1,4 @@
+import { openSheetActions, sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -65,7 +66,7 @@ test('a trade-in saved as pending resumes after reload and confirms with zero di
   let dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Equipo recibido').fill(received);
   await dialog.getByLabel('Valor tomado').fill('0');
-  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await (await sheetAction(dialog, 'Guardar pendiente')).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
 
@@ -108,7 +109,7 @@ test('a Ventas-origin draft is recoverable after reload', async ({ page, request
   dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Equipo recibido').fill(received);
   await dialog.getByLabel('Valor tomado').fill('500');
-  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await (await sheetAction(dialog, 'Guardar pendiente')).click();
   await expect(dialog).toBeHidden();
 
   await page.reload();
@@ -169,7 +170,7 @@ test('a linked canje edit updates both records and cancellation keeps the client
   await detail.getByRole('button', { name: 'Peritaje téc.' }).click();
   await detail.getByRole('button', { name: 'Guardar estado' }).click();
   await expect.poll(async () => (await fetchTradeIns(request, email)).tradeIns[0]?.status).toBe('PERITAJE TÉC.');
-  await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await (await sheetAction(detail, 'Cancelar operación')).click();
   await expect(page.getByRole('dialog', { name: 'Cancelar operación' })).toBeVisible();
   await page.getByRole('dialog', { name: 'Cancelar operación' }).getByRole('button', { name: 'Cancelar operación' }).click();
   await expect(page.locator('.toast.show')).toContainText('Operación cancelada');
@@ -201,11 +202,12 @@ test('a cancellation notification survives reload, opens the archived received d
 
   await page.getByRole('row').filter({ hasText: received }).click();
   const detail = page.getByRole('dialog');
-  await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await (await sheetAction(detail, 'Cancelar operación')).click();
   const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
   await confirm.getByRole('button', { name: 'Volver', exact: true }).click();
+  await openSheetActions(detail);
   await expect(detail.getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
-  await detail.getByRole('button', { name: 'Cancelar operación' }).click();
+  await (await sheetAction(detail, 'Cancelar operación')).click();
   await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
   await expect(detail).toBeHidden();
   await page.reload();
@@ -216,7 +218,7 @@ test('a cancellation notification survives reload, opens the archived received d
   await notification.click();
   const archivedDetail = page.getByRole('dialog', { name: 'Equipo recibido archivado' });
   await expect(archivedDetail.getByText(received)).toBeVisible();
-  await archivedDetail.getByRole('button', { name: 'Cerrar' }).click();
+  await archivedDetail.locator('.sheet-h .modal-x').click();
 
   await page.reload();
   await page.getByRole('button', { name: 'Notificaciones' }).click();
@@ -272,13 +274,13 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
 
   await page.getByTestId('sidebar-tab-inventory').click();
   await page.getByRole('row').filter({ hasText: product.inventoryItem.model }).click();
-  await page.getByRole('button', { name: 'Vender' }).click();
+  await (await sheetAction(page.getByRole('dialog'), 'Vender')).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await dialog.getByRole('checkbox', { name: 'Tiene canje' }).check();
   dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Equipo recibido').fill(`Recibido inventario ${Date.now()}`);
   await dialog.getByLabel('Valor tomado').fill('500');
-  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await (await sheetAction(dialog, 'Guardar pendiente')).click();
   await expect(dialog).toBeHidden();
   await page.reload();
   await page.getByTestId('sidebar-tab-inventory').click();
@@ -298,7 +300,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   dialog = page.getByRole('dialog', { name: 'Nuevo canje' });
   await dialog.getByLabel('Equipo recibido').fill(`Recibido cliente ${Date.now()}`);
   await dialog.getByLabel('Valor tomado').fill('300');
-  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await (await sheetAction(dialog, 'Guardar pendiente')).click();
   await expect(dialog).toBeHidden();
 
   await page.reload();

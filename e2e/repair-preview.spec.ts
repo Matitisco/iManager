@@ -1,3 +1,4 @@
+import { openSheetActions } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
@@ -70,8 +71,9 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await expect(preview.getByLabel('Presupuesto')).toHaveCount(0);
   await expect(preview.getByRole('button', { name: 'Guardar' })).toHaveCount(0);
   await expect(preview.getByRole('button', { name: 'Eliminar orden' })).toHaveCount(0);
+  await openSheetActions(preview);
   await expect(preview.getByRole('button', { name: 'Editar' })).toBeVisible();
-  await expect(preview.getByRole('button', { name: 'Cerrar' })).toBeVisible();
+  await expect(preview.locator('.sheet-h .modal-x')).toBeVisible();
   await settle(page);
   await page.screenshot({ path: `${SHOTS}/desktop-1440-preview.png` });
 
@@ -121,6 +123,7 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await expect(phonePreview.getByText('iPhone 13', { exact: true })).toBeVisible();
   await expect(phonePreview.getByText('Ana Pérez')).toBeVisible();
   await expect(phonePreview.getByLabel('Equipo')).toHaveCount(0);
+  await openSheetActions(phonePreview);
   await expect(phonePreview.getByRole('button', { name: 'Editar' })).toBeVisible();
   await settle(page);
   await page.screenshot({ path: `${SHOTS}/phone-390-preview.png` });
