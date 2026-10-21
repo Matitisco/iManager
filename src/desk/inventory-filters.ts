@@ -95,6 +95,13 @@ export function inventoryColorOptions(present: Iterable<string>): string[] {
   return [...seen].sort((left, right) => left.localeCompare(right, 'es', { sensitivity: 'base' }));
 }
 
+/** Search only: return original color values so distinct historical filters stay distinct. */
+export function searchInventoryColors(options: string[], query: string): string[] {
+  const fold = (value: string) => value.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const needle = fold(query.trim());
+  return options.filter((color) => fold(color).includes(needle));
+}
+
 /** Empty selection matches every color, including equipment saved without one. */
 export function matchesInventoryColor(color: string, selected: string[]): boolean {
   if (selected.length === 0) return true;

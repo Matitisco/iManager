@@ -1,0 +1,6 @@
+- [x] Inspeccionar issue, main y versión servida; documentar alcance y contrato.
+- [x] Corregir dimensiones/etiquetas solo dentro del panel.
+- [x] Reordenar filtros y agregar plegado/búsqueda de colores y resumen del borrador.
+- [x] Cubrir interacción, resultados y restauración en tests.
+- [x] Validar componente aislado/capturas en cuatro viewports.
+- [x] Ejecutar suites frontend/backend, integración local y lint; documentar resultados y límites.

@@ -1,7 +1,14 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-20**
+**Ultima actualizacion: 2026-10-21**
+
+## Issue #449 — Filtros legibles en inventario móvil — 2026-10-21
+
+- Etiquetas de ancho completo y altura automática con blancos táctiles de 44 px, sin heredar los 18×18 de `.chk`. Corrección exclusiva del panel, compatible con el Sheet/acciones de #447.
+- Batería/precio antes de Color; listas largas de colores plegadas y buscador sin pérdida ni fusión de valores históricos/compuestos. Cantidad del borrador visible y explicación de Limpiar/Aplicar; cerrar sin aplicar conserva los filtros vigentes.
+- Validación: 1119 pruebas frontend, 516 unitarias backend, 322 integraciones y TypeScript/lint en ambos paquetes aprobados. Componente real aislado con datos sintéticos y capturas antes/después en 320×844, 390×844, 1440×900 y 1536×640. La segunda corrida completa de integración pasó tras un deadlock durante la limpieza de tablas de la primera.
+- Main base `9b30ecf`; CSS servido con la regla defectuosa y buildId `60658746e56ddaa2` registrados por HTTP sin PWA. Sin sesión autenticada productiva; evidencia y límites en `docs/issue-449/README.md`; OpenSpec: `fix-inventory-filter-layout-449`. Sin cambios de backend, API, permisos ni Prisma; sin build, commit o push.
 
 ## Issue #448 — Selección explícita en Control de stock — 2026-10-21
 
