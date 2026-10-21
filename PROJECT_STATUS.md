@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-20**
 
+## Issue #448 — Selección explícita en Control de stock — 2026-10-21
+
+- Abrir/reabrir/cambiar de control o grupo vacía la selección; las acciones muestran cantidad y consecuencia, quedan deshabilitadas sin selección y respetan los permisos de gestión. La confirmación compartida permite revisar equipos, IMEI y motivo Faltante; cancelar no escribe, el envío bloquea repetición y los errores conservan selección y se desplazan a la vista.
+- Resultados distinguen sin escaneos, esperados sin escanear y comparación sin faltantes sin afirmar pérdidas ni completitud física. Los excluidos sin IMEI se muestran separados; se conservan conteo a ciegas, clasificación, auditoría y resolución única existentes. Sin cambios de API, backend, AppContext ni schema.
+- Validación: 1114 pruebas frontend, 516 unitarias backend, 322 integraciones y TypeScript/lint frontend/backend aprobados. Componente aislado con servicios sintéticos aprobado en 390×844, 1440×900 y 1536×640; capturas antes/después y confirmación revisadas. La base local atrasada se sincronizó con adiciones del schema existente, sin pérdida de datos ni unicidades nuevas en tablas existentes.
+- Base main `d215d8a`; despliegue registrado por HTTP con buildId `60658746e56ddaa2`, sin sesión autenticada para comprobar conteos reales. Evidencia y límites: `docs/stock-count-selection-448.md`; OpenSpec: `fix-stock-count-selection-448`. Cambios en working tree, sin build, commit, push ni operaciones productivas.
+
 ## Seguridad de dependencias — 2026-10-21
 
 - Rama `fix/dependency-security-audit` basada en `main`/`7f4b7ce`: auditoría raíz 53 → 0, backend 50 → 0, landing 0 → 0.
