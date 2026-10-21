@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
@@ -90,7 +91,7 @@ test('the new order puts the device above the optional client on desktop and pho
   const detail = page.getByRole('dialog', { name: /#OT-/ });
   await expect(detail.getByTestId('repair-client')).toHaveCount(0);
   await expect(detail.getByLabel('Equipo')).toHaveCount(0);
-  await detail.getByTestId('repair-open-edit').click();
+  await (await sheetAction(detail, 'Editar')).click();
   const editor = page.getByRole('dialog', { name: 'Editar orden' });
   await expectBelow(editor.getByLabel('Equipo'), editor.getByRole('combobox', { name: 'Cliente (opcional)' }));
   await editor.screenshot({ path: `${SHOTS}/editar-orden-1440x900.png` });
@@ -122,7 +123,7 @@ test('the new order puts the device above the optional client on desktop and pho
   await expect(phoneDetail.getByText('Pixel 8', { exact: true })).toBeVisible();
   await expect(phoneDetail.getByTestId('repair-client')).toContainText('Ana Pérez');
   await expect(phoneDetail.getByLabel('Equipo')).toHaveCount(0);
-  await phoneDetail.getByTestId('repair-open-edit').click();
+  await (await sheetAction(phoneDetail, 'Editar')).click();
   const phoneEditor = page.getByRole('dialog', { name: 'Editar orden' });
   await expectBelow(phoneEditor.getByLabel('Equipo'), phoneEditor.getByRole('combobox', { name: 'Cliente (opcional)' }));
   await phoneEditor.screenshot({ path: `${SHOTS}/editar-orden-390x844.png` });

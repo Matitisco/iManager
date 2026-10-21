@@ -122,7 +122,7 @@ export function registerDepositTests(device: { name: string; mobile: boolean }) 
     expect((await fetchInventory(request, email)).inventory[0]).toMatchObject({ status: 'DISPONIBLE', reservedClientId: null });
     const repair = await request.post(`${api}/api/repairs`, { headers, data: { clientId: customer.id, device: 'iPhone 13', fault: 'Pantalla rota', estimate: 200, deposit: 20, currency: 'USD' } }); expect(repair.status()).toBe(201); const order = (await repair.json()).order;
     await page.reload(); await navigate(page, 'service');
-    await page.getByText('iPhone 13', { exact: true }).first().click(); await page.getByRole('button', { name: 'Aplicar seña', exact: true }).click();
+    await page.getByText('iPhone 13', { exact: true }).first().click(); await (await sheetAction(page.getByRole('dialog'), 'Aplicar seña')).click();
     const applying = page.getByRole('dialog', { name: 'Aplicar seña a reparación' }); await applying.getByRole('button', { name: 'Aplicar', exact: true }).click();
     await fits(page); await capture(page, device.name, 'repair-payment');
     await applying.getByRole('button', { name: 'Confirmar aplicación' }).click(); await expect(applying).toBeHidden();

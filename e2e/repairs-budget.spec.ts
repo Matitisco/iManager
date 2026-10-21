@@ -1,3 +1,4 @@
+import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
@@ -74,7 +75,7 @@ test('the owner edits the budget and deletes the order, and an employee without 
   const detail = page.getByRole('dialog', { name: /#OT-0001/ });
   await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
   await expect(detail.getByRole('button', { name: 'Eliminar orden' })).toHaveCount(0);
-  await detail.getByTestId('repair-open-edit').click();
+  await (await sheetAction(detail, 'Editar')).click();
   const editor = page.getByRole('dialog', { name: 'Editar orden' });
   await editor.getByLabel('Presupuesto').fill('80000');
   await editor.getByLabel('Seña').fill('15000');
@@ -96,7 +97,7 @@ test('the owner edits the budget and deletes the order, and an employee without 
     await expect(staffDetail.getByText('$ 80.000')).toBeVisible();
     await expect(staffDetail.getByText('$ 15.000')).toBeVisible();
     await expect(staffDetail.getByLabel('Presupuesto')).toHaveCount(0);
-    await staffDetail.getByTestId('repair-open-edit').click();
+    await (await sheetAction(staffDetail, 'Editar')).click();
     const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
     await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
     await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();
@@ -155,7 +156,7 @@ test.describe('phone', () => {
       await page.setViewportSize({ width, height: 844 });
       await expectInside(page, '.sheet.svc-sheet');
     }
-    await detail.getByTestId('repair-open-edit').click();
+    await (await sheetAction(detail, 'Editar')).click();
     const editor = page.getByRole('dialog', { name: 'Editar orden' });
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });
@@ -164,7 +165,7 @@ test.describe('phone', () => {
     await editor.getByRole('button', { name: 'Cancelar' }).click();
     await expect(editor).toBeHidden();
     await page.locator('[data-testid^="repair-card-"]').first().click();
-    await page.getByRole('dialog', { name: /#OT-0001/ }).getByTestId('repair-open-edit').click();
+    await (await sheetAction(page.getByRole('dialog', { name: /#OT-0001/ }), 'Editar')).click();
     await page.getByRole('dialog', { name: 'Editar orden' }).getByTestId('repair-delete').click();
     for (const width of [390, 360]) {
       await page.setViewportSize({ width, height: 844 });

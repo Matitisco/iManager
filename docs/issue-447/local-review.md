@@ -62,7 +62,7 @@ model or financial formula was changed.
 
 This is local code/Chromium review. A follow-up run uses an isolated disposable
 PostgreSQL database and the test-auth backend to exercise existing persistence
-flows. Its final result is recorded separately below. Safari, physical camera/lens
+flows. Its final focused result is recorded separately below. Safari, physical camera/lens
 behavior and authenticated browser QA after deployment remain unverified.
 CI, main/deploy version checks and deployed QA are still required before issue
 closure; local captures do not replace them.
@@ -84,7 +84,23 @@ assert Edit at rest and Save state after an actual status change. Rule actions
 reopen their disclosure after each confirmation. Negative sensitive-action
 checks include hidden elements so a closed menu cannot mask an unauthorized action.
 
-The local database run is in progress. External backend exchange-rate retrieval
-is unavailable locally; some unmodified cash-flow setup paths fail with the
-existing server error when no frozen rate is supplied. WebKit is exercised by
-CI, not by substituting Chromium for a WebKit device.
+The final focused database run passed **28 tests, 3 workers, 0 retries** in
+2.2 minutes. It covers existing cash-operation sale/edit/cancel behavior, client
+deposit application/refund, draft recovery, linked-operation editing/cancellation,
+failed persistence, repair detail/editor transitions, owner/staff budget/delete
+permissions and repair layout at desktop/mobile widths. All data belongs to an
+isolated disposable PostgreSQL database with test authentication.
+
+External backend exchange-rate retrieval was unavailable in the first local run
+and caused existing sale setup paths without a frozen rate to fail. The final
+run used an environment-only Node fetch adapter returning a fixed synthetic
+1300 quote exclusively for the external blue-rate URL; business APIs and the
+backend source remained real and unchanged. Other intermediate failures were
+the old hidden-action selectors corrected here. The complete unmodified CI
+workflow remains a required independent gate.
+
+A repeated 1536×640 synthetic layout case also passed with CI's normal 10-second
+startup expectation after an earlier local 5-second startup timeout under load.
+WebKit is exercised by CI, not by substituting Chromium for a WebKit device.
+The final selector changes passed frontend TypeScript; backend TypeScript also
+passed in this publication follow-up. No build was run.
