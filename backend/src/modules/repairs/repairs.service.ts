@@ -259,53 +259,53 @@ export async function updateRepair(
   input: Partial<RepairOrderInput>,
   options: { canChangePrice: boolean; actor?: Actor | null } = { canChangePrice: true },
 ) {
-  const current = await load(storeId, id);
-  if (!current) return null;
-  const estimateChanged = input.estimate !== undefined && (
-    input.estimate == null ? current.estimate != null : moneyChanged(current.estimate, input.estimate)
-  );
-  const depositChanged = input.deposit !== undefined && moneyChanged(current.deposit, input.deposit);
-  const explicitCurrency = input.currency === "ARS" || input.currency === "USD" ? input.currency : null;
-  const currencyChanged = explicitCurrency != null && explicitCurrency !== current.currency;
-  if ((estimateChanged || depositChanged || currencyChanged) && !options.canChangePrice) {
-    throw new RepairError(SENSITIVE_DENIED, 403);
-  }
-  const touchesBudget = input.estimate !== undefined || input.deposit !== undefined;
-  if (touchesBudget) {
-    const nextEstimate = input.estimate !== undefined ? input.estimate : money(current.estimate);
-    const nextDeposit = input.deposit !== undefined ? input.deposit : (money(current.deposit) ?? 0);
-    if (depositExceedsEstimate(nextEstimate, nextDeposit)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
-  }
   const name = await storeName(storeId);
-  const data: {
-    clientId?: string | null;
-    clientName?: string | null;
-    device?: string;
-    imei?: string;
-    fault?: string;
-    faultTags?: string;
-    estimate?: Decimal | null;
-    deposit?: Decimal;
-    currency?: string;
-    technician?: string;
-    estimatedDelivery?: Date | null;
-    warrantyDays?: number;
-  } = {};
-  const touchesClient = input.clientId !== undefined || input.clientName !== undefined;
-  if (input.device !== undefined) data.device = input.device.trim();
-  if (input.imei !== undefined) data.imei = input.imei.replace(/\D/g, "").slice(0, 15);
-  if (input.fault !== undefined) data.fault = input.fault.trim();
-  if (input.faultTags !== undefined) data.faultTags = joinTags(input.faultTags);
-  if (input.estimate !== undefined) data.estimate = input.estimate == null ? null : new Decimal(input.estimate);
-  if (input.deposit !== undefined) data.deposit = new Decimal(input.deposit);
-  const nextCurrency = currencyOnWrite(input.currency, estimateChanged || depositChanged, estimateChanged || depositChanged ? await storeCurrency(storeId, prisma) : "ARS");
-  if (nextCurrency) data.currency = nextCurrency;
-  if (input.technician !== undefined) data.technician = input.technician.trim();
-  if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
-  if (input.warrantyDays !== undefined) data.warrantyDays = input.warrantyDays;
   const updated = await withSerializableRetry(async (tx) => {
+    const current = await tx.repairOrder.findFirst({ where: { id, storeId } });
+    if (!current) return null;
+    const estimateChanged = input.estimate !== undefined && (
+      input.estimate == null ? current.estimate != null : moneyChanged(current.estimate, input.estimate)
+    );
+    const depositChanged = input.deposit !== undefined && moneyChanged(current.deposit, input.deposit);
+    const explicitCurrency = input.currency === "ARS" || input.currency === "USD" ? input.currency : null;
+    const currencyChanged = explicitCurrency != null && explicitCurrency !== current.currency;
+    if ((estimateChanged || depositChanged || currencyChanged) && !options.canChangePrice) {
+      throw new RepairError(SENSITIVE_DENIED, 403);
+    }
+    const touchesBudget = input.estimate !== undefined || input.deposit !== undefined;
+    if (touchesBudget) {
+      const nextEstimate = input.estimate !== undefined ? input.estimate : money(current.estimate);
+      const nextDeposit = input.deposit !== undefined ? input.deposit : (money(current.deposit) ?? 0);
+      if (depositExceedsEstimate(nextEstimate, nextDeposit)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
+    }
+    const data: {
+      clientId?: string | null;
+      clientName?: string | null;
+      device?: string;
+      imei?: string;
+      fault?: string;
+      faultTags?: string;
+      estimate?: Decimal | null;
+      deposit?: Decimal;
+      currency?: string;
+      technician?: string;
+      estimatedDelivery?: Date | null;
+      warrantyDays?: number;
+    } = {};
+    const touchesClient = input.clientId !== undefined || input.clientName !== undefined;
+    if (input.device !== undefined) data.device = input.device.trim();
+    if (input.imei !== undefined) data.imei = input.imei.replace(/\D/g, "").slice(0, 15);
+    if (input.fault !== undefined) data.fault = input.fault.trim();
+    if (input.faultTags !== undefined) data.faultTags = joinTags(input.faultTags);
+    if (input.estimate !== undefined) data.estimate = input.estimate == null ? null : new Decimal(input.estimate);
+    if (input.deposit !== undefined) data.deposit = new Decimal(input.deposit);
+    const nextCurrency = currencyOnWrite(input.currency, estimateChanged || depositChanged, estimateChanged || depositChanged ? await storeCurrency(storeId, tx) : "ARS");
+    if (nextCurrency) data.currency = nextCurrency;
+    if (input.technician !== undefined) data.technician = input.technician.trim();
+    if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
+    if (input.warrantyDays !== undefined) data.warrantyDays = input.warrantyDays;
     const applications = await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } });
-    const latest = await tx.repairOrder.findFirstOrThrow({ where: { id, storeId } });
+    const latest = current;
     if (applications && (input.deposit !== undefined && moneyChanged(latest.deposit, input.deposit) || input.currency != null && input.currency !== latest.currency || input.clientId !== undefined && input.clientId !== latest.clientId || input.clientName !== undefined && input.clientName !== latest.clientName)) throw new RepairError('La orden tiene señas aplicadas. Conservá cliente, moneda y anticipo', 409);
     if (applications) {
       if (input.estimate !== undefined && (input.estimate == null || input.estimate < Number(latest.deposit))) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
@@ -332,7 +332,7 @@ export async function updateRepair(
     }
     return row;
   });
-  return { order: serialize(updated, name), client: clientPayload(updated.client) };
+  return updated ? { order: serialize(updated, name), client: clientPayload(updated.client) } : null;
 }
 
 export async function changeRepairStatus(storeId: string, id: string, status: string, actor?: Actor | null) {
@@ -340,7 +340,8 @@ export async function changeRepairStatus(storeId: string, id: string, status: st
   const next = status.trim();
   if (!next) throw new RepairError("Elegí un estado");
   if (isRetiredRepairStatus(next)) throw new RepairError("Ese estado ya no está en el flujo");
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await withSerializableRetry(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "RepairOrder" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
     const current = await tx.repairOrder.findFirst({ where: { id, storeId } });
     if (!current) return null;
     if (current.status === next) {

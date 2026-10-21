@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-21**
 
+## Issue #461 — Concurrencia y consultas por lote — 2026-10-21
+
+- Cobros/movimientos, edición y archivo de clientes, importaciones y presupuesto de reparaciones usan lecturas actuales dentro de reintentos Serializable. Los cambios de estado de reparación, archivos/restauraciones de gastos/proveedores y ajustes de stock bloquean y revalidan antes de escribir. Resolución de stock, inventario y auditorías se confirman juntos.
+- Catálogos inicializan/guardan con el mismo lock. Comisiones y elegibilidad de stock precargan relaciones e historial por lote; pruebas de equivalencia y presupuestos para 120 meses y 30 registros.
+- Frontend invalida lecturas antes de mutar, usa scope/época, generaciones y tickets; protege respuestas y rollback por registro y reconcilia superposiciones. El formulario de clientes envía solo campos editados, preservando saldos y contactos concurrentes, sin cambios visuales.
+- Validación: 1.157 tests frontend, 516 unitarios backend y 362 integraciones aprobados; TypeScript/lint de ambos paquetes y `git diff --check` aprobados. 78 regresiones nuevas; reproducción rojo/verde y presupuestos de consultas en `docs/issue-461/README.md`. OpenSpec: `fix-concurrency-query-batching-461`. Sin schema, build, despliegue, commit ni push; exclusivamente PostgreSQL local `imanager_test`.
+
 ## Issue #449 — Filtros legibles en inventario móvil — 2026-10-21
 
 - Etiquetas de ancho completo y altura automática con blancos táctiles de 44 px, sin heredar los 18×18 de `.chk`. Corrección exclusiva del panel, compatible con el Sheet/acciones de #447.

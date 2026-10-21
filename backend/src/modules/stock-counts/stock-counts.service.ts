@@ -3,7 +3,8 @@ import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { Actor } from "../audit/audit.js";
 import { writeAudit } from "../audit/audit.js";
-import { deleteInventoryItem } from "../inventory/inventory.service.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
+import { archiveInventoryItems } from "../inventory/inventory.service.js";
 import { canManageStockCount } from "./access.js";
 import {
   classifyClose,
@@ -91,8 +92,8 @@ function asResult(value: Prisma.JsonValue): CloseResult | null {
   return row as CloseResult;
 }
 
-async function storeZone(storeId: string) {
-  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true, currency: true } });
+async function storeZone(storeId: string, db: Prisma.TransactionClient = prisma) {
+  const store = await db.store.findUnique({ where: { id: storeId }, select: { timezone: true, currency: true } });
   return { timeZone: store?.timezone || "America/Argentina/Buenos_Aires", currency: store?.currency || "ARS" };
 }
 
@@ -457,16 +458,17 @@ export async function resolveStockCount(
   input: { mode: "ADJUST" | "RECORD"; missingIds: string[]; surplusImeis: string[] },
 ) {
   if (!canManageStockCount(member)) throw new DomainError("Solo el propietario o un socio puede ajustar el control", 403);
-  const row = await loadCount(storeId, id);
-  if (!row || row.status !== "CLOSED") throw new DomainError("El control no está cerrado", 404);
-  if (row.resolution) throw new DomainError("Este control ya quedó registrado", 409);
-  const result = asResult(row.result);
-  if (!result) throw new DomainError("El control no tiene resultado", 409);
-  const { timeZone, currency } = await storeZone(storeId);
+  await withSerializableRetry(async tx => {
+    await tx.$queryRaw`SELECT "id" FROM "StockCount" WHERE "storeId" = ${storeId} AND "id" = ${id} FOR UPDATE`;
+    const row = await tx.stockCount.findFirst({ where: { storeId, id }, select: COUNT_SELECT });
+    if (!row || row.status !== "CLOSED") throw new DomainError("El control no está cerrado", 404);
+    if (row.resolution) throw new DomainError("Este control ya quedó registrado", 409);
+    const result = asResult(row.result);
+    if (!result) throw new DomainError("El control no tiene resultado", 409);
+    const { timeZone, currency } = await storeZone(storeId, tx);
 
-  if (input.mode === "RECORD") {
-    const at = new Date();
-    await prisma.$transaction(async (tx) => {
+    if (input.mode === "RECORD") {
+      const at = new Date();
       const updated = await tx.stockCount.updateMany({
         where: { id, storeId, status: "CLOSED", resolution: null },
         data: { resolution: "RECORDED" },
@@ -482,64 +484,59 @@ export async function resolveStockCount(
         detail: recordedClause(at, timeZone),
         changes: [{ field: "resolution", label: "Resolución", before: null, after: "Solo registrado" }],
       });
-    });
-    return closedStockCount(storeId, id);
-  }
+      return;
+    }
 
-  const soldIds = new Set(result.sold.map((line) => line.inventoryItemId).filter((value): value is string => Boolean(value)));
-  if (input.missingIds.some((itemId) => soldIds.has(itemId))) {
-    throw new DomainError("Los que figuran vendidos no se ajustan desde el conteo", 400);
-  }
-  const missingIds = [...new Set(sameIds(result.missing, input.missingIds))];
-  const surplusAllowed = new Set(result.surplus.map((line) => line.imei));
-  const surplusImeis = [...new Set(input.surplusImeis.map((value) => normalizeImei(value)).filter((value) => surplusAllowed.has(value)))];
+    const soldIds = new Set(result.sold.map((line) => line.inventoryItemId).filter((value): value is string => Boolean(value)));
+    if (input.missingIds.some((itemId) => soldIds.has(itemId))) {
+      throw new DomainError("Los que figuran vendidos no se ajustan desde el conteo", 400);
+    }
+    const missingIds = [...new Set(sameIds(result.missing, input.missingIds))];
+    const surplusAllowed = new Set(result.surplus.map((line) => line.imei));
+    const surplusImeis = [...new Set(input.surplusImeis.map((value) => normalizeImei(value)).filter((value) => surplusAllowed.has(value)))];
 
-  for (const itemId of missingIds) {
-    await deleteInventoryItem(storeId, itemId, actor, {
-      reason: "Faltante",
-      source: "app",
-      batchId: missingIds.length > 1 ? id : null,
+    await archiveInventoryItems(tx, storeId, missingIds, actor, {
+      reason: "Faltante", source: "app", batchId: missingIds.length > 1 ? id : null,
       batchSize: missingIds.length > 1 ? missingIds.length : null,
     });
-  }
-
-  let loaded = 0;
-  for (const imei of surplusImeis) {
-    const existing = await prisma.inventoryItem.findFirst({ where: { storeId, imei }, select: { id: true, archivedAt: true } });
-    if (existing?.archivedAt) throw new DomainError("Ese IMEI está archivado. Restauralo desde Archivados.", 409);
-    if (existing) continue;
-    const created = await prisma.inventoryItem.create({
-      data: {
+    const existingItems = await tx.inventoryItem.findMany({ where: { storeId, imei: { in: surplusImeis } }, select: { imei: true, archivedAt: true } });
+    const byImei = new Map(existingItems.map(item => [item.imei, item]));
+    let loaded = 0;
+    for (const imei of surplusImeis) {
+      const existing = byImei.get(imei);
+      if (existing?.archivedAt) throw new DomainError("Ese IMEI está archivado. Restauralo desde Archivados.", 409);
+      if (existing) continue;
+      const created = await tx.inventoryItem.create({
+        data: {
+          storeId,
+          imei,
+          model: "Sin modelo",
+          capacity: "",
+          color: "",
+          condition: "",
+          grade: "",
+          batteryHealth: "",
+          cost: new Prisma.Decimal(0),
+          price: new Prisma.Decimal(0),
+          currency,
+          status: "DISPONIBLE",
+          needsCompletion: true,
+          customFields: {},
+        },
+      });
+      loaded += 1;
+      await writeAudit(tx, {
         storeId,
-        imei,
-        model: "Sin modelo",
-        capacity: "",
-        color: "",
-        condition: "",
-        grade: "",
-        batteryHealth: "",
-        cost: new Prisma.Decimal(0),
-        price: new Prisma.Decimal(0),
-        currency,
-        status: "DISPONIBLE",
-        needsCompletion: true,
-        customFields: {},
-      },
-    });
-    loaded += 1;
-    await writeAudit(prisma, {
-      storeId,
-      actor,
-      action: "inventory.created",
-      entityType: "inventory",
-      entityId: created.id,
-      entityLabel: deviceTitle(created.model, created.capacity),
-      detail: "Cargado desde el control de stock",
-    });
-  }
+        actor,
+        action: "inventory.created",
+        entityType: "inventory",
+        entityId: created.id,
+        entityLabel: deviceTitle(created.model, created.capacity),
+        detail: "Cargado desde el control de stock",
+      });
+    }
 
-  const at = new Date();
-  await prisma.$transaction(async (tx) => {
+    const at = new Date();
     const updated = await tx.stockCount.updateMany({
       where: { id, storeId, status: "CLOSED", resolution: null },
       data: { resolution: "ADJUSTED" },

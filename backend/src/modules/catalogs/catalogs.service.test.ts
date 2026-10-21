@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const tx = vi.hoisted(() => ({
+  $executeRaw: vi.fn(),
   storeCatalogOption: { findMany: vi.fn(), update: vi.fn(), create: vi.fn(), delete: vi.fn() },
   inventoryItem: { updateMany: vi.fn() },
   client: { updateMany: vi.fn() },

@@ -108,6 +108,16 @@ describe('clients-api', () => {
     });
   });
 
+  it('sends a contact patch without replaying financial or unrelated fields', async () => {
+    const patch = { id: clientFixture.id, name: 'Renamed' };
+    const persisted = { ...clientFixture, name: 'Renamed', pendingBalance: 70 };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(jsonResponse({ client: persisted }));
+    await expect(updateBackendClient(mockUser, patch)).resolves.toEqual(persisted);
+    expect(fetchWithTimeout).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify(patch),
+    }));
+  });
+
   it('accepts 204 deletes and surfaces failing deletes', async () => {
     vi.mocked(fetchWithTimeout)
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
