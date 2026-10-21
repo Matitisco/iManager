@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
@@ -399,6 +400,7 @@ export function registerScanQa(width: 390 | 1440) {
     await expect(single.getByLabel('IMEI (opcional)')).toHaveValue(ONLY);
     await page.keyboard.press('Escape');
 
+    await expandListOptions(page);
     await page.getByRole('button', { name: 'Carga en serie' }).first().click();
     const batch = page.getByRole('dialog', { name: 'Carga en serie' });
     await batch.getByRole('button', { name: 'Editar' }).click();

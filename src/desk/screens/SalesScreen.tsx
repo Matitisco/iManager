@@ -1,3 +1,4 @@
+import { useNavigationState } from '../route-viewport';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { monthKey, monthLabel } from '../commissions';
@@ -40,7 +41,7 @@ import { salesMatchingSellers, sellerChipLabel, sellerFilterOptions } from '../s
 import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Sale } from '../../types';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
@@ -59,8 +60,8 @@ export function SalesScreen() {
   const [directoryError, setDirectoryError] = useState('');
   const [sellerRetry, setSellerRetry] = useState(0);
   useOfflineRecovery(directoryError, () => setSellerRetry(value => value + 1));
-  const [unassignedMonth] = useState(() => { const requested = sessionStorage.getItem('commission-unassigned'); return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null; });
-  const [onlyUnassigned, setOnlyUnassigned] = useState(Boolean(unassignedMonth));
+  const [unassignedMonth] = useNavigationState('Sales.unassignedMonth', () => { const requested = sessionStorage.getItem('commission-unassigned'); return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null; });
+  const [onlyUnassigned, setOnlyUnassigned] = useNavigationState('Sales.onlyUnassigned', Boolean(unassignedMonth));
   useEffect(() => { sessionStorage.removeItem('commission-unassigned'); }, []);
   const manageCommissions = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
   useEffect(() => {
@@ -75,13 +76,13 @@ export function SalesScreen() {
   const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
   const [sellerOpen, setSellerOpen] = useState(false);
   const [sellerDraft, setSellerDraft] = useState<string[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useNavigationState('Sales.searchOpen', false);
   const notices = useSectionNotices('sales');
-  const [onlyNotices, setOnlyNotices] = useState(false);
-  const [query, setQuery] = useState('');
-  const [period, setPeriod] = useState<PeriodKey>('Mes');
-  const [statusPill, setStatusPill] = useState('Todos');
-  const [columns, setColumns] = useState<SaleColumnFilters>(EMPTY_SALE_FILTERS);
+  const [onlyNotices, setOnlyNotices] = useNavigationState('Sales.onlyNotices', false);
+  const [query, setQuery] = useNavigationState('Sales.query', '');
+  const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
+  const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
+  const [columns, setColumns] = useNavigationState<SaleColumnFilters>('Sales.columns', EMPTY_SALE_FILTERS);
   const [voidedSales, setVoidedSales] = useState<Sale[]>([]);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('sales');
@@ -147,7 +148,7 @@ export function SalesScreen() {
   const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
   const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : narrowed;
-  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`);
+  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
   const deleteCancelled = selection.selected.length > 0 && selection.selected.every((sale) => sale.status === 'CANCELADA');
@@ -174,7 +175,7 @@ export function SalesScreen() {
   const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
-    <div className={`dscreen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
+    <div className={`dscreen mobile-list-screen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
       <ScreenTitle
         title="Ventas"
         subtitle={subtitle}
@@ -193,8 +194,11 @@ export function SalesScreen() {
       {phone ? (
         <div className="dbar sale-pills">
           <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
+          <MobileListOptions active={[columns.sellers.length ? 'Vendedor' : '', statusOn ? statusPill : ''].filter(Boolean).join(' · ')}>
           <SellerChip phone label={sellerChipLabel(columns.sellers, sellerOptions, true)} active={columns.sellers.length > 0} onOpen={() => { setSellerDraft(columns.sellers); setSellerOpen(true); }} onClear={() => setColumn({ sellers: [] })} />
           <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Cancelada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
+          <button className="dbtn s" type="button" disabled={shown.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
+          </MobileListOptions>
         </div>
       ) : null}
       {sellerOpen ? (
@@ -243,7 +247,7 @@ export function SalesScreen() {
       </div>
       )}
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions key={scope} selection={selection} total={shown.length}
+      <BulkActions hideStart key={scope} selection={selection} total={shown.length}
         label={saleCode}
         action={{
           label: deleteCancelled ? 'Anular selección' : 'Cancelar ventas',
@@ -384,7 +388,7 @@ export function SalesScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone && selection.selected.length === 0 ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
+      {phone && !selection.mode ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
     </div>
   );
 }

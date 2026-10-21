@@ -1,3 +1,4 @@
+import { expandListOptions } from './navigation';
 import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
@@ -208,6 +209,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
     const bulkList = ['inventory', 'sales', 'tradeins', 'clients'].includes(target.id);
     if (bulkList) {
       await expect(page.getByRole('checkbox', { name: /^Seleccionar/ })).toHaveCount(0);
+      await expandListOptions(page);
       await expect(page.getByRole('button', { name: 'Seleccionar', exact: true })).toBeVisible();
     }
     const menus = page.getByRole('button', { name: 'Más acciones' });
@@ -227,6 +229,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
       await closeMenu(page);
     }
     if (bulkList) {
+      await expandListOptions(page);
       await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
       const bar = page.getByTestId('bulk-action-bar');
       await expect(bar).toContainText('0 seleccionados');

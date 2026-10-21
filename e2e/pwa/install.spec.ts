@@ -281,20 +281,24 @@ test.describe('update after persistence', () => {
     await deploy(page, 'version');
     const toast = page.getByTestId('pwa-update-toast');
     await expect(toast).toContainText('Nueva versión disponible · Actualizar');
-    let navigations = 0;
-    page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
+    let documentRequests = 0;
+    // History metadata updates also emit framenavigated. Only a main-frame
+    // document request represents the reload that must wait for persistence.
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentRequests += 1;
+    });
     await dialog.getByRole('button', { name: 'Guardar cliente', exact: true }).click();
     await saving;
     // Hold persistence longer than the safety observer's 100 ms debounce.
     await page.waitForTimeout(300);
     await expect(dialog).toBeVisible(); await expect(toast).toBeVisible();
-    expect(navigations).toBe(0);
-    const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
+    expect(documentRequests).toBe(0);
+    const navigation = page.waitForEvent('load');
     releaseSave(); await navigation;
     await expect(page.locator('.desk-app')).toBeVisible();
     await expect(toast).toHaveCount(0);
     await expect(page.getByText('Cliente guardado antes de actualizar', { exact: true }).first()).toBeVisible();
-    expect(navigations).toBe(1);
+    expect(documentRequests).toBe(1);
   });
 });
 

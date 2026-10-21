@@ -41,6 +41,7 @@ import { FollowUpsScreen } from './screens/FollowUps';
 import { ReturnsScreen } from './screens/ReturnsScreen';
 import { StockCountScreen } from './screens/StockCountScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
+import { RoutePresentation, useMobileActionClearance, useRouteViewport } from './route-viewport';
 import { canonicalHash, ROUTE, tabFromHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import { NavChrome } from './group-tabs';
@@ -51,6 +52,7 @@ import {
   EMPTY_PENDING,
   groupOf,
   groupPending,
+  pendingDescription,
   mobileBar,
   moreTestId,
   sectionAllowed,
@@ -70,21 +72,17 @@ function countWords(count: number, words: string) {
 
 function sectionAside(id: DeskTab, pending: PendingInput, catalogCount: number) {
   if (id === 'publicCatalog') return countWords(catalogCount, catalogCount === 1 ? 'visible' : 'visibles');
-  if (id === 'commissions') return countWords(pending.commissions, 'pendientes');
+  if (id === 'commissions') return pendingDescription([id], pending) || '0 personas con comisiones pendientes';
   if (id === 'tradeins') return countWords(pending.openTrades, 'en curso');
   if (id === 'service') return countWords(pending.openRepairs, pending.openRepairs === 1 ? 'abierta' : 'abiertas');
   if (id === 'notifications') return countWords(pending.notifications, 'sin leer');
   if (id === 'followups' && pending.followUps > 0) return countWords(pending.followUps, 'para hoy');
-  return undefined;
+  return pendingDescription([id], pending) || undefined;
 }
 
 function NavGlyph({ name, size }: { name: NavIcon; size: number }) {
   if (name === 'help') return <CircleHelp size={size} />;
   return <DeskIcon name={name} size={size} />;
-}
-
-function badgeLabel(id: DeskTab, label: string, count: number) {
-  return id === 'notifications' ? `${count} en total` : `${count} en ${label}`;
 }
 
 function MoreRow({ id, label, subtitle, icon, aside, onOpen }: {
@@ -101,8 +99,8 @@ function MoreRow({ id, label, subtitle, icon, aside, onOpen }: {
       <span className="info">
         <span className="name">{label}</span>
         <span className="role">{subtitle}</span>
+        {aside ? <span className="more-pending">{aside}</span> : null}
       </span>
-      {aside ? <span className="rtxt">{aside}</span> : null}
       <span className="chev" aria-hidden="true">›</span>
     </button>
   );
@@ -160,10 +158,11 @@ function MoreScreen({
   );
 }
 
-function SideLink({ item, on, count, onOpen }: {
+function SideLink({ item, on, count, description, onOpen }: {
   item: { id: DeskTab; label: string; icon: NavIcon };
   on: boolean;
   count: number;
+  description?: string;
   onOpen: (id: DeskTab) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -174,7 +173,7 @@ function SideLink({ item, on, count, onOpen }: {
     <button ref={ref} className={`ditem${on ? ' on' : ''}`} type="button" aria-current={on ? 'page' : undefined} data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
       <span className="dic"><NavGlyph name={item.icon} size={18} /></span>
       <span>{item.label}</span>
-      {count > 0 ? <span className="dcount" aria-label={badgeLabel(item.id, item.label, count)}>{count}</span> : null}
+      {count > 0 ? <span className="dcount" title={description} aria-label={description}>{count}</span> : null}
     </button>
   );
 }
@@ -229,7 +228,10 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const openRepairs = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
-  const operationScope = `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${[allowed('inventory'), allowed('sales'), allowed('tradeins'), allowed('clients'), allowed('service'), allowed('reports')].map(Number).join('')}`;
+  const operationScope = `${user?.uid ?? appSession?.user?.id ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${JSON.stringify(sections)}`;
+
+  const viewport = useRouteViewport(operationScope);
+  useMobileActionClearance(viewport.stageRef, viewport.entry.id);
 
   useEffect(() => {
     if (overlayScope.current !== operationScope) {
@@ -253,24 +255,26 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   useEffect(() => {
     const apply = (closeOverlay: boolean) => {
       const canonical = canonicalHash(window.location.hash);
-      if (canonical && canonical !== window.location.hash) history.replaceState(null, '', canonical);
+      if (canonical && canonical !== window.location.hash) history.replaceState(history.state, '', canonical);
+      viewport.syncRoute();
       setTab(tabFromHash(window.location.hash));
       if (closeOverlay) setOverlay(null);
     };
-    if (!window.location.hash) history.replaceState(null, '', '#/dashboard');
+    if (!window.location.hash) history.replaceState(history.state, '', '#/dashboard');
     // Role arrives after the first paint. Read the hash again so a navigation
     // that landed before this listener was attached still opens that screen.
     apply(false);
     const onHash = () => { apply(true); setEntered(true); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [sections, role]);
+  }, [sections, role, operationScope]);
 
 
   useEffect(() => {
     if (phone || tab !== 'more') return;
     const fallback = allowed('dashboard') ? 'dashboard' : 'settings';
-    history.replaceState(null, '', `#/${ROUTE[fallback]}`);
+    history.replaceState(history.state, '', `#/${ROUTE[fallback]}`);
+    viewport.syncRoute();
     setTab(fallback);
     setOverlay(null);
   }, [phone, tab, sections, role]);
@@ -334,7 +338,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     toast: (text: string) => { setMessage(text); setToastOn(true); },
     isStaff,
     canManageSensitive: memberCanManageSensitive(appSession?.membership),
-    back: showBack ? () => go('more') : undefined,
+    back: showBack ? () => viewport.backToMore(() => go('more')) : undefined,
   };
 
   const nav = desktopNav(sections, role);
@@ -379,13 +383,14 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <div className="dnav">
             <div className="dgroup">
               {nav.main.map((block) => block.kind === 'link' ? (
-                <SideLink key={block.item.id} item={block.item} on={tab === block.item.id} count={sectionPending(block.item.id, pending)} onOpen={go} />
+                <SideLink key={block.item.id} item={block.item} on={tab === block.item.id} count={sectionPending(block.item.id, pending)} description={pendingDescription([block.item.id], pending)} onOpen={go} />
               ) : (
                 <div key={block.id} data-testid={`nav-group-${block.id}`}>
                   <SideLink
                     item={{ id: block.items[0].id, label: block.label, icon: block.icon }}
                     on={activeGroup === block.id}
                     count={groupPending(block.items.map((item) => item.id), pending)}
+                    description={pendingDescription(block.items.map((item) => item.id), pending)}
                     onOpen={go}
                   />
                 </div>
@@ -394,7 +399,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             <div className="dlabel">Cuenta</div>
             <div className="dgroup">
               {nav.cuenta.map((item) => (
-                <SideLink key={item.id} item={item} on={tab === item.id} count={sectionPending(item.id, pending)} onOpen={go} />
+                <SideLink key={item.id} item={item} on={tab === item.id} count={sectionPending(item.id, pending)} description={pendingDescription([item.id], pending)} onOpen={go} />
               ))}
             </div>
           </div>
@@ -405,7 +410,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           </button>
         </aside>
         )}
-        <main className="stage">
+        <main ref={viewport.stageRef} className="stage">
           <InstallApp enabled={installEnabled && backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && !overlay && !pendingRecordOpen && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
           <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
@@ -413,7 +418,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <NavChrome pending={pending}>
-          <div key={tab} className={entered ? 'enter-f' : undefined}>
+          <RoutePresentation.Provider key={viewport.entry.id} value={viewport.entry.values}>
+          <div className={entered ? 'enter-f' : undefined}>
             {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
@@ -448,6 +454,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             )}
             </>}
           </div>
+          </RoutePresentation.Provider>
           </NavChrome>
           </OfflineScope>
         </main>
@@ -459,6 +466,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 label: slot.label,
                 active: slot.activeIds.includes(tab),
                 pending: groupPending(slot.activeIds, pending),
+                pendingDescription: pendingDescription(slot.activeIds, pending),
                 testId: slot.testId,
                 icon: <NavGlyph name={slot.icon} size={22} />,
                 onClick: () => go(slot.target),

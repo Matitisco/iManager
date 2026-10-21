@@ -153,6 +153,10 @@ for (const viewport of [
       await page.getByRole('button', { name: 'Reglas', exact: true }).first().click();
       const sheet = page.getByRole('dialog', { name: 'Regla del equipo' });
       await expect(sheet).toBeVisible();
+      // Measure the final touch targets after the sheet's entry transform settles.
+      await sheet.evaluate(async node => {
+        await Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined)));
+      });
       const body = sheet.locator('.sheet-scroll');
       const footer = sheet.locator('.sheet-foot');
       await expect(footer.getByRole('button', { name: 'Guardar regla', exact: true })).toBeInViewport({ ratio: 1 });
