@@ -53,7 +53,7 @@ test('iPhone Safari guide is delayed, fits the screen and stays dismissed after 
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThan(844);
-  await page.getByRole('button', { name: 'Ahora no, no volver a mostrar' }).click();
+  await page.getByRole('button', { name: 'No volver a mostrar', exact: true }).click();
   await page.reload();
   await expect(page.locator('.desk-app')).toBeVisible();
   await page.clock.fastForward(60_000);
@@ -77,9 +77,8 @@ test('Android install action consumes a deferred native prompt only after a clic
   expect(await page.evaluate(() => (window as typeof window & { pwaPromptCount?: number }).pwaPromptCount)).toBe(0);
   await page.getByRole('button', { name: 'Instalar app' }).click();
   expect(await page.evaluate(() => (window as typeof window & { pwaPromptCount?: number }).pwaPromptCount)).toBe(1);
-  // Motion's exit animation does not finish under the fake clock, so verify the persisted
-  // dismissal and that the invitation stays hidden after reopening.
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('imanager:install-dismissed:android'))).toBe('yes');
+  await expect(page.getByTestId('install-app')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('imanager:install-preference:v2')!).dismissedForever)).toBe(false);
   await page.reload();
   await expect(page.locator('.desk-app')).toBeVisible();
   await page.clock.fastForward(60_000);
@@ -137,17 +136,17 @@ test('real service worker reopens the shell offline but never serves API/session
 });
 
 
-test('Android retains its own install action after the legacy iOS guide and closing the invitation', async ({ page }, info) => {
+test('Android preserves legacy dismissal and leaves installation available in Ayuda', async ({ page }, info) => {
   test.skip(info.project.name !== 'android-chromium');
   await page.addInitScript(() => localStorage.setItem('imanager:install-dismissed', 'yes'));
   await page.clock.install(); await session(page);
-  await page.evaluate(() => window.dispatchEvent(Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
-    prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }),
-  })));
   await page.clock.fastForward(30_000);
-  await page.getByRole('button', { name: 'Ahora no, no volver a mostrar' }).click();
-  await expect(page.locator('.pwa-install.compact')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Instalar app' })).toBeVisible();
+  await expect(page.getByTestId('install-app')).toHaveCount(0);
+  await page.getByTestId('sidebar-tab-more').click();
+  await expect(page.getByTestId('install-card')).toHaveCount(0);
+  await page.getByTestId('sidebar-tab-help').click();
+  await page.getByRole('button', { name: /Instalar la app en el celular/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Instalá iManager' })).toBeVisible();
   await screenshot(page, 'issue-292-mobile-android-instalar.png');
 });
 

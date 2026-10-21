@@ -2,14 +2,14 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { createPortal } from 'react-dom';
 import { ChevronDown, Download, MoreVertical, PlusSquare, Share, Smartphone, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { getInstallPrompt, isIOS, isAppInstalled, requestInstall, subscribeInstall } from '../lib/pwa';
+import { getInstallPrompt, isIOS, isAndroid, isAppInstalled, installDismissedForever, requestInstall, subscribeInstall } from '../lib/pwa';
 import { PHONE_QUERY } from '../lib/phone-layout';
 import './install-help.css';
 
 type Platform = 'android' | 'iphone';
 // One snapshot decides the card's presence during render, including when Más
 // mounts after a resize. No effect can insert the card beneath an ongoing tap.
-const canShowInstallCard = () => window.matchMedia(PHONE_QUERY).matches && !isAppInstalled();
+const canShowInstallCard = () => window.matchMedia(PHONE_QUERY).matches && (isIOS() || isAndroid()) && !isAppInstalled() && !installDismissedForever();
 function subscribeInstallCard(changed: () => void) {
   const media = window.matchMedia(PHONE_QUERY);
   media.addEventListener('change', changed);
@@ -148,7 +148,7 @@ export function InstallHelp({ onClose, onInstalled }: { onClose: () => void; onI
   </div>, document.body);
 }
 
-/** Explicit entry remains available after the automatic invitation is dismissed. */
+/** Más remains available during a snooze; permanent dismissal leaves only Ayuda. */
 export function InstallCard() {
   const visible = useSyncExternalStore(subscribeInstallCard, canShowInstallCard);
   const [open, setOpen] = useState(false);

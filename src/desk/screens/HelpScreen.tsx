@@ -39,7 +39,7 @@ export function HelpScreen() {
           </button>
         )}
         <button onClick={() => setInstall(true)}>
-          Instalar la app en el celular <span>›</span>
+          <span className="help-guide-copy">Instalar la app en el celular<small>Siempre disponible, aunque hayas ocultado la invitación</small></span><span>›</span>
         </button>
       </div>
       <FirstStepsHelp />

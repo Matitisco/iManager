@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-21**
 
+## Issue #466 — Invitación de instalación PWA — 2026-10-21
+
+- Un banner blanco sólo en Dashboard móvil después de 30 segundos elegibles; navegación, pestaña oculta y formularios/diálogos globales o locales lo retiran inmediatamente y reinician la espera. Android con/sin prompt e iOS con guía por navegador; desktop y standalone quedan excluidos.
+- Ahora no aplaza siete días; No volver a mostrar quita banner/tarjeta de Más y deja instalación en Ayuda. Primeros pasos conserva progreso y remite a Ayuda tras el descarte permanente. Preferencia v2 con migración conservadora, memoria si falla almacenamiento, sincronización y vencimiento en sesiones abiertas. Prompt con resultados explícitos y consumo único, sin confundir aceptación con instalación real.
+- Validación: 1.182 pruebas frontend, 516 unitarias backend, 362 integraciones locales en seis particiones secuenciales, 15 pruebas PWA y cinco E2E simulados aprobados; TypeScript/lint frontend/backend, OpenSpec estricto y diff check aprobados. Once PNG a 390×844 y 1440×900 en `docs/issue-466/`; iPhone emulado en Chromium porque WebKit carece de bibliotecas del sistema. Sin comprobación física de instalación ni reproducción autenticada productiva.
+- OpenSpec: `fix-install-invitation-466`; comandos y límites en `docs/issue-466/README.md`. Sin cambios de navegación/estructura de Más, AppContext, backend o Prisma. Sin build, despliegue, commit ni push; únicamente DB local `imanager_test`.
+
 ## Issue #461 — Concurrencia y consultas por lote — 2026-10-21
 
 - Cobros/movimientos, edición y archivo de clientes, importaciones y presupuesto de reparaciones usan lecturas actuales dentro de reintentos Serializable. Los cambios de estado de reparación, archivos/restauraciones de gastos/proveedores y ajustes de stock bloquean y revalidan antes de escribir. Resolución de stock, inventario y auditorías se confirman juntos.
