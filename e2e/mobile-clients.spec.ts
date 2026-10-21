@@ -206,6 +206,7 @@ test.describe('clients on a phone', () => {
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/clients-390-list.png`, fullPage: true });
 
+    await expandListOptions(page);
     await page.locator('.wchips').getByRole('button', { name: 'Con saldo pendiente', exact: true }).click();
     await expect(debtor).toBeVisible();
     await expect(created).toHaveCount(0);

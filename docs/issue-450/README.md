@@ -1,5 +1,19 @@
 # Navegación móvil (#450)
 
+## Regresiones E2E del check `test`
+
+Revisión sobre `1f2cbc1`, con los dos commits de #450 presentes. Se reprodujeron los fallos de Comisiones en Android, filtros de Clientes tras recargar y Carga en serie en móvil. Los recorridos ahora verifican «2 personas con comisiones pendientes» y abren «Opciones de lista» antes de usar sus controles. La segunda selección de ventas espera la cabecera de Ventas antes de expandir las opciones. Se conservan las aserciones de datos, permisos, pagos, escáner y persistencia.
+
+Sin cambios adicionales, aprobaron cuatro repeticiones de acciones masivas desktop con dos workers, el recorrido de permisos de Comisiones en WebKit y los tres escenarios de detalle de venta a 320 px. El 409 del alta no se reprodujo en esas repeticiones.
+
+La corrida completa también detectó una medición intermitente del menú de reglas mientras el Sheet todavía estaba animándose (43,99 px frente al mínimo de 44 px). El test espera ahora el transform final, como ya hacía el escenario vecino de ventas, sin cambiar dimensiones ni tolerancias. Aprobaron 20 repeticiones sin retries: cinco en cada viewport de 320, 390, 1440 y 1536 px.
+
+La suite E2E completa final terminó con código 0: 296 aprobados, 1 intermitente aprobado al reintentar y 7 omitidos por la configuración habitual (304 casos). Se ejecutó con `--workers=4 --retries=1`, usando la política de reintentos de CI. Los ocho fallos señalados en el reporte aprobaron. El caso intermitente fue el menú contextual de eliminación de canjes móvil, ajeno a los selectores de #450; también había aprobado sin retries en la pasada completa anterior con dos workers. Sus aserciones permanecen iguales.
+
+Validación local: 1128 pruebas frontend, 516 unitarias backend, 322 integraciones PostgreSQL y 15 pruebas PWA de assets/worker/servidor aprobadas; TypeScript/lint de ambos paquetes aprobado. Integraciones en `127.0.0.1:5432/imanager_test`; E2E completos aislados en `127.0.0.1:5432/imanager_450_e2e_test`. La configuración de ejecución deshabilita credenciales de Mercado Pago: un refresco externo de la suscripción sintética provocó un fallo de facturación ajeno al recorrido de navegación, que aprobó al aislar esa configuración.
+
+Las capturas heredadas de los tests se redirigieron a un directorio temporal dentro del workspace. No se escribieron imágenes en `docs/pr-shots` ni quedaron cambios en capturas versionadas. WebKit y sus bibliotecas se prepararon dentro del workspace. Sin build, cambios de aplicación/backend/Prisma, commit, push ni operaciones sobre bases reales.
+
 ## Corrección del check CI
 
 El run `39671052307` falló en `Test PWA on iPhone WebKit and Android Chromium`: el escenario de actualización después del guardado esperaba una navegación y observaba dos en los tres proyectos. `framenavigated` incluye el `history.replaceState` que registra la entrada del shell después de recargar; ese evento adicional no representa otra carga de documento.
@@ -45,7 +59,7 @@ La integración usa exclusivamente `127.0.0.1:5432/imanager_test`, con DATABASE_
 
 El fixture sirve exclusivamente el shell y componentes reales con contexto sintético, sin backend ni despliegue completo de la aplicación. Comprueba scroll inicial/restaurado, búsquedas y página al volver, ausencia de reset por actualización de datos o cierre de modal, nueva visita sin filtros heredados, ancho y blancos táctiles de menús, ausencia de overflow horizontal, sustitución del dock por selección y paginación por encima de las barras. Incluye inventario vacío, carga y error de borradores. Corre con StrictMode y exige cero errores de página. Las pruebas unitarias agregan aislamiento por usuario/tienda/permisos, deep links con query, metadata ajena de history.state, restauración demorada e interrupción del usuario, descripciones accesibles y conteos sin cambios.
 
-Se actualizaron los recorridos E2E afectados para expandir las opciones y reconocer descripciones, junto con la regresión Más → Reportes → Volver. Se comprobó el descubrimiento/sintaxis de la suite (304 casos en 78 archivos); no se ejecutó la suite E2E de despliegue completo, conforme a la validación acotada solicitada.
+La validación inicial actualizó los recorridos E2E para expandir las opciones y reconocer descripciones, junto con la regresión Más → Reportes → Volver, y comprobó el descubrimiento/sintaxis de la suite (304 casos en 78 archivos). La revisión posterior del check `test`, documentada arriba, agrega la ejecución completa contra servicios y bases locales de prueba.
 
 No hubo build, commit, push, rama nueva ni operaciones productivas. Chromium con viewport emulado no acredita Safari/PWA o iPhone físico.
 
