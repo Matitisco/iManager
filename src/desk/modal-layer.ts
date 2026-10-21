@@ -27,6 +27,10 @@ function topLayer() {
 function canFocus(node: HTMLElement) {
   if (!node.isConnected || node.matches(':disabled') || node.closest('[inert], [hidden], [aria-hidden="true"]')) return false;
   for (let current: HTMLElement | null = node; current; current = current.parentElement) {
+    if (current instanceof HTMLDetailsElement && !current.open) {
+      const summary = [...current.children].find(child => child.tagName === 'SUMMARY');
+      if (!summary?.contains(node)) return false;
+    }
     const style = getComputedStyle(current);
     if (style.display === 'none' || style.visibility === 'hidden') return false;
   }
@@ -53,7 +57,7 @@ function keydown(event: KeyboardEvent) {
     event.stopImmediatePropagation();
     requestClose(layer);
   } else if (event.key === 'Tab') {
-    const controls = [...surface.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], [contenteditable="true"]')]
+    const controls = [...surface.querySelectorAll<HTMLElement>('button, input, select, textarea, summary, a[href], [tabindex], [contenteditable="true"]')]
       .filter(node => node.tabIndex >= 0 && canFocus(node));
     const first = controls[0];
     const last = controls.at(-1);

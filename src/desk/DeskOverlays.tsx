@@ -244,13 +244,13 @@ function ReasonSheet({ title, subtitle, note, ok, danger, busy, error, extra, on
   const [chip, setChip] = useState('Error de carga');
   const [detail, setDetail] = useState('');
   const reason = [chip === 'Otro' ? '' : chip, detail.trim()].filter(Boolean).join(' · ').slice(0, 280);
-  return <Sheet title={title} subtitle={subtitle} onClose={onClose} footer={<Actions primary={ok} secondary="Cancelar" danger={danger} busy={busy} onPrimary={() => onOk(reason)} onSecondary={onClose} />}>
+  return <Sheet title={title} subtitle={subtitle} onClose={onClose} busy={busy} footer={<Actions primary={ok} secondary="Cancelar" danger={danger} busy={busy} onPrimary={() => onOk(reason)} onSecondary={onClose} />}>
     <div className="pending-sale"><div><b>Qué pasa</b><small>{note}</small></div></div>
     <p className="kicker">Motivo (opcional)</p>
     <div className="wchips">{REASONS.map((label) => <button key={label} type="button" className={`wchip${chip === label ? ' on' : ''}`} onClick={() => setChip(label)}>{label}</button>)}</div>
     <textarea aria-label="Detalle" maxLength={280} value={detail} placeholder="Agregá un detalle si querés" onChange={(event) => setDetail(event.target.value)} />
     <p className="mut">{detail.length}/280</p>
-    {extra ? <button type="button" className="wlink" onClick={extra.onClick}>{extra.label}</button> : null}
+    {extra ? <button type="button" className="wlink" disabled={busy} onClick={extra.onClick}>{extra.label}</button> : null}
     {error ? <p className="ferr" role="alert">{error}</p> : null}
   </Sheet>;
 }

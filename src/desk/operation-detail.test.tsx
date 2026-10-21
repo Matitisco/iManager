@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
@@ -147,6 +147,27 @@ describe('operation detail', () => {
     expect(ctx.deleteSale).toHaveBeenCalledWith('s1', 'Error de carga');
     expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.updateSale).not.toHaveBeenCalled();
+  });
+
+  it('keeps the shared reason sheet open while a destructive request is pending', async () => {
+    const user = userEvent.setup();
+    let reject: (cause: Error) => void = () => undefined;
+    ctx.sales = [sale({ status: 'CANCELADA' })];
+    ctx.deleteSale.mockImplementationOnce(() => new Promise((_resolve, rejectPromise) => { reject = rejectPromise; }));
+    renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004' });
+    const dialog = screen.getByRole('dialog', { name: 'Anular venta V-0004' });
+    await user.type(within(dialog).getByLabelText('Detalle'), 'Conservar el motivo');
+    await user.click(within(dialog).getByRole('button', { name: 'Anular' }));
+    expect(within(dialog).getByRole('button', { name: 'Guardando…' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cerrar' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(close).not.toHaveBeenCalled();
+    await act(async () => { reject(new Error('Anulación sintética fallida')); });
+    expect(dialog).toHaveTextContent('Anulación sintética fallida');
+    expect(within(dialog).getByLabelText('Detalle')).toHaveValue('Conservar el motivo');
+    expect(toast).not.toHaveBeenCalled();
+    expect(ctx.deleteSale).toHaveBeenCalledOnce();
   });
 
   it('deletes a cancelled trade and keeps a failed delete on screen', async () => {

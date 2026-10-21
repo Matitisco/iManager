@@ -86,7 +86,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
       <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
-        <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
+        <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
       {phone ? <div className="kv"><span>IMEI</span><b>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
@@ -95,7 +95,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
       <div className="kv" data-testid="equipment-supplier"><span>Proveedor</span><b>{item.supplierName || 'Sin proveedor cargado.'}</b></div>
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
-      {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
+      {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}

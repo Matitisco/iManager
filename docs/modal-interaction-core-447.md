@@ -14,6 +14,8 @@ flows. It adds no backend work, dependency or build output.
 
 `Sheet` renders a persistent title/subtitle header and close button, a
 `min-height: 0` internally scrolling body, and a non-shrinking footer. Its
+`.sheet-frame` class scopes this layout to the shared component. Existing
+manual `.sheet` surfaces retain their own padding and scroll behavior. Its
 existing optional `busy` prop gates X/backdrop/Escape. Pass the same live busy
 state to the footer controls; caller-owned actions remain explicitly disabled
 while their request is pending. A successful callback can still close the sheet
@@ -54,7 +56,15 @@ it. Escape closes only that disclosure and returns focus to its summary before
 the shared modal layer handles Escape. Selecting an action closes it and
 restores focus. Menus anchored in a footer float above it; saved-rule menus
 expand inline inside the scroll body so that the body never clips their
-buttons.
+buttons. A menu in the first footer column opens from the left edge. Legacy
+single-column action rules do not override `.sheet-actions`; opening the menu
+therefore leaves both the primary action and the visible close action usable.
+
+The focus layer includes native disclosure summaries and skips actions in
+closed disclosures. The existing scanner and its camera-permission surface
+use the same layer adapter so keyboard focus and Escape stay above a caller
+Sheet. Camera acquisition, code reading, streams and lens switching are
+unchanged by this compatibility adapter.
 
 ```tsx
 <SheetActions>
@@ -82,6 +92,9 @@ controls and button tokens remain in use.
 - Expenses keep save/restore primary and close secondary. Archive appears in
   the menu only for an existing, non-archived expense and still uses its
   confirmation. A failed save keeps the current draft and error.
+- The shared archive/void reason sheet passes its pending state to the frame,
+  so X, backdrop, Escape and alternate navigation cannot discard it while the
+  destructive request is running. A failure keeps the typed reason visible.
 - Sale forms keep confirm/save primary and close secondary. `Guardar pendiente`
   remains available in the menu under the existing draft condition. A pending
   sale uses `Marcar cobrada` primary; a completed sale uses `Compartir
@@ -106,14 +119,14 @@ controls and button tokens remain in use.
 
 - Frontend and backend TypeScript checks passed: `npm run lint` and
   `npm --prefix backend run lint`.
-- Six focused Vitest files passed: **91 passed**. The temporary
-  Vitest config only points Playwright's browser-only unit cases at the
-  installed `/usr/bin/chromium`.
-- The synthetic browser matrix passed **8/8** at 1440×900, 1536×640, 390×844
-  and 320×844. It checks sale action menus, fixed footers, last-field reach,
-  commission-rule action menus, keyboard dismissal/focus return, 44px menu
-  targets and horizontal overflow. Every API response is intercepted and uses
-  synthetic fixtures.
+- The final frontend suite passed: **156 files / 1098 tests**. The temporary
+  Vitest config only points Playwright's browser-only cases at the installed
+  `/usr/bin/chromium`; no dependency/config change is required by the app.
+- The synthetic action/layout browser matrix passed **12/12** at 1440×900,
+  1536×640, 390×844 and 320×844. It checks sales, commission rules, clients,
+  equipment, trade-ins and repairs, including fixed footers, last-field reach,
+  keyboard dismissal/focus return, 44px menu targets, unobstructed close actions
+  and horizontal overflow. Every API response is intercepted and synthetic.
 - The pending/failed expense persistence regression passed **4/4** at the same
   sizes. It verifies focus containment and that a 503 preserves the draft.
 - After screenshots were captured and visually checked for clipping and
@@ -128,3 +141,6 @@ controls and button tokens remain in use.
 Merge remains gated on green CI and Sol high review without bypass. #447 stays
 open until authenticated browser QA after deployment records the served
 version. Production QA is not claimed in this delivery.
+
+The follow-up local Sol review, resolved findings and remaining publication
+gate are recorded in `docs/issue-447/local-review.md`.

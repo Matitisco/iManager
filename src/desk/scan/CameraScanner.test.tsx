@@ -1,6 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CameraScanner } from './CameraScanner';
+import { Sheet } from '../ui';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -8,6 +11,36 @@ afterEach(() => {
 });
 
 describe('camera scanner', () => {
+  it.each([false, true])('owns focus and Escape above the caller sheet (permission denied: %s)', async denied => {
+    const user = userEvent.setup();
+    const closeParent = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const track = { getSettings: () => ({}), getCapabilities: () => ({}), stop: vi.fn() };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+      getUserMedia: vi.fn(() => denied ? Promise.reject(new DOMException('denied', 'NotAllowedError')) : Promise.resolve({ getVideoTracks: () => [track], getTracks: () => [track] })),
+      enumerateDevices: async () => [],
+    } });
+    function Example() {
+      const [camera, setCamera] = useState(false);
+      return <><Sheet title="Venta" onClose={closeParent}><button onClick={() => setCamera(true)}>Abrir cámara</button></Sheet>
+        {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} /> : null}</>;
+    }
+    render(<Example />);
+    const trigger = screen.getByRole('button', { name: 'Abrir cámara' });
+    await user.click(trigger);
+    const scanner = await screen.findByRole('dialog', { name: denied ? 'No tenemos acceso a la cámara' : 'Escanear IMEI' });
+    expect(scanner).toContainElement(document.activeElement as HTMLElement);
+    const manual = within(scanner).getByRole('button', { name: denied ? 'Escribir el IMEI' : 'Escribir a mano' });
+    manual.focus();
+    expect(manual).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(scanner).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Venta' })).toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(closeParent).not.toHaveBeenCalled();
+  });
+
   it('offers rear lens switching and releases the previous stream first', async () => {
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);

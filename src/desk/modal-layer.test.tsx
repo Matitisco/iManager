@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { Dialog, Sheet, useEscape } from './ui';
+import { Dialog, Sheet, SheetActionMenu, SheetActions, useEscape } from './ui';
 import { DeskSelect } from './select';
 import { ReportDatePicker } from './report-date-picker';
 import { CatalogEditor } from './catalog';
@@ -45,16 +45,47 @@ describe('shared modal interaction', () => {
     const surface = screen.getByRole('dialog', { name: 'Formulario' });
     expect(surface).toHaveFocus();
     await user.tab();
+    const headerClose = within(surface).getByRole('button', { name: 'Cerrar' });
+    expect(headerClose).toHaveFocus();
+    await user.tab();
     expect(screen.getByLabelText('Dato')).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(headerClose).toHaveFocus();
     await user.tab({ shift: true });
     expect(within(surface).getByRole('button', { name: 'Confirmación' })).toHaveFocus();
     await user.tab();
-    expect(screen.getByLabelText('Dato')).toHaveFocus();
+    expect(headerClose).toHaveFocus();
     screen.getByRole('button', { name: 'Fondo' }).focus();
     expect(surface).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it('wraps focus through a final disclosure summary, skipping its closed actions', async () => {
+    const user = userEvent.setup();
+    render(<Sheet title="Acciones" onClose={() => undefined} footer={<SheetActions>
+      <SheetActionMenu><button type="button">Archivar</button></SheetActionMenu>
+    </SheetActions>}><input aria-label="Dato" /></Sheet>);
+    const surface = screen.getByRole('dialog', { name: 'Acciones' });
+    const summary = screen.getByText('Más acciones');
+    const headerClose = within(surface).getByRole('button', { name: 'Cerrar' });
+    await user.tab({ shift: true });
+    expect(summary).toHaveFocus();
+    await user.tab();
+    expect(headerClose).toHaveFocus();
+    await user.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+    const archive = screen.getByRole('button', { name: 'Archivar' });
+    archive.focus();
+    await user.tab();
+    expect(headerClose).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(archive).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(summary).toHaveFocus();
+    await user.tab();
+    expect(headerClose).toHaveFocus();
   });
 
   it.each([false, true])('closes only the top confirmation (portal=%s), preserving the parent and returning focus', async portal => {

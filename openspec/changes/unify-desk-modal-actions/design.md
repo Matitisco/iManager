@@ -25,6 +25,9 @@ surfaces, preserving their controls, portals and business callbacks. Do not
 introduce a second inert/scroll-lock implementation: the selector already owns
 that behavior. Busy is explicit, defaults to false, and gates user close
 requests; successful async code may still call its existing close callback.
+Register the existing scanner and permission surface through the same adapter
+so a caller Sheet cannot reclaim their focus or Escape. This changes no camera
+acquisition, decoding, stream lifecycle or lens-switching behavior.
 
 ## Shared visual frame and actions
 
@@ -33,6 +36,8 @@ Sheet renders a persistent header/X, an internally scrolling body with
 requests; callers pass the same pending state to their actions. An explicit
 `footer` prop is preferred for migrated flows. Existing auto extraction of
 `Actions` and direct `.sacts` children remains for unmigrated consumers.
+Scope the fixed frame to `.sheet-frame` so manual `.sheet` surfaces retain
+their own padding and scroll, including invitation permissions and dollar UI.
 
 `Actions` retains its existing callbacks and adds optional `more` for secondary
 or destructive actions. `SheetActions` and `SheetActionMenu` support
@@ -41,6 +46,8 @@ labels its action group. Escape closes only the disclosure first and returns
 focus to the summary. Footer menus float above the fixed footer. Commission
 rule menus expand in the scroll flow because a floating menu at the top of the
 sheet body was clipped by that body's overflow.
+First-column menus anchor left, and legacy single-column footer styles exclude
+the new hierarchy so its open menu never covers the visible close action.
 
 At most one action is styled primary for each state. Keep all current actions
 and their existing authorization predicates, confirmation dialogs, callbacks,

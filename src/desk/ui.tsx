@@ -395,7 +395,7 @@ export function Sheet({ title, subtitle, children, onClose, busy = false, wide, 
   return (
     <ModalLayerContext.Provider value={modal.scope}>
     <div className="ov" onMouseDown={modal.requestClose}>
-      <div ref={ref} tabIndex={-1} className={`sheet${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={ref} tabIndex={-1} className={`sheet sheet-frame${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="sheet-h">
           <div className="sheet-title">

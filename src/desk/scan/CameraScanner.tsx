@@ -5,6 +5,7 @@ import { formatImei } from '../format';
 import { confirmScan } from './beep';
 import { CameraDenied, setTorch, torchSupported, watchCodes } from './reader';
 import { listRearCameras, type CameraDevice } from './camera-profile';
+import { ModalLayerContext, useModalLayer } from '../modal-layer';
 
 export function CameraScanner({
   onClose,
@@ -45,6 +46,8 @@ export function CameraScanner({
   const seen = useRef<{ value: string; at: number }>({ value: '', at: 0 });
   const burstSeen = useRef(new Set<string>());
   const holding = Boolean(parsed) && !burst;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const modal = useModalLayer({ ref: dialogRef, onClose, enabled: !denied });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -106,7 +109,7 @@ export function CameraScanner({
   }, [allowCameraSwitch, attempt, burst, cameraId, denied, holding, loose]);
 
   if (denied) {
-    return <CameraPermission onClose={onClose} onManual={onManual} onRetry={() => { setDenied(false); setAttempt((value) => value + 1); }} />;
+    return <ModalLayerContext.Provider value={modal.scope}><CameraPermission onClose={onClose} onManual={onManual} onRetry={() => { setDenied(false); setAttempt((value) => value + 1); }} /></ModalLayerContext.Provider>;
   }
 
   const live = !parsed;
@@ -116,9 +119,10 @@ export function CameraScanner({
     : '';
 
   return (
-    <div className="scan-viewer" role="dialog" aria-modal="true" aria-label="Escanear IMEI" data-testid="scan-viewer">
+    <ModalLayerContext.Provider value={modal.scope}>
+    <div ref={dialogRef} tabIndex={-1} className="scan-viewer" role="dialog" aria-modal="true" aria-label="Escanear IMEI" data-testid="scan-viewer">
       <header className="scan-viewer-bar">
-        <button type="button" className="scan-round" aria-label="Cerrar" onClick={onClose}>×</button>
+        <button type="button" className="scan-round" aria-label="Cerrar" onClick={modal.requestClose}>×</button>
         <b>Escanear IMEI</b>
         {canTorch ? (
           <button type="button" className={`scan-round${torchOn ? ' on' : ''}`} aria-label="Linterna" aria-pressed={torchOn} onClick={() => {
@@ -180,6 +184,7 @@ export function CameraScanner({
         </div>
       )}
     </div>
+    </ModalLayerContext.Provider>
   );
 }
 
@@ -192,10 +197,13 @@ function TorchMark() {
 }
 
 export function CameraPermission({ onClose, onManual, onRetry }: { onClose: () => void; onManual: () => void; onRetry: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const modal = useModalLayer({ ref, onClose });
   return (
+    <ModalLayerContext.Provider value={modal.scope}>
     <div className="ov" data-testid="scan-permission">
-      <div className="sheet scan-permission" role="dialog" aria-modal="true" aria-label="No tenemos acceso a la cámara" onMouseDown={(event) => event.stopPropagation()}>
-        <button type="button" className="modal-x scan-permission-x" aria-label="Cerrar" onClick={onClose}>×</button>
+      <div ref={ref} tabIndex={-1} className="sheet scan-permission" role="dialog" aria-modal="true" aria-label="No tenemos acceso a la cámara" onMouseDown={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-x scan-permission-x" aria-label="Cerrar" onClick={modal.requestClose}>×</button>
         <div className="scan-permission-icon"><CameraMark /></div>
         <h3>No tenemos acceso a la cámara</h3>
         <p className="sub">Para escanear, iManager necesita permiso. Mientras tanto podés escribir el IMEI o usar el lector.</p>
@@ -226,6 +234,7 @@ export function CameraPermission({ onClose, onManual, onRetry }: { onClose: () =
         </div>
       </div>
     </div>
+    </ModalLayerContext.Provider>
   );
 }
 

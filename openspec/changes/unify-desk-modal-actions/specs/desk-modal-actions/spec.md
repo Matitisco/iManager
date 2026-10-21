@@ -13,6 +13,11 @@ programmatic focus there, and restore connected trigger focus when dismissed.
 - **THEN** only the child contains focus; closing it restores focus inside the parent
 - **THEN** closing an entire modal branch restores a surviving outer trigger
 
+#### Scenario: Existing camera overlay above a sheet
+- **WHEN** a caller Sheet opens the existing scanner or its permission surface
+- **THEN** focus stays in that surface and Escape closes it before its caller
+- **THEN** the form and its draft remain available without changing camera acquisition or decoding
+
 ### Requirement: Single-layer dismissal and pending persistence
 Only the top modal layer SHALL consume user dismissal. Busy SHALL block Escape,
 backdrop and close-button dismissal without changing persistence behavior.

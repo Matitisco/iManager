@@ -486,7 +486,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         <div className="scan-warn" data-testid="sale-missing-imei">
           <b>Este IMEI no está en tu stock</b>
           <p>Registralo ahora y seguís con la venta, sin perder lo que cargaste.</p>
-          <button type="button" className="btn2 s" onClick={() => open({ type: 'scan-review', draft: draftFromImei(typedImei), resume: { clientName: buyer, clientId, amount, source } })}>+ Registrar equipo</button>
+          <button type="button" className="btn2 s" disabled={busy} onClick={() => open({ type: 'scan-review', draft: draftFromImei(typedImei), resume: { clientName: buyer, clientId, amount, source } })}>+ Registrar equipo</button>
         </div>
       ) : null}
       {deviceLabel.trim() && !selectedProduct && !reservedName && !missingSaleImei ? (
@@ -520,7 +520,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {noStock ? (
         <div className="eqs-note cj-nostock" data-testid="trade-no-stock">
           <span>No hay equipos disponibles en el inventario.</span>
-          <button type="button" className="wlink" onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
+          <button type="button" className="wlink" disabled={busy} onClick={() => { close(); go('inventory'); }}>Ir a inventario</button>
         </div>
       ) : null}
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}

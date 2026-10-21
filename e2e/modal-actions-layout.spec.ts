@@ -19,8 +19,24 @@ const product = {
   ...data.inventory[0], id: 'synthetic-product-447', model: 'iPhone 14', capacity: '128GB',
   color: 'Negro', condition: 'USADO', grade: 'A', price: 650000, currency: 'ARS',
 };
+const trade = {
+  id: 'synthetic-trade-447', tradeNumber: 447, date: '2026-10-15', clientId: client.id,
+  clientName: client.name, deviceReceived: 'iPhone recibido sintético', deviceReceivedImei: '',
+  deviceGiven: 'Equipo entregado sintético', takeValue: 200000, differencePaid: 450000,
+  currency: 'ARS', status: 'PENDIENTE', confirmationStatus: 'CONFIRMED', operationSource: 'tradeins',
+};
+const repair = {
+  id: 'synthetic-repair-447', orderNumber: 447, code: 'OT-0447', clientId: client.id,
+  clientName: client.name, clientPhone: client.phone, device: 'iPhone sintético', imei: '',
+  fault: 'Pantalla sintética para verificar la ficha y su pie de acciones.', faultTags: ['Pantalla'],
+  estimate: 45000, deposit: 10000, currency: 'ARS', technician: 'Técnico sintético',
+  status: 'RECIBIDO', estimatedDelivery: null, notifyWhatsapp: false, receivedAt: '2026-10-15',
+  whatsappUrl: null, events: [{ id: 'synthetic-event-447', status: 'RECIBIDO', createdAt: '2026-10-15' }],
+};
 
-async function syntheticSalesSession(page: Page) {
+async function syntheticSalesSession(page: Page, includeOtherDetails = false) {
+  const appClient = { ...client, pendingBalance: includeOtherDetails ? 125000 : 0 };
+  const tradeIns = includeOtherDetails ? [trade] : [];
   await page.addInitScript(() => {
     localStorage.setItem('imanager:test-auth-user', JSON.stringify({ email: 'modal447@example.test' }));
     localStorage.setItem('imanager:install-dismissed:ios', 'yes');
@@ -36,15 +52,18 @@ async function syntheticSalesSession(page: Page) {
     const path = new URL(request.url()).pathname;
     if (path === '/api/me') return route.fulfill({ json: { ...me, membership: { role: 'OWNER', sections: null, isDefault: true } }, headers: cors });
     if (path === '/api/sales') return route.fulfill({ json: { sales: [sale] }, headers: cors });
-    if (path === '/api/clients') return route.fulfill({ json: { clients: [client] }, headers: cors });
+    if (path === '/api/clients') return route.fulfill({ json: { clients: [appClient] }, headers: cors });
     if (path === '/api/clients/categories') return route.fulfill({ json: { categories: [] }, headers: cors });
     if (path === '/api/clients/synthetic-client-447/payments') return route.fulfill({ json: { payments: [] }, headers: cors });
+    if (path === '/api/clients/synthetic-client-447/deposits') return route.fulfill({ json: { deposits: [] }, headers: cors });
     if (path === '/api/inventory') return route.fulfill({ json: { inventory: [product] }, headers: cors });
-    if (path === '/api/trade-ins') return route.fulfill({ json: { tradeIns: [] }, headers: cors });
+    if (path === '/api/trade-ins') return route.fulfill({ json: { tradeIns }, headers: cors });
+    if (path === '/api/repairs') return route.fulfill({ json: { orders: includeOtherDetails ? [repair] : [] }, headers: cors });
+    if (path === '/api/operations/tradeins/trades/synthetic-trade-447') return route.fulfill({ json: { tradeIn: trade, inventory: [], clients: [], notifications: [], summary: '' }, headers: cors });
     if (path === '/api/commissions/sellers') return route.fulfill({ json: { sellers: [] }, headers: cors });
     if (path === '/api/accounts/sales/synthetic-sale-447') return route.fulfill({ json: { saleId: sale.id, status: sale.status, openBalance: null, due: 0, paymentMethod: sale.paymentMethod, plan: null, installments: [], tenders: [] }, headers: cors });
     if (path === '/api/history' || path === '/api/history/actors') return route.fulfill({ json: path.endsWith('/actors') ? { actors: [] } : { events: [], nextCursor: null }, headers: cors });
-    return route.fulfill({ json: { ...data, expenses: [], sales: [sale], clients: [client], inventory: [product], tradeIns: [] }, headers: cors });
+    return route.fulfill({ json: { ...data, expenses: [], sales: [sale], clients: [appClient], inventory: [product], tradeIns }, headers: cors });
   });
   await page.goto('/#/ventas');
   await expect(page.locator('.desk-app')).toBeVisible();
@@ -109,6 +128,9 @@ for (const viewport of [
       await summary.focus();
       await page.keyboard.press('Enter');
       await expect(menu).toHaveJSProperty('open', true);
+      await page.keyboard.press('Tab');
+      await expect(menu.getByRole('button', { name: 'Editar', exact: true })).toBeFocused();
+      await summary.focus();
       const { width, height } = page.viewportSize()!;
       await assertVisibleAction(menu, 'Editar', width, height);
       await assertVisibleAction(menu, 'Devolver', width, height);
@@ -116,6 +138,10 @@ for (const viewport of [
       await page.keyboard.press('Escape');
       await expect(menu).toHaveJSProperty('open', false);
       await expect(summary).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(footer.locator('.sheet-primary')).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(detail.locator('.sheet-h .modal-x')).toBeFocused();
     });
 
     test('keeps commission-rule actions reachable in the shared sheet at the same viewport', async ({ page }) => {
@@ -148,6 +174,44 @@ for (const viewport of [
       await expect(sheet.getByLabel('Vigente desde')).toBeInViewport();
       await expect(footer.getByRole('button', { name: 'Guardar regla', exact: true })).toBeInViewport({ ratio: 1 });
       await shot(page, `${viewport.name}-commission-rule-bottom.png`);
+    });
+
+    test('keeps other detail footers and permitted menu actions reachable', async ({ page }) => {
+      await syntheticSalesSession(page, true);
+      const mobile = page.viewportSize()!.width < 760;
+      const entries = [
+        { tab: 'clients', enter: () => page.getByTestId(`client-row-${client.id}`).click(), primary: 'Registrar pago', actions: ['Agregar seña', 'Nueva venta', ...(mobile ? ['Editar'] : [])] },
+        { tab: 'inventory', enter: () => (mobile ? page.locator('.phone-row') : page.getByRole('row')).filter({ hasText: 'iPhone 14' }).first().click(), primary: 'Guardar estado', actions: ['Vender'] },
+        { tab: 'tradeins', enter: () => (mobile ? page.getByTestId('tradeins-timeline').getByRole('button') : page.getByRole('row')).filter({ hasText: 'C-0447' }).first().click(), primary: 'Editar', actions: ['Cancelar operación'] },
+        { tab: 'service', enter: () => page.getByTestId(`repair-card-${repair.id}`).click(), primary: /^Pasar a /, actions: ['Cerrar', 'Compartir comprobante', 'Aplicar seña', 'Editar'] },
+      ];
+      for (const entry of entries) {
+        await openDeskSection(page, entry.tab);
+        await entry.enter();
+        const sheet = page.locator('.sheet-frame[role="dialog"]').last();
+        await expect(sheet).toBeVisible();
+        await sheet.evaluate(async node => { await Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined))); });
+        const footer = sheet.locator('.sheet-foot');
+        await expect(footer.locator('.sheet-primary')).toHaveCount(1);
+        await expect(footer.getByRole('button', { name: entry.primary, exact: true })).toBeInViewport({ ratio: 1 });
+        const before = (await footer.boundingBox())!;
+        await sheet.locator('.sheet-scroll').evaluate(node => { node.scrollTop = node.scrollHeight; });
+        expect((await footer.boundingBox())!.y).toBeCloseTo(before.y, 0);
+        const menu = footer.locator('.sheet-action-menu');
+        await menu.locator('summary').click();
+        await expect(menu).toHaveJSProperty('open', true);
+        const { width, height } = page.viewportSize()!;
+        for (const action of entry.actions) await assertVisibleAction(menu, action, width, height);
+        const closeAction = footer.locator('.sheet-actions > .sheet-secondary');
+        if (await closeAction.count()) await closeAction.click({ trial: true });
+        expect(await sheet.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+        await shot(page, `${viewport.name}-${entry.tab}-menu.png`);
+        await page.keyboard.press('Escape');
+        await expect(sheet).toBeVisible();
+        await sheet.locator('.sheet-h .modal-x').click();
+        await expect(sheet).toBeHidden();
+      }
     });
   });
 }

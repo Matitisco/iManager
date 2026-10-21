@@ -17,5 +17,5 @@ background, and independent Escape handlers can dismiss nested layers together.
 ## Non-goals
 
 No backend, AppContext, financial logic, permissions, dependencies,
-Prisma/schema changes, camera changes, production operations or build. No issue
+Prisma/schema changes, camera acquisition/lens changes, production operations or build. No issue
 closure, merge, or deployed-QA claim.
