@@ -164,12 +164,13 @@ export function IconButton({ label, name, pressed, disabled, onClick }: {
   );
 }
 
-export function ScreenTitle({ title, subtitle, back, tools, desktop }: {
+export function ScreenTitle({ title, subtitle, back, tools, desktop, navigation }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   back?: () => void;
   tools?: React.ReactNode;
   desktop: React.ReactNode;
+  navigation?: React.ReactNode;
 }) {
   const phone = usePhoneLayout();
   return (
@@ -182,7 +183,7 @@ export function ScreenTitle({ title, subtitle, back, tools, desktop }: {
         </div>
         {phone ? <div className="mtools">{tools}</div> : desktop}
       </div>
-      <GroupTabs />
+      {navigation === undefined ? <GroupTabs /> : navigation}
     </>
   );
 }

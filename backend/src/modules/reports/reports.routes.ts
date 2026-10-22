@@ -9,6 +9,7 @@ import { canSeeFinancials } from "../stores/sections.js";
 import { requireMember } from "../../middleware/section-access.js";
 import { denyUnlessOwner } from "../expenses/expenses.routes.js";
 import { getNetProfit } from "./net-profit.service.js";
+import { getPeriodicSummary } from "./periodic-summary.service.js";
 import {
   getReportsOverview,
   normalizeReportsOverviewInput,
@@ -24,6 +25,11 @@ const reportsQuerySchema = z.object({
 });
 
 export async function reportsRoutes(app: FastifyInstance) {
+  app.get('/periodic-summary', { preHandler: [authenticate, resolveAppUser, requireSectionAccess('reports')] }, async request => {
+    requireMember(request);
+    const { period } = z.object({ period: z.string().max(30).optional() }).strict().parse(request.query);
+    return getPeriodicSummary(request.appUser.storeId, request.appUser, period);
+  });
   app.get("/commissions", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("commissions"), requireSectionAccess("reports")] }, async request => {
     requireMember(request);
     const { from, to } = z.object({ from: commissionPeriodSchema, to: commissionPeriodSchema }).strict().parse(request.query);
