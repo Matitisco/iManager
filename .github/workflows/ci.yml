@@ -252,5 +252,5 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "$NEEDS" | jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped") and (.changes.result == "success")' \
+          echo "$NEEDS" | jq -e '(.changes.result == "success") and (to_entries | all(.value.result == "success" or .value.result == "skipped"))' \
             || { echo "Required jobs did not all succeed"; exit 1; }
