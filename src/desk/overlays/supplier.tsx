@@ -7,6 +7,8 @@ import { equipmentTitle, formatShortDate } from '../format';
 import { ListSkeleton } from '../list-skeleton';
 import { Actions, DeskIcon, Dialog, Field, Sheet, useDesk } from '../ui';
 import { useMoney } from '../exchange';
+import { financeDate } from '../finance-dates';
+import '../screens/finance.css';
 
 function problemLine(problems: number, devices: number) {
   if (!problems || !devices) return '';
@@ -15,9 +17,10 @@ function problemLine(problems: number, devices: number) {
 }
 
 export function SupplierForm({ id }: { id?: string }) {
-  const { suppliers, saveSupplier } = useAppContext();
+  const { suppliers, saveSupplier, user } = useAppContext();
   const { close, toast } = useDesk();
   const current = suppliers?.find((row) => row.id === id);
+  const [resolved, setResolved] = useState(!id || Boolean(current));
   const [name, setName] = useState(current?.name ?? '');
   const [phone, setPhone] = useState(current?.phone ?? '');
   const [email, setEmail] = useState(current?.email ?? '');
@@ -26,7 +29,20 @@ export function SupplierForm({ id }: { id?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!id || resolved) return;
+    if (current) { setName(current.name); setPhone(current.phone ?? ''); setEmail(current.email ?? ''); setNotes(current.notes ?? ''); setResolved(true); return; }
+    if (!user) return;
+    let active = true;
+    void fetchSupplier(user, id).then(row => {
+      if (!active) return;
+      setName(row.name); setPhone(row.phone ?? ''); setEmail(row.email ?? ''); setNotes(row.notes ?? ''); setResolved(true);
+    }).catch((cause: unknown) => { if (active) setError(getFriendlyErrorMessage(cause, 'No se pudo abrir el proveedor.')); });
+    return () => { active = false; };
+  }, [id, current, user, resolved]);
+
   const save = async () => {
+    if (busy || !resolved) return;
     if (!name.trim()) {
       setBad('Completá el nombre.');
       return;
@@ -45,13 +61,15 @@ export function SupplierForm({ id }: { id?: string }) {
   };
 
   return (
-    <Sheet title={id ? 'Editar proveedor' : 'Nuevo proveedor'} subtitle="El nombre alcanza para empezar." onClose={close}>
-      {error ? <div className="ferr">{error}</div> : null}
+    <Sheet title={id ? 'Editar proveedor' : 'Nuevo proveedor'} subtitle="El nombre alcanza para empezar." busy={busy} onClose={close} footer={!resolved ? <Actions primary="Volver" onPrimary={close} onSecondary={close} /> : <Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar proveedor'} onSecondary={close} onPrimary={() => { void save(); }} />}>
+      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      {!resolved && !error ? <p role="status">Cargando proveedor…</p> : null}
+      <fieldset className="finance-fields" disabled={busy || !resolved}>
       <Field label="Nombre" error={bad}><input value={name} onChange={(event) => { setName(event.target.value); setBad(''); }} placeholder="Ej. Mayorista Centro" /></Field>
       <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Opcional" /></Field>
       <Field label="Email"><input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Opcional" /></Field>
       <Field label="Notas"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></Field>
-      <Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar proveedor'} onSecondary={close} onPrimary={() => { void save(); }} />
+      </fieldset>
     </Sheet>
   );
 }
@@ -107,28 +125,21 @@ export function SupplierDetail({ id }: { id: string }) {
   };
 
   return (
-    <Sheet title={detail?.name ?? 'Proveedor'} subtitle={detail ? `${detail.deviceCount} ${detail.deviceCount === 1 ? 'equipo' : 'equipos'}` : 'Compras y origen'} onClose={close} className="eq-sheet">
-      {error ? <div className="ferr">{error}</div> : null}
+    <Sheet wide busy={busy} title={detail?.name ?? 'Proveedor'} subtitle={detail ? `${detail.deviceCount} ${detail.deviceCount === 1 ? 'equipo' : 'equipos'}` : 'Compras y origen'} onClose={close} className="eq-sheet finance-sheet supplier-sheet" footer={detail ? detail.deletedAt ? <Actions busy={busy} primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} /> : <Actions busy={busy} primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq', supplierId: detail.id })} secondary="Subir stock" onSecondary={() => open({ type: 'import', kind: 'inv', supplierId: detail.id, supplierName: detail.name })} more={<><button className="btn2 s" disabled={busy} onClick={() => open({ type: 'edit-supplier', id: detail.id })}>Editar</button><button className="btn2 danger" disabled={busy} onClick={() => setConfirm(true)}>Archivar</button></>} /> : undefined}>
+      {error ? <div className="ferr" role="alert">{error}</div> : null}
       {!detail && !error ? <ListSkeleton variant="cards" rows={3} testId="supplier-loading" /> : null}
       {detail ? (
-        <div data-testid="supplier-detail">
+        <div className="finance-columns" data-testid="supplier-detail"><section className="supplier-contact" aria-label="Contacto y origen">
+          <h4>Contacto y origen</h4>
+          {!detail.phone && !detail.email ? <p className="eqs-note">Sin contacto registrado.</p> : null}
           {detail.phone ? <div className="kv"><span>Teléfono</span><b>{detail.phone}</b></div> : null}
           {detail.email ? <div className="kv"><span>Email</span><b>{detail.email}</b></div> : null}
           {detail.notes ? <p className="eqs-note">{detail.notes}</p> : null}
           {problemLine(detail.problemCount, detail.deviceCount) ? <p className="eqs-note" data-testid="supplier-problems">{problemLine(detail.problemCount, detail.deviceCount)}</p> : null}
           {detail.deletedAt ? <p className="archive-note">Archivado. Los equipos conservan el origen.</p> : null}
-          <div className="sacts">
-            {detail.deletedAt ? (
-              <button className="btn2 p" type="button" disabled={busy} onClick={() => { void restore(); }}>Restaurar</button>
-            ) : (
-              <>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'new-eq', supplierId: detail.id })}>Registrar equipo</button>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'import', kind: 'inv', supplierId: detail.id, supplierName: detail.name })}>Subir stock</button>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-supplier', id: detail.id })}>Editar</button>
-                <button className="btn2 s" type="button" onClick={() => setConfirm(true)}>Archivar</button>
-              </>
-            )}
-          </div>
+          <div className="supplier-stats"><div><small>Equipos vinculados</small><b>{detail.deviceCount}</b></div><div><small>Última compra</small><b>{detail.lastPurchaseAt === undefined ? '—' : detail.lastPurchaseAt ? financeDate(detail.lastPurchaseAt) : 'Sin compras'}</b></div></div>
+          <p className="eqs-note">Los equipos y compras conservan este proveedor como origen, incluso al archivarlo.</p>
+          </section><section className="supplier-purchases" aria-label="Compras y equipos"><h4>Compras y equipos</h4>
           {detail.purchases.length === 0 ? <p className="eqs-note">Todavía no hay compras de este proveedor.</p> : detail.purchases.map((purchase) => (
             <section key={purchase.id} className="card ledger-list">
               <b>{purchase.id === 'sin-lote' ? 'Sin compra agrupada' : `Compra del ${formatShortDate(purchase.purchasedAt)}`}</b>
@@ -146,6 +157,7 @@ export function SupplierDetail({ id }: { id: string }) {
               ))}
             </section>
           ))}
+          </section>
         </div>
       ) : null}
       {confirm ? (

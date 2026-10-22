@@ -143,7 +143,7 @@ describe('apertura de sesión', () => {
       message: null,
     });
     render(<App />);
-    expect(await screen.findByText('Hola, Sofía')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Hola, Sofía')).toBeInTheDocument());
     await waitFor(() => expect(mine).toHaveBeenCalled());
     expect(summary).not.toHaveBeenCalled();
     expect(rules).not.toHaveBeenCalled();

@@ -14,6 +14,7 @@ export interface SupplierListItem {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  lastPurchaseAt?: string | null;
   deviceCount: number;
   problemCount: number;
   deletedAt: string | null;

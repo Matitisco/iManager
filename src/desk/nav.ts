@@ -127,6 +127,7 @@ export function desktopNav(stored: string[] | null | undefined, role?: string | 
   if (sectionAllowed('dashboard', stored, role)) main.push({ kind: 'link', item: linkFor('dashboard', own) });
   if (standalone) main.push({ kind: 'link', item: linkFor('commissions', true) });
   for (const group of NAV_GROUPS) {
+    if (role === 'STAFF' && group.id === 'finanzas') continue;
     const items = NAV_SECTIONS
       .filter((section) => section.group === group.id)
       .filter((section) => !(standalone && section.id === 'commissions'))

@@ -3,7 +3,9 @@ import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchSuppliers, type SupplierListItem } from '../../services/suppliers-api';
 import { ListSkeleton } from '../list-skeleton';
-import { DeskIcon, MobileDock, ScreenTitle, useDesk } from '../ui';
+import { financeDate } from '../finance-dates';
+import './finance.css';
+import { MobileDock, ScreenTitle, useDesk } from '../ui';
 
 export function SuppliersScreen() {
   const { suppliers, supplierError, user } = useAppContext();
@@ -33,8 +35,8 @@ export function SuppliersScreen() {
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-supplier' })}>Nuevo proveedor</button>;
 
   return (
-    <div className="dscreen" data-testid="suppliers-screen">
-      <ScreenTitle title="Proveedores" subtitle="De dónde vino cada equipo." back={back} tools={null} desktop={add} />
+    <div className="dscreen finance-screen" data-testid="suppliers-screen">
+      <ScreenTitle title="Proveedores" subtitle="A quién le comprás y qué equipos están vinculados." back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           <button className={`gchip${!archived ? ' on' : ''}`} type="button" aria-pressed={!archived} onClick={() => setArchived(false)}>Activos</button>
@@ -51,17 +53,13 @@ export function SuppliersScreen() {
       ) : null}
       {rows && rows.length > 0 ? (
         <div className="card ledger-list" data-testid="suppliers-list">
+          <div className="finance-supplier-head" aria-hidden="true"><span>Proveedor</span><span>Contacto</span><span>Equipos</span><span>Última compra</span></div>
           {rows.map((row) => (
-            <button key={row.id} className="member" type="button" data-testid={`supplier-${row.id}`} onClick={() => open({ type: 'supplier', id: row.id })}>
-              <span className="ico-row"><DeskIcon name="store" size={18} /></span>
-              <span className="info">
-                <span className="name">{row.name}</span>
-                <span className="role">
-                  {row.deviceCount} {row.deviceCount === 1 ? 'equipo' : 'equipos'}
-                  {row.problemCount ? ` · ${row.problemCount} con problemas` : ''}
-                </span>
-              </span>
-              <span className="chev" aria-hidden="true">›</span>
+            <button key={row.id} className="finance-supplier-row" type="button" data-testid={`supplier-${row.id}`} onClick={() => open({ type: 'supplier', id: row.id })}>
+              <span><b>{row.name}</b></span>
+              <span>{row.phone || row.email || 'Sin contacto registrado'}{row.phone && row.email ? <small>{row.email}</small> : null}</span>
+              <span>{row.deviceCount} {row.deviceCount === 1 ? 'equipo' : 'equipos'}{row.problemCount ? <small>{row.problemCount} con problemas</small> : null}</span>
+              <span className="finance-supplier-date">{row.lastPurchaseAt === undefined ? '—' : row.lastPurchaseAt ? `Última compra ${financeDate(row.lastPurchaseAt)}` : 'Sin compras registradas'}</span>
             </button>
           ))}
         </div>

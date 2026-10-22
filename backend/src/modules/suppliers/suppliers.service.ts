@@ -20,6 +20,7 @@ export interface SupplierListItem {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  lastPurchaseAt: string | null;
   deviceCount: number;
   problemCount: number;
   deletedAt: string | null;
@@ -82,13 +83,14 @@ function present(row: {
   email: string | null;
   notes: string | null;
   deletedAt: Date | null;
-}, counts: { devices: number; problems: number }): SupplierListItem {
+}, counts: { devices: number; problems: number }, lastPurchaseAt: Date | null = null): SupplierListItem {
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
     email: row.email,
     notes: row.notes,
+    lastPurchaseAt: lastPurchaseAt ? calendarDay(lastPurchaseAt, ZONE) : null,
     deviceCount: counts.devices,
     problemCount: counts.problems,
     deletedAt: row.deletedAt?.toISOString() ?? null,
@@ -125,11 +127,18 @@ export async function listSuppliers(storeId: string, archived = false): Promise<
     where: { storeId, deletedAt: archived ? { not: null } : null },
     orderBy: [{ name: "asc" }, { id: "asc" }],
   });
-  const counts = await countsFor(storeId, rows.map((row) => row.id));
+  const supplierIds = rows.map(row => row.id);
+  const [counts, latest] = await Promise.all([
+    countsFor(storeId, supplierIds),
+    supplierIds.length ? prisma.stockPurchase.groupBy({
+      by: ['supplierId'], where: { storeId, supplierId: { in: supplierIds }, deletedAt: null }, _max: { purchasedAt: true },
+    }) : [],
+  ]);
+  const dates = new Map<string | null, Date | null>(latest.map(row => [row.supplierId, row._max.purchasedAt] as const));
   return rows.map((row) => present(row, {
     devices: counts.devices.get(row.id) ?? 0,
     problems: counts.problems.get(row.id) ?? 0,
-  }));
+  }, dates.get(row.id) ?? null));
 }
 
 export async function getSupplier(storeId: string, id: string, financials: boolean) {
@@ -197,7 +206,7 @@ export async function getSupplier(storeId: string, id: string, financials: boole
   }
   const problemCount = items.filter((item) => problemLabel(item.status, Boolean(item.imei && inService.has(item.imei)))).length;
   return {
-    ...present(supplier, { devices: items.length, problems: problemCount }),
+    ...present(supplier, { devices: items.length, problems: problemCount }, purchases[0]?.purchasedAt ?? null),
     purchases: purchaseViews,
   };
 }

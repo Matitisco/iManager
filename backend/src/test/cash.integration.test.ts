@@ -113,6 +113,33 @@ describe('caja diaria', () => {
     expect(await prisma.cashMovement.count({ where: { kind: 'ANULACION' } })).toBe(2);
   });
 
+  it('expone apertura existente sin filtrar fondo protegido y reserva revisión al dueño', async () => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const id = await box('ARS', 'EFECTIVO', 500);
+    const sessionId = await open(id);
+    const stored = await prisma.cashSession.findUniqueOrThrow({ where: { id: sessionId } });
+    const ownerData = await list();
+    expect(ownerData.registers[0].session).toMatchObject({ openedAt: stored.openedAt.toISOString(), openedBy: owner.user.displayName, opening: 500 });
+    expect(ownerData.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(ownerData.registers[0].session).not.toHaveProperty('email');
+    for (const role of ['STAFF', 'MANAGER'] as const) {
+      const uid = `metadata-${role}`;
+      const user = await prisma.user.create({ data: { firebaseUid: uid, email: `${uid}@example.test` } });
+      await prisma.storeMember.create({ data: { storeId, userId: user.id, role, sections: ['cash'], isDefault: true } });
+      const auth = buildAuthHeaders({ uid, email: `${uid}@example.test` });
+      const data = await list(auth);
+      expect(data.registers[0]).not.toHaveProperty('balance');
+      expect(data.registers[0].session).not.toHaveProperty('opening');
+      expect(data.registers[0].session.openedAt).toBe(stored.openedAt.toISOString());
+      for (const action of ['APPROVE', 'RECOUNT']) expect((await post(`/sessions/${sessionId}/review`, { action, note: 'Revisar' }, auth)).statusCode).toBe(403);
+    }
+    const other = await seedStoreContext({ firebaseUid: 'metadata-other', email: 'metadata-other@example.test' });
+    expect((await list(buildAuthHeaders({ uid: other.user.firebaseUid, email: other.user.email! }))).registers).toEqual([]);
+    expect(await balance(id)).toBe(500);
+    expect(await prisma.cashMovement.count({ where: { storeId } })).toBe(1); // Only the original fund.
+  });
+
   it('separa acceso, saldo y administración; no filtra conteos al recontar ni datos de otra tienda', async () => {
     const owner = await seedStoreContext(); const id = await box('USD', 'EFECTIVO', 50); const session = await open(id);
     const staff = await prisma.user.create({ data: { firebaseUid: 'cash-staff', email: 'cash-staff@example.com' } });

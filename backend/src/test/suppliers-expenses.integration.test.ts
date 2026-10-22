@@ -6,6 +6,45 @@ import { useIntegrationApp } from "./integration-helpers.js";
 const { getApp } = useIntegrationApp();
 
 describe("proveedores, gastos y ganancia neta", () => {
+  it('lee la última compra activa por proveedor sin mezclar tiendas ni inventar compras', async () => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const supplier = await prisma.supplier.create({ data: { storeId, name: 'Mayorista' } });
+    const empty = await prisma.supplier.create({ data: { storeId, name: 'Sin compras' } });
+    for (const [date, deletedAt] of [['2026-10-10T12:00:00Z', null], ['2026-10-15T12:00:00Z', null], ['2026-10-20T12:00:00Z', new Date()]] as const) {
+      await prisma.stockPurchase.create({ data: { storeId, supplierId: supplier.id, purchasedAt: new Date(date), deletedAt } });
+    }
+    const other = await seedStoreContext({ firebaseUid: 'purchase-other', email: 'purchase-other@example.test' });
+    const otherSupplier = await prisma.supplier.create({ data: { storeId: other.store!.id, name: 'Otra tienda' } });
+    await prisma.stockPurchase.create({ data: { storeId: other.store!.id, supplierId: otherSupplier.id, purchasedAt: new Date('2026-10-21T12:00:00Z') } });
+    const response = await getApp().inject({ url: '/api/suppliers', headers: buildAuthHeaders() });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().suppliers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: supplier.id, lastPurchaseAt: '2026-10-15' }),
+      expect.objectContaining({ id: empty.id, lastPurchaseAt: null }),
+    ]));
+    expect(response.json().suppliers).toHaveLength(2);
+    const detail = await getApp().inject({ url: `/api/suppliers/${supplier.id}`, headers: buildAuthHeaders() });
+    expect(detail.json().supplier.lastPurchaseAt).toBe('2026-10-15');
+  });
+
+  it('crear, editar, archivar y restaurar gastos no toca caja ni crea vínculos', async () => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const register = await prisma.cashRegister.create({ data: { storeId, name: 'Caja de prueba', currency: 'ARS', method: 'EFECTIVO', balance: 9000 } });
+    const app = getApp(); const headers = buildAuthHeaders();
+    const payload = { date: '2026-10-21', category: 'Servicios', amount: 500, currency: 'ARS', notes: 'Internet' };
+    const created = await app.inject({ method: 'POST', url: '/api/expenses', headers, payload });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().expense.id;
+    expect((await app.inject({ method: 'PATCH', url: `/api/expenses/${id}`, headers, payload: { ...payload, amount: 750 } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'DELETE', url: `/api/expenses/${id}`, headers })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'POST', url: `/api/expenses/${id}/restore`, headers })).statusCode).toBe(200);
+    expect(await prisma.cashMovement.count({ where: { storeId } })).toBe(0);
+    expect(Number((await prisma.cashRegister.findUniqueOrThrow({ where: { id: register.id } })).balance)).toBe(9000);
+    expect(await prisma.cashSession.count({ where: { storeId } })).toBe(0);
+  });
+
   it("aísla la tienda, archiva sin borrar y respeta al propietario", async () => {
     const app = getApp();
     const owner = await seedStoreContext({ firebaseUid: "sup-owner", email: "sup-owner@example.com", displayName: "Natan" });

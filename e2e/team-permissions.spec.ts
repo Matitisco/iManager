@@ -19,14 +19,14 @@ for (const width of [390, 1440]) {
     await expect(page.getByTestId('settings-screen')).toBeVisible();
     await expect(page.getByTestId('settings-team')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Compartir por WhatsApp' })).toHaveAttribute('href', /wa\.me\/\?text=.*invite/);
-    await page.screenshot({ path: `/tmp/issue71-team-${width}.png` });
+    await page.screenshot({ path: `test-results/team-permissions/issue71-team-${width}.png` });
     await page.getByRole('button', { name: /Lucía Gómez/ }).click();
     if (width === 390) await expect(page.getByTestId('mobile-header')).toBeVisible();
     await page.getByRole('button', { name: 'Técnico', exact: true }).click();
     await expect(page.getByRole('switch', { name: 'Servicio técnico' })).toBeChecked();
     await expect(page.getByRole('switch', { name: 'Ventas', exact: true })).not.toBeChecked();
     await expect(page.getByRole('switch', { name: 'Ver saldo de cajas' })).toBeDisabled();
-    await page.screenshot({ path: `/tmp/issue71-permissions-${width}.png` });
+    await page.screenshot({ path: `test-results/team-permissions/issue71-permissions-${width}.png` });
     await page.getByRole('button', { name: width === 390 ? 'Guardar' : 'Guardar permisos', exact: true }).click();
     await expect(page.getByTestId('settings-screen')).toBeVisible();
     await page.evaluate(() => { window.location.hash = '#/dash'; });
@@ -50,18 +50,18 @@ for (const width of [390, 1440]) {
       await guest.goto(`/invite/${pending.token}`);
       await expect(guest.getByRole('heading', { name: 'Sumate a iPhone Club Palermo' })).toBeVisible();
       await expect(guest.getByText('Matías Tiscornia te invitó al equipo.')).toBeVisible();
-      await guest.screenshot({ path: `/tmp/issue71-accept-${width}.png` });
+      await guest.screenshot({ path: `test-results/team-permissions/issue71-accept-${width}.png` });
       await request.delete(`${api}/api/invitations/${pending.id}`, { headers: authHeaders(owner) });
       await guest.reload();
       await expect(guest.getByRole('heading', { name: 'Esta invitación ya no sirve' })).toBeVisible();
-      await guest.screenshot({ path: `/tmp/issue71-invalid-${width}.png` });
+      await guest.screenshot({ path: `test-results/team-permissions/issue71-invalid-${width}.png` });
       await guest.getByRole('button', { name: 'Ir a iManager' }).click();
       await loginViaUi(guest, staff);
       await guest.goto('/#/rep');
       await expect(guest.getByTestId('no-section-access')).toBeVisible();
       await expect(guest.getByText('Pedile acceso a Matías Tiscornia')).toBeVisible();
       await expect(guest).toHaveURL(/#\/analisis\/reportes$/);
-      await guest.screenshot({ path: `/tmp/issue71-denied-${width}.png` });
+      await guest.screenshot({ path: `test-results/team-permissions/issue71-denied-${width}.png` });
       expect(await guest.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     } finally { await context.close(); }
   });

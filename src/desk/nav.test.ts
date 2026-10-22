@@ -5,6 +5,7 @@ import {
   groupPending,
   pendingDescription,
   mobileBar,
+  pageTabs,
   sectionAllowed,
   sectionPending,
   type PendingInput,
@@ -51,12 +52,23 @@ describe('navegación por rol', () => {
     const staff = desktopNav(null, 'STAFF');
     expect(staff.main[0]).toMatchObject({ kind: 'link', item: { id: 'dashboard' } });
     expect(staff.main[1]).toMatchObject({ kind: 'link', item: { label: 'Mis comisiones' } });
-    expect(group('STAFF', null, 'finanzas')).toEqual(['suppliers']);
+    expect(group('STAFF', null, 'finanzas')).toBeNull();
     expect(group('STAFF', null, 'analisis')).toBeNull();
     expect(group('STAFF', null, 'stock')).toEqual(['inventory', 'stockCount']);
     expect(group('STAFF', null, 'stock')).not.toContain('publicCatalog');
-    expect(group('STAFF', ['inventory'], 'finanzas')).toEqual(['suppliers']);
+    expect(group('STAFF', ['inventory'], 'finanzas')).toBeNull();
     expect(group('STAFF', [], 'finanzas')).toBeNull();
+  });
+
+  it('oculta Finanzas a empleados sin revocar rutas autorizadas de caja y proveedores', () => {
+    const sections = ['inventory', 'cash', 'cashBalances'];
+    expect(group('STAFF', sections, 'finanzas')).toBeNull();
+    expect(pageTabs('cash', sections, 'STAFF')).toEqual([]);
+    expect(pageTabs('suppliers', sections, 'STAFF')).toEqual([]);
+    expect(sectionAllowed('suppliers', sections, 'STAFF')).toBe(true);
+    expect(sectionAllowed('cash', sections, 'STAFF')).toBe(true);
+    expect(sectionAllowed('expenses', sections, 'STAFF')).toBe(false);
+    expect(group('MANAGER', sections, 'finanzas')).toEqual(['cash', 'suppliers']);
   });
 
   it('mete Mis comisiones en Análisis cuando hay otra sección del grupo', () => {

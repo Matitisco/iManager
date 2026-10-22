@@ -43,7 +43,10 @@ export function registerCashTests(device: string) {
     expect(saved.ok(), await saved.text()).toBeTruthy();
     await page.evaluate(() => localStorage.clear());
     await loginViaUi(page, staff);
-    await openCash(page); await chooseBox(page, 'Efectivo protegido');
+    await page.goto('/#/cajas');
+    await expect(page.getByTestId('cash-screen')).toBeVisible();
+    await expect(page.getByText('Finanzas', { exact: true })).toHaveCount(0);
+    await chooseBox(page, 'Efectivo protegido');
     await expect(page.locator('.cash-overview strong')).toHaveText('Saldo protegido');
     await expect(page.getByRole('heading', { name: 'Movimientos', exact: true })).toHaveCount(0);
     const balances = await cashApi(request, staff);

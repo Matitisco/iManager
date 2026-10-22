@@ -53,12 +53,18 @@ async function cashAudit(tx: Tx, storeId: string, actor: Actor, action: string, 
 export async function listRegisters(storeId: string, member: Member) {
   const view = canViewCash(member);
   const rows = await prisma.cashRegister.findMany({ where: { storeId }, orderBy: { createdAt: 'asc' }, include: { sessions: { orderBy: { day: 'desc' }, take: 1, include: { counts: { orderBy: { createdAt: 'asc' } } } } } });
-  return { canViewBalances: view, registers: rows.map(row => {
+  const ids = [...new Set(rows.flatMap(row => row.sessions.map(session => session.openedBy)))];
+  const people = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } }) : [];
+  const names = new Map(people.map(person => [person.id, person.displayName]));
+  const day = await cashDay(prisma, storeId);
+  return { day, canViewBalances: view, registers: rows.map(row => {
     const last = row.sessions[0];
     // OPEN/RECOUNT never discloses an earlier count, even to the counter.
     const showCounts = last && ['SUBMITTED', 'APPROVED'].includes(last.status) && (view || last.counts.at(-1)?.countedBy === member.userId);
     return { id: row.id, name: row.name, currency: row.currency, method: row.method, isDefault: row.isDefault, archivedAt: row.archivedAt?.toISOString() ?? null, ...(view ? { balance: Number(row.balance) } : {}), session: last ? {
       id: last.id, day: last.day, status: last.status, reviewNote: last.reviewNote,
+      openedAt: last.openedAt.toISOString(), openedBy: names.get(last.openedBy) ?? null,
+      ...(view ? { opening: Number(last.opening) } : {}),
       ...(showCounts ? { counts: (view ? last.counts : last.counts.slice(-1)).map(countResponse) } : {}),
     } : null };
   }) };

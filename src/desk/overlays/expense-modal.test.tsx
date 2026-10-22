@@ -5,19 +5,21 @@ import { expect, it, vi } from 'vitest';
 import { ExpenseForm } from './expense';
 import { DeskProvider } from '../ui';
 
-const mocks = vi.hoisted(() => ({ save: vi.fn(), toast: vi.fn(), close: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), toast: vi.fn(), close: vi.fn(), archived: vi.fn(), restore: vi.fn(), mutateCash: vi.fn() }));
+const user = { uid: 'owner' };
+vi.mock('../../services/expenses-api', () => ({ fetchExpenses: mocks.archived }));
 vi.mock('../../context/AppContext', () => ({
-  useAppContext: () => ({ expenses: [], saveExpense: mocks.save }),
+  useAppContext: () => ({ user, expenses: [], saveExpense: mocks.save, restoreExpense: mocks.restore, mutateCash: mocks.mutateCash }),
 }));
 vi.mock('../exchange', () => ({
   useMoney: () => ({ active: 'ARS', rate: 1300 }),
 }));
 
-function Example() {
+function Example({ id }: { id?: string }) {
   const [open, setOpen] = useState(true);
   return <DeskProvider value={{ tab: 'expenses', isStaff: false, go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), toast: mocks.toast,
     close: () => { mocks.close(); setOpen(false); } }}>
-    {open ? <ExpenseForm /> : null}
+    {open ? <ExpenseForm id={id} /> : null}
   </DeskProvider>;
 }
 
@@ -57,5 +59,29 @@ it('still lets successful persistence close directly while user dismissal is bus
   expect(mocks.save).toHaveBeenCalledOnce();
   expect(mocks.close).toHaveBeenCalledOnce();
   expect(mocks.toast).toHaveBeenCalledExactlyOnceWith('Gasto cargado');
+  expect(mocks.mutateCash).not.toHaveBeenCalled();
+  expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ amount: 123, category: 'Alquiler sintético' }), undefined);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('carga los valores archivados y restaura sin guardar otro gasto ni mover caja', async () => {
+  mocks.archived.mockResolvedValue([{ id: 'archived', date: '2026-10-02', category: 'Servicios', amount: 5500, currency: 'ARS', notes: 'Internet', deletedAt: '2026-10-20T12:00:00Z' }]);
+  mocks.restore.mockResolvedValue(undefined);
+  render(<Example id="archived" />);
+  expect(await screen.findByRole('button', { name: 'Restaurar' })).toBeVisible();
+  expect(screen.getByLabelText('Categoría')).toHaveValue('Servicios');
+  expect(screen.getByLabelText('Notas')).toHaveValue('Internet');
+  await userEvent.click(screen.getByRole('button', { name: 'Restaurar' }));
+  expect(mocks.restore).toHaveBeenCalledWith('archived');
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(mocks.mutateCash).not.toHaveBeenCalled();
+});
+
+it('un archivado que no puede leerse no se transforma en un gasto nuevo', async () => {
+  mocks.archived.mockRejectedValue(new Error('No se pudo leer el gasto'));
+  render(<Example id="missing" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo leer el gasto');
+  expect(screen.queryByRole('button', { name: 'Guardar cambios' })).not.toBeInTheDocument();
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(mocks.mutateCash).not.toHaveBeenCalled();
 });

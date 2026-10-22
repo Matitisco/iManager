@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-22T01:49:48.909Z",
+  "url": "https://app.imanager.com.ar",
+  "buildId": "60658746e56ddaa2",
+  "asset": "/assets/index-9zHD6QKo.js",
+  "bundleSha256": "dca4253e024fd69d7f44b172d253644c1a50e9f547ae8b036cf76877049d79fa",
+  "observed": {
+    "cashWithoutOpening": true,
+    "mandatoryOpeningCopy": true,
+    "expenseSeparateCopy": true
+  },
+  "commitMappingVerified": false,
+  "deploymentMetadata": "Railway read unavailable: reauthentication required"
+}

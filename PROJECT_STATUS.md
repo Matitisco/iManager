@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-21**
 
+## Issue #457 — Operación y administración en Finanzas — 2026-10-21
+
+- Cajas prioriza cierre e ingresos/egresos; conversión secundaria, administración exclusiva del dueño y cierres anteriores aparte. Muestra la última sesión cerrada, apertura local y antigüedad sin «Sin abrir»; conserva conteo a ciegas, caja opcional, permisos de saldo, idempotencia y compensaciones. Metadatos existentes de apertura y responsables resueltos en lote; fondo protegido.
+- Gastos agrega resumen mensual del endpoint existente, categorías reales y explicación del efecto en resultados, con Ir a Cajas. Formulario adaptable con footer fijo, panel Qué cambia y recuperación/restauración de archivados. No existe vínculo gasto–egreso: no se infieren pagos ni asociaciones ni se ofrece escritura conjunta.
+- Proveedores prioriza contacto, equipos y última compra activa agrupada. Ficha con compras/sin lote, costos protegidos, Registrar equipo principal y acciones secundarias en menú. Finanzas oculto para STAFF en navegación; rutas y permisos existentes conservados.
+- Evidencia sintética antes/después a 390×844 y 1440×900; modales también a 1536×640, carga/vacío/error y guardado fallido. Base `f889b83`, versión pública y comandos en `docs/issue-457/README.md`. Sin cambios de Prisma, fórmulas, dependencias o AppContext; sin build, commit, push ni operaciones productivas. Validación: 1188 pruebas frontend, 516 unitarias backend, 365 integraciones y ambos typechecks/lint aprobados. E2E: 297 escenarios únicos verificados y 7 omisiones existentes; reejecución final de 9 casos aprobada tras preparar plugins WebKit y estabilizar el menú móvil del test de canjes. La prueba de sesión cacheada consulta el DOM dentro de waitFor para evitar un nodo reemplazado durante la confirmación. Detalle de resultados y límites en el README de la issue.
+
 ## Issue #450 — Navegación móvil y significado de indicadores — 2026-10-21
 
 - Revisión del check `test` E2E: Comisiones comprueba el contador explicado y abre opciones antes de seleccionar; Clientes vuelve a expandirlas tras recargar y el recorrido del escáner las abre antes de Carga en serie. La medición del menú de reglas espera la animación del Sheet sin reducir el mínimo de 44 px (20 repeticiones aprobadas). Suite completa con código 0: 296 aprobados, 1 intermitente aprobado al reintentar y 7 omitidos; frontend (1128), backend unitario (516), integración local (322), PWA assets/worker/servidor (15) y TypeScript/lint aprobados. Sin cambios de aplicación/backend/Prisma ni imágenes versionadas; reproducción y límites en `docs/issue-450/README.md`. Cambios sin commit ni push.
