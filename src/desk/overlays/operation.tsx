@@ -595,7 +595,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }
 
 export function SaleDetail({ id, run, busy, error }: FormProps & { id: string }) {
-  const { sales, clients, inventory, tradeIns, user, updateSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
+  const { sales, clients, inventory, tradeIns, user, updateSale, deleteSale, fetchSaleOperation, commissionSellers = [], loadCommissionSellers } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const sale = sales.find((item) => item.id === id) ?? voidedSale(id);
@@ -631,6 +631,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   if (confirmCancel) {
     return (
       <ConfirmOperationDialog
+        title={`Anular venta ${saleCode(sale)}`}
         label={saleCode(sale)}
         refund={plan.refund}
         coveredCredit={plan.credit}
@@ -639,7 +640,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         error={error}
         onClose={() => { if (!busy) setConfirmCancel(false); }}
         currency={sale.amountCurrency}
-        onOk={() => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada'); }}
+        onOk={reason => { void run(async () => await deleteSale(sale.id, reason), 'Venta anulada'); }}
       />
     );
   }
@@ -653,18 +654,18 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
           {canManageSensitive || integrated ? <SheetActionMenu>
-            {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
             {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+            {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
           </SheetActionMenu> : null}
           <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
         </SheetActions>
       ) : (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-          {integrated && canManageSensitive || sale.status !== 'CANCELADA' ? <SheetActionMenu>
-            {integrated && canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+          {sale.status !== 'CANCELADA' || canManageSensitive ? <SheetActionMenu>
             {sale.status !== 'CANCELADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
             {sale.status === 'COMPLETADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button> : null}
+            {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
           </SheetActionMenu> : null}
           <button className="btn2 p sheet-primary" type="button" onClick={() => {
             const text = [
@@ -687,14 +688,14 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       {sale.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulada</b><small>{sale.voidedBy ? `por ${sale.voidedBy}` : 'Esta venta está anulada'}{sale.voidReason ? ` · ${sale.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
       <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
-      {sale.status === 'CANCELADA' ? <AuditLine action="Cancelada" by={sale.cancelledBy} at={sale.cancelledAt} /> : null}
+      {sale.status === 'CANCELADA' ? <AuditLine action="Anulada" by={sale.voidedBy ?? sale.cancelledBy} at={sale.voidedAt ?? sale.cancelledAt} /> : null}
       <RecordHistory entityType="sale" entityId={sale.id} />
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" />}</b></div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
       <SaleAccountPanel saleId={sale.id} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
@@ -705,7 +706,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
           <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
           <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
           <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
-          <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Cancelado' : 'Confirmado'}</b></div>
+          <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Anulada' : 'Confirmado'}</b></div>
         </div>
       </section> : null}
     </Sheet>

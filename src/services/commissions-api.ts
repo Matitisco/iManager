@@ -33,8 +33,8 @@ export async function updateCommissionRule(user: AuthUserLike, id: string, input
   if (!data.rule) throw new Error('Respuesta inválida al guardar regla');
   return data.rule;
 }
-export function deleteCommissionRule(user: AuthUserLike, id: string): Promise<void> {
-  return apiRequest<void>(user, `/api/commissions/rules/${encodeURIComponent(id)}`, { method: 'DELETE', fallback });
+export function deleteCommissionRule(user: AuthUserLike, id: string, reason?: string): Promise<void> {
+  return apiRequest<void>(user, `/api/commissions/rules/${encodeURIComponent(id)}`, { method: 'DELETE', body: { reason }, fallback });
 }
 export async function fetchCommissionPayments(user: AuthUserLike, period?: string, memberId?: string): Promise<CommissionPayment[]> {
   const data = await apiRequest<{ payments: CommissionPayment[] }>(user, `/api/commissions/payments${query({ period, memberId })}`, { fallback });
@@ -46,8 +46,8 @@ export async function createCommissionPayment(user: AuthUserLike, input: Commiss
   if (!data.payment) throw new Error('Respuesta inválida al registrar pago');
   return data.payment;
 }
-export async function voidCommissionPayment(user: AuthUserLike, id: string): Promise<CommissionPayment> {
-  const data = await apiRequest<{ payment: CommissionPayment }>(user, `/api/commissions/payments/${encodeURIComponent(id)}/void`, { method: 'POST', fallback });
+export async function voidCommissionPayment(user: AuthUserLike, id: string, reason?: string): Promise<CommissionPayment> {
+  const data = await apiRequest<{ payment: CommissionPayment }>(user, `/api/commissions/payments/${encodeURIComponent(id)}/void`, { method: 'POST', body: { reason }, fallback });
   if (!data.payment) throw new Error('Respuesta inválida al anular pago');
   return data.payment;
 }

@@ -102,8 +102,8 @@ export function useLedgerState(user: AuthUserLike | null, session: AppSession | 
       await reloadLedger();
       return saved;
     },
-    archiveSupplier: async (id: string) => {
-      await archiveSupplierApi(auth(), id);
+    archiveSupplier: async (id: string, reason?: string) => {
+      await archiveSupplierApi(auth(), id, reason);
       await reloadLedger();
     },
     restoreSupplier: async (id: string) => {
@@ -116,8 +116,8 @@ export function useLedgerState(user: AuthUserLike | null, session: AppSession | 
       await reloadLedger();
       return saved;
     },
-    archiveExpense: async (id: string) => {
-      await archiveExpenseApi(auth(), id);
+    archiveExpense: async (id: string, reason?: string) => {
+      await archiveExpenseApi(auth(), id, reason);
       await reloadLedger();
     },
     restoreExpense: async (id: string) => {

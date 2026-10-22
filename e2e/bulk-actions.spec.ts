@@ -1,4 +1,4 @@
-import { openDeskSection } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -77,7 +77,13 @@ for (const device of [
       await expect(bar).toHaveCount(0);
       expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
       await page.reload(); await page.getByTestId('sidebar-tab-inventory').click();
-      await expect(page.getByTestId('inventory-empty')).toBeVisible();
+      if (device.mobile) {
+        await expandListOptions(page);
+        await page.getByTestId('inventory-status-filter').getByRole('button', { name: 'Estado' }).click();
+        await page.getByRole('menuitemcheckbox', { name: 'Todos' }).click();
+      } else await page.getByRole('button', { name: 'Todos', exact: true }).click();
+      await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(8);
+      await expect(page.getByText('1–8 de 10', { exact: true })).toBeVisible();
     });
   });
 }
@@ -98,8 +104,8 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
     await form.getByRole('button', { name: 'Confirmar venta', exact: true }).click(); await expect(form).toBeHidden();
   }
   await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
-  await page.getByRole('button', { name: 'Cancelar ventas', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar ventas', exact: true }).click();
+  await page.getByRole('button', { name: 'Anular', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Anular', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await fetchSales(request, email)).sales.every((sale) => sale.status === 'CANCELADA')).toBe(true);
   for (let index = 0; index < 2; index++) {
@@ -111,8 +117,8 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
     await form.getByRole('button', { name: 'Confirmar canje', exact: true }).click(); await expect(form).toBeHidden();
   }
   await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
-  await page.getByRole('button', { name: 'Cancelar canjes', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar canjes', exact: true }).click();
+  await page.getByRole('button', { name: 'Anular', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Anular', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await fetchTradeIns(request, email)).tradeIns.every((trade) => trade.confirmationStatus === 'CANCELLED')).toBe(true);
   expect((await fetchInventory(request, email)).inventory.filter((item) => item.model.startsWith('Recibido'))).toHaveLength(0);

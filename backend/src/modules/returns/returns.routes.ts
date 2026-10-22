@@ -1,3 +1,4 @@
+import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -111,7 +112,7 @@ export async function returnRoutes(app: FastifyInstance) {
     const actor = await requireSensitiveActor(request.appUser, reply);
     if (!actor) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const archived = await archiveReturnCase(request.appUser.storeId, id, actor);
+    const archived = await archiveReturnCase(request.appUser.storeId, id, actor, readReason(request.body));
     if (!archived) return reply.code(404).send({ error: "No encontramos ese reclamo." });
     return reply.code(204).send();
   });

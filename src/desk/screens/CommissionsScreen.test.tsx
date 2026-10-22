@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commissionFixtureDetail, commissionFixturePeople, commissionFixtureRules, commissionFixtureSummary } from '../../test/commission-fixtures';
-import { CommissionsScreen } from './CommissionsScreen';
+import { CommissionLines, CommissionsScreen } from './CommissionsScreen';
 import { CommissionPaymentSheet, CommissionRuleSheet } from './commission-sheets';
 import { MemberPermissions } from './MemberPermissions';
 import { SaleForm } from '../overlays/operation';
@@ -128,7 +128,7 @@ describe('Comisiones', () => {
     await userEvent.click(actions);
     await userEvent.click(screen.getByRole('button', { name: `${action} regla de Todo el equipo` }));
     await userEvent.click(within(screen.getByRole('dialog', { name: `${action} regla` })).getByRole('button', { name: `${action} regla` }));
-    if (action === 'Eliminar') expect(context.deleteCommissionRule).toHaveBeenCalledWith('team-rule');
+    if (action === 'Eliminar') expect(context.deleteCommissionRule).toHaveBeenCalledWith('team-rule', '');
     else expect(context.setCommissionRuleActive).toHaveBeenCalledWith('team-rule', action === 'Activar');
   });
   it('keeps rule confirmation open on a persistence error', async () => {
@@ -153,7 +153,7 @@ describe('Comisiones', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Anular pago' })).getByRole('button', { name: 'Anular pago' }));
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Anular pago' })).toHaveTextContent('Pago no anulado'));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Anular pago' })).getByRole('button', { name: 'Anular pago' }));
-    expect(context.voidCommissionPayment).toHaveBeenLastCalledWith('payment-sofia-1', 'sofia', '2026-10');
+    expect(context.voidCommissionPayment).toHaveBeenLastCalledWith('payment-sofia-1', 'sofia', '2026-10', '');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Anular pago' })).not.toBeInTheDocument());
   });
   it('explains the personal commissions view', () => {
@@ -217,4 +217,14 @@ describe('Vendedor en nueva venta', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar venta' }));
     await waitFor(() => expect(context.createOperation).toHaveBeenCalledWith('sales', expect.objectContaining({ sellerMemberId: 'sofia' })));
   });
+});
+
+
+it('marks cancelled accruals and voided commission payments red', () => {
+  const person = structuredClone(commissionFixtureDetail.person);
+  person.payments[0].voidedAt = '2026-10-22T12:00:00Z';
+  render(<CommissionLines person={person} financials period="2026-10" />);
+  expect(screen.getByText('iPhone 13 mini · 128GB').closest('.commission-line')).toHaveClass('is-void');
+  expect(screen.getByText('Pago anulado').closest('.commission-line')).toHaveClass('is-void');
+  expect(document.querySelector('.commission-line.cancelled')).toBeNull();
 });

@@ -89,7 +89,9 @@ describe('caja diaria', () => {
     expect(await balance(id)).toBe(900);
     await getApp().inject({ method: 'PATCH', url: `/api/cash/movements/${expense.json().id}/category`, headers: headers(), payload: { category: 'Alquiler' } });
     expect(await balance(id)).toBe(900);
-    await post(`/movements/${expense.json().id}/void`); await post(`/movements/${expense.json().id}/void`);
+    await post(`/movements/${expense.json().id}/void`, { reason: "Duplicado" });
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: expense.json().id, action: "cash.voided" } })).toMatchObject({ reason: "Duplicado" });
+    await post(`/movements/${expense.json().id}/void`);
     expect(await balance(id)).toBe(1000);
     expect((await move(id, -50, { kind: 'AJUSTE' })).statusCode).toBe(400);
     expect((await move(id, -50, { kind: 'AJUSTE', note: 'Corrección del fondo' })).statusCode).toBe(200);
@@ -163,7 +165,8 @@ describe('caja diaria', () => {
     const edit = (payload: object) => getApp().inject({ method: 'PATCH', url: `/api/cash/${id}`, headers: headers(), payload });
     expect((await edit({ archived: true })).statusCode).toBe(409);
     await post(`/sessions/${session}/count`, { denominations: { '20': 1, '5': 1 } }); await post(`/sessions/${session}/review`, { action: 'APPROVE' });
-    expect((await edit({ archived: true })).statusCode).toBe(200);
+    expect((await edit({ archived: true, reason: "Error de carga" })).statusCode).toBe(200);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: id, action: "cash.updated", reason: "Error de carga" } })).not.toBeNull();
     expect((await post(`/${id}/open`)).statusCode).toBe(409);
     expect((await edit({ archived: false, isDefault: true })).statusCode).toBe(200);
     expect(await balance(id)).toBe(25);

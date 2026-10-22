@@ -125,10 +125,10 @@ for (const device of [
       const record = device.phone ? page.getByTestId('tradeins-timeline') : page.getByRole('table', { name: 'Canjes' });
       await expect(record.getByText(`Canje quitado de la venta ${code}`, { exact: true })).toBeVisible();
       await expect(record).not.toContainText('Operación cancelada');
-      const pill = record.locator('.spill').filter({ hasText: 'Cancelado' });
+      const pill = record.locator('.spill').filter({ hasText: 'Anulada' });
       await expect(pill).toHaveAttribute('style', /--pc: #DC4C4C/i);
       await expect(pill.locator('svg')).toHaveAttribute('data-icon', 'cerrar');
-      const chip = page.getByRole('button', { name: 'Cancelado', exact: true });
+      const chip = page.getByRole('button', { name: 'Anulada', exact: true });
       await chip.scrollIntoViewIfNeeded();
       await expect(chip.locator('svg')).toHaveAttribute('data-icon', 'cerrar');
       await chip.click();

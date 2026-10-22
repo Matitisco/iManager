@@ -76,9 +76,10 @@ export function updateSupplier(user: AuthUserLike, id: string, input: SupplierIn
   }).then((data) => data.supplier);
 }
 
-export function archiveSupplier(user: AuthUserLike, id: string) {
+export function archiveSupplier(user: AuthUserLike, id: string, reason?: string) {
   return apiRequest<void>(user, `/api/suppliers/${id}`, {
     method: 'DELETE',
+    body: { reason },
     fallback: 'No se pudo archivar el proveedor',
     errorFrom: 'friendly',
   });

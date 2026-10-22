@@ -123,7 +123,7 @@ export async function updateExpense(storeId: string, id: string, input: ExpenseI
   return row ? present(row) : null;
 }
 
-export async function archiveExpense(storeId: string, id: string, actor: Actor) {
+export async function archiveExpense(storeId: string, id: string, actor: Actor, reason?: string | null) {
   return withSerializableRetry(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Expense" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
     const existing = await tx.expense.findFirst({ where: { id, storeId, deletedAt: null } });
@@ -132,6 +132,7 @@ export async function archiveExpense(storeId: string, id: string, actor: Actor) 
     await writeAudit(tx, {
       storeId,
       actor,
+      reason,
       action: "expense.archived",
       entityType: "expense",
       entityId: id,

@@ -72,9 +72,10 @@ const STATUS_LABEL: Record<string, string> = {
   RESERVADO: 'Reservado',
   COMPLETADA: 'Completada',
   PENDIENTE: 'Pendiente',
-  CANCELADA: 'Cancelada',
+  CANCELADA: 'Anulada',
   ANULADA: 'Anulada',
-  CANCELADO: 'Cancelado',
+  CANCELADO: 'Anulada',
+  CANCELLED: 'Anulada',
   LISTO: 'Completado',
   'PERITAJE TÉC.': 'Peritaje téc.',
   'EN REVISIÓN': 'En revisión',
@@ -110,7 +111,8 @@ const STATUS_COLOR: Record<string, string> = {
   PENDIENTE: '#E8A33D',
   Pendiente: '#E8A33D',
   CANCELADA: '#DC4C4C',
-  ANULADA: '#9AA0AA',
+  ANULADA: '#DC4C4C',
+  Anulada: '#DC4C4C',
   Cancelada: '#DC4C4C',
   CANCELADO: '#DC4C4C',
   Cancelado: '#DC4C4C',
@@ -206,7 +208,7 @@ export function tradeClientLabel(trade: { clientId?: string; clientName?: string
 export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumber'>): string {
   return trade.removedFromSaleNumber != null
     ? `Canje quitado de la venta V-${String(trade.removedFromSaleNumber).padStart(4, '0')}`
-    : 'Operación cancelada';
+    : 'Operación anulada';
 }
 
 export function isActiveTradeOperation(trade: { confirmationStatus?: string | null }): boolean {
@@ -240,8 +242,20 @@ export function saleCode(sale: Sale): string {
   return `V-${String(number || 0).padStart(4, '0')}`;
 }
 
-export function isVoidSale(sale: { status?: string | null; voidedAt?: string | null }) {
-  return sale.status === 'CANCELADA' || sale.status === 'ANULADA' || Boolean(sale.voidedAt);
+export function isVoidRow(row: {
+  status?: string | null;
+  confirmationStatus?: string | null;
+  voidedAt?: string | null;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+}) {
+  const cancelled = (status?: string | null) => ['CANCELADA', 'CANCELADO', 'CANCELLED', 'ANULADA', 'ANULADO'].includes(status?.trim().toUpperCase() ?? '');
+  return Boolean(row.voidedAt || row.archivedAt || row.deletedAt) || cancelled(row.status) || cancelled(row.confirmationStatus);
+}
+
+export function mergeRecordRows<T extends { id: string }>(active: readonly T[], archived: readonly T[]): T[] {
+  const ids = new Set(active.map(row => row.id));
+  return [...active, ...archived.filter(row => !ids.has(row.id))];
 }
 
 export function tradeCode(tradeIns: TradeIn[], id: string): string {

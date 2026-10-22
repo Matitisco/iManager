@@ -1,9 +1,11 @@
+import { archivedExpense } from '../archive-cache';
+import { ReasonSheet } from '../ReasonSheet';
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { parseMoney, formatInputMoney } from '../format';
 import { useMoney } from '../exchange';
-import { Actions, Dialog, Field, Segs, Sheet, useDesk } from '../ui';
+import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
 
 const CATEGORIES = ['Alquiler', 'Servicios', 'Sueldos', 'Impuestos', 'Publicidad', 'Flete', 'Insumos', 'Otros'];
 
@@ -11,7 +13,7 @@ export function ExpenseForm({ id }: { id?: string }) {
   const { expenses, saveExpense, archiveExpense, restoreExpense } = useAppContext();
   const money = useMoney();
   const { close, toast } = useDesk();
-  const current = expenses?.find((row) => row.id === id);
+  const current = expenses?.find((row) => row.id === id) ?? (id ? archivedExpense(id) : undefined);
   const [date, setDate] = useState(current?.date ?? new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(current?.category ?? '');
   const [amount, setAmount] = useState(current ? formatInputMoney(current.amount) : '');
@@ -49,16 +51,15 @@ export function ExpenseForm({ id }: { id?: string }) {
     }
   };
 
-  const archive = async () => {
+  const archive = async (reason: string) => {
     if (!id) return;
     setBusy(true);
     try {
-      await archiveExpense(id);
+      await archiveExpense(id, reason);
       toast('Gasto archivado');
       close();
     } catch (cause) {
       setError(getFriendlyErrorMessage(cause, 'No se pudo archivar el gasto.'));
-      setConfirm(false);
     } finally {
       setBusy(false);
     }
@@ -98,14 +99,15 @@ export function ExpenseForm({ id }: { id?: string }) {
       <Segs options={[{ id: 'ARS', label: 'Pesos' }, { id: 'USD', label: 'Dólares' }]} value={currency} onChange={(value) => setCurrency(value === 'USD' ? 'USD' : 'ARS')} />
       <Field label="Notas"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></Field>
       {confirm ? (
-        <Dialog
+        <ReasonSheet
           title="Archivar gasto"
-          text="El gasto queda archivado y deja de restar en la ganancia neta. No se borra."
+          note="El gasto queda archivado y deja de restar en la ganancia neta. No se borra."
           ok="Archivar"
           danger
           busy={busy}
-          onOk={() => { void archive(); }}
-          onClose={() => setConfirm(false)}
+          error={error}
+          onOk={(reason) => { void archive(reason); }}
+          onClose={() => { if (!busy) setConfirm(false); }}
         />
       ) : null}
     </Sheet>

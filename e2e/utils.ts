@@ -217,8 +217,8 @@ export async function createClientViaApi(
   return JSON.parse(body) as { client: { id: string; name: string } };
 }
 
-export async function fetchSales(request: APIRequestContext, email: string) {
-  const response = await request.get(`${DEFAULT_API_BASE_URL}/api/sales`, {
+export async function fetchSales(request: APIRequestContext, email: string, voided = false) {
+  const response = await request.get(`${DEFAULT_API_BASE_URL}/api/sales${voided ? '?voided=1' : ''}`, {
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch sales');

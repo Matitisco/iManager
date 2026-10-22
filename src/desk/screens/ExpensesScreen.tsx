@@ -1,36 +1,24 @@
-import { useEffect, useState } from 'react';
+import { rememberArchivedExpenses } from '../archive-cache';
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { getFriendlyErrorMessage } from '../../lib/utils';
-import { fetchExpenses, type ExpenseView } from '../../services/expenses-api';
+import { fetchExpenses } from '../../services/expenses-api';
 import { formatMoney, formatShortDate } from '../format';
 import { ListSkeleton } from '../list-skeleton';
 import { DeskIcon, MobileDock, ScreenTitle, useDesk } from '../ui';
 
+const loadArchived = (user: Parameters<typeof fetchExpenses>[0]) => fetchExpenses(user, true);
+
 export function ExpensesScreen() {
   const { expenses, expensesLoaded, expenseError, user } = useAppContext();
   const { open, back } = useDesk();
-  const [archived, setArchived] = useState(false);
-  const [archivedRows, setArchivedRows] = useState<ExpenseView[] | null>(null);
-  const [archivedError, setArchivedError] = useState('');
-
-  useEffect(() => {
-    if (!archived || !user) return;
-    let active = true;
-    setArchivedRows(null);
-    setArchivedError('');
-    void fetchExpenses(user, true).then((rows) => {
-      if (active) setArchivedRows(rows);
-    }).catch((cause: unknown) => {
-      if (active) {
-        setArchivedRows([]);
-        setArchivedError(getFriendlyErrorMessage(cause, 'No se pudieron cargar los gastos archivados.'));
-      }
-    });
-    return () => { active = false; };
-  }, [archived, user]);
-
-  const rows = archived ? archivedRows : (expensesLoaded === false ? null : expenses);
-  const error = archived ? archivedError : expenseError;
+  const [filter, setFilter] = useState('Todos');
+  const archived = filter === 'Archivados';
+  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(expenses, loadArchived, rememberArchivedExpenses);
+  const activeRows = (expensesLoaded === false ? null : expenses);
+  const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
+  const error = archived ? archivedError : [ expenseError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-expense' })}>Nuevo gasto</button>;
 
   return (
@@ -38,8 +26,7 @@ export function ExpensesScreen() {
       <ScreenTitle title="Gastos" subtitle="Restan en la ganancia neta. No mueven la caja." back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
-          <button className={`gchip${!archived ? ' on' : ''}`} type="button" aria-pressed={!archived} onClick={() => setArchived(false)}>Activos</button>
-          <button className={`gchip${archived ? ' on' : ''}`} type="button" aria-pressed={archived} onClick={() => setArchived(true)}>Archivados</button>
+          {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}
         </div>
       </div>
       {error ? <p className="ferr" role="alert">{error}</p> : null}
@@ -53,7 +40,7 @@ export function ExpensesScreen() {
       {rows && rows.length > 0 ? (
         <div className="card ledger-list" data-testid="expenses-list">
           {rows.map((row) => (
-            <button key={row.id} className="member" type="button" data-testid={`expense-${row.id}`} onClick={() => open({ type: 'edit-expense', id: row.id })}>
+            <button key={row.id} className={`member${isVoidRow(row) ? ' is-void' : ''}`} type="button" data-testid={`expense-${row.id}`} onClick={() => open({ type: 'edit-expense', id: row.id })}>
               <span className="ico-row"><DeskIcon name="card" size={18} /></span>
               <span className="info">
                 <span className="name">{row.category}</span>

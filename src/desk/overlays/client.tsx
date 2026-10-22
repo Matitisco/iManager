@@ -128,6 +128,7 @@ export function ClientDetail({ id }: { id: string }) {
         <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
         {phone ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-cl', id: client.id })}>Editar</button> : null}
         {client.pendingBalance > 0 ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button> : null}
+        {canManageSensitive && !client.archivedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cl', id: client.id, label: client.name })}>Archivar</button> : null}
       </SheetActionMenu>
       {client.pendingBalance > 0
         ? <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>

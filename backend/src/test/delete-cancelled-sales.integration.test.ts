@@ -60,7 +60,7 @@ describe("delete cancelled sales", () => {
     expect(await prisma.auditEvent.count({ where: { entityId: sale.id, action: "sale.voided" } })).toBe(1);
   });
 
-  it("keeps active DELETE as cancellation and enforces sensitive permissions and store scope before deletion", async () => {
+  it("voids an active operation in one DELETE and enforces sensitive permissions and store scope", async () => {
     const app = getApp();
     const owner = await seedStoreContext();
     const fixture = await seedCatalogFixture(owner.store!.id);
@@ -79,8 +79,8 @@ describe("delete cancelled sales", () => {
     const foreign = await seedStoreContext({ firebaseUid: "foreign", email: "foreign@example.com" });
     expect((await app.inject({ method: "DELETE", url, headers: buildAuthHeaders({ uid: foreign.user.firebaseUid }) })).statusCode).toBe(404);
     expect(await prisma.sale.findUnique({ where: { id } })).not.toBeNull();
-    expect(await prisma.auditEvent.count({ where: { entityId: id, action: "sale.voided" } })).toBe(0);
-    expect((await app.inject({ method: "DELETE", url, headers })).statusCode).toBe(204);
+    expect(await prisma.auditEvent.count({ where: { entityId: id, action: "sale.voided" } })).toBe(1);
+    expect((await app.inject({ method: "DELETE", url, headers })).statusCode).toBe(404);
     expect((await prisma.sale.findUnique({ where: { id } }))?.voidedAt).toBeTruthy();
   });
 });

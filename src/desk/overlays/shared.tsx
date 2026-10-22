@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { formatArDateTime } from '../format';
 import { useMoney } from '../exchange';
-import { Dialog } from '../ui';
+import { ReasonSheet } from '../ReasonSheet';
 
 export function clearBad(setBad: Dispatch<SetStateAction<Record<string, string>>>, key: string) {
   setBad((current) => {
@@ -54,7 +54,8 @@ export function stampedCurrency(value: string | null | undefined): 'ARS' | 'USD'
   return value === 'ARS' || value === 'USD' ? value : undefined;
 }
 
-export function ConfirmOperationDialog({ label, refund, depositCredit, coveredCredit, currency, busy, error, onClose, onOk }: {
+export function ConfirmOperationDialog({ title, label, refund, depositCredit, coveredCredit, currency, busy, error, onClose, onOk }: {
+  title: string;
   label: string;
   refund: number;
   depositCredit?: number;
@@ -63,17 +64,17 @@ export function ConfirmOperationDialog({ label, refund, depositCredit, coveredCr
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onOk: () => void;
+  onOk: (reason: string) => void;
 }) {
   const money = useMoney();
   const text = (refund > 0
-    ? `${label} se cancelará y quedará en el historial. Se devolverán ${money.show(refund, currency)}.`
-    : `${label} se cancelará y quedará en el historial.`) + (coveredCredit ? ` El pago general que cubría esta venta queda como saldo a favor (${money.show(coveredCredit, currency)}).` : "") + (depositCredit ? " Las señas aplicadas vuelven como saldo a favor, sin devolución de ese anticipo." : "");
+    ? `${label} se anulará y quedará en el historial. Se devolverán ${money.show(refund, currency)}.`
+    : `${label} se anulará y quedará en el historial.`) + (coveredCredit ? ` El pago general que cubría esta venta queda como saldo a favor (${money.show(coveredCredit, currency)}).` : "") + (depositCredit ? " Las señas aplicadas vuelven como saldo a favor, sin devolución de ese anticipo." : "");
   return (
-    <Dialog
-      title="Cancelar operación"
-      text={text}
-      ok="Cancelar operación"
+    <ReasonSheet
+      title={title}
+      note={text}
+      ok="Anular"
       cancel="Volver"
       danger
       busy={busy}

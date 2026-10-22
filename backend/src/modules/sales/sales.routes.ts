@@ -224,11 +224,11 @@ export async function salesRoutes(app: FastifyInstance) {
       const actor = await loadActor(request.appUser.userId);
       if (body.tradeIn !== undefined || await isIntegratedSale(request.appUser.storeId, params.id)) {
         if (body.status === "CANCELADA") {
-          return await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
+          return await cancelOperationFromSale(request.appUser.storeId, params.id, actor, readReason(request.body));
         }
         return await updateSaleOperation(request.appUser.storeId, params.id, { ...body, currency: body.amountCurrency } as Parameters<typeof updateSaleOperation>[2], actor);
       }
-      const sale = await updateSale(request.appUser.storeId, params.id, body, actor);
+      const sale = await updateSale(request.appUser.storeId, params.id, body, actor, readReason(request.body));
 
       if (!sale) {
         return reply.code(404).send({ error: "Sale not found" });
@@ -250,7 +250,7 @@ export async function salesRoutes(app: FastifyInstance) {
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
       if (await isIntegratedSale(request.appUser.storeId, params.id, { excludeCancelled: true })) {
-        await cancelOperationFromSale(request.appUser.storeId, params.id, actor);
+        await cancelOperationFromSale(request.appUser.storeId, params.id, actor, readReason(request.body), true);
         return reply.code(204).send();
       }
       const deleted = await deleteSale(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });

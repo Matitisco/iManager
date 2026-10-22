@@ -28,7 +28,7 @@ async function openCanjeConfirmation(page: Page) {
     await row.dispatchEvent('pointerup', { pointerType: 'touch' });
   } else await row.click({ button: 'right' });
   await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
-  return page.getByRole('dialog', { name: 'Cancelar operación' });
+  return page.getByRole('dialog', { name: /Anular (venta|canje)/ });
 }
 
 test('installed shell keeps the canje dialog open with a Spanish offline error and allows retry', async ({ page, context }) => {
@@ -36,15 +36,15 @@ test('installed shell keeps the canje dialog open with a Spanish offline error a
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await context.setOffline(true);
   try {
-    await dialog.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
     await expect(dialog.locator('.ferr')).toHaveText(NETWORK_ERROR_MESSAGE);
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Cancelar operación', exact: true })).toBeEnabled();
+    await expect(dialog.getByRole('button', { name: 'Anular', exact: true })).toBeEnabled();
     await expect(page.locator('body')).not.toContainText(/Failed to fetch|Load failed|NetworkError/);
   } finally { await context.setOffline(false); }
-  await dialog.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.locator('.toast')).toContainText('Operación cancelada');
+  await expect(page.locator('.toast')).toContainText('Anulado');
 });
 
 test.describe('HTTP errors in the canje dialog', () => {
@@ -54,15 +54,15 @@ test.describe('HTTP errors in the canje dialog', () => {
     await page.route('**/api/**', (route) => route.fulfill({ json: new URL(route.request().url()).pathname === '/api/me' ? me : data }));
     const dialog = await openCanjeConfirmation(page);
     let attempts = 0;
-    await page.route('**/api/operations/tradeins/trades/*/cancel', (route) => {
+    await page.route('**/api/operations/tradeins/trades/*/void', (route) => {
       attempts += 1;
       return route.fulfill(attempts === 1
         ? { status: 503, contentType: 'text/html', body: '<html>Service unavailable</html>' }
         : { status: 409, json: { error: 'El equipo pertenece a una operación activa.' } });
     });
-    await dialog.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
     await expect(dialog.locator('.ferr')).toHaveText(SERVER_ERROR_MESSAGE);
-    await dialog.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
     await expect(dialog.locator('.ferr')).toHaveText('El equipo pertenece a una operación activa.');
     await expect(dialog).toBeVisible();
     expect(attempts).toBe(2);

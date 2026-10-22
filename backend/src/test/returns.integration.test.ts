@@ -221,8 +221,9 @@ describe("devoluciones, notas de crédito y RMA", () => {
     const catalog = await seedCatalogFixture(store.store!.id);
     const saleId = await sell(store.store!.id, catalog.client.id, catalog.inventoryItem.id, 1200);
     const opened = await claim(saleId);
-    const archived = await inject("DELETE", `/api/returns/${opened.id}`);
+    const archived = await inject("DELETE", `/api/returns/${opened.id}`, { reason: "Duplicado" });
     expect(archived.statusCode).toBe(204);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: opened.id, action: "return.archived" } })).toMatchObject({ reason: "Duplicado" });
     const active = await inject("GET", "/api/returns");
     expect(active.json().returns).toEqual([]);
     const stored = await inject("GET", "/api/returns?archived=1");

@@ -1,3 +1,5 @@
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { OnboardingInventorySummary } from '../getting-started';
 import { BulkActions, useBulkScope } from '../bulk-actions';
@@ -115,7 +117,7 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, deleteProduct, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const { inventory, deleteProduct, operationDrafts = [], listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell } = useDisplayQuote();
@@ -133,7 +135,7 @@ export function InventoryScreen() {
   const [sort, setSort] = useNavigationState('Inventory.sort', 'Recientes');
   const [archivedMode, setArchivedMode] = useNavigationState('Inventory.archivedMode', false);
   const [stockOpen, setStockOpen] = useState(false);
-  const [archived, setArchived] = useState<Product[]>([]);
+  const { rows: archived, error: archiveError } = useArchivedRows(inventory, fetchArchivedInventory, rememberArchivedProducts);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
@@ -146,22 +148,12 @@ export function InventoryScreen() {
     return () => window.removeEventListener('desk-eq-saved', reset);
   }, []);
 
-  useEffect(() => {
-    if (!archivedMode || !user) return;
-    let active = true;
-    fetchArchivedInventory(user).then((rows) => {
-      if (!active) return;
-      setArchived(rows);
-      rememberArchivedProducts(rows);
-    }).catch(() => { if (active) setArchived([]); });
-    return () => { active = false; };
-  }, [archivedMode, user]);
-  const source = archivedMode ? archived : inventory;
+  const source = archivedMode ? archived : mergeRecordRows(inventory, archived);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = source.filter((item) => {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
-      return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
+      return (archivedMode || columns.statuses.length === 0 || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
     const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);
@@ -172,7 +164,7 @@ export function InventoryScreen() {
     if (sort === 'Color ↑') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'asc') || a.model.localeCompare(b.model, 'es'));
     if (sort === 'Color ↓') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'desc') || a.model.localeCompare(b.model, 'es'));
     return list;
-  }, [source, query, columns, sort, money, phone]);
+  }, [source, query, columns, sort, money, phone, archivedMode]);
   const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
   const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`, undefined, 'Inventory');
   const scope = useBulkScope();
@@ -215,7 +207,7 @@ export function InventoryScreen() {
   };
   const filterCount = activeColumnCount(columns);
   const clearColumns = () => setColumns(EMPTY_COLUMN_FILTERS);
-  const quietEmpty = inventory.length === 0 && !query.trim() && !columnFiltersActive(columns) && !onlyNotices;
+  const quietEmpty = source.length === 0 && !query.trim() && !columnFiltersActive(columns) && !onlyNotices;
   const openFilters = () => {
     setDraftFilters(columns);
     setColorQuery('');
@@ -232,11 +224,12 @@ export function InventoryScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
+      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Inventario"
         subtitle={loadingLists ? 'Cargando equipos…' : phone
-          ? `${inventory.length === 1 ? '1 equipo' : `${inventory.length} equipos`} · ${available === 1 ? '1 disponible' : `${available} disponibles`}`
-          : `${inventory.length} ${inventory.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
+          ? `${source.length === 1 ? '1 equipo' : `${source.length} equipos`} · ${available === 1 ? '1 disponible' : `${available} disponibles`}`
+          : `${source.length} ${source.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
         back={back}
         tools={(
           <>
@@ -273,11 +266,11 @@ export function InventoryScreen() {
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions hideStart key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
-        action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item) => deleteProduct(item.id) }}
+        action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
       />
-      {phone && (archivedMode ? listed.length : inventory.length) > 0 ? (
+      {phone && source.length > 0 ? (
         <>
-          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${inventory.length}`}</span></div>
+          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span></div>
           {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
         </>
       ) : null}
@@ -288,6 +281,7 @@ export function InventoryScreen() {
               const reason = notices.reasonFor(item.id);
               return (
                 <PhoneRecord
+                  className={isVoidRow(item) ? 'is-void' : undefined}
                   selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
                   key={item.id}
                   reason={reason}
@@ -304,10 +298,10 @@ export function InventoryScreen() {
           </PhoneRecords>
         ) : (
         <>
-        {(archivedMode ? listed.length : inventory.length) > 0 ? (
+        {source.length > 0 ? (
           <div className="dch pad">
             <h3>Equipos</h3>
-            <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${inventory.length}`}</span>
+            <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span>
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
@@ -437,7 +431,7 @@ export function InventoryScreen() {
                   selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
                   key={item.id}
                   as="tr"
-                  className={notices.reasonFor(item.id) ? 'novedad' : undefined}
+                  className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >

@@ -1,3 +1,5 @@
+import { ReasonSheet } from '../ReasonSheet';
+import { isVoidRow } from '../format';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
@@ -11,7 +13,7 @@ import { commissionAmount, commissionTotal, effectiveRule, hasDeduction, monthKe
 import { ImanagerIcon } from '../icons';
 import { CommissionAvatar } from '../CommissionAvatar';
 import { CommissionMonthPicker } from '../CommissionMonthPicker';
-import { Actions, Dialog, DeskCta, DeskIcon, IconButton, MenuButton, MobileDock, ScreenTitle, Sheet, useDesk } from '../ui';
+import { Actions, DeskCta, DeskIcon, IconButton, MenuButton, MobileDock, ScreenTitle, Sheet, useDesk } from '../ui';
 import { CommissionPaymentSheet, CommissionRuleSheet } from './commission-sheets';
 
 export function CurrencyTotals({ value }: { value: CommissionTotals }) {
@@ -34,10 +36,10 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
-  const voidPayment = async () => {
+  const voidPayment = async (reason: string) => {
     if (!paymentToVoid || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
-    try { await voidCommissionPayment(paymentToVoid.id, person.memberId, period); setPaymentToVoid(null); onConfirmChange?.(false); }
+    try { await voidCommissionPayment(paymentToVoid.id, person.memberId, period, reason); setPaymentToVoid(null); onConfirmChange?.(false); }
     catch (cause) { setError(toUserMessage(cause, 'No se pudo anular el pago')); }
     finally { submitting.current = false; setBusy(false); }
   };
@@ -46,8 +48,8 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
   return <div className="commission-lines">
     <section><div className="sale-sec"><span>Ventas{person.adjustments.length ? ' y ajustes' : ''} de {monthLabel(period).split(' ')[0]}</span><span>{saleCount(person.salesCount)}</span></div>
       <div className="card commission-ledger">
-        {sales.map(sale => <div key={sale.accrualId} className={`commission-line${sale.cancelled ? ' cancelled' : ''}`}>
-          <div><b>#V-{String(sale.saleNumber).padStart(4, '0')} · {new Date(sale.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })}</b><small>{sale.deviceLabel}</small><small>{sale.cancelled ? (sale.voidReason === 'DELETED' ? 'Eliminada · no genera comisión' : sale.voidReason === 'EDITED' ? 'Modificada · comisión reemplazada' : 'Cancelada · no genera comisión') : <>Venta {commissionAmount(sale.total, sale.currency)}{financials && sale.grossProfit !== undefined ? ` · ganancia ${commissionAmount(sale.grossProfit, sale.currency)}` : ''}</>}</small></div>
+        {sales.map(sale => <div key={sale.accrualId} className={`commission-line${isVoidRow(sale) || sale.cancelled ? ' is-void' : ''}`}>
+          <div><b>#V-{String(sale.saleNumber).padStart(4, '0')} · {new Date(sale.soldAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })}</b><small>{sale.deviceLabel}</small><small>{sale.cancelled ? (sale.voidReason === 'DELETED' ? 'Eliminada · no genera comisión' : sale.voidReason === 'EDITED' ? 'Modificada · comisión reemplazada' : 'Anulada · no genera comisión') : <>Venta {commissionAmount(sale.total, sale.currency)}{financials && sale.grossProfit !== undefined ? ` · ganancia ${commissionAmount(sale.grossProfit, sale.currency)}` : ''}</>}</small></div>
           <div className="commission-line-amount"><b>{sale.cancelled ? <s>{commissionAmount(sale.originalCommission, sale.currency)}</s> : commissionAmount(sale.commission, sale.currency)}</b><small>{sale.cancelled ? 'anulada' : 'comisión'}</small></div>
         </div>)}
         {person.adjustments.map((adjustment, index) => <div className="commission-line commission-adjustment" key={`${adjustment.accrualId}:${index}`}><div><b>Ajuste por venta anulada</b><small>#V-{String(adjustment.saleNumber).padStart(4, '0')} · {monthLabel(adjustment.period)}</small><small>Su comisión ya se había pagado</small></div><div className="commission-line-amount"><b>{commissionAmount(adjustment.amount, adjustment.currency)}</b><small>A descontar</small></div></div>)}
@@ -55,8 +57,8 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
       </div>
       {person.sales.length > 4 ? <button className="wlink commission-show-all" type="button" onClick={() => setAll(!all)}>{all ? 'Ver menos' : person.sales.length === 1 ? 'Ver la venta' : `Ver las ${person.sales.length} ventas`}</button> : null}
     </section>
-    <section><div className="sale-sec"><span>Pagos</span><span>{person.payments.length} {person.payments.length === 1 ? 'pago' : 'pagos'}</span></div><div className="card commission-ledger">{person.payments.map(payment => <div className={`commission-line${payment.voidedAt ? " cancelled" : ""}`} key={payment.id}><div><b>{new Date(payment.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} · {payment.note || 'Pago registrado'}</b><small>{payment.currency !== payment.settlesCurrency ? `Salda ${commissionAmount(payment.settledAmount, payment.settlesCurrency)} · cotización ${commissionAmount(payment.exchangeRate, 'ARS')}` : 'Pago de comisión'}</small></div><div className="commission-line-amount"><b>{payment.voidedAt ? <s>{commissionAmount(payment.amount, payment.currency)}</s> : commissionAmount(payment.amount, payment.currency)}</b>{payment.voidedAt ? <small>Pago anulado</small> : manage ? <button type="button" className="wlink commission-payment-void" aria-label={`Anular pago de ${commissionAmount(payment.amount, payment.currency)}`} onClick={() => { setError(''); setPaymentToVoid(payment); onConfirmChange?.(true); }}>Anular pago</button> : null}</div></div>)}{!person.payments.length ? <p className="wempty">Todavía no hay pagos registrados.</p> : null}</div></section>
-    {paymentToVoid ? createPortal(<Dialog title="Anular pago" text={`Se anulará el pago de ${commissionAmount(paymentToVoid.amount, paymentToVoid.currency)}. Quedará en el historial y dejará de contar en los saldos y ajustes.`} ok="Anular pago" danger busy={busy} error={error} onClose={() => { if (!busy) { setPaymentToVoid(null); onConfirmChange?.(false); } }} onOk={() => { void voidPayment(); }} />, document.querySelector('.desk-app') ?? document.body) : null}
+    <section><div className="sale-sec"><span>Pagos</span><span>{person.payments.length} {person.payments.length === 1 ? 'pago' : 'pagos'}</span></div><div className="card commission-ledger">{person.payments.map(payment => <div className={`commission-line${isVoidRow(payment) ? ' is-void' : ''}`} key={payment.id}><div><b>{new Date(payment.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} · {payment.note || 'Pago registrado'}</b><small>{payment.currency !== payment.settlesCurrency ? `Salda ${commissionAmount(payment.settledAmount, payment.settlesCurrency)} · cotización ${commissionAmount(payment.exchangeRate, 'ARS')}` : 'Pago de comisión'}</small></div><div className="commission-line-amount"><b>{payment.voidedAt ? <s>{commissionAmount(payment.amount, payment.currency)}</s> : commissionAmount(payment.amount, payment.currency)}</b>{payment.voidedAt ? <small>Pago anulado</small> : manage ? <button type="button" className="wlink commission-payment-void" aria-label={`Anular pago de ${commissionAmount(payment.amount, payment.currency)}`} onClick={() => { setError(''); setPaymentToVoid(payment); onConfirmChange?.(true); }}>Anular pago</button> : null}</div></div>)}{!person.payments.length ? <p className="wempty">Todavía no hay pagos registrados.</p> : null}</div></section>
+    {paymentToVoid ? createPortal(<ReasonSheet title="Anular pago" note={`Se anulará el pago de ${commissionAmount(paymentToVoid.amount, paymentToVoid.currency)}. Quedará en el historial y dejará de contar en los saldos y ajustes.`} ok="Anular pago" danger busy={busy} error={error} onClose={() => { if (!busy) { setPaymentToVoid(null); onConfirmChange?.(false); } }} onOk={reason => { void voidPayment(reason); }} />, document.querySelector('.desk-app') ?? document.body) : null}
   </div>;
 }
 export function CommissionMemberSheet({ person, period, rule, onClose, onRule, onPay }: { person: CommissionPerson; period: string; rule?: CommissionRule; onClose: () => void; onRule: () => void; onPay: () => void }) {

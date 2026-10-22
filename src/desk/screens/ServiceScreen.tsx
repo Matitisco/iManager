@@ -1,3 +1,5 @@
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -14,7 +16,7 @@ import { fetchArchivedRepairs } from '../../services/repairs-api';
 import { rememberArchivedRepairs } from '../archive-cache';
 
 export function ServiceScreen() {
-  const { repairOrders = [], repairOrdersError = null, changeRepairStatus, user } = useAppContext();
+  const { repairOrders = [], repairOrdersError = null, changeRepairStatus } = useAppContext();
   const money = useMoney();
   const catalogs = useCatalogs();
   const { open, back, toast } = useDesk();
@@ -23,9 +25,9 @@ export function ServiceScreen() {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
-  const [statusId, setStatusId] = useState('ABIERTAS');
+  const [statusId, setStatusId] = useState(phone ? 'ABIERTAS' : 'Todos');
   const [archivedMode, setArchivedMode] = useState(false);
-  const [archivedOrders, setArchivedOrders] = useState<RepairOrder[]>([]);
+  const { rows: archivedOrders, error: archiveError } = useArchivedRows(repairOrders, fetchArchivedRepairs, rememberArchivedRepairs);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -33,53 +35,48 @@ export function ServiceScreen() {
   const moving = useRef(false);
 
   const statuses = useMemo(
-    () => visibleRepairStatuses(catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES), repairOrders),
-    [catalogs?.options, repairOrders],
+    () => visibleRepairStatuses(catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES), mergeRecordRows(repairOrders, archivedOrders)),
+    [catalogs?.options, repairOrders, archivedOrders],
   );
 
-  useEffect(() => {
-    if (!archivedMode || !user) return;
-    let active = true;
-    fetchArchivedRepairs(user).then((rows) => {
-      if (!active) return;
-      setArchivedOrders(rows);
-      rememberArchivedRepairs(rows);
-    }).catch(() => { if (active) setArchivedOrders([]); });
-    return () => { active = false; };
-  }, [archivedMode, user]);
-  const repairSource = archivedMode ? archivedOrders : repairOrders;
+  const repairSource = archivedMode ? archivedOrders : mergeRecordRows(repairOrders, archivedOrders);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rank = new Map(statuses.map((status, index) => [status.id, index]));
     return repairSource.filter((order) => {
+      if (!archivedMode && statusId !== 'Todos' && isVoidRow(order)) return false;
+      if (!archivedMode && statusId !== 'Todos' && statusId !== 'ABIERTAS' && repairColumnStatus(order.status) !== statusId) return false;
+      if (!archivedMode && statusId === 'ABIERTAS' && order.status === REPAIR_DELIVERED) return false;
       if (!needle) return true;
       const haystack = `${order.code} ${order.clientName} ${order.device} ${order.imei} ${repairFault(order)} ${order.technician}`.toLowerCase();
       return haystack.includes(needle);
     }).sort((left, right) => (rank.get(repairColumnStatus(left.status)) ?? 99) - (rank.get(repairColumnStatus(right.status)) ?? 99) || right.orderNumber - left.orderNumber);
-  }, [repairSource, query, statuses]);
+  }, [repairSource, query, statuses, archivedMode, statusId]);
 
   const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const readyCount = repairOrders.filter((order) => order.status === REPAIR_READY).length;
   const chips = useMemo(() => {
-    const open = rows.filter((order) => order.status !== REPAIR_DELIVERED).length;
+    const countRows = archivedMode ? repairSource : repairSource.filter(order => !isVoidRow(order));
+    const open = countRows.filter((order) => order.status !== REPAIR_DELIVERED).length;
     return [
+      { id: 'Todos', label: 'Todos', color: '' },
       { id: 'ABIERTAS', label: `Abiertas ${open}`, color: '' },
       ...statuses.map((status) => ({
         id: status.id,
-        label: `${status.label} ${rows.filter((order) => repairColumnStatus(order.status) === status.id).length}`,
+        label: `${status.label} ${countRows.filter((order) => repairColumnStatus(order.status) === status.id).length}`,
         color: status.color || '#9AA0AA',
       })),
     ];
-  }, [rows, statuses]);
+  }, [repairSource, statuses, archivedMode]);
   const groups = useMemo(() => {
-    const selected = statusId === 'ABIERTAS'
+    const selected = statusId === 'Todos' || archivedMode ? statuses : statusId === 'ABIERTAS'
       ? statuses.filter((status) => status.id !== REPAIR_DELIVERED)
       : statuses.filter((status) => status.id === statusId);
     return selected
       .map((status) => ({ status, cards: rows.filter((order) => repairColumnStatus(order.status) === status.id) }))
-      .filter((group) => statusId !== 'ABIERTAS' || group.cards.length > 0);
-  }, [rows, statusId, statuses]);
+      .filter((group) => !['Todos', 'ABIERTAS'].includes(statusId) || group.cards.length > 0);
+  }, [rows, statusId, statuses, archivedMode]);
   const emptyCopy = repairOrders.length === 0 && !query.trim()
     ? 'No hay órdenes'
     : statusId === 'ABIERTAS' && !query.trim()
@@ -138,6 +135,7 @@ export function ServiceScreen() {
 
   return (
     <div className={`dscreen svc-screen${phone ? ' has-dock' : ''}`}>
+      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title={<div className="svc-title"><h1>Servicio técnico</h1></div>}
         subtitle={`${countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · ${countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}`}
@@ -152,8 +150,7 @@ export function ServiceScreen() {
         )}
       />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar orden o cliente" /></div> : null}
-      {phone ? (
-        <div className="svc-chips" data-testid="service-chips" role="group" aria-label="Estado">
+      <div className="svc-chips" data-testid="service-chips" role="group" aria-label="Estado">
           {chips.map((chip) => (
             <button key={chip.id} type="button" className={`wchip${chip.id === statusId ? ' on' : ''}`} aria-pressed={chip.id === statusId} onClick={() => setStatusId(chip.id)}>
               {chip.color ? <i className="svc-dot" style={{ background: chip.color }} /> : null}
@@ -161,7 +158,6 @@ export function ServiceScreen() {
             </button>
           ))}
         </div>
-      ) : null}
       <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
       {repairOrdersError && !suppressLocalNetworkBanner(repairOrdersError, offlineOwned) ? <div className="ferr" role="alert" data-testid={repairOrdersError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{repairOrdersError}</div> : null}
       {phone ? (
@@ -179,7 +175,7 @@ export function ServiceScreen() {
                   const date = dayMonth(when);
                   const dateText = !date ? '' : late ? `Atrasada · ${date}` : order.estimatedDelivery ? `Entrega ${date}` : date;
                   return (
-                    <PressTarget key={order.id} as="button" className="ticket" testId={`repair-card-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
+                    <PressTarget key={order.id} as="button" className={`ticket${isVoidRow(order) ? ' is-void' : ''}`} testId={`repair-card-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
                       <div className="wtop">
                         <b>#{order.code}</b>
                         {dateText ? <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dateText}</span> : null}
@@ -233,9 +229,9 @@ export function ServiceScreen() {
                     <PressTarget
                       key={order.id}
                       as="button"
-                      className={`ticket${draggingId === order.id ? ' dragging' : ''}`}
+                      className={`ticket${isVoidRow(order) ? ' is-void' : ''}${draggingId === order.id ? ' dragging' : ''}`}
                       testId={`repair-card-${order.id}`}
-                      draggable
+                      draggable={!isVoidRow(order)}
                       grabbed={draggingId === order.id}
                       onDragStart={dragStart(order.id)}
                       onDragEnd={dragEnd}
@@ -278,7 +274,7 @@ export function ServiceScreen() {
                 </thead>
                 <tbody>
                   {rows.map((order) => (
-                    <PressTarget key={order.id} as="tr" testId={`repair-row-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
+                    <PressTarget key={order.id} as="tr" className={isVoidRow(order) ? 'is-void' : undefined} testId={`repair-row-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
                       <td><b>#{order.code}</b></td>
                       <td>{dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}</td>
                       <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>

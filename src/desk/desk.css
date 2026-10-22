@@ -1835,7 +1835,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .commission-line:last-child { border-bottom: 0; }
 .commission-line small { display: block; color: var(--secondary); font-size: 11px; margin-top: 2px; }
 .commission-line-amount { text-align: right; flex-shrink: 0; }
-.commission-line.cancelled { opacity: .5; }
+
 .commission-line.commission-adjustment { background: #fcedee; color: #e74848; margin-inline: -14px; padding-inline: 14px; }
 .commission-show-all { margin: 14px 0; }
 .commission-info { padding: 14px; background: var(--bg); border-radius: 16px; color: var(--secondary); font-size: 13px; line-height: 1.5; }
@@ -2424,4 +2424,23 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 @media (max-width: 760px) {
   .mobile-list-screen:has(.bulk-bar.mobile) .phone-rows,
   .mobile-list-screen:has(.bulk-bar.mobile) .sale-line { padding-bottom: 0; }
+}
+
+/* Logical deletions remain visible across table, mobile, board and ledger rows. */
+.desk-app .dtable tbody tr.is-void,
+.desk-app .phone-row.is-void,
+.desk-app .bulk-selected .phone-row.is-void,
+.desk-app .member.is-void,
+.desk-app .ticket.is-void,
+.desk-app .cash-box.is-void,
+.desk-app .cash-movement.is-void,
+.desk-app .commission-line.is-void {
+  background: color-mix(in srgb, var(--err) 7%, #fff);
+}
+.desk-app .dtable tbody tr.is-void:hover,
+.desk-app .phone-row.is-void:hover,
+.desk-app .member.is-void:hover,
+.desk-app .ticket.is-void:hover,
+.desk-app .cash-box.is-void:hover {
+  background: color-mix(in srgb, var(--err) 12%, #fff);
 }

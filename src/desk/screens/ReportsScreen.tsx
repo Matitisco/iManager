@@ -22,7 +22,7 @@ import {
   isInProgressTrade,
   periodBounds,
   saleEquipment,
-  isVoidSale,
+  isVoidRow,
   saleCode,
   statusLabel,
   tradeClientLabel,
@@ -380,7 +380,7 @@ export function ReportsScreen() {
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
-            <button key={sale.id} className={`gtk${isVoidSale(sale) ? ' is-void' : ''}`} type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
+            <button key={sale.id} className={`gtk${isVoidRow(sale) ? ' is-void' : ''}`} type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
               <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
               <div className="gr"><div className="gamt">{money.compact(sale.amount, sale.amountCurrency)}</div></div>
               <span className="gchev">›</span>

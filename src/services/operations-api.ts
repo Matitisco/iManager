@@ -119,12 +119,12 @@ export async function confirmTradeOperation(user: AuthUserLike, source: Operatio
   return request<OperationResult>(user, `/api/operations/${source}/trades/${id}/confirm`, 'POST', input);
 }
 
-export async function cancelSaleOperation(user: AuthUserLike, id: string) {
-  return request<OperationResult>(user, `/api/operations/sales/sales/${id}/cancel`, 'POST', {});
+export async function cancelSaleOperation(user: AuthUserLike, id: string, reason?: string) {
+  return request<OperationResult>(user, `/api/operations/sales/sales/${id}/void`, 'POST', reason == null ? {} : { reason });
 }
 
-export async function cancelTradeOperation(user: AuthUserLike, source: OperationSource, id: string) {
-  return request<OperationResult>(user, `/api/operations/${source}/trades/${id}/cancel`, 'POST', {});
+export async function cancelTradeOperation(user: AuthUserLike, source: OperationSource, id: string, reason?: string) {
+  return request<OperationResult>(user, `/api/operations/${source}/trades/${id}/void`, 'POST', reason == null ? {} : { reason });
 }
 
 export async function fetchSaleOperation(user: AuthUserLike, id: string) {

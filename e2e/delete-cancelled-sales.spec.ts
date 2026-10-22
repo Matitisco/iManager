@@ -44,7 +44,7 @@ for (const device of [
       await page.getByTestId('sidebar-tab-sales').click();
       const code = `V-${String(sales[0].saleNumber).padStart(4, '0')}`;
       const record = device.mobile ? page.locator('.phone-row').filter({ hasText: code }) : page.getByRole('row').filter({ hasText: code });
-      await expect(record).toContainText('Cancelada');
+      await expect(record).toContainText('Anulada');
       if (device.mobile) {
         await record.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });
         await expect(page.locator('.ctx')).toBeVisible();
@@ -60,7 +60,7 @@ for (const device of [
       }
       await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
       await expect(dialog).toBeHidden();
-      await expect(record).toHaveCount(0);
+      await expect(record).toHaveClass(/is-void/);
       expect((await fetchSales(request, email)).sales).toHaveLength(2);
       expect(await snapshot()).toEqual(before);
       // Local client/stock state must also survive AppContext's delete path.
@@ -78,18 +78,19 @@ for (const device of [
       await page.getByTestId('sidebar-tab-sales').click();
       await expandListOptions(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
-      await page.getByRole('checkbox', { name: 'Seleccionar todos los filtrados (2)' }).check();
-      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular selección' }).click();
-      const bulk = page.getByRole('dialog', { name: 'Anular selección: 2 registros' });
-      await expect(bulk).toContainText('Se conservan el stock, los canjes, los saldos y los pagos');
+      for (const sale of (await fetchSales(request, email)).sales) await page.getByRole('checkbox', { name: `Seleccionar V-${String(sale.saleNumber).padStart(4, '0')}`, exact: true }).check();
+      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular' }).click();
+      const bulk = page.getByRole('dialog', { name: 'Anular: 2 registros' });
+      await expect(bulk).toContainText('el historial se conserva en rojo');
       if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-bulk.png`, animations: 'disabled' });
-      await bulk.getByRole('button', { name: 'Anular selección', exact: true }).click();
+      await bulk.getByRole('button', { name: 'Anular', exact: true }).click();
       await expect(bulk).toBeHidden({ timeout: 20_000 });
       expect((await fetchSales(request, email)).sales).toHaveLength(0);
       expect((await fetchTradeIns(request, email)).tradeIns[0].saleId).toBeNull();
       expect(await snapshot()).toEqual(before);
       await page.reload(); await page.getByTestId('sidebar-tab-sales').click();
-      await expect(page.locator(device.mobile ? '.sale-node' : 'tbody tr')).toHaveCount(0);
+      await expect(page.locator(device.mobile ? '.sale-node' : 'tbody tr')).toHaveCount(3);
+      await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(3);
       expect(await snapshot()).toEqual(before);
       if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-deleted.png`, animations: 'disabled' });
     });

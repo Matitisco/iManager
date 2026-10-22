@@ -313,6 +313,7 @@ export async function updateSale(
   id: string,
   input: SalePatchInput,
   actor?: Actor | null,
+  reason?: string | null,
 ) {
   return withSerializableRetry(async (tx) => {
     const existing = await tx.sale.findFirst({
@@ -411,6 +412,7 @@ export async function updateSale(
         storeId,
         actor,
         action: "sale.cancelled",
+        reason,
         entityType: "sale",
         entityId: id,
       });

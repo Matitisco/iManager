@@ -261,7 +261,7 @@ export async function updateSupplier(storeId: string, id: string, input: Supplie
   return present(row, { devices: counts.devices.get(id) ?? 0, problems: counts.problems.get(id) ?? 0 });
 }
 
-export async function archiveSupplier(storeId: string, id: string, actor: Actor) {
+export async function archiveSupplier(storeId: string, id: string, actor: Actor, reason?: string | null) {
   return withSerializableRetry(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Supplier" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
     const existing = await tx.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
@@ -273,6 +273,7 @@ export async function archiveSupplier(storeId: string, id: string, actor: Actor)
     await writeAudit(tx, {
       storeId,
       actor,
+      reason,
       action: "supplier.archived",
       entityType: "supplier",
       entityId: id,

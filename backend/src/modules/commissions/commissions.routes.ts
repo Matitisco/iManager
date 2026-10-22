@@ -1,3 +1,4 @@
+import { readReason } from '../audit/archive.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -63,7 +64,7 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.delete("/rules/:id", { preHandler: admin }, async (request, reply) => {
     requireMember(request);
-    await deleteCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), idSchema.parse(request.params).id);
+    await deleteCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), idSchema.parse(request.params).id, readReason(request.body));
     return reply.code(204).send();
   });
   app.get("/payments", { preHandler: admin }, async request => {
@@ -80,7 +81,7 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.post("/payments/:id/void", { preHandler: admin }, async request => {
     requireMember(request);
-    return { payment: await voidCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), idSchema.parse(request.params).id) };
+    return { payment: await voidCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), idSchema.parse(request.params).id, readReason(request.body)) };
   });
   app.patch("/sales/seller", { preHandler: admin }, async request => {
     requireMember(request);

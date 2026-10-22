@@ -14,10 +14,11 @@ export async function fetchBackendSales(user: AuthUserLike): Promise<Sale[]> {
   return data.sales ?? [];
 }
 
-export async function updateBackendSale(user: AuthUserLike, sale: Sale): Promise<Sale> {
+export async function updateBackendSale(user: AuthUserLike, sale: Sale, reason?: string): Promise<Sale> {
   const data = await apiRequest<BackendSalesResponse>(user, `/api/sales/${sale.id}`, {
     method: 'PATCH',
     body: {
+      ...(reason == null ? {} : { reason }),
       clientId: sale.clientId,
       ...(sale.sellerMemberId !== undefined ? { sellerMemberId: sale.sellerMemberId } : {}),
       ...(sale.exchangeRate != null ? { exchangeRate: sale.exchangeRate } : {}),

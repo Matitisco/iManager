@@ -188,7 +188,7 @@ for (const viewport of [
       const entries = [
         { tab: 'clients', enter: () => page.getByTestId(`client-row-${client.id}`).click(), primary: 'Registrar pago', actions: ['Agregar seña', 'Nueva venta', ...(mobile ? ['Editar'] : [])] },
         { tab: 'inventory', enter: () => (mobile ? page.locator('.phone-row') : page.getByRole('row')).filter({ hasText: 'iPhone 14' }).first().click(), primary: 'Guardar estado', actions: ['Vender'] },
-        { tab: 'tradeins', enter: () => (mobile ? page.getByTestId('tradeins-timeline').getByRole('button') : page.getByRole('row')).filter({ hasText: 'C-0447' }).first().click(), primary: 'Editar', actions: ['Cancelar operación'] },
+        { tab: 'tradeins', enter: () => (mobile ? page.getByTestId('tradeins-timeline').getByRole('button') : page.getByRole('row')).filter({ hasText: 'C-0447' }).first().click(), primary: 'Editar', actions: ['Anular'] },
         { tab: 'service', enter: () => page.getByTestId(`repair-card-${repair.id}`).click(), primary: /^Pasar a /, actions: ['Cerrar', 'Compartir comprobante', 'Aplicar seña', 'Editar'] },
       ];
       for (const entry of entries) {

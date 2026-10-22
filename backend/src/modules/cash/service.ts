@@ -46,8 +46,8 @@ async function append(tx: Tx, box: CashRegister, data: Omit<Prisma.CashMovementU
   await tx.cashRegister.update({ where: { id: box.id }, data: { balance: { increment: data.amount } } });
   return row;
 }
-async function cashAudit(tx: Tx, storeId: string, actor: Actor, action: string, id: string, detail?: string) {
-  await writeAudit(tx, { storeId, actor, action: `cash.${action}`, entityType: 'cash', entityId: id, detail });
+async function cashAudit(tx: Tx, storeId: string, actor: Actor, action: string, id: string, detail?: string, reason?: string | null) {
+  await writeAudit(tx, { storeId, actor, action: `cash.${action}`, entityType: 'cash', entityId: id, detail, reason });
 }
 
 export async function listRegisters(storeId: string, member: Member) {
@@ -73,7 +73,7 @@ export async function createRegister(storeId: string, input: { name: string; cur
     return { id: row.id };
   });
 }
-export async function editRegister(storeId: string, id: string, input: { name?: string; archived?: boolean; isDefault?: boolean }, actor: Actor) {
+export async function editRegister(storeId: string, id: string, input: { name?: string; archived?: boolean; isDefault?: boolean }, actor: Actor, reason?: string | null) {
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const box = await register(tx, storeId, id);
@@ -81,7 +81,7 @@ export async function editRegister(storeId: string, id: string, input: { name?: 
     if (input.isDefault && (input.archived || box.archivedAt && input.archived !== false)) throw new DomainError('Desarchivá la caja antes de hacerla predeterminada');
     if (input.isDefault) await tx.cashRegister.updateMany({ where: { storeId, currency: box.currency, method: box.method }, data: { isDefault: false } });
     await tx.cashRegister.update({ where: { id }, data: { name: input.name, ...(input.archived !== undefined ? { archivedAt: input.archived ? new Date() : null, ...(input.archived ? { isDefault: false } : {}) } : {}), ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}) } });
-    await cashAudit(tx, storeId, actor, 'updated', id);
+    await cashAudit(tx, storeId, actor, 'updated', id, undefined, input.archived ? reason : undefined);
   });
 }
 export async function startSession(storeId: string, registerId: string, actor: Actor) {
@@ -164,7 +164,7 @@ async function reverse(tx: Tx, row: CashMovement, actor?: Actor | null, note = '
   if (row.registerId) await appendAutomatic(tx, row.storeId, currency, method, data);
   else await tx.cashMovement.create({ data: { ...data, storeId: row.storeId, currency, method, registerId: null, sessionId: null } });
 }
-export async function voidMovement(storeId: string, id: string, actor: Actor) {
+export async function voidMovement(storeId: string, id: string, actor: Actor, reason?: string | null) {
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const row = await tx.cashMovement.findFirst({ where: { id, storeId } });
@@ -173,7 +173,7 @@ export async function voidMovement(storeId: string, id: string, actor: Actor) {
     if (!['INGRESO', 'EGRESO', 'AJUSTE', 'TRANSFERENCIA'].includes(row.kind)) throw new DomainError('Este movimiento no se puede anular desde Cajas', 409);
     const rows = row.transferGroup ? await tx.cashMovement.findMany({ where: { storeId, transferGroup: row.transferGroup, reversalOf: null } }) : [row];
     for (const original of rows) await reverse(tx, original, actor);
-    await cashAudit(tx, storeId, actor, 'voided', id);
+    await cashAudit(tx, storeId, actor, 'voided', id, undefined, reason);
   });
 }
 export async function changeCategory(storeId: string, id: string, category: string | null, actor: Actor) {

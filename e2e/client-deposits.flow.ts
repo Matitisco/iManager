@@ -94,9 +94,9 @@ export function registerDepositTests(device: { name: string; mobile: boolean }) 
     await expect(page.getByRole('dialog', { name: 'Ana Pérez' })).toContainText('Aplicada');
     await dismiss(page, 'Ana Pérez');
     await navigate(page, 'sales'); const sale = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'iPhone 14' }); await sale.click();
-    await (await sheetAction(page.getByRole('dialog'), 'Cancelar venta')).click();
-    const cancel = page.getByRole('dialog', { name: 'Cancelar operación' }); await expect(cancel).toContainText('vuelven como saldo a favor');
-    await cancel.getByRole('button', { name: 'Cancelar operación' }).click(); await expect(cancel).toBeHidden();
+    await (await sheetAction(page.getByRole('dialog'), 'Anular')).click();
+    const cancel = page.getByRole('dialog', { name: /Anular (venta|canje)/ }); await expect(cancel).toContainText('vuelven como saldo a favor');
+    await cancel.getByRole('button', { name: 'Anular' }).click(); await expect(cancel).toBeHidden();
     await client(page, device.mobile); const detail = page.getByRole('dialog', { name: 'Ana Pérez' }); await expect(detail).toContainText('Saldo a favor');
     await detail.locator('.deposit-card').scrollIntoViewIfNeeded(); await capture(page, device.name, 'history');
     expect((await fetchInventory(request, email)).inventory.find(row => row.id === inventoryItem.id)?.status).toBe('DISPONIBLE');

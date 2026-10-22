@@ -119,7 +119,7 @@ describe('operation detail', () => {
     ctx.updateTradeOperation.mockReset();
     ctx.updateTradeOperation.mockResolvedValue({ summary: 'Operación actualizada' });
     ctx.cancelTradeOperation.mockReset();
-    ctx.cancelTradeOperation.mockResolvedValue({ summary: 'Operación cancelada' });
+    ctx.cancelTradeOperation.mockResolvedValue({ summary: 'Operación anulada' });
     ctx.deleteTradeIn.mockReset().mockResolvedValue(undefined);
     ctx.fetchSaleOperation.mockReset();
     ctx.fetchSaleOperation.mockResolvedValue({});
@@ -144,7 +144,7 @@ describe('operation detail', () => {
     expect(toast).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
-    expect(ctx.deleteSale).toHaveBeenCalledWith('s1', 'Error de carga');
+    expect(ctx.deleteSale).toHaveBeenCalledWith('s1', '');
     expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.updateSale).not.toHaveBeenCalled();
   });
@@ -182,7 +182,7 @@ describe('operation detail', () => {
     expect(toast).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
-    expect(ctx.deleteTradeIn).toHaveBeenCalledWith('t1', 'Error de carga');
+    expect(ctx.deleteTradeIn).toHaveBeenCalledWith('t1', '');
     expect(toast).toHaveBeenCalledWith('Anulado');
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
   });
@@ -190,7 +190,7 @@ describe('operation detail', () => {
   it('keeps an active trade confirmation as cancellation', () => {
     ctx.tradeIns = [trade()];
     renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003' });
-    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('quedará en el historial');
+    expect(screen.getByRole('dialog', { name: /Anular (canje|venta)/ })).toHaveTextContent('Sigue visible en rojo');
   });
 
   it.each([false, true])('keeps the delete-canje dialog open with a translated network error and allows retry (phone: %s)', async (phone) => {
@@ -215,7 +215,7 @@ describe('operation detail', () => {
 
   it('keeps the active linked sale confirmation as cancellation', () => {
     renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004' });
-    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('quedará en el historial');
+    expect(screen.getByRole('dialog', { name: /Anular (canje|venta)/ })).toHaveTextContent('Sigue visible en rojo');
   });
 
   it.each([false, true])('keeps sale actions outside the scrollable body (phone: %s)', (phone) => {
@@ -237,7 +237,7 @@ describe('operation detail', () => {
       expect(within(footer as HTMLElement).getByRole('button', { name: /^Cerrar$/ })).toBeInTheDocument();
       expect(within(footer as HTMLElement).getByRole('button', { name: /^Compartir comprobante$/ })).toBeInTheDocument();
       expect(footer?.querySelector('.sheet-action-menu-list')).not.toBeNull();
-      expect(footer?.querySelector('.sheet-action-menu-list')).toHaveTextContent('Cancelar operaciónEditarDevolver');
+      expect(footer?.querySelector('.sheet-action-menu-list')).toHaveTextContent('EditarDevolverAnular');
       expect(body).not.toContainElement(footer as HTMLElement);
     } finally {
       window.matchMedia = original;
@@ -263,7 +263,7 @@ describe('operation detail', () => {
       expect(menu).toHaveTextContent('Editar');
       expect(menu).toHaveTextContent('Devolver');
     } else {
-      expect(menu).toHaveTextContent('Cancelar operación');
+      expect(menu).toHaveTextContent('Anular');
       expect(menu).toHaveTextContent('Editar');
       expect(menu).toHaveTextContent('Devolver');
     }
@@ -318,7 +318,7 @@ describe('operation detail', () => {
     const user = userEvent.setup();
     await openMoreActions(user);
     expect(within(footer).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Cancelar venta' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
     expect(dialog.querySelector('.sheet-scroll')).not.toContainElement(footer);
   });
 
@@ -346,18 +346,18 @@ describe('operation detail', () => {
     renderOverlay({ type: 'cj', id: 't1' });
 
     await openMoreActions(user);
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Cancelar operación' })).toHaveTextContent('C-0003 se cancelará y quedará en el historial. Se devolverán $ 500.');
+    expect(screen.getByRole('dialog', { name: /Anular (canje|venta)/ })).toHaveTextContent('C-0003 se anulará y quedará en el historial. Se devolverán $ 500.');
 
     await user.click(screen.getByRole('button', { name: 'Volver' }));
     expect(ctx.cancelTradeOperation).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
 
     await openMoreActions(user);
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1'));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1', ''));
   });
 
   it('asks before cancelling an integrated sale', async () => {
@@ -365,12 +365,12 @@ describe('operation detail', () => {
     renderOverlay({ type: 'sale', id: 's1' });
 
     await openMoreActions(user);
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    expect(screen.getByText('V-0004 se cancelará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
+    expect(screen.getByText('V-0004 se anulará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledWith('s1', ''));
   });
 
   it('shows the cash to return before cancelling a partly paid sale', async () => {
@@ -389,15 +389,15 @@ describe('operation detail', () => {
     renderOverlay({ type: 'sale', id: 's1' });
 
     await openMoreActions(user);
-    await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    const dialog = await screen.findByRole('dialog', { name: 'Cancelar operación' });
+    const dialog = await screen.findByRole('dialog', { name: /Anular (canje|venta)/ });
     expect(await within(dialog).findByText(/Se devolverán \$ 300/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledWith('s1', ''));
   });
 
   it('does not announce a refund when the pending sale was not paid', async () => {
@@ -414,9 +414,9 @@ describe('operation detail', () => {
     renderOverlay({ type: 'sale', id: 's1' });
 
     await openMoreActions(user);
-    await user.click(screen.getByRole('button', { name: 'Cancelar venta' }));
-    const dialog = screen.getByRole('dialog', { name: 'Cancelar operación' });
-    expect(dialog).toHaveTextContent('V-0004 se cancelará y quedará en el historial.');
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    const dialog = screen.getByRole('dialog', { name: /Anular (canje|venta)/ });
+    expect(dialog).toHaveTextContent('V-0004 se anulará y quedará en el historial.');
     expect(dialog).not.toHaveTextContent('Se devolverán');
   });
 
@@ -450,8 +450,8 @@ describe('operation detail', () => {
     ctx.tradeIns = [trade({ confirmationStatus: 'CANCELLED', status: 'APROBADO' })];
     renderOverlay({ type: 'cj', id: 't1' });
 
-    expect(screen.getByText('Aprobado')).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toHaveTextContent('Operación cancelada');
+    expect(screen.getByText('Anulada')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Operación anulada');
     expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();
@@ -462,7 +462,7 @@ describe('operation detail', () => {
     renderOverlay({ type: 'cj', id: 't1' });
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Canje quitado de la venta V-0004');
-    const status = within(dialog).getByText('Cancelado');
+    const status = within(dialog).getByText('Anulada');
     expect(status.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
     expect(within(dialog).queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
@@ -481,7 +481,7 @@ describe('operation detail', () => {
 
   it('hides cancel and delete when the member cannot manage sensitive actions', () => {
     renderOverlay({ type: 'cj', id: 't1' }, false);
-    expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
     cleanup();
 
     renderOverlay({ type: 'ctx', kind: 'sale', id: 's1', label: 'V-0004', x: 10, y: 10 }, false);
@@ -497,7 +497,7 @@ describe('operation detail', () => {
       cancelledAt: '2026-10-09T15:04:00.000Z',
     })];
     renderOverlay({ type: 'sale', id: 's1' });
-    expect(screen.getByText('Cancelada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
+    expect(screen.getByText('Anulada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
   });
 
   it('keeps edit off the desk client sheet and shows it on a phone', () => {
@@ -681,11 +681,11 @@ describe('operation detail', () => {
       expect(screen.getByRole('button', { name: 'Peritaje téc.' })).toBeInTheDocument();
       const user = userEvent.setup();
       await openMoreActions(user);
-      expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
       cleanup();
       renderOverlay({ type: 'cj', id: 't1' }, false);
       expect(screen.getByRole('dialog')).toHaveClass('cj-sheet');
-      expect(screen.queryByRole('button', { name: 'Cancelar operación' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Guardar estado' })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Editar' })).toHaveClass('sheet-primary');
     } finally {
@@ -701,6 +701,6 @@ describe('operation detail', () => {
       cancelledAt: '2026-10-09T18:30:00.000Z',
     })];
     renderOverlay({ type: 'cj', id: 't1' });
-    expect(screen.getByText('Cancelada por Luis Socio el 09/10/2026 15:30')).toBeInTheDocument();
+    expect(screen.getByText('Anulada por Luis Socio el 09/10/2026 15:30')).toBeInTheDocument();
   });
 });

@@ -1,10 +1,12 @@
+import { archivedReturn } from '../archive-cache';
+import { ReasonSheet } from '../ReasonSheet';
 import { useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { saleWarrantyView } from '../../lib/warranty';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus } from '../../services/returns-api';
 import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel } from '../format';
-import { Actions, DeskIcon, Dialog, Field, Pill, Segs, Sheet, useDesk } from '../ui';
+import { Actions, DeskIcon, Field, Pill, Segs, Sheet, useDesk } from '../ui';
 
 const RESOLUTIONS: Array<{ id: ReturnResolution; label: string }> = [
   { id: 'REPARACION', label: 'Reparación' },
@@ -99,10 +101,10 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
 
 export function ReturnDetail({ id }: { id: string }) {
   const {
-    returns, updateReturnDiagnosis, resolveReturn, advanceRma, archiveReturn, reloadInventory, reloadSales, reloadClients, loadCash,
+    returns, updateReturnDiagnosis, resolveReturn, advanceRma, archiveReturn, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash,
   } = useAppContext();
   const { close, toast, canManageSensitive = true } = useDesk();
-  const current = returns?.find((row) => row.id === id) ?? null;
+  const current = returns?.find((row) => row.id === id) ?? archivedReturn(id) ?? null;
   const [diagnosis, setDiagnosis] = useState(current?.diagnosis ?? '');
   const [resolution, setResolution] = useState<ReturnResolution>('REINTEGRO');
   const [settlement, setSettlement] = useState<ReturnSettlement>('REINTEGRO');
@@ -182,15 +184,14 @@ export function ReturnDetail({ id }: { id: string }) {
     }
   };
 
-  const archive = async () => {
+  const archive = async (reason: string) => {
     setBusy(true);
     try {
-      await archiveReturn(id);
+      await archiveReturn(id, reason);
       toast('Reclamo archivado');
       close();
     } catch (cause) {
       setError(getFriendlyErrorMessage(cause, 'No se pudo archivar el reclamo.'));
-      setConfirm(false);
     } finally {
       setBusy(false);
     }
@@ -203,8 +204,22 @@ export function ReturnDetail({ id }: { id: string }) {
     return <Sheet title="Reclamo" onClose={close}><p className="ferr">No encontramos ese reclamo.</p></Sheet>;
   }
 
+  const restore = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await restoreReturn(id);
+      toast('Reclamo restaurado');
+      close();
+    } catch (cause) {
+      setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar el reclamo.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Sheet title={current.code} subtitle={[current.clientName, current.deviceLabel].filter(Boolean).join(' · ') || 'Devolución'} onClose={close} className="eq-sheet" footer={open && canManageSensitive ? <Actions busy={busy} primary="Resolver reclamo" onSecondary={close} onPrimary={() => { void resolve(); }} /> : undefined}>
+    <Sheet title={current.code} subtitle={[current.clientName, current.deviceLabel].filter(Boolean).join(' · ') || 'Devolución'} onClose={close} className="eq-sheet" footer={current.deletedAt && canManageSensitive ? <Actions primary="Restaurar reclamo" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} /> : open && canManageSensitive ? <Actions busy={busy} primary="Resolver reclamo" onSecondary={close} onPrimary={() => { void resolve(); }} /> : undefined}>
       {error ? <div className="ferr">{error}</div> : null}
       <div className="pending-sale" data-testid="return-detail">
         <div>
@@ -284,7 +299,7 @@ export function ReturnDetail({ id }: { id: string }) {
         </div>
       ) : null}
       {confirm ? (
-        <Dialog title="Archivar reclamo" text="El reclamo queda archivado y no se borra. Todavía no movió plata ni stock." ok="Archivar" danger busy={busy} onOk={() => { void archive(); }} onClose={() => setConfirm(false)} />
+        <ReasonSheet title="Archivar reclamo" note="El reclamo queda archivado y no se borra. Todavía no movió plata ni stock." ok="Archivar" danger busy={busy} error={error} onOk={(reason) => { void archive(reason); }} onClose={() => { if (!busy) setConfirm(false); }} />
       ) : null}
     </Sheet>
   );

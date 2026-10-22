@@ -18,7 +18,7 @@ import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
-import { saleCode } from "../audit/archive.js";
+import { cleanReason, saleCode } from "../audit/archive.js";
 import { parseOptionalImei } from "../../lib/imei.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
@@ -194,6 +194,9 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     tradeInId: sale.tradeInId ?? null,
     requestKey: sale.requestKey ?? null,
     integratedOperation: sale.integratedOperation,
+    voidedAt: sale.voidedAt?.toISOString() ?? null,
+    voidedBy: sale.voidedBy ?? null,
+    voidReason: sale.voidReason ?? null,
     cancelledBy: sale.cancelledBy ?? null,
     cancelledAt: sale.cancelledAt?.toISOString() ?? null,
     warrantyDays: sale.warrantyDays ?? null,
@@ -229,6 +232,9 @@ function serializeTrade(trade: TradeForResponse) {
     draftAmount: trade.draftAmount ? toNum(trade.draftAmount) : null,
     draftPaymentMethod: trade.draftPaymentMethod ?? null,
     draftPaymentStatus: trade.draftPaymentStatus ?? null,
+    voidedAt: trade.voidedAt?.toISOString() ?? null,
+    voidedBy: trade.voidedBy ?? null,
+    voidReason: trade.voidReason ?? null,
     cancelledBy: trade.cancelledBy ?? null,
     cancelledAt: trade.cancelledAt?.toISOString() ?? null,
   };
@@ -1484,7 +1490,7 @@ function creditSummary(credit: number, currency?: string | null) {
   return credit > 0 ? ` · saldo a favor ${formatArMoney(credit, currency)}` : "";
 }
 
-export async function cancelSaleOperation(storeId: string, saleId: string, actor?: Actor | null) {
+export async function cancelSaleOperation(storeId: string, saleId: string, actor?: Actor | null, reason?: string | null, voiding = false) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     // Lock before inspecting side effects: concurrent cancellations must not
     // race on the unique cash reversal before reaching the sale status update.
@@ -1515,10 +1521,10 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
     await restoreSaleDeposits(tx, storeId, sale.id, actor);
     await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
-    const stamp = cancellationStamp(actor);
+    const stamp = { ...cancellationStamp(actor), ...(voiding ? { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: cleanReason(reason) } : {}) };
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
-    if (actor) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
+    if (actor) await writeAudit(tx, { storeId, actor, action: voiding ? "sale.voided" : "sale.cancelled", reason, entityType: "sale", entityId: sale.id, detail });
     const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove) : null;
     const client = adjusted;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
@@ -1536,27 +1542,27 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
       },
       { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id },
     ));
-    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `Venta cancelada · stock restaurado${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
+    return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `${voiding ? "Venta anulada" : "Venta cancelada"} · stock restaurado${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
   });
 }
 
-export async function cancelOperationFromSale(storeId: string, saleId: string, actor?: Actor | null) {
+export async function cancelOperationFromSale(storeId: string, saleId: string, actor?: Actor | null, reason?: string | null, voiding = false) {
   const sale = await prisma.sale.findFirst({ where: { id: saleId, storeId }, select: { tradeInId: true } });
   if (!sale) throw new OperationError("Sale not found", 404);
-  return sale.tradeInId ? cancelTradeOperation(storeId, sale.tradeInId, actor) : cancelSaleOperation(storeId, saleId, actor);
+  return sale.tradeInId ? cancelTradeOperation(storeId, sale.tradeInId, actor, reason, voiding) : cancelSaleOperation(storeId, saleId, actor, reason, voiding);
 }
 
-export async function cancelTradeFromSale(storeId: string, tradeId: string, actor?: Actor | null) {
+export async function cancelTradeFromSale(storeId: string, tradeId: string, actor?: Actor | null, reason?: string | null, voiding = false) {
   const trade = await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId }, select: { confirmationStatus: true, operationSource: true } });
   if (!trade) throw new OperationError("Trade-in not found", 404);
   const sale = await prisma.sale.findFirst({ where: { storeId, tradeInId: tradeId }, select: { id: true } });
   if (!sale && !(trade.confirmationStatus === "PENDING" && trade.operationSource === "sales")) {
     throw new OperationError("This trade-in is not linked to a sales operation", 403);
   }
-  return cancelTradeOperation(storeId, tradeId, actor);
+  return cancelTradeOperation(storeId, tradeId, actor, reason, voiding);
 }
 
-export async function cancelTradeOperation(storeId: string, tradeId: string, actor?: Actor | null) {
+export async function cancelTradeOperation(storeId: string, tradeId: string, actor?: Actor | null, reason?: string | null, voiding = false) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${tradeId} AND "storeId" = ${storeId} FOR UPDATE`;
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
@@ -1587,7 +1593,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         exchangeRate: sale.exchangeRate == null ? null : toNum(sale.exchangeRate),
       })
       : 0;
-    const stamp = cancellationStamp(actor);
+    const stamp = { ...cancellationStamp(actor), ...(voiding ? { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: cleanReason(reason) } : {}) };
     if (sale) await restoreSaleDeposits(tx, storeId, sale.id, actor);
     if (sale) await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
@@ -1596,8 +1602,8 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
     if (actor) {
-      await writeAudit(tx, { storeId, actor, action: "trade.cancelled", entityType: "trade", entityId: trade.id, detail });
-      if (sale) await writeAudit(tx, { storeId, actor, action: "sale.cancelled", entityType: "sale", entityId: sale.id, detail });
+      await writeAudit(tx, { storeId, actor, action: voiding ? "trade.voided" : "trade.cancelled", reason, entityType: "trade", entityId: trade.id, detail });
+      if (sale) await writeAudit(tx, { storeId, actor, action: voiding ? "sale.voided" : "sale.cancelled", reason, entityType: "sale", entityId: sale.id, detail });
     }
     const adjusted = trade.clientId && sale
       ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove)
@@ -1633,7 +1639,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         ]) } } : {}),
       },
     ));
-    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `Operación cancelada · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
+    return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `${voiding ? "Operación anulada" : "Operación cancelada"} · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
   });
 }
 

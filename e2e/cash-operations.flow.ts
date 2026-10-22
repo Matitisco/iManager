@@ -53,9 +53,9 @@ async function detail(page: Page, phone: boolean) {
 }
 async function cancelSale(page: Page, phone: boolean) {
   const sheet = await detail(page, phone);
-  await (await sheetAction(sheet, 'Cancelar operación')).click();
-  const confirm = page.getByRole('dialog', { name: 'Cancelar operación', exact: true });
-  await confirm.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+  await (await sheetAction(sheet, 'Anular')).click();
+  const confirm = page.getByRole('dialog', { name: /Anular (venta|canje)/ });
+  await confirm.getByRole('button', { name: 'Anular', exact: true }).click();
   await expect(confirm).toBeHidden();
 }
 async function editPrice(page: Page, phone: boolean, amount: number) {
@@ -128,16 +128,16 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
     const before = await get(request, email, `/cash/${boxId}/sessions`);
     await page.reload({ waitUntil: 'domcontentloaded' });
     const sheet = await detail(page, phone);
-    await (await sheetAction(sheet, 'Cancelar operación')).click();
-    const confirm = page.getByRole('dialog', { name: 'Cancelar operación', exact: true });
-    await confirm.getByRole('button', { name: 'Cancelar operación', exact: true }).click();
+    await (await sheetAction(sheet, 'Anular')).click();
+    const confirm = page.getByRole('dialog', { name: /Anular (venta|canje)/ });
+    await confirm.getByRole('button', { name: 'Anular', exact: true }).click();
     await expect(confirm).toBeHidden();
-    expect((await fetchSales(request, email)).sales[0].status).toBe('CANCELADA');
+    expect((await fetchSales(request, email, true)).sales[0].status).toBe('CANCELADA');
     expect((await fetchInventory(request, email)).inventory.find(row => row.id === product.id)?.status).toBe('DISPONIBLE');
     expect(await get(request, email, `/cash/${boxId}/sessions`)).toEqual(before);
     expect((await get(request, email, '/cash')).registers[0].balance).toBe(100);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(await detail(page, phone)).toContainText('Cancelada');
+    await expect(await detail(page, phone)).toContainText('Anulada');
   });
 
   for (const state of ['sin abrir', 'cerrada', 'sin configuración']) {
