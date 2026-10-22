@@ -1,0 +1,5 @@
+- [x] Crear mockup previo de escritorio y móvil.
+- [x] Extraer selector compartido y conservar el diseño y las capas modales.
+- [x] Reemplazar todos los inputs de fecha nativos y conservar contratos y validación.
+- [x] Añadir pruebas unitarias, de componentes e integración de formularios.
+- [x] Ejecutar Vitest, TypeScript y capturas locales; ajustar script de screenshots.

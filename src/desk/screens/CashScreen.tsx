@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { ReasonSheet } from '../ReasonSheet';
 import { isVoidRow } from '../format';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -105,9 +107,9 @@ export function CashScreen() {
       {box.session?.status === 'SUBMITTED' ? <p className="cash-help">Los movimientos están pausados hasta que el dueño apruebe el cierre o pida recontar.</p> : null}
       {view ? <>
         <h3 className="cash-section">Movimientos</h3>
-        <form className="card cash-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draftFilters, offset: 0 }); }}>
-          <Field label="Desde"><input type="date" value={draftFilters.from ?? ''} onChange={e => setDraftFilters(f => ({ ...f, from: e.target.value }))} /></Field>
-          <Field label="Hasta"><input type="date" value={draftFilters.to ?? ''} onChange={e => setDraftFilters(f => ({ ...f, to: e.target.value }))} /></Field>
+        <form className="card cash-filters" onSubmit={event => { event.preventDefault(); if ((draftFilters.from && !isDateValue(draftFilters.from)) || (draftFilters.to && !isDateValue(draftFilters.to))) { setHistoryError('Ingresá una fecha válida.'); return; } setFilters({ ...draftFilters, offset: 0 }); }}>
+          <DatePicker label="Desde" value={draftFilters.from ?? ''} onChange={value => setDraftFilters(f => ({ ...f, from: value }))} />
+          <DatePicker label="Hasta" value={draftFilters.to ?? ''} onChange={value => setDraftFilters(f => ({ ...f, to: value }))} />
           <Field label="Categoría"><DeskSelect label="Categoría del historial" value={draftFilters.category ?? ''} options={[{ value: '', label: 'Todas' }, { value: '__none__', label: 'Sin categoría' }, ...(history?.categories ?? []).map(value => ({ value, label: value }))]} onChange={value => setDraftFilters(f => ({ ...f, category: value }))} /></Field>
           <button className="dbtn s" type="submit">Filtrar</button>
         </form>

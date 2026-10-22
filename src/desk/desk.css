@@ -437,10 +437,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .grange .ferr { flex-basis: 100%; margin: 0; }
 .dp-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--section); margin-bottom: 6px; }
 .dp-control { position: relative; }
-.grange .dp-control input { padding-right: 44px; }
+.dp-control input { padding-right: 46px; }
 .dp-control .dp-trigger { position: absolute; right: 7px; top: 6px; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; color: var(--secondary); transition: background .15s, color .15s; }
 .dp-control .dp-trigger:hover, .dp-control .dp-trigger.on { background: var(--lime-soft); color: var(--primary); }
-.dp-calendar { position: fixed; z-index: 60; padding: 16px; max-height: calc(100vh - 24px); overflow-y: auto; border: 1px solid var(--border); border-radius: 20px; background: var(--card); box-shadow: 0 12px 40px rgba(22,24,29,.14), 0 2px 6px rgba(22,24,29,.04); }
+.dp-calendar { position: fixed; z-index: 100; padding: 16px; max-height: calc(100dvh - 24px); overflow-y: auto; border: 1px solid var(--border); border-radius: 20px; background: var(--card); box-shadow: 0 12px 40px rgba(22,24,29,.14), 0 2px 6px rgba(22,24,29,.04); }
+.dp-trigger:disabled { opacity: .5; cursor: default; }
 .dp-calendar.inline { position: static; width: 100%; max-height: none; margin-top: 8px; box-shadow: none; }
 .dp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
 .dp-head .dp-nav { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 10px; }

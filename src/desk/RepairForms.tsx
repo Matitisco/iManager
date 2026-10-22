@@ -12,7 +12,7 @@ import { archivedRepair } from './archive-cache';
 import { restoreBackendRepair } from '../services/repairs-api';
 import { RecordHistory } from './screens/HistoryScreen';
 import { FX_WARNING } from './money';
-import { ReportDatePicker } from './report-date-picker';
+import { DatePicker } from './date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from './ui';
@@ -42,7 +42,6 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   const money = useMoney();
   const { close, toast } = useDesk();
   const catalogs = useCatalogs();
-  const isPhone = usePhoneLayout();
   const statuses = catalogChoices(catalogs?.options ?? [], 'REPAIR_STATUS', DEFAULT_REPAIR_STATUSES)
     .filter((status) => !isRetiredRepairStatus(status.id, status.label));
   const [clientName, setClientName] = useState('');
@@ -106,7 +105,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
   };
 
   return (
-    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" subtitle={isPhone ? 'Arranca en «Recibido».' : undefined} onClose={close} busy={busy || saving}>
+    <Sheet wide className="svc-sheet" title="Nueva orden de reparación" onClose={close} busy={busy || saving}>
       {error || bad.form ? <div className="ferr">{error || bad.form}</div> : null}
       <div className="svc-grid">
         <div>
@@ -151,7 +150,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
             </Field>
           </div>
           <div className="frow">
-            <ReportDatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
+            <DatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
             <Field label="Técnico">
               <input value={technician} maxLength={120} placeholder="Técnico Ejemplo" onChange={(event) => setTechnician(event.target.value)} />
             </Field>
@@ -512,7 +511,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
             </Field>
             <p className="eqs-note">Si la orden ya está entregada, estos días corren desde esa entrega.</p>
             <div className="frow">
-              <ReportDatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
+              <DatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
               <Field label="Técnico">
                 <input value={technician} maxLength={120} placeholder="Técnico Ejemplo" onChange={(event) => setTechnician(event.target.value)} />
               </Field>

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CashData, CashRegister } from '../../types/cash';
@@ -27,6 +27,31 @@ beforeEach(() => {
 });
 
 describe('pantalla de caja', () => {
+  it('filters using ISO calendar days, allows clearing and blocks invalid manual dates', async () => {
+    const user = setup();
+    await user.click(screen.getByRole('button', { name: /Caja ARS/ }));
+    await screen.findByText('No hay movimientos en este período.');
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-01' } });
+    await user.click(screen.getByRole('button', { name: 'Abrir calendario: desde' }));
+    await user.click(screen.getByRole('button', { name: 'lunes, 5 de octubre de 2026' }));
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-10-22' } });
+    await user.click(screen.getByRole('button', { name: 'Abrir calendario: hasta' }));
+    await user.click(screen.getByRole('button', { name: 'viernes, 23 de octubre de 2026' }));
+    await user.click(screen.getByRole('button', { name: 'Filtrar' }));
+    await waitFor(() => expect(api.loadCashHistory).toHaveBeenLastCalledWith('ARS', { from: '2026-10-05', to: '2026-10-23', offset: 0 }));
+    const calls = api.loadCashHistory.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '31/02/2026' } });
+    await user.click(screen.getByRole('button', { name: 'Filtrar' }));
+    expect(api.loadCashHistory).toHaveBeenCalledTimes(calls);
+    expect(screen.getByRole('alert')).toHaveTextContent('Ingresá una fecha válida.');
+    for (const label of ['desde', 'hasta']) {
+      await user.click(screen.getByRole('button', { name: `Abrir calendario: ${label}` }));
+      await user.click(screen.getByRole('button', { name: 'Borrar' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Filtrar' }));
+    await waitFor(() => expect(api.loadCashHistory).toHaveBeenLastCalledWith('ARS', { from: '', to: '', offset: 0 }));
+  });
+
   it('presenta los saldos originales y abre un conteo sin mostrar saldo ni esperado', async () => {
     const user = setup();
     expect(screen.getByText('ARS 10.000,00')).toBeVisible(); expect(screen.getByText('USD 100,00')).toBeVisible();

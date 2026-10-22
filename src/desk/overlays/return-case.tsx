@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { archivedReturn } from '../archive-cache';
 import { ReasonSheet } from '../ReasonSheet';
 import { useMemo, useState } from 'react';
@@ -46,7 +48,7 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
     const next: Record<string, string> = {};
     if (!sale) next.sale = 'Elegí una venta cobrada.';
     if (!reason.trim()) next.reason = 'Completá el motivo.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(openedOn)) next.date = 'Elegí una fecha.';
+    if (!isDateValue(openedOn)) next.date = 'Elegí una fecha.';
     setBad(next);
     if (Object.keys(next).length || !sale) return;
     setBusy(true);
@@ -69,7 +71,7 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
   };
 
   return (
-    <Sheet title="Nuevo reclamo" subtitle="Sale de una venta cobrada. La plata y el equipo se mueven al resolverlo." onClose={close}>
+    <Sheet title="Nuevo reclamo" onClose={close} busy={busy}>
       {error ? <div className="ferr">{error}</div> : null}
       <Field label="Venta" error={bad.sale}>
         <select aria-label="Venta" value={selected} disabled={Boolean(saleId)} onChange={(event) => setSelected(event.target.value)}>
@@ -91,9 +93,9 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
           </div>
         </div>
       ) : null}
-      <Field label="Fecha" error={bad.date}><input type="date" aria-label="Fecha del reclamo" value={openedOn} onChange={(event) => setOpenedOn(event.target.value)} /></Field>
+      <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} />
       <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
-      <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional. Lo podés cargar después." /></Field>
+      <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional" /></Field>
       <Actions busy={busy} primary="Abrir reclamo" onSecondary={close} onPrimary={() => { void save(); }} />
     </Sheet>
   );

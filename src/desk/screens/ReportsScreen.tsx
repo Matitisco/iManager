@@ -64,7 +64,7 @@ import {
 import { usePhoneLayout } from '../section-notices';
 import { canManageCommissions, canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
-import { ReportDatePicker } from '../report-date-picker';
+import { DatePicker } from '../date-picker';
 import { DeskSelect } from '../select';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
@@ -262,8 +262,8 @@ export function ReportsScreen() {
   );
   const rangePickers = (
     <>
-      <ReportDatePicker label="Fecha de inicio" value={draftRange.startDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, startDate: value })); setRangeError(null); }} />
-      <ReportDatePicker label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
+      <DatePicker required label="Fecha de inicio" value={draftRange.startDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, startDate: value })); setRangeError(null); }} />
+      <DatePicker required label="Fecha de fin" value={draftRange.endDate} invalid={!!rangeError} describedBy={rangeError ? 'report-range-error' : undefined} panel={phone ? 'inline' : 'float'} onChange={(value) => { setDraftRange((current) => ({ ...current, endDate: value })); setRangeError(null); }} />
     </>
   );
   const chooseTab = (item: ReportTab) => {
@@ -292,7 +292,7 @@ export function ReportsScreen() {
         </form>
       )}
       {customOpen && phone && (
-        <Sheet title="Período personalizado" subtitle="Elegí el inicio y el fin del reporte." onClose={closeCustom} className="report-range">
+        <Sheet title="Período personalizado" onClose={closeCustom} className="report-range">
           <div id="report-custom-range">
             {rangePickers}
             {rangeError && <p id="report-range-error" className="ferr" role="alert">{rangeError}</p>}
