@@ -216,3 +216,14 @@ describe('Resumen periódico', () => {
     await loaded();
   });
 });
+
+ it('renders no replacement empty state when the summary fails offline', async () => {
+  const cause = new TypeError('Failed to fetch');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  mocks.fetch.mockRejectedValueOnce(cause);
+  show();
+  await waitFor(() => expect(screen.queryByTestId('periodic-summary-loading')).not.toBeInTheDocument());
+  expect(warn).toHaveBeenCalledWith('No se pudo cargar el resumen periódico.', cause);
+  expect(screen.queryByText('Sin resumen para mostrar.')).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});

@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, ClientCategory, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { ExchangeProvider } from '../exchange';
 import { ReportsScreen } from './ReportsScreen';
+import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
 
+const api = vi.hoisted(() => ({ fetchCommissionReport: vi.fn() }));
 const context = vi.hoisted(() => ({
+  user: null as { uid: string } | null,
   sales: [] as Sale[],
   inventory: [] as Product[],
   tradeIns: [] as TradeIn[],
@@ -19,6 +22,7 @@ const context = vi.hoisted(() => ({
 }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
+vi.mock('../../services/commissions-api', () => ({ fetchCommissionReport: api.fetchCommissionReport }));
 vi.mock('../ui', async () => {
   const actual = await vi.importActual<typeof import('../ui')>('../ui');
   return { ...actual, useDesk: () => desk, Pill: ({ status }: { status: string }) => <span>{status}</span> };
@@ -81,6 +85,8 @@ beforeEach(() => {
   context.clientCategories = [];
   context.customColumns = [];
   context.appSession = null;
+  context.user = null;
+  api.fetchCommissionReport.mockReset();
   context.expenses = [];
   context.expensesLoaded = true;
 });
@@ -471,6 +477,21 @@ describe('Reports breakdown and new sections', () => {
     const card = screen.getByTestId(loaded ? 'net-profit' : 'net-profit-loading');
     expect(container.querySelector('.repgrid')?.nextElementSibling).toBe(card);
     expect(card.nextElementSibling).toBe(screen.getByRole('heading', { name: 'Ventas del período' }).parentElement);
+  });
+
+  it.each([NETWORK_ERROR_MESSAGE, 'No se pudo cargar el reporte de comisiones'])('filters commission load failures while preserving the main layout: %s', async (message) => {
+    context.appSession = { membership: { role: 'OWNER' } };
+    context.user = { uid: 'owner' };
+    api.fetchCommissionReport.mockRejectedValue(new Error(message));
+    const { container } = render(<ReportsScreen />);
+    await userEvent.click(screen.getByRole('button', { name: 'Comisiones' }));
+    await waitFor(() => expect(api.fetchCommissionReport).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId('commission-report-loading')).not.toBeInTheDocument());
+    if (message === NETWORK_ERROR_MESSAGE) expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    else expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByText('No hay comisiones en este período.')).not.toBeInTheDocument();
+    expect(container.querySelector('.repgrid')?.nextElementSibling).toBe(screen.getByTestId('net-profit'));
+    expect(screen.getAllByTestId('net-profit')).toHaveLength(1);
   });
 
   it('resta los gastos del período en la ganancia neta del dueño', async () => {

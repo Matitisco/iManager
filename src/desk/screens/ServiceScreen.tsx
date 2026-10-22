@@ -3,8 +3,7 @@ import { isVoidRow, mergeRecordRows } from '../format';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
-import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
+import { suppressLocalNetworkBanner } from '../offline-banner';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
@@ -21,7 +20,6 @@ export function ServiceScreen() {
   const catalogs = useCatalogs();
   const { open, back, toast } = useDesk();
   const phone = usePhoneLayout();
-  const offlineOwned = useOfflineBannerOwned();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<'board' | 'list'>('board');
@@ -155,9 +153,9 @@ export function ServiceScreen() {
           ))}
         </div>
       <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
-      {repairOrdersError && !suppressLocalNetworkBanner(repairOrdersError, offlineOwned) ? <div className="ferr" role="alert" data-testid={repairOrdersError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{repairOrdersError}</div> : null}
+      {repairOrdersError && !suppressLocalNetworkBanner(repairOrdersError) ? <div className="ferr" role="alert">{repairOrdersError}</div> : null}
       {phone ? (
-        groups.length === 0 ? <div className="wempty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (
+        groups.length === 0 ? repairOrdersError ? null : <div className="wempty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (
           <div className="svc-groups" data-testid="service-groups">
             {groups.map((group) => (
               <section key={group.status.id} data-testid={`repair-group-${group.status.id}`}>
@@ -253,7 +251,7 @@ export function ServiceScreen() {
         </div>
       ) : (
         <div className="dcard flush">
-          {rows.length === 0 ? <div className="wempty">No encontré órdenes.</div> : (
+          {rows.length === 0 ? repairOrdersError ? null : <div className="wempty">No encontré órdenes.</div> : (
             <div className="dtable-scroll">
               <table className="dtable">
                 <thead>

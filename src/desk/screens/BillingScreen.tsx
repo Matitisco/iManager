@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Check, CreditCard, Lock, X } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import type { BillingPlanOffer, BillingQuote } from '../../types/billing';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { redirectToMercadoPago } from '../../services/mercadopago-url';
 import { BILLING_RETURN_CONFIRMING_MS, BILLING_RETURN_POLL_MS, BILLING_RETURN_WINDOW_MS, billingPathFromLocation, billingReturnStep, isBillingReturn } from '../billing-return';
 import { PageHead, useDesk } from '../ui';
@@ -165,7 +165,7 @@ export function BillingScreen() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true); setError(''); setNotice('');
-    try { await action(); } catch (cause) { if (alive.current) setError(toUserMessage(cause)); }
+    try { await action(); } catch (cause) { if (alive.current) setError(toActionMessage(cause)); }
     finally { busyRef.current = false; if (alive.current) setBusy(false); }
   };
   const closeQuote = () => { if (busyRef.current) return; setQuote(null); setCheckoutError(''); };
@@ -176,7 +176,7 @@ export function BillingScreen() {
     try {
       const result = await openSubscriptionCheckout(quote.id);
       redirectToMercadoPago(result.initPoint);
-    } catch (cause) { if (alive.current) setCheckoutError(toUserMessage(cause)); }
+    } catch (cause) { if (alive.current) setCheckoutError(toActionMessage(cause)); }
     finally { busyRef.current = false; if (alive.current) setBusy(false); }
   };
   const openQuote = (plan: BillingPlanOffer) => void run(async () => {
@@ -198,7 +198,7 @@ export function BillingScreen() {
       redirectToMercadoPago(result.initPoint);
     } catch (cause) {
       if (!alive.current) return;
-      const message = toUserMessage(cause);
+      const message = toActionMessage(cause);
       if (/ya tenés una suscripción/i.test(message)) {
         const details = await loadBilling(true);
         await reloadSession();
@@ -261,7 +261,7 @@ export function BillingScreen() {
           </section> : null}
         </div> : null}
         {confirming ? <p className="billing-return" role="status" data-testid="billing-return-confirming">Confirmando tu pago…</p> : null}
-        {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(true, true); setLoading(false); })}>Reintentar</button></div> : null}
+        {error && !isNetworkErrorMessage(error) ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(true, true); setLoading(false); })}>Reintentar</button></div> : null}
         {notice ? <p className="billing-notice" role="status">{notice}</p> : null}
         {loading && !confirming ? <ListSkeleton variant="cards" rows={3} testId="billing-loading" /> : null}
         {!internal && !active && !scheduled && !incomplete ? <>
@@ -411,7 +411,7 @@ function ConfirmCheckout({ quote, busy, error, phone, onClose, onContinue, onEma
         <div className="billing-row billing-email-row"><span>Email del pago</span>{editing ? <input type="email" aria-label="Email del pagador" autoComplete="email" value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={saveEmail} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveEmail(); } }} /> : <b>{quote.payerEmail} <button type="button" className="billing-change" disabled={busy} onClick={() => setEditing(true)}>Cambiar</button></b>}</div>
         <PaymentMethods />
         <p className="billing-fine">Débito automático en pesos según el dólar del día. Te avisamos antes del primer cobro. Cancelás cuando quieras.</p>
-        {error ? <div ref={alertRef} className="billing-error" role="alert" tabIndex={-1}>{error}</div> : null}
+        {error && !isNetworkErrorMessage(error) ? <div ref={alertRef} className="billing-error" role="alert" tabIndex={-1}>{error}</div> : null}
         <div className="billing-modal-actions">
           <button className="billing-primary" type="button" disabled={busy} aria-busy={busy || undefined} onClick={onContinue}>{busy ? 'Abriendo Mercado Pago…' : 'Continuar en Mercado Pago'}</button>
           <button className="billing-link" type="button" disabled={busy} onClick={onClose}>Volver</button>
@@ -452,7 +452,7 @@ function IncompletePayment({ busy, error, rejected, planName, period, accessUnti
         <button className="billing-primary" type="button" disabled={busy} onClick={onRetry}>{busy ? 'Abriendo Mercado Pago…' : 'Reintentar con otra tarjeta'}</button>
         <button className="billing-secondary" type="button" disabled={busy} onClick={onRetry}>Pagar con mi cuenta de Mercado Pago</button>
       </div>
-      {error ? <p className="billing-note">{error}</p> : null}
+      {error && !isNetworkErrorMessage(error) ? <p className="billing-note">{error}</p> : null}
       <PaymentMethods />
     </section>
   );
@@ -473,7 +473,7 @@ function BetaBilling({ error, onBack }: { error: string; onBack: () => void }) {
         </div>
       </div>
       <div className="billing-content billing-beta-stack">
-        {error ? <div className="billing-error" role="alert">{error}</div> : null}
+        {error && !isNetworkErrorMessage(error) ? <div className="billing-error" role="alert">{error}</div> : null}
         <section className="billing-card billing-beta" data-testid="billing-beta-note" aria-labelledby="billing-beta-title">
           <div className="billing-card-top">
             <p>Tu cuenta</p>

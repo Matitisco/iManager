@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -140,20 +141,21 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     if (archivedReceivedLink || !trade || trade.confirmationStatus != null) {
       void fetchTradeOperation(source, id)
         .then(setLoadedOperation)
-        .catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar el canje.')));
+        .catch((err: unknown) => setDetailError(toUserMessage(err, 'No se pudo cargar el canje.')));
     }
   }, [id, source, archivedReceivedLink, trade?.confirmationStatus]);
   useEffect(() => {
     setTechnicalStatus(trade?.status || 'PENDIENTE');
   }, [trade?.id, trade?.status]);
   if (!trade && !detailError) return <Sheet title="Canje" onClose={close} className="cj-sheet"><ListSkeleton variant="lines" rows={6} /></Sheet>;
+  if (!trade && isNetworkErrorMessage(detailError)) return <Sheet title="Canje" onClose={close} className="cj-sheet">{null}</Sheet>;
   if (!trade) return <Sheet title="Registro no disponible" onClose={close} className="cj-sheet"><div className="ferr">{detailError}</div></Sheet>;
   const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
   if (archivedReceivedLink) {
     const archivedReceived = loadedOperation?.inventory.find((item) => item.archivedAt);
     return (
       <Sheet title="Equipo recibido archivado" subtitle="Registro histórico · fuera del stock activo" onClose={close} busy={busy} className="cj-sheet" footer={<SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
-        {detailError && <div className="ferr">{detailError}</div>}
+        {detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
         {archivedReceived ? <>
           <div className="kv"><span>Modelo</span><b>{archivedReceived.model || trade.deviceReceived || '—'}</b></div>
           <div className="kv"><span>Calidad</span><b>{displayQuality(archivedReceived.condition, archivedReceived.grade) || tradeQuality(trade.grade) || '—'}</b></div>
@@ -249,7 +251,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     }
     return (
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} busy={busy} className="cj-sheet" footer={detailFooter}>
-        {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+        {error && <div className="ferr">{error}</div>}{detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
         <div className="tracking-history-action"><RecordHistoryButton entityType="trade" entityId={trade.id} label={tradeCode(tradeIns, trade.id)} /></div>
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>

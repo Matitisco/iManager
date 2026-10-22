@@ -110,7 +110,7 @@ describe('AuthActionPage', () => {
 
   it.each([
     ['auth/weak-password', /demasiado débil/i],
-    ['auth/network-request-failed', /revisá tu internet/i],
+    ['auth/network-request-failed', /No se pudo completar\. Probá de nuevo\./],
   ])('shows a spanish message for %s and keeps the form', async (code, message) => {
     const user = userEvent.setup();
     const onDone = vi.fn();

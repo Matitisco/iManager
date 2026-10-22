@@ -3,13 +3,12 @@ import { ExternalLink, Eye, EyeOff, Link, MessageCircle, RefreshCw, Search, Sett
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogSettings, ManagedCatalog } from '../../types/public-catalog';
-import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
+import { toActionMessage } from '../../lib/user-message';
 import { catalogCondition, catalogPrice, whatsappLink } from '../../catalog/presentation';
 import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import type { PublicCatalog } from '../../types/public-catalog';
 import { PriceList } from '../../catalog/PriceList';
 import { usePhoneLayout } from '../section-notices';
-import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 import { Actions, Dialog, PageHead, Sheet, useDesk } from '../ui';
 import { TablePager, usePagedRows } from '../pager';
 import { ListSkeleton } from '../list-skeleton';
@@ -26,7 +25,6 @@ export function PublicCatalogScreen() {
   const { publicCatalog: catalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
   const { toast, open, back } = useDesk();
   const phone = usePhoneLayout();
-  const offlineOwned = useOfflineBannerOwned();
   const [tab, setTab] = useState('summary');
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
@@ -51,7 +49,7 @@ export function PublicCatalogScreen() {
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError('');
-    try { await action(); } catch (cause) { setError(toUserMessage(cause)); }
+    try { await action(); } catch (cause) { setError(toActionMessage(cause)); }
     finally { pending.current = false; setBusy(false); }
   };
   const link = catalog ? `${window.location.origin}/c/${catalog.slug}` : '';
@@ -90,9 +88,9 @@ export function PublicCatalogScreen() {
   });
   return <div className="dscreen catalog-screen" data-testid="catalog-screen" aria-busy={loading}>
     <PageHead title="Catálogo" back={back} action={catalog && !phone ? <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div> : undefined} />
-    {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}</div> : null}
-    {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
-    {loading && !catalog ? <CatalogSkeleton /> : !catalog && unavailable ? <p className="cat-empty">Sin catálogo para mostrar.</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
+    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {!unavailable && !storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
+    {loading && !catalog ? <CatalogSkeleton /> : !catalog && unavailable ? null : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
@@ -167,7 +165,7 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
         await savePublicCatalog(action === 'deactivate' ? { active: false } : owner ? { ...settings, active } : settings);
       }
       onClose();
-    } catch (cause) { setError(toUserMessage(cause)); }
+    } catch (cause) { setError(toActionMessage(cause)); }
     finally { pending.current = false; setBusy(false); }
   };
   const rule = (key: 'active' | 'hideWithoutStock' | 'hideReserved' | 'showPrice', label: string, hint?: string) => <div className="cat-rule-row"><div><b>{label}</b>{hint && <small>{hint}</small>}</div><CatalogToggle label={label} checked={draft[key]} disabled={busy} onChange={() => { if (key === 'active' && draft.active) setConfirm('deactivate'); else setDraft(current => ({ ...current, [key]: !current[key] })); }} /></div>;

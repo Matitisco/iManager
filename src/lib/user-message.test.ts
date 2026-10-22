@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../services/api-client';
 import { getFriendlyErrorMessage } from './utils';
-import { DEFAULT_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE, SERVER_ERROR_MESSAGE, TIMEOUT_ERROR_MESSAGE, toUserMessage } from './user-message';
+import { ACTION_ERROR_MESSAGE, DEFAULT_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE, SERVER_ERROR_MESSAGE, TIMEOUT_ERROR_MESSAGE, toActionMessage, isNetworkErrorMessage, toUserMessage } from './user-message';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -16,7 +16,7 @@ describe('toUserMessage', () => {
     expect(toUserMessage(new TypeError(message))).toBe(NETWORK_ERROR_MESSAGE);
     expect(toUserMessage(new Error(message))).toBe(NETWORK_ERROR_MESSAGE);
     expect(toUserMessage(message)).toBe(NETWORK_ERROR_MESSAGE);
-    expect(getFriendlyErrorMessage(new TypeError(message), 'No se pudo guardar.')).toBe(NETWORK_ERROR_MESSAGE);
+    expect(getFriendlyErrorMessage(new TypeError(message), 'No se pudo guardar.')).toBe(ACTION_ERROR_MESSAGE);
   });
 
   it('recognizes NetworkError, SDK codes and plain rejection objects', () => {
@@ -79,5 +79,20 @@ describe('toUserMessage', () => {
     expect(toUserMessage(new TypeError('a is not an object'))).toBe(DEFAULT_ERROR_MESSAGE);
     expect(toUserMessage(new SyntaxError('JSON.parse: unterminated string literal'))).toBe(DEFAULT_ERROR_MESSAGE);
     expect(toUserMessage(new ReferenceError('x is not defined'))).toBe(DEFAULT_ERROR_MESSAGE);
+  });
+});
+
+ describe('network presentation boundaries', () => {
+  it.each([NETWORK_ERROR_MESSAGE, 'Sin conexión', 'Error de conexión', 'Failed to fetch', 'Load failed', 'The Internet connection appears to be offline.'])('keeps recovery separate from action copy: %s', message => {
+    expect(isNetworkErrorMessage(message)).toBe(true);
+    expect(toUserMessage(new Error(message))).toBe(NETWORK_ERROR_MESSAGE);
+    expect(toActionMessage(new Error(message))).toBe(ACTION_ERROR_MESSAGE);
+    expect(toActionMessage(message)).not.toContain('conexión');
+  });
+  it('retains business validations for actions, including while offline', () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    expect(toActionMessage(new ApiError(409, 'IMEI duplicado'))).toBe('IMEI duplicado');
+    expect(isNetworkErrorMessage('IMEI duplicado')).toBe(false);
+    expect(isNetworkErrorMessage(null)).toBe(false);
   });
 });

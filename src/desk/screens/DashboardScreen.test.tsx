@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale, TradeIn } from '../../types';
 import type { ReportsOverview } from '../../services/reports-api';
+import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
 import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { DashboardScreen } from './DashboardScreen';
@@ -95,6 +96,23 @@ describe('Dashboard aprobado', () => {
     expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
     expect(screen.queryByText(/Reintentar|Cargando…/)).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([NETWORK_ERROR_MESSAGE, 'Failed to fetch'])('oculta fallos de red sin mensajes ni vacíos sustitutos: %s', async (message) => {
+    api.fetchReportsOverview.mockRejectedValue(new TypeError(message));
+    renderScreen();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveAttribute('aria-busy', 'false'));
+    expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Todavía no hay ventas|Sin ventas/)).toBeNull();
+    expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
+    expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
+  });
+
+  it('oculta los mensajes del período mientras el backend está desconectado', () => {
+    context.backendStatus = 'offline';
+    renderScreen();
+    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(screen.queryByText('No se pudo consultar el período')).toBeNull();
+    expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
   });
 
   it('no consulta antes de resolver sesión/onboarding', () => {

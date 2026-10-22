@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { OperationSource } from '../services/operations-api';
-import { toUserMessage } from '../lib/user-message';
+import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
 import { useOfflineRecovery } from '../lib/offline-recovery';
 
 export const DRAFT_LOAD_ERROR_MESSAGE = 'No se pudieron cargar los borradores. Probá de nuevo en un momento.';
@@ -27,7 +27,7 @@ export function useOperationDraftError(source: OperationSource): string | null {
     return () => { active = false; };
   }, [source, attempt]);
 
-  return draftError;
+  return isNetworkErrorMessage(draftError) ? null : draftError;
 }
 
 function isMissingDraftsRoute(error: unknown): boolean {

@@ -1,5 +1,5 @@
 import { isSectionHidden } from '../../config/hiddenSections';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage } from '../../lib/user-message';
 import { Fragment, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { removeMember, updateMemberSections, type TeamMember } from '../../services/members-api';
@@ -44,14 +44,14 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
       const saved = await updateMemberSections(user, appSession.store.id, member.id, sections, sensitive);
       if (member.userId === appSession.user.id) await reloadSession();
       onSaved(saved); onBack();
-    } catch (err) { setError(toUserMessage(err, 'No se pudieron guardar los permisos')); }
+    } catch (err) { setError(toActionMessage(err, 'No se pudieron guardar los permisos')); }
     finally { setBusy(false); }
   };
   const remove = async () => {
     if (locked || draft || !user || !appSession?.store?.id) return;
     setBusy(true); setError('');
     try { await removeMember(user, appSession.store.id, member.id); onRemoved?.(); onBack(); }
-    catch (err) { setError(toUserMessage(err, 'No se pudo quitar a la persona del equipo')); }
+    catch (err) { setError(toActionMessage(err, 'No se pudo quitar a la persona del equipo')); }
     finally { setBusy(false); }
   };
   const saveBar = locked ? null : <Actions primary={phone ? 'Guardar' : 'Guardar permisos'} onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />;

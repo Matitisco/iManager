@@ -10,7 +10,7 @@ import { useKeyboardInset, usePhoneLayout } from '../lib/phone-layout';
 import { consumePasswordResetNotice, PASSWORD_RESET_LOGIN_NOTICE } from '../lib/password-reset-notice';
 import { ROLE_LABEL } from '../lib/roles';
 import { getAuthAdapter } from '../services/auth-adapter';
-import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../lib/user-message';
+import { ACTION_ERROR_MESSAGE, toActionMessage, isNetworkErrorMessage } from '../lib/user-message';
 
 interface LoginProps {
   inviteToken?: string | null;
@@ -75,7 +75,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
       case 'auth/operation-not-allowed':
         return 'Este método de acceso no está habilitado en Firebase.';
       case 'auth/network-request-failed':
-        return NETWORK_ERROR_MESSAGE;
+        return ACTION_ERROR_MESSAGE;
       case 'auth/popup-blocked':
         return 'El navegador bloqueó la ventana de Google. Permití popups e intentá de nuevo.';
       case 'auth/unauthorized-domain':
@@ -99,7 +99,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
   useEffect(() => {
     let active = true;
     getAuthAdapter().completeGoogleRedirect?.().catch((err: unknown) => {
-      if (active) setError(toUserMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
+      if (active) setError(toActionMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
     });
     return () => { active = false; };
   }, []);
@@ -115,7 +115,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
       const errorCode = getAuthErrorCode(err);
       if (errorCode === 'auth/popup-closed-by-user' || errorCode === 'auth/cancelled-popup-request') return;
       console.error('Login error:', err);
-      setError(toUserMessage(err, getFirebaseErrorMessage(errorCode)));
+      setError(toActionMessage(err, getFirebaseErrorMessage(errorCode)));
     } finally {
       if (attempt === googleAttempt.current) setIsGoogleLoading(false);
     }
@@ -144,7 +144,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
       }
     } catch (err: unknown) {
       console.error('Email auth error:', err);
-      setError(toUserMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
+      setError(toActionMessage(err, getFirebaseErrorMessage(getAuthErrorCode(err))));
     } finally {
       setIsLoading(false);
     }
@@ -301,7 +301,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
 
           <motion.div layout className="mb-8 text-center">
             <AnimatePresence mode="wait">
-              {inviteToken && (inviteState.isLoading || inviteState.preview || inviteState.invalid || inviteState.error) && (
+              {inviteToken && !isNetworkErrorMessage(inviteState.error) && (inviteState.isLoading || inviteState.preview || inviteState.invalid || inviteState.error) && (
                 <motion.div
                   key={
                     inviteState.invalid

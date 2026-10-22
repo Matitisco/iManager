@@ -6,7 +6,7 @@ describe('authActionErrorMessage', () => {
     expect(authActionErrorMessage({ code: 'auth/expired-action-code' })).toMatch(/venció/i);
     expect(authActionErrorMessage({ code: 'auth/invalid-action-code' })).toMatch(/ya fue usado/i);
     expect(authActionErrorMessage({ code: 'auth/weak-password' })).toMatch(/demasiado débil/i);
-    expect(authActionErrorMessage({ code: 'auth/network-request-failed' })).toMatch(/revisá tu internet/i);
+    expect(authActionErrorMessage({ code: 'auth/network-request-failed' })).toBe('No se pudo completar. Probá de nuevo.');
   });
 
   it('uses a generic spanish message for unknown failures', () => {

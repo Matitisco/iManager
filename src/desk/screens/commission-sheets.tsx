@@ -1,7 +1,7 @@
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { ReasonSheet } from '../ReasonSheet';
-import { toUserMessage } from '../../lib/user-message';
+import { ACTION_ERROR_MESSAGE, isNetworkErrorMessage, toActionMessage, toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
@@ -34,7 +34,7 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
       if (ruleAction.action === 'Eliminar') await deleteCommissionRule(ruleAction.id, reason);
       else await setCommissionRuleActive(ruleAction.id, ruleAction.action === 'Activar');
       setRuleAction(null);
-    } catch (cause) { setError(toUserMessage(cause, 'No se pudo modificar la regla')); }
+    } catch (cause) { setError(toActionMessage(cause, 'No se pudo modificar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
   useEffect(() => {
@@ -51,11 +51,11 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
     if (!isDateValue(effectiveFrom) || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
     submitting.current = true; setBusy(true); setError('');
     try { await saveCommissionRule({ memberId: scope === 'team' ? null : person, basis, rate: Number(rate), currency: basis === 'FIXED_PER_UNIT' ? currency : null, effectiveFrom }); await loadCommissions(period); onClose(); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudo guardar la regla')); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudo guardar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
   return <Sheet title={scope === 'team' ? 'Regla del equipo' : 'Regla personal'} onClose={() => { if (!busy && !ruleAction) onClose(); }} busy={busy} className="commission-form" footer={<Actions primary="Guardar regla" onPrimary={() => { void save(); }} onSecondary={onClose} busy={busy} />}>
-    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {error ? <div className="ferr" role="alert">{isNetworkErrorMessage(error) ? ACTION_ERROR_MESSAGE : error}</div> : null}
     {commissionRules.length ? <section className="commission-saved-rules" aria-label="Reglas guardadas"><div className="sale-sec"><span>Reglas guardadas</span></div>{commissionRules.map(rule => {
       const name = rule.memberId ? commissionSellers.find(seller => seller.id === rule.memberId)?.name ?? 'Persona' : 'Todo el equipo';
       const action = rule.active === false ? 'Activar' : 'Desactivar';
@@ -107,7 +107,7 @@ export function CommissionPaymentSheet({ memberId, period, people, onClose }: { 
     finally { submitting.current = false; setBusy(false); }
   };
   return <Sheet title="Registrar pago" subtitle="Podés pagar una parte; el resto queda pendiente." onClose={() => { if (!busy) onClose(); }} busy={busy} className="commission-form" footer={<Actions primary={saved ? "Listo" : "Registrar pago"} onPrimary={() => { void save(); }} onSecondary={onClose} busy={busy} />}>
-    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {error ? <div className="ferr" role="alert">{isNetworkErrorMessage(error) ? ACTION_ERROR_MESSAGE : error}</div> : null}
     <Field label="Para"><DeskSelect label="Para" value={member} onChange={id => { setMember(id); const p = people.find(row => row.memberId === id); setSettles(p && p.pending.ARS <= 0 && p.pending.USD > 0 ? 'USD' : 'ARS'); }} disabled={busy || !hasPending} options={people.map(p => ({ value: p.memberId, label: `${p.name} · debe ${commissionTotal(p.pending)}`, disabled: p.pending.ARS <= 0 && p.pending.USD <= 0 }))} /></Field>
     {!hasPending ? <p className="eqs-note" role="status">No hay comisiones pendientes</p> : null}
     <div className="frow"><div><Field label="Pagás en" /><Segs options={CURRENCIES} value={currency} onChange={value => setCurrency(value as CommissionCurrency)} /></div><Field label={`Monto · ${currency}`}><input aria-label="Monto del pago" type="number" step="0.01" min="0.01" value={amount} onChange={event => setAmount(event.target.value)} disabled={busy} /></Field></div>
