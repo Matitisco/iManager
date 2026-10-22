@@ -1,4 +1,5 @@
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test';
+import { isSectionHidden } from '../src/config/hiddenSections';
 import { acceptInvitationViaApi, authHeaders, bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, fetchSession, loginViaUi, selectDeskOption } from './utils';
 
 const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
@@ -29,6 +30,28 @@ async function noOverflow(page: Page) {
 }
 
 export function registerCashTests(device: string) {
+  if (isSectionHidden('cash')) {
+    test(`Caja oculta no aparece en navegación ni abre por URL · ${device}`, async ({ page, request }, info) => {
+      const email = buildTestEmail(info, `cash-hidden-${device}`);
+      await bootstrapStoreViaApi(page, request, email, 'Caja oculta');
+      const more = page.getByTestId('sidebar-tab-more');
+      if (await more.isVisible()) await more.click();
+      await expect(page.getByTestId('sidebar-tab-cash')).toHaveCount(0);
+      await expect(page.getByTestId('group-tab-cash')).toHaveCount(0);
+      for (const hash of ['#/finanzas/cajas', '#cash']) {
+        await page.goto(`/${hash}`);
+        await expect(page).toHaveURL(/#\/dashboard$/);
+        await expect(page.getByTestId('cash-screen')).toHaveCount(0);
+      }
+    });
+  }
+  test.describe('pantalla Caja disponible', () => {
+    test.skip(isSectionHidden('cash'), 'Caja temporalmente oculta en el producto (#489).');
+    registerCashScreenTests(device);
+  });
+}
+
+function registerCashScreenTests(device: string) {
   test(`empleado registra y cuenta sin acceso a saldos ni historial · ${device}`, async ({ page, request }, info) => {
     const owner = buildTestEmail(info, `cash-owner-${device}`), staff = buildTestEmail(info, `cash-staff-${device}`);
     await bootstrapStoreViaApi(page, request, owner, 'Caja protegida');

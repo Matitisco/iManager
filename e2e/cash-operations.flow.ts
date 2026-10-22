@@ -1,4 +1,5 @@
 import { sheetAction } from './sheet-actions';
+import { isSectionHidden } from '../src/config/hiddenSections';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchInventory, fetchSales } from './utils';
 
@@ -66,7 +67,18 @@ async function editPrice(page: Page, phone: boolean, amount: number) {
   await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
   await expect(editor).toBeHidden();
 }
-async function closeEmptyInUi(page: Page, request: APIRequestContext, email: string, boxId: string) {
+async function closeEmptyCash(page: Page, request: APIRequestContext, email: string, boxId: string) {
+  // Caja is temporarily unavailable in the UI; retain the financial regression
+  // through the API without restoring navigation that the product has hidden.
+  if (isSectionHidden('cash')) {
+    await close(request, email, boxId, 0);
+    const history = await get(request, email, `/cash/${boxId}/sessions`);
+    expect(history.sessions[0]).toMatchObject({ status: 'APPROVED', counts: [expect.objectContaining({ expected: 0, counted: 0, difference: 0 })] });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect((await get(request, email, '/cash')).registers.find((row: { id: string }) => row.id === boxId).balance).toBe(0);
+    expect(await get(request, email, `/cash/${boxId}/sessions`)).toEqual(history);
+    return;
+  }
   await page.reload({ waitUntil: 'domcontentloaded' });
   const tab = page.getByTestId('sidebar-tab-cash');
   const more = page.getByTestId('sidebar-tab-more');
@@ -153,7 +165,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       await post(request, email, `/cash/${current.id}/open`);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await cancelSale(page, phone);
-      expect((await fetchSales(request, email)).sales.find(row => row.id === sale.id)?.status).toBe('CANCELADA');
+      expect((await fetchSales(request, email, true)).sales.find(row => row.id === sale.id)?.status).toBe('CANCELADA');
       expect((await fetchInventory(request, email)).inventory.find(row => row.id === product.id)?.status).toBe('DISPONIBLE');
       expect((await get(request, email, '/cash')).registers.map((row: { balance: number }) => row.balance)).toEqual([0, 0]);
       expect((await get(request, email, `/cash/${current.id}/movements`)).movements).toHaveLength(0);
@@ -164,7 +176,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
         const sessionId = registers.registers.find((row: { id: string }) => row.id === current.id).session.id;
         expect(await post(request, email, `/cash/sessions/${sessionId}/count`, { counted: 0 })).toMatchObject({ expected: 0, counted: 0, difference: 0 });
         await post(request, email, `/cash/sessions/${sessionId}/review`, { action: 'APPROVE' });
-      } else await closeEmptyInUi(page, request, email, current.id);
+      } else await closeEmptyCash(page, request, email, current.id);
     });
   }
 
@@ -187,7 +199,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       expect((await get(request, email, '/cash')).registers.map((row: { balance: number }) => row.balance)).toEqual([0, 0]);
       expect((await get(request, email, `/cash/${current.id}/movements`)).movements).toHaveLength(0);
       expect(await get(request, email, `/cash/${boxId}/sessions`)).toEqual(before);
-      await closeEmptyInUi(page, request, email, current.id);
+      await closeEmptyCash(page, request, email, current.id);
     });
   }
 
@@ -209,7 +221,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
     const movements = (await get(request, email, `/cash/${current.id}/movements`)).movements;
     expect(movements).toHaveLength(2);
     expect(movements.map((row: { amount: number }) => row.amount).sort((a: number, b: number) => a - b)).toEqual([-30, 30]);
-    await closeEmptyInUi(page, request, email, current.id);
+    await closeEmptyCash(page, request, email, current.id);
   });
 
   test(`sube el precio pagado y cobra la diferencia después del cierre · ${device}`, async ({ page, request }, info) => {
