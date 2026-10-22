@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Clock3, Info, Play, Scan } from 'lucide-react';
+import { ChevronRight, CreditCard, Play } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { formatArTime } from '../../lib/ar-date';
 import {
@@ -20,7 +20,6 @@ import {
 } from '../../services/stock-counts-api';
 import { extractImeiLoose } from '../../lib/device-scan';
 import { formatImei, formatMoney } from '../format';
-import { ImanagerIcon } from '../icons';
 import { CameraScanner } from '../scan/CameraScanner';
 import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
 import { ListSkeleton } from '../list-skeleton';
@@ -28,16 +27,26 @@ import { canManageStockCount } from '../stock-count-access';
 import { usePhoneLayout } from '../section-notices';
 import { GroupTabs } from '../group-tabs';
 import { Actions, Sheet, useDesk } from '../ui';
+import { AuditDeviceIcon } from './audit-device-icon';
+import './stock-count.css';
 
 type View = 'list' | 'count' | 'result';
 type Bucket = 'missing' | 'surplus' | 'sold' | 'matched';
 
-const FILTERS: { id: Bucket; label: (count: ClosedStockCount) => string }[] = [
-  { id: 'missing', label: (count) => `Sin escanear ${count.buckets.missing.length}` },
-  { id: 'surplus', label: (count) => `Sin cargar ${count.buckets.surplus.length}` },
-  { id: 'sold', label: (count) => `Figuran vendidos ${count.buckets.sold.length}` },
-  { id: 'matched', label: (count) => `Coinciden ${count.buckets.matched.length}` },
+const FILTERS: { id: Bucket; label: string }[] = [
+  { id: 'matched', label: 'Coinciden' },
+  { id: 'missing', label: 'Sin escanear' },
+  { id: 'surplus', label: 'Sin cargar' },
+  { id: 'sold', label: 'Figuran vendidos' },
 ];
+
+function CountSteps({ step, onStart, busy }: { step: 1 | 2 | 3; onStart?: () => void; busy?: boolean }) {
+  return <ol className="stock-steps" aria-label="Pasos del control">
+    {['Contar', 'Revisar', 'Registrar'].map((label, index) => <li key={label} className={index + 1 < step ? 'done' : index + 1 === step ? 'on' : ''} aria-current={index + 1 === step ? 'step' : undefined}>
+      {index === 0 && onStart ? <button type="button" aria-label="Iniciar control" title="Iniciar control" onClick={onStart} disabled={busy}><i aria-hidden="true">✓</i><span>{label}</span></button> : <><i aria-hidden="true">{index + 1 < step ? '✓' : index + 1}</i><span>{label}</span></>}
+    </li>)}
+  </ol>;
+}
 
 function deviceName(model?: string | null, capacity?: string | null) {
   return [model, capacity].filter(Boolean).join(' · ');
@@ -92,27 +101,18 @@ function ScanIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-function deviceColor(color: string) {
-  const colors: Record<string, string> = {
-    'titanio natural': '#A5A29B', ultramarino: '#3048D8', blanco: '#F3F4F6',
-    negro: '#26272B', medianoche: '#333B46', azul: '#6A91AF', rosa: '#E6B6C3',
-    rojo: '#C64243', verde: '#7F9F8F', amarillo: '#F2D174', violeta: '#B8A4CA',
-  };
-  return colors[color.toLocaleLowerCase('es').trim()] || '#E6E8EC';
-}
-
 function countStatus(item: StockCountListItem) {
   return item.status === 'OPEN' ? 'Abierto' : item.resolution === 'ADJUSTED' ? 'Ajustado' : item.resolution === 'RECORDED' ? 'Registrado' : 'Por revisar';
 }
 
 function CountStatus({ item }: { item: StockCountListItem }) {
   return <span className={`stock-status${item.resolution ? ' done' : ''}`}>
-    <Clock3 size={13} aria-hidden="true" /><i aria-hidden="true" />{countStatus(item)}
+    {countStatus(item)}
   </span>;
 }
 
 export function StockCountScreen() {
-  const { user, appSession } = useAppContext();
+  const { user, appSession, inventory, listsLoaded } = useAppContext();
   const desk = useDesk();
   const phone = usePhoneLayout();
   const canManage = canManageStockCount(appSession?.membership);
@@ -123,6 +123,7 @@ export function StockCountScreen() {
   const [blind, setBlind] = useState<BlindCount | null>(null);
   const [closed, setClosed] = useState<ClosedStockCount | null>(null);
   const [filter, setFilter] = useState<Bucket>('missing');
+  const [expanded, setExpanded] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [preview, setPreview] = useState<StockCountPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -217,6 +218,7 @@ export function StockCountScreen() {
   const showClosed = (next: ClosedStockCount) => {
     setClosed(next);
     setFilter('missing');
+    setExpanded(false);
     setView('result');
   };
 
@@ -293,12 +295,9 @@ export function StockCountScreen() {
     timeZone, day: long ? 'numeric' : '2-digit', month: long ? 'long' : '2-digit', ...(long ? {} : { year: 'numeric' }),
   }).format(new Date(value));
   const closedWho = closed?.subtitle.match(/ · contaron (.*?)(?: · \d+ escaneos?)?$/)?.[1];
-  const groupDescription: Record<Bucket, string> = {
-    missing: 'Disponibles al iniciar que no se escanearon.',
-    surplus: 'IMEI escaneados que no están cargados como disponibles.',
-    sold: 'Equipos que figuran vendidos en el sistema.',
-    matched: 'Equipos disponibles que se escanearon.',
-  };
+  const groupLabel = FILTERS.find((item) => item.id === filter)?.label || 'Sin escanear';
+  const visibleLines = expanded ? lines : lines.slice(0, phone ? 4 : 5);
+  const availableCount = inventory.filter((item) => !item.archivedAt && item.status === 'DISPONIBLE' && extractImeiLoose(item.imei)).length;
 
   return (
     <div className={`dscreen stock-page${phone ? ' has-dock' : ''}`} data-testid="stock-count-page">
@@ -307,9 +306,9 @@ export function StockCountScreen() {
           <h1>Control de stock</h1>
         </div>
         {!phone && view === 'count' && canManage ? <div className="dright"><button className="dbtn s" type="button" data-testid="stock-close" onClick={() => void finish()} disabled={busy}>Cerrar control</button></div> : null}
-        {view !== 'count' && canManage && !hasOpen && !loading && counts.length > 0 ? <div className="dright"><button className="dbtn p stock-start" type="button" onClick={openStart} disabled={busy}><Play size={12} fill="currentColor" aria-hidden="true" />Iniciar control</button></div> : null}
+        {view === 'list' && canManage && !hasOpen && !loading && counts.length > 0 ? <div className="dright"><button className="dbtn p stock-start" type="button" onClick={openStart} disabled={busy}><Play size={12} fill="currentColor" aria-hidden="true" />Iniciar control</button></div> : null}
       </div>
-      <GroupTabs />
+      <GroupTabs tab="stockCount" labels={phone ? { stockCount: 'Control' } : undefined} showPending={false} />
       {error && !sheet ? <div className="ferr" role="alert">{error}</div> : null}
       {loading ? <ListSkeleton variant="cards" testId="stock-loading" /> : null}
 
@@ -324,6 +323,7 @@ export function StockCountScreen() {
 
       {!loading && view === 'count' && blind ? (
         <>
+          <CountSteps step={1} />
           <div className="blind"><EyeIcon /><span>Conteo a ciegas: escaneá todo lo que ves en el local.</span></div>
           <form onSubmit={(event) => { event.preventDefault(); void submitScan(); }}>
             <div className="scan-imei stock-scan-row">
@@ -381,42 +381,41 @@ export function StockCountScreen() {
         <>
           <section className="stock-summary" aria-label="Resultado del conteo">
             <div className="stock-summary-head">
-              <h2>Conteo del {date(closed.startedAt, true)}</h2>
+              <div className="stock-summary-heading">
+                <h2>Conteo del {phone ? new Intl.DateTimeFormat('es-AR', { timeZone, day: 'numeric', month: 'short' }).format(new Date(closed.startedAt)).replace(/\./g, '') : date(closed.startedAt, true)}</h2>
+                <p className="stock-meta">Cerrado {date(closed.closedAt || closed.startedAt)} · {new Intl.DateTimeFormat('es-AR', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(closed.closedAt || closed.startedAt))}{closedWho ? ` · ${closedWho}` : ''}</p>
+              </div>
               <CountStatus item={closed} />
+              <CountSteps step={closed.resolution ? 3 : 2} onStart={canManage && !hasOpen ? openStart : undefined} busy={busy} />
             </div>
-            <p className="stock-meta">Cerrado {date(closed.closedAt || closed.startedAt)} · {new Intl.DateTimeFormat('es-AR', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(closed.closedAt || closed.startedAt))}{closedWho ? <><span className="stock-meta-dot"> · </span><span className="stock-counters">{phone ? closedWho : `Contaron ${closedWho}`}</span></> : null}</p>
-            <p className="stock-comparison">Comparación con Disponibles{phone ? '' : '.'}</p>
             {closed.scanCount === 0 ? <p className="stock-no-scans" data-testid="stock-coverage"><b>Sin escaneos</b><span>Los equipos sin escanear no confirman pérdidas.</span></p> : null}
-            <div className="stock-stats">
-              {[{ label: 'Coinciden', value: closed.buckets.matched.length, ok: true },
-                { label: 'Sin escanear', value: closed.buckets.missing.length },
-                { label: 'Sin cargar', value: closed.buckets.surplus.length },
-                { label: closed.buckets.sold.length === 1 ? 'Figura vendido' : 'Figuran vendidos', value: closed.buckets.sold.length }].map((stat) => (
-                <div className={`stock-stat${stat.ok ? ' ok' : ''}`} key={stat.label}><i aria-hidden="true" /><b>{stat.value}</b><span>{stat.label}</span></div>
-              ))}
+            <div className="stock-stats" role="group" aria-label="Grupos del resultado">
+              {FILTERS.map((item) => <button key={item.id} className={`stock-stat${item.id === 'matched' ? ' ok' : ''}${filter === item.id ? ' on' : ''}`} type="button" aria-label={`${item.label} ${closed.buckets[item.id].length}`} aria-pressed={filter === item.id} onClick={() => { setFilter(item.id); setExpanded(false); }}>
+                <i aria-hidden="true" /><b>{closed.buckets[item.id].length}</b><span>{item.label}</span>
+              </button>)}
             </div>
-            <p className="stock-excluded" data-testid="stock-excluded"><Info size={15} aria-hidden="true" />{closed.excludedNoImei} {phone ? 'sin IMEI' : `${closed.excludedNoImei === 1 ? 'equipo' : 'equipos'} sin IMEI`}, fuera del conteo.</p>
+            <div className="stock-summary-footer">
+              <p className="stock-excluded" data-testid="stock-excluded">Comparado con Disponibles · {closed.excludedNoImei} sin IMEI fuera del conteo</p>
+              <div className="stock-register">
+                {canManage && !closed.resolution ? <button className="dbtn p" type="button" data-testid="stock-record" onClick={() => void resolve()} disabled={busy}>Registrar conteo</button> : null}
+              </div>
+            </div>
           </section>
-          <div className="stock-chips" aria-label="Grupos del resultado">
-            {FILTERS.map((item) => <button key={item.id} className={`wchip${filter === item.id ? ' on' : ''}`} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label(closed)}</button>)}
-          </div>
-          <p className="stock-group-description">{groupDescription[filter]}</p>
-          <div className="stock-results">
+          <section className="stock-results" aria-label={groupLabel}>
+            <div className="stock-list-heading"><h3>{groupLabel}</h3><span>{lines.length} {lines.length === 1 ? 'equipo' : 'equipos'}</span></div>
             <div className="stock-lines">
-              {lines.length === 0 ? <div className="stock-line"><span>Nada en este grupo</span></div> : lines.map((line) => (
+              {lines.length === 0 ? <div className="stock-line"><span>Nada en este grupo</span></div> : visibleLines.map((line) => (
                 <div className="stock-line" key={line.key}>
-                  <span className="stock-device-icon" aria-hidden="true"><ImanagerIcon name="equipo" size={24} /></span>
-                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>IMEI {line.imei}</small>{phone && line.color ? <small>{line.color}</small> : null}{line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
-                  {!phone && line.color ? <span className="stock-color"><i style={{ backgroundColor: deviceColor(line.color) }} aria-hidden="true" />{line.color}</span> : null}
-                  {line.price != null ? <b className="stock-price">{formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS')}</b> : null}
+                  <span className="stock-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
+                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? [line.imei, line.color].filter(Boolean).join(' · ') : `IMEI ${line.imei}`}</small>{line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
+                  {!phone ? <span className="stock-color">{line.color}</span> : null}
+                  {!phone && line.price != null ? <b className="stock-price">{formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
+                  {phone ? <ChevronRight className="stock-line-go" size={16} aria-hidden="true" /> : null}
                 </div>
               ))}
             </div>
-            <div className="stock-register">
-              <p>El inventario no cambia.</p>
-              {canManage && !closed.resolution ? <button className="dbtn p" type="button" data-testid="stock-record" onClick={() => void resolve()} disabled={busy}>Registrar conteo</button> : null}
-            </div>
-          </div>
+            {lines.length > (phone ? 4 : 5) ? <button className="stock-more" type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Ver menos' : `Ver los ${lines.length}`}</button> : null}
+          </section>
         </>
       ) : null}
 
@@ -431,9 +430,9 @@ export function StockCountScreen() {
       {sheet ? (
         <Sheet className="compact stock-start-sheet" title="Iniciar control" onClose={() => setSheet(false)} busy={busy} footer={<Actions primary="Iniciar conteo" onPrimary={() => void begin()} onSecondary={() => setSheet(false)} busy={busy} />}>
           {error ? <div className="ferr" role="alert">{error}</div> : null}
-          <div className="stock-scope"><span>Comparar con</span><b><i aria-hidden="true" />Disponible</b></div>
-          <div className="stock-blind"><Scan size={26} aria-hidden="true" /><div><b>Conteo a ciegas</b><p>Escaneá los IMEI. Compará al cerrar.</p></div></div>
-          {previewLoading || !preview ? <ListSkeleton variant="lines" rows={1} testId="stock-preview-loading" /> : <p className="stock-start-excluded"><i aria-hidden="true" />{preview.excludedNoImei} {preview.excludedNoImei === 1 ? 'equipo sin IMEI queda fuera.' : 'equipos sin IMEI quedan fuera.'}</p>}
+          <div className="stock-scope"><span>Comparar con</span>{previewLoading || !preview || listsLoaded === false ? <ListSkeleton variant="lines" rows={1} testId="stock-preview-loading" /> : <b><i aria-hidden="true" />Disponibles · {availableCount}</b>}</div>
+          <div className="stock-blind"><CreditCard size={22} strokeWidth={1.8} aria-hidden="true" /><div><b>Conteo a ciegas</b><p>Escaneá los IMEI. Comparás al cerrar.</p></div><span className="stock-blind-radio" aria-hidden="true" /></div>
+          {preview && preview.excludedNoImei > 0 ? <p className="stock-start-excluded">{preview.excludedNoImei} {preview.excludedNoImei === 1 ? 'equipo sin IMEI queda fuera.' : 'equipos sin IMEI quedan fuera.'}</p> : null}
           <p className="stock-start-note">El inventario no cambia al cerrar.</p>
         </Sheet>
       ) : null}

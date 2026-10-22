@@ -221,7 +221,7 @@ describe('sidebar unread counts', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
     expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: width === 390 ? 'Control' : 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
     expect(window.location.hash).toBe('#/stock/control');
     expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
 

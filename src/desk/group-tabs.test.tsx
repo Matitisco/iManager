@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GroupTabs, NavChrome } from './group-tabs';
 import { EMPTY_PENDING, type PendingInput } from './nav';
+import type { ComponentProps } from 'react';
 import type { DeskTab } from './types';
 import { DeskProvider } from './ui';
 
@@ -9,9 +10,9 @@ const ctx = vi.hoisted(() => ({ appSession: { membership: { role: 'OWNER', secti
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 const go = vi.fn();
 
-function mount(tab: DeskTab = 'clients', pending: PendingInput = { ...EMPTY_PENDING, openRepairs: 2 }) {
+function mount(tab: DeskTab = 'clients', pending: PendingInput = { ...EMPTY_PENDING, openRepairs: 2 }, props: ComponentProps<typeof GroupTabs> = {}) {
   return render(<DeskProvider value={{ tab, go, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
-    <NavChrome pending={pending}><GroupTabs /></NavChrome>
+    <NavChrome pending={pending}><GroupTabs {...props} /></NavChrome>
   </DeskProvider>);
 }
 beforeEach(() => { ctx.appSession.membership = { role: 'OWNER', sections: null }; });
@@ -38,6 +39,13 @@ describe('pestañas de grupo sin explicación adicional', () => {
     const service = screen.getByRole('tab', { name: 'Servicio técnico' });
     expect(service).not.toHaveAttribute('title');
     expect(service).not.toHaveAttribute('aria-description');
+  });
+
+  it('presenta Control como pestaña activa al abrir el conteo desde Inventario y conserva la navegación', () => {
+    mount('inventory', EMPTY_PENDING, { tab: 'stockCount', labels: { stockCount: 'Control' }, showPending: false });
+    expect(screen.getByRole('tab', { name: 'Control', selected: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    expect(go).toHaveBeenCalledWith('inventory');
   });
 
   it('omits the group when only one section is permitted', () => {

@@ -55,11 +55,11 @@ describe('Historial #372', () => {
     fetch.mockResolvedValueOnce({ events: [event({ id: 'second', createdAt: '2026-10-22T12:00:00Z' }), event()], nextCursor: null });
     mount(); await screen.findByRole('button', { name: 'Cargar más' });
     const days = screen.getAllByRole('region');
-    expect(days[0]).toHaveTextContent('22 OCT 2026'); expect(days[1]).toHaveTextContent('22 OCT 2025');
-    expect(within(days[0]).getByText('1 movimiento')).toBeInTheDocument();
+    expect(days[0]).toHaveTextContent('22 oct'); expect(days[1]).toHaveTextContent('22 oct 2025');
+    expect(within(days[0]).getByLabelText('1 movimiento')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Cargar más' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Cargar más' })).not.toBeInTheDocument());
-    expect(within(screen.getAllByRole('region')[0]).getByText('2 movimientos')).toBeInTheDocument();
+    expect(within(screen.getAllByRole('region')[0]).getByLabelText('2 movimientos')).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ period: '30', cursor: 'page2' }));
   });
 
@@ -69,7 +69,7 @@ describe('Historial #372', () => {
     await userEvent.click(trigger);
     const modal = screen.getByRole('dialog', { name: 'Cambió el precio' });
     expect(modal).toHaveTextContent('iPhone 15 Pro · 256GB'); expect(modal).toHaveTextContent('IMEI 356789012345673');
-    expect(modal).toHaveTextContent('Lucía Fernández'); expect(modal).toHaveTextContent('Empleada · 22/10/2026 · 10:42');
+    expect(modal).toHaveTextContent('Lucía Fernández'); expect(modal).toHaveTextContent('Empleada'); expect(modal).toHaveTextContent('Inventario · 22/10/2026 · 10:42');
     expect(within(modal).getByRole('columnheader', { name: 'Antes' })).toBeInTheDocument();
     expect(within(modal).getByRole('cell', { name: '$ 1.750.000' })).toBeInTheDocument();
     expect(modal).not.toHaveTextContent('Motivo');
@@ -77,6 +77,20 @@ describe('Historial #372', () => {
     expect(openRecord).toHaveBeenCalledWith('inventory', 'eq');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     vi.restoreAllMocks();
+  });
+
+  it('conserva todos los cambios y diferencia un valor ausente de un evento sin cambios', async () => {
+    fetch.mockResolvedValue({ events: [event({ changes: [
+      { field: 'status', label: 'Estado', before: 'Disponible', after: 'Vendido' },
+      { field: 'notes', label: 'Nota', before: null, after: 'Revisar' },
+      { field: 'empty', label: 'Sin datos', before: null, after: null },
+    ] })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
+    const table = within(screen.getByRole('dialog')).getByRole('table');
+    expect(within(table).getByRole('rowheader', { name: 'Estado' })).toBeInTheDocument();
+    expect(within(table).getByRole('rowheader', { name: 'Nota' })).toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: '—' })).toBeInTheDocument();
+    expect(within(table).queryByText('Sin datos')).not.toBeInTheDocument();
   });
 
   it.each(['Ocultar: 1 equipo', 'Precio: $ 1.800.000', '$ 1.750.000 → $ 1.800.000'])('keeps free text without manufacturing a before/after table: %s', async detail => {
