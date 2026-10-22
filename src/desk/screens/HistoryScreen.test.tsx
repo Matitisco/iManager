@@ -79,18 +79,74 @@ describe('Historial #372', () => {
     vi.restoreAllMocks();
   });
 
-  it('conserva todos los cambios y diferencia un valor ausente de un evento sin cambios', async () => {
+  it.each([false, true])('conserva comparaciones reales y omite Antes solo en campos sin valor anterior (phone=%s)', async phone => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
     fetch.mockResolvedValue({ events: [event({ changes: [
       { field: 'status', label: 'Estado', before: 'Disponible', after: 'Vendido' },
       { field: 'notes', label: 'Nota', before: null, after: 'Revisar' },
+      { field: 'quantity', label: 'Cantidad', before: '0', after: '1' },
+      { field: 'supplier', label: 'Proveedor', before: 'Proveedor anterior', after: null },
       { field: 'empty', label: 'Sin datos', before: null, after: null },
     ] })], nextCursor: null });
     mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
     const table = within(screen.getByRole('dialog')).getByRole('table');
-    expect(within(table).getByRole('rowheader', { name: 'Estado' })).toBeInTheDocument();
-    expect(within(table).getByRole('rowheader', { name: 'Nota' })).toBeInTheDocument();
-    expect(within(table).getByRole('cell', { name: '—' })).toBeInTheDocument();
+    const status = within(table).getByRole('row', { name: /Estado Disponible Vendido/ });
+    expect(within(status).getByText('Antes')).toBeInTheDocument();
+    expect(status).not.toHaveClass('history-diff-after-only');
+    const note = within(table).getByRole('row', { name: /Nota Revisar/ });
+    expect(within(note).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(note).queryByText('—')).not.toBeInTheDocument();
+    expect(within(note).getAllByRole('cell')).toHaveLength(1);
+    expect(within(note).getByRole('cell', { name: 'Revisar' })).toHaveAttribute('colspan', '2');
+    expect(note).toHaveClass('history-diff-after-only');
+    const quantity = within(table).getByRole('row', { name: /Cantidad 0 1/ });
+    expect(within(quantity).getByRole('cell', { name: '0' })).toBeInTheDocument();
+    expect(within(quantity).getByText('Antes')).toBeInTheDocument();
+    expect(quantity).not.toHaveClass('history-diff-after-only');
+    const supplier = within(table).getByRole('row', { name: /Proveedor Proveedor anterior —/ });
+    expect(within(supplier).getByText('Antes')).toBeInTheDocument();
+    expect(within(supplier).getByRole('cell', { name: '—' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Antes' })).toBeInTheDocument();
     expect(within(table).queryByText('Sin datos')).not.toBeInTheDocument();
+    vi.restoreAllMocks();
+  });
+
+  it.each([null, '', ' \t\n ', '—'])('muestra solo Después cuando Antes es %j', async before => {
+    fetch.mockResolvedValue({ events: [event({ changes: [
+      { field: 'notes', label: 'Nota', before, after: 'Revisar equipo' },
+    ] })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
+    const table = within(screen.getByRole('dialog')).getByRole('table');
+    expect(within(table).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(table).queryByText('—')).not.toBeInTheDocument();
+    const row = within(table).getByRole('row', { name: 'Nota Revisar equipo' });
+    expect(row).toHaveClass('history-diff-after-only');
+    expect(within(row).getAllByRole('cell')).toHaveLength(1);
+    expect(within(row).getByText('Después')).toBeInTheDocument();
+    expect(within(row).getByRole('cell', { name: 'Revisar equipo' })).toBeInTheDocument();
+  });
+
+  it.each([false, true])('muestra el cierre de control de stock sin Antes vacíos (phone=%s)', async phone => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    fetch.mockResolvedValue({ events: [event({
+      action: 'stockcount.closed', entityType: 'stockcount', title: 'Cerró un control de stock',
+      changes: [
+        { field: 'expected', label: 'Esperados', before: null, after: '12' },
+        { field: 'scanned', label: 'Contados', before: null, after: '10' },
+        { field: 'missing', label: 'Faltantes', before: null, after: '2' },
+      ],
+    })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cerró un control de stock/ }));
+    const table = within(screen.getByRole('dialog', { name: 'Cerró un control de stock' })).getByRole('table');
+    expect(within(table).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(table).queryByText('—')).not.toBeInTheDocument();
+    for (const [label, value] of [['Esperados', '12'], ['Contados', '10'], ['Faltantes', '2']]) {
+      const row = within(table).getByRole('row', { name: `${label} ${value}` });
+      expect(row).toHaveClass('history-diff-after-only');
+      expect(within(row).getAllByRole('cell')).toHaveLength(1);
+      expect(within(row).getByRole('cell', { name: value })).toBeInTheDocument();
+    }
+    vi.restoreAllMocks();
   });
 
   it.each(['Ocultar: 1 equipo', 'Precio: $ 1.800.000', '$ 1.750.000 → $ 1.800.000'])('keeps free text without manufacturing a before/after table: %s', async detail => {

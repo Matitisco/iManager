@@ -49,7 +49,8 @@
 .history-diff-label { display: block; font-size: 12px; color: var(--secondary); margin-bottom: 2px; }
 .history-diff-before { color: var(--secondary); text-decoration: line-through; }
 .history-diff td b { font-size: 22px; font-weight: 700; }
-.history-diff tr::after { content: ''; order: 1; flex: none; margin: 0 5px; width: 7px; height: 7px; border-top: 1.5px solid #9CA3AF; border-right: 1.5px solid #9CA3AF; transform: rotate(45deg); }
+.history-diff tbody tr:not(.history-diff-after-only)::after { content: ''; order: 1; flex: none; margin: 0 5px; width: 7px; height: 7px; border-top: 1.5px solid #9CA3AF; border-right: 1.5px solid #9CA3AF; transform: rotate(45deg); }
+.history-diff .history-diff-after-only td { max-width: 100%; width: 100%; }
 .history-missing, .history-plain-detail, .history-reason { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .history-missing { color: var(--secondary); }
 .history-detail-actions { display: flex; justify-content: flex-end; gap: 10px; }
