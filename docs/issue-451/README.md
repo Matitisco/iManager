@@ -155,3 +155,39 @@ Validación de esta revisión:
 - Comparación main: los cuatro recorridos originales de Comisiones Chromium aprobaron; el escáner tuvo tres aprobados y el mismo fallo de foco a 1440. Dos repeticiones de Caja 80/130 y detalle aprobaron. El tercer lote de esa ejecución terminó con SIGTERM, sin resultado, y no se cuenta como aprobado; la ejecución independiente posterior de Caja 80 terminó con código 0.
 
 **Límite local de WebKit:** el recorrido largo de Comisiones no llegó a Reportes en GTK: el botón «Listo» de Lucía Díaz tiene un rectángulo visible, pero el hit test devuelve `<html>` y bloquea el clic. Una prueba mínima lo reproduce tanto en la rama como en main, incluso antes de tomar la captura; movimiento reducido, una pantalla virtual más grande y desactivar composición no lo resuelven. El contrato de Reportes se comprobó por separado; no se afirma que el recorrido largo completo de iPhone haya aprobado localmente. El fallo de CI sí llega al título de Reportes, por lo que es distinto de este bloqueo local. No se forzaron clics ni se alteraron los tests compartidos para sortearlo.
+
+## Seguimiento del fallo de foco del lector — 22/10/2026
+
+El log nuevo termina a las `01:32:55Z` con **296 aprobados, 7 omitidos y un fallo**: `Proveedor` no recibe foco en el lector a 1440, tampoco en el retry. Los fallos anteriores de Comisiones y Caja no aparecen en este resultado. La revisión parte de `0512040` y compara con una extracción nueva de `origin/main` (`f889b83`), sin cambiar de rama.
+
+La causa del lector sigue siendo preexistente: `keyboard-wedge.ts`, el formulario de equipos y el E2E eran idénticos a main. El buffer admite hasta 80 ms entre caracteres. `keyboard.type(..., { delay: 8 })` espera al menos 8 ms, pero no garantiza un intervalo máximo cuando el proceso se demora. Si reinicia el buffer, el IMEI queda escrito y Enter conserva su comportamiento manual; el test esperaba el comportamiento de una ráfaga que no había entregado.
+
+Se corrige exclusivamente la simulación en `e2e/qa-scan-1910.ts`: eventos de teclado reales con `Date` controlada a intervalos de 8 ms y restauración del tiempo corriente en `finally`. Los temporizadores siguen avanzando. Se mantiene la aserción de foco sobre Proveedor y se agrega antes una secuencia a 100 ms que debe conservar IMEI y foco en su campo. No se cambia el umbral ni el código de aplicación.
+
+Las reproducciones locales bloquean únicamente Google Fonts mediante wrappers temporales en `/tmp/451-recheck-main`. Una ejecución inicial sin ese aislamiento tuvo un timeout de `page.reload()` esperando `load`, con Configuración ya renderizada, después de un recorrido aprobado; se interrumpió el lote y no se cuenta como aprobado. Los wrappers importan las pruebas compartidas y conservan sus aserciones. Las capturas generadas por los recorridos se restauran al terminar.
+
+Comisiones conserva el cambio de expectativas del commit anterior: mes calendario y comparación mensual según el diseño aprobado de #451. Caja conserva su clasificación como fallo intermitente del bootstrap; no se atribuye a `P2034` sin evidencia. El código del flujo de Caja, su bootstrap y los componentes involucrados siguen idénticos a main.
+
+Validación de este seguimiento:
+
+- Frontend: **1.213 unit tests aprobados**; backend: **520 aprobados**. TypeScript/lint frontend y backend aprobados; cada script `lint` ejecuta `tsc --noEmit`.
+- Rama, Chromium: **8 E2E aprobados sin retries**, dos repeticiones de Comisiones desktop/Android y lector a 390/1440. El lector comprueba tanto la secuencia lenta como la ráfaga y conserva duplicados, vendido, archivado y aislamiento de tienda.
+- Main, Chromium: **6 aprobados sin retries**: cuatro recorridos originales (Comisiones desktop/Android y lector 390/1440), más dos reproducciones con demoras de entrega de 100 ms. Estas últimas comprueban que el helper original deja el foco en IMEI a ambos anchos.
+- Rama, WebKit GTK: Caja 80/130 y el contrato mensual de Reportes a 390 aprobados. El recorrido largo de Comisiones vuelve a fallar antes de Reportes: `<html>` intercepta el clic de «Listo». La configuración temporal limita las acciones a 10 s para diagnosticar ese bloqueo; no fuerza clics ni cambia la prueba compartida. El contrato aislado verifica título, octubre/septiembre, peticiones de un solo mes y descarga CSV con ambas monedas.
+- Main, WebKit GTK: Caja 80/130 aprobados; una prueba mínima reproduce el mismo clic bloqueado en «Listo» y devuelve `HTML` en el hit test antes y después de la captura. Se mantiene el límite local declarado para Comisiones iPhone; no se presenta su recorrido completo como aprobado.
+- Regresión final del helper, Chromium: **8 aprobados sin retries**. Inventario, Control de stock y Venta/Canje pasan a 390 y 1440; dos pruebas temporales adicionales introducen 100 ms de demora real en cada entrega de tecla y verifican que la simulación corregida igualmente adelanta el foco a Proveedor. En la comparación de main esas mismas demoras dejaban el foco en IMEI. No se registró `P2034` en estos lotes.
+
+Comandos compartidos para repetir los recorridos, con PostgreSQL local disponible y `DATABASE_URL` apuntando exclusivamente a `127.0.0.1:5432/imanager_test`:
+
+```bash
+npm run test:e2e -- e2e/commissions.spec.ts e2e/commissions-android.spec.ts e2e/qa-scan-1910.spec.ts e2e/qa-scan-1910-android.spec.ts --grep 'navigation, seller|lector, duplicados|control de stock lee|venta sin stock vuelve' --workers=1 --retries=0
+npm run test:e2e -- e2e/cash-operations-iphone.spec.ts --grep 'ajusta a (80|130)' --workers=1 --retries=0
+npm run test:frontend
+npm run test:backend:unit
+npm run lint
+npm --prefix backend run lint
+```
+
+Para WebKit en este contenedor se usa el entorno privado descrito arriba, `--headed` y Xvfb `:456`. Los wrappers locales agregan `context.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.abort())` antes del recorrido. Los logs quedan en `/tmp/451-recheck-current.log`, `/tmp/451-recheck-main.log`, `/tmp/451-recheck-current-webkit.log`, `/tmp/451-recheck-main-webkit.log` y `/tmp/451-recheck-hardware.log`; los dos logs WebKit terminan con código 1 por la reproducción documentada del clic bloqueado. La validación funcional seleccionada no equivale a una ejecución completa del runner general.
+
+Solo se modifican el E2E del lector y documentación. Sin build, cambios de Prisma, base productiva, commit ni push. Banner de instalación, Dashboard, Más y navegación inferior sin cambios de este seguimiento.
