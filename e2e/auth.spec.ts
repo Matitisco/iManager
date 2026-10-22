@@ -14,7 +14,7 @@ test('shows an invalid credentials error on login', async ({ page }, testInfo) =
   await expect(page.getByTestId('login-submit')).toBeVisible();
 });
 
-test('completes onboarding and bootstraps the backend session', async ({ page, request }, testInfo) => {
+test('@smoke completes onboarding and bootstraps the backend session', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'onboarding');
   const storeName = `Store ${testInfo.parallelIndex} ${Date.now()}`;
 

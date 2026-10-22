@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory, fetchSales, importInventoryViaApi } from './utils';
 
-test('creates an inventory item from the UI and persists it', async ({ page, request }, testInfo) => {
+test('@smoke creates an inventory item from the UI and persists it', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'inventory');
   const storeName = `Inventory Store ${testInfo.parallelIndex}`;
   const imei = String(Date.now()).padStart(15, '8').slice(-15);
