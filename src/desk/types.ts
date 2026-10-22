@@ -51,8 +51,8 @@ export type Overlay =
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
-  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string }
-  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot'; id: string; label: string; x: number; y: number; onSelect?: () => void }
+  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string }
+  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string; x: number; y: number; onSelect?: () => void }
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }
   | { type: 'supplier'; id: string }
   | { type: 'new-supplier' }
@@ -61,6 +61,7 @@ export type Overlay =
   | { type: 'edit-expense'; id: string }
   | { type: 'new-return'; saleId?: string }
   | { type: 'return'; id: string }
+  | { type: 'edit-return'; id: string }
   | { type: 'store'; focus?: 'phone' }
   | { type: 'warranty' }
   | { type: 'periodic-report' }

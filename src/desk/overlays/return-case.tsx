@@ -2,14 +2,13 @@ import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { archivedReturn } from '../archive-cache';
-import { ReasonSheet } from '../ReasonSheet';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { saleWarrantyView } from '../../lib/warranty';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus } from '../../services/returns-api';
-import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel } from '../format';
-import { Actions, DeskIcon, Field, Pill, Segs, Sheet, useDesk } from '../ui';
+import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus, ReturnCaseView } from '../../services/returns-api';
+import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel, isVoidRow } from '../format';
+import { Actions, Field, Pill, Sheet, useDesk } from '../ui';
 
 const RESOLUTIONS: Array<{ id: ReturnResolution; label: string }> = [
   { id: 'REPARACION', label: 'Reparación' },
@@ -30,14 +29,15 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function ReturnForm({ saleId }: { saleId?: string }) {
-  const { sales = [], inventory = [], createReturn } = useAppContext();
+export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
+  const { sales = [], inventory = [], returns, createReturn, updateReturn } = useAppContext();
   const { close, toast } = useDesk();
   const completed = sales.filter((sale) => sale.status === 'COMPLETADA' && !sale.voidedAt);
-  const [selected, setSelected] = useState(saleId ?? '');
-  const [reason, setReason] = useState('');
-  const [diagnosis, setDiagnosis] = useState('');
-  const [openedOn, setOpenedOn] = useState(today());
+  const current = id ? returns?.find(row => row.id === id) ?? archivedReturn(id) : null;
+  const [selected, setSelected] = useState(current?.saleId ?? saleId ?? '');
+  const [reason, setReason] = useState(current?.reason ?? '');
+  const [diagnosis, setDiagnosis] = useState(current?.diagnosis ?? '');
+  const [openedOn, setOpenedOn] = useState(current?.openedOn ?? today());
   const [bad, setBad] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,35 +47,44 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
 
   const save = async () => {
     const next: Record<string, string> = {};
-    if (!sale) next.sale = 'Elegí una venta cobrada.';
+    if (!sale && !current) next.sale = 'Elegí una venta cobrada.';
     if (!reason.trim()) next.reason = 'Completá el motivo.';
     if (!isDateValue(openedOn)) next.date = 'Elegí una fecha.';
     setBad(next);
-    if (Object.keys(next).length || !sale) return;
+    if (Object.keys(next).length || (!sale && !current) || busy) return;
     setBusy(true);
     setError('');
     try {
-      await createReturn({
-        saleId: sale.id,
+      if (id && current) {
+        const changed = {
+          ...(reason.trim() !== current.reason ? { reason: reason.trim() } : {}),
+          ...(openedOn !== current.openedOn ? { openedOn } : {}),
+          ...(diagnosis.trim() !== (current.diagnosis ?? '') ? { diagnosis: diagnosis.trim() || null } : {}),
+        };
+        if (Object.keys(changed).length) await updateReturn(id, changed);
+      } else await createReturn({
+        saleId: sale!.id,
         reason: reason.trim(),
         openedOn,
         diagnosis: diagnosis.trim() || null,
         imei: item?.imei || null,
       });
-      toast('Reclamo abierto');
+      toast(id ? 'Reclamo guardado' : 'Reclamo abierto');
       close();
     } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo abrir el reclamo.'));
+      setError(getFriendlyErrorMessage(cause, id ? 'No se pudo guardar el reclamo.' : 'No se pudo abrir el reclamo.'));
     } finally {
       setBusy(false);
     }
   };
 
+  if (id && !current) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
+  if (current && isVoidRow(current)) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">Este reclamo está anulado.</p></Sheet>;
   return (
-    <Sheet title="Nuevo reclamo" onClose={close} busy={busy}>
-      {error ? <div className="ferr">{error}</div> : null}
-      <Field label="Venta" error={bad.sale}>
-        <select aria-label="Venta" value={selected} disabled={Boolean(saleId)} onChange={(event) => setSelected(event.target.value)}>
+    <Sheet title={id ? 'Editar reclamo' : 'Nuevo reclamo'} onClose={close} busy={busy} className="return-sheet" footer={<Actions busy={busy} primary={id ? 'Guardar' : 'Abrir reclamo'} onSecondary={close} onPrimary={() => { void save(); }} />}>
+      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      {current ? <ReturnSummary current={current} /> : <Field label="Venta" error={bad.sale}>
+        <select aria-label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={(event) => setSelected(event.target.value)}>
           <option value="">Elegí una venta</option>
           {completed.map((row) => (
             <option key={row.id} value={row.id}>
@@ -83,8 +92,8 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
             </option>
           ))}
         </select>
-      </Field>
-      {sale ? (
+      </Field>}
+      {!current && sale ? (
         <div className="pending-sale" data-testid="return-sale">
           <div>
             <b>{sale.clientName || 'Sin cliente'}</b>
@@ -95,215 +104,151 @@ export function ReturnForm({ saleId }: { saleId?: string }) {
         </div>
       ) : null}
       <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} />
-      <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
-      <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional" /></Field>
-      <Actions busy={busy} primary="Abrir reclamo" onSecondary={close} onPrimary={() => { void save(); }} />
+      <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" maxLength={500} disabled={busy} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
+      <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" maxLength={2000} disabled={busy} value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional" /></Field>
     </Sheet>
   );
 }
 
+function ReturnSummary({ current }: { current: ReturnCaseView }) {
+  return <div className="return-summary" data-testid="return-detail">
+    <b>{current.clientName || 'Sin cliente'}</b>
+    <span>{current.deviceLabel || 'Sin equipo'}</span>
+    <small>{[current.imei ? `IMEI ${current.imei}` : '', formatShortDate(current.openedOn)].filter(Boolean).join(' · ')}</small>
+  </div>;
+}
+
+function Choices({ label, options, value, onChange, disabled }: {
+  label: string; options: Array<{ id: string; label: string }>; value: string; onChange: (value: string) => void; disabled?: boolean;
+}) {
+  return <fieldset className="return-choices" disabled={disabled}>
+    <legend>{label}</legend>
+    <div className="sgs" role="group" aria-label={label}>
+      {options.map(option => <button className={`sg${option.id === value ? ' on' : ''}`} type="button" key={option.id} aria-pressed={option.id === value} onClick={() => onChange(option.id)}>{option.label}</button>)}
+    </div>
+  </fieldset>;
+}
+
 export function ReturnDetail({ id }: { id: string }) {
-  const {
-    returns, updateReturnDiagnosis, resolveReturn, advanceRma, archiveReturn, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash,
-  } = useAppContext();
+  const { returns, updateReturn, resolveReturn, advanceRma, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash } = useAppContext();
   const { close, toast, canManageSensitive = true } = useDesk();
-  const current = returns?.find((row) => row.id === id) ?? archivedReturn(id) ?? null;
+  const current = returns?.find(row => row.id === id) ?? archivedReturn(id) ?? null;
+  const [status, setStatus] = useState(current?.status ?? 'ABIERTO');
+  const [rma, setRma] = useState(current?.rmaStatus ?? 'ENVIADO');
   const [diagnosis, setDiagnosis] = useState(current?.diagnosis ?? '');
-  const [resolution, setResolution] = useState<ReturnResolution>('REINTEGRO');
+  const [note, setNote] = useState('');
+  const [resolution, setResolution] = useState<ReturnResolution>('REPARACION');
   const [settlement, setSettlement] = useState<ReturnSettlement>('REINTEGRO');
   const [amount, setAmount] = useState(current ? formatInputMoney(current.refundable || current.saleAmount) : '');
-  const [destination, setDestination] = useState<ReturnDestination>('STOCK');
+  const [destination, setDestination] = useState<ReturnDestination>('CLIENTE');
   const [stockStatus, setStockStatus] = useState('EN_REVISION');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
-  const open = current && !current.deletedAt && current.status !== 'RESUELTO' && current.status !== 'EN_PROVEEDOR';
-  const destinations = useMemo(() => (
-    resolution === 'REPARACION'
-      ? [{ id: 'CLIENTE' as const, label: 'Sigue con el cliente' }, { id: 'PROVEEDOR' as const, label: 'Al proveedor' }]
-      : [{ id: 'STOCK' as const, label: 'Vuelve al stock' }, { id: 'PROVEEDOR' as const, label: 'Al proveedor' }]
-  ), [resolution]);
-  const chosenDestination = destinations.some((row) => row.id === destination) ? destination : destinations[0].id;
+  const voided = current ? isVoidRow(current) : false;
+  const unresolved = current && !voided && !['RESUELTO', 'EN_PROVEEDOR'].includes(current.status);
+  const resolving = unresolved && status === 'RESUELTO' && canManageSensitive;
+  const supplier = current?.status === 'EN_PROVEEDOR' && !voided;
+  const destinations = resolution === 'REPARACION'
+    ? [{ id: 'CLIENTE', label: 'Con el cliente' }, { id: 'PROVEEDOR', label: 'Al proveedor' }]
+    : [{ id: 'STOCK', label: 'Al stock' }, { id: 'PROVEEDOR', label: 'Al proveedor' }];
+  const chosenDestination = destinations.some(row => row.id === destination) ? destination : destinations[0].id as ReturnDestination;
 
-  const refresh = async () => {
-    await Promise.all([
-      reloadInventory?.() ?? Promise.resolve(),
-      reloadSales?.() ?? Promise.resolve(),
-      reloadClients?.() ?? Promise.resolve(),
-      loadCash?.() ?? Promise.resolve(),
-    ]);
-  };
-
-  const saveDiagnosis = async () => {
-    if (!diagnosis.trim()) {
-      setError('Completá el diagnóstico.');
-      return;
-    }
+  const save = async () => {
+    if (busy || !current || voided) return;
     setBusy(true);
     setError('');
     try {
-      await updateReturnDiagnosis(id, diagnosis.trim());
-      toast('Diagnóstico guardado');
-    } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo guardar el diagnóstico.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resolve = async () => {
-    const input: ResolveReturnInput = {
-      resolution,
-      settlement: resolution === 'REPARACION' ? 'NINGUNO' : settlement,
-      amount: resolution === 'REPARACION' ? 0 : parseMoney(amount),
-      destination: chosenDestination,
-      stockStatus: chosenDestination === 'STOCK' ? stockStatus : null,
-    };
-    setBusy(true);
-    setError('');
-    try {
-      await resolveReturn(id, input);
-      await refresh();
-      toast('Reclamo resuelto');
+      if (resolving) {
+        const input: ResolveReturnInput = {
+          resolution, settlement: resolution === 'REPARACION' ? 'NINGUNO' : settlement,
+          amount: resolution === 'REPARACION' ? 0 : parseMoney(amount), destination: chosenDestination,
+          stockStatus: chosenDestination === 'STOCK' ? stockStatus : null,
+          diagnosis: diagnosis.trim() || null, note: note.trim() || null,
+        };
+        await resolveReturn(id, input);
+      } else if (supplier && rma !== current.rmaStatus) {
+        await advanceRma(id, rma as RmaStatus, rma === 'RECIBIDO' ? stockStatus : null, note.trim() || null);
+      } else {
+        await updateReturn(id, {
+          ...(unresolved ? { status: status as 'ABIERTO' | 'EN_DIAGNOSTICO', diagnosis: diagnosis.trim() || null } : {}),
+          note: note.trim() || null,
+        });
+      }
+      if (resolving || supplier) await Promise.all([reloadInventory?.(), reloadSales?.(), reloadClients?.(), loadCash?.()]);
+      toast('Reclamo guardado');
       close();
     } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo resolver el reclamo.'));
-    } finally {
-      setBusy(false);
-    }
+      setError(getFriendlyErrorMessage(cause, 'No se pudo guardar el reclamo.'));
+    } finally { setBusy(false); }
   };
 
-  const moveRma = async (status: RmaStatus) => {
-    setBusy(true);
-    setError('');
-    try {
-      await advanceRma(id, status, status === 'RECIBIDO' ? stockStatus : null);
-      await refresh();
-      toast('RMA actualizado');
-    } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo actualizar el RMA.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const archive = async (reason: string) => {
-    setBusy(true);
-    try {
-      await archiveReturn(id, reason);
-      toast('Reclamo archivado');
-      close();
-    } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo archivar el reclamo.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (returns == null) {
-    return <Sheet title="Reclamo" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
-  }
-  if (!current) {
-    return <Sheet title="Reclamo" onClose={close}><p className="ferr">No encontramos ese reclamo.</p></Sheet>;
-  }
-
+  if (returns == null) return <Sheet title="Reclamo" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
+  if (!current) return <Sheet title="Reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
   const restore = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      await restoreReturn(id);
-      toast('Reclamo restaurado');
-      close();
-    } catch (cause) {
-      setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar el reclamo.'));
-    } finally {
-      setBusy(false);
-    }
+    if (busy) return;
+    setBusy(true); setError('');
+    try { await restoreReturn(id); toast('Reclamo restaurado'); close(); }
+    catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar el reclamo.')); }
+    finally { setBusy(false); }
   };
+  const legacyArchive = current.deletedAt && current.status !== 'ANULADO';
+  return <Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet"
+    footer={voided ? legacyArchive && canManageSensitive
+      ? <Actions primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
+      : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+      : <Actions primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
+    {error ? <p className="ferr" role="alert">{error}</p> : null}
+    <ReturnSummary current={current} />
+    <div className="return-reason"><b>Motivo</b><p>{current.reason}</p></div>
+    {voided ? <Pill status="ANULADO" /> : unresolved ? <Choices label="Estado" value={status} onChange={setStatus} disabled={busy} options={[
+      { id: 'ABIERTO', label: 'Abierto' }, { id: 'EN_DIAGNOSTICO', label: 'En diagnóstico' },
+      ...(canManageSensitive ? [{ id: 'RESUELTO', label: 'Resuelto' }] : []),
+    ]} /> : <Pill status={current.rmaStatus || current.status} />}
+    {supplier && canManageSensitive ? <Choices label="RMA con el proveedor" value={rma} onChange={setRma} disabled={busy} options={[
+      { id: 'ENVIADO', label: 'Enviado' }, { id: 'EN_REVISION', label: 'En revisión' }, { id: 'APROBADO', label: 'Aprobado' },
+      { id: 'RECHAZADO', label: 'Rechazado' }, { id: 'RECIBIDO', label: 'Recibido' },
+    ]} /> : null}
+    {!voided ? <Field label="Nota (opcional)"><textarea aria-label="Nota (opcional)" placeholder="Agregar al seguimiento" value={note} maxLength={280} disabled={busy} onChange={event => setNote(event.target.value)} /></Field> : null}
+    {unresolved && (status === 'EN_DIAGNOSTICO' || diagnosis || resolving) ? <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} maxLength={2000} disabled={busy} onChange={event => setDiagnosis(event.target.value)} /></Field> : null}
+    {!unresolved && current.diagnosis ? <div className="return-reason"><b>Diagnóstico</b><p>{current.diagnosis}</p></div> : null}
+    {resolving ? <div className="return-resolution" data-testid="return-resolve">
+      <Choices label="Resolución" options={RESOLUTIONS} value={resolution} onChange={value => setResolution(value as ReturnResolution)} disabled={busy} />
+      {resolution !== 'REPARACION' ? <>
+        <Choices label="Devolución" options={SETTLEMENTS} value={settlement} onChange={value => setSettlement(value as ReturnSettlement)} disabled={busy} />
+        <Field label={`Importe (${current.saleCurrency === 'USD' ? 'US$' : '$'})`}><input aria-label="Importe" inputMode="decimal" value={amount} disabled={busy} onChange={event => setAmount(formatInputMoney(parseMoney(event.target.value)))} /></Field>
+      </> : null}
+      <Choices label="Equipo" options={destinations} value={chosenDestination} onChange={value => setDestination(value as ReturnDestination)} disabled={busy} />
+      {chosenDestination === 'STOCK' ? <Choices label="Estado en stock" options={STOCK} value={stockStatus} onChange={setStockStatus} disabled={busy} /> : null}
+    </div> : null}
+    {supplier && rma === 'RECIBIDO' && current.resolution !== 'REPARACION' && canManageSensitive ? <Choices label="Estado al volver" options={STOCK} value={stockStatus} onChange={setStockStatus} disabled={busy} /> : null}
+    {current.creditNote ? <div className="return-credit" data-testid="return-credit"><b>Nota de crédito</b><span>{formatMoney(current.creditNote.remaining, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')} disponibles</span></div> : null}
+    <section className="return-history" aria-label="Seguimiento">
+      <h4>Seguimiento</h4>
+      <ol className="return-timeline" data-testid="return-events">
+        {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>
+          <div><b>{statusLabel(event.status)}</b><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</time></div>
+          {event.note ? <p>{event.note}</p> : null}
+        </li>)}
+      </ol>
+    </section>
+  </Sheet>;
+}
 
-  return (
-    <Sheet title={current.code} subtitle={[current.clientName, current.deviceLabel].filter(Boolean).join(' · ') || 'Devolución'} onClose={close} className="eq-sheet" footer={current.deletedAt && canManageSensitive ? <Actions primary="Restaurar reclamo" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} /> : open && canManageSensitive ? <Actions busy={busy} primary="Resolver reclamo" onSecondary={close} onPrimary={() => { void resolve(); }} /> : undefined}>
-      {error ? <div className="ferr">{error}</div> : null}
-      <div className="pending-sale" data-testid="return-detail">
-        <div>
-          <b>{current.clientName || 'Sin cliente'}</b>
-          <small>
-            {[current.imei ? `IMEI ${current.imei}` : 'Sin IMEI', formatShortDate(current.openedOn), current.supplierName ? `Proveedor ${current.supplierName}` : ''].filter(Boolean).join(' · ')}
-          </small>
-        </div>
-        <Pill status={current.rmaStatus || current.status} />
-      </div>
-      <div className="kv"><span>Motivo</span><b>{current.reason}</b></div>
-      {current.warrantyDays != null ? <div className="kv"><span>Garantía de la venta</span><b>{current.warrantyDays} días</b></div> : null}
-      <p className="kicker">Seguimiento</p>
-      <div className="card ledger-list" data-testid="return-events">
-        {current.events.map((event, index) => (
-          <div key={`${event.createdAt}-${index}`} className="member">
-            <span className="ico-row"><DeskIcon name="swap" size={18} /></span>
-            <span className="info">
-              <span className="name">{statusLabel(event.status)}</span>
-              <span className="role">{event.note || formatShortDate(event.createdAt)}</span>
-            </span>
-          </div>
-        ))}
-      </div>
-      {open ? (
-        <>
-          <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} /></Field>
-          <button className="wlink" type="button" disabled={busy} onClick={() => { void saveDiagnosis(); }}>Guardar diagnóstico</button>
-          {canManageSensitive ? (
-            <div data-testid="return-resolve">
-              <Field label="Resolución"><span /></Field>
-              <Segs options={RESOLUTIONS} value={resolution} onChange={(value) => setResolution(value as ReturnResolution)} />
-              {resolution === 'REPARACION' ? <p className="eqs-note">La reparación en garantía no mueve plata ni la caja.</p> : (
-                <>
-                  <Field label="Plata"><span /></Field>
-                  <Segs options={SETTLEMENTS} value={settlement} onChange={(value) => setSettlement(value as ReturnSettlement)} />
-                  <Field label="Importe"><input aria-label="Importe" inputMode="numeric" value={amount} onChange={(event) => setAmount(formatInputMoney(parseMoney(event.target.value)))} /></Field>
-                </>
-              )}
-              <Field label="Equipo"><span /></Field>
-              <Segs options={destinations} value={chosenDestination} onChange={(value) => setDestination(value as ReturnDestination)} />
-              {chosenDestination === 'STOCK' || (current.status === 'EN_PROVEEDOR' && resolution !== 'REPARACION') ? (
-                <>
-                  <Field label="Estado en stock"><span /></Field>
-                  <Segs options={STOCK} value={stockStatus} onChange={setStockStatus} />
-                  <p className="eqs-note">Tiene que ser distinto al estado anterior de la venta.</p>
-                </>
-              ) : null}
-            </div>
-          ) : <p className="eqs-note">Podés cargar el diagnóstico. Resolver el reclamo lo hace el propietario o quien tenga permiso.</p>}
-          {canManageSensitive ? <button className="wlink" type="button" onClick={() => setConfirm(true)}>Archivar reclamo</button> : null}
-        </>
-      ) : null}
-      {current.status === 'EN_PROVEEDOR' && canManageSensitive ? (
-        <div data-testid="return-rma">
-          <Field label="RMA con el proveedor"><span /></Field>
-          <Segs options={[
-            { id: 'EN_REVISION', label: 'En revisión' },
-            { id: 'APROBADO', label: 'Aprobado' },
-            { id: 'RECHAZADO', label: 'Rechazado' },
-            { id: 'RECIBIDO', label: 'Recibido' },
-          ]} value={current.rmaStatus || 'ENVIADO'} onChange={(value) => { void moveRma(value as RmaStatus); }} />
-          {current.resolution !== 'REPARACION' ? (
-            <>
-              <Field label="Estado al volver"><span /></Field>
-              <Segs options={STOCK} value={stockStatus} onChange={setStockStatus} />
-            </>
-          ) : null}
-        </div>
-      ) : null}
-      {current.creditNote ? (
-        <div className="pending-sale" data-testid="return-credit">
-          <div>
-            <b>Nota de crédito</b>
-            <small>Quedan {formatMoney(current.creditNote.remaining, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')} de {formatMoney(current.creditNote.amount, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')}.</small>
-          </div>
-        </div>
-      ) : null}
-      {confirm ? (
-        <ReasonSheet title="Archivar reclamo" note="El reclamo queda archivado y no se borra. Todavía no movió plata ni stock." ok="Archivar" danger busy={busy} error={error} onOk={(reason) => { void archive(reason); }} onClose={() => { if (!busy) setConfirm(false); }} />
-      ) : null}
-    </Sheet>
-  );
+export function ReturnDelete({ id }: { id: string }) {
+  const { returns, archiveReturn } = useAppContext();
+  const { close, toast } = useDesk();
+  const current = returns?.find(row => row.id === id) ?? archivedReturn(id);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const remove = async () => {
+    if (busy || !current || isVoidRow(current)) return;
+    setBusy(true); setError(null);
+    try { await archiveReturn(id); toast('Reclamo anulado'); close(); }
+    catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo eliminar el reclamo.')); }
+    finally { setBusy(false); }
+  };
+  return <Sheet title="¿Eliminar reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions primary="Eliminar" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
+    <p>{current?.code ?? 'Reclamo'} · Queda anulado y fuera de los totales.{current?.resolution ? ' Se conservan los movimientos registrados.' : ''}</p>
+    {error ? <p className="ferr" role="alert">{error}</p> : null}
+  </Sheet>;
 }

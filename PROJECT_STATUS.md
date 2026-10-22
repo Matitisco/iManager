@@ -9,6 +9,13 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Prisma exclusivamente aditivo: `SectionRecordView` y relaciones. Validación: 1.393 pruebas frontend, 522 unitarias backend, 3 integraciones PostgreSQL locales, lint/typecheck de ambos paquetes y OpenSpec estricto aprobados. Playwright local en 1440×900 y 390×844 (iPhone 13): cuatro secciones, limpieza/persistencia del badge, prioridad, anuladas y edición concurrente verificados, sin overflow ni errores de página.
 - Evidencia externa al repo en `/workspace/imanager-local/shots/483-f/`; sin capturas ni prompts versionados, build, operaciones productivas o cambios a los puntos 6, 8 y 14. OpenSpec `section-novelties-483-f`; rama `feat/483-medios`, un commit para este punto y PR #495 a main sin merge.
 
+## Issue #483 puntos 2.1 y 2.2 — Reclamos — 2026-10-22
+
+- Modal con borrador de estado, nota opcional, diagnóstico/resolución separados, seguimiento compacto con fecha/hora y footer Cancelar/Guardar. RMA persiste únicamente al guardar; errores conservan el formulario y el envío bloquea repetición.
+- Click derecho, long-press y ⋯ abren Editar/Eliminar. Edición precargada con calendario compartido y vínculo a venta fijo. Eliminar confirma y registra ANULADO, fecha, usuario, evento y auditoría; sin borrado físico ni restauración. Fila roja con importe tachado; exclusión de Activos y de contadores/importes de reclamos y ganancia neta, incluso sin deletedAt. La baja conserva movimientos de caja/stock ya registrados y lo aclara cuando hay resolución.
+- Validación: 1.412 pruebas frontend, 533 unitarias backend y ocho integraciones de Reclamos con PostgreSQL local; TypeScript frontend/backend, OpenSpec estricto y diff check aprobados. Verificación real con Playwright a 1440×900 y 390×844 (iPhone 13): edición, estados/notas, cancelación, menús, long-press y persistencia tras recargar; sin desborde ni errores de página.
+- Evidencia fuera del repo: `/workspace/imanager-local/shots/483-g/` (antes, wireframe imagegen y después). OpenSpec `redesign-return-claims-483`. Sin cambios de Prisma ni producción, sin build. Rama `feat/483-medios`, PR #495; puntos anteriores conservados y 6/8/14 fuera del alcance.
+
 ## Issue #483 punto 5 — Capacidad duplicada al registrar equipo — 2026-10-22
 
 - El selector compartido de alta/edición agrupa capacidades GB/TB equivalentes de base, catálogo e inventario, ignorando espacios y mayúsculas de unidad. Conserva etiquetas/orden del catálogo y el valor histórico al editar; capacidades personalizadas distintas siguen disponibles. Se retiraron los subtítulos redundantes del formulario.

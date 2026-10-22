@@ -14,11 +14,15 @@ import {
   listReturnCases,
   resolveReturnCase,
   restoreReturnCase,
-  updateReturnDiagnosis,
+  updateReturnCase,
 } from "./returns.service.js";
 import { DESTINATIONS, RESOLUTIONS, RMA_STATUSES, SETTLEMENTS } from "./returns-math.js";
 
-const openedOn = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.");
+const openedOn = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.").refine(value => {
+  const date = new Date(`${value}T15:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}, "La fecha no es válida.");
+const note = z.string().trim().max(280, "La nota es demasiado larga.").nullable().optional();
 
 export async function returnRoutes(app: FastifyInstance) {
   const guard = [authenticate, resolveAppUser, requireSectionAccess("sales")];
@@ -59,10 +63,14 @@ export async function returnRoutes(app: FastifyInstance) {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = z.object({
-      diagnosis: z.string().trim().min(1, "Completá el diagnóstico.").max(2000, "El diagnóstico es demasiado largo."),
-    }).parse(request.body);
+      reason: z.string().trim().min(1, "Completá el motivo.").max(500).optional(),
+      openedOn: openedOn.optional(),
+      diagnosis: z.string().trim().max(2000).nullable().optional(),
+      status: z.enum(["ABIERTO", "EN_DIAGNOSTICO"]).optional(),
+      note,
+    }).strict().refine(value => Object.keys(value).length > 0, "Completá el cambio.").parse(request.body);
     const actor = { ...(await loadActor(request.appUser.userId)), role: request.appUser.role };
-    const claim = await updateReturnDiagnosis(request.appUser.storeId, id, body.diagnosis, actor);
+    const claim = await updateReturnCase(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
     return { return: claim };
   });
@@ -78,13 +86,9 @@ export async function returnRoutes(app: FastifyInstance) {
       amount: z.number().min(0).max(100_000_000),
       destination: z.enum(DESTINATIONS),
       stockStatus: z.string().trim().max(20).nullable().optional(),
-    }).parse(request.body) as {
-      resolution: (typeof RESOLUTIONS)[number];
-      settlement: (typeof SETTLEMENTS)[number];
-      amount: number;
-      destination: (typeof DESTINATIONS)[number];
-      stockStatus?: string | null;
-    };
+      diagnosis: z.string().trim().max(2000).nullable().optional(),
+      note,
+    }).parse(request.body);
     const claim = await resolveReturnCase(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
     return { return: claim };
@@ -98,10 +102,8 @@ export async function returnRoutes(app: FastifyInstance) {
     const body = z.object({
       status: z.enum(RMA_STATUSES),
       stockStatus: z.string().trim().max(20).nullable().optional(),
-    }).parse(request.body) as {
-      status: (typeof RMA_STATUSES)[number];
-      stockStatus?: string | null;
-    };
+      note,
+    }).parse(request.body);
     const claim = await advanceRma(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
     return { return: claim };

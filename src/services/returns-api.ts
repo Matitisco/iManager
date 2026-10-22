@@ -63,7 +63,17 @@ export interface ReturnInput {
   imei?: string | null;
 }
 
+export interface UpdateReturnInput {
+  reason?: string;
+  openedOn?: string;
+  diagnosis?: string | null;
+  status?: 'ABIERTO' | 'EN_DIAGNOSTICO';
+  note?: string | null;
+}
+
 export interface ResolveReturnInput {
+  diagnosis?: string | null;
+  note?: string | null;
   resolution: ReturnResolution;
   settlement: ReturnSettlement;
   amount: number;
@@ -94,6 +104,13 @@ export function createReturn(user: AuthUserLike, input: ReturnInput) {
   }).then((data) => data.return);
 }
 
+export function updateReturn(user: AuthUserLike, id: string, input: UpdateReturnInput) {
+  return apiRequest<{ return: ReturnCaseView }>(user, `/api/returns/${id}`, {
+    method: 'PATCH', body: input,
+    fallback: 'No se pudo guardar el reclamo', errorFrom: 'friendly',
+  }).then(data => data.return);
+}
+
 export function updateReturnDiagnosis(user: AuthUserLike, id: string, diagnosis: string) {
   return apiRequest<{ return: ReturnCaseView }>(user, `/api/returns/${id}`, {
     method: 'PATCH',
@@ -112,10 +129,10 @@ export function resolveReturn(user: AuthUserLike, id: string, input: ResolveRetu
   }).then((data) => data.return);
 }
 
-export function advanceRma(user: AuthUserLike, id: string, status: RmaStatus, stockStatus?: string | null) {
+export function advanceRma(user: AuthUserLike, id: string, status: RmaStatus, stockStatus?: string | null, note?: string | null) {
   return apiRequest<{ return: ReturnCaseView }>(user, `/api/returns/${id}/rma`, {
     method: 'POST',
-    body: { status, stockStatus },
+    body: { status, stockStatus, note },
     fallback: 'No se pudo actualizar el RMA',
     errorFrom: 'friendly',
   }).then((data) => data.return);
@@ -125,7 +142,7 @@ export function archiveReturn(user: AuthUserLike, id: string, reason?: string) {
   return apiRequest<void>(user, `/api/returns/${id}`, {
     method: 'DELETE',
     body: { reason },
-    fallback: 'No se pudo archivar el reclamo',
+    fallback: 'No se pudo eliminar el reclamo',
     errorFrom: 'friendly',
   });
 }

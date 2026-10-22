@@ -26,7 +26,7 @@ const ZONE = "America/Argentina/Buenos_Aires";
 type Tx = Prisma.TransactionClient;
 
 const caseInclude = {
-  events: { orderBy: { createdAt: "asc" as const } },
+  events: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
   creditNote: true,
   supplier: { select: { name: true } },
   sale: { select: { amount: true, amountCurrency: true, openBalance: true, status: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
@@ -160,7 +160,7 @@ async function nextNumber(tx: Tx, storeId: string) {
 
 export async function listReturnCases(storeId: string, archived = false): Promise<ReturnCaseView[]> {
   const rows = await prisma.returnCase.findMany({
-    where: { storeId, deletedAt: archived ? { not: null } : null },
+    where: { storeId, ...(archived ? { OR: [{ deletedAt: { not: null } }, { status: "ANULADO" }] } : { deletedAt: null, status: { not: "ANULADO" } }) },
     include: caseInclude,
     orderBy: [{ openedAt: "desc" }, { caseNumber: "desc" }],
   });
@@ -213,7 +213,7 @@ export async function createReturnCase(storeId: string, input: {
     if (sale.voidedAt) throw new DomainError("No se puede devolver una venta anulada.");
     if (sale.status === "CANCELADA") throw new DomainError("No se puede devolver una venta cancelada.");
     if (sale.status !== "COMPLETADA") throw new DomainError("La venta tiene que estar cobrada para abrir el reclamo.");
-    const existing = await tx.returnCase.findFirst({ where: { storeId, saleId: sale.id, deletedAt: null }, select: { id: true } });
+    const existing = await tx.returnCase.findFirst({ where: { storeId, saleId: sale.id, deletedAt: null, status: { not: "ANULADO" } }, select: { id: true } });
     if (existing) throw new DomainError("Esta venta ya tiene un reclamo.", 409);
     const item = sale.inventoryItem;
     const imei = (input.imei?.trim() || item?.imei || "").slice(0, 100);
@@ -258,36 +258,53 @@ export async function createReturnCase(storeId: string, input: {
   });
 }
 
-export async function updateReturnDiagnosis(storeId: string, id: string, diagnosis: string, actor: Actor) {
-  const text = diagnosis.trim();
-  if (!text) throw new DomainError("Completá el diagnóstico.");
+export interface UpdateReturnInput {
+  reason?: string;
+  openedOn?: string;
+  diagnosis?: string | null;
+  status?: "ABIERTO" | "EN_DIAGNOSTICO";
+  note?: string | null;
+}
+
+export async function updateReturnCase(storeId: string, id: string, input: UpdateReturnInput, actor: Actor) {
+  const reason = input.reason?.trim();
+  if (reason === "") throw new DomainError("Completá el motivo.");
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt) return null;
-    if (current.status === "RESUELTO" || current.status === "EN_PROVEEDOR") {
-      throw new DomainError("Este reclamo ya no admite un diagnóstico nuevo.");
+    if (!current || current.deletedAt || current.status === "ANULADO") return null;
+    if (input.status && (current.status === "RESUELTO" || current.status === "EN_PROVEEDOR")) {
+      throw new DomainError("Este reclamo ya tiene una resolución.", 409);
     }
-    const updated = await tx.returnCase.update({
+    const status = input.status ?? (current.status === "ABIERTO" && input.diagnosis?.trim() ? "EN_DIAGNOSTICO" : current.status);
+    const diagnosis = input.diagnosis === undefined ? current.diagnosis : input.diagnosis?.trim() || null;
+    const note = input.note?.trim() || null;
+    const changed = status !== current.status || diagnosis !== current.diagnosis ||
+      (reason !== undefined && reason !== current.reason) ||
+      (input.openedOn !== undefined && input.openedOn !== calendarDay(current.openedAt, ZONE));
+    if (!changed && !note) return present(current);
+    await tx.returnCase.update({
       where: { id },
-      data: { diagnosis: text, status: current.status === "ABIERTO" ? "EN_DIAGNOSTICO" : current.status },
-      include: caseInclude,
+      data: { status, diagnosis, ...(reason !== undefined ? { reason } : {}), ...(input.openedOn ? { openedAt: openedDate(input.openedOn) } : {}) },
     });
-    if (current.status === "ABIERTO") {
-      await tx.returnEvent.create({ data: { storeId, caseId: id, status: "EN_DIAGNOSTICO", note: "Quedó el diagnóstico." } });
-    }
-    const code = returnCode(updated.caseNumber);
+    await tx.returnEvent.create({ data: { storeId, caseId: id, status, note: note ?? (diagnosis !== current.diagnosis ? "Diagnóstico actualizado." : "Reclamo actualizado.") } });
     await writeAudit(tx, {
-      storeId,
-      actor,
-      action: "return.diagnosis",
-      entityType: "return",
-      entityId: id,
-      entityLabel: code,
-      detail: `Quedó cargado el diagnóstico del reclamo ${code}.`,
+      storeId, actor, action: "return.updated", entityType: "return", entityId: id,
+      entityLabel: returnCode(current.caseNumber), detail: `Se actualizó el reclamo ${returnCode(current.caseNumber)}.`,
+      changes: [
+        { field: "status", label: "Estado", before: current.status, after: status },
+        { field: "reason", label: "Motivo", before: current.reason, after: reason ?? current.reason },
+        { field: "diagnosis", label: "Diagnóstico", before: current.diagnosis, after: diagnosis },
+        { field: "openedOn", label: "Fecha", before: calendarDay(current.openedAt, ZONE), after: input.openedOn ?? calendarDay(current.openedAt, ZONE) },
+      ],
     });
     return present(await loadCase(tx, storeId, id) as CaseRow);
   });
+}
+
+export async function updateReturnDiagnosis(storeId: string, id: string, diagnosis: string, actor: Actor) {
+  if (!diagnosis.trim()) throw new DomainError("Completá el diagnóstico.");
+  return updateReturnCase(storeId, id, { diagnosis }, actor);
 }
 
 async function moveStock(tx: Tx, itemId: string, status: string) {
@@ -310,13 +327,15 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
   amount: number;
   destination: Destination;
   stockStatus?: string | null;
+  diagnosis?: string | null;
+  note?: string | null;
 }, actor: Actor) {
   const problem = resolutionError(input);
   if (problem) throw new DomainError(problem);
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt) return null;
+    if (!current || current.deletedAt || current.status === "ANULADO") return null;
     if (current.resolvedAt || current.status === "RESUELTO" || current.status === "EN_PROVEEDOR") {
       throw new DomainError("Este reclamo ya está resuelto.", 409);
     }
@@ -401,6 +420,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     await tx.returnCase.update({
       where: { id },
       data: {
+        ...(input.diagnosis !== undefined ? { diagnosis: input.diagnosis?.trim() || null } : {}),
         resolution: input.resolution,
         settlement: input.settlement,
         moneyAmount: new Decimal(amount),
@@ -418,7 +438,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       : input.destination === "STOCK"
         ? "El equipo volvió al stock."
         : "El equipo sigue con el cliente.";
-    await tx.returnEvent.create({ data: { storeId, caseId: id, status, note: eventNote } });
+    await tx.returnEvent.create({ data: { storeId, caseId: id, status, note: input.note?.trim() || eventNote } });
     const code = returnCode(current.caseNumber);
     const moneyText = input.settlement === "REINTEGRO"
       ? `con un reintegro de ${formatArMoney(amount, currency)}`
@@ -443,11 +463,11 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
   });
 }
 
-export async function advanceRma(storeId: string, id: string, input: { status: RmaStatus; stockStatus?: string | null }, actor: Actor) {
+export async function advanceRma(storeId: string, id: string, input: { status: RmaStatus; stockStatus?: string | null; note?: string | null }, actor: Actor) {
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt) return null;
+    if (!current || current.deletedAt || current.status === "ANULADO") return null;
     if (current.status !== "EN_PROVEEDOR") throw new DomainError("Este reclamo no está en el proveedor.");
     if (current.rmaStatus === "RECIBIDO" || current.rmaStatus === "RECHAZADO") {
       throw new DomainError("El RMA con el proveedor ya terminó.", 409);
@@ -484,7 +504,7 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
       : input.status === "RECHAZADO"
         ? "El proveedor rechazó el RMA."
         : "Cambió el estado del RMA.";
-    await tx.returnEvent.create({ data: { storeId, caseId: id, status: input.status, note } });
+    await tx.returnEvent.create({ data: { storeId, caseId: id, status: input.status, note: input.note?.trim() || note } });
     const code = returnCode(current.caseNumber);
     const sentence: Record<RmaStatus, string> = {
       ENVIADO: `El reclamo ${code} quedó enviado al proveedor.`,
@@ -511,20 +531,19 @@ export async function archiveReturnCase(storeId: string, id: string, actor: Acto
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: null } });
     if (!current) return false;
-    if (current.status === "RESUELTO" || current.status === "EN_PROVEEDOR" || current.resolvedAt) {
-      throw new DomainError("Un reclamo resuelto no se archiva. La plata y el equipo ya se movieron.", 409);
-    }
-    await tx.returnCase.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: actor.name } });
+    if (current.status === "ANULADO") return true;
+    await tx.returnCase.update({ where: { id }, data: { status: "ANULADO", deletedAt: new Date(), deletedBy: actor.name } });
+    await tx.returnEvent.create({ data: { storeId, caseId: id, status: "ANULADO", note: reason?.trim().slice(0, 280) || "Reclamo anulado." } });
     const code = returnCode(current.caseNumber);
     await writeAudit(tx, {
       storeId,
       actor,
       reason,
-      action: "return.archived",
+      action: "return.cancelled",
       entityType: "return",
       entityId: id,
       entityLabel: code,
-      detail: `Quedó archivado el reclamo ${code}. No se borró.`,
+      detail: `Quedó anulado el reclamo ${code}. Se conserva el historial.`,
     });
     return true;
   });
@@ -535,6 +554,7 @@ export async function restoreReturnCase(storeId: string, id: string, actor: Acto
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
     if (!current) return null;
+    if (current.status === "ANULADO") throw new DomainError("Un reclamo anulado no se puede restaurar.", 409);
     if (current.saleId) {
       const other = await tx.returnCase.findFirst({ where: { storeId, saleId: current.saleId, deletedAt: null, id: { not: id } }, select: { id: true } });
       if (other) throw new DomainError("Esa venta ya tiene otro reclamo activo.", 409);

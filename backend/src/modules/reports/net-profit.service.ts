@@ -47,7 +47,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     select: { amount: true, currency: true, spentAt: true },
   });
   const claims = await prisma.returnCase.findMany({
-    where: { storeId, deletedAt: null, resolution: { in: ["CAMBIO", "REINTEGRO"] }, resolvedAt: { not: null } },
+    where: { storeId, deletedAt: null, status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] }, resolvedAt: { not: null } },
     select: {
       resolvedAt: true,
       moneyAmount: true,

@@ -1,6 +1,7 @@
+import { archivedReturn } from './archive-cache';
 import { StockOnboarding } from '../pages/StockOnboarding';
 import { DepositForm, RepairDepositSheet } from './overlays/deposits';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { archivedMatchOf } from '../services/api-client';
@@ -24,7 +25,7 @@ import { StoreForm, ContactForm, ProfileForm, PasswordForm, InviteForm, InvitesL
 import { PeriodicReportForm } from './overlays/periodic-report';
 import { ImportHost } from './overlays/import';
 import { ExpenseForm } from './overlays/expense';
-import { ReturnDetail, ReturnForm } from './overlays/return-case';
+import { ReturnDelete, ReturnDetail, ReturnForm } from './overlays/return-case';
 import { SupplierDetail, SupplierForm } from './overlays/supplier';
 
 export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void }) {
@@ -36,23 +37,41 @@ export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; on
 
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
   const { open, close, canManageSensitive = true } = useDesk();
-  const { sales = [] } = useAppContext();
+  const { sales = [], returns = [] } = useAppContext();
+  const claim = overlay.kind === 'return' ? returns?.find(row => row.id === overlay.id) ?? archivedReturn(overlay.id) : null;
+  const cancelledReturn = Boolean(claim && (claim.deletedAt || claim.status === 'ANULADO'));
   const cancelledSale = overlay.kind === 'sale' && sales.find(sale => sale.id === overlay.id)?.status === 'CANCELADA';
   const phone = usePhoneLayout();
   useEscape(close);
-  const edit = overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'ot' ? 'edit-ot' : 'edit-cl';
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (overlay.kind !== 'return') return;
+    const trigger = document.activeElement;
+    menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    return () => { if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus(); };
+  }, [overlay.kind]);
+  const menuKeys = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (overlay.kind !== 'return' || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    if (!items.length) return;
+    event.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
+    items[next].focus();
+  };
+  const edit = overlay.kind === 'return' ? 'edit-return' : overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'ot' ? 'edit-ot' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
-      <div className="ctx" style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={menuRef} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="ctxh">{overlay.label}</div>
-        {!cancelledSale ? <button type="button" onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
+        {!cancelledSale ? <button type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
         {overlay.kind === 'sale' && (() => {
           const sale = sales.find((row) => row.id === overlay.id);
           return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
         })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
-        {canManageSensitive ? <button className="danger" type="button" onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
+        {canManageSensitive ? <button className="danger" type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'return' ? 'Eliminar' : overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
       </div>
     </div>
   );
@@ -129,6 +148,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     );
   }
 
+  if (overlay.type === 'del' && overlay.kind === 'return') return <ReturnDelete id={overlay.id} />;
+
   if (overlay.type === 'del') {
     const sale = overlay.kind === 'sale' ? ctx.sales.find((row) => row.id === overlay.id) : undefined;
     const trade = overlay.kind === 'cj' ? ctx.tradeIns.find((row) => row.id === overlay.id) : undefined;
@@ -179,6 +200,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'new-supplier' || overlay.type === 'edit-supplier') return <SupplierForm id={overlay.type === 'edit-supplier' ? overlay.id : undefined} />;
   if (overlay.type === 'new-expense' || overlay.type === 'edit-expense') return <ExpenseForm id={overlay.type === 'edit-expense' ? overlay.id : undefined} />;
   if (overlay.type === 'new-return') return <ReturnForm saleId={overlay.saleId} />;
+  if (overlay.type === 'edit-return') return <ReturnForm id={overlay.id} />;
   if (overlay.type === 'return') return <ReturnDetail id={overlay.id} />;
   if (overlay.type === 'sale') return <SaleDetail id={overlay.id} run={run} busy={busy} error={error} />;
   if (overlay.type === 'new-sale' || overlay.type === 'edit-sale') {
