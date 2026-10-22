@@ -60,7 +60,7 @@ const BUILTIN: Record<ReportTab, BreakdownDimension[]> = {
   ],
 };
 
-const PALETTE = ['#397964', '#5B8DEF', '#DF668B', 'var(--c-lime)', '#16181D', '#E8A33D', '#8B5CF6'];
+const PALETTE = ['#16181D', '#FFD000', '#9AA0AA', '#DDE1E6', '#25A66A', '#737984'];
 
 export interface BreakdownPart {
   label: string;
@@ -77,7 +77,7 @@ export function dimensionsFor(tab: ReportTab, columns: CustomColumn[] = []): Bre
 }
 
 export function breakdownTitle(tab: ReportTab, dimensionId: string, dimensions: BreakdownDimension[]) {
-  if (tab === 'Stock' && dimensionId === 'status') return 'Estado actual';
+  if (tab === 'Stock' && dimensionId === 'status') return 'Por estado actual';
   if (dimensionId === 'status') return 'Por estado';
   const label = dimensions.find((item) => item.id === dimensionId)?.label ?? 'desglose';
   return `Por ${label.toLowerCase()}`;
@@ -86,18 +86,20 @@ export function breakdownTitle(tab: ReportTab, dimensionId: string, dimensions: 
 export function breakdownCatalog(tab: ReportTab, dimensionId: string): Array<{ label: string; color: string }> | undefined {
   if (tab === 'Ventas' && dimensionId === 'payment') {
     return [
-      { label: 'Transferencia', color: '#397964' },
-      { label: 'Efectivo', color: '#5B8DEF' },
-      { label: 'Tarjeta', color: '#DF668B' },
+      { label: 'Transferencia', color: '#FFD000' },
+      { label: 'Efectivo', color: '#16181D' },
+      { label: 'Tarjeta', color: '#9AA0AA' },
+      { label: 'Mercado Pago', color: '#9AA0AA' },
+      { label: 'Canje', color: '#DDE1E6' },
       { label: 'Cripto', color: 'var(--c-lime)' },
     ];
   }
   if (tab === 'Stock' && dimensionId === 'status') {
     return [
-      { label: 'Disponible', color: 'var(--c-lime)' },
-      { label: 'En revisión', color: '#5B8DEF' },
-      { label: 'Vendido', color: '#397964' },
-      { label: 'Reservado', color: '#DF668B' },
+      { label: 'Disponible', color: '#25A66A' },
+      { label: 'En revisión', color: '#9AA0AA' },
+      { label: 'Vendido', color: '#16181D' },
+      { label: 'Reservado', color: '#FFD000' },
     ];
   }
   if (tab === 'Canjes' && dimensionId === 'status') {
@@ -112,9 +114,9 @@ export function breakdownCatalog(tab: ReportTab, dimensionId: string): Array<{ l
   if (tab === 'Servicio' && dimensionId === 'status') {
     return [
       { label: 'Recibido', color: '#9AA0AA' },
-      { label: 'En reparación', color: '#5B8DEF' },
+      { label: 'En reparación', color: '#FFD000' },
       { label: 'Listo para retirar', color: '#25A66A' },
-      { label: 'Entregado', color: '#16181D' },
+      { label: 'Entregado', color: '#25A66A' },
     ];
   }
   if (tab === 'Clientes' && dimensionId === 'kind') {
@@ -137,14 +139,14 @@ export function groupBreakdown(
     const known = new Set(catalog.map((item) => item.label));
     const parts = catalog.map((item) => ({ ...item, value: totals.get(item.label) ?? 0 }));
     for (const [label, value] of totals) {
-      if (!known.has(label) && value > 0) parts.push({ label, value, color: '#737984' });
+      if (!known.has(label) && value !== 0) parts.push({ label, value, color: '#737984' });
     }
     return { parts, otherLabels: [] };
   }
   const ranked = [...totals.entries()]
-    .filter(([, value]) => value > 0)
+    .filter(([, value]) => value !== 0)
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'es'));
-  if (ranked.length <= 6) {
+  if (ranked.length <= 6 || ranked.some(([, value]) => value < 0)) {
     return {
       parts: ranked.map(([label, value], index) => ({ label, value, color: PALETTE[index % PALETTE.length] })),
       otherLabels: [],
@@ -386,20 +388,20 @@ export function repairLeadDays(order: { status: string; receivedAt: string; even
   if (order.status !== 'ENTREGADO') return null;
   const start = parseReportDate(order.receivedAt);
   const delivered = [...(order.events ?? [])].reverse().find((event) => event.status === 'ENTREGADO');
-  const end = parseReportDate(delivered?.createdAt) ?? start;
-  if (!start || !end) return null;
-  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+  const end = parseReportDate(delivered?.createdAt);
+  if (!start || !end || end < start) return null;
+  return (end.getTime() - start.getTime()) / 86_400_000;
 }
 
 export function averageLeadDays(days: Array<number | null>) {
-  const measured = days.filter((day): day is number => day != null);
+  const measured = days.filter((day): day is number => day != null && Number.isFinite(day) && day >= 0);
   if (!measured.length) return null;
-  return Math.round(measured.reduce((sum, day) => sum + day, 0) / measured.length);
+  return Math.round(measured.reduce((sum, day) => sum + day, 0) / measured.length * 10) / 10;
 }
 
 export function leadTimeLabel(average: number | null) {
   if (average == null) return 'sin entregas para medir el tiempo';
   if (average === 0) return 'tiempo medio: mismo día';
   if (average === 1) return 'tiempo medio: 1 día';
-  return `tiempo medio: ${average} días`;
+  return `tiempo medio: ${average.toLocaleString('es-AR')} días`;
 }

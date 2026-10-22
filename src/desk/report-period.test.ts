@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { periodBounds } from './format';
-import { addToReportBucket, customReportBounds, defaultReportRange, inReportPeriod, makeReportBuckets, reportRangeLabel } from './report-period';
+import { addToReportBucket, customReportBounds, defaultReportRange, inReportPeriod, makeReportBuckets, reportRangeLabel, reportPresetBounds, reportDayCount, reportComparisonLabel, reportBucketRange, REPORT_PRESETS } from './report-period';
 
 function range(start: string, end: string) {
   const result = customReportBounds(start, end);
@@ -77,12 +76,53 @@ describe('report evolution coverage', () => {
     expect(buckets.reduce((total, bucket) => total + bucket.value, 0)).toBe(days);
   });
 
-  it.each(['Semana', 'Mes', '3 meses', 'Año'] as const)('covers the entire %s preset including its first partial month', (period) => {
-    const bounds = periodBounds(period, new Date(2026, 9, 6));
+  it.each(REPORT_PRESETS)('covers the entire %s preset including its first partial month', (period) => {
+    const bounds = reportPresetBounds(period, new Date(2026, 9, 6));
     const { buckets } = makeReportBuckets(period, bounds);
     addToReportBucket(buckets, bounds.start.toISOString(), 100);
     addToReportBucket(buckets, new Date(bounds.end.getTime() - 1).toISOString(), 200);
     expect(buckets.reduce((total, bucket) => total + bucket.value, 0)).toBe(300);
     expect(buckets.length).toBeLessThanOrEqual(12);
   });
+});
+
+
+describe('report presets and comparisons', () => {
+  const now = new Date(2026, 9, 21, 12);
+  it.each([
+    ['7 días', '15/10/2026 al 21/10/2026', 7],
+    ['30 días', '22/09/2026 al 21/10/2026', 30],
+    ['90 días', '24/07/2026 al 21/10/2026', 90],
+    ['12 meses', '22/10/2025 al 21/10/2026', 365],
+    ['Este mes', '01/10/2026 al 21/10/2026', 21],
+  ] as const)('%s applies exact dates', (preset, label, days) => {
+    const bounds = reportPresetBounds(preset, now);
+    expect(reportRangeLabel(bounds)).toBe(label);
+    expect(reportDayCount(bounds)).toBe(days);
+    expect(reportDayCount({ ...bounds, start: bounds.prevStart, end: bounds.prevEnd })).toBe(days);
+  });
+  it('compares thirty days and month-to-date with immediately preceding days', () => {
+    expect(reportComparisonLabel(reportPresetBounds('30 días', now))).toBe('23/08/2026 al 21/09/2026');
+    expect(reportComparisonLabel(reportPresetBounds('Este mes', now))).toBe('10/09/2026 al 30/09/2026');
+  });
+  it('handles leap-day and year boundaries', () => {
+    expect(reportRangeLabel(reportPresetBounds('Este mes', new Date(2024, 1, 29)))).toBe('01/02/2024 al 29/02/2024');
+    expect(reportDayCount(reportPresetBounds('12 meses', new Date(2024, 1, 28)))).toBe(365);
+    expect(reportDayCount(reportPresetBounds('12 meses', new Date(2024, 1, 29)))).toBe(366);
+    expect(reportComparisonLabel(reportPresetBounds('7 días', new Date(2026, 0, 1)))).toBe('19/12/2025 al 25/12/2025');
+  });
+  it.each([21, 30])('uses three-day buckets for %s days', days => {
+    const bounds = range('2026-10-01', `2026-10-${days}`);
+    const { buckets, bucketLabel } = makeReportBuckets('Personalizado', bounds);
+    expect(bucketLabel).toBe('Cada 3 días');
+    expect(buckets).toHaveLength(days / 3);
+    expect(buckets[0].end).toEqual(new Date(2026, 9, 4));
+  });
+});
+
+it('describes complete inclusive bucket boundaries and monthly labels', () => {
+  const buckets = makeReportBuckets('30 días', reportPresetBounds('30 días', new Date(2026, 9, 21))).buckets;
+  expect(reportBucketRange(buckets[0])).toBe('22/09/2026 al 24/09/2026');
+  expect(reportBucketRange(buckets.at(-1)!)).toBe('19/10/2026 al 21/10/2026');
+  expect(reportBucketRange({ label: '2026-10' })).toBe('2026-10');
 });

@@ -220,12 +220,12 @@ test.describe('reports on a phone', () => {
     await again.locator('.sheet-foot').getByRole('button', { name: 'Aplicar período' }).click();
     await expect(again).toBeHidden();
     await expect(page.getByText('No hay ventas para este período y filtro.')).toBeVisible();
-    await reportPeriods(page).getByRole('button', { name: 'Mes', exact: true }).click();
+    await reportPeriods(page).getByRole('button', { name: '30 días', exact: true }).click();
     await expect(page.locator('.gamount')).toContainText('450.000');
 
     await reportTabs(page).getByRole('button', { name: 'Stock' }).click();
-    await expect(page.getByRole('heading', { name: 'Estado actual' })).toBeVisible();
-    await expect(page.locator('.gamount')).toHaveText('1');
+    await expect(page.getByRole('heading', { name: 'Por estado actual' })).toBeVisible();
+    await expect(page.locator('.gamount')).toHaveText('1 equipo');
     await expect(page.getByRole('button', { name: 'Disponible: 1' })).toBeVisible();
     await expect(page.getByText(model)).toBeVisible();
     await page.locator('.gcomp').evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
@@ -234,8 +234,8 @@ test.describe('reports on a phone', () => {
 
     await reportTabs(page).getByRole('button', { name: 'Canjes' }).click();
     await expect(page.getByRole('heading', { name: 'Por estado' })).toBeVisible();
-    await expect(page.locator('.gamount')).toHaveText('1');
-    await expect(page.getByText('1 en curso')).toBeVisible();
+    await expect(page.locator('.gamount')).toHaveText('1 canje');
+    await expect(page.locator('.gdelta')).toHaveClass(/report-delta-neutral/);
     await expect(page.getByRole('button', { name: 'Peritaje téc.: 1' })).toBeVisible();
     await expect(page.getByText(received)).toBeVisible();
     await page.locator('.gcomp').evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
@@ -336,9 +336,9 @@ test.describe('reports breakdown for clients and service', () => {
     if (shots) await page.screenshot({ path: `${shots}/reports-1440-ventas.png`, fullPage: true });
 
     await reportTabs(page).getByRole('button', { name: 'Clientes' }).click();
-    await expect(page.getByText(/Altas ·/)).toBeVisible();
+    await expect(page.getByText('Clientes nuevos · registros')).toBeVisible();
     await expect(page.locator('.gamount')).toHaveText('2');
-    await expect(page.getByText('0 recurrentes')).toBeVisible();
+    await expect(page.getByText(/0 recurrentes\./)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Top por compras' })).toBeVisible();
     await expect(page.getByText(ana)).toBeVisible();
     await expect(page.getByText(luis)).toBeVisible();
@@ -347,7 +347,8 @@ test.describe('reports breakdown for clients and service', () => {
 
     await reportTabs(page).getByRole('button', { name: 'Servicio' }).click();
     await expect(page.locator('.gamount')).toContainText('120.000');
-    await expect(page.getByText(/2 órdenes · tiempo medio: mismo día/)).toBeVisible();
+    await expect(page.getByText('Presupuestado · órdenes ingresadas')).toBeVisible();
+    await expect(page.getByText('Del ingreso a Entregado · 1 de 1 entregas medibles')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Por estado' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Recibido: 1' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entregado: 1' })).toBeVisible();
