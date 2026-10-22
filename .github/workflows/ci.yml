@@ -1,9 +1,16 @@
 name: CI
 
+# PRs run a fast gate (< 5 min): lint, backend unit/integration, frontend unit
+# tests (2 shards), PWA asset checks + PWA smoke and an E2E smoke (@smoke,
+# Chromium only). The full E2E suite (4 shards) and the full PWA suite
+# (iPhone WebKit + Android + desktop) run on every push to main and nightly.
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * *" # 03:00 Buenos Aires
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -13,11 +20,55 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
   ENABLE_TEST_AUTH_BYPASS: "true"
   NODE_ENV: test
+  FULL: ${{ github.event_name != 'pull_request' }}
 
 jobs:
-  lint-unit:
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.f.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: f
+        name: Detect code changes (docs-only PRs skip the test jobs)
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
+          echo "$files"
+          if echo "$files" | grep -qvE '^(docs/|openspec/|skills/)|\.md$'; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm ci --prefer-offline --no-audit --no-fund
+        working-directory: backend
+      - name: Lint frontend
+        run: npm run lint
+      - name: Lint backend
+        run: npm run lint
+        working-directory: backend
+
+  backend-tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:16
@@ -29,12 +80,11 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d imanager_test"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -42,40 +92,29 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Install backend deps
-        run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
         working-directory: backend
-
       - name: Prepare test database
         run: npx prisma db push --skip-generate
         working-directory: backend
-
-      - name: Lint frontend
-        run: npm run lint
-
-      - name: Lint backend
-        run: npm run lint
-        working-directory: backend
-
       - name: Test backend unit
         run: npm run test:unit
         working-directory: backend
-
       - name: Test backend integration
         run: npm run test:integration
         working-directory: backend
 
-  frontend-pwa:
+  frontend-unit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Frontend tests import backend modules (backend deps needed) but use no database.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -83,49 +122,60 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Install backend deps
-        run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      # Frontend tests import backend modules (backend deps needed) but use no database.
+      - run: npm ci --prefer-offline --no-audit --no-fund
         working-directory: backend
+      - name: Test frontend
+        run: npx vitest run --shard=${{ matrix.shard }}/2
 
-      - name: Get Playwright version
-        id: playwright-version
-        run: node -p "'version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
+  pwa:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - id: pw
+        run: |
+          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+          if [[ "$FULL" == "true" ]]; then echo "browsers=chromium webkit" >> "$GITHUB_OUTPUT"; else echo "browsers=chromium" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/cache@v4
+        id: pwcache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium-webkit
-
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium webkit
-
-      - name: Install Playwright browsers and system dependencies
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium webkit
-
-      - name: Test frontend
-        run: npm run test:frontend
-
+          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ steps.pw.outputs.browsers }}
+      - if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ steps.pw.outputs.browsers }}
+      - if: steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ steps.pw.outputs.browsers }}
       - name: Test PWA assets, worker and serving
         run: npm run test:pwa
-
-      - name: Test PWA on iPhone WebKit and Android Chromium
+      - name: PWA smoke (Android Chromium)
+        if: env.FULL != 'true'
+        run: npm run test:pwa:e2e -- --project=android-chromium --grep @smoke
+      - name: Full PWA suite (iPhone WebKit, Android and desktop Chromium)
+        if: env.FULL == 'true'
         run: npm run test:pwa:e2e
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # PR: one smoke job. main / nightly: the full suite in 4 shards.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0]' || '[1,2,3,4]') }}
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:16
@@ -137,12 +187,11 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d imanager_test"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -150,60 +199,47 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Install backend deps
-        run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm ci --prefer-offline --no-audit --no-fund
         working-directory: backend
-
-      - name: Get Playwright version
-        id: playwright-version
-        run: node -p "'version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
+      - id: pw
+        run: |
+          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+          if [[ "$FULL" == "true" ]]; then echo "browsers=chromium webkit" >> "$GITHUB_OUTPUT"; else echo "browsers=chromium" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/cache@v4
+        id: pwcache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium-webkit
-
-      # The default browser is Chromium; individual iPhone specs select WebKit.
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium webkit
-
-      - name: Install Playwright browsers and system dependencies
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium webkit
-
-      # globalSetup prepares this runner's database before the shard runs.
-      - name: Test E2E shard
+          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ steps.pw.outputs.browsers }}
+      - if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ steps.pw.outputs.browsers }}
+      - if: steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ steps.pw.outputs.browsers }}
+      # globalSetup prepares this runner's database before the run.
+      - name: E2E smoke (@smoke, Chromium)
+        if: env.FULL != 'true'
+        run: npm run test:e2e -- --grep @smoke
+      - name: Full E2E shard
+        if: env.FULL == 'true'
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
-
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-shard-${{ matrix.shard }}
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
 
   test:
     name: test
-    needs: [lint-unit, frontend-pwa, e2e]
+    needs: [changes, lint, backend-tests, frontend-unit, pwa, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check required job results
         env:
-          LINT_UNIT_RESULT: ${{ needs.lint-unit.result }}
-          FRONTEND_PWA_RESULT: ${{ needs.frontend-pwa.result }}
-          E2E_RESULT: ${{ needs.e2e.result }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [[ "$LINT_UNIT_RESULT" != "success" || "$FRONTEND_PWA_RESULT" != "success" || "$E2E_RESULT" != "success" ]]; then
-            echo "Required jobs did not all succeed: lint-unit=$LINT_UNIT_RESULT frontend-pwa=$FRONTEND_PWA_RESULT e2e=$E2E_RESULT"
-            exit 1
-          fi
+          echo "$NEEDS" | jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped") and (.changes.result == "success")' \
+            || { echo "Required jobs did not all succeed"; exit 1; }

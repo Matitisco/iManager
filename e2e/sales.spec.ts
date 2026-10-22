@@ -9,7 +9,7 @@ import {
   fetchSales,
 } from './utils';
 
-test('creates a sale from available inventory and persists client and stock changes', async ({ page, request }, testInfo) => {
+test('@smoke creates a sale from available inventory and persists client and stock changes', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'sales');
   const storeName = `Sales Store ${testInfo.parallelIndex}`;
   const productModel = `iPhone Sale ${Date.now()}`;
