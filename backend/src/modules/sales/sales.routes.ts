@@ -250,7 +250,7 @@ export async function salesRoutes(app: FastifyInstance) {
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
       if (await isIntegratedSale(request.appUser.storeId, params.id, { excludeCancelled: true })) {
-        await cancelOperationFromSale(request.appUser.storeId, params.id, actor, readReason(request.body));
+        await cancelOperationFromSale(request.appUser.storeId, params.id, actor, readReason(request.body), true);
         return reply.code(204).send();
       }
       const deleted = await deleteSale(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });

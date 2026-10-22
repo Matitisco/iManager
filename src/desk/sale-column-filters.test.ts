@@ -43,3 +43,10 @@ describe('sale column filters', () => {
     expect(saleColumnActive(filters({ payments: ['Efectivo'] }), 'client')).toBe(false);
   });
 });
+
+
+it.each([{ status: 'CANCELADA' }, { voidedAt: '2026-10-22' }, { status: 'CANCELADA', voidedAt: '2026-10-22' }])('matches the unified Anulada filter for %j and excludes active states', patch => {
+  const row = sale(patch);
+  expect(matchesSaleColumns(row, filters({ statuses: ['ANULADA'] }), labels)).toBe(true);
+  expect(matchesSaleColumns(row, filters({ statuses: ['COMPLETADA', 'PENDIENTE'] }), labels)).toBe(false);
+});

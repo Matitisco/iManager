@@ -303,3 +303,32 @@ describe('Seller column filter', () => {
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
   });
 });
+
+
+describe.each([390, 1440])('unified void status at %ipx', width => {
+  const originalMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = originalMedia; });
+  it('shows cancelled and voided sales in red in Todos and in the single Anulada filter', async () => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: width === 390 && query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [sale(1, { status: 'COMPLETADA' }), sale(2, { status: 'CANCELADA' }), sale(3, { status: 'COMPLETADA', voidedAt: '2026-10-22' })];
+    context.appSession = null;
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    for (const name of ['Cliente 2', 'Cliente 3']) {
+      expect(screen.getByText(name).closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
+    }
+    if (width === 390) {
+      await user.click(screen.getByText('Opciones de lista', { exact: true }));
+      await user.click(within(screen.getByTestId('sales-status')).getByRole('button', { name: 'Estado' }));
+      expect(screen.queryByRole('button', { name: 'Cancelada' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Anulada' }));
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+      expect(screen.queryByRole('checkbox', { name: 'Cancelada' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('checkbox', { name: 'Anulada' }));
+    }
+    expect(screen.getByText('Cliente 2')).toBeInTheDocument();
+    expect(screen.getByText('Cliente 3')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
+  });
+});

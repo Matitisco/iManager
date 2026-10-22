@@ -29,12 +29,12 @@ function renderScreen() {
 const rows = () => within(screen.getByRole('table', { name: 'Canjes' })).getAllByRole('row').slice(1);
 
 function expectCancelledPresentation(record: HTMLElement) {
-  const pill = within(record).getByText('Cancelado');
+  const pill = within(record).getByText('Anulada');
   expect(pill).toHaveStyle({ '--pc': '#DC4C4C' });
   expect(pill.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
   expect(within(record).getByText('Canje quitado de la venta V-0042')).toBeInTheDocument();
-  expect(within(record).queryByText('Operación cancelada')).not.toBeInTheDocument();
-  const chip = screen.getByRole('button', { name: 'Cancelado' });
+  expect(within(record).queryByText('Operación anulada')).not.toBeInTheDocument();
+  const chip = screen.getByRole('button', { name: 'Anulada' });
   expect(chip.querySelector('svg')).toHaveAttribute('data-icon', 'cerrar');
   expect(chip).toHaveStyle({ '--chip-color': '#DC4C4C' });
 }
@@ -54,10 +54,10 @@ describe('Trade-ins table', () => {
     renderScreen();
     const removed = rows().find((row) => row.textContent?.includes('Recibido 1'))!;
     expectCancelledPresentation(removed);
-    expect(screen.getByText('Operación cancelada')).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelado' }));
+    expect(screen.getByText('Operación anulada')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Anulada' }));
     expect(rows()).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Cancelado' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Anulada' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('paginates twelve records, resets after search/filter/sort and clamps after removals', async () => {
@@ -248,7 +248,7 @@ describe('Trade-ins on a phone', () => {
     state.tradeIns = [trade(1, { status: 'CANCELADO', confirmationStatus: 'CANCELLED', removedFromSaleNumber: 42 }), trade(2)];
     renderScreen();
     expectCancelledPresentation(screen.getByTestId('tradeins-timeline'));
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelado' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Anulada' }));
     expect(screen.queryByText('Recibido: Recibido 2')).not.toBeInTheDocument();
     expect(screen.getByText('1 de 2')).toBeInTheDocument();
   });

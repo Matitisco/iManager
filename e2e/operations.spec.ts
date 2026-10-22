@@ -170,12 +170,12 @@ test('a linked canje edit updates both records and cancellation keeps the client
   await detail.getByRole('button', { name: 'Peritaje téc.' }).click();
   await detail.getByRole('button', { name: 'Guardar estado' }).click();
   await expect.poll(async () => (await fetchTradeIns(request, email)).tradeIns[0]?.status).toBe('PERITAJE TÉC.');
-  await (await sheetAction(detail, 'Cancelar operación')).click();
-  await expect(page.getByRole('dialog', { name: 'Cancelar operación' })).toBeVisible();
-  await page.getByRole('dialog', { name: 'Cancelar operación' }).getByRole('button', { name: 'Cancelar operación' }).click();
-  await expect(page.locator('.toast.show')).toContainText('Operación cancelada');
-  await expect(page.getByText(/Operación cancelada/).last()).toBeVisible();
-  const afterCancelSales = await fetchSales(request, email);
+  await (await sheetAction(detail, 'Anular')).click();
+  await expect(page.getByRole('dialog', { name: /Anular (venta|canje)/ })).toBeVisible();
+  await page.getByRole('dialog', { name: /Anular (venta|canje)/ }).getByRole('button', { name: 'Anular' }).click();
+  await expect(page.locator('.toast.show')).toContainText('Operación anulada');
+  await expect(page.getByText(/Operación anulada/).last()).toBeVisible();
+  const afterCancelSales = await fetchSales(request, email, true);
   expect(afterCancelSales.sales[0]?.status).toBe('CANCELADA');
   const afterCancelClients = await fetchClients(request, email);
   expect(afterCancelClients.clients.filter((client) => client.name === clientName)).toHaveLength(1);
@@ -202,13 +202,13 @@ test('a cancellation notification survives reload, opens the archived received d
 
   await page.getByRole('row').filter({ hasText: received }).click();
   const detail = page.getByRole('dialog');
-  await (await sheetAction(detail, 'Cancelar operación')).click();
-  const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
+  await (await sheetAction(detail, 'Anular')).click();
+  const confirm = page.getByRole('dialog', { name: /Anular (venta|canje)/ });
   await confirm.getByRole('button', { name: 'Volver', exact: true }).click();
   await openSheetActions(detail);
-  await expect(detail.getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
-  await (await sheetAction(detail, 'Cancelar operación')).click();
-  await confirm.getByRole('button', { name: 'Cancelar operación' }).click();
+  await expect(detail.getByRole('button', { name: 'Anular' })).toBeVisible();
+  await (await sheetAction(detail, 'Anular')).click();
+  await confirm.getByRole('button', { name: 'Anular' }).click();
   await expect(detail).toBeHidden();
   await page.reload();
 

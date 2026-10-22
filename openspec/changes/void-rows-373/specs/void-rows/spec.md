@@ -13,3 +13,14 @@ Las acciones MUST reutilizar el modal de motivos con chips y guardar el motivo e
 #### Scenario: Error al guardar
 - **WHEN** falla el backend al archivar o anular
 - **THEN** el modal permanece abierto con error y conserva el motivo elegido.
+
+### Requirement: Acción única de anulación
+Ventas y canjes MUST ofrecer únicamente Anular con ReasonSheet y motivo opcional, bajo los permisos sensibles existentes. Las operaciones integradas MUST revertir stock, saldos, pagos y comisiones igual que Cancelar y registrar voidedAt, voidedBy y voidReason atómicamente en venta y canje vinculados.
+
+#### Scenario: Anular operación integrada
+- **WHEN** una persona autorizada anula una venta o canje con o sin motivo
+- **THEN** se revierte la operación una sola vez y sus registros permanecen rojos en Todos, excluidos de totales.
+
+#### Scenario: Cancelación histórica
+- **WHEN** existen registros CANCELADA o CANCELLED sin voidedAt
+- **THEN** se muestran como Anulada y el filtro Anulada los incluye junto a las bajas lógicas, sin filtro Cancelada ni migración de datos.

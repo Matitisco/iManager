@@ -139,8 +139,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     const returnsCredit = Boolean(repair && repair.deposit > 0);
     const creditDelete = overlay.kind === 'cl' && Boolean(error?.includes('saldo a favor'));
     const voiding = overlay.kind === 'sale' || overlay.kind === 'cj';
-    const title = cancelling ? 'Cancelar operación' : overlay.kind === 'sale' ? `Anular venta ${overlay.label}` : overlay.kind === 'cj' ? 'Anular canje' : overlay.kind === 'ot' ? 'Archivar orden' : overlay.kind === 'cl' ? 'Archivar cliente' : 'Archivar equipo';
-    const note = cancelling ? 'La operación se cancelará y quedará en el historial.' : voiding
+    const title = overlay.kind === 'sale' ? `Anular venta ${overlay.label}` : overlay.kind === 'cj' ? 'Anular canje' : overlay.kind === 'ot' ? 'Archivar orden' : overlay.kind === 'cl' ? 'Archivar cliente' : 'Archivar equipo';
+    const note = cancelling ? 'Se anula la operación asociada: se restauran stock y saldos, se revierten pagos y comisiones y el equipo recibido del canje queda archivado. Sigue visible en rojo.' : voiding
       ? 'El equipo vuelve a Disponible y se anula la comisión. Sigue visible en rojo y no se puede deshacer.'
       : returnsCredit
         ? 'La orden queda archivada. Si tenía una seña aplicada, vuelve como saldo a favor del cliente. Podés restaurarla.'
@@ -154,7 +154,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
         title={title}
         subtitle={overlay.label}
         note={note}
-        ok={cancelling ? 'Cancelar operación' : voiding ? 'Anular' : 'Archivar'}
+        ok={voiding ? 'Anular' : 'Archivar'}
         danger={voiding}
         busy={busy}
         error={error}

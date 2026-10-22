@@ -207,28 +207,30 @@ export async function operationsRoutes(app: FastifyInstance) {
     return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input);
   });
 
-  app.post("/:source/trades/:id/cancel", { preHandler }, async (request, reply) => {
-    const params = routeParams(request);
-    const source = getSource(params.source);
-    if (!source) return reply.code(400).send({ error: "Invalid operation source" });
-    if (source !== "tradeins" && source !== "sales" && source !== "inventory" && source !== "clients") return reply.code(403).send({ error: "This source cannot cancel a trade-in" });
-    if (!authorized(request, reply, source)) return;
-    if (source === "inventory" || source === "clients") {
-      if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only cancel its pending trade-in" });
-    } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
-    const actor = await requireSensitiveActor(request.appUser, reply);
-    if (!actor) return;
-    return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body)) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body));
-  });
+  for (const action of ["cancel", "void"] as const) {
+    app.post(`/:source/trades/:id/${action}`, { preHandler }, async (request, reply) => {
+      const params = routeParams(request);
+      const source = getSource(params.source);
+      if (!source) return reply.code(400).send({ error: "Invalid operation source" });
+      if (source !== "tradeins" && source !== "sales" && source !== "inventory" && source !== "clients") return reply.code(403).send({ error: "This source cannot cancel a trade-in" });
+      if (!authorized(request, reply, source)) return;
+      if (source === "inventory" || source === "clients") {
+        if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only cancel its pending trade-in" });
+      } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body), action === "void") : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body), action === "void");
+    });
 
-  app.post("/:source/sales/:id/cancel", { preHandler }, async (request, reply) => {
-    const params = routeParams(request);
-    const source = getSource(params.source);
-    if (!source) return reply.code(400).send({ error: "Invalid operation source" });
-    if (source !== "sales") return reply.code(403).send({ error: "Only sales source can cancel a sale" });
-    if (!authorized(request, reply, source)) return;
-    const actor = await requireSensitiveActor(request.appUser, reply);
-    if (!actor) return;
-    return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body));
-  });
+    app.post(`/:source/sales/:id/${action}`, { preHandler }, async (request, reply) => {
+      const params = routeParams(request);
+      const source = getSource(params.source);
+      if (!source) return reply.code(400).send({ error: "Invalid operation source" });
+      if (source !== "sales") return reply.code(403).send({ error: "Only sales source can cancel a sale" });
+      if (!authorized(request, reply, source)) return;
+      const actor = await requireSensitiveActor(request.appUser, reply);
+      if (!actor) return;
+      return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body), action === "void");
+    });
+  }
 }

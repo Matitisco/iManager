@@ -212,8 +212,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
             <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
             <SheetActionMenu>
               <button className="btn2 s" type="button" disabled={busy || !statusChanged} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
-              {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-              {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}
+              {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
             </SheetActionMenu>
             <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button>
           </SheetActions>
@@ -222,28 +221,28 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
               <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
               <SheetActionMenu>
                 <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
-                {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
-                {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}
+                {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
               </SheetActionMenu>
               <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
             </SheetActions>
           : <SheetActions>
               <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-              {canManageSensitive ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button>{canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}</SheetActionMenu> : null}
+              {canManageSensitive ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button></SheetActionMenu> : null}
               <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
             </SheetActions>;
     if (confirmCancel) {
       return (
         <ConfirmOperationDialog
+          title="Anular canje"
           label={tradeCode(tradeIns, trade.id)}
           refund={plan.refund}
           coveredCredit={plan.credit}
-        depositCredit={linkedSaleForRefund?.depositAppliedAmount}
+          depositCredit={linkedSaleForRefund?.depositAppliedAmount}
           currency={trade.currency}
           busy={busy}
           error={error}
           onClose={() => { if (!busy) setConfirmCancel(false); }}
-          onOk={reason => { void run(async () => await cancelTradeOperation(source, id, reason), 'Operación cancelada'); }}
+          onOk={reason => { void run(async () => await cancelTradeOperation(source, id, reason), 'Operación anulada'); }}
         />
       );
     }
@@ -252,8 +251,8 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
         <RecordHistory entityType="trade" entityId={trade.id} />
-        <div className="kv"><span>Estado técnico</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
-        {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Cancelada" by={trade.cancelledBy} at={trade.cancelledAt} /> : null}
+        <div className="kv"><span>Estado técnico</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>
+        {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Anulada" by={trade.voidedBy ?? trade.cancelledBy} at={trade.voidedAt ?? trade.cancelledAt} /> : null}
         {trade.confirmationStatus !== 'CANCELLED' ? (
           <>
             <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
@@ -278,7 +277,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next ? <SheetActions>
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next && !trade.voidedAt ? <SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={trade.status === 'APROBADO' ? close : () => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>{trade.status === 'APROBADO' ? 'Después' : 'Rechazar'}</button>
       <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
     </SheetActions> : <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
@@ -289,7 +288,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
       <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
-      <div className="kv"><span>Estado</span><b><Pill status={trade.status} kind="TRADE_IN_STATUS" /></b></div>
+      <div className="kv"><span>Estado</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>
     </Sheet>
   );
 }

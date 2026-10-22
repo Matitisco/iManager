@@ -100,6 +100,12 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
     show(<TradeInsScreen />);
     expect((await screen.findByText(width === 390 ? 'Recibido: Canje anulado' : 'Canje anulado')).closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
     expect(screen.getByText(width === 390 ? 'Recibido: Canje cancelado' : 'Canje cancelado').closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
+    expect(screen.queryByRole('button', { name: 'Cancelada' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelado' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Anulada' }));
+    expect(screen.getByText(width === 390 ? 'Recibido: Canje anulado' : 'Canje anulado')).toBeInTheDocument();
+    expect(screen.getByText(width === 390 ? 'Recibido: Canje cancelado' : 'Canje cancelado')).toBeInTheDocument();
+    expect(screen.queryByText(width === 390 ? 'Recibido: Canje activo' : 'Canje activo')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pendiente' }));
     expect(screen.queryByText(width === 390 ? 'Recibido: Canje anulado' : 'Canje anulado')).not.toBeInTheDocument();
     expect(screen.queryByText(width === 390 ? 'Recibido: Canje cancelado' : 'Canje cancelado')).not.toBeInTheDocument();

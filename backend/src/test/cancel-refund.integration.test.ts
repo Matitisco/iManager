@@ -12,7 +12,7 @@ function headersFor(uid: string, name = "Test Owner") {
   };
 }
 
-describe("cancel refund", () => {
+describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("keeps the partial payment and records a refund when a pending sale is cancelled", async () => {
     const app = getApp();
     const context = await seedStoreContext({ displayName: "Ana Dueña" });
@@ -61,7 +61,7 @@ describe("cancel refund", () => {
 
     const denied = await app.inject({
       method: "POST",
-      url: `/api/operations/sales/sales/${saleId}/cancel`,
+      url: `/api/operations/sales/sales/${saleId}/${action}`,
       headers: staffHeaders,
       payload: {},
     });
@@ -71,12 +71,12 @@ describe("cancel refund", () => {
 
     const cancelled = await app.inject({
       method: "POST",
-      url: `/api/operations/sales/sales/${saleId}/cancel`,
+      url: `/api/operations/sales/sales/${saleId}/${action}`,
       headers,
       payload: { reason: "Duplicado · Operación repetida" },
     });
     expect(cancelled.statusCode).toBe(200);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: "sale.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: action === "void" ? "sale.voided" : "sale.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
     expect(cancelled.json().sale).toMatchObject({ status: "CANCELADA", cancelledBy: "Ana Dueña" });
     expect(cancelled.json().sale.cancelledAt).toEqual(expect.any(String));
     expect(cancelled.json().summary).not.toContain("devolución");
@@ -88,7 +88,12 @@ describe("cancel refund", () => {
     const stored = await prisma.sale.findUniqueOrThrow({ where: { id: saleId } });
     expect(stored.cancelledBy).toBe("Ana Dueña");
     expect(stored.cancelledAt).toBeTruthy();
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: "sale.cancelled" } })).toMatchObject({
+    if (action === "void") {
+      expect(stored.voidedAt).toBeTruthy();
+      expect(stored).toMatchObject({ voidedBy: "Ana Dueña", voidReason: "Duplicado · Operación repetida" });
+      expect(cancelled.json().sale).toMatchObject({ voidedAt: expect.any(String), voidedBy: "Ana Dueña", voidReason: "Duplicado · Operación repetida" });
+    }
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: action === "void" ? "sale.voided" : "sale.cancelled" } })).toMatchObject({
       actorName: "Ana Dueña",
       detail: "Saldo a favor $ 300",
     });
@@ -115,7 +120,7 @@ describe("cancel refund", () => {
 
     const repeated = await app.inject({
       method: "POST",
-      url: `/api/operations/sales/sales/${saleId}/cancel`,
+      url: `/api/operations/sales/sales/${saleId}/${action}`,
       headers,
       payload: {},
     });
@@ -158,14 +163,21 @@ describe("cancel refund", () => {
 
     const cancelled = await app.inject({
       method: "POST",
-      url: `/api/operations/tradeins/trades/${tradeId}/cancel`,
+      url: `/api/operations/tradeins/trades/${tradeId}/${action}`,
       headers,
       payload: { reason: "Duplicado · Operación repetida" },
     });
     expect(cancelled.statusCode).toBe(200);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeId, action: "trade.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeId, action: action === "void" ? "trade.voided" : "trade.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
     expect(cancelled.json().sale.status).toBe("CANCELADA");
     expect(cancelled.json().tradeIn).toMatchObject({ confirmationStatus: "CANCELLED", cancelledBy: "Test Owner" });
+    if (action === "void") {
+      for (const row of [cancelled.json().sale, cancelled.json().tradeIn]) {
+        expect(row).toMatchObject({ voidedAt: expect.any(String), voidedBy: "Test Owner", voidReason: "Duplicado · Operación repetida" });
+      }
+      const storedTrade = await prisma.tradeIn.findUniqueOrThrow({ where: { id: tradeId } });
+      expect(storedTrade).toMatchObject({ voidedAt: expect.any(Date), voidedBy: "Test Owner", voidReason: "Duplicado · Operación repetida" });
+    }
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
     expect(client.pendingBalance.toNumber()).toBe(0);
     expect(client.totalSpent.toNumber()).toBe(0);
@@ -217,7 +229,7 @@ describe("cancel refund", () => {
 
     const cancelled = await app.inject({
       method: "POST",
-      url: `/api/operations/sales/sales/${saleId}/cancel`,
+      url: `/api/operations/sales/sales/${saleId}/${action}`,
       headers,
       payload: {},
     });
@@ -255,7 +267,7 @@ describe("cancel refund", () => {
     const saleId = created.json().sale.id as string;
     const cancelled = await app.inject({
       method: "POST",
-      url: `/api/operations/sales/sales/${saleId}/cancel`,
+      url: `/api/operations/sales/sales/${saleId}/${action}`,
       headers,
       payload: {},
     });
@@ -264,7 +276,7 @@ describe("cancel refund", () => {
     expect(client.pendingBalance.toNumber()).toBe(0);
     expect(client.totalSpent.toNumber()).toBe(0);
     expect(await prisma.clientPayment.count({ where: { clientId: fixture.client.id } })).toBe(0);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: "sale.cancelled" } })).toMatchObject({
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: action === "void" ? "sale.voided" : "sale.cancelled" } })).toMatchObject({
       detail: null,
     });
   });
@@ -297,7 +309,7 @@ describe("cancel refund", () => {
     });
     expect(payment.statusCode, payment.body).toBe(201);
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).not.toContain("devolución");
     expect(cancelled.json().summary).toContain("saldo a favor");
@@ -332,7 +344,7 @@ describe("cancel refund", () => {
     expect(cargo.statusCode, cargo.body).toBe(201);
     expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(65);
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).toMatch(/devolución (US\$|\$) 100/);
     expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(15);
@@ -367,7 +379,7 @@ describe("cancel refund", () => {
     });
     expect(payment.statusCode, payment.body).toBe(201);
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).toContain("devolución US$ 30");
     expect((await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } })).pendingBalance.toNumber()).toBe(80);
@@ -470,7 +482,7 @@ describe("cancel refund", () => {
     expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
     expect(covered.lines.some((line) => line.source === "REPARACION")).toBe(true);
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).not.toContain("devolución");
     expect(cancelled.json().summary).toContain("saldo a favor US$ 100");
@@ -507,7 +519,7 @@ describe("cancel refund", () => {
     expect(covered.lines.find((line) => line.source === "VENTA")).toMatchObject({ amount: 20 });
     expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 35 });
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).not.toContain("devolución");
     expect(cancelled.json().summary).toContain("saldo a favor US$ 80");
@@ -536,7 +548,7 @@ describe("cancel refund", () => {
     expect(before.pendingBalance).toBe(135);
     expect(before.lines.find((line) => line.source === "MANUAL")?.amount).toBe(35);
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).not.toContain("devolución");
     expect(cancelled.json().summary).not.toContain("saldo a favor");
@@ -573,7 +585,7 @@ describe("cancel refund", () => {
     expect(covered.lines.find((line) => line.source === "VENTA")).toMatchObject({ amount: 650 });
     expect(covered.lines.find((line) => line.source === "MANUAL")).toMatchObject({ amount: 50 });
 
-    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/cancel`, headers, payload: {} });
+    const cancelled = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${saleId}/${action}`, headers, payload: {} });
     expect(cancelled.statusCode, cancelled.body).toBe(200);
     expect(cancelled.json().summary).not.toContain("devolución");
     expect(cancelled.json().summary).toContain("saldo a favor US$ 300");
@@ -631,15 +643,15 @@ describe("cancel refund", () => {
     const first = account.json().installments[0];
     expect(first.amount - first.paidAmount).toBe(20);
 
-    const cancelCovered = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${coveredId}/cancel`, headers, payload: {} });
+    const cancelCovered = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${coveredId}/${action}`, headers, payload: {} });
     expect(cancelCovered.statusCode, cancelCovered.body).toBe(200);
     expect(cancelCovered.json().summary).toContain("saldo a favor US$ 30");
     expect(cancelCovered.json().summary).not.toContain("devolución");
-    const cancelOpen = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${openId}/cancel`, headers, payload: {} });
+    const cancelOpen = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${openId}/${action}`, headers, payload: {} });
     expect(cancelOpen.statusCode, cancelOpen.body).toBe(200);
     expect(cancelOpen.json().summary).not.toContain("saldo a favor");
     expect(cancelOpen.json().summary).not.toContain("devolución");
-    const cancelPaid = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${paidId}/cancel`, headers, payload: {} });
+    const cancelPaid = await app.inject({ method: "POST", url: `/api/operations/sales/sales/${paidId}/${action}`, headers, payload: {} });
     expect(cancelPaid.statusCode, cancelPaid.body).toBe(200);
     expect(cancelPaid.json().summary).toContain("devolución US$ 40");
     expect(cancelPaid.json().summary).not.toContain("saldo a favor");

@@ -1,6 +1,6 @@
 import type { Sale } from '../types';
 import { includesText, matchesDateRange, matchesMoney } from './column-filters';
-import { paymentLabel, saleCode } from './format';
+import { isVoidRow, paymentLabel, saleCode } from './format';
 
 export type SaleColumnFilters = {
   code: string;
@@ -76,7 +76,7 @@ export function matchesSaleColumns(
   if (!includesText(labels.equipment, filters.equipment)) return false;
   if (filters.payments.length > 0 && !filters.payments.includes(paymentLabel(sale.paymentMethod))) return false;
   if (!matchesMoney(sale.amount, filters.amountMin, filters.amountMax)) return false;
-  const status = sale.voidedAt ? 'ANULADA' : sale.status;
+  const status = isVoidRow(sale) ? 'ANULADA' : sale.status;
   if (filters.statuses.length > 0 && !filters.statuses.includes(status)) return false;
   if (filters.sellers.length > 0 && !filters.sellers.includes(saleSellerKey(sale))) return false;
   return true;

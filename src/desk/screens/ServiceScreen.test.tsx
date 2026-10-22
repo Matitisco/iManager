@@ -580,7 +580,7 @@ describe('servicio técnico', () => {
     cleanup();
     desk(<DeskOverlays overlay={{ type: 'del', kind: 'ot', id: '95', label: '#OT-0095 · iPhone 14' }} />);
     await user.click(screen.getByRole('button', { name: 'Archivar' }));
-    expect(deleteRepairOrder).toHaveBeenCalledWith('95', 'Error de carga');
+    expect(deleteRepairOrder).toHaveBeenCalledWith('95', '');
     expect(toast).toHaveBeenCalledWith('Archivado');
   });
 });

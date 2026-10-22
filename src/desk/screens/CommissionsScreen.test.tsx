@@ -128,7 +128,7 @@ describe('Comisiones', () => {
     await userEvent.click(actions);
     await userEvent.click(screen.getByRole('button', { name: `${action} regla de Todo el equipo` }));
     await userEvent.click(within(screen.getByRole('dialog', { name: `${action} regla` })).getByRole('button', { name: `${action} regla` }));
-    if (action === 'Eliminar') expect(context.deleteCommissionRule).toHaveBeenCalledWith('team-rule', 'Error de carga');
+    if (action === 'Eliminar') expect(context.deleteCommissionRule).toHaveBeenCalledWith('team-rule', '');
     else expect(context.setCommissionRuleActive).toHaveBeenCalledWith('team-rule', action === 'Activar');
   });
   it('keeps rule confirmation open on a persistence error', async () => {
@@ -153,7 +153,7 @@ describe('Comisiones', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Anular pago' })).getByRole('button', { name: 'Anular pago' }));
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Anular pago' })).toHaveTextContent('Pago no anulado'));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Anular pago' })).getByRole('button', { name: 'Anular pago' }));
-    expect(context.voidCommissionPayment).toHaveBeenLastCalledWith('payment-sofia-1', 'sofia', '2026-10', 'Error de carga');
+    expect(context.voidCommissionPayment).toHaveBeenLastCalledWith('payment-sofia-1', 'sofia', '2026-10', '');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Anular pago' })).not.toBeInTheDocument());
   });
   it('explains the personal commissions view', () => {

@@ -181,7 +181,7 @@ test.describe('sales on a phone', () => {
     await openSheetActions(detail);
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Editar' })).toBeVisible();
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Compartir comprobante' })).toBeVisible();
-    await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
+    await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Anular' })).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sales-390-detail.png` });
@@ -201,15 +201,15 @@ test.describe('sales on a phone', () => {
     await again.locator('.sheet-foot').getByRole('button', { name: 'Compartir comprobante' }).click();
     await expect(page.getByText('Comprobante copiado')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
-    await (await sheetAction(again, 'Cancelar operación')).click();
-    const confirm = page.getByRole('dialog', { name: 'Cancelar operación' });
+    await (await sheetAction(again, 'Anular')).click();
+    const confirm = page.getByRole('dialog', { name: /Anular (venta|canje)/ });
     await expect(confirm).toBeVisible();
     await settleMotion(page, '.dialog');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sales-390-cancel.png` });
     await confirm.getByRole('button', { name: 'Volver' }).click();
     await openSheetActions(again);
-    await expect(again.locator('.sheet-foot').getByRole('button', { name: 'Cancelar operación' })).toBeVisible();
+    await expect(again.locator('.sheet-foot').getByRole('button', { name: 'Anular' })).toBeVisible();
     await again.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
 
     await page.getByTestId('row-menu').click();

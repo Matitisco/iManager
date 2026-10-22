@@ -1,7 +1,7 @@
 import React, { Children, cloneElement, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useCatalogs } from './catalog';
-import { statusColor, statusLabel } from './format';
+import { isVoidRow, statusColor, statusLabel } from './format';
 import type { CatalogKind } from '../services/catalogs-api';
 import { batteryColor, extractMinBattery, formatBatteryDisplay } from '../utils/inventory';
 import { ModalCloseButton } from './close-button';
@@ -26,7 +26,7 @@ export function useDesk() {
 
 export function Pill({ status, kind }: { status: string; kind?: CatalogKind }) {
   const catalogs = useCatalogs();
-  const row = kind ? catalogs?.options.find((option) => option.kind === kind && option.value === status) : undefined;
+  const row = kind && !isVoidRow({ status }) ? catalogs?.options.find((option) => option.kind === kind && option.value === status) : undefined;
   const label = row?.label ?? statusLabel(status);
   const icon = statusIcon(status) ?? statusIcon(label);
   return (

@@ -72,9 +72,10 @@ const STATUS_LABEL: Record<string, string> = {
   RESERVADO: 'Reservado',
   COMPLETADA: 'Completada',
   PENDIENTE: 'Pendiente',
-  CANCELADA: 'Cancelada',
+  CANCELADA: 'Anulada',
   ANULADA: 'Anulada',
-  CANCELADO: 'Cancelado',
+  CANCELADO: 'Anulada',
+  CANCELLED: 'Anulada',
   LISTO: 'Completado',
   'PERITAJE TÉC.': 'Peritaje téc.',
   'EN REVISIÓN': 'En revisión',
@@ -110,7 +111,8 @@ const STATUS_COLOR: Record<string, string> = {
   PENDIENTE: '#E8A33D',
   Pendiente: '#E8A33D',
   CANCELADA: '#DC4C4C',
-  ANULADA: '#9AA0AA',
+  ANULADA: '#DC4C4C',
+  Anulada: '#DC4C4C',
   Cancelada: '#DC4C4C',
   CANCELADO: '#DC4C4C',
   Cancelado: '#DC4C4C',
@@ -206,7 +208,7 @@ export function tradeClientLabel(trade: { clientId?: string; clientName?: string
 export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumber'>): string {
   return trade.removedFromSaleNumber != null
     ? `Canje quitado de la venta V-${String(trade.removedFromSaleNumber).padStart(4, '0')}`
-    : 'Operación cancelada';
+    : 'Operación anulada';
 }
 
 export function isActiveTradeOperation(trade: { confirmationStatus?: string | null }): boolean {

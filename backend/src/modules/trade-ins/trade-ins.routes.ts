@@ -166,7 +166,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
       if (await isIntegratedTradeIn(request.appUser.storeId, params.id, { excludeCancelled: true })) {
-        await cancelTradeOperation(request.appUser.storeId, params.id, actor, readReason(request.body));
+        await cancelTradeOperation(request.appUser.storeId, params.id, actor, readReason(request.body), true);
         return reply.code(204).send();
       }
       const deleted = await deleteTradeIn(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });

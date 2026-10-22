@@ -4,7 +4,7 @@ import { devices, expect, test, type Locator, type Page } from '@playwright/test
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, importSalesViaApi, fetchSales } from './utils';
 
 const shots = process.env.ISSUE_447_SHOTS?.trim();
-const tradeActions = ['Cerrar', 'Cancelar operación', 'Editar', 'Devolver', 'Compartir comprobante'];
+const tradeActions = ['Cerrar', 'Anular', 'Editar', 'Devolver', 'Compartir comprobante'];
 const tradeLabels = ['Equipo recibido', 'Calidad recibida', 'Valor tomado', 'Diferencia del canje', 'Estado técnico', 'Confirmación'];
 const { defaultBrowserType: iphoneBrowser, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType: iphoneBrowser });
@@ -176,7 +176,7 @@ for (const device of [
         await navigate(page, 'reports', device.phone);
         await page.locator('.gtk').filter({ hasText: code }).click();
         const detail = page.getByRole('dialog', { name: code });
-      const names = pending ? ['Cerrar', 'Cancelar venta', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante'];
+      const names = pending ? ['Cerrar', 'Anular', 'Marcar cobrada'] : ['Cerrar', 'Editar', 'Devolver', 'Compartir comprobante'];
         await expectSharedLayout(page, detail, names, false);
         if (!pending) {
           if (device.name === 'desktop-640') await screenshot(page, 'issue-447-desktop-1536-sin-canje.png');

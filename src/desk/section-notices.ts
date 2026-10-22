@@ -83,14 +83,14 @@ export function fallbackNoticeReason(note: { section: string; title: string; mes
     return title || 'Cliente';
   }
   if (section === 'sales') {
-    if (/cancel/i.test(title)) return 'Cancelada';
+    if (/cancel|anulad/i.test(title)) return 'Anulada';
     if (/actualiz/i.test(title)) return 'Actualizada';
     return 'Venta registrada';
   }
   if (section === 'tradeins') {
     if (/borrador actualizado/i.test(title)) return 'Borrador actualizado';
     if (/borrador/i.test(title)) return 'Borrador';
-    if (/cancel/i.test(title)) return 'Cancelado';
+    if (/cancel|anulad/i.test(title)) return 'Anulada';
     if (/actualiz/i.test(title)) return 'Actualizado';
     return 'Confirmado';
   }
@@ -101,7 +101,7 @@ function storedTargets(value: OperationNotification['targets']) {
   if (!Array.isArray(value)) return [];
   return value.filter((target): target is { recordId: string; reason: string } => {
     return Boolean(target && typeof target.recordId === 'string' && target.recordId.trim() && typeof target.reason === 'string' && target.reason.trim());
-  }).map((target) => ({ recordId: target.recordId.trim(), reason: target.reason.trim() }));
+  }).map((target) => ({ recordId: target.recordId.trim(), reason: target.reason.trim().replace(/^Cancelad[ao]$/, 'Anulada') }));
 }
 
 export function rowsForNotice(note: OperationNotification): Array<{ recordId: string; reason: string; notificationId: string }> {
