@@ -20,7 +20,7 @@ export async function resolveAppUser(request: FastifyRequest, reply: FastifyRepl
 
   const path = request.url.split('?')[0];
   const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-  const accountWrite = path === '/api/events' || path.startsWith('/api/billing') || path.startsWith('/api/notifications') || path.startsWith('/api/security');
+  const accountWrite = path === '/api/events' || path.startsWith('/api/billing') || path.startsWith('/api/notifications') || path.startsWith('/api/section-views') || path.startsWith('/api/security');
   // Owners can remove excess members after a plan change, including in read-only mode.
   const removingMember = request.method === 'DELETE' && /^\/api\/stores\/[^/]+\/members\/[^/]+$/.test(path) && membership.role === 'OWNER';
   if (!safeMethod && !accountWrite && !removingMember) await assertBillingWrite(membership.storeId);

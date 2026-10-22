@@ -9,7 +9,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../..
 import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedSale } from '../archive-cache';
-import { RecordHistory } from '../screens/HistoryScreen';
+import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
 import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
@@ -31,7 +31,7 @@ import { CameraScanner } from '../scan/CameraScanner';
 import { draftFromCode, draftFromImei } from '../scan/draft';
 import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
-import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
+import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, shareOrCopy, type FormProps } from './shared';
 import { DatePicker } from '../date-picker';
 import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView, warrantyDueCopy } from '../../lib/warranty';
 import { SalePaymentsFields, type SettlementState } from './sale-payments';
@@ -687,9 +687,10 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
     }>
       {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
       {sale.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulada</b><small>{sale.voidedBy ? `por ${sale.voidedBy}` : 'Esta venta está anulada'}{sale.voidReason ? ` · ${sale.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
-      <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
-      {sale.status === 'CANCELADA' ? <AuditLine action="Anulada" by={sale.voidedBy ?? sale.cancelledBy} at={sale.voidedAt ?? sale.cancelledAt} /> : null}
-      <RecordHistory entityType="sale" entityId={sale.id} />
+      <div className="tracking-summary">
+        <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
+        <RecordHistoryButton entityType="sale" entityId={sale.id} label={saleCode(sale)} />
+      </div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>

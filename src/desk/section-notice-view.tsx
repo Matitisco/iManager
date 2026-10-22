@@ -16,7 +16,7 @@ export function NoticesBar({ count, active, onToggle }: { count: number; active:
 
 export function NoticeTag({ reason }: { reason?: string }) {
   if (!reason) return null;
-  return <span className="novedad-tag" data-testid="notice-reason">{reason}</span>;
+  return <span className="novedad-dot" data-testid="notice-dot" role="img" aria-label="Novedad" />;
 }
 
 export function PhoneRecords({ children }: { children: ReactNode }) {

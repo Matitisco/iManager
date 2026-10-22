@@ -5,7 +5,7 @@ import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
+import { NoticeTag, PhoneRecord } from '../section-notice-view';
 import { useCatalogs } from '../catalog';
 import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { useMoney } from '../exchange';
@@ -56,7 +56,6 @@ export function TradeInsScreen() {
   const phone = usePhoneLayout();
   const [searchOpen, setSearchOpen] = useState(false);
   const notices = useSectionNotices('tradeins');
-  const [onlyNotices, setOnlyNotices] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [sort, setSort] = useState('Recientes');
@@ -90,13 +89,11 @@ export function TradeInsScreen() {
       return direction * (a - b) || direction * ((left.tradeNumber ?? 0) - (right.tradeNumber ?? 0));
     });
   }, [tradeSource, clients, query, filter, columns, sort]);
-  const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
-  const quiet = !query.trim() && filter === 'Todos' && !tradeFiltersActive(columns) && !onlyNotices;
-  const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
+  const listed = notices.prioritize(rows);
+  const quiet = !query.trim() && filter === 'Todos' && !tradeFiltersActive(columns);
+  const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${notices.key}`);
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
-  const visibleKey = page.visible.map((item) => item.id).join('|');
-  useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
 
   const statuses = useMemo(() => {
     const known = catalogs?.ready
@@ -148,7 +145,6 @@ export function TradeInsScreen() {
         />
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
-      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => tradeCode(tradeIns, item.id)}
         action={{
@@ -182,7 +178,7 @@ export function TradeInsScreen() {
                         className={isVoidRow(item) ? 'is-void' : undefined}
                         selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                         reason={reason}
-                        onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
+                        onActivate={() => { open({ type: 'cj', id: item.id }); }}
                         onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                       >
                         <TradeCard item={item} code={tradeCode(tradeIns, item.id)} client={tradeClientLabel(item, clients)} take={money.show(item.takeValue, item.currency)} difference={money.show(item.differencePaid, item.currency)} />
@@ -252,7 +248,7 @@ export function TradeInsScreen() {
                   key={item.id}
                   as="tr"
                   className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
-                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
+                  onActivate={() => { open({ type: 'cj', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                 >
                   <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>

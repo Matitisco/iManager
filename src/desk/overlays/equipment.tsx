@@ -26,9 +26,9 @@ import { draftFromCode, type ScanDraft } from '../scan/draft';
 import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
 import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, signalDesk, useDesk } from '../ui';
 import { ScanReviewSheet, scanProduct } from './scan-review';
-import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, AuditLine, type FormProps } from './shared';
+import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, type FormProps } from './shared';
 import { archivedProduct } from '../archive-cache';
-import { RecordHistory } from '../screens/HistoryScreen';
+import { RecordHistoryButton } from '../RecordHistoryButton';
 import { restoreBackendInventoryItem } from '../../services/inventory-api';
 import { deviceCoverageLines } from '../../lib/warranty';
 import { CoverageBlock } from '../warranty';
@@ -76,8 +76,10 @@ export function EquipmentDetail({ id }: { id: string }) {
     </SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
-      <RecordHistory entityType="inventory" entityId={item.id} />
-      <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+      <div className="tracking-summary">
+        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+        <RecordHistoryButton entityType="inventory" entityId={item.id} label={equipmentTitle(item.model, item.capacity)} />
+      </div>
       {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {
         setBusy(true); setError(null);
         try { await updateProduct({ ...item, customFields: { ...item.customFields, onboardingReview: null } }); toast('Equipo revisado'); }
@@ -85,8 +87,6 @@ export function EquipmentDetail({ id }: { id: string }) {
         finally { setBusy(false); }
       }}>Marcar revisado</button></div>}
       {item.needsCompletion ? <p className="needs-completion-label" data-testid="needs-completion">Para completar</p> : null}
-      <AuditLine action="Precio cambiado" by={item.priceChangedBy} at={item.priceChangedAt} />
-      <AuditLine action="Costo cambiado" by={item.costChangedBy} at={item.costChangedAt} />
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}

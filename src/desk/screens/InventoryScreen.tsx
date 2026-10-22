@@ -9,7 +9,7 @@ import { useAppContext } from '../../context/AppContext';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { rememberArchivedProducts } from '../archive-cache';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
+import { NoticeTag, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
@@ -129,7 +129,6 @@ export function InventoryScreen() {
   const [colorQuery, setColorQuery] = useState('');
   const [draftFilters, setDraftFilters] = useState<InventoryColumnFilters>(EMPTY_COLUMN_FILTERS);
   const notices = useSectionNotices('inventory');
-  const [onlyNotices, setOnlyNotices] = useNavigationState('Inventory.onlyNotices', false);
   const [query, setQuery] = useNavigationState('Inventory.query', '');
   const [columns, setColumns] = useNavigationState<InventoryColumnFilters>('Inventory.columns', EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useNavigationState('Inventory.sort', 'Recientes');
@@ -165,12 +164,10 @@ export function InventoryScreen() {
     if (sort === 'Color ↓') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'desc') || a.model.localeCompare(b.model, 'es'));
     return list;
   }, [source, query, columns, sort, money, phone, archivedMode]);
-  const listed = onlyNotices ? inventory.filter((item) => notices.reasonFor(item.id)) : rows;
-  const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${onlyNotices ? 'notices' : 'all'}`, undefined, 'Inventory');
+  const listed = notices.prioritize(rows);
+  const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${notices.key}`, undefined, 'Inventory');
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
-  const visibleKey = page.visible.map((item) => item.id).join('|');
-  useEffect(() => { notices.markVisible(page.visible.map((item) => item.id)); }, [visibleKey, notices.markVisible]);
 
   const available = inventory.filter((item) => isInStock(item.status)).length;
   const statusOptions = useMemo(() => {
@@ -207,7 +204,7 @@ export function InventoryScreen() {
   };
   const filterCount = activeColumnCount(columns);
   const clearColumns = () => setColumns(EMPTY_COLUMN_FILTERS);
-  const quietEmpty = source.length === 0 && !query.trim() && !columnFiltersActive(columns) && !onlyNotices;
+  const quietEmpty = source.length === 0 && !query.trim() && !columnFiltersActive(columns);
   const openFilters = () => {
     setDraftFilters(columns);
     setColorQuery('');
@@ -256,7 +253,6 @@ export function InventoryScreen() {
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
-      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
@@ -278,7 +274,7 @@ export function InventoryScreen() {
                   selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
                   key={item.id}
                   reason={reason}
-                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
+                  onActivate={() => { open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
@@ -425,7 +421,7 @@ export function InventoryScreen() {
                   key={item.id}
                   as="tr"
                   className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
-                  onActivate={() => { notices.markVisible([item.id]); open({ type: 'eq', id: item.id }); }}
+                  onActivate={() => { open({ type: 'eq', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >
                   <td>

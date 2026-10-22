@@ -684,7 +684,7 @@ function deltaLabel(current: number, previous: number) {
   return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% vs período anterior`;
 }
 
-function NetProfitCard({
+export function NetProfitCard({
   loading, sales, inventory, expenses, returns = [], start, end, currency, rate, show, warning,
 }: {
   loading: boolean;
@@ -710,7 +710,7 @@ function NetProfitCard({
   }
   const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
-  const periodReturns = returns.filter((row) => !row.deletedAt && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.resolvedOn ?? undefined, start, end));
+  const periodReturns = returns.filter((row) => !isVoidRow(row) && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.resolvedOn ?? undefined, start, end));
   const reversals = periodReturns.map((row) => returnReversal(row));
   const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({

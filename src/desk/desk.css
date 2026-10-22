@@ -2201,6 +2201,28 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dtable td.r { white-space: nowrap; }
 .record-history { margin: 8px 0 16px; }
 .record-history ul { margin: 8px 0 0; padding-left: 18px; color: var(--secondary); }
+.tracking-summary { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.tracking-summary .dhero { flex: 1; min-width: 0; margin: 0; }
+.tracking-summary .big { overflow-wrap: anywhere; }
+.sheet .record-history-button.btn2.s { flex: none; gap: 8px; height: auto; min-height: 44px; padding: 10px 14px; background: #fff; font-size: 14px; white-space: nowrap; }
+.tracking-history-action { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.record-history-layer > .ov { z-index: 100; }
+.record-history-sheet { width: 480px; }
+.record-history-timeline { list-style: none; padding: 0; margin: 0; }
+.record-history-timeline li { position: relative; padding: 0 0 24px 28px; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.record-history-timeline li::before { content: ''; position: absolute; top: 4px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--lime); z-index: 1; }
+.record-history-timeline li:not(:last-child)::after { content: ''; position: absolute; top: 20px; bottom: 4px; left: 7px; width: 1px; background: var(--border); }
+.record-history-timeline li:last-child { padding-bottom: 0; }
+.record-history-meta { margin: 5px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+.record-history-change { margin: 5px 0 0; line-height: 1.5; }
+.record-history-change > span:first-child { color: var(--secondary); }
+.record-history-empty { margin: 8px 0; color: var(--secondary); font-size: 14px; }
+.record-history-sheet .ferr { display: grid; justify-items: start; gap: 12px; }
+@media (max-width: 600px) {
+  .tracking-summary { gap: 8px; }
+  .tracking-summary .dhero { padding: 12px; }
+  .tracking-summary .big { font-size: 24px; }
+}
 @media (max-width: 760px) {
   .history-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; padding: 14px; }
   .history-row .spill { grid-column: 2; justify-self: start; }
@@ -2482,3 +2504,59 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .desk-app .cash-box.is-void:hover {
   background: color-mix(in srgb, var(--err) 12%, #fff);
 }
+
+/* Section visit marks: retain existing cancelled states and avoid extra copy. */
+.novedad-dot { display: inline-block; width: 6px; height: 6px; margin-inline-start: 7px; border-radius: 50%; background: var(--lime); vertical-align: middle; flex: none; }
+/* On cards the background is the visual mark; retain its accessible name without adding a line. */
+.phone-row > .novedad-dot { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+.dtable tbody tr.novedad, .dtable tbody tr.novedad:hover,
+.phone-row.novedad, .sales-screen .sale-node .phone-row.novedad {
+  background: color-mix(in srgb, var(--lime) 6%, white);
+  box-shadow: none;
+  border-color: var(--border);
+}
+.dtable tbody tr.is-void.novedad, .dtable tbody tr.is-void.novedad:hover,
+.phone-row.is-void.novedad, .sales-screen .sale-node .phone-row.is-void.novedad {
+  background: color-mix(in srgb, var(--err) 7%, white);
+  box-shadow: none;
+}
+
+/* Reclamos: explicit drafts, compact history and a persistent action footer. */
+.return-sheet { max-width: 540px; }
+.return-sheet .sheet-scroll { display: flex; flex-direction: column; gap: 20px; }
+.return-sheet .fl { margin: 0; }
+.return-sheet .fl > span, .return-choices legend { color: var(--primary); font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; margin-bottom: 8px; }
+.return-sheet textarea { display: block; min-height: 72px; resize: vertical; font-weight: 400; }
+.return-summary { display: flex; flex-direction: column; gap: 4px; padding-bottom: 18px; border-bottom: 1px solid var(--border); font-size: 14px; overflow-wrap: anywhere; }
+.return-summary small { font-size: 12px; color: var(--secondary); }
+.return-reason { font-size: 14px; line-height: 1.5; }
+.return-reason b { font-size: 13px; font-weight: 600; }
+.return-reason p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.return-choices { border: 0; padding: 0; margin: 0; min-width: 0; }
+.return-choices legend { padding: 0; }
+.return-choices .sgs { margin: 0; gap: 6px; }
+.return-choices .sg { min-height: 44px; padding: 10px 14px; }
+.return-choices:disabled .sg, .return-menu button:disabled { opacity: .5; cursor: default; }
+.return-resolution { display: flex; flex-direction: column; gap: 22px; }
+.return-credit { border-radius: 14px; background: var(--bg); padding: 14px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.return-history h4 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+.return-timeline { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; }
+.return-timeline li { position: relative; padding: 0 0 18px 24px; margin-left: 5px; border-left: 1px solid var(--border); font-size: 13px; line-height: 1.45; }
+.return-timeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
+.return-timeline li::before { content: ''; position: absolute; left: -5px; top: 4px; width: 9px; height: 9px; background: var(--section); border-radius: 50%; }
+.return-timeline li:first-child::before { background: var(--lime); }
+.return-timeline li > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.return-timeline time { color: var(--secondary); font-size: 12px; }
+.return-timeline p { margin: 4px 0 0; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.return-row.is-void .rtxt { color: var(--err); }
+.return-row .void-money { text-decoration: line-through; }
+@media (max-width: 760px) {
+  .return-sheet .sheet-scroll { gap: 18px; padding: 12px 20px 24px; }
+  .return-sheet .sheet-h { padding: 4px 20px 16px; }
+  .return-sheet .sg { padding-inline: 12px; }
+  .ledger-list .return-row { flex-wrap: wrap; text-align: left; padding-right: 52px; }
+  .return-sheet textarea, .return-sheet .fl input { font-size: 16px; }
+  .return-row .info { flex-basis: calc(100% - 52px); }
+  .return-row > .rtxt { margin-left: 52px; }
+}
+.return-delete .sheet-scroll > p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--secondary); }

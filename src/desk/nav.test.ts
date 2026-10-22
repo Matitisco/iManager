@@ -98,11 +98,11 @@ describe('pendientes de un grupo', () => {
       notifications: 5,
       commissions: 1,
     });
-    expect(sectionPending('tradeins', input)).toBe(2);
+    expect(sectionPending('tradeins', input)).toBe(9);
     expect(sectionPending('sales', input)).toBe(1);
     expect(sectionPending('inventory', input)).toBe(2);
     expect(groupPending(['followups', 'service', 'clients'], input)).toBe(4);
-    expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(3);
+    expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(10);
     expect(groupPending(['reports', 'commissions', 'history'], input)).toBe(1);
     expect(sectionPending('notifications', input)).toBe(5);
     expect(sectionPending('returns', input)).toBe(0);
@@ -133,8 +133,8 @@ describe('barra del celular', () => {
 describe('explicación de indicadores', () => {
   it('distingue avisos y operaciones conservando exactamente la suma', () => {
     const input = pending({ unread: { inventory: 2, sales: 1, tradeins: 99, clients: 3 }, openTrades: 4, openRepairs: 2, followUps: 5 });
-    expect(pendingDescription(['sales', 'tradeins', 'returns'], input)).toBe('1 aviso sin leer en Ventas; 4 canjes en curso');
-    expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(5);
+    expect(pendingDescription(['sales', 'tradeins', 'returns'], input)).toBe('1 aviso sin leer en Ventas; 99 avisos sin leer en Canjes');
+    expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(100);
     expect(pendingDescription(['clients', 'followups', 'service'], input)).toBe('3 avisos sin leer en Clientes; 2 órdenes de servicio abiertas');
     expect(pendingDescription(['inventory'], input)).toBe('2 avisos sin leer en Equipos');
   });
@@ -142,7 +142,7 @@ describe('explicación de indicadores', () => {
   it('describe solo secciones permitidas y omite ceros', () => {
     const input = pending({ openTrades: 4, openRepairs: 8, notifications: 1, commissions: 2 });
     const ids = mobileBar(['tradeins'], 'STAFF')[0]!.activeIds;
-    expect(pendingDescription(ids, input)).toBe('4 canjes en curso');
+    expect(pendingDescription(ids, input)).toBe('');
     expect(pendingDescription(['clients', 'followups'], input)).toBe('');
     expect(pendingDescription(['notifications', 'commissions'], input)).toBe('1 notificación sin leer; 2 personas con comisiones pendientes');
   });

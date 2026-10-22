@@ -3,6 +3,39 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 punto 13 — Modal de proveedor — 2026-10-22
+
+- Ficha con contacto adaptable, notas separadas y compras con padding, divisores, IMEI completo y estado por equipo. Pie fijo con Registrar equipo y menú compartido para Subir stock, Editar y Archivar; restauración conservada para archivados. Alta/edición en una columna con separación entre campos y sin texto secundario redundante. Guardado bloquea controles, cierre y envíos repetidos; fallos visibles conservan el borrador y la ficha permite reintentar su consulta.
+- Validación: 1.453 pruebas frontend (14 nuevas de Proveedor), 59 regresiones del área, lint/typecheck frontend/backend, OpenSpec estricto y diff check aprobados. Playwright local en 1440×900 y 390×844 con iPhone 13 emulado: ficha, alta/edición persistidas tras recargar, menú, cancelación de archivo, guardado pendiente/fallido, contacto y compras extensas, scroll, vacío, skeleton y error/reintento; sin desbordes, superposiciones ni errores de página. Estados extremos y fallos simulados por intercepción HTTP local.
+- Capturas previas de main, wireframe previo generado con imagegen y evidencia externa en `/workspace/imanager-local/shots/483-j/`. OpenSpec `supplier-modal-483-j`; estilos exclusivos de Proveedor. Un commit en `feat/483-medios`, PR #495 sin merge; sin imágenes/prompts versionados, build, backend, AppContext, Prisma, producción ni cambios en puntos previos o 6/8/14.
+
+## Issue #483 puntos 11 y 12 — Importador compacto — 2026-10-22
+
+- Un único ImportModal/Sheet para stock, proveedores, clientes, ventas y la alternativa de planillas del onboarding: 600 px desktop y bottom sheet móvil, DM Sans, modos CSV / Subir .txt / Pegar listado, dropzone accesible, preview virtualizada compacta con errores por fila y footer con acción principal. Edición/exclusión de texto, ajuste de hojas/encabezado/mapeo y errores de persistencia conservados; cierre bloqueado durante guardado y respuestas tardías descartadas al volver.
+- Sin cambios al parser ni API: CSV conserva XLSX y stock conserva el analizador de texto; clientes, ventas y consumidores sin analizador libre reutilizan parseWorkbook CSV para TXT/listados con columnas. No se alteran las reglas de importación parcial ni los valores por defecto.
+- Validación: 1.439 pruebas frontend, 69 pruebas del área (9 nuevas) y 7 E2E existentes de importación aprobados; lint/typecheck frontend/backend, diff check y OpenSpec estricto aprobados. OpenSpec informa que el spec base inventory-import carece de sección Requirements; es previo y sólo afecta su futuro archivado. Playwright local en 1440×900 y 390×844 (iPhone 13): tres modos, previews de stock/clientes/ventas, corrección de precio y ausencia de desbordes/errores de página. CSV de stock con mapeo y persistencia PostgreSQL fake comprobada tras recargar en ambos tamaños; texto de stock usa intercepción del análisis sin llamadas externas.
+- Referencias de main, mockup previo generado con imagegen y capturas finales en `/workspace/imanager-local/shots/483-i/`, fuera del repo. OpenSpec `redesign-import-modal-483-i`; rama `feat/483-medios`, un commit y checklist 11/12 del PR #495. Sin build, backend/Prisma, operaciones productivas, merge ni cambios en 6/8/14 o puntos anteriores.
+
+## Issue #483 punto 4 — Historial en segundo modal — 2026-10-22
+
+- Los seguimientos de Stock, Ventas y Canjes (antiguos e integrados) ofrecen un botón Historial con reloj. Retirados el historial inline y los enlaces Ocultar historial/Ver todo de esos detalles. Segundo Sheet superpuesto con timeline, cambios, motivo, autor y fecha/hora completa; cerrar devuelve el foco y conserva el detalle/borrador.
+- Consulta bajo demanda y carga de todas las páginas del mismo registro dentro del modal. Skeleton sin texto visible, vacío breve y error con reintento; las respuestas tardías se descartan al cerrar/cambiar registro, usuario o tienda. Clientes, Reparaciones y la sección general Historial conservan su comportamiento.
+- Validación: suite completa frontend (1.427 pruebas) y regresiones de componentes, lint/typecheck frontend/backend, OpenSpec estricto y diff check aprobados. Revisión Playwright local en 1440×900 y 390×844 (iPhone 13): apertura/cierre, foco, borrador conservado, skeleton, reintento y paginación de 51 eventos; sin overflow ni errores de página. API/datos fake locales y estados de consulta sintéticos por intercepción HTTP. Referencias, mockup previo generado con imagegen y capturas finales externas en `/workspace/imanager-local/shots/483-h/`.
+- Sin cambios de backend, AppContext o Prisma ni producción/build; puntos previos conservados y 6/8/14 fuera del alcance. OpenSpec `record-history-modal-483-h`; un commit sobre `feat/483-medios`, PR #495 sin merge.
+
+## Issue #483 punto 3 — Novedades vistas por sección — 2026-10-22
+
+- Equipos, Ventas, Canjes y Clientes guardan en PostgreSQL las versiones vistas por usuario y tienda. Abrir la sección limpia sus badges desktop/móvil; la instantánea de entrada queda primero antes de paginar, con punto/fondo sutil y el tratamiento de anuladas intacto. Los cambios posteriores quedan pendientes para la próxima visita; fallos visibles con reintento, sin modificar las lecturas de la bandeja de notificaciones.
+- Prisma exclusivamente aditivo: `SectionRecordView` y relaciones. Validación: 1.393 pruebas frontend, 522 unitarias backend, 3 integraciones PostgreSQL locales, lint/typecheck de ambos paquetes y OpenSpec estricto aprobados. Playwright local en 1440×900 y 390×844 (iPhone 13): cuatro secciones, limpieza/persistencia del badge, prioridad, anuladas y edición concurrente verificados, sin overflow ni errores de página.
+- Evidencia externa al repo en `/workspace/imanager-local/shots/483-f/`; sin capturas ni prompts versionados, build, operaciones productivas o cambios a los puntos 6, 8 y 14. OpenSpec `section-novelties-483-f`; rama `feat/483-medios`, un commit para este punto y PR #495 a main sin merge.
+
+## Issue #483 puntos 2.1 y 2.2 — Reclamos — 2026-10-22
+
+- Modal con borrador de estado, nota opcional, diagnóstico/resolución separados, seguimiento compacto con fecha/hora y footer Cancelar/Guardar. RMA persiste únicamente al guardar; errores conservan el formulario y el envío bloquea repetición.
+- Click derecho, long-press y ⋯ abren Editar/Eliminar. Edición precargada con calendario compartido y vínculo a venta fijo. Eliminar confirma y registra ANULADO, fecha, usuario, evento y auditoría; sin borrado físico ni restauración. Fila roja con importe tachado; exclusión de Activos y de contadores/importes de reclamos y ganancia neta, incluso sin deletedAt. La baja conserva movimientos de caja/stock ya registrados y lo aclara cuando hay resolución.
+- Validación: 1.412 pruebas frontend, 533 unitarias backend y ocho integraciones de Reclamos con PostgreSQL local; TypeScript frontend/backend, OpenSpec estricto y diff check aprobados. Verificación real con Playwright a 1440×900 y 390×844 (iPhone 13): edición, estados/notas, cancelación, menús, long-press y persistencia tras recargar; sin desborde ni errores de página.
+- Evidencia fuera del repo: `/workspace/imanager-local/shots/483-g/` (antes, wireframe imagegen y después). OpenSpec `redesign-return-claims-483`. Sin cambios de Prisma ni producción, sin build. Rama `feat/483-medios`, PR #495; puntos anteriores conservados y 6/8/14 fuera del alcance.
+
 ## Issue #483 punto 5 — Capacidad duplicada al registrar equipo — 2026-10-22
 
 - El selector compartido de alta/edición agrupa capacidades GB/TB equivalentes de base, catálogo e inventario, ignorando espacios y mayúsculas de unidad. Conserva etiquetas/orden del catálogo y el valor histórico al editar; capacidades personalizadas distintas siguen disponibles. Se retiraron los subtítulos redundantes del formulario.

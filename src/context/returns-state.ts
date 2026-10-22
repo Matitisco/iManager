@@ -9,6 +9,8 @@ import {
   resolveReturn as resolveReturnApi,
   restoreReturn as restoreReturnApi,
   updateReturnDiagnosis as updateDiagnosisApi,
+  updateReturn as updateReturnApi,
+  type UpdateReturnInput,
   type CreditNoteView,
   type ResolveReturnInput,
   type ReturnCaseView,
@@ -78,6 +80,11 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
       await reloadReturns();
       return saved;
     },
+    updateReturn: async (id: string, input: UpdateReturnInput) => {
+      const saved = await updateReturnApi(auth(), id, input);
+      await reloadReturns();
+      return saved;
+    },
     updateReturnDiagnosis: async (id: string, diagnosis: string) => {
       const saved = await updateDiagnosisApi(auth(), id, diagnosis);
       await reloadReturns();
@@ -88,8 +95,8 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
       await reloadReturns();
       return saved;
     },
-    advanceRma: async (id: string, status: RmaStatus, stockStatus?: string | null) => {
-      const saved = await advanceRmaApi(auth(), id, status, stockStatus);
+    advanceRma: async (id: string, status: RmaStatus, stockStatus?: string | null, note?: string | null) => {
+      const saved = await advanceRmaApi(auth(), id, status, stockStatus, note);
       await reloadReturns();
       return saved;
     },

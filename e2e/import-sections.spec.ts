@@ -70,13 +70,12 @@ for (const viewport of viewports) {
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-clientes-ajeno.png`) });
       await clientsDialog.getByRole('button', { name: 'Volver' }).click();
       await clientsDialog.locator('input[type="file"]').setInputFiles(CLIENTS);
-      await expect(clientsDialog.getByTestId('import-summary-count')).toHaveText('Detectamos 1 hoja, 10 clientes');
       await expect(clientsDialog.getByTestId('import-preview-count')).toHaveText('10 clientes');
       await expect(clientsDialog.getByText('Clientes a importar')).toBeVisible();
       await expect(clientsDialog.getByText('Lucía Fernández').first()).toBeVisible();
       const clientPreview = clientsDialog.getByTestId('import-preview');
       await expect(clientPreview).toHaveAttribute('aria-rowcount', '10');
-      await expect(clientsDialog.locator('[data-layout]')).toHaveAttribute('data-layout', phone ? 'cards' : 'table');
+      await expect(clientsDialog.locator('[data-layout]')).toHaveAttribute('data-layout', 'cards');
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-clientes-preview.png`) });
       const clientImport = page.waitForResponse(
         (response) => response.url().includes('/api/clients/import') && response.request().method() === 'POST',
@@ -104,11 +103,10 @@ for (const viewport of viewports) {
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-ajeno.png`) });
       await salesDialog.getByRole('button', { name: 'Volver' }).click();
       await salesDialog.locator('input[type="file"]').setInputFiles(SALES);
-      await expect(salesDialog.getByTestId('import-summary-count')).toHaveText('Detectamos 1 hoja, 10 ventas');
       await expect(salesDialog.getByTestId('import-preview-count')).toHaveText('10 ventas');
       await expect(salesDialog.getByText('Ventas a importar')).toBeVisible();
       await expect(salesDialog.getByText('Lucía Fernández').first()).toBeVisible();
-      await expect(salesDialog.getByText('Moneda')).toHaveCount(phone ? 0 : 1);
+      await expect(salesDialog.getByText('Moneda')).toHaveCount(0);
       const salesPreview = salesDialog.getByTestId('import-preview');
       await expect(salesPreview).toHaveAttribute('aria-rowcount', '10');
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-preview.png`) });

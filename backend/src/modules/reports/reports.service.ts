@@ -653,7 +653,7 @@ export async function getReportsOverview(
     where: {
       storeId,
       deletedAt: null,
-      resolution: { in: ["CAMBIO", "REINTEGRO"] },
+      status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
       resolvedAt: input.startDate || input.endDate
         ? {
           ...(input.startDate ? { gte: input.startDate } : {}),

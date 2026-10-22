@@ -216,29 +216,29 @@ describe("devoluciones, notas de crédito y RMA", () => {
     expect(await prisma.creditNote.count()).toBe(0);
   });
 
-  it("archiva solo reclamos abiertos y aísla la tienda", async () => {
+  it("anula sin borrar, impide restaurar y aísla la tienda", async () => {
     const store = await seedStoreContext();
     const catalog = await seedCatalogFixture(store.store!.id);
     const saleId = await sell(store.store!.id, catalog.client.id, catalog.inventoryItem.id, 1200);
     const opened = await claim(saleId);
     const archived = await inject("DELETE", `/api/returns/${opened.id}`, { reason: "Duplicado" });
     expect(archived.statusCode).toBe(204);
-    expect(await prisma.auditEvent.findFirst({ where: { entityId: opened.id, action: "return.archived" } })).toMatchObject({ reason: "Duplicado" });
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: opened.id, action: "return.cancelled" } })).toMatchObject({ reason: "Duplicado" });
     const active = await inject("GET", "/api/returns");
     expect(active.json().returns).toEqual([]);
     const stored = await inject("GET", "/api/returns?archived=1");
     expect(stored.json().returns).toHaveLength(1);
     const restored = await inject("POST", `/api/returns/${opened.id}/restore`);
-    expect(restored.statusCode, restored.body).toBe(200);
-    expect((await inject("GET", "/api/returns")).json().returns).toHaveLength(1);
-
-    await inject("POST", `/api/returns/${opened.id}/resolve`, {
+    expect(restored.statusCode, restored.body).toBe(409);
+    expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: opened.id } })).status).toBe("ANULADO");
+    expect(stored.json().returns[0].events.at(-1)).toMatchObject({ status: "ANULADO", note: "Duplicado" });
+    expect((await inject("PATCH", `/api/returns/${opened.id}`, { reason: "Cambio" })).statusCode).toBe(404);
+    expect((await inject("POST", `/api/returns/${opened.id}/resolve`, {
       resolution: "REPARACION",
       settlement: "NINGUNO",
       amount: 0,
       destination: "CLIENTE",
-    });
-    expect((await inject("DELETE", `/api/returns/${opened.id}`)).statusCode).toBe(409);
+    })).statusCode).toBe(404);
 
     const other = await seedStoreContext({ firebaseUid: "other-archive", email: "other-archive@example.com" });
     const otherAuth = buildAuthHeaders({ uid: "other-archive", email: "other-archive@example.com" });
@@ -250,5 +250,77 @@ describe("devoluciones, notas de crédito y RMA", () => {
       destination: "CLIENTE",
     }, otherAuth)).statusCode).toBe(404);
     expect(other.store!.id).not.toBe(store.store!.id);
+  });
+});
+
+
+describe("reclamos #483-g", () => {
+  it("edita datos y guarda estado/nota con fecha, sin aceptar estados financieros por PATCH", async () => {
+    const store = await seedStoreContext();
+    const catalog = await seedCatalogFixture(store.store!.id);
+    const saleId = await sell(store.store!.id, catalog.client.id, catalog.inventoryItem.id, 1200);
+    const opened = await claim(saleId);
+    const edited = await inject("PATCH", `/api/returns/${opened.id}`, { reason: "Falla intermitente", openedOn: "2026-10-20", diagnosis: "Revisar batería", status: "EN_DIAGNOSTICO", note: "Cliente dejó el equipo" });
+    expect(edited.statusCode, edited.body).toBe(200);
+    expect(edited.json().return).toMatchObject({ reason: "Falla intermitente", openedOn: "2026-10-20", diagnosis: "Revisar batería", status: "EN_DIAGNOSTICO" });
+    expect(edited.json().return.events.at(-1)).toMatchObject({ status: "EN_DIAGNOSTICO", note: "Cliente dejó el equipo", createdAt: expect.any(String) });
+    for (const payload of [{ status: "RESUELTO" }, { status: "ANULADO" }, { openedOn: "2026-02-31" }, { reason: " " }, { note: "a".repeat(281) }, { saleId: "other" }, {}]) {
+      expect((await inject("PATCH", `/api/returns/${opened.id}`, payload)).statusCode).toBe(400);
+    }
+    const other = await seedStoreContext({ firebaseUid: "claim-other", email: "claim-other@example.com" });
+    const auth = buildAuthHeaders({ uid: "claim-other", email: "claim-other@example.com" });
+    expect((await inject("PATCH", `/api/returns/${opened.id}`, { reason: "Fuera de tienda" }, auth)).statusCode).toBe(404);
+    expect((await inject("DELETE", `/api/returns/${opened.id}`, undefined, auth)).statusCode).toBe(404);
+    expect(other.store!.id).not.toBe(store.store!.id);
+    expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: opened.id } })).reason).toBe("Falla intermitente");
+  });
+
+  it("anulado no suma en reportes, conserva movimientos históricos y queda visible tras recargar", async () => {
+    const store = await seedStoreContext();
+    const catalog = await seedCatalogFixture(store.store!.id);
+    const register = await box();
+    const saleId = await sell(store.store!.id, catalog.client.id, catalog.inventoryItem.id, 1200);
+    const opened = await claim(saleId);
+    const result = await inject("POST", `/api/returns/${opened.id}/resolve`, { resolution: "REINTEGRO", settlement: "REINTEGRO", amount: 1200, destination: "STOCK", stockStatus: "EN_REVISION", note: "Reintegro acordado", diagnosis: "Batería dañada" });
+    expect(result.statusCode, result.body).toBe(200);
+    expect(result.json().return.events.at(-1)).toMatchObject({ note: "Reintegro acordado" });
+    expect(result.json().return.diagnosis).toBe("Batería dañada");
+    expect((await inject("DELETE", `/api/returns/${opened.id}`)).statusCode).toBe(204);
+    expect((await inject("GET", "/api/returns")).json().returns).toEqual([]);
+    const archived = (await inject("GET", "/api/returns?archived=1")).json().returns;
+    expect(archived).toHaveLength(1);
+    expect(archived[0]).toMatchObject({ id: opened.id, status: "ANULADO", deletedAt: expect.any(String) });
+    expect(await balance(register)).toBe(0);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: catalog.inventoryItem.id } })).status).toBe("EN_REVISION");
+    const overview = await inject("GET", "/api/reports/overview?rangeKey=all_time");
+    expect(overview.json().overview.summary).toMatchObject({ returnsCount: 0, returnsAmount: 0 });
+    const profit = await inject("GET", "/api/reports/net-profit?from=2020-01-01&to=2099-12-31");
+    expect(profit.json()).toMatchObject({ revenue: 1200, cost: 800, grossProfit: 400 });
+    // Explicit state exclusion also protects legacy rows without a deletion timestamp.
+    await prisma.returnCase.update({ where: { id: opened.id }, data: { deletedAt: null } });
+    expect((await inject("GET", "/api/reports/overview?rangeKey=all_time")).json().overview.summary).toMatchObject({ returnsCount: 0, returnsAmount: 0 });
+    expect((await inject("GET", "/api/reports/net-profit?from=2020-01-01&to=2099-12-31")).json()).toMatchObject({ revenue: 1200 });
+    expect((await inject("GET", "/api/returns")).json().returns).toEqual([]);
+    expect((await inject("GET", "/api/returns?archived=1")).json().returns).toHaveLength(1);
+  });
+
+  it("mantiene el permiso sensible para eliminar y guarda notas del RMA", async () => {
+    const store = await seedStoreContext();
+    const catalog = await seedCatalogFixture(store.store!.id);
+    const supplier = await prisma.supplier.create({ data: { storeId: store.store!.id, name: "Mayorista" } });
+    await prisma.inventoryItem.update({ where: { id: catalog.inventoryItem.id }, data: { supplierId: supplier.id } });
+    const saleId = await sell(store.store!.id, catalog.client.id, catalog.inventoryItem.id, 1200);
+    const opened = await claim(saleId);
+    const staff = await prisma.user.create({ data: { firebaseUid: "claim-staff", email: "claim-staff@example.com" } });
+    await prisma.storeMember.create({ data: { storeId: store.store!.id, userId: staff.id, role: "STAFF", sections: ["sales"], sensitiveAccess: false, isDefault: true } });
+    const auth = buildAuthHeaders({ uid: "claim-staff", email: "claim-staff@example.com" });
+    expect((await inject("DELETE", `/api/returns/${opened.id}`, undefined, auth)).statusCode).toBe(403);
+    expect((await inject("PATCH", `/api/returns/${opened.id}`, { status: "EN_DIAGNOSTICO", note: "En revisión técnica" }, auth)).statusCode).toBe(200);
+    const resolved = await inject("POST", `/api/returns/${opened.id}/resolve`, { resolution: "REPARACION", settlement: "NINGUNO", amount: 0, destination: "PROVEEDOR" });
+    expect(resolved.statusCode, resolved.body).toBe(200);
+    expect((await inject("POST", `/api/returns/${opened.id}/rma`, { status: "APROBADO", note: "Aprobó el proveedor" }, auth)).statusCode).toBe(403);
+    const rma = await inject("POST", `/api/returns/${opened.id}/rma`, { status: "APROBADO", note: "Aprobó el proveedor" });
+    expect(rma.statusCode, rma.body).toBe(200);
+    expect(rma.json().return.events.at(-1)).toMatchObject({ status: "APROBADO", note: "Aprobó el proveedor" });
   });
 });

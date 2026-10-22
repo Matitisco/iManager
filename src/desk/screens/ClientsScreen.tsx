@@ -9,7 +9,7 @@ import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { reasonWithBalance, usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord, PhoneRecords } from '../section-notice-view';
+import { NoticeTag, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, DateRange, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import {
   EMPTY_CLIENT_FILTERS,
@@ -78,7 +78,6 @@ export function ClientsScreen() {
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('clients');
-  const [onlyNotices, setOnlyNotices] = useNavigationState('Clients.onlyNotices', false);
   const [query, setQuery] = useNavigationState('Clients.query', '');
   const [storedView, setView] = useNavigationState('Clients.view', 'lista');
   const views = CLIENT_VIEWS.filter(item => !isSectionHidden(item.id));
@@ -110,16 +109,14 @@ export function ClientsScreen() {
       return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
   }, [clientSource, query, filter, columns, archivedMode]);
-  const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
-  const ordered = phone ? sortClients(listed, sort) : listed;
-  const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`, undefined, 'Clients');
+  const listed = rows;
+  const ordered = notices.prioritize(phone ? sortClients(listed, sort) : listed);
+  const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${notices.key}|${phone ? sort : ''}`, undefined, 'Clients');
   const scope = useBulkScope();
   const selection = useBulkSelection(ordered, scope);
-  const visibleKey = page.visible.map((client) => client.id).join('|');
-  useEffect(() => { notices.markVisible(page.visible.map((client) => client.id)); }, [visibleKey, notices.markVisible]);
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
   const filterCount = activeClientColumnCount(columns);
-  const quietEmpty = clientSource.length === 0 && !query.trim() && filter === 'Todos' && !clientFiltersActive(columns) && !onlyNotices;
+  const quietEmpty = clientSource.length === 0 && !query.trim() && filter === 'Todos' && !clientFiltersActive(columns);
   const openFilters = () => {
     setDraftFilters(columns);
     setFiltersOpen(true);
@@ -179,7 +176,6 @@ export function ClientsScreen() {
       </div>
       {view === 'cuenta' ? <AccountCurrent query={query} /> : null}
       {view === 'seguimientos' ? <FollowUps query={query} /> : null}
-      {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
       {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client, reason) => deleteClient(client.id, reason), recover: (client) => open({ type: 'cl', id: client.id }) }}
@@ -204,7 +200,7 @@ export function ClientsScreen() {
                       selection={selection.row(client.id, client.name)}
                       reason={reason}
                       testId={`client-row-${client.id}`}
-                      onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
+                      onActivate={() => { open({ type: 'cl', id: client.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                     >
                       <ClientCard client={client} money={money} />
@@ -266,7 +262,7 @@ export function ClientsScreen() {
                   as="tr"
                   className={[notices.reasonFor(client.id) ? 'novedad' : '', isVoidRow(client) ? 'is-void' : ''].filter(Boolean).join(' ')}
                   testId={`client-row-${client.id}`}
-                  onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
+                  onActivate={() => { open({ type: 'cl', id: client.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                 >
                   <td>
@@ -284,7 +280,7 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) && !onlyNotices ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       ) : null}

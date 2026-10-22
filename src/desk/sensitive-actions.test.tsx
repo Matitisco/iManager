@@ -41,9 +41,10 @@ function renderEquipment(canManageSensitive: boolean) {
 }
 
 describe('sensitive action controls', () => {
-  it('shows who changed the price on the equipment record', () => {
+  it('moves the loose price audit into history access on the equipment record', () => {
     renderEquipment(false);
-    expect(screen.getByText('Precio cambiado por Ana Dueña el 09/10/2026 12:04')).toBeInTheDocument();
+    expect(screen.queryByText('Precio cambiado por Ana Dueña el 09/10/2026 12:04')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial' })).toBeInTheDocument();
   });
 
   it('disables the sale price when editing without permission', () => {

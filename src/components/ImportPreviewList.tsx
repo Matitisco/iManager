@@ -50,6 +50,7 @@ export function ImportPreviewList({
   nouns,
   review,
   excluded,
+  errors,
   onEdit,
 }: {
   rows: Record<string, string>[];
@@ -59,12 +60,15 @@ export function ImportPreviewList({
   nouns: { one: string; many: string };
   review?: { dudas: string[] }[];
   excluded?: Set<number>;
+  errors?: (string | null)[];
   onEdit?: (index: number) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(layout === 'cards' ? 280 : 320);
-  const rowHeight = (layout === 'cards' ? CARD_ROW : TABLE_ROW) + (onEdit ? 40 : 0);
+  const cardHeight = onEdit ? 56 : CARD_ROW;
+  const errorHeight = !onEdit && errors?.some(Boolean) ? 28 : 0;
+  const rowHeight = (layout === 'cards' ? cardHeight : TABLE_ROW) + (onEdit ? 44 : 0) + errorHeight;
   const headerHeight = layout === 'table' ? 36 : 0;
   const equipment = columns.some((column) => column.key === 'model');
   const sales = columns.some((column) => column.key === 'amount');
@@ -90,7 +94,7 @@ export function ImportPreviewList({
   const visible = rows.slice(start, end);
 
   return (
-    <div className="space-y-2" data-layout={layout}>
+    <div className="import-preview-list space-y-2" data-layout={layout}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-sm font-bold text-gray-900">{equipment ? 'Equipos a importar' : sales ? 'Ventas a importar' : clients ? 'Clientes a importar' : 'Para importar'}</h3>
         <p className="text-sm font-medium text-gray-600" data-testid="import-preview-count">{label}</p>
@@ -123,16 +127,17 @@ export function ImportPreviewList({
                   key={index}
                   data-testid="import-preview-row"
                   data-index={index}
-                  className={`absolute left-0 right-0 border-b border-gray-100 ${review?.[index]?.dudas.length ? 'bg-amber-50' : ''} ${excluded?.has(index) ? 'opacity-50' : ''}`}
+                  className={`absolute left-0 right-0 border-b border-gray-100 ${errors?.[index] ? 'bg-red-50' : review?.[index]?.dudas.length ? 'bg-amber-50' : ''} ${excluded?.has(index) ? 'opacity-50' : ''}`}
                   style={{ top: index * rowHeight, height: rowHeight, boxSizing: 'border-box' }}
                 >
-                  <div style={{ height: layout === 'cards' ? CARD_ROW : TABLE_ROW }}>
+                  <div style={{ height: layout === 'cards' ? cardHeight : TABLE_ROW }}>
                     {layout === 'table'
                       ? <TableRow row={row} columns={columns} currency={currency} />
                       : <CardRow row={row} columns={columns} currency={currency} kind={equipment ? 'equipment' : sales ? 'sales' : clients ? 'clients' : 'generic'} />}
                   </div>
-                  {onEdit && <button type="button" onClick={() => onEdit(index)} data-testid={`import-edit-row-${index}`} className="w-full h-10 px-3 flex items-center justify-between gap-2 text-xs font-medium text-gray-700 text-left">
-                    <span className="truncate">{excluded?.has(index) ? 'Excluida · ' : ''}{review?.[index]?.dudas.length ? `${review[index].dudas.length} ${review[index].dudas.length === 1 ? 'duda' : 'dudas'} · ` : ''}Cantidad: {row.quantity || '1'}{row.imei ? ` · IMEI ${row.imei}` : ''}{row.serial ? ` · Serie ${row.serial}` : ''}</span>
+                  {errorHeight > 0 && <p className="px-3 text-xs text-red-700 truncate" style={{ height: errorHeight, margin: 0, lineHeight: '28px' }} title={errors?.[index] ?? undefined}>{errors?.[index]}</p>}
+                  {onEdit && <button type="button" onClick={() => onEdit(index)} title={errors?.[index] ?? undefined} data-testid={`import-edit-row-${index}`} style={{ minHeight: 44 }} className="w-full px-3 flex items-center justify-between gap-2 text-xs font-medium text-gray-700 text-left">
+                    <span className={`truncate ${errors?.[index] ? 'text-red-700' : ''}`}>{errors?.[index] || <>{excluded?.has(index) ? 'Excluida · ' : ''}{review?.[index]?.dudas.length ? `${review[index].dudas.length} ${review[index].dudas.length === 1 ? 'duda' : 'dudas'} · ` : ''}Cantidad: {row.quantity || '1'}{row.imei ? ` · IMEI ${row.imei}` : ''}{row.serial ? ` · Serie ${row.serial}` : ''}</>}</span>
                     <span className="shrink-0 underline">Revisar / editar</span>
                   </button>}
                 </div>
@@ -177,7 +182,7 @@ function CardRow({
           <p className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
           <p className="text-sm font-medium text-gray-900 shrink-0">{[price, row.currency || currency].filter(Boolean).join(' ')}</p>
         </div>
-        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }
@@ -190,7 +195,7 @@ function CardRow({
           <p className="text-sm font-medium text-gray-900 truncate">{row.clientName || deviceLine(row) || '—'}</p>
           <p className="text-sm font-medium text-gray-900 shrink-0">{price || '—'}</p>
         </div>
-        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }
@@ -202,7 +207,7 @@ function CardRow({
     return (
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
         <p className="text-sm font-medium text-gray-900 truncate">{row.name || '—'}</p>
-        <p className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }

@@ -1,3 +1,4 @@
+import { sectionViewsRoutes } from './modules/section-views/routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { billingRoutes, mercadoPagoWebhookRoutes } from './modules/billing/routes.js';
 import { cashRoutes } from './modules/cash/routes.js';
@@ -73,6 +74,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(publicCatalogRoutes, { prefix: "/api/public/catalog", readLimit: publicCatalogReadLimit });
   app.register(billingRoutes, { prefix: "/api/billing" });
   app.register(mercadoPagoWebhookRoutes, { prefix: "/webhooks" });
+  app.register(sectionViewsRoutes, { prefix: "/api/section-views" });
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
   app.register(analyticsRoutes, { prefix: "/api" });
