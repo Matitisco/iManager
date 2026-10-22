@@ -72,7 +72,7 @@ jobs:
   frontend-pwa:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Frontend tests and the isolated PWA server use fixtures, without a database.
+    # Frontend tests import backend modules (backend deps needed) but use no database.
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +86,10 @@ jobs:
 
       - name: Install frontend deps
         run: npm ci
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
 
       - name: Get Playwright version
         id: playwright-version
