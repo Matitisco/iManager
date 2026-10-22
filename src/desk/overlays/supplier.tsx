@@ -119,6 +119,19 @@ export function SupplierDetail({ id }: { id: string }) {
     }
   };
 
+  if (confirm) return (
+    <ReasonSheet
+      title="Archivar proveedor"
+      note="El proveedor queda archivado. Los equipos conservan el origen y nada se borra."
+      ok="Archivar"
+      danger
+      busy={busy}
+      error={error}
+      onOk={(reason) => { void archive(reason); }}
+      onClose={() => { if (!busy) setConfirm(false); }}
+    />
+  );
+
   return (
     <Sheet title={detail?.name ?? 'Proveedor'} subtitle={detail ? `${detail.deviceCount} ${detail.deviceCount === 1 ? 'equipo' : 'equipos'}` : undefined} onClose={close} busy={busy} className="supplier-sheet"
       footer={detail ? <SheetActions>
@@ -163,18 +176,6 @@ export function SupplierDetail({ id }: { id: string }) {
             ))}
           </section>
         </div>
-      ) : null}
-      {confirm ? (
-        <ReasonSheet
-          title="Archivar proveedor"
-          note="El proveedor queda archivado. Los equipos conservan el origen y nada se borra."
-          ok="Archivar"
-          danger
-          busy={busy}
-          error={error}
-          onOk={(reason) => { void archive(reason); }}
-          onClose={() => { if (!busy) setConfirm(false); }}
-        />
       ) : null}
     </Sheet>
   );

@@ -1,5 +1,16 @@
 ## ADDED Requirements
 
+### Requirement: Confirmación de archivado exclusiva
+La confirmación de archivar proveedor o gasto SHALL ser el único diálogo visible y montado mientras está abierta.
+
+#### Scenario: Cancelar la confirmación
+- **WHEN** se cancela o cierra la confirmación de archivo
+- **THEN** reaparece la ficha de proveedor con el detalle ya cargado sin refetch ni skeleton, o el formulario de gasto con sus ediciones intactas
+
+#### Scenario: Persistencia del archivado
+- **WHEN** se confirma el archivado
+- **THEN** el éxito cierra todo y el fallo conserva ReasonSheet con el motivo y el error visibles para reintentar
+
 ### Requirement: Ficha legible y acciones separadas
 La ficha de Proveedor SHALL separar contacto, notas y compras con espaciado explícito, y mantener accesibles las acciones en el pie del Sheet sin invadir el contenido.
 

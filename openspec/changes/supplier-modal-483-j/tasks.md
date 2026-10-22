@@ -11,3 +11,10 @@ Entrega: un commit feat(#483-j), push de feat/483-medios, repetición de la veri
 
 ## Backend
 Sin cambios de backend, AppContext ni Prisma.
+
+## Corrección #308
+- [x] Reemplazar los Sheet de proveedor y gasto por ReasonSheet durante la confirmación, conservando datos y borradores.
+- [x] Cubrir diálogo único, regreso sin recarga, errores y éxito con tests de componentes.
+- [x] Ejecutar Vitest de overlays (74 pruebas) y TypeScript frontend/backend, sin build.
+
+Entrega #308: un único commit con el mensaje solicitado, en fix/308-proveedor-modal y sin push. El CLI de OpenSpec no está instalado en este entorno; los artefactos se actualizaron directamente.

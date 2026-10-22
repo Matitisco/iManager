@@ -3,6 +3,11 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #308 / #483 punto 13 — Confirmaciones de archivo — 2026-10-22
+
+- Proveedor y gasto reemplazan su Sheet por ReasonSheet al archivar: un solo diálogo montado. Cancelar o cerrar recupera el detalle sin refetch ni skeleton y conserva las ediciones del gasto. Los fallos mantienen motivo y error; el éxito cierra todo.
+- Validación: 74 pruebas de overlays y TypeScript frontend/backend aprobados. Sin cambios de layout, textos, backend ni Prisma; sin build. Entrega en un único commit local con el mensaje solicitado, sin push.
+
 ## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
 
 - Pestaña «Resumen periódico», quincenas/meses calendario cerrados según zona de la tienda, selector histórico y tres bentos v3b sin textos secundarios innecesarios. Cada «Ver todas» abre su lista completa en el modal Sheet compartido, sin navegación, con cierre y foco accesibles. Estados vacío, skeleton y error/reintento; móvil 390 px y desktop 1440 px, permisos y moneda compartidos con la aplicación.
