@@ -57,7 +57,7 @@ async function expectFits(page: Page) {
 }
 
 test.describe('desktop dashboard stays put', () => {
-  test('keeps the table, the header action and the approved empty states', async ({ page, request }, testInfo) => {
+  test('keeps recent sales, the header action and the approved empty states', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'dash-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Dash desk ${testInfo.parallelIndex}`);
@@ -69,13 +69,8 @@ test.describe('desktop dashboard stays put', () => {
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
     await expect(page.locator('.hl')).toHaveText('hoy');
     await expect(page.locator('.dright').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
-    await expect(page.getByTestId('dashboard-sales')).toContainText('Tu primera venta aparece acá');
-    await expect(page.getByTestId('dashboard-sales').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByTestId('dashboard-trades')).toContainText('Sin canjes en curso');
-    await expect(page.getByTestId('dashboard-trades')).toContainText('Los equipos que recibas como parte de pago aparecen acá');
-    await expect(page.getByTestId('dashboard-trades').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     await createSaleViaApi(request, email, {
       date: todayLabel(),
       clientName: 'Ana Escritorio',
@@ -83,13 +78,8 @@ test.describe('desktop dashboard stays put', () => {
       amount: 650000,
     });
     await page.reload();
-    await expect(page.getByRole('columnheader', { name: 'Venta' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Cliente' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Equipo' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Total' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Estado' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: /Ana Escritorio/ })).toBeVisible();
-    await expect(page.getByRole('cell', { name: /\$ 650\.000/ })).toBeVisible();
+    await expect(page.getByTestId('dashboard-sales')).toContainText('Ana Escritorio');
+    await expect(page.getByTestId('dashboard-sales')).toContainText('$ 650.000');
     await expect(page.getByTestId('phone-rows')).toHaveCount(0);
     await expect(page.getByTestId('dashboard-register-sale')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
@@ -110,16 +100,11 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByText(/Hola,/)).toBeVisible();
     await expect(page.locator('.hl')).toHaveText('hoy');
     await expect(page.getByTestId('dashboard-bell')).toBeVisible();
-    await expect(page.getByLabel('Invitar')).toBeVisible();
+    await expect(page.getByLabel('Invitar')).toHaveCount(0);
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('dashboard-register-sale').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
-    await expect(page.getByTestId('dashboard-sales')).toContainText('Tu primera venta aparece acá');
-    await expect(page.getByTestId('dashboard-sales').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByTestId('dashboard-trades')).toContainText('Sin canjes en curso');
-    await expect(page.getByTestId('dashboard-trades')).toContainText('Los equipos que recibas como parte de pago aparecen acá');
-    await expect(page.getByTestId('dashboard-trades').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Venta' })).toHaveCount(0);
     const columns = await page.locator('.dkpis').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(2);
@@ -153,17 +138,15 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('dashboard-sales')).toContainText(clientName);
     const sales = page.getByTestId('dashboard-sales');
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
-    await expect(sales).toContainText('#V-');
+    await expect(sales.locator('.dashboard-sale-row').first()).toBeVisible();
     await expect(sales).toContainText('Pixel 8 128GB');
     await expect(sales).toContainText('$ 650.000');
     await expect(sales).toContainText('Completada');
     await expect(sales).not.toContainText('Margen');
     await expect(sales).not.toContainText(/costo/i);
     const trades = page.getByTestId('dashboard-trades');
-    await expect(trades).toContainText(received);
-    await expect(trades).toContainText(clientName);
-    await expect(trades).toContainText('$ 420.000');
-    await expect(trades).toContainText('Peritaje téc.');
+    await expect(trades).toContainText('Canjes en curso');
+    await expect(trades).toContainText('1');
     await expect(page.getByRole('button', { name: /Ventas del mes/ })).toContainText('$');
     await expect(page.getByTestId('row-menu').first()).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
@@ -177,7 +160,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
-    await page.getByRole('button', { name: 'Ver todos' }).click();
+    await page.getByTestId('dashboard-trades').click();
     await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await page.getByTestId('dashboard-bell').click();
@@ -189,7 +172,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.locator('.toast.show')).toBeHidden();
     await expect(sales).toContainText(clientName);
-    await expect(trades).toContainText(received);
+    await expect(trades).toContainText('Canjes en curso');
     await expectFits(page);
     if (SHOTS) {
       await page.getByTestId('dashboard-trades').scrollIntoViewIfNeeded();
@@ -218,9 +201,8 @@ test.describe('dashboard on a phone', () => {
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       const month = staff.getByRole('button', { name: /Ventas del mes/ });
-      await expect(month).toContainText('operaciones');
-      await expect(month).not.toContainText('$');
-      await expect(month).not.toContainText('Margen');
+      await expect(month).toHaveCount(0);
+      await expect(staff.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
       await expect(staff.getByTestId('dashboard-sales')).toContainText('Ana Staff');
       await expect(staff.getByTestId('dashboard-sales')).toContainText('$ 250.000');
       await expect(staff.getByTestId('dashboard-sales')).not.toContainText('Margen');

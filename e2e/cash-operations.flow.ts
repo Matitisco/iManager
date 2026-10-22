@@ -109,7 +109,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       const { product, boxId } = await setup(page, request, email);
       if (closed) await close(request, email, boxId, 0);
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('button', { name: 'En stock 1 equipo 1 disponible', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Stock disponible 1 de 1/ })).toBeVisible();
       await page.getByTestId('sidebar-tab-inventory').click();
       await expect(page.getByText(phone ? '1 equipo · 1 disponible' : '1 equipo · 1 disponible · 0 en catálogo', { exact: true })).toBeVisible();
       await sell(page, phone, 'Efectivo');

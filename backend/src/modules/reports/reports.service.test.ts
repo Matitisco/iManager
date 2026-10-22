@@ -291,6 +291,35 @@ describe("getReportsOverview", () => {
     expect(overview.inventory.aging.map((bucket) => bucket.count)).toEqual([1, 0, 0, 1]);
   });
 
+  it("queries the same-duration previous window without voided sales", async () => {
+    await getReportsOverview("store-1", {
+      rangeKey: "custom",
+      startDate: new Date("2026-10-01T00:00:00-03:00"),
+      endDate: new Date("2026-10-22T23:59:59.999-03:00"),
+    });
+    expect(saleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: {
+        storeId: "store-1", status: "COMPLETADA", voidedAt: null,
+        soldAt: { gte: new Date("2026-09-09T00:00:00-03:00"), lte: new Date("2026-09-30T23:59:59.999-03:00") },
+      },
+    }));
+  });
+
+  it("groups midnight sales by Argentine days rather than UTC days", async () => {
+    saleFindManyMock.mockResolvedValueOnce([
+      { amount: 100, paymentMethod: "EFECTIVO", status: "COMPLETADA", soldAt: new Date("2026-10-02T02:59:59Z"), inventoryItem: { cost: 50 } },
+      { amount: 200, paymentMethod: "EFECTIVO", status: "COMPLETADA", soldAt: new Date("2026-10-02T03:00:00Z"), inventoryItem: { cost: 50 } },
+    ]).mockResolvedValueOnce([]);
+    const overview = await getReportsOverview("store-1", {
+      rangeKey: "custom", startDate: new Date("2026-10-01T00:00:00-03:00"), endDate: new Date("2026-10-02T23:59:59.999-03:00"),
+    });
+    expect(overview.salesSeries).toEqual([
+      { start: "2026-10-01", label: "01/10/2026", revenue: 100, unitsSold: 1 },
+      { start: "2026-10-02", label: "02/10/2026", revenue: 200, unitsSold: 1 },
+    ]);
+    expect(overview.comparison.revenueChange).toBeNull();
+  });
+
   it("does not invent a previous period for the full history", async () => {
     const overview = await getReportsOverview("store-1", {
       rangeKey: "all_time",
@@ -319,7 +348,28 @@ describe("report window helpers", () => {
 
   it("returns null when the previous value is zero and the current one is not", () => {
     expect(changePercent(10, 0)).toBeNull();
-    expect(changePercent(0, 0)).toBe(0);
+    expect(changePercent(0, 0)).toBeNull();
+  });
+
+  it("omits tiny and invalid bases without capping legitimate growth", () => {
+    expect(changePercent(1000, 0.01)).toBeNull();
+    expect(changePercent(1000, -0.5)).toBeNull();
+    expect(changePercent(1000, NaN)).toBeNull();
+    expect(changePercent(Infinity, 100)).toBeNull();
+    expect(changePercent(498, 100)).toBe(398);
+    expect(changePercent(0, 100)).toBe(-100);
+    expect(changePercent(50, -100)).toBe(150);
+  });
+
+  it.each([
+    ["2026-03-01T00:00:00-03:00", "2026-03-31T23:59:59.999-03:00"],
+    ["2024-03-01T00:00:00-03:00", "2024-03-22T23:59:59.999-03:00"],
+    ["2026-01-01T00:00:00-03:00", "2026-01-01T23:59:59.999-03:00"],
+  ])("keeps inclusive duration through month/year/leap boundaries: %s", (start, end) => {
+    const input = { rangeKey: "custom" as const, startDate: new Date(start), endDate: new Date(end) };
+    const previous = resolvePreviousWindow(input)!;
+    expect(previous.endDate.getTime() + 1).toBe(input.startDate.getTime());
+    expect(previous.endDate.getTime() - previous.startDate.getTime()).toBe(input.endDate.getTime() - input.startDate.getTime());
   });
 
   it("buckets available stock by how long it has been sitting", () => {
