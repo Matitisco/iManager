@@ -21,6 +21,7 @@ export function useSectionViewsState(user: AuthUserLike | null, session: AppSess
       if (current.current !== epoch || epoch.generation !== generation) return;
       setState({ scope, changes: sections, error: '' });
     } catch (error) {
+      console.warn('No se pudieron cargar las novedades.', error);
       if (current.current === epoch && epoch.generation === generation) {
         setState(previous => ({ scope, changes: previous.scope === scope ? previous.changes : {}, error: toUserMessage(error) }));
       }

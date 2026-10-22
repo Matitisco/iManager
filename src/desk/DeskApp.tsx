@@ -225,7 +225,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
   const unread = useUnreadCounts();
-  const { sectionChanges = {}, sectionChangesError, refreshSectionChanges } = useAppContext();
+  const { sectionChanges = {} } = useAppContext();
   const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
   const openRepairs = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
   const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
@@ -418,7 +418,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <FxBanner />
           <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
           <SampleStockBanner />
-          {sectionChangesError ? <p className="ferr" role="alert">{sectionChangesError} <button className="wlink" type="button" onClick={() => void refreshSectionChanges?.()}>Reintentar</button></p> : null}
           <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
           {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
           <NavChrome pending={pending}>

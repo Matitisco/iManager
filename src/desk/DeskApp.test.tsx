@@ -16,6 +16,7 @@ const context = vi.hoisted(() => ({
   user: null as { uid: string } | null,
   backendStatus: 'checking',
   sectionChanges: {} as SectionChanges,
+  sectionChangesError: '',
   viewSection: undefined as undefined | ((section: ViewSection, versions: RecordVersion[]) => Promise<void>),
   publicCatalog: null,
   loadPublicCatalog: vi.fn(async () => null),
@@ -34,11 +35,13 @@ vi.mock('../services/catalogs-api', () => ({ fetchCatalogs: vi.fn(async () => nu
 describe('sidebar unread counts', () => {
   const originalMatchMedia = window.matchMedia;
   beforeEach(() => {
+    context.sectionChangesError = '';
     context.sectionChanges = { tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
     window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   });
 
   afterEach(() => {
+    context.sectionChangesError = '';
     context.sectionChanges = {};
     context.viewSection = undefined;
     window.matchMedia = originalMatchMedia;
@@ -82,6 +85,16 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it('shows the dashboard without an alert when loading section changes fails', () => {
+    context.sectionChangesError = 'No se pudieron cargar las novedades.';
+    window.location.hash = '#/dashboard';
+    render(<DeskApp />);
+    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(context.sectionChangesError)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  });
 
   it.each([390, 1440])('hides temporary sections across navigation at %spx', async width => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
