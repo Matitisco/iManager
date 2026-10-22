@@ -4,6 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useModalLayer, ModalLayerContext } from './modal-layer';
 import { parseReportDate } from './report-period';
+import { CALENDAR_GAP, CALENDAR_HEIGHT, placeCalendar } from './date-picker-position';
 
 const dateValue = (date: Date) => `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const displayValue = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-').reverse().join('/') : value;
@@ -25,9 +26,10 @@ interface Props {
   ariaLabel?: string;
   error?: string;
   panel?: 'float' | 'inline';
+  boundary?: 'sheet';
 }
 
-export function DatePicker({ label, value, onChange, invalid, describedBy, required = false, disabled = false, ariaLabel, error, panel = 'float' }: Props) {
+export function DatePicker({ label, value, onChange, invalid, describedBy, required = false, disabled = false, ariaLabel, error, panel = 'float', boundary }: Props) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -44,14 +46,40 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
 
   useLayoutEffect(() => {
     if (!open || disabled || panel === 'inline') return;
-    const place = () => {
-      const rect = field.current?.getBoundingClientRect();
+    const body = boundary === 'sheet' ? root.current?.closest<HTMLElement>('.sheet-scroll') : null;
+    const place = (reveal = false) => {
+      let rect = field.current?.getBoundingClientRect();
       if (!rect) return;
       const viewport = window.visualViewport;
       const viewportLeft = viewport?.offsetLeft ?? 0;
       const viewportTop = viewport?.offsetTop ?? 0;
       const viewportWidth = viewport?.width ?? window.innerWidth;
       const viewportHeight = viewport?.height ?? window.innerHeight;
+      if (body) {
+        const bodyRect = body.getBoundingClientRect();
+        const bounds = {
+          left: Math.max(viewportLeft + 12, bodyRect.left + 8),
+          right: Math.min(viewportLeft + viewportWidth - 12, bodyRect.right - 8),
+          top: Math.max(viewportTop + 12, bodyRect.top + 8),
+          bottom: Math.min(viewportTop + viewportHeight - 12, bodyRect.bottom - 8),
+        };
+        // scrollHeight preserves the full panel height after maxHeight constrains it.
+        const node = calendar.current;
+        const height = node?.offsetHeight ? node.scrollHeight + node.offsetHeight - node.clientHeight : CALENDAR_HEIGHT;
+        const below = bounds.bottom - rect.bottom - CALENDAR_GAP;
+        const above = rect.top - bounds.top - CALENDAR_GAP;
+        if (reveal && height > Math.max(below, above)) {
+          // Move only the form, just enough to fit the panel next to its field.
+          const available = Math.max(0, bounds.bottom - bounds.top - rect.height - CALENDAR_GAP);
+          body.scrollTop += below >= above
+            ? Math.max(0, Math.min(height, available) - below)
+            : -Math.max(0, Math.min(height, available) - above);
+          rect = field.current!.getBoundingClientRect();
+        }
+        if (rect.bottom <= bounds.top || rect.top >= bounds.bottom) { close(); return; }
+        setPosition(placeCalendar(rect, bounds, height));
+        return;
+      }
       const width = Math.min(296, viewportWidth - 24);
       const height = Math.min(calendar.current?.offsetHeight || 364, viewportHeight - 24);
       const below = rect.bottom + 8;
@@ -62,15 +90,21 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
         top: Math.max(viewportTop + 12, Math.min(below + height <= viewportTop + viewportHeight - 12 ? below : rect.top - height - 8, viewportTop + viewportHeight - height - 12)),
       });
     };
-    place();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    place(true);
+    const update = () => place();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     if (calendar.current) observer?.observe(calendar.current);
-    window.visualViewport?.addEventListener('resize', place);
-    window.visualViewport?.addEventListener('scroll', place);
-    window.addEventListener('resize', place);
-    document.addEventListener('scroll', place, true);
-    return () => { observer?.disconnect(); window.visualViewport?.removeEventListener('resize', place); window.visualViewport?.removeEventListener('scroll', place); window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true); };
-  }, [open, disabled, panel]);
+    if (body) {
+      observer?.observe(body);
+      if (field.current) observer?.observe(field.current);
+      document.addEventListener('animationend', update, true);
+    }
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    document.addEventListener('scroll', update, true);
+    return () => { observer?.disconnect(); window.visualViewport?.removeEventListener('resize', update); window.visualViewport?.removeEventListener('scroll', update); window.removeEventListener('resize', update); document.removeEventListener('scroll', update, true); document.removeEventListener('animationend', update, true); };
+  }, [open, disabled, panel, boundary]);
 
   useEffect(() => {
     if (!open) return;
