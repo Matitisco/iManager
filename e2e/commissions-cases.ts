@@ -125,9 +125,20 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await expect.poll(() => state.editedSales.length).toBe(1);
       expect(state.editedSales[0]).toMatchObject({ sellerMemberId: 'martin' });
       await expect(editSale).toHaveCount(0);
-      await navigate('#/rep'); await page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Comisiones', exact: true }).click();
+      await navigate('#/rep');
+      const reportMonth = (month: string) => page.waitForRequest(request => {
+        const url = new URL(request.url());
+        return url.pathname === '/api/reports/commissions'
+          && url.searchParams.get('from') === month && url.searchParams.get('to') === month;
+      });
+      await Promise.all([
+        reportMonth('2026-10'), reportMonth('2026-09'),
+        page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Comisiones', exact: true }).click(),
+      ]);
       await expect(page.getByRole('button', { name: 'Exportar', exact: true })).toBeEnabled();
-      await expect(page.getByText('Comisiones generadas · últimos 30 días')).toBeVisible();
+      await expect(page.getByText('Comisiones generadas', { exact: true })).toBeVisible();
+      await expect(page.getByRole('combobox', { name: 'Mes de comisiones' })).toContainText('Octubre 2026');
+      await expect(page.getByText('Mes calendario · compara con septiembre de 2026', { exact: true })).toBeVisible();
       await shot('10', 'reportes');
       const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Exportar', exact: true }).click();
       expect((await download).suggestedFilename()).toBe('reporte-comisiones.csv');
