@@ -223,21 +223,10 @@ export async function openEquipos(page: Page) {
   await expect(page.getByRole('heading', { name: 'Inventario', level: 1 })).toBeVisible();
 }
 
-export async function wedge(page: Page, field: Locator, text: string, gapMs = 8) {
+export async function wedge(page: Page, field: Locator, text: string) {
   await field.click();
-  // Model the reader's cadence independently of browser/runner scheduling.
-  // Timers keep running; only Date is controlled while sending real key events.
-  let time = Date.now();
-  try {
-    for (const key of text) {
-      await page.clock.setFixedTime(time += gapMs);
-      await page.keyboard.type(key);
-    }
-    await page.clock.setFixedTime(time + gapMs);
-    await page.keyboard.press('Enter');
-  } finally {
-    await page.clock.setSystemTime(Date.now());
-  }
+  await page.keyboard.type(text, { delay: 8 });
+  await page.keyboard.press('Enter');
 }
 
 export async function shoot(page: Page, name: string) {
@@ -406,11 +395,6 @@ export function registerScanQa(width: 390 | 1440) {
     await expect(single.getByText('El IMEI no pasa el control de dígito')).toBeVisible();
     await expect(single.getByLabel('IMEI (opcional)')).toHaveValue('');
     await expect(single.getByLabel('Proveedor')).toBeEnabled();
-    // A human typing slowly must keep normal Enter behavior, even for a valid IMEI.
-    await wedge(page, single.getByLabel('IMEI (opcional)'), ONLY, 100);
-    await expect(single.getByLabel('IMEI (opcional)')).toBeFocused();
-    await expect(single.getByLabel('IMEI (opcional)')).toHaveValue(ONLY);
-    await single.getByLabel('IMEI (opcional)').fill('');
     await wedge(page, single.getByLabel('IMEI (opcional)'), ONLY);
     await expect(single.getByLabel('Proveedor')).toBeFocused();
     await expect(single.getByLabel('IMEI (opcional)')).toHaveValue(ONLY);

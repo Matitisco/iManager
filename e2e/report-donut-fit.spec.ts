@@ -8,8 +8,7 @@ const test = base.extend({
   page: async ({ playwright, baseURL }, use, testInfo) => {
     const mobile = testInfo.titlePath.some(title => title.includes('iPhone'));
     const browser = await (mobile ? playwright.webkit : playwright.chromium).launch();
-    // Text geometry is independent of transitions; keep repeated measurements stable on software renderers.
-    const page = await browser.newPage({ baseURL, reducedMotion: 'reduce', viewport: mobile ? { width: 393, height: 852 } : { width: 1280, height: 800 }, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 3 } : {}) });
+    const page = await browser.newPage({ baseURL, viewport: mobile ? { width: 393, height: 852 } : { width: 1280, height: 800 }, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 3 } : {}) });
     try { await use(page); } finally { await browser.close(); }
   },
 });

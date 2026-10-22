@@ -85,7 +85,7 @@ test('Android install action consumes a deferred native prompt only after a clic
   await expect(page.getByTestId('install-app')).toHaveCount(0);
 });
 
-test('standalone restores the test session and hides installation; email login remains usable', async ({ page }) => {
+test('@smoke standalone restores the test session and hides installation; email login remains usable', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await page.clock.install();
   await session(page);
@@ -96,7 +96,7 @@ test('standalone restores the test session and hides installation; email login r
   await expect(page.locator('html')).toHaveClass(/ios-standalone/);
 });
 
-test('real service worker reopens the shell offline but never serves API/session from cache', async ({ page, context }, info) => {
+test('@smoke real service worker reopens the shell offline but never serves API/session from cache', async ({ page, context }, info) => {
   // Playwright's Linux WebKit fails reloading a worker-controlled page offline ("internal error").
   test.skip(info.project.name === 'iphone-webkit', 'offline reload is unsupported in Playwright WebKit');
   await session(page);

@@ -46,8 +46,6 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   tradeIns: TradeIn[];
   clients: Client[];
   listsLoaded: boolean;
-  recordsAvailability: ReturnType<typeof useStoreRecords>['recordsAvailability'];
-  retryRecords: () => Promise<void>;
   clientDeposits: Record<string, ClientDeposit[]>;
   loadClientDeposits: (clientId: string) => Promise<ClientDeposit[]>;
   addClientDeposit: (clientId: string, input: DepositInput) => Promise<ClientDeposit>;
@@ -131,7 +129,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sessionConfirmed, setSessionConfirmed] = useState(false);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
-    inventory, setInventory, listsLoaded, recordsAvailability,
+    inventory, setInventory, listsLoaded,
     repairOrders, setRepairOrders, repairOrdersError,
     sales, setSales,
     tradeIns, setTradeIns,
@@ -967,7 +965,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...commissions,
       ...catalogState,
       ...returnsState,
-      inventory, sales, tradeIns, clients, listsLoaded, recordsAvailability, retryRecords: refreshLists, customColumns,
+      inventory, sales, tradeIns, clients, listsLoaded, customColumns,
       repairOrders, repairOrdersError, addRepairOrder: withListWrite(addRepairOrder), updateRepairOrder: withListWrite(updateRepairOrder, id => `repair:${id}`), changeRepairStatus: withListWrite(changeRepairStatus, id => `repair:${id}`), deleteRepairOrder: withListWrite(deleteRepairOrder, id => `repair:${id}`), restoreRepairOrder: withListWrite(restoreRepairOrder, id => `repair:${id}`),
       operationOptions, operationDrafts,
       operationNotifications,
