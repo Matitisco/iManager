@@ -1,13 +1,14 @@
 import { ReasonSheet } from '../ReasonSheet';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchSupplier, type SupplierDetail as SupplierFile } from '../../services/suppliers-api';
 import { canSeeFinancials } from '../sections';
 import { equipmentTitle, formatShortDate } from '../format';
 import { ListSkeleton } from '../list-skeleton';
-import { Actions, DeskIcon, Field, Sheet, useDesk } from '../ui';
+import { Actions, DeskIcon, Field, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { useMoney } from '../exchange';
+import './supplier.css';
 
 function problemLine(problems: number, devices: number) {
   if (!problems || !devices) return '';
@@ -26,12 +27,16 @@ export function SupplierForm({ id }: { id?: string }) {
   const [bad, setBad] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const form = useRef<HTMLFormElement>(null);
+  const saving = useRef(false);
 
   const save = async () => {
+    if (saving.current) return;
     if (!name.trim()) {
       setBad('Completá el nombre.');
       return;
     }
+    saving.current = true;
     setBusy(true);
     setError('');
     try {
@@ -41,18 +46,24 @@ export function SupplierForm({ id }: { id?: string }) {
     } catch (cause) {
       setError(getFriendlyErrorMessage(cause, 'No se pudo guardar el proveedor.'));
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
 
   return (
-    <Sheet title={id ? 'Editar proveedor' : 'Nuevo proveedor'} subtitle="El nombre alcanza para empezar." onClose={close}>
-      {error ? <div className="ferr">{error}</div> : null}
-      <Field label="Nombre" error={bad}><input value={name} onChange={(event) => { setName(event.target.value); setBad(''); }} placeholder="Ej. Mayorista Centro" /></Field>
-      <Field label="Teléfono"><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Opcional" /></Field>
-      <Field label="Email"><input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Opcional" /></Field>
-      <Field label="Notas"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></Field>
-      <Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar proveedor'} onSecondary={close} onPrimary={() => { void save(); }} />
+    <Sheet title={id ? 'Editar proveedor' : 'Nuevo proveedor'} className="supplier-sheet" onClose={close} busy={busy}
+      footer={<Actions busy={busy} primary={id ? 'Guardar cambios' : 'Guardar proveedor'} onSecondary={close} onPrimary={() => form.current?.requestSubmit()} />}>
+      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      <form ref={form} noValidate onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        <fieldset className="supplier-fields" disabled={busy}>
+          <Field label="Nombre" error={bad}><input autoComplete="organization" maxLength={120} value={name} aria-required="true" aria-invalid={!!bad} onChange={(event) => { setName(event.target.value); setBad(''); }} placeholder="Ej. Mayorista Centro" /></Field>
+          <Field label="Teléfono"><input type="tel" autoComplete="tel" maxLength={50} value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
+          <Field label="Email"><input type="email" autoComplete="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
+          <Field label="Notas"><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></Field>
+        </fieldset>
+        <button className="supplier-submit" type="submit" tabIndex={-1} aria-hidden="true" disabled={busy} />
+      </form>
     </Sheet>
   );
 }
@@ -66,6 +77,8 @@ export function SupplierDetail({ id }: { id: string }) {
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const storeId = appSession?.store?.id;
 
   useEffect(() => {
     if (!user) return;
@@ -78,7 +91,7 @@ export function SupplierDetail({ id }: { id: string }) {
       if (active) setError(getFriendlyErrorMessage(cause, 'No se pudo abrir el proveedor.'));
     });
     return () => { active = false; };
-  }, [user, id]);
+  }, [user, id, storeId, retry]);
 
   const archive = async (reason: string) => {
     setBusy(true);
@@ -107,45 +120,48 @@ export function SupplierDetail({ id }: { id: string }) {
   };
 
   return (
-    <Sheet title={detail?.name ?? 'Proveedor'} subtitle={detail ? `${detail.deviceCount} ${detail.deviceCount === 1 ? 'equipo' : 'equipos'}` : 'Compras y origen'} onClose={close} className="eq-sheet">
-      {error ? <div className="ferr">{error}</div> : null}
+    <Sheet title={detail?.name ?? 'Proveedor'} subtitle={detail ? `${detail.deviceCount} ${detail.deviceCount === 1 ? 'equipo' : 'equipos'}` : undefined} onClose={close} busy={busy} className="supplier-sheet"
+      footer={detail ? <SheetActions>
+        {detail.deletedAt ? <button className="btn2 p" type="button" disabled={busy} onClick={() => { void restore(); }}>Restaurar</button> : <>
+          <SheetActionMenu>
+            <button className="btn2 s" type="button" onClick={() => open({ type: 'import', kind: 'inv', supplierId: detail.id, supplierName: detail.name })}>Subir stock</button>
+            <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-supplier', id: detail.id })}>Editar</button>
+            <button className="btn2 s supplier-archive" type="button" onClick={() => setConfirm(true)}>Archivar</button>
+          </SheetActionMenu>
+          <button className="btn2 p sheet-primary" type="button" onClick={() => open({ type: 'new-eq', supplierId: detail.id })}>Registrar equipo</button>
+        </>}
+      </SheetActions> : null}>
+      {error && !confirm ? <div className="ferr" role="alert">{error}{!detail ? <button className="wlink" type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button> : null}</div> : null}
       {!detail && !error ? <ListSkeleton variant="cards" rows={3} testId="supplier-loading" /> : null}
       {detail ? (
-        <div data-testid="supplier-detail">
-          {detail.phone ? <div className="kv"><span>Teléfono</span><b>{detail.phone}</b></div> : null}
-          {detail.email ? <div className="kv"><span>Email</span><b>{detail.email}</b></div> : null}
-          {detail.notes ? <p className="eqs-note">{detail.notes}</p> : null}
-          {problemLine(detail.problemCount, detail.deviceCount) ? <p className="eqs-note" data-testid="supplier-problems">{problemLine(detail.problemCount, detail.deviceCount)}</p> : null}
-          {detail.deletedAt ? <p className="archive-note">Archivado. Los equipos conservan el origen.</p> : null}
-          <div className="sacts">
-            {detail.deletedAt ? (
-              <button className="btn2 p" type="button" disabled={busy} onClick={() => { void restore(); }}>Restaurar</button>
-            ) : (
-              <>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'new-eq', supplierId: detail.id })}>Registrar equipo</button>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'import', kind: 'inv', supplierId: detail.id, supplierName: detail.name })}>Subir stock</button>
-                <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-supplier', id: detail.id })}>Editar</button>
-                <button className="btn2 s" type="button" onClick={() => setConfirm(true)}>Archivar</button>
-              </>
-            )}
-          </div>
-          {detail.purchases.length === 0 ? <p className="eqs-note">Todavía no hay compras de este proveedor.</p> : detail.purchases.map((purchase) => (
-            <section key={purchase.id} className="card ledger-list">
-              <b>{purchase.id === 'sin-lote' ? 'Sin compra agrupada' : `Compra del ${formatShortDate(purchase.purchasedAt)}`}</b>
-              {purchase.notes ? <p className="eqs-note">{purchase.notes}</p> : null}
-              {purchase.problemCount ? <p className="eqs-note">{problemLine(purchase.problemCount, purchase.items.length)}</p> : null}
-              {purchase.items.map((item) => (
-                <button key={item.id} className="member" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
-                  <span className="ico-row"><DeskIcon name="list" size={18} /></span>
-                  <span className="info">
-                    <span className="name">{equipmentTitle(item.model, item.capacity)}</span>
-                    <span className="role">{item.imei || 'Sin IMEI'}{item.problemLabel ? ` · ${item.problemLabel}` : ''}</span>
-                  </span>
-                  {seeCosts && item.cost != null ? <span className="rtxt">{money.show(item.cost, item.currency)}</span> : null}
-                </button>
-              ))}
-            </section>
-          ))}
+        <div className="supplier-file" data-testid="supplier-detail">
+          {detail.phone || detail.email ? <dl className="supplier-contact">
+            {detail.phone ? <div><dt>Teléfono</dt><dd>{detail.phone}</dd></div> : null}
+            {detail.email ? <div><dt>Email</dt><dd>{detail.email}</dd></div> : null}
+          </dl> : null}
+          {detail.notes ? <p className="supplier-note">{detail.notes}</p> : null}
+          {problemLine(detail.problemCount, detail.deviceCount) ? <p className="supplier-status" data-testid="supplier-problems">{problemLine(detail.problemCount, detail.deviceCount)}</p> : null}
+          {detail.deletedAt ? <p className="supplier-note">Archivado. Los equipos conservan el origen.</p> : null}
+          <section className="supplier-purchases" aria-label="Compras">
+            <h4>Compras</h4>
+            {detail.purchases.length === 0 ? <p className="supplier-empty">Todavía no hay compras.</p> : detail.purchases.map((purchase) => (
+              <section key={purchase.id} className="supplier-purchase" aria-label={purchase.id === 'sin-lote' ? 'Sin compra agrupada' : `Compra del ${formatShortDate(purchase.purchasedAt)}`}>
+                <header>
+                  <h5>{purchase.id === 'sin-lote' ? 'Sin compra agrupada' : `Compra del ${formatShortDate(purchase.purchasedAt)}`}</h5>
+                  {purchase.notes && purchase.id !== 'sin-lote' ? <p>{purchase.notes}</p> : null}
+                </header>
+                {purchase.items.length === 0 ? <p className="supplier-empty">Sin equipos.</p> : purchase.items.map((item) => (
+                  <button key={item.id} className="supplier-item" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
+                    <span className="supplier-item-icon" aria-hidden="true"><DeskIcon name="list" size={16} /></span>
+                    <span className="supplier-item-name">{equipmentTitle(item.model, item.capacity)}</span>
+                    {seeCosts && item.cost != null ? <span className="supplier-item-cost">{money.show(item.cost, item.currency)}</span> : null}
+                    <span className="supplier-item-imei">{item.imei || 'Sin IMEI'}</span>
+                    {item.problemLabel ? <span className="supplier-item-status">{item.problemLabel}</span> : null}
+                  </button>
+                ))}
+              </section>
+            ))}
+          </section>
         </div>
       ) : null}
       {confirm ? (

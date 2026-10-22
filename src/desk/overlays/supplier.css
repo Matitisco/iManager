@@ -1,0 +1,39 @@
+.supplier-sheet .supplier-file { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.supplier-contact { margin: 0; min-width: 0; }
+.supplier-contact > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: baseline; gap: 16px; padding: 14px 0; font-size: 14px; line-height: 1.5; }
+.supplier-contact > div + div { border-top: 1px solid var(--border); }
+.supplier-contact dt { color: var(--secondary); }
+.supplier-contact dd { margin: 0; min-width: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.supplier-file .supplier-note { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--row); font-size: 13px; line-height: 1.6; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.supplier-file .supplier-status { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.supplier-purchases { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.supplier-purchases h4 { margin: 4px 0 0; font-size: 16px; font-weight: 700; }
+.supplier-purchase { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 16px; }
+.supplier-purchase > header { padding-bottom: 12px; }
+.supplier-purchase h5 { margin: 0; font-size: 14px; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
+.supplier-purchase header p { margin: 4px 0 0; font-size: 13px; color: var(--secondary); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.desk-app .supplier-item { display: grid; grid-template-columns: 32px minmax(0, 1fr) fit-content(40%); align-items: start; gap: 4px 10px; width: 100%; min-width: 0; padding: 14px 0; border-top: 1px solid var(--border); text-align: left; }
+.supplier-item-icon { display: grid; place-items: center; width: 32px; height: 32px; grid-row: 1 / 3; border-radius: 10px; background: var(--row); }
+.supplier-item-name { font-size: 14px; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
+.supplier-item-cost { grid-column: 3; font-size: 13px; line-height: 1.6; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.supplier-item-imei { grid-column: 2 / -1; font-size: 12px; line-height: 1.5; color: var(--secondary); overflow-wrap: anywhere; }
+.supplier-item-status { grid-column: 2 / -1; justify-self: start; max-width: 100%; padding: 3px 7px; border-radius: 6px; background: var(--lime-soft); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.desk-app .supplier-item:hover { background: var(--row); }
+.supplier-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
+.supplier-file .supplier-empty { margin: 0; padding: 12px 0; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+.supplier-sheet .supplier-fields { display: flex; flex-direction: column; gap: 20px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.supplier-fields .fl { min-width: 0; margin: 0; }
+.supplier-sheet .supplier-fields textarea { min-height: 104px; line-height: 1.6; }
+.supplier-fields :disabled { opacity: .65; }
+.supplier-submit { display: none; }
+.supplier-sheet .sheet-action-menu .supplier-archive { color: var(--err); }
+.supplier-sheet .sheet-actions:has(.sheet-action-menu) > .sheet-action-menu,
+.supplier-sheet .sheet-actions:has(.sheet-action-menu) > .sheet-primary { grid-column: auto; }
+
+@media (max-width: 760px) {
+  .supplier-sheet > .sheet-scroll { padding-top: 16px; }
+  .supplier-contact > div { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
+  .supplier-purchase { padding: 14px; }
+  .desk-app .supplier-item { grid-template-columns: 28px minmax(0, 1fr) fit-content(40%); gap: 4px 8px; }
+  .supplier-item-icon { width: 28px; height: 28px; border-radius: 8px; }
+}

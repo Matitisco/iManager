@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 punto 13 — Modal de proveedor — 2026-10-22
+
+- Ficha con contacto adaptable, notas separadas y compras con padding, divisores, IMEI completo y estado por equipo. Pie fijo con Registrar equipo y menú compartido para Subir stock, Editar y Archivar; restauración conservada para archivados. Alta/edición en una columna con separación entre campos y sin texto secundario redundante. Guardado bloquea controles, cierre y envíos repetidos; fallos visibles conservan el borrador y la ficha permite reintentar su consulta.
+- Validación: 1.453 pruebas frontend (14 nuevas de Proveedor), 59 regresiones del área, lint/typecheck frontend/backend, OpenSpec estricto y diff check aprobados. Playwright local en 1440×900 y 390×844 con iPhone 13 emulado: ficha, alta/edición persistidas tras recargar, menú, cancelación de archivo, guardado pendiente/fallido, contacto y compras extensas, scroll, vacío, skeleton y error/reintento; sin desbordes, superposiciones ni errores de página. Estados extremos y fallos simulados por intercepción HTTP local.
+- Capturas previas de main, wireframe previo generado con imagegen y evidencia externa en `/workspace/imanager-local/shots/483-j/`. OpenSpec `supplier-modal-483-j`; estilos exclusivos de Proveedor. Un commit en `feat/483-medios`, PR #495 sin merge; sin imágenes/prompts versionados, build, backend, AppContext, Prisma, producción ni cambios en puntos previos o 6/8/14.
+
 ## Issue #483 puntos 11 y 12 — Importador compacto — 2026-10-22
 
 - Un único ImportModal/Sheet para stock, proveedores, clientes, ventas y la alternativa de planillas del onboarding: 600 px desktop y bottom sheet móvil, DM Sans, modos CSV / Subir .txt / Pegar listado, dropzone accesible, preview virtualizada compacta con errores por fila y footer con acción principal. Edición/exclusión de texto, ajuste de hojas/encabezado/mapeo y errores de persistencia conservados; cierre bloqueado durante guardado y respuestas tardías descartadas al volver.
