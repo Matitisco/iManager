@@ -81,8 +81,7 @@ test.describe('phone navigation', () => {
 
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page).toHaveURL(/#\/mas/);
-    await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await expect(page.getByText('Todas las secciones, agrupadas')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Más', exact: true })).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('Equipos dados y recibidos');
     await expect(page.getByTestId('more-item-clients')).toContainText('Agenda y saldos');
     await expect(page.getByTestId('more-item-dashboard')).toBeVisible();

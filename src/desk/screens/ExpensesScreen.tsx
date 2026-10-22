@@ -23,7 +23,7 @@ export function ExpensesScreen() {
 
   return (
     <div className="dscreen" data-testid="expenses-screen">
-      <ScreenTitle title="Gastos" subtitle="Restan en la ganancia neta. No mueven la caja." back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Gastos" back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}

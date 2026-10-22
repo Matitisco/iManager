@@ -89,7 +89,7 @@ for (const viewport of viewports) {
       expect(clientBody.errors).toEqual([]);
       await expect(clientsDialog.getByText('10 creados')).toBeVisible();
       await clientsDialog.locator('button.btn2', { hasText: 'Cerrar' }).click();
-      await expect(page.getByText('10 clientes ·')).toBeVisible();
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(10);
 
       await openTab(page, 'sales');
       await expect(page.getByRole('heading', { level: 1, name: 'Ventas' })).toBeVisible();
@@ -124,7 +124,7 @@ for (const viewport of viewports) {
 
       await openTab(page, 'clients');
       await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
-      await expect(page.getByText('10 clientes ·')).toBeVisible();
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(10);
       await page.getByPlaceholder('Buscar por nombre, DNI o teléfono').fill('Lucía');
       await expect(page.getByText('Lucía Fernández').first()).toBeVisible();
       await expect(page.getByText('03/10/2026').first()).toBeVisible();

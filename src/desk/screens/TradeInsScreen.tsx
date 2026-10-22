@@ -66,7 +66,6 @@ export function TradeInsScreen() {
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
-  const openCount = tradeIns.filter((item) => !isVoidRow(item) && isInProgressTrade(item.status)).length;
 
   const tradeSource = mergeRecordRows(tradeIns, voidedTrades);
 
@@ -115,7 +114,6 @@ export function TradeInsScreen() {
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Canjes"
-        subtitle={`${tradeSource.length} canjes · ${openCount} en curso`}
         back={back}
         tools={(
           <>

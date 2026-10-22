@@ -21,7 +21,7 @@ export function SuppliersScreen() {
 
   return (
     <div className="dscreen" data-testid="suppliers-screen">
-      <ScreenTitle title="Proveedores" subtitle="De dónde vino cada equipo." back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Proveedores" back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}

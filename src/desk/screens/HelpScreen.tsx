@@ -18,7 +18,6 @@ export function HelpScreen() {
       <ScreenTitle
         title="Ayuda"
         desktop={null}
-        subtitle="Guías para usar iManager"
         back={back}
       />
       <h2>Guías</h2>

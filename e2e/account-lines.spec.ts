@@ -72,7 +72,7 @@ for (const device of [
       await post(request, email, `/api/operations/sales/sales/${paid.sale.id}/cancel`, {});
       await page.reload();
       await openClients(page);
-      await expect(page.getByText('1 cliente · 1 con saldo')).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
       const clientRow = page.getByTestId(`client-row-${client.id}`);
       await expect(clientRow).toContainText('Saldo $ 5');
       await clientRow.click();

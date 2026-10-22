@@ -175,7 +175,7 @@ test.describe('trade-ins on a phone', () => {
 
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
-    await expect(page.getByText('0 canjes · 0 en curso')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
     await expect(page.getByTestId('tradeins-empty')).toContainText('No hay canjes');
     await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();
