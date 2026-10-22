@@ -177,7 +177,7 @@ for (const viewport of [
       await expect(ruleMenu).toHaveJSProperty('open', false);
       await expect(summary).toBeFocused();
       await body.evaluate(node => { node.scrollTop = node.scrollHeight; });
-      await expect(sheet.getByLabel('Vigente desde')).toBeInViewport();
+      await expect(sheet.getByRole('textbox', { name: 'Vigente desde', exact: true })).toBeInViewport();
       await expect(footer.getByRole('button', { name: 'Guardar regla', exact: true })).toBeInViewport({ ratio: 1 });
       await shot(page, `${viewport.name}-commission-rule-bottom.png`);
     });

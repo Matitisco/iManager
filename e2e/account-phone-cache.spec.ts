@@ -104,9 +104,9 @@ for (const device of [
       await openClients(page);
       const clientRow = page.getByTestId(`client-row-${client.id}`);
       await expect(clientRow).toContainText('Saldo US$ 5');
-      const notice = clientRow.getByTestId('notice-reason');
-      await expect(notice).toContainText('Debe US$ 35');
-      await expect(notice).not.toContainText('65');
+      await expect(clientRow.getByTestId('notice-dot')).toBeVisible();
+      await expect(clientRow.getByTestId('notice-reason')).toHaveCount(0);
+      await expect(clientRow).not.toContainText('65');
     });
   });
 }

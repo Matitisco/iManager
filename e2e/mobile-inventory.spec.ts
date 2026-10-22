@@ -121,7 +121,7 @@ test.describe('inventory on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
     const importer = page.getByRole('dialog', { name: 'Importar equipos' });
     await expect(importer.locator('.sheet-grab')).toBeVisible();
-    await expect(importer.getByText(/Arrastrá un archivo/)).toBeVisible();
+    await expect(importer.getByRole('button', { name: 'Elegir archivo CSV o XLSX' })).toBeVisible();
     await expect(importer.locator('.sheet-foot').getByRole('button', { name: 'Cancelar' })).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);

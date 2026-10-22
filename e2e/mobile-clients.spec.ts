@@ -153,7 +153,6 @@ test.describe('clients on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo cliente' }).click();
     const form = page.getByRole('dialog', { name: 'Nuevo cliente' });
     await expect(form.locator('.sheet-grab')).toBeVisible();
-    await expect(form.getByText('Última compra, total y saldo se calculan desde Ventas.')).toBeVisible();
     await expect(form.getByLabel('Nombre y apellido')).toBeVisible();
     await expect(form.getByLabel('DNI')).toBeVisible();
     await expect(form.getByLabel('Teléfono')).toBeVisible();

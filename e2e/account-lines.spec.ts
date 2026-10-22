@@ -1,3 +1,4 @@
+import { enableHiddenSections } from './hidden-sections';
 import { devices, expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi } from './utils';
 
@@ -28,6 +29,7 @@ for (const device of [
 
     test('keeps one credit, the manual balance, the sale debt and the installment', async ({ page, request }, info) => {
       test.setTimeout(120_000);
+      await enableHiddenSections(page, ['cuenta-corriente']);
       const email = buildTestEmail(info, `lineas-${device.name}`);
       await bootstrapStoreViaApi(page, request, email, 'iManager · Líneas');
       const { client } = await createClientViaApi(request, email, { name: 'Ana Pérez', phone: '2615550199', dni: '30111999' });

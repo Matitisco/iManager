@@ -339,7 +339,7 @@ test.describe('trade-ins on a phone', () => {
     await (await sheetAction(again, 'Anular')).click();
     const confirm = page.getByRole('dialog', { name: /Anular (venta|canje)/ });
     await expect(confirm).toBeVisible();
-    await settleMotion(page, '.dialog');
+    await settleMotion(page, '[role=dialog]');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-cancel.png` });
     await confirm.getByRole('button', { name: 'Volver', exact: true }).click();

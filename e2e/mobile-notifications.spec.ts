@@ -168,19 +168,20 @@ test.describe('notifications on a phone', () => {
 
     await page.getByTestId('sidebar-tab-inventory').click();
     const list = page.getByTestId('phone-rows');
-    await expect(page.getByTestId('section-notices')).toContainText('1 novedad');
+    await expect(page.getByTestId('section-notices')).toHaveCount(0);
     await expect(list.getByText(model)).toBeVisible();
-    await expect(list.getByTestId('notice-reason')).toHaveText('Vendido');
+    await expect(list.getByTestId('notice-dot')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
     await page.getByTestId('sidebar-tab-sales').click();
     await page.getByTestId('sidebar-tab-inventory').click();
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
-    await expect(page.getByTestId('notice-reason')).toHaveCount(0);
+    await expect(page.getByTestId('notice-dot')).toHaveCount(0);
 
     await openNotifications(page);
     await page.getByTestId('notifications-read-filter').getByRole('button', { name: 'Sin leer' }).click();
-    await expect(page.getByTestId('notification-groups').getByRole('button', { name: /Equipo vendido/ })).toHaveCount(0);
-    await expect(page.getByTestId('notifications-sections').getByRole('button', { name: 'Inventario 0' })).toBeVisible();
+    // Visiting a section acknowledges record versions, not notification history.
+    await expect(page.getByTestId('notification-groups').getByRole('button', { name: /Equipo vendido/ })).toBeVisible();
+    await expect(page.getByTestId('notifications-sections').getByRole('button', { name: 'Inventario 1' })).toBeVisible();
     await page.getByRole('button', { name: 'Marcar todas como leídas' }).click();
     await expect(page.getByText('Estás al día', { exact: true })).toBeVisible();
     await expect(page.getByText('Estás al día. No hay notificaciones sin leer.')).toBeVisible();

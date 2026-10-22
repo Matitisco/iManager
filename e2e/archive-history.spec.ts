@@ -23,7 +23,7 @@ test('archives a device, shows it in history and restores it', async ({ page, re
   await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Archivar', exact: true }).click();
   await expect(confirm).toBeHidden();
-  await expect(page.getByText('iPhone Historial')).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: 'iPhone Historial' })).toHaveClass(/is-void/);
   expect((await fetchInventory(request, email)).inventory.map((item) => item.model)).not.toContain('iPhone Historial');
 
   await openDeskSection(page, 'history');

@@ -1,6 +1,6 @@
 import { openDeskSection } from './navigation';
 import { devices, expect, test } from '@playwright/test';
-import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
+import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, createStoreViaApi, loginViaUi } from './utils';
 
 const api = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:3100';
 const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
@@ -15,10 +15,13 @@ for (const device of [
   test('hides the public banner when the connection returns without navigating', async ({ page, request, browser }, testInfo) => {
     const email = buildTestEmail(testInfo, 'offline-catalog');
     await page.route('https://dolarapi.com/**', route => route.fulfill({ json: { compra: 1280, venta: 1300 } }));
-    await bootstrapStoreViaApi(page, request, email, 'Mi Tienda Ejemplo');
-    expect((await request.patch(`${api}/api/stores/current`, { headers: authHeaders(email), data: { phone: '+54 9 11 55551234', address: 'Av. Corrientes 1234', currency: 'USD', exchangeMode: 'manual', manualBuy: 1280, manualSell: 1300 } })).ok()).toBeTruthy();
+    // Seed before the single login navigation. Consecutive setup reloads can
+    // overlap WebKit's unfinished navigation, before this offline test begins.
+    await createStoreViaApi(request, email, 'Mi Tienda Ejemplo');
+    expect((await request.patch(`${api}/api/stores/current`, { headers: authHeaders(email), data: { instagram: 'e2etienda', phone: '+54 9 11 55551234', address: 'Av. Corrientes 1234', currency: 'USD', exchangeMode: 'manual', manualBuy: 1280, manualSell: 1300 } })).ok()).toBeTruthy();
     await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', cost: 600, price: 920 });
-    await page.reload();
+    await loginViaUi(page, email);
+    await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
     if (device.mobile) await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
     await openDeskSection(page, 'publicCatalog');
     await page.getByRole('button', { name: 'Crear catálogo' }).click();
@@ -29,7 +32,7 @@ for (const device of [
     await page.getByRole('button', { name: 'Mostrar', exact: true }).click();
     const context = await browser.newContext(device.use);
     const lead = await context.newPage();
-    await lead.goto(link);
+    await lead.goto(link, { waitUntil: 'domcontentloaded' });
     await expect(lead.getByText('US$ 920')).toBeVisible();
     const url = lead.url();
     await context.setOffline(true);

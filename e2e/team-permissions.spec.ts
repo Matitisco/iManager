@@ -25,7 +25,7 @@ for (const width of [390, 1440]) {
     await page.getByRole('button', { name: 'Técnico', exact: true }).click();
     await expect(page.getByRole('switch', { name: 'Servicio técnico' })).toBeChecked();
     await expect(page.getByRole('switch', { name: 'Ventas', exact: true })).not.toBeChecked();
-    await expect(page.getByRole('switch', { name: 'Ver saldo de cajas' })).toBeDisabled();
+    await expect(page.getByRole('switch', { name: 'Ver saldo de cajas' })).toHaveCount(0);
     await page.screenshot({ path: `/tmp/issue71-permissions-${width}.png` });
     await page.getByRole('button', { name: width === 390 ? 'Guardar' : 'Guardar permisos', exact: true }).click();
     await expect(page.getByTestId('settings-screen')).toBeVisible();

@@ -73,7 +73,7 @@ test.describe('desktop service stays on the board', () => {
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('service-groups')).toHaveCount(0);
-    await expect(page.getByTestId('service-chips')).toHaveCount(0);
+    await expect(page.getByTestId('service-chips')).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Nueva orden' })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Tablero' })).toHaveAttribute('aria-pressed', 'true');
@@ -196,7 +196,7 @@ test.describe('service on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nueva orden' }).click();
     const form = page.getByRole('dialog', { name: 'Nueva orden de reparación' });
     await expect(form.locator('.sheet-grab')).toBeVisible();
-    await expect(form.getByText('Arranca en «Recibido».')).toBeVisible();
+    await expect(form.getByLabel('Equipo', { exact: true })).toBeVisible();
     await expect(form.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
     await expect(form.getByRole('button', { name: 'Recibido' })).toHaveClass(/on/);
     await expect(form.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
@@ -206,7 +206,7 @@ test.describe('service on a phone', () => {
     const catalog = page.getByRole('dialog', { name: 'Estados de servicio' });
     await expect(catalog.getByRole('heading', { name: 'Estados de servicio' })).toBeVisible();
     await expect(catalog.locator('input').first()).toHaveValue('Recibido');
-    await settleMotion(page, '.dialog');
+    await settleMotion(page, '[role=dialog]');
     await expectFits(page);
     await catalog.getByRole('button', { name: 'Cancelar' }).click();
     await expect(catalog).toBeHidden();

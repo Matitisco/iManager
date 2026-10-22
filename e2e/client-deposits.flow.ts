@@ -33,7 +33,7 @@ async function fits(page: Page) {
   const box = await sheet.boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   expect(await sheet.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
-  const buttons = await sheet.locator('.sheet-foot button').all();
+  const buttons = await sheet.locator('.sheet-foot button:visible').all();
   for (const button of buttons) { const buttonBox = await button.boundingBox(); if (buttonBox) expect(buttonBox.height).toBeGreaterThanOrEqual(44); }
 }
 

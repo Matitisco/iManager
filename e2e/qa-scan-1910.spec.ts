@@ -1,4 +1,3 @@
-import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { authHeaders, buildTestEmail, loginViaUi } from './utils';
 import { bootStore, installFakeCamera, inviteStaffWithoutInventory, registerScanQa } from './qa-scan-1910';
@@ -49,7 +48,7 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   await expect(page.locator('aside').getByTestId('sidebar-tab-followups')).toHaveCount(0);
   await expect(page.locator('aside').getByTestId('sidebar-tab-returns')).toHaveCount(0);
   await expect(page.locator('aside').getByTestId('sidebar-tab-expenses')).toHaveCount(0);
-  await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toBeVisible();
 
   const routes: Array<[string, string, string]> = [
     ['#/inv', '#/stock/equipos', 'Inventario'],
@@ -59,19 +58,19 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
     ['#/ven', '#/comercial/ventas', 'Ventas'],
     ['#/canjes', '#/comercial/canjes', 'Canjes'],
     ['#/devoluciones', '#/comercial/devoluciones', 'Devoluciones'],
-    ['#/seguimientos', '#/atencion/seguimientos', 'Seguimientos'],
-    ['#/gastos', '#/finanzas/gastos', 'Gastos'],
+    ['#/seguimientos', '#/atencion/clientes', 'Clientes'],
+    ['#/gastos', '#/dashboard', '¿Qué hay para hoy?'],
     ['#/rep', '#/analisis/reportes', 'Reportes'],
   ];
   for (const [legacy, canonical, heading] of routes) {
     await page.goto(`/${legacy}`);
     await expect(page).toHaveURL(new RegExp(`${canonical.replaceAll('/', '\\/')}$`));
     await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
-    await expect(page.getByTestId('group-tab-inventory').or(page.getByTestId('group-tab-sales')).or(page.getByTestId('group-tab-clients')).or(page.getByTestId('group-tab-cash')).or(page.getByTestId('group-tab-reports'))).toBeVisible();
+    // A group with only one visible section (Finanzas) needs no tab bar.
+    if (!['Proveedores', '¿Qué hay para hoy?'].includes(heading)) await expect(page.getByRole('tablist', { name: 'Secciones del grupo' })).toBeVisible();
   }
 
-  await openDeskSection(page, 'followups');
-  await expect(page).toHaveURL(/#\/atencion\/seguimientos$/);
+  await expect(page.getByTestId('group-tab-followups')).toHaveCount(0);
   await page.goto('/#/cuenta/configuracion');
   await page.getByRole('button', { name: /Reporte automático/ }).click();
   const report = page.getByRole('dialog', { name: 'Reporte automático' });

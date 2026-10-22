@@ -173,7 +173,7 @@ test.describe('phone login, invite and onboarding', () => {
       await route.continue();
     });
     await page.goto(`/invite/${invitation.token}`);
-    await expect(page.getByTestId('accept-invitation-screen')).toContainText('Verificando invitación');
+    await expect(page.getByTestId('accept-invitation-screen').getByRole('status', { name: 'Cargando' })).toBeVisible();
     await expectFits(page);
     await shot(page, 'm10-login-invitacion-verificando-390');
     releasePreview?.();
@@ -274,7 +274,7 @@ test.describe('phone login, invite and onboarding', () => {
     const guest = buildTestEmail(testInfo, 'auth-onb-guest');
     await loginViaUi(page, guest);
     await page.goto(`/invite/${invitation.token}`);
-    await expect(page.getByText('Verificando invitación…')).toBeVisible();
+    await expect(page.getByTestId('accept-invitation-screen').getByRole('status', { name: 'Cargando' })).toBeVisible();
     await expectFits(page);
     await shot(page, 'm10-onboarding-verificando-390');
     releaseOnboarding?.();
