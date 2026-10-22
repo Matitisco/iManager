@@ -655,16 +655,18 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
           {canManageSensitive || integrated ? <SheetActionMenu>
             {canManageSensitive ? <button className="btn2 s" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar venta</button> : null}
             {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
+            {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'sale', id, label: saleCode(sale) })}>Anular</button> : null}
           </SheetActionMenu> : null}
           <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
         </SheetActions>
       ) : (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-          {integrated && canManageSensitive || sale.status !== 'CANCELADA' ? <SheetActionMenu>
+          {integrated && canManageSensitive || sale.status !== 'CANCELADA' || canManageSensitive ? <SheetActionMenu>
             {integrated && canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
             {sale.status !== 'CANCELADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
             {sale.status === 'COMPLETADA' ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button> : null}
+            {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'sale', id, label: saleCode(sale) })}>Anular</button> : null}
           </SheetActionMenu> : null}
           <button className="btn2 p sheet-primary" type="button" onClick={() => {
             const text = [

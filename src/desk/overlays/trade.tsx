@@ -206,13 +206,14 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       : { refund: 0, credit: 0 };
     const statusChanged = technicalStatus !== trade.status;
     const detailFooter = trade.confirmationStatus === 'CANCELLED'
-      ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>
+      ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>{canManageSensitive && !trade.voidedAt ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button></SheetActionMenu> : null}</SheetActions>
       : trade.confirmationStatus === 'PENDING'
         ? <SheetActions>
             <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
             <SheetActionMenu>
               <button className="btn2 s" type="button" disabled={busy || !statusChanged} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
               {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+              {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}
             </SheetActionMenu>
             <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Retomar</button>
           </SheetActions>
@@ -222,12 +223,13 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
               <SheetActionMenu>
                 <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
                 {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button> : null}
+                {canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}
               </SheetActionMenu>
               <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={saveTechnicalStatus}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
             </SheetActions>
           : <SheetActions>
               <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-              {canManageSensitive ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button></SheetActionMenu> : null}
+              {canManageSensitive ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar operación</button>{canManageSensitive && !trade.voidedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button> : null}</SheetActionMenu> : null}
               <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'edit-cj', id, source })}>Editar</button>
             </SheetActions>;
     if (confirmCancel) {
