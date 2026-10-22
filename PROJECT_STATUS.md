@@ -8,6 +8,11 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## CI — Objetivo de PR menor a cinco minutos — 2026-10-22
+
+- Frontend, E2E y PWA usan la imagen oficial de Playwright derivada del lockfile, sin apt ni descargas de navegadores durante el job. E2E conecta al servicio PostgreSQL por hostname; instalaciones npm de frontend/backend una vez por proyecto y en paralelo, con cachés ajustadas a los lockfiles necesarios. Mantiene pruebas, selección PR/full, dos shards frontend, integración backend serial y cancelación existentes.
+- YAML/shell, condiciones de tests, propagación de errores de instalación y typechecks frontend/backend validados. Vitest local: 1.485 pruebas y 183 archivos aprobados en 85,95 s; siete suites de navegador fallaron al iniciar Chromium por restricciones del sandbox, dejando 42 pruebas sin ejecutar. OpenSpec `ci-under-five-minutes`; sin build, commit ni push. Falta medir la duración total y validar los contenedores en el próximo PR de GitHub.
+
 ## Control de stock — Acceso por pestaña — 2026-10-22
 
 - Retirado el botón antiguo del encabezado de Inventario en escritorio y móvil, junto con el estado local, el montaje alternativo y el modo con flecha de regreso. La pestaña y su ruta conservan el flujo de conteo; Carga en serie mantiene sus estilos compartidos.
