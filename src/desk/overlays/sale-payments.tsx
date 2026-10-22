@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { useEffect, useMemo, useState } from 'react';
 import type { OperationInput } from '../../services/operations-api';
 import { formatInputMoney, parseMoney } from '../format';
@@ -81,7 +83,7 @@ export function SalePaymentsFields({
       if (!clientId) return { active: true, error: 'Financiar en cuotas no está disponible para consumidor final', payload: null };
       const installmentsCount = Number(count);
       if (!Number.isInteger(installmentsCount) || installmentsCount < 2 || installmentsCount > 36) return { active: true, error: 'La cantidad de cuotas tiene que estar entre 2 y 36', payload: null };
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDue)) return { active: true, error: 'Indicá el primer vencimiento', payload: null };
+      if (!isDateValue(firstDue)) return { active: true, error: 'Indicá el primer vencimiento', payload: null };
       if (!(remainder > 0)) return { active: true, error: 'No queda saldo para financiar', payload: null };
       if (collectFirst && !firstMethod) return { active: true, error: 'Elegí el medio para cobrar la primera cuota', payload: null };
       installments = {
@@ -145,7 +147,7 @@ export function SalePaymentsFields({
         <div className="acct-plan">
           <div className="acct-stack">
             <Field label="Cantidad de cuotas"><input aria-label="Cantidad de cuotas" inputMode="numeric" value={count} onChange={(event) => setCount(event.target.value.replace(/\D/g, '').slice(0, 2))} /></Field>
-            <Field label="Primer vencimiento"><input aria-label="Primer vencimiento" type="date" value={firstDue} onChange={(event) => setFirstDue(event.target.value)} /></Field>
+            <DatePicker label="Primer vencimiento" value={firstDue} onChange={setFirstDue} required />
           </div>
           <Field label="Frecuencia"><span /></Field>
           <Segs options={FREQUENCIES} value={frequency} onChange={(value) => setFrequency(value as typeof frequency)} />

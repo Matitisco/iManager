@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { archivedExpense } from '../archive-cache';
 import { ReasonSheet } from '../ReasonSheet';
 import { useState } from 'react';
@@ -26,7 +28,7 @@ export function ExpenseForm({ id }: { id?: string }) {
 
   const save = async () => {
     const next: Record<string, string> = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) next.date = 'Elegí una fecha.';
+    if (!isDateValue(date)) next.date = 'Elegí una fecha.';
     if (!category.trim()) next.category = 'Completá la categoría.';
     if (!parseMoney(amount)) next.amount = 'El monto tiene que ser mayor a cero.';
     setBad(next);
@@ -80,7 +82,7 @@ export function ExpenseForm({ id }: { id?: string }) {
   };
 
   return (
-    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} subtitle="Resta en la ganancia neta. No mueve la caja." onClose={close} busy={busy} footer={
+    <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} onClose={close} busy={busy} footer={
       current?.deletedAt ? (
         <Actions busy={busy} primary="Restaurar" onSecondary={close} onPrimary={() => { void restore(); }} />
       ) : (
@@ -89,7 +91,7 @@ export function ExpenseForm({ id }: { id?: string }) {
     }>
       {error ? <div className="ferr">{error}</div> : null}
       {current?.deletedAt ? <p className="archive-note">Archivado. Ya no resta en la ganancia neta.</p> : null}
-      <Field label="Fecha" error={bad.date}><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field>
+      <DatePicker label="Fecha" value={date} onChange={setDate} error={bad.date} required disabled={busy} />
       <Field label="Categoría" error={bad.category}>
         <input list="expense-categories" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Ej. Alquiler" />
       </Field>

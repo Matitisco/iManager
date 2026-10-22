@@ -32,7 +32,7 @@ import { draftFromCode, draftFromImei } from '../scan/draft';
 import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { clearBad, PAYMENTS, BASE_CONDITIONS, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, shareOrCopy, type FormProps } from './shared';
-import { ReportDatePicker } from '../report-date-picker';
+import { DatePicker } from '../date-picker';
 import { arFromIso, defaultSaleWarrantyDays, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USED_WARRANTY_DAYS, isoFromAr, parseWarrantyDaysInput, saleWarrantyView, warrantyDueCopy } from '../../lib/warranty';
 import { SalePaymentsFields, type SettlementState } from './sale-payments';
 import { SaleAccountPanel } from '../screens/CurrentAccount';
@@ -435,7 +435,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   );
   return (
     <>
-    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : 'La venta y el canje se guardan como una sola operación.'} onClose={close} busy={busy} className={sheetClass || undefined} footer={
+    <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : undefined} onClose={close} busy={busy} className={sheetClass || undefined} footer={
       <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
         {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <SheetActionMenu><button className="btn2 s" type="button" disabled={busy || cancelled} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button></SheetActionMenu> : null}
@@ -502,7 +502,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         </div>
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
-      <ReportDatePicker label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
+      <DatePicker required label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
       <Field label="Garantía" error={bad.warranty}><span /></Field>
       <div className="sgs warranty-presets" role="group" aria-label="Garantía">
         {(['30', '60', '90'] as const).map((days) => (

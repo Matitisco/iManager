@@ -748,10 +748,10 @@ describe('servicio técnico en el celular', () => {
     opened.mockRestore();
   });
 
-  it('says the order starts as Recibido and keeps the status choices', () => {
+  it('shows the selected Recibido state and keeps the status choices', () => {
     desk(<RepairOrderForm busy={false} error={null} />);
-    expect(screen.getByText('Arranca en «Recibido».')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
+    expect(screen.queryByText('Arranca en «Recibido».')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'En diagnóstico' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Esperando repuesto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Esperando respuesta' })).not.toBeInTheDocument();
@@ -781,7 +781,7 @@ describe('servicio técnico en el celular', () => {
   it('shows the deposit warning on the phone sheet', async () => {
     const user = userEvent.setup();
     desk(<RepairOrderForm busy={false} error={null} />);
-    expect(screen.getByText('Arranca en «Recibido».')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
     await user.type(screen.getByPlaceholderText('iPhone 13'), 'iPhone 13');
     await user.click(screen.getByRole('button', { name: 'Pantalla' }));
     await user.type(screen.getByLabelText('Presupuesto estimado'), '85000');

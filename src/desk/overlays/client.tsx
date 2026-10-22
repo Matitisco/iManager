@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { CancelDeposit, DepositReceipt, useClientDeposits } from './deposits';
 import { depositAvailable } from '../deposits';
 import type { ClientDeposit } from '../../types';
@@ -193,7 +195,6 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const { clients, addClient, updateClient } = useAppContext();
   const money = useMoney();
   const { close } = useDesk();
-  const phoneLayout = usePhoneLayout();
   const catalogs = useCatalogs();
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const current = clients.find((item) => item.id === id);
@@ -212,7 +213,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
   const [bad, setBad] = useState<Record<string, string>>({});
 
   return (
-    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} subtitle={current?.dni ? `DNI ${current.dni}` : undefined} onClose={close} busy={busy} className="cl-sheet">
+    <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} onClose={close} busy={busy} className="cl-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       {current ? (
@@ -224,15 +225,15 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
         </div>
       )}
       <Field label="Email"><input value={email} placeholder="ana@correo.com" onChange={(event) => setEmail(event.target.value)} /></Field>
-      <Field label="Cumpleaños"><input type="date" aria-label="Cumpleaños" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field>
+      <DatePicker label="Cumpleaños" value={birthday} onChange={(value) => { setBirthday(value); clearBad(setBad, 'birthday'); }} error={bad.birthday} disabled={busy} />
       <Field label="Instagram"><input value={instagram} placeholder="@usuario" onChange={(event) => setInstagram(event.target.value)} /></Field>
       {current ? <Field label="Saldo pendiente" mark={money.active} error={bad.balance}><input value={balance} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setBalance(formatInputMoney(parseMoney(event.target.value))); clearBad(setBad, 'balance'); }} /></Field> : null}
       <Field label="Etiqueta"><span /></Field>
       <Segs options={tags} value={tag} onChange={setTag} allowClear onEdit={catalogs?.canEdit ? () => setEditor('CLIENT_TAG') : undefined} />
-      {!current && phoneLayout ? <p className="eqs-note">Última compra, total y saldo se calculan desde Ventas.</p> : null}
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
       <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar cliente'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
+        if (birthday && !isDateValue(birthday)) next.birthday = 'Ingresá una fecha válida.';
         if (!name.trim()) next.name = 'Completá este dato';
         else if (name.trim().length > INPUT_LIMITS.clientName) next.name = `El nombre puede tener hasta ${INPUT_LIMITS.clientName} caracteres`;
         const priced = current && balanceEdited

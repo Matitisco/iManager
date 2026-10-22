@@ -1,3 +1,5 @@
+import { DatePicker } from '../date-picker';
+import { isDateValue } from '../date-value';
 import { ReasonSheet } from '../ReasonSheet';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
@@ -44,13 +46,13 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   }, [sellerRetry]);
   const save = async () => {
     if (submitting.current) return;
-    if (!effectiveFrom || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
+    if (!isDateValue(effectiveFrom) || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
     submitting.current = true; setBusy(true); setError('');
     try { await saveCommissionRule({ memberId: scope === 'team' ? null : person, basis, rate: Number(rate), currency: basis === 'FIXED_PER_UNIT' ? currency : null, effectiveFrom }); await loadCommissions(period); onClose(); }
     catch (cause) { setError(toUserMessage(cause, 'No se pudo guardar la regla')); }
     finally { submitting.current = false; setBusy(false); }
   };
-  return <Sheet title={scope === 'team' ? 'Regla del equipo' : 'Regla personal'} subtitle={scope === 'team' ? 'Vale para todos los que no tengan una regla personal' : 'Comisión para una persona del equipo'} onClose={() => { if (!busy && !ruleAction) onClose(); }} busy={busy} className="commission-form" footer={<Actions primary="Guardar regla" onPrimary={() => { void save(); }} onSecondary={onClose} busy={busy} />}>
+  return <Sheet title={scope === 'team' ? 'Regla del equipo' : 'Regla personal'} onClose={() => { if (!busy && !ruleAction) onClose(); }} busy={busy} className="commission-form" footer={<Actions primary="Guardar regla" onPrimary={() => { void save(); }} onSecondary={onClose} busy={busy} />}>
     {error ? <div className="ferr" role="alert">{error}</div> : null}
     {commissionRules.length ? <section className="commission-saved-rules" aria-label="Reglas guardadas"><div className="sale-sec"><span>Reglas guardadas</span></div>{commissionRules.map(rule => {
       const name = rule.memberId ? commissionSellers.find(seller => seller.id === rule.memberId)?.name ?? 'Persona' : 'Todo el equipo';
@@ -59,11 +61,10 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
     })}</section> : null}
     <Field label="Se aplica a" /><Segs options={[{ id: 'team', label: 'Todo el equipo' }, { id: 'person', label: 'Una persona' }]} value={scope} onChange={setScope} />
     {scope === 'person' ? <Field label="Persona"><DeskSelect label="Persona" value={person} onChange={setPerson} options={commissionSellers.map(seller => ({ value: seller.id, label: seller.name }))} disabled={busy} /></Field> : null}
-    <Field label="Cómo se calcula · recomendado: % sobre ganancia" /><Segs options={[{ id: 'PROFIT_PERCENT', label: '% sobre ganancia' }, { id: 'SALE_PERCENT', label: '% sobre venta' }, { id: 'FIXED_PER_UNIT', label: 'Monto fijo por equipo' }]} value={basis} onChange={value => setBasis(value as CommissionBasis)} />
+    <Field label="Cómo se calcula" /><Segs options={[{ id: 'PROFIT_PERCENT', label: '% sobre ganancia' }, { id: 'SALE_PERCENT', label: '% sobre venta' }, { id: 'FIXED_PER_UNIT', label: 'Monto fijo por equipo' }]} value={basis} onChange={value => setBasis(value as CommissionBasis)} />
     <div className="frow"><Field label={basis === 'FIXED_PER_UNIT' ? 'Monto por equipo' : 'Porcentaje'}><input type="number" min="0" step="0.01" value={rate} onChange={event => setRate(event.target.value)} disabled={busy} /></Field>{basis === 'FIXED_PER_UNIT' ? <div><Field label="Moneda" /><Segs options={CURRENCIES} value={currency} onChange={value => setCurrency(value as CommissionCurrency)} /></div> : null}</div>
     <p className="commission-info">{basis === 'PROFIT_PERCENT' ? 'Ganancia = precio − costo del equipo − valor tomado del canje. Se calcula en la moneda de cada venta.' : basis === 'SALE_PERCENT' ? 'Se calcula sobre el precio de venta, en la moneda de cada venta.' : `Por cada equipo vendido cobra ${commissionAmount(Number(rate) || 0, currency)}, sin importar el precio.`}{scope === 'person' ? ' Reemplaza la regla del equipo solo para esta persona.' : ''}</p>
-    <Field label="Vigente desde"><input type="date" value={effectiveFrom} onChange={event => setEffectiveFrom(event.target.value)} disabled={busy} /></Field>
-    <p className="eqs-note">Las ventas anteriores a esa fecha siguen con la regla que tenían. Las reglas personales ganan sobre la del equipo.</p>
+    <DatePicker label="Vigente desde" value={effectiveFrom} onChange={setEffectiveFrom} disabled={busy} required />
     {ruleAction?.action === 'Eliminar' ? createPortal(<ReasonSheet title="Eliminar regla" note="La regla dejará de aplicarse a nuevas ventas. Los pagos y las comisiones ya registradas se conservan." ok="Eliminar regla" danger busy={busy} error={error} onClose={() => { if (!busy) setRuleAction(null); }} onOk={reason => { void manageRule(reason); }} />, document.querySelector('.desk-app') ?? document.body) : ruleAction ? createPortal(<Dialog title={`${ruleAction.action} regla`} text={ruleAction.action === 'Activar' ? 'La regla volverá a aplicarse a nuevas ventas desde su fecha de vigencia. Los pagos y las comisiones ya registradas se conservan.' : 'La regla dejará de aplicarse a nuevas ventas. Los pagos y las comisiones ya registradas se conservan.'} ok={`${ruleAction.action} regla`} danger={ruleAction.action !== 'Activar'} busy={busy} error={error} onClose={() => { if (!busy) setRuleAction(null); }} onOk={() => { void manageRule(); }} />, document.querySelector('.desk-app') ?? document.body) : null}
   </Sheet>;
 }
