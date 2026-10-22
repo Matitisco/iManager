@@ -126,6 +126,17 @@ jobs:
       # Frontend tests import backend modules (backend deps needed) but use no database.
       - run: npm ci --prefer-offline --no-audit --no-fund
         working-directory: backend
+      - id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pwcache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-chromium
+      - if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - if: steps.pwcache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
       - name: Test frontend
         run: npx vitest run --shard=${{ matrix.shard }}/2
 
