@@ -20,7 +20,6 @@ vi.mock('../services/trade-ins-api', () => ({ fetchVoidedTradeIns: api.trades })
 vi.mock('../services/inventory-api', () => ({ fetchArchivedInventory: api.inventory }));
 vi.mock('../services/clients-api', () => ({ fetchClientPayments: api.payments }));
 vi.mock('./overlays/deposits', () => ({ useClientDeposits: () => deposits }));
-vi.mock('./screens/HistoryScreen', () => ({ RecordHistory: () => null }));
 
 function mount() {
   return render(<DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ClientDetail id="c" /></DeskProvider>);

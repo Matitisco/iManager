@@ -9,7 +9,7 @@ import { ListSkeleton } from './list-skeleton';
 
 /** Keeps record tracking focused; the history owns its own layer and request lifetime. */
 export function RecordHistoryButton({ entityType, entityId, label }: {
-  entityType: 'inventory' | 'sale' | 'trade'; entityId: string; label: string;
+  entityType: 'inventory' | 'sale' | 'trade' | 'client' | 'repair'; entityId: string; label: string;
 }) {
   const { user, appSession } = useAppContext();
   const [open, setOpen] = useState(false);

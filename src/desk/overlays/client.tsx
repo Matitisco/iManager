@@ -26,7 +26,7 @@ import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { mergeRecordRows } from '../format';
 import { archivedClient } from '../archive-cache';
-import { RecordHistory } from '../screens/HistoryScreen';
+import { RecordHistoryButton } from '../RecordHistoryButton';
 
 function paymentCaption(payment: ClientPaymentRecord) {
   const label = payment.kind === 'DEVOLUCION' ? 'Devolución'
@@ -156,8 +156,10 @@ export function ClientDetail({ id }: { id: string }) {
     </SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       {client.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{client.archivedBy ? `por ${client.archivedBy}` : 'Este cliente está archivado'}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendClient(user, client.id); await reloadClients(); toast('Cliente restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
-      <RecordHistory entityType="client" entityId={client.id} />
-      <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
+      <div className="tracking-summary">
+        <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
+        <RecordHistoryButton entityType="client" entityId={client.id} label={client.name} />
+      </div>
       {credit > 0 ? (
         <>
           <div className="kv"><span>Deuda</span><b>{money.show(client.pendingBalance, client.balanceCurrency)}</b></div>

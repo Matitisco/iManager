@@ -16,9 +16,7 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
   const role = appSession?.membership?.role;
   const tabs = pageTabs(tab, sections, role);
   if (tabs.length < 2) return null;
-  const description = pendingDescription(tabs.map(item => item.id), pending);
   return (
-    <>
     <div className="wchips nav-tabs" role="tablist" aria-label="Secciones del grupo">
       {tabs.map((item) => {
         const count = sectionPending(item.id, pending);
@@ -40,11 +38,6 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
         );
       })}
     </div>
-    {description ? <details className="nav-pending-help">
-      <summary>Qué cuenta cada indicador</summary>
-      <p>{description}.</p>
-    </details> : null}
-    </>
   );
 }
 

@@ -2199,8 +2199,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sheet textarea:focus { outline: none; border-color: var(--primary); }
 .archive-note { display: block; margin-top: 2px; max-width: 280px; overflow-wrap: anywhere; color: var(--secondary); font-size: 12px; font-weight: 600; }
 .dtable td.r { white-space: nowrap; }
-.record-history { margin: 8px 0 16px; }
-.record-history ul { margin: 8px 0 0; padding-left: 18px; color: var(--secondary); }
 .tracking-summary { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .tracking-summary .dhero { flex: 1; min-width: 0; margin: 0; }
 .tracking-summary .big { overflow-wrap: anywhere; }
@@ -2464,12 +2462,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet-action-menu-list { min-width: min(260px, calc(100vw - 32px)); max-height: min(44dvh, 320px); }
 }
 
-/* Navigation explanations share the existing neutral disclosure language. */
-.nav-pending-help { margin: -6px 0 12px; color: var(--secondary); font-size: 12px; }
-.nav-pending-help summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; text-decoration: underline; }
-.nav-pending-help p { margin: 0 0 8px; line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-width: 760px) {
-  .nav-pending-help summary { min-height: 44px; }
   .mobile-list-screen .rbtn, .wback { width: 44px; height: 44px; }
   .desk-app:has(.mobile-list-screen .bulk-bar.mobile):not(:has(.ov)) .mtab { visibility: visible; }
   .mobile-list-screen .bulk-bar.mobile { left: 12px; right: 12px; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; padding: 8px; }

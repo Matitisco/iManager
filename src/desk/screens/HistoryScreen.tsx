@@ -211,22 +211,3 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     {note ? <p className="history-missing">{note}</p> : null}
   </Sheet>;
 }
-
-export function RecordHistory({ entityType, entityId }: { entityType: string; entityId: string }) {
-  const { user } = useAppContext();
-  const desk = useDesk();
-  const phone = usePhoneLayout();
-  const [open, setOpen] = useState(!phone);
-  const [events, setEvents] = useState<HistoryEvent[] | null>(null);
-  useEffect(() => {
-    if (!user || !open) return;
-    let active = true;
-    fetchHistory(user, { entityType, entityId, limit: 5 }).then((page) => { if (active) setEvents(page.events); }).catch(() => { if (active) setEvents([]); });
-    return () => { active = false; };
-  }, [user, entityType, entityId, open]);
-  return <div className="record-history">
-    <button type="button" className="wlink" onClick={() => setOpen((current) => !current)}>{open ? 'Ocultar historial' : 'Ver historial'}</button>
-    {open && events ? <ul>{events.length ? events.map((event) => <li key={event.id}>{historySentence(event)} · {clock(event.createdAt)}</li>) : <li>Sin movimientos recientes</li>}</ul> : null}
-    {open ? <button type="button" className="wlink" onClick={() => { desk.close(); desk.go('history'); }}>Ver todo</button> : null}
-  </div>;
-}

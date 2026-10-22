@@ -427,7 +427,7 @@ describe('servicio técnico', () => {
       whatsappUrl: 'https://wa.me/5492614000000?text=listo',
     })];
     const view = desk(<RepairOrderDetail id="95" busy={false} />);
-    expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', expect.stringContaining('wa.me'));
     await user.click(screen.getByRole('button', { name: 'Pasar a Entregado' }));
@@ -438,7 +438,7 @@ describe('servicio técnico', () => {
       </DeskProvider>,
     );
     expect(screen.queryByRole('button', { name: /Pasar a/ })).not.toBeInTheDocument();
-    expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial' })).toBeInTheDocument();
   });
 
   it('lets a sensitive member edit the budget and delete the order after confirming', async () => {
@@ -727,7 +727,7 @@ describe('servicio técnico en el celular', () => {
     expect(screen.getByTestId('repair-step')).toHaveTextContent('Listo para retirar');
     expect(screen.getByText('Cámara trasera borrosa')).toBeInTheDocument();
     expect(screen.getByText('01/01 · atrasada')).toBeInTheDocument();
-    expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /WhatsApp/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('En reparación').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Tentativo/)).not.toBeInTheDocument();

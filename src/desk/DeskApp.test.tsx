@@ -463,7 +463,7 @@ describe('sidebar unread counts', () => {
     restore();
   });
 
-  it('explains the complete mobile group badge with an accessible description and visible disclosure', () => {
+  it('explains the complete mobile group badge with an accessible description without extra text', () => {
     usePhone();
     window.location.hash = '#/comercial/ventas';
     context.operationNotifications = [
@@ -475,10 +475,8 @@ describe('sidebar unread counts', () => {
     expect(sales).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes');
     expect(sales.querySelector('.dcount')).toHaveTextContent('2');
     expect(sales).toHaveAttribute('aria-current', 'page');
-    const explanation = screen.getByText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes.');
-    expect(explanation).not.toBeVisible();
-    fireEvent.click(screen.getByText('Qué cuenta cada indicador'));
-    expect(explanation).toBeVisible();
+    expect(screen.queryByText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Qué cuenta cada indicador')).not.toBeInTheDocument();
     context.operationNotifications = [];
   });
 
