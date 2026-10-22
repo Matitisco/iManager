@@ -2,11 +2,22 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
+  ENABLE_TEST_AUTH_BYPASS: "true"
+  NODE_ENV: test
+
 jobs:
-  test:
+  lint-unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:16
@@ -21,11 +32,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
-      ENABLE_TEST_AUTH_BYPASS: "true"
-      NODE_ENV: test
-
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +39,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
 
       - name: Install frontend deps
         run: npm ci
@@ -45,15 +54,57 @@ jobs:
         run: npx prisma db push --skip-generate
         working-directory: backend
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
-
       - name: Lint frontend
         run: npm run lint
 
       - name: Lint backend
         run: npm run lint
         working-directory: backend
+
+      - name: Test backend unit
+        run: npm run test:unit
+        working-directory: backend
+
+      - name: Test backend integration
+        run: npm run test:integration
+        working-directory: backend
+
+  frontend-pwa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Frontend tests and the isolated PWA server use fixtures, without a database.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: node -p "'version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium-webkit
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium webkit
+
+      - name: Install Playwright browsers and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Test frontend
         run: npm run test:frontend
@@ -64,13 +115,91 @@ jobs:
       - name: Test PWA on iPhone WebKit and Android Chromium
         run: npm run test:pwa:e2e
 
-      - name: Test backend unit
-        run: npm run test:unit
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:16
+        env:
+          POSTGRES_DB: imanager_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d imanager_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Install backend deps
+        run: npm ci
         working-directory: backend
 
-      - name: Test backend integration
-        run: npm run test:integration
-        working-directory: backend
+      - name: Get Playwright version
+        id: playwright-version
+        run: node -p "'version=' + require('./package-lock.json').packages['node_modules/@playwright/test'].version" >> "$GITHUB_OUTPUT"
 
-      - name: Test E2E
-        run: npm run test:e2e
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium-webkit
+
+      # The default browser is Chromium; individual iPhone specs select WebKit.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium webkit
+
+      - name: Install Playwright browsers and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium webkit
+
+      # globalSetup prepares this runner's database before the shard runs.
+      - name: Test E2E shard
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 7
+
+  test:
+    name: test
+    needs: [lint-unit, frontend-pwa, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check required job results
+        env:
+          LINT_UNIT_RESULT: ${{ needs.lint-unit.result }}
+          FRONTEND_PWA_RESULT: ${{ needs.frontend-pwa.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          if [[ "$LINT_UNIT_RESULT" != "success" || "$FRONTEND_PWA_RESULT" != "success" || "$E2E_RESULT" != "success" ]]; then
+            echo "Required jobs did not all succeed: lint-unit=$LINT_UNIT_RESULT frontend-pwa=$FRONTEND_PWA_RESULT e2e=$E2E_RESULT"
+            exit 1
+          fi
