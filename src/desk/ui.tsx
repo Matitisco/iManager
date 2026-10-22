@@ -124,14 +124,13 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
   );
 }
 
-export function PageHead({ title, subtitle, action, back }: { title: string; subtitle?: string; action?: React.ReactNode; back?: () => void }) {
+export function PageHead({ title, action, back }: { title: string; action?: React.ReactNode; back?: () => void }) {
   return (
     <>
       <div className="whead">
         {back ? <BackButton onClick={back} /> : null}
         <div className="whead-copy">
           <h1>{title}</h1>
-          {subtitle ? <div className="wsub">{subtitle}</div> : null}
         </div>
         {action}
       </div>
@@ -164,9 +163,8 @@ export function IconButton({ label, name, pressed, disabled, onClick }: {
   );
 }
 
-export function ScreenTitle({ title, subtitle, back, tools, desktop, navigation }: {
+export function ScreenTitle({ title, back, tools, desktop, navigation }: {
   title: React.ReactNode;
-  subtitle?: React.ReactNode;
   back?: () => void;
   tools?: React.ReactNode;
   desktop: React.ReactNode;
@@ -179,7 +177,6 @@ export function ScreenTitle({ title, subtitle, back, tools, desktop, navigation 
         {phone && back ? <BackButton onClick={back} /> : null}
         <div className="dtitle">
           {typeof title === 'string' ? <h1>{title}</h1> : title}
-          {subtitle == null ? null : typeof subtitle === 'string' ? <div className="dsub">{subtitle}</div> : subtitle}
         </div>
         {phone ? <div className="mtools">{tools}</div> : desktop}
       </div>

@@ -55,11 +55,12 @@ describe('Inventory column filters', () => {
     ];
   });
 
-  it('usa equipo en singular en el resumen de stock', () => {
+  it('conserva el título y el contador de tabla sin subtítulo', () => {
     context.inventory = [item('1')];
     renderScreen();
-    expect(screen.getByText('1 equipo · 1 disponible · 0 en catálogo')).toBeInTheDocument();
-    expect(screen.queryByText(/1 equipos/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.queryByText('1 equipo · 1 disponible · 0 en catálogo')).not.toBeInTheDocument();
+    expect(screen.getByText('1 de 1')).toBeInTheDocument();
   });
 
   it('filters the table by each column, including rows off the first page', async () => {

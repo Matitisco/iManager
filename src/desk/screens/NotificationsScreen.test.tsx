@@ -36,7 +36,7 @@ function renderScreen(back?: () => void) {
 }
 
 describe('Notifications screen unread counts', () => {
-  it('shows a counter per section plus the total, and filters by that section', async () => {
+  it('shows section counters without a header subtitle, and filters by section', async () => {
     const user = userEvent.setup();
     context.operationNotifications = [
       note({ id: 'inv', section: 'inventory', title: 'Equipo vendido', message: 'iPhone 13 vendido' }),
@@ -45,7 +45,8 @@ describe('Notifications screen unread counts', () => {
     ];
     renderScreen();
 
-    expect(screen.getByText('Total: 2 sin leer')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notificaciones' })).toBeInTheDocument();
+    expect(screen.queryByText('Total: 2 sin leer')).not.toBeInTheDocument();
     expect(document.querySelector('[data-icon="vendido"]')).toHaveAttribute('data-active', 'true');
     expect(document.querySelector('[data-icon="venta-por-registrar"]')).toHaveAttribute('data-active', 'false');
     expect(document.querySelector('[data-icon="cliente"]')).toHaveAttribute('data-active', 'true');

@@ -67,7 +67,6 @@ test.describe('desktop notifications stay put', () => {
     await expect(page.getByTestId('notifications-empty')).toHaveCount(0);
     await expect(page.getByPlaceholder('Buscar notificaciones')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Notificaciones' })).toBeVisible();
-    await expect(page.getByText('Todo al día')).toBeVisible();
     await expect(page.getByText('Todavía no hay notificaciones.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Actualizar', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Leer todas' })).toHaveCount(0);

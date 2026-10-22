@@ -24,8 +24,7 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   const [effectiveFrom, setEffectiveFrom] = useState(`${period}-01`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [sellerRetry, setSellerRetry] = useState(0);
-  useOfflineRecovery(error, () => setSellerRetry(value => value + 1));
+  const [sellersUnavailable, setSellersUnavailable] = useState(false);
   const submitting = useRef(false);
   const [ruleAction, setRuleAction] = useState<{ id: string; action: 'Eliminar' | 'Desactivar' | 'Activar' } | null>(null);
   const manageRule = async (reason?: string) => {
@@ -40,10 +39,13 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   };
   useEffect(() => {
     let active = true;
-    setError('');
-    void loadCommissionSellers().catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    void loadCommissionSellers().catch(cause => {
+      if (!active) return;
+      console.warn('No se pudieron cargar los vendedores.', cause);
+      setSellersUnavailable(true);
+    });
     return () => { active = false; };
-  }, [sellerRetry]);
+  }, []);
   const save = async () => {
     if (submitting.current) return;
     if (!isDateValue(effectiveFrom) || !Number.isFinite(Number(rate)) || Number(rate) < 0 || !rate.trim() || (scope === 'person' && !person)) { setError('Completá la persona, el valor y la fecha de vigencia.'); return; }
@@ -60,6 +62,7 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
       return <div className="card commission-saved-rule" key={rule.id}><b>{name}</b><small>{ruleLabel(rule)} · {rule.active === false ? 'Inactiva' : 'Activa'} · desde {new Date(rule.effectiveFrom).toLocaleDateString('es-AR')}</small><SheetActionMenu label="Acciones de la regla"><button type="button" className="btn2 s" disabled={busy} aria-label={`${action} regla de ${name}`} onClick={() => { setError(''); setRuleAction({ id: rule.id, action }); }}>{action}</button><button type="button" className="btn2 danger" disabled={busy} aria-label={`Eliminar regla de ${name}`} onClick={() => { setError(''); setRuleAction({ id: rule.id, action: 'Eliminar' }); }}>Eliminar</button></SheetActionMenu></div>;
     })}</section> : null}
     <Field label="Se aplica a" /><Segs options={[{ id: 'team', label: 'Todo el equipo' }, { id: 'person', label: 'Una persona' }]} value={scope} onChange={setScope} />
+    {scope === 'person' && sellersUnavailable && !commissionSellers.length ? <p className="eqs-note">Sin vendedores para mostrar.</p> : null}
     {scope === 'person' ? <Field label="Persona"><DeskSelect label="Persona" value={person} onChange={setPerson} options={commissionSellers.map(seller => ({ value: seller.id, label: seller.name }))} disabled={busy} /></Field> : null}
     <Field label="Cómo se calcula" /><Segs options={[{ id: 'PROFIT_PERCENT', label: '% sobre ganancia' }, { id: 'SALE_PERCENT', label: '% sobre venta' }, { id: 'FIXED_PER_UNIT', label: 'Monto fijo por equipo' }]} value={basis} onChange={value => setBasis(value as CommissionBasis)} />
     <div className="frow"><Field label={basis === 'FIXED_PER_UNIT' ? 'Monto por equipo' : 'Porcentaje'}><input type="number" min="0" step="0.01" value={rate} onChange={event => setRate(event.target.value)} disabled={busy} /></Field>{basis === 'FIXED_PER_UNIT' ? <div><Field label="Moneda" /><Segs options={CURRENCIES} value={currency} onChange={value => setCurrency(value as CommissionCurrency)} /></div> : null}</div>

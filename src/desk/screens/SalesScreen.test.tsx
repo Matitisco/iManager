@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale } from '../../types';
@@ -51,6 +51,20 @@ describe('Sales column filters', () => {
     context.appSession = null;
     context.commissionSellers = [];
     context.loadCommissionSellers.mockClear();
+  });
+
+  it('keeps sales visible and logs a failed secondary seller directory', async () => {
+    const cause = new Error('No se pudieron cargar los vendedores');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    context.loadCommissionSellers.mockRejectedValueOnce(cause);
+    renderScreen();
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los vendedores.', cause));
+    expect(screen.getByText('Cliente 1')).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    warn.mockRestore();
   });
 
   it('opens unassigned sales from the selected commission month, including historical periods', () => {

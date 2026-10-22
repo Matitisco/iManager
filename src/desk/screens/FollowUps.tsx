@@ -57,7 +57,7 @@ export function FollowUpsScreen() {
   const { back } = useDesk();
   return (
     <div className="dscreen">
-      <ScreenTitle title="Seguimientos" subtitle="A quién escribirle hoy" back={back} desktop={null} />
+      <ScreenTitle title="Seguimientos" back={back} desktop={null} />
       <FollowUps />
     </div>
   );

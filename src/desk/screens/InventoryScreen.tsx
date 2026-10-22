@@ -13,7 +13,7 @@ import { NoticeTag, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
-import { conditionLabel, conditionName, equipmentTitle, formatImei, isInStock, statusLabel } from '../format';
+import { conditionLabel, conditionName, equipmentTitle, formatImei, statusLabel } from '../format';
 import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from '../quality';
 import {
   CONDITION_FILTERS,
@@ -33,7 +33,6 @@ import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { StockCountScreen, StockEntryButton } from './StockCountScreen';
 import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
@@ -133,8 +132,7 @@ export function InventoryScreen() {
   const [columns, setColumns] = useNavigationState<InventoryColumnFilters>('Inventory.columns', EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useNavigationState('Inventory.sort', 'Recientes');
   const [archivedMode, setArchivedMode] = useNavigationState('Inventory.archivedMode', false);
-  const [stockOpen, setStockOpen] = useState(false);
-  const { rows: archived, error: archiveError } = useArchivedRows(inventory, fetchArchivedInventory, rememberArchivedProducts);
+  const { rows: archived } = useArchivedRows(inventory, fetchArchivedInventory, rememberArchivedProducts);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
@@ -169,7 +167,6 @@ export function InventoryScreen() {
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
 
-  const available = inventory.filter((item) => isInStock(item.status)).length;
   const statusOptions = useMemo(() => {
     const known = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', STATUS_FILTERS);
     const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => status && !known.some((item) => item.id === status));
@@ -212,16 +209,10 @@ export function InventoryScreen() {
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
-  if (stockOpen) return <StockCountScreen onBack={() => setStockOpen(false)} />;
-
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Inventario"
-        subtitle={loadingLists ? '' : phone
-          ? `${source.length === 1 ? '1 equipo' : `${source.length} equipos`} · ${available === 1 ? '1 disponible' : `${available} disponibles`}`
-          : `${source.length} ${source.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
         back={back}
         tools={(
           <>
@@ -235,7 +226,6 @@ export function InventoryScreen() {
         desktop={(
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar modelo o color" />
-            <StockEntryButton onClick={() => setStockOpen(true)} />
             <ImportButton onClick={() => open({ type: 'import', kind: 'inv' })} />
             <button className="dbtn s" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button>
             <DeskCta onClick={() => open({ type: 'new-eq' })}>Registrar equipo</DeskCta>
@@ -244,7 +234,6 @@ export function InventoryScreen() {
       />
       <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
-      {phone ? <StockEntryButton onClick={() => setStockOpen(true)} /> : null}
       {phone ? <button className="dbtn s stock-entry" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />

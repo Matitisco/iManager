@@ -89,14 +89,13 @@ export function ClientsScreen() {
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [archivedMode, setArchivedMode] = useNavigationState('Clients.archivedMode', false);
-  const { rows: archivedClients, error: archiveError } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
+  const { rows: archivedClients } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
   const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
 
   const clientSource = archivedMode ? archivedClients : mergeRecordRows(clients, archivedClients);
-  const withBalance = clients.filter((client) => clientNet(client) > 0).length;
   const noticeFor = (client: Client) => reasonWithBalance(notices.reasonFor(client.id), client.pendingBalance, client.balanceCurrency);
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -124,10 +123,8 @@ export function ClientsScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Clientes"
-        subtitle={`${clientSource.length === 1 ? '1 cliente' : `${clientSource.length} clientes`} · ${withBalance} con saldo`}
         back={back}
         tools={view === 'lista' ? (
           <span className="rslot">

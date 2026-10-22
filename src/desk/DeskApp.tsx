@@ -5,9 +5,7 @@ import { CircleHelp } from 'lucide-react';
 import { HelpScreen } from './screens/HelpScreen';
 import { SampleStockBanner } from './getting-started';
 import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
-import { toUserMessage, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { OfflineScope } from './offline-banner';
-import { useOfflineRecovery } from '../lib/offline-recovery';
 import { useEffect, useRef, useState } from 'react';
 import { prefetchMainRoutes } from './prefetch-routes';
 import { BrandIsotipo } from '../components/brand-mark';
@@ -122,7 +120,6 @@ function MoreScreen({
       <div className="whead">
         <div>
           <h1>Más</h1>
-          <div className="wsub">Todas las secciones, agrupadas</div>
         </div>
       </div>
       <InstallCard />
@@ -191,9 +188,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const sections = appSession?.membership?.sections;
   const commissionAccess = canManageCommissions(sections, role);
   const commissionPeriod = new Intl.DateTimeFormat('sv', { timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit' }).format(new Date());
-  const [commissionCountError, setCommissionCountError] = useState('');
-  const [commissionRetry, setCommissionRetry] = useState(0);
-  useOfflineRecovery(commissionCountError, () => setCommissionRetry(value => value + 1));
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
@@ -202,10 +196,9 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   useEffect(() => {
     if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
     let active = true;
-    setCommissionCountError('');
-    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) setCommissionCountError(toUserMessage(cause, 'No se pudieron cargar las comisiones')); });
+    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) console.warn('No se pudieron cargar las comisiones.', cause); });
     return () => { active = false; };
-  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, commissionRetry, sessionConfirmed]);
+  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, sessionConfirmed]);
   const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
   const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
   useEffect(() => {
@@ -418,8 +411,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <FxBanner />
           <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
           <SampleStockBanner />
-          <OfflineScope forced={commissionCountError === NETWORK_ERROR_MESSAGE}>
-          {commissionCountError && commissionCountError !== NETWORK_ERROR_MESSAGE && tab === 'more' ? <p className="ferr" role="alert">{commissionCountError}</p> : null}
+          <OfflineScope>
           <NavChrome pending={pending}>
           <RoutePresentation.Provider key={viewport.entry.id} value={viewport.entry.values}>
           <div className={entered ? 'enter-f' : undefined}>
@@ -427,7 +419,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
-            {tab === 'stockCount' && <StockCountScreen standalone onBack={() => go('inventory')} />}
+            {tab === 'stockCount' && <StockCountScreen />}
             {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}

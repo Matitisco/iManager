@@ -15,15 +15,15 @@ export function ExpensesScreen() {
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
-  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(expenses, loadArchived, rememberArchivedExpenses);
+  const { rows: archivedRows, loading } = useArchivedRows(expenses, loadArchived, rememberArchivedExpenses);
   const activeRows = (expensesLoaded === false ? null : expenses);
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
-  const error = archived ? archivedError : [ expenseError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
+  const error = archived ? '' : expenseError;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-expense' })}>Nuevo gasto</button>;
 
   return (
     <div className="dscreen" data-testid="expenses-screen">
-      <ScreenTitle title="Gastos" subtitle="Restan en la ganancia neta. No mueven la caja." back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Gastos" back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}

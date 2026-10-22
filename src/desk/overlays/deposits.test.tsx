@@ -1,15 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { CancelDeposit, DepositChoices, DepositForm, DepositReceipt } from './deposits';
+import { CancelDeposit, DepositChoices, DepositForm, DepositReceipt, RepairDepositSheet, useClientDeposits } from './deposits';
 import type { ClientDeposit } from '../../types';
-const ctx = vi.hoisted(() => ({ clients: [{ id: 'c1', name: 'Ana' }], inventory: [], addClientDeposit: vi.fn(), cancelClientDeposit: vi.fn(), loadOperationOptions: vi.fn().mockResolvedValue({ products: [] }) }));
+const ctx = vi.hoisted(() => ({ clientDeposits: {} as Record<string, ClientDeposit[]>, loadClientDeposits: vi.fn(), applyClientDepositToRepair: vi.fn(), repairOrders: [{ id: 'repair', clientId: 'c1', code: 'OT-1', clientName: 'Ana', estimate: 500, deposit: 0, currency: 'USD' }], clients: [{ id: 'c1', name: 'Ana' }], inventory: [], addClientDeposit: vi.fn(), cancelClientDeposit: vi.fn(), loadOperationOptions: vi.fn().mockResolvedValue({ products: [] }) }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn(), close: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../ui', async importOriginal => ({ ...await importOriginal<typeof import('../ui')>(), useDesk: () => desk }));
 vi.mock('../exchange', () => ({ useMoney: () => ({ active: 'USD', rate: 2000 }) }));
 const row: ClientDeposit = { id: 'd1', clientId: 'c1', amount: 100000.5, currency: 'ARS', exchangeRate: 1000, usdAmount: 100, method: 'EFECTIVO', status: 'ACTIVE', productId: 'p1', productLabel: 'iPhone', previousInventoryStatus: 'DISPONIBLE', saleId: null, repairId: null, appliedAmount: null, appliedCurrency: null, appliedAt: null, cancelledAt: null, createdAt: '2026-10-14T10:00:00Z' };
-beforeEach(() => { ctx.addClientDeposit.mockReset(); ctx.cancelClientDeposit.mockReset(); desk.toast.mockReset(); desk.open.mockReset(); });
+beforeEach(() => { ctx.clientDeposits = {}; ctx.loadClientDeposits.mockReset().mockResolvedValue([]); ctx.applyClientDepositToRepair.mockReset(); ctx.addClientDeposit.mockReset(); ctx.cancelClientDeposit.mockReset(); desk.toast.mockReset(); desk.open.mockReset(); });
 it('shows original receipt cents and frozen value independent of the toolbar quote', () => {
   render(<DepositReceipt row={row} />);
   expect(screen.getByText('$ 100.000,5 ARS')).toBeInTheDocument();
@@ -60,10 +60,51 @@ it('blocks dismissal and duplicate refund while saving and keeps errors visible'
 });
 it('requires the reserved device and blocks overpayment when applying receipts', () => {
   const change = vi.fn();
-  const receipts = { rows: [row], error: '', loading: false, retry: vi.fn() };
+  const receipts = { rows: [row], unavailable: false, loading: false };
   const props = { receipts, clientId: 'c1', productId: 'other', selected: [], onChange: change, currency: 'USD', rate: 2000, maximum: 500, busy: false };
   const { rerender } = render(<DepositChoices {...props} />);
   expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled();
   rerender(<DepositChoices {...props} productId="p1" maximum={50} />); expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled();
   rerender(<DepositChoices {...props} productId="p1" />); expect(screen.getByRole('button', { name: 'Aplicar' })).toBeEnabled();
+});
+
+it('hides failed secondary deposit choices and logs the cause', async () => {
+  const cause = new Error('No se pudieron cargar las señas');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  ctx.loadClientDeposits.mockRejectedValueOnce(cause);
+  function Choices() {
+    const receipts = useClientDeposits('c1');
+    return <DepositChoices receipts={receipts} clientId="c1" productId="p1" selected={[]} onChange={vi.fn()} currency="USD" rate={2000} maximum={500} busy={false} />;
+  }
+  const view = render(<Choices />);
+  await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar las señas.', cause));
+  await waitFor(() => expect(view.container).toBeEmptyDOMElement());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+  warn.mockRestore();
+});
+
+it('shows a neutral empty repair picker after a failed load', async () => {
+  const cause = new Error('No se pudieron cargar las señas');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  ctx.loadClientDeposits.mockRejectedValueOnce(cause);
+  render(<RepairDepositSheet repairId="repair" />);
+  expect(await screen.findByText('Sin señas para mostrar.')).toBeVisible();
+  expect(warn).toHaveBeenCalledWith('No se pudieron cargar las señas.', cause);
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+  expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+  warn.mockRestore();
+});
+
+it('keeps failed deposit application visible and leaves the repair picker open', async () => {
+  ctx.clientDeposits = { c1: [{ ...row, status: 'CREDIT' }] };
+  ctx.applyClientDepositToRepair.mockRejectedValueOnce(new Error('No se pudo aplicar la seña'));
+  render(<RepairDepositSheet repairId="repair" />);
+  await userEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirmar aplicación' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo aplicar la seña');
+  expect(desk.open).not.toHaveBeenCalled();
 });

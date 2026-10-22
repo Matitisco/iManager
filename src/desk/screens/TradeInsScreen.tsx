@@ -62,11 +62,10 @@ export function TradeInsScreen() {
   const [columns, setColumns] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [draftFilters, setDraftFilters] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const { rows: voidedTrades, error: archiveError } = useArchivedRows(tradeIns, fetchVoidedTradeIns, rememberVoidedTrades);
+  const { rows: voidedTrades } = useArchivedRows(tradeIns, fetchVoidedTradeIns, rememberVoidedTrades);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
-  const openCount = tradeIns.filter((item) => !isVoidRow(item) && isInProgressTrade(item.status)).length;
 
   const tradeSource = mergeRecordRows(tradeIns, voidedTrades);
 
@@ -113,10 +112,8 @@ export function TradeInsScreen() {
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Canjes"
-        subtitle={`${tradeSource.length} canjes · ${openCount} en curso`}
         back={back}
         tools={(
           <>

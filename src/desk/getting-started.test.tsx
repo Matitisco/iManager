@@ -23,7 +23,6 @@ const state = vi.hoisted(() => ({
       install: false,
     },
   },
-  gettingStartedError: "",
   progressUnavailable: false,
   legacyProgress: false,
   inventory: [] as unknown[],
@@ -72,7 +71,6 @@ describe("isla de primeros pasos", () => {
     state.gettingStarted.sales = false;
     state.gettingStarted.team = false;
     state.gettingStarted.installed = false;
-    state.gettingStartedError = "";
     state.progressUnavailable = false;
     state.legacyProgress = false;
     state.appSession.membership.role = "OWNER";
@@ -175,13 +173,13 @@ describe("isla de primeros pasos", () => {
   it("una isla completada tampoco reaparece como error si no se puede cargar el progreso", () => {
     localStorage.setItem("imanager-first-steps-completed:user-1:store-1", "true");
     state.progressUnavailable = true;
-    state.gettingStartedError = "No se pudieron cargar tus primeros pasos.";
     const view = render(<FirstStepsIsland />);
     expect(screen.queryByTestId("getting-started")).toBeNull();
     view.unmount();
     localStorage.clear();
     render(<FirstStepsIsland />);
-    expect(screen.getByRole("alert")).toHaveTextContent(state.gettingStartedError);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
   });
 
   it("mantiene el cierre separado por usuario y tienda", () => {

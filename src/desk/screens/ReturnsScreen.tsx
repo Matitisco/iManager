@@ -21,15 +21,15 @@ export function ReturnsScreen() {
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
-  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
+  const { rows: archivedRows, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
   const activeRows = returns;
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows.filter(row => !isVoidRow(row)) : mergeRecordRows(activeRows, archivedRows);
-  const error = archived ? archivedError : [ returnsError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
+  const error = archived ? '' : returnsError;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-return' })}>Nuevo reclamo</button>;
 
   return (
     <div className="dscreen" data-testid="returns-screen">
-      <ScreenTitle title="Devoluciones" subtitle="Reclamos, notas de crédito y RMA con el proveedor." back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Devoluciones" back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}

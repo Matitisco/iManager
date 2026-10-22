@@ -1,4 +1,3 @@
-import { expandListOptions } from './navigation';
 import { expect, test } from '@playwright/test';
 import { me } from './pwa/fixtures.mjs';
 
@@ -122,8 +121,7 @@ for (const width of [390, 1440]) {
     await expect(page.locator('.desk-app')).toBeVisible();
     await page.goto('/#/inv');
     await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
-    await expandListOptions(page);
-    await page.getByTestId('stock-count-entry').click();
+    await page.getByRole('tab', { name: 'Control de stock' }).click();
     await expect(page.getByTestId('stock-empty')).toContainText('Todavía no hiciste controles de stock');
     await expect(page.getByText('Faltan')).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);

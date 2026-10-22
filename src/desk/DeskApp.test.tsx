@@ -208,6 +208,31 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
   });
 
+  it.each([390, 1440])('entra a Control de stock solo por la pestaña y vuelve a Equipos a %spx', async width => {
+    if (width === 390) usePhone();
+    window.location.hash = '#/stock/equipos';
+    render(<DeskApp />);
+
+    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('stock-count-entry')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Carga en serie' }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
+    expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: width === 390 ? 'Control' : 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
+    expect(window.location.hash).toBe('#/stock/control');
+    expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Equipos' })).toHaveAttribute('aria-selected', 'true');
+    expect(window.location.hash).toBe('#/stock/equipos');
+    expect(screen.queryByTestId('stock-count-page')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
+  });
+
   it.each([390, 1440])('clears only the visited section badge, retains marks during the visit and clears them on return at %spx', async width => {
     if (width === 390) usePhone();
     window.location.hash = '#/dashboard';
@@ -240,7 +265,7 @@ describe('sidebar unread counts', () => {
     ];
     render(<DeskApp />);
     expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
-    expect(screen.getByText('Todas las secciones, agrupadas')).toBeInTheDocument();
+    expect(screen.queryByText('Todas las secciones, agrupadas')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Ana');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Propietario');
@@ -369,21 +394,28 @@ describe('sidebar unread counts', () => {
     }
   });
 
-  it('clears the offline banner on Más when the connection returns without leaving the screen', async () => {
+  it.each([new TypeError('Failed to fetch'), new Error('No se pudieron cargar las comisiones')])('hides a failed secondary commission count on Más: %s', async cause => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     usePhone();
     window.location.hash = '#/mas';
     context.user = { uid: 'u' };
     context.backendStatus = 'ready';
-    context.loadCommissions = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(undefined);
-    render(<DeskApp />);
-    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
-    await act(async () => { window.dispatchEvent(new Event('online')); });
-    await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
-    expect(window.location.hash).toBe('#/mas');
-    expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
-    context.user = null;
-    context.backendStatus = 'checking';
-    context.loadCommissions = undefined;
+    context.loadCommissions = vi.fn().mockRejectedValue(cause);
+    try {
+      render(<DeskApp />);
+      await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar las comisiones.', cause));
+      expect(screen.getByRole('heading', { name: 'Más' })).toBeVisible();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+      expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+      warn.mockRestore();
+      context.user = null;
+      context.backendStatus = 'checking';
+      context.loadCommissions = undefined;
+    }
   });
 
   it('shows a back arrow on sections that live in Más and a dock on the bar sections', async () => {

@@ -8,7 +8,7 @@ import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-ba
 import { catalogChoices, useCatalogs } from '../catalog';
 import { useMoney } from '../exchange';
 import { formatShortDate } from '../format';
-import { countPhrase, dayMonth, DEFAULT_REPAIR_STATUSES, presentRepairStatusChange, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, REPAIR_DELIVERED, REPAIR_READY, visibleRepairStatuses } from '../repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, presentRepairStatusChange, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, REPAIR_DELIVERED, visibleRepairStatuses } from '../repairs';
 import { usePhoneLayout } from '../section-notices';
 import { DeskCta, DeskIcon, IconButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, useDesk } from '../ui';
 import type { RepairOrder } from '../../types';
@@ -27,7 +27,7 @@ export function ServiceScreen() {
   const [view, setView] = useState<'board' | 'list'>('board');
   const [statusId, setStatusId] = useState(phone ? 'ABIERTAS' : 'Todos');
   const [archivedMode, setArchivedMode] = useState(false);
-  const { rows: archivedOrders, error: archiveError } = useArchivedRows(repairOrders, fetchArchivedRepairs, rememberArchivedRepairs);
+  const { rows: archivedOrders } = useArchivedRows(repairOrders, fetchArchivedRepairs, rememberArchivedRepairs);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -54,8 +54,6 @@ export function ServiceScreen() {
     }).sort((left, right) => (rank.get(repairColumnStatus(left.status)) ?? 99) - (rank.get(repairColumnStatus(right.status)) ?? 99) || right.orderNumber - left.orderNumber);
   }, [repairSource, query, statuses, archivedMode, statusId]);
 
-  const openCount = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
-  const readyCount = repairOrders.filter((order) => order.status === REPAIR_READY).length;
   const chips = useMemo(() => {
     const countRows = archivedMode ? repairSource : repairSource.filter(order => !isVoidRow(order));
     const open = countRows.filter((order) => order.status !== REPAIR_DELIVERED).length;
@@ -135,10 +133,8 @@ export function ServiceScreen() {
 
   return (
     <div className={`dscreen svc-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title={<div className="svc-title"><h1>Servicio técnico</h1></div>}
-        subtitle={`${countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · ${countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}`}
         back={back}
         tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
         desktop={(

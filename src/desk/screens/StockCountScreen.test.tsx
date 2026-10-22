@@ -5,7 +5,6 @@ import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BlindCount, ClosedStockCount, StockCountListItem, StockCountPreview } from '../../services/stock-counts-api';
 import { DeskProvider } from '../ui';
-import { InventoryScreen } from './InventoryScreen';
 import { StockCountScreen } from './StockCountScreen';
 
 const toast = vi.fn();
@@ -51,7 +50,7 @@ function deferred<T>() {
 
 function desk(node: ReactNode) {
   return render(
-    <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+    <DeskProvider value={{ tab: 'stockCount', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
       {node}
     </DeskProvider>,
   );
@@ -168,7 +167,7 @@ describe('control de stock #318', () => {
   const actor = () => userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
   const result = async () => {
     api.fetchStockCounts.mockResolvedValue([listed]);
-    desk(<StockCountScreen onBack={vi.fn()} standalone />);
+    desk(<StockCountScreen />);
     return screen.findByRole('region', { name: 'Resultado del conteo' });
   };
 
@@ -195,7 +194,7 @@ describe('control de stock #318', () => {
     const product: Product = { id: 'eq', imei: '352098117744521', model: 'iPhone', capacity: '128GB', color: 'Negro', condition: 'Usado', grade: 'A', batteryHealth: '90%', price: 1, status: 'DISPONIBLE' };
     context.inventory = [product, { ...product, id: 'sold', status: 'VENDIDO' }, { ...product, id: 'reserved', status: 'RESERVADO' }, { ...product, id: 'archived', archivedAt: '2026-10-20' }, { ...product, id: 'without-imei', imei: '' }];
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
     expect(await within(screen.getByRole('dialog')).findByText('Disponibles · 1')).toBeInTheDocument();
     expect(api.startStockCount).not.toHaveBeenCalled();
@@ -204,7 +203,7 @@ describe('control de stock #318', () => {
   it('espera con un esqueleto y después muestra el vacío', async () => {
     const list = deferred<StockCountListItem[]>();
     api.fetchStockCounts.mockReturnValue(list.promise);
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     expect(screen.getByTestId('stock-loading')).toBeInTheDocument();
     expect(screen.queryByText('Todavía no hiciste controles de stock')).not.toBeInTheDocument();
     list.resolve([]);
@@ -216,7 +215,7 @@ describe('control de stock #318', () => {
     const preview = deferred<StockCountPreview>();
     api.fetchStockCountPreview.mockReturnValue(preview.promise);
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
     const dialog = screen.getByRole('dialog', { name: 'Iniciar control' });
     expect(dialog).toHaveClass('stock-start-sheet');
@@ -238,7 +237,7 @@ describe('control de stock #318', () => {
   it('conserva el modal y muestra el error si no se puede iniciar', async () => {
     api.startStockCount.mockRejectedValue(new Error('No se pudo iniciar (503)'));
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
     const dialog = screen.getByRole('dialog');
     await act.click(within(dialog).getByRole('button', { name: 'Iniciar conteo' }));
@@ -252,8 +251,13 @@ describe('control de stock #318', () => {
     api.fetchCurrentStockCount.mockResolvedValue(blind);
     api.fetchStockCounts.mockResolvedValue([listed]);
     context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
+    expect(document.querySelector('.dtop .dsub')).not.toBeInTheDocument();
+    expect(screen.queryByText(blind.subtitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cerrar control' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ajustar al conteo' })).not.toBeInTheDocument();
     expect(screen.getByText('1 tuyo · 1 en total')).toBeInTheDocument();
     expect(screen.queryByTestId('stock-close')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Iniciar control' })).not.toBeInTheDocument();
@@ -265,7 +269,7 @@ describe('control de stock #318', () => {
   it.each(['352098117744521', 'MLPF3LE/A F2LXK9POQ1 351204883022116'])('suma con Enter desde lector o ingreso manual: %s', async (raw) => {
     api.fetchCurrentStockCount.mockResolvedValue(blind);
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     const input = await screen.findByTestId('stock-scan-input');
     await act.type(input, raw);
     await act.keyboard('{Enter}');
@@ -278,7 +282,7 @@ describe('control de stock #318', () => {
   it('mantiene cámara y regreso al ingreso manual', async () => {
     api.fetchCurrentStockCount.mockResolvedValue(blind);
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     const input = await screen.findByTestId('stock-scan-input');
     await act.click(screen.getByRole('button', { name: 'Escanear con la cámara' }));
     await act.click(screen.getByRole('button', { name: 'Ingreso manual' }));
@@ -345,7 +349,7 @@ describe('control de stock #318', () => {
     api.fetchCurrentStockCount.mockResolvedValue({ ...blind, total: 0, mine: 0, scans: [] });
     api.closeStockCount.mockResolvedValue({ ...closed, scanCount: 0 });
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     await act.click(await screen.findByTestId('stock-close'));
     expect(await screen.findByTestId('stock-coverage')).toHaveTextContent('Sin escaneos');
     expect(screen.getByTestId('stock-coverage')).toHaveTextContent('no confirman pérdidas');
@@ -374,7 +378,7 @@ describe('control de stock #318', () => {
     api.fetchStockCounts.mockResolvedValue([listed, older]);
     api.fetchStockCount.mockImplementation(async (_user, id) => ({ ...closed, id, resolution: id === 'old' ? 'RECORDED' : null }));
     const act = actor();
-    desk(<StockCountScreen onBack={vi.fn()} standalone />);
+    desk(<StockCountScreen />);
     const history = await screen.findByTestId('stock-history');
     expect(within(history).getAllByRole('button')).toHaveLength(1);
     await act.click(within(history).getByRole('button'));
@@ -386,18 +390,9 @@ describe('control de stock #318', () => {
   it('muestra un error si no puede abrir el último resultado', async () => {
     api.fetchStockCounts.mockResolvedValue([listed]);
     api.fetchStockCount.mockRejectedValue(new Error('No se pudo abrir (503)'));
-    desk(<StockCountScreen onBack={vi.fn()} />);
+    desk(<StockCountScreen />);
     expect(await screen.findByRole('alert')).toHaveTextContent('503');
     expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-
-  it('entra desde Inventario y vuelve con la flecha', async () => {
-    const act = actor();
-    desk(<InventoryScreen />);
-    await act.click(screen.getByTestId('stock-count-entry'));
-    expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
-    await act.click(screen.getByRole('button', { name: 'Volver' }));
-    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
   });
 });

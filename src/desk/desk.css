@@ -2063,11 +2063,9 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dashboard-screen .dtable.compact td.r,
 .dashboard-screen .dtable.compact td.r b { white-space: nowrap; }
 
-.stock-page .wback { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; flex: none; color: var(--primary); }
 .stock-page .dtop { align-items: center; }
 .stock-page .dtitle { flex: 1; min-width: 0; text-align: left; }
 .stock-entry { width: 100%; justify-content: center; margin: 0 0 12px; }
-.desk-app .dright .stock-entry { width: auto; margin: 0; }
 .scan { display: flex; align-items: center; gap: 10px; height: 60px; background: #fff; border: 2px solid #16181D; border-radius: 16px; padding: 0 16px; box-shadow: 0 0 0 4px #EEF0F2; }
 .scan input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 18px; font-weight: 700; background: transparent; min-width: 0; }
 .scan input::placeholder { color: #9CA3AF; font-weight: 600; }

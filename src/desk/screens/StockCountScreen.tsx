@@ -26,7 +26,7 @@ import { ListSkeleton } from '../list-skeleton';
 import { canManageStockCount } from '../stock-count-access';
 import { usePhoneLayout } from '../section-notices';
 import { GroupTabs } from '../group-tabs';
-import { Actions, BackButton, Sheet, useDesk } from '../ui';
+import { Actions, Sheet, useDesk } from '../ui';
 import { AuditDeviceIcon } from './audit-device-icon';
 import './stock-count.css';
 
@@ -101,16 +101,6 @@ function ScanIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-function CheckIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 11l3 3L22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  );
-}
-
-
 function countStatus(item: StockCountListItem) {
   return item.status === 'OPEN' ? 'Abierto' : item.resolution === 'ADJUSTED' ? 'Ajustado' : item.resolution === 'RECORDED' ? 'Registrado' : 'Por revisar';
 }
@@ -121,16 +111,7 @@ function CountStatus({ item }: { item: StockCountListItem }) {
   </span>;
 }
 
-export function StockEntryButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button className="dbtn s stock-entry" type="button" data-testid="stock-count-entry" onClick={onClick}>
-      <CheckIcon />
-      Control de stock
-    </button>
-  );
-}
-
-export function StockCountScreen({ onBack, standalone = false }: { onBack: () => void; standalone?: boolean }) {
+export function StockCountScreen() {
   const { user, appSession, inventory, listsLoaded } = useAppContext();
   const desk = useDesk();
   const phone = usePhoneLayout();
@@ -305,11 +286,6 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
     }
   };
 
-  const leave = () => {
-    if (busy) return;
-    onBack();
-  };
-
   const hasOpen = counts.some((item) => item.status === 'OPEN') || view === 'count';
   const latest = blind?.scans[0] ? scanCopy(blind.scans[0]) : null;
   const lines = closed ? closed.buckets[filter] : [];
@@ -326,7 +302,6 @@ export function StockCountScreen({ onBack, standalone = false }: { onBack: () =>
   return (
     <div className={`dscreen stock-page${phone ? ' has-dock' : ''}`} data-testid="stock-count-page">
       <div className="dtop">
-        {phone || !standalone ? <BackButton onClick={leave} /> : null}
         <div className="dtitle">
           <h1>Control de stock</h1>
         </div>

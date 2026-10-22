@@ -100,17 +100,24 @@ describe('Resumen periódico', () => {
     expect(screen.getByRole('combobox', { name: 'Períodos anteriores' })).toHaveTextContent('16 al 30/09/2026');
     expect(screen.queryByText(/01\/09\/2026 – 30\/09\/2026/)).not.toBeInTheDocument();
   });
-  it('shows loading without fake zeroes, a visible failure and a working retry', async () => {
+  it('replaces a failed load with a neutral empty state and logs its cause', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cause = new Error('No se pudo cargar el resumen periódico');
     let reject!: (reason: Error) => void;
     mocks.fetch.mockReturnValueOnce(new Promise((_, fail) => { reject = fail; }));
     show();
     expect(screen.getByTestId('periodic-summary-loading')).toBeInTheDocument();
     expect(screen.queryByText('$ 0')).not.toBeInTheDocument();
-    reject(new Error('No se pudo cargar el resumen periódico'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar');
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    await loaded();
+    reject(cause);
+    expect(await screen.findByText('Sin resumen para mostrar.')).toBeVisible();
+    expect(warn).toHaveBeenCalledWith('No se pudo cargar el resumen periódico.', cause);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('periodic-summary-loading')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Último mes' }));
+    await loaded();
   });
   it('discards late responses after switching periods', async () => {
     let resolve!: (data: Summary) => void;

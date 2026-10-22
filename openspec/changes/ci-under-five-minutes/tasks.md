@@ -1,0 +1,5 @@
+- [x] Identify browser usage, required npm projects and database isolation.
+- [x] Replace browser installation with version-matched Playwright containers.
+- [x] Consolidate dependency setup and scope npm cache keys.
+- [x] Validate YAML and workflow invariants; run local frontend tests and typechecks.
+- [x] Record validation results and remaining hosted timing verification.

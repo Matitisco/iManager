@@ -13,15 +13,15 @@ export function SuppliersScreen() {
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
-  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(suppliers, loadArchived);
+  const { rows: archivedRows, loading } = useArchivedRows(suppliers, loadArchived);
   const activeRows = suppliers;
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
-  const error = archived ? archivedError : [ supplierError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
+  const error = archived ? '' : supplierError;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-supplier' })}>Nuevo proveedor</button>;
 
   return (
     <div className="dscreen" data-testid="suppliers-screen">
-      <ScreenTitle title="Proveedores" subtitle="De dónde vino cada equipo." back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Proveedores" back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}

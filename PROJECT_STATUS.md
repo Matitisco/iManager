@@ -1,8 +1,9 @@
 # iManager - Project Status
 
-- Actualización visual #318/#372 (2026-10-22): nuevas referencias aprobadas desde `redisenio-372-318/propia/src`, con CSS específico, tarjetas de grupos, tres pasos, filas compactas expandibles, filtros en una fila móvil y modales de 520 px/hojas inferiores. La acción de iniciar otro control queda en el paso Contar, con nombre accesible Iniciar control, sin agregar una acción al encabezado del diseño. Se mantiene el botón de acceso del encabezado de Inventario sin cambios.
+- Actualización visual #318/#372 (2026-10-22): nuevas referencias aprobadas desde `redisenio-372-318/propia/src`, con CSS específico, tarjetas de grupos, tres pasos, filas compactas expandibles, filtros en una fila móvil y modales de 520 px/hojas inferiores. La acción de iniciar otro control queda en el paso Contar, con nombre accesible Iniciar control, sin agregar una acción al encabezado del diseño. Tras integrar `origin/main`, el acceso desde Inventario es exclusivamente por pestaña, sin el botón antiguo ni la flecha de regreso; se conservan los encabezados sin subtítulos y la etiqueta móvil Control del diseño aprobado.
 - Conserva operaciones, permisos, cuatro grupos, errores y diferencias basadas exclusivamente en cambios registrados. Alcance disponible presentado desde el inventario ya cargado; sin cambios de API, backend ni AppContext. Antes/Después admite varios campos y valores ausentes; no duplica el separador de capacidad de etiquetas históricas.
 - Validación del ajuste: 121 pruebas Vitest relevantes; typecheck frontend/backend; comparación visual de componentes con fixtures a 1440/390 contra el HTML entregado. Coinciden posición y tamaño de los bloques principales desktop y del resumen móvil de stock; historial móvil difiere 1 px en posición vertical. Sin desborde horizontal a 390; última fila accesible sobre la acción y navegación. Solo se actualizaron selectores E2E existentes, sin ejecutar ni agregar E2E. Sin build; commit local en la rama actual, sin push.
+- Validación del merge con `origin/main`: typecheck frontend/backend aprobado y 349 pruebas Vitest relevantes verificadas en 25 archivos. La tanda tuvo un timeout de 5 s en filtros de Inventario; el archivo completo pasó al repetirlo aislado (25/25). Adaptadas las pruebas al componente sin props de navegación y a la etiqueta móvil Control, conservando la regresión de acceso exclusivo por pestaña. Merge concluido en la rama actual, con mensaje en español y sin push ni build.
 
 - #372 Historial rediseñado según referencias aprobadas de 1440/390: persona, acción, registro con IMEI y hora; agrupación por fecha argentina completa y descendente, 30 días iniciales y filtros con valor visible. Mantiene Cargar más y cuenta movimientos mostrados, con errores/reintentos y descarte de páginas tardías.
 - Detalle #372: modal desktop y hoja inferior mobile con identidad, rol y fecha/hora; Antes/Después solo desde cambios estructurados, texto histórico y motivo registrados. Navega al registro únicamente con destino existente y permiso; los errores de archivados conservan el detalle abierto. La API agrega IMEI desde inventario y cliente de venta existentes; búsqueda IMEI aislada por tienda. Sin cambios de Prisma, AppContext ni datos de negocio.
@@ -11,6 +12,16 @@
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
+
+## CI — Objetivo de PR menor a cinco minutos — 2026-10-22
+
+- Frontend, E2E y PWA usan la imagen oficial de Playwright derivada del lockfile, sin apt ni descargas de navegadores durante el job. E2E conecta al servicio PostgreSQL por hostname; instalaciones npm de frontend/backend una vez por proyecto y en paralelo, con cachés ajustadas a los lockfiles necesarios. Mantiene pruebas, selección PR/full, dos shards frontend, integración backend serial y cancelación existentes.
+- YAML/shell, condiciones de tests, propagación de errores de instalación y typechecks frontend/backend validados. Vitest local: 1.485 pruebas y 183 archivos aprobados en 85,95 s; siete suites de navegador fallaron al iniciar Chromium por restricciones del sandbox, dejando 42 pruebas sin ejecutar. OpenSpec `ci-under-five-minutes`; sin build, commit ni push. Falta medir la duración total y validar los contenedores en el próximo PR de GitHub.
+
+## Control de stock — Acceso por pestaña — 2026-10-22
+
+- Retirado el botón antiguo del encabezado de Inventario en escritorio y móvil, junto con el estado local, el montaje alternativo y el modo con flecha de regreso. La pestaña y su ruta conservan el flujo de conteo; Carga en serie mantiene sus estilos compartidos.
+- Componentes actualizados y regresión de navegación por pestañas en escritorio/móvil; el selector E2E usa `getByRole('tab', { name: 'Control de stock' })`. Typecheck frontend/backend y 93 pruebas Vitest de conteo, Inventario y navegación aprobados. Sin build ni ejecución E2E; commit en español en la rama actual, sin push.
 
 ## Issue #308 / #483 punto 13 — Confirmaciones de archivo — 2026-10-22
 
@@ -22,6 +33,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Rediseño aprobado en 1440/390: resultado reciente con estado Por revisar, cuatro grupos con IMEI completo y controles anteriores. Inicio mínimo en Sheet (hoja inferior móvil); registro únicamente mediante RECORD, sin selección ni acciones de archivar/cargar/ajustar inventario. Continúa el conteo abierto y conserva lector, ingreso manual, cámara y permisos.
 - Base y exclusiones limitadas a DISPONIBLE, sin cambios de Prisma ni reescritura de fotos históricas. Sin escaneos usa lenguaje de observación; historial con Sin escanear / Sin cargar. Espacio inferior y scroll con reserva para navegación y safe area.
 - Tests de componentes cubren inicio, ciegas, cámara/manual/lector, grupos, errores, permisos, históricos y RECORD sin mutación; unitarios e integración PostgreSQL cubren el filtro de estados, exclusiones, aislamiento y registro. Evidencia de revisión visual sintética y comandos en `docs/stock-count-redesign-318.md`. Sin build ni E2E; commit en la rama actual, sin push.
+
+## Cargas secundarias discretas — 2026-10-22
+
+- Resumen periódico, catálogo y selectores de vendedores muestran vacíos neutrales ante fallos de consulta. Se ocultan avisos y reintentos de señas secundarias, Primeros pasos, vista previa de catálogo, contador de comisiones y datos archivados complementarios. Los filtros de archivados conservan sus vacíos existentes y las listas activas permanecen disponibles.
+- Las consultas fallidas registran la causa original con `console.warn`; estados e imports de error/reintento retirados. Guardados, pagos, aplicación/cancelación de señas y eliminación conservan sus errores visibles. Una consulta de vendedores tardía no sobrescribe un error de guardado, y una consulta de señas fallida conserva el crédito conocido del cliente.
+- TypeScript frontend/backend y 263 pruebas afectadas aprobados. Suite completa: 1.515/1.516 aprobadas; un timeout en la prueba existente de Chromium `sheet-compatibility` pasó al repetir el archivo aislado (7/7). Cambio OpenSpec `quiet-load-failures`. Sin build ni nuevos E2E; commit en `fix/ocultar-errores-secundarios`, sin push, según el pedido.
 
 ## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
 
