@@ -13,6 +13,7 @@ import {
 } from "./audit-actions.js";
 import { saleCode } from "./archive.js";
 import type { AuditChange } from "./diff-fields.js";
+import { repairHistoryRows } from "./repair-history.js";
 
 const PAGE = 50;
 
@@ -199,9 +200,9 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
   if (query.group && !groupActions) return { events: [], nextCursor: null, groups: AUDIT_GROUPS, sections: AUDIT_SECTIONS };
   if (query.section && !sectionActions) return { events: [], nextCursor: null, groups: AUDIT_GROUPS, sections: AUDIT_SECTIONS };
   const actionIn = [groupActions, sectionActions].filter((list): list is string[] => Boolean(list));
-  if (actionIn.length) {
-    const allowed = actionIn.reduce((acc, list) => acc.filter((action) => list.includes(action)));
-    where.action = { in: allowed.length ? allowed : ["__none__"] };
+  const allowedActions = actionIn.length ? actionIn.reduce((acc, list) => acc.filter((action) => list.includes(action))) : null;
+  if (allowedActions) {
+    where.action = { in: allowedActions.length ? allowedActions : ["__none__"] };
   }
   if (query.q?.trim()) {
     const ids = await searchIds(storeId, query.q.trim());
@@ -217,11 +218,17 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
     }];
   }
 
-  const rows = await prisma.auditEvent.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
-  });
+  const [auditRows, statusRows] = await Promise.all([
+    prisma.auditEvent.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+    }),
+    repairHistoryRows(storeId, query, allowedActions, cursor, limit + 1),
+  ]);
+  const rows = [...auditRows, ...statusRows].sort((a, b) =>
+    b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+  );
   const page = rows.slice(0, limit);
   const { state: states, labels } = await recordContext(storeId, page);
   const events: HistoryEvent[] = [];
