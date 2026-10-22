@@ -10,7 +10,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../li
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { archivedRepair } from './archive-cache';
 import { restoreBackendRepair } from '../services/repairs-api';
-import { RecordHistory } from './screens/HistoryScreen';
+import { RecordHistoryButton } from './RecordHistoryButton';
 import { FX_WARNING } from './money';
 import { DatePicker } from './date-picker';
 import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
@@ -255,7 +255,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       </div>
       {error ? <div className="ferr">{error}</div> : null}
       {order.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{order.archivedBy ? `por ${order.archivedBy}` : 'Esta orden está archivada'}{order.archiveReason ? ` · ${order.archiveReason}` : ''}</small></div><button type="button" disabled={busy || saving} onClick={() => { if (!user || !restoreRepairOrder) return; setSaving(true); void restoreRepairOrder(order.id).then(() => { toast('Orden restaurada'); close(); }).catch((cause) => setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.'))).finally(() => setSaving(false)); }}>Restaurar</button></div> : null}
-      <RecordHistory entityType="repair" entityId={order.id} />
+      <div className="tracking-history-action"><RecordHistoryButton entityType="repair" entityId={order.id} label={`#${order.code} · ${order.device}`} /></div>
       {clientRow}
       <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
@@ -308,7 +308,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       ) : null}
       {error ? <div className="ferr">{error}</div> : null}
       {order.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{order.archivedBy ? `por ${order.archivedBy}` : 'Esta orden está archivada'}{order.archiveReason ? ` · ${order.archiveReason}` : ''}</small></div><button type="button" disabled={busy || saving} onClick={() => { if (!user || !restoreRepairOrder) return; setSaving(true); void restoreRepairOrder(order.id).then(() => { toast('Orden restaurada'); close(); }).catch((cause) => setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.'))).finally(() => setSaving(false)); }}>Restaurar</button></div> : null}
-      <RecordHistory entityType="repair" entityId={order.id} />
+      <div className="tracking-history-action"><RecordHistoryButton entityType="repair" entityId={order.id} label={`#${order.code} · ${order.device}`} /></div>
       {clientRow}
       <div className="kv"><span>Ingreso</span><b>{received}</b></div>
       <div className="svc-fault-card">
