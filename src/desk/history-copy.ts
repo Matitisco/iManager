@@ -1,9 +1,8 @@
 import { isSectionHidden } from '../config/hiddenSections';
+import type { HistoryEvent } from '../services/history-api';
 export type HistoryDetailRow = { label: string; before: string | null; after: string | null };
 
 const OPENABLE = new Set(['inventory', 'sales', 'tradeins', 'service', 'clients', 'suppliers', 'expenses', 'returns']);
-const OPAQUE = /^(?:sin vendedor|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const CATALOG = /^(ocultar|mostrar):\s*(\d+)\s+equipos?$/i;
 
 export function historyAction(event: { verb?: string | null; target?: string | null; suffix?: string | null }) {
   return [event.verb, event.target, event.suffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
@@ -25,26 +24,39 @@ export function historyRecordNote(event: { legacy: boolean; recordState: string;
 }
 
 export function historyDetailRows(event: { changes?: HistoryDetailRow[] | null; detail?: string | null }): HistoryDetailRow[] {
-  const changes = (event.changes ?? []).filter((row) => row.label?.trim());
-  if (changes.length) return changes;
-  const detail = event.detail?.trim() ?? '';
-  if (!detail) return [];
-  const catalog = detail.match(CATALOG);
-  if (catalog) {
-    const hide = catalog[1].toLowerCase() === 'ocultar';
-    return [
-      { label: 'Catálogo', before: hide ? 'Visible' : 'Oculto', after: hide ? 'Oculto' : 'Visible' },
-      { label: 'Equipos', before: null, after: catalog[2] },
-    ];
+  return (event.changes ?? []).filter((row) => row.label?.trim() && (row.before != null || row.after != null));
+}
+
+/** Retain the saved label; a live identifier may complete its shortened IMEI. */
+export function historyRecord(event: Pick<HistoryEvent, 'entityLabel' | 'entityIdentifier' | 'target'>) {
+  const label = event.entityLabel?.trim() || event.target?.trim() || 'Registro';
+  const imei = label.match(/\s*·?\s*(IMEI\s+[^·]+)$/i);
+  const title = (imei ? label.slice(0, imei.index).trim() : label)
+    .replace(/\s+(\d+\s*(?:GB|TB))\b/i, ' · $1');
+  return { title, identifier: event.entityIdentifier?.trim() || imei?.[1]?.trim() || null };
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const DATE_FORMAT = new Intl.DateTimeFormat('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: 'short', year: 'numeric',
+});
+
+export function groupHistoryDays(events: HistoryEvent[], now = new Date()) {
+  const today = DAY_FORMAT.format(now);
+  const yesterday = DAY_FORMAT.format(new Date(now.getTime() - 86400000));
+  const groups = new Map<string, { key: string; label: string; rows: HistoryEvent[] }>();
+  for (const event of [...events].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id))) {
+    const date = new Date(event.createdAt);
+    const key = DAY_FORMAT.format(date);
+    let day = groups.get(key);
+    if (!day) {
+      const prefix = key === today ? 'Hoy · ' : key === yesterday ? 'Ayer · ' : '';
+      day = { key, label: `${prefix}${DATE_FORMAT.format(date).replace(/\./g, '').replace(/ de /g, ' ')}`, rows: [] };
+      groups.set(key, day);
+    }
+    day.rows.push(event);
   }
-  const arrow = detail.match(/^(.+?)\s*(?:→|->)\s*(.+)$/);
-  if (arrow) {
-    const before = arrow[1].trim();
-    const after = arrow[2].trim();
-    if (OPAQUE.test(before) && OPAQUE.test(after)) return [];
-    return [{ label: 'Cambio', before, after }];
-  }
-  const labeled = detail.match(/^([^:]{1,40}):\s*(.+)$/);
-  if (labeled) return [{ label: labeled[1].trim(), before: null, after: labeled[2].trim() }];
-  return [{ label: 'Detalle', before: null, after: detail }];
+  return [...groups.values()];
 }

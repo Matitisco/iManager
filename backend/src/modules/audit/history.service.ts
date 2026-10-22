@@ -30,6 +30,8 @@ export type HistoryEvent = {
   entityType: string;
   entityId: string;
   entityLabel: string | null;
+  entityIdentifier: string | null;
+  entitySubtitle: string | null;
   detail: string | null;
   changes: AuditChange[];
   reason: string | null;
@@ -89,14 +91,19 @@ function asChanges(value: unknown): AuditChange[] {
 async function searchIds(storeId: string, q: string) {
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "AuditEvent"
-    WHERE "storeId" = ${storeId}
+    SELECT a."id" FROM "AuditEvent" a
+    WHERE a."storeId" = ${storeId}
       AND (
         COALESCE("entityLabel", '') ILIKE ${like}
         OR COALESCE("detail", '') ILIKE ${like}
         OR COALESCE("reason", '') ILIKE ${like}
         OR "actorName" ILIKE ${like}
         OR COALESCE("changes"::text, '') ILIKE ${like}
+        OR (a."entityType" = 'inventory' AND EXISTS (
+          SELECT 1 FROM "InventoryItem" i
+          WHERE i."storeId" = ${storeId} AND i."id" = a."entityId"
+            AND i."imei" ILIKE ${like}
+        ))
       )
     ORDER BY "createdAt" DESC
     LIMIT 5000
@@ -120,8 +127,8 @@ async function recordContext(storeId: string, rows: { entityType: string; entity
   const ids = (type: string) => [...new Set(rows.filter((row) => row.entityType === type).map((row) => row.entityId))];
   const cashIds = ids("cash");
   const [items, sales, trades, clients, repairs, registers, sessions, movements, suppliers, expenses, purchases, claims, counts] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { storeId, id: { in: ids("inventory") } }, select: { id: true, archivedAt: true, model: true, capacity: true } }),
-    prisma.sale.findMany({ where: { storeId, id: { in: ids("sale") } }, select: { id: true, voidedAt: true, saleNumber: true } }),
+    prisma.inventoryItem.findMany({ where: { storeId, id: { in: ids("inventory") } }, select: { id: true, archivedAt: true, model: true, capacity: true, imei: true } }),
+    prisma.sale.findMany({ where: { storeId, id: { in: ids("sale") } }, select: { id: true, voidedAt: true, saleNumber: true, clientName: true } }),
     prisma.tradeIn.findMany({ where: { storeId, id: { in: ids("trade") } }, select: { id: true, voidedAt: true, deviceReceived: true } }),
     prisma.client.findMany({ where: { storeId, id: { in: ids("client") } }, select: { id: true, archivedAt: true, name: true } }),
     prisma.repairOrder.findMany({ where: { storeId, id: { in: ids("repair") } }, select: { id: true, archivedAt: true, orderNumber: true, device: true } }),
@@ -136,13 +143,17 @@ async function recordContext(storeId: string, rows: { entityType: string; entity
   ]);
   const state = new Map<string, HistoryEvent["recordState"]>();
   const labels = new Map<string, string>();
+  const identifiers = new Map<string, string>();
+  const subtitles = new Map<string, string>();
   for (const row of items) {
     state.set(`inventory:${row.id}`, row.archivedAt ? "archived" : "active");
     labels.set(`inventory:${row.id}`, shortLabel([row.model, row.capacity].filter(Boolean).join(" ")) || "Equipo");
+    if (row.imei?.trim()) identifiers.set(`inventory:${row.id}`, `IMEI ${row.imei.trim()}`);
   }
   for (const row of sales) {
     state.set(`sale:${row.id}`, row.voidedAt ? "voided" : "active");
     labels.set(`sale:${row.id}`, saleCode(row.saleNumber));
+    if (row.clientName?.trim()) subtitles.set(`sale:${row.id}`, row.clientName.trim());
   }
   for (const row of trades) {
     state.set(`trade:${row.id}`, row.voidedAt ? "voided" : "active");
@@ -179,7 +190,7 @@ async function recordContext(storeId: string, rows: { entityType: string; entity
     state.set(`stockcount:${row.id}`, "active");
     labels.set(`stockcount:${row.id}`, "Control de stock");
   }
-  return { state, labels };
+  return { state, labels, identifiers, subtitles };
 }
 
 export async function listHistory(storeId: string, query: HistoryQuery) {
@@ -223,7 +234,7 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
     take: limit + 1,
   });
   const page = rows.slice(0, limit);
-  const { state: states, labels } = await recordContext(storeId, page);
+  const { state: states, labels, identifiers, subtitles } = await recordContext(storeId, page);
   const events: HistoryEvent[] = [];
   const seenBatches = new Set<string>();
   for (const row of page) {
@@ -257,6 +268,8 @@ export async function listHistory(storeId: string, query: HistoryQuery) {
       entityType: row.entityType,
       entityId: row.entityId,
       entityLabel,
+      entityIdentifier: identifiers.get(`${row.entityType}:${row.entityId}`) ?? null,
+      entitySubtitle: subtitles.get(`${row.entityType}:${row.entityId}`) ?? null,
       detail: row.detail,
       changes: changes.filter((change) => !hiddenChange(change.field)),
       reason: row.reason,
