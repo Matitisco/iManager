@@ -168,4 +168,18 @@ describe.each([1440, 390])('operation form layout at %ipx', width => {
     try { await copyToBrowser(page); await assertLayout(page); }
     finally { await page.close(); }
   });
+
+  it('keeps expanded payments and installments in the scrolling body', async () => {
+    mount(width, 'sale');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Cliente' }), { target: { value: 'Ana' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Ana Pérez/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Varios medios' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Financiar en cuotas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar pago' }));
+    expect(screen.getByLabelText('Importe del pago 2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Primer vencimiento')).toBeInTheDocument();
+    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    try { await copyToBrowser(page); await assertLayout(page); }
+    finally { await page.close(); }
+  });
 });
