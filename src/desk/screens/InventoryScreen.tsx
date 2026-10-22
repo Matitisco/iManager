@@ -132,7 +132,7 @@ export function InventoryScreen() {
   const [columns, setColumns] = useNavigationState<InventoryColumnFilters>('Inventory.columns', EMPTY_COLUMN_FILTERS);
   const [sort, setSort] = useNavigationState('Inventory.sort', 'Recientes');
   const [archivedMode, setArchivedMode] = useNavigationState('Inventory.archivedMode', false);
-  const { rows: archived, error: archiveError } = useArchivedRows(inventory, fetchArchivedInventory, rememberArchivedProducts);
+  const { rows: archived } = useArchivedRows(inventory, fetchArchivedInventory, rememberArchivedProducts);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('inventory');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'inventory' && trade.confirmationStatus === 'PENDING');
@@ -211,7 +211,6 @@ export function InventoryScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Inventario"
         back={back}

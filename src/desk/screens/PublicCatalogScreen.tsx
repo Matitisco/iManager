@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogSettings, ManagedCatalog } from '../../types/public-catalog';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
-import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { catalogCondition, catalogPrice, whatsappLink } from '../../catalog/presentation';
 import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import type { PublicCatalog } from '../../types/public-catalog';
@@ -36,11 +35,19 @@ export function PublicCatalogScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [unavailable, setUnavailable] = useState(false);
   const pending = useRef(false);
   const equipment = useRef<HTMLElement>(null);
-  const load = async () => { setLoading(true); setError(''); try { await loadPublicCatalog(); } catch (cause) { setError(toUserMessage(cause)); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [loadPublicCatalog]);
-  useOfflineRecovery(error, () => { void load(); });
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setUnavailable(false);
+    void loadPublicCatalog().catch(cause => {
+      if (!active) return;
+      console.warn('No se pudo cargar el catálogo.', cause);
+      setUnavailable(true);
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [loadPublicCatalog]);
   const run = async (action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError('');
@@ -83,9 +90,9 @@ export function PublicCatalogScreen() {
   });
   return <div className="dscreen catalog-screen" data-testid="catalog-screen" aria-busy={loading}>
     <PageHead title="Catálogo" back={back} action={catalog && !phone ? <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div> : undefined} />
-    {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div> : null}
+    {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}</div> : null}
     {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
-    {loading && !catalog ? <CatalogSkeleton /> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
+    {loading && !catalog ? <CatalogSkeleton /> : !catalog && unavailable ? <p className="cat-empty">Sin catálogo para mostrar.</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
@@ -177,19 +184,22 @@ function CatalogRules({ catalog, onClose }: { catalog: ManagedCatalog; onClose: 
 
 function CatalogPreview({ catalog, storePhone }: { catalog: ManagedCatalog; storePhone: string | null }) {
   const [preview, setPreview] = useState<PublicCatalog | null>(null);
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  useOfflineRecovery(error, () => setAttempt(value => value + 1));
+  const [unavailable, setUnavailable] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    setPreview(null); setError('');
-    void fetchPublicCatalog(catalog.slug, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => { if (!controller.signal.aborted) setError(toUserMessage(cause)); });
+    setPreview(null); setUnavailable(false);
+    void fetchPublicCatalog(catalog.slug, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => {
+      if (controller.signal.aborted) return;
+      console.warn('No se pudo cargar la vista previa del catálogo.', cause);
+      setUnavailable(true);
+    });
     return () => controller.abort();
-  }, [catalog.slug, storePhone, attempt]);
+  }, [catalog.slug, storePhone]);
   const phone = preview?.store.phone?.trim() || null;
   const line = [preview?.store.address, preview?.store.hours, phone].filter(Boolean).join(' · ');
+  if (unavailable && !preview) return null;
   return <div className="cat-preview public-price-page">
-    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1>{line ? <small data-testid="catalog-store-phone">{line}</small> : null}</div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : error ? <p className="cat-empty" role="alert">{error}</p> : <ListSkeleton variant="lines" rows={6} testId="catalog-preview-loading" />}
+    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1>{line ? <small data-testid="catalog-store-phone">{line}</small> : null}</div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : <ListSkeleton variant="lines" rows={6} testId="catalog-preview-loading" />}
   </div>;
 }
 

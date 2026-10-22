@@ -21,10 +21,10 @@ export function ReturnsScreen() {
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
-  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
+  const { rows: archivedRows, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
   const activeRows = returns;
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows.filter(row => !isVoidRow(row)) : mergeRecordRows(activeRows, archivedRows);
-  const error = archived ? archivedError : [ returnsError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
+  const error = archived ? '' : returnsError;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-return' })}>Nuevo reclamo</button>;
 
   return (
