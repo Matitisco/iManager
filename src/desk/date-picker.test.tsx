@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DatePicker } from './date-picker';
@@ -81,4 +81,63 @@ it('lets the user return from the calendar to manually editing its field', async
   await userEvent.click(screen.getByLabelText('Fecha'));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Fecha')).toHaveFocus();
+});
+
+it.each([390, 1440])('contains the sale calendar in its sheet body at %s px and follows layout changes', async width => {
+  vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(width);
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900);
+  const viewport = Object.assign(new EventTarget(), { offsetLeft: 0, offsetTop: 0, width, height: 900 });
+  vi.stubGlobal('visualViewport', viewport);
+  const left = width === 390 ? 0 : 450;
+  let fieldTop = 330;
+  const rect = (x: number, y: number, w: number, h: number): DOMRect => ({ x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h, toJSON: () => ({}) });
+  const originalRect = HTMLElement.prototype.getBoundingClientRect;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.matches('.sheet-scroll')) return rect(left, 140, width === 390 ? 390 : 540, 440);
+    if (this.matches('input')) return rect(left + 16, fieldTop - (this.closest('.sheet-scroll')?.scrollTop ?? 0), 350, 48);
+    return originalRect.call(this);
+  });
+  try {
+    render(<div className="desk-app"><Sheet title="Editar operación" onClose={vi.fn()} footer={<button>Guardar cambios</button>}>
+      <DatePicker boundary="sheet" label="Fecha de la venta" value="2026-10-22" onChange={vi.fn()} />
+    </Sheet></div>);
+    const sheet = screen.getByRole('dialog', { name: 'Editar operación' });
+    const body = sheet.querySelector<HTMLElement>('.sheet-scroll')!;
+    await userEvent.click(screen.getByRole('button', { name: /Abrir calendario/ }));
+    const panel = screen.getByRole('dialog', { name: 'Elegir fecha de la venta' }).parentElement!;
+    // The portal escapes overflow, while its coordinates stay inside the form.
+    expect(sheet).not.toContainElement(panel);
+    expect(panel.parentElement).toHaveClass('desk-app');
+    expect(body.scrollTop).toBeGreaterThan(0);
+    const assertAnchored = () => {
+      const field = screen.getByLabelText('Fecha de la venta').getBoundingClientRect();
+      const top = parseFloat(panel.style.top);
+      const height = Math.min(373, parseFloat(panel.style.maxHeight));
+      expect(top).toBeGreaterThanOrEqual(148);
+      expect(top + height).toBeLessThanOrEqual(Math.min(572, viewport.offsetTop + viewport.height - 12));
+      expect(Math.min(Math.abs(top - field.bottom), Math.abs(field.top - top - height))).toBe(8);
+    };
+    assertAnchored();
+    body.scrollTop -= 30;
+    fireEvent.scroll(body);
+    assertAnchored();
+    viewport.height = 530;
+    act(() => { viewport.dispatchEvent(new Event('resize')); });
+    assertAnchored();
+    viewport.offsetTop = 20;
+    act(() => { viewport.dispatchEvent(new Event('scroll')); });
+    assertAnchored();
+    fieldTop -= 5;
+    fireEvent.animationEnd(sheet);
+    assertAnchored();
+    fireEvent.resize(window);
+    assertAnchored();
+    // Once the field leaves view, its popup cannot linger over the header.
+    body.scrollTop = 800;
+    fireEvent.scroll(body);
+    expect(screen.queryByRole('dialog', { name: 'Elegir fecha de la venta' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Editar operación' })).toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

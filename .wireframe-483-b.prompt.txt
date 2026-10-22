@@ -1,0 +1,4 @@
+Tool: built-in image_gen (ui-mockup), generated before implementation.
+Output: .wireframe-483.png
+
+Create a high fidelity iManager UI design board containing desktop 1440x900 and mobile 390x844 views of Editar operación. Use the attached design references and ref-* captures. Preserve DM Sans, existing white rounded sheets, gray inputs, charcoal actions, pale yellow calendar trigger and Hoy, selected day 22 charcoal with yellow dot. Calendar opens 8px below its sale date field, aligned left, fully inside the modal body without covering header or Cerrar / Guardar cambios. Mobile may show scrolled form content to fit the anchored compact 296px calendar. Preserve existing client, device, date, warranty, price and payment fields. No explanatory subtitles, helper text or redundant labels. Only external Desktop 1440 and Mobile 390 labels. Change only calendar positioning; preserve existing design system.

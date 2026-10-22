@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale, TradeIn } from '../types';
@@ -42,6 +42,31 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('sale seller editing', () => {
+  it.each([390, 1440])('anchors the real edit form calendar and persists the chosen date at %s px', async width => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(width);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900);
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const rect = this.matches('.sheet-scroll')
+        ? { x: 0, y: 140, width, height: 600 }
+        : this.matches('input') ? { x: 16, y: 250, width: 350, height: 48 } : null;
+      return rect ? { ...rect, left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height, toJSON: () => ({}) } : originalRect.call(this);
+    });
+    mount();
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir calendario: fecha de la venta' }));
+    const panel = screen.getByRole('dialog', { name: 'Elegir fecha de la venta' }).parentElement!;
+    expect(parseFloat(panel.style.top)).toBe(306);
+    expect(parseFloat(panel.style.maxHeight)).toBe(426);
+    fireEvent.scroll(screen.getByRole('dialog', { name: 'Editar operación' }).querySelector('.sheet-scroll')!);
+    expect(parseFloat(panel.style.top)).toBe(306);
+    await userEvent.click(screen.getByRole('button', { name: 'lunes, 12 de octubre de 2026' }));
+    expect(screen.queryByRole('dialog', { name: 'Elegir fecha de la venta' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Fecha de la venta')).toHaveValue('12/10/2026');
+    expect(screen.getByLabelText('Fecha de la venta')).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith('sale', expect.objectContaining({ date: '12/10/2026', amount: original.amount, currency: original.amountCurrency })));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  });
   it.each(['CANCELADA', 'COMPLETADA', 'PENDIENTE'] as const)('detail edit visibility for %s', status => {
     ctx.sales[0].status = status;
     mount({ type: 'sale', id: 'sale' });
