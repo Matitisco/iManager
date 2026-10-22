@@ -96,7 +96,6 @@ export function ClientsScreen() {
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
 
   const clientSource = archivedMode ? archivedClients : mergeRecordRows(clients, archivedClients);
-  const withBalance = clients.filter((client) => clientNet(client) > 0).length;
   const noticeFor = (client: Client) => reasonWithBalance(notices.reasonFor(client.id), client.pendingBalance, client.balanceCurrency);
 
   const setColumn = (patch: Partial<ClientColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -127,7 +126,6 @@ export function ClientsScreen() {
       {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Clientes"
-        subtitle={`${clientSource.length === 1 ? '1 cliente' : `${clientSource.length} clientes`} · ${withBalance} con saldo`}
         back={back}
         tools={view === 'lista' ? (
           <span className="rslot">

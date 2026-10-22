@@ -222,6 +222,11 @@ describe('control de stock #318', () => {
     context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };
     desk(<StockCountScreen onBack={vi.fn()} />);
     expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
+    expect(document.querySelector('.dtop .dsub')).not.toBeInTheDocument();
+    expect(screen.queryByText(blind.subtitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cerrar control' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ajustar al conteo' })).not.toBeInTheDocument();
     expect(screen.getByText('1 tuyo · 1 en total')).toBeInTheDocument();
     expect(screen.queryByTestId('stock-close')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Iniciar control' })).not.toBeInTheDocument();

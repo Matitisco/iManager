@@ -8,7 +8,6 @@ import { useAppContext } from '../../context/AppContext';
 import { toUserMessage } from '../../lib/user-message';
 import type { CashCommand, CashFilters, CashHistory, CashMovement, CashRegister, CashSession } from '../../types/cash';
 import { formatArDateTime } from '../format';
-import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, PageHead, Segs, Sheet, useDesk } from '../ui';
 import { DeskSelect } from '../select';
 import { useCommissionBlue } from '../commission-blue';
@@ -23,7 +22,6 @@ type Mode = { type: 'create' } | { type: 'edit' | 'INGRESO' | 'EGRESO' | 'AJUSTE
 export function CashScreen() {
   const { cashData, loadCash, mutateCash, loadCashHistory, loadCashSessions, appSession } = useAppContext();
   const { back, toast } = useDesk();
-  const phone = usePhoneLayout();
   const owner = appSession?.membership?.role === 'OWNER';
   const [selected, setSelected] = useState('');
   const [listFilter, setListFilter] = useState('all');
@@ -79,7 +77,7 @@ export function CashScreen() {
   const rows = cashData?.registers.filter(row => listFilter === 'all' || Boolean(row.archivedAt) === archived) ?? [];
   return <div className="dscreen cash-screen" data-testid="cash-screen">
     <div className="cash-content" hidden={mode?.type === 'count'}>
-    <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : (phone ? 'Ingresos, egresos y cierre' : 'Ingresos, egresos y cierre diario por moneda y medio')} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
+    <PageHead title={box?.name ?? 'Cajas'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
     {loading && !cashData ? <ListSkeleton variant="cards" rows={2} testId="cash-loading" /> : null}
     {!selected && cashData ? <>

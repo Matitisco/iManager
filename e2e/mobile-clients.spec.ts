@@ -108,7 +108,7 @@ test.describe('clients on a phone', () => {
 
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
-    await expect(page.getByText('0 clientes · 0 con saldo')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
     await expect(page.getByTestId('clients-empty')).toContainText('No hay clientes');
     await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.getByPlaceholder('Buscar por nombre, DNI o teléfono')).toBeVisible();
@@ -196,7 +196,7 @@ test.describe('clients on a phone', () => {
     await expect(debtor).toContainText('03/10/2026');
     await expect(debtor).toContainText('US$ 650.000');
     await expect(created).toContainText('Sin saldo');
-    await expect(page.getByText('2 clientes · 1 con saldo')).toBeVisible();
+    await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(2);
     const order = await page.getByTestId('phone-rows').locator('[data-testid^="client-row-"]').allTextContents();
     expect(order[0]).toContain(debtorName);
     expect(order[1]).toContain(createdName);

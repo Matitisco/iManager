@@ -113,8 +113,8 @@ describe('Member permissions', () => {
 
     await user.click(await screen.findByRole('button', { name: /Luis/ }));
     expect(screen.getByRole('heading', { name: 'Luis' })).toBeInTheDocument();
-    expect(screen.getByText(/luis@test.com/)).toBeInTheDocument();
-    expect(screen.getByText(/Empleado/)).toBeInTheDocument();
+    expect(screen.queryByText(/luis@test.com/)).not.toBeInTheDocument();
+    expect(document.querySelector('.team-member-head .wsub')).not.toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Dashboard' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
     expect(screen.getByRole('switch', { name: 'Acciones sensibles' })).not.toBeChecked();

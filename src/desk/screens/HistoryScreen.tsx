@@ -134,7 +134,7 @@ export function HistoryScreen() {
   }
 
   return <div className="dscreen history-screen" data-testid="history-screen">
-    <ScreenTitle title="Historial" subtitle="Quién hizo qué y cuándo" back={desk.back} desktop={<SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o número" />} />
+    <ScreenTitle title="Historial" back={desk.back} desktop={<SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o número" />} />
     {phone ? <SearchBox value={query} onChange={setQuery} placeholder="Buscar" /> : null}
     <div className="dbar history-filters">
       <FilterChip label="Persona" value={actorId} onChange={setActorId} options={actors.map((actor) => ({ id: actor.userId, label: `${actor.name}${actor.removed ? ' (salió)' : ''}` }))} />

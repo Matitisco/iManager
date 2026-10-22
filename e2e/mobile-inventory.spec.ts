@@ -175,7 +175,7 @@ test.describe('inventory on a phone', () => {
     await page.reload();
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     await page.getByTestId('sidebar-tab-inventory').click();
-    await expect(page.getByText('4 equipos · 2 disponibles')).toBeVisible();
+    await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
     const card = page.getByText('iPhone 13 · 128GB').locator('xpath=ancestor::button[1]');
     await expect(card.getByText('IMEI 35 000000 000001 0')).toBeVisible();
     await expect(card.getByText('Usado · Medianoche')).toBeVisible();
