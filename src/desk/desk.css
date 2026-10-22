@@ -2284,6 +2284,31 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .scan-imei { display: flex; align-items: flex-end; gap: 8px; }
 .scan-imei > .fl, .scan-imei > .eqs, .scan-imei .fl { flex: 1; min-width: 0; margin-bottom: 0; }
 .scan-imei > .eqs { display: contents; }
+/* Operation fields own their spacing, including scanners and inline suggestions. */
+.operation-form .fl,
+.operation-form .eqs,
+.operation-form .scan-imei,
+.operation-form .frow { min-width: 0; margin-bottom: 16px; }
+.operation-form .fl > span { overflow-wrap: anywhere; }
+.operation-form .fl input { min-width: 0; }
+.operation-form .frow { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.operation-form .frow > *,
+.operation-form .eqs > .fl,
+.operation-form .eqs > .scan-imei { margin-bottom: 0; }
+.operation-form .eqs-list { margin: 8px 0 0; }
+.operation-form .eqs > .eqs-note { margin: 8px 2px 0; }
+.operation-form .scan-imei { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 6px 8px; }
+.operation-form .scan-imei:has(> .scan-cam) { grid-template-columns: minmax(0, 1fr) auto; }
+/* Flatten only the scanner Field wrapper: label, control and error get real rows.
+   The camera shares the input row even when the label or error wraps. */
+.operation-form .scan-imei > .fl { display: contents; }
+.operation-form .scan-imei > .fl > span { grid-column: 1 / -1; margin-bottom: 0; }
+.operation-form .scan-imei > .fl > input { grid-column: 1; grid-row: 2; }
+.operation-form .scan-imei > .fl > .err { grid-column: 1 / -1; grid-row: 3; margin-top: 0; overflow-wrap: anywhere; }
+.operation-form .scan-imei > .scan-cam { grid-column: 2; grid-row: 2; }
+@media (max-width: 760px) {
+  .sheet.operation-form .frow { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
 .desk-app button.scan-cam { width: 48px; height: 48px; flex: none; border-radius: 14px; border: 1.5px solid var(--border); background: #fff; color: var(--primary); display: inline-flex; align-items: center; justify-content: center; }
 .scan-ready { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 12px; font-weight: 700; color: var(--ok); }
 .scan-ready i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
