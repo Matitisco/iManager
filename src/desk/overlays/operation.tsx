@@ -390,7 +390,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   };
 
   const title = currentSale ? 'Editar operación' : currentTrade ? 'Retomar canje' : hasTrade ? 'Nuevo canje' : 'Registrar venta';
-  const sheetClass = [source === 'tradeins' ? 'cj-sheet' : 'sale-sheet'].join(' ');
+  const sheetClass = `operation-form ${source === 'tradeins' ? 'cj-sheet' : 'sale-sheet'}`;
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const cashDue = hasTrade ? difference ?? 0 : parseMoney(amount);
   const appliedDeposits = currentSale?.depositAppliedAmount ?? receipts.rows.filter(row => depositIds.includes(row.id) && depositAvailable(row)).reduce((sum, row) => sum + (depositAmount(row, typedCurrency ?? money.active, money.rate) ?? 0), 0);
@@ -502,7 +502,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         </div>
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
-      <DatePicker required boundary={saleId ? 'sheet' : undefined} label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
+      <DatePicker required boundary="sheet" label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
       <Field label="Garantía" error={bad.warranty}><span /></Field>
       <div className="sgs warranty-presets" role="group" aria-label="Garantía">
         {(['30', '60', '90'] as const).map((days) => (

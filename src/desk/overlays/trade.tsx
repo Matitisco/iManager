@@ -53,7 +53,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   return (
     <>
-    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} busy={busy} className="cj-sheet" footer={<Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
+    <Sheet title="Editar canje" subtitle={`${tradeCode(tradeIns, trade.id)} · ${formatShortDate(trade.date)}`} onClose={close} busy={busy} className="operation-form cj-sheet" footer={<Actions busy={busy} primary="Guardar cambios" onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!received.trim()) next.received = 'Completá este dato';
         if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;

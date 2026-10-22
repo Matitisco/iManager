@@ -147,7 +147,7 @@ export function SalePaymentsFields({
         <div className="acct-plan">
           <div className="acct-stack">
             <Field label="Cantidad de cuotas"><input aria-label="Cantidad de cuotas" inputMode="numeric" value={count} onChange={(event) => setCount(event.target.value.replace(/\D/g, '').slice(0, 2))} /></Field>
-            <DatePicker label="Primer vencimiento" value={firstDue} onChange={setFirstDue} required />
+            <DatePicker label="Primer vencimiento" value={firstDue} onChange={setFirstDue} required boundary="sheet" />
           </div>
           <Field label="Frecuencia"><span /></Field>
           <Segs options={FREQUENCIES} value={frequency} onChange={(value) => setFrequency(value as typeof frequency)} />
