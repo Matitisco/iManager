@@ -208,7 +208,7 @@
   cursor: pointer;
 }
 .help-screen {
-  max-width: 900px;
+  max-width: 720px;
   margin-left: 0;
 }
 .help-screen > h2 {
@@ -242,6 +242,8 @@
   border-bottom: 1px solid #e1e4e9;
   cursor: pointer;
 }
+.help-guide-copy { min-width: 0; }
+.help-guide-copy small { display: block; margin-top: 3px; color: #737984; font-size: 12px; line-height: 1.4; font-weight: 500; }
 .first-task:focus-visible,
 .sample-banner button:focus-visible,
 .help-screen button:focus-visible {
@@ -390,7 +392,7 @@
 .steps-list li.is-next { background: #FFF6D4; }
 .steps-list li.is-done { color: #9AA0AA; }
 .steps-list li.is-done b { text-decoration: line-through; font-weight: 700; }
-.steps-list button, .steps-list li.is-done { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 8px; text-align: left; background: none; }
+.steps-list button, .steps-list li.is-done, .steps-list li.is-install-hidden { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 8px; text-align: left; background: none; }
 .steps-copy { flex: 1; min-width: 0; }
 .steps-copy b { display: block; font-size: 15px; }
 .steps-copy small { display: block; margin-top: 2px; color: var(--secondary); font-size: 12px; font-weight: 600; }
@@ -430,7 +432,7 @@
 .steps-panel { padding: 20px; }
 .steps-panel header { gap: 16px; }
 .steps-panel progress { margin: 16px 0 8px; }
-.steps-panel .steps-list button, .steps-panel .steps-list li.is-done { min-height: 56px; padding: 12px 8px; gap: 8px; }
+.steps-panel .steps-list button, .steps-panel .steps-list li.is-done, .steps-panel .steps-list li.is-install-hidden { min-height: 56px; padding: 12px 8px; gap: 8px; }
 @media (max-width: 760px) {
   .steps-pill, .steps-panel { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   .steps-panel { left: max(16px, env(safe-area-inset-left, 0px)); padding: 16px; }

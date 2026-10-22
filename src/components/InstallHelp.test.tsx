@@ -24,7 +24,7 @@ const native = (prompt = vi.fn().mockResolvedValue(undefined)) => {
 };
 
 it('opens Android first despite banner dismissal and expands the alternate four steps', () => {
-  pwa.dismissInstall();
+  pwa.snoozeInstall();
   render(<InstallCard />);
   const install = screen.getByRole('button', { name: 'Instalar' });
   install.focus(); fireEvent.click(install);
@@ -68,7 +68,7 @@ it('blocks duplicate native prompts while the browser choice is pending', async 
   const prompt = native(vi.fn(() => new Promise<void>((resolve) => { finish = resolve; })));
   render(<InstallCard />); fireEvent.click(screen.getByRole('button', { name: 'Instalar' }));
   expect(screen.getByRole('button', { name: 'Abriendo…' })).toBeDisabled();
-  expect(await pwa.requestInstall()).toBe(false);
+  expect(await pwa.requestInstall()).toBe('unavailable');
   await act(async () => finish()); expect(prompt).toHaveBeenCalledOnce();
 });
 it('falls back to instructions with a visible error when the native prompt fails', async () => {
@@ -146,4 +146,18 @@ it('consumes backdrop gestures without closing on pointerdown or a canceled gest
   fireEvent.pointerDown(backdrop); expect(screen.getByRole('dialog')).toBeVisible();
   fireEvent.pointerUp(backdrop); expect(screen.queryByRole('dialog')).toBeNull();
   act(() => vi.advanceTimersByTime(400)); vi.useRealTimers();
+});
+
+it('removes Más after permanent dismissal while the help guide remains usable without resetting preferences', async () => {
+  const { InstallHelp } = await import('./InstallHelp');
+  const view = render(<InstallCard />);
+  expect(screen.getByTestId('install-card')).toBeVisible();
+  act(() => pwa.dismissInstall()); expect(screen.queryByTestId('install-card')).toBeNull();
+  view.unmount(); render(<InstallHelp onClose={() => {}} />);
+  expect(screen.getByRole('dialog')).toBeVisible(); expect(pwa.installDismissedForever()).toBe(true);
+});
+
+it('does not invite a desktop browser at a narrow viewport', () => {
+  vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Windows Chrome/130');
+  render(<InstallCard />); expect(screen.queryByTestId('install-card')).toBeNull();
 });

@@ -121,22 +121,7 @@ test('Instalar app does not cover Importar on Ventas', async ({ page }, info) =>
   await expect(page.getByRole('button', { name: 'Instalar app' })).toBeVisible();
   await page.evaluate(() => { window.location.hash = '#/ven'; });
   await expect(page.getByRole('heading', { level: 1, name: 'Ventas', exact: true })).toBeVisible();
-  const install = page.getByRole('button', { name: 'Instalar app' });
-  const importar = page.getByRole('button', { name: 'Importar' });
-  await expect(install).toBeVisible();
-  await expect(importar).toBeVisible();
-  const overlap = async () => {
-    const left = (await install.boundingBox())!;
-    const right = (await importar.boundingBox())!;
-    const hits = left.x < right.x + right.width && left.x + left.width > right.x
-      && left.y < right.y + right.height && left.y + left.height > right.y;
-    expect(hits).toBe(false);
-    expect(left.y + left.height).toBeLessThanOrEqual(right.y);
-  };
-  await overlap();
-  await shot(page, 'qa-mobile-ventas-instalar.png');
-  await page.getByRole('button', { name: 'Ahora no, no volver a mostrar' }).click();
-  await expect(page.locator('.pwa-install.compact')).toBeVisible();
-  await overlap();
-  await shot(page, 'qa-mobile-ventas-instalar-compacto.png');
+  await expect(page.getByTestId('install-app')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Importar' })).toBeVisible();
+  await shot(page, 'qa-mobile-ventas-sin-invitacion.png');
 });

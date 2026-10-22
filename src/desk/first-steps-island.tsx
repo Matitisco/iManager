@@ -1,5 +1,5 @@
 import { track } from '../lib/analytics';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { InstallHelp } from "../components/InstallHelp";
@@ -13,7 +13,7 @@ import {
   type FirstStepFlags,
   type FirstStepId,
 } from "../lib/first-steps";
-import { isAppInstalled, subscribeInstall } from "../lib/pwa";
+import { isAppInstalled, installDismissedForever, subscribeInstall } from "../lib/pwa";
 import { toUserMessage } from "../lib/user-message";
 import { useDesk } from "./ui";
 
@@ -118,24 +118,26 @@ function StepRows({
   steps,
   nextId,
   onRun,
+  installHidden = false,
 }: {
   steps: ReturnType<typeof orderedFirstSteps>;
   nextId?: FirstStepId;
   onRun: (id: FirstStepId) => void;
+  installHidden?: boolean;
 }) {
   return (
     <ol className="steps-list">
       {steps.map((step, index) => (
         <li
           key={step.id}
-          className={step.done ? "is-done" : step.id === nextId ? "is-next" : ""}
+          className={step.done ? "is-done" : step.id === 'install' && installHidden ? 'is-install-hidden' : step.id === nextId ? "is-next" : ""}
           data-testid={`first-step-${step.id}`}
           data-done={step.done ? "true" : "false"}
         >
-          {step.done ? (
+          {step.done || (step.id === 'install' && installHidden) ? (
             <>
-              <span className="steps-mark" aria-hidden="true"><Check size={14} /></span>
-              <span className="steps-copy"><b>{step.title}</b><small>{step.detail}</small></span>
+              <span className={step.done ? 'steps-mark' : 'steps-num'} aria-hidden="true">{step.done ? <Check size={14} /> : index + 1}</span>
+              <span className="steps-copy"><b>{step.title}</b><small>{step.done ? step.detail : 'Disponible en Ayuda'}</small></span>
             </>
           ) : (
             <button type="button" onClick={() => onRun(step.id)}>
@@ -169,6 +171,7 @@ export function FirstStepsIsland() {
 }
 
 function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstSteps> }) {
+  const installHidden = useSyncExternalStore(subscribeInstall, installDismissedForever);
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState<Element | null>(null);
   const [dismissed, setDismissed] = useState(() => {
@@ -254,6 +257,7 @@ function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstStep
           <progress value={done} max={total} aria-label="Progreso de primeros pasos" />
           <StepRows
             steps={model.steps}
+            installHidden={installHidden}
             nextId={model.next?.id}
             onRun={(id) => {
               setOpen(false);

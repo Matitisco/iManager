@@ -411,7 +411,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         </aside>
         )}
         <main ref={viewport.stageRef} className="stage">
-          <InstallApp enabled={installEnabled && !overlay && !toastOn} dashboard={tab === 'dashboard'} />
+          <InstallApp enabled={installEnabled && backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && !overlay && !pendingRecordOpen && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
           <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
           <SampleStockBanner />

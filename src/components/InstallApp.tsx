@@ -1,25 +1,29 @@
 import { useEffect, useReducer, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { Download, PlusSquare, Share, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { motion } from 'motion/react';
+import { Check, Download, MoreVertical, PlusSquare, Share } from 'lucide-react';
 import { usePhoneLayout } from '../lib/phone-layout';
+import { useInstallBlocker } from '../lib/install-visibility';
 import {
-  dismissInstall, getInstallPrompt, INSTALL_DELAY_MS, requestInstall, isAndroid,
-  installDismissed, isIOSSafari, isAppInstalled, subscribeInstall,
+  dismissInstall, getInstallPrompt, INSTALL_DELAY_MS, requestInstall, isAndroid, isIOS,
+  installDismissed, isIOSSafari, isAppInstalled, subscribeInstall, snoozeInstall, installRequestAccepted,
 } from '../lib/pwa';
 import './install-app.css';
 
 export function InstallApp({ enabled = true, dashboard = true }: { enabled?: boolean; dashboard?: boolean }) {
   const phone = usePhoneLayout();
+  const blocked = useInstallBlocker();
   const [, refresh] = useReducer((value: number) => value + 1, 0);
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(document.visibilityState === 'visible');
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState<'later' | 'forever' | null>(null);
+  const ios = isIOS();
   const safari = isIOSSafari();
   const prompt = getInstallPrompt();
-  const dismissed = installDismissed();
-  const manual = isAndroid() && !prompt;
-  const eligible = enabled && phone && visible && !isAppInstalled() && (safari ? !dismissed : !!prompt || (!dismissed && (manual && dashboard || !!error)));
+  const eligible = enabled && dashboard && phone && (ios || isAndroid()) && visible && !blocked
+    && !isAppInstalled() && !installDismissed() && !installRequestAccepted();
 
   useEffect(() => subscribeInstall(refresh), []);
   useEffect(() => {
@@ -33,51 +37,57 @@ export function InstallApp({ enabled = true, dashboard = true }: { enabled?: boo
     const timer = window.setTimeout(() => setReady(true), INSTALL_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [eligible]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
+  const dismiss = (forever: boolean) => {
+    if (forever) dismissInstall(); else snoozeInstall();
+    setNotice(forever ? 'forever' : 'later');
+  };
   const install = async () => {
     if (!prompt || installing) return;
     setInstalling(true);
     setError('');
     try {
-      await requestInstall();
+      if (await requestInstall() === 'dismissed') setNotice('later');
     } catch {
       setError('No se pudo abrir la instalación. Podés instalar desde el menú de tu navegador.');
     } finally { setInstalling(false); }
   };
 
-  // A manual invitation belongs exclusively to Dashboard. Unmount its presence
-  // boundary on navigation so an exit animation cannot retain it on another tab.
-  if (manual && !dashboard) return null;
-
-  return (
-    <AnimatePresence>
-      {eligible && ready ? (
-        <motion.aside
-          className={`pwa-install${!safari ? manual ? ' banner manual' : ' banner' : ''}${!safari && dismissed ? ' compact' : ''}`} role="region" aria-labelledby={!dismissed ? 'pwa-install-title' : undefined} aria-label={dismissed ? 'Instalar iManager' : undefined} data-testid="install-app"
-          initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 15 }}
-        >
-          {!dismissed && <motion.button type="button" className="pwa-close" aria-label="No volver a mostrar la instalación" onClick={dismissInstall}
-            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}><X size={18} /></motion.button>}
-          {!dismissed && <div className="pwa-heading">
-            <img src="/icons/icon-180.png" width="44" height="44" alt="" />
-            <div><h2 id="pwa-install-title">{manual ? 'Instalá iManager' : 'iManager en tu inicio'}</h2>{manual ? <p>Tocá <span className="pwa-menu">⋮</span> y después <b>Agregar a pantalla principal</b></p> : <p>Abrí tu tienda con un toque, como una app.</p>}</div>
-          </div>}
-          {safari ? (
-            <ol className="pwa-steps">
-              <li><span className="pwa-step-icon"><Share size={22} aria-hidden="true" /></span><span>Tocá <b>Compartir</b> en Safari.<small>El cuadrado con la flecha hacia arriba.</small></span></li>
-              <li><span className="pwa-step-icon"><PlusSquare size={22} aria-hidden="true" /></span><span>Elegí <b>Agregar a inicio</b>.<small>Confirmá con Agregar. Si aparece, activá Abrir como app web.</small></span></li>
-            </ol>
-          ) : prompt ? (
-            <motion.button className="pwa-action" type="button" onClick={install} disabled={installing}
-              whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
-              <Download size={18} />{installing ? 'Abriendo instalación…' : 'Instalar app'}
-            </motion.button>
-          ) : null}
-          {error ? <p role="alert">{error}</p> : null}
-          {!dismissed && !manual && <motion.button className="pwa-dismiss" type="button" onClick={dismissInstall}
-            whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>Ahora no, no volver a mostrar</motion.button>}
-        </motion.aside>
-      ) : null}
-    </AnimatePresence>
-  );
+  return <>
+    {/* No exit boundary: route/form/visibility changes must remove this immediately. */}
+    {eligible && ready ? <motion.aside
+      className="pwa-install" role="region" aria-labelledby="pwa-install-title" data-testid="install-app"
+      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }}>
+      <div className="pwa-heading">
+        <img src="/icons/icon-180.png" width="44" height="44" alt="" />
+        <div><h2 id="pwa-install-title">iManager en tu inicio</h2><p>Abrí tu tienda con un toque, en pantalla completa.</p></div>
+      </div>
+      {ios ? <ol className="pwa-steps">
+        {!safari && <li><span className="pwa-step-icon"><Share size={21} aria-hidden="true" /></span><span>Abrí iManager en <b>Safari</b>.<small>Entrá a app.imanager.com.ar para agregarla a inicio.</small></span></li>}
+        <li><span className="pwa-step-icon"><Share size={21} aria-hidden="true" /></span><span>Tocá <b>Compartir</b> en Safari.<small>El cuadrado con la flecha hacia arriba.</small></span></li>
+        <li><span className="pwa-step-icon"><PlusSquare size={21} aria-hidden="true" /></span><span>Elegí <b>Agregar a inicio</b>.<small>Confirmá con Agregar.</small></span></li>
+      </ol> : prompt || installing ? <motion.button className="pwa-action" type="button" onClick={install} disabled={installing}
+        whileTap={{ scale: .98 }}><Download size={18} aria-hidden="true" />{installing ? 'Abriendo instalación…' : 'Instalar app'}</motion.button>
+        : <ol className="pwa-steps">
+          <li><span className="pwa-step-icon"><MoreVertical size={21} aria-hidden="true" /></span><span>Abrí el <b>menú del navegador</b>.<small>En Chrome, tocá los tres puntos ⋮.</small></span></li>
+          <li><span className="pwa-step-icon"><Download size={21} aria-hidden="true" /></span><span>Elegí <b>Instalar app</b>.<small>Si no aparece, buscá Agregar a pantalla principal y confirmá.</small></span></li>
+        </ol>}
+      {error && <p className="pwa-error" role="alert">{error}</p>}
+      <div className="pwa-dismiss-actions">
+        <button className="pwa-later" type="button" onClick={() => dismiss(false)} disabled={installing}>Ahora no</button>
+        <button className="pwa-never" type="button" onClick={() => dismiss(true)} disabled={installing}>No volver a mostrar</button>
+      </div>
+    </motion.aside> : null}
+    {notice && enabled && phone && visible && !blocked && !isAppInstalled() ? createPortal(
+      <div className="pwa-notice" role="status">
+        <span className="pwa-notice-check"><Check size={18} aria-hidden="true" /></span>
+        <div><b>{notice === 'later' ? 'Listo, te lo recordamos más adelante' : 'No te lo vamos a mostrar más'}</b>
+          <p>{notice === 'later' ? 'Mientras tanto, la tenés en Más › Instalar app.' : 'Si cambiás de idea, podés instalarla desde Ayuda.'}</p></div>
+      </div>, document.body) : null}
+  </>;
 }

@@ -35,6 +35,7 @@ const state = vi.hoisted(() => ({
   refreshGettingStarted: vi.fn(async () => undefined),
   updateGettingStarted: vi.fn(async () => undefined),
 }));
+const installPreference = vi.hoisted(() => ({ forever: false }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), go: vi.fn() }));
 
 vi.mock("../context/AppContext", () => ({
@@ -43,6 +44,7 @@ vi.mock("../context/AppContext", () => ({
 vi.mock("./ui", () => ({ useDesk: () => desk, Dialog: () => null }));
 vi.mock("../lib/pwa", () => ({
   isAppInstalled: () => false,
+  installDismissedForever: () => installPreference.forever,
   subscribeInstall: () => () => undefined,
 }));
 vi.mock("../components/InstallHelp", () => ({
@@ -60,6 +62,7 @@ function flags(next: Partial<typeof state.gettingStarted.steps>) {
 
 describe("isla de primeros pasos", () => {
   beforeEach(() => {
+    installPreference.forever = false;
     state.gettingStarted.eligible = true;
     state.gettingStarted.dismissed = true;
     state.gettingStarted.visible = false;
@@ -246,4 +249,21 @@ describe("isla de primeros pasos", () => {
     expect(screen.getByTestId("getting-started")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Cerrar Primeros pasos" })).toBeNull();
   });
+});
+
+
+it('keeps install progress but restricts its action to Ayuda after permanent dismissal', () => {
+  installPreference.forever = true;
+  state.gettingStarted.eligible = true;
+  state.gettingStarted.visible = true;
+  state.gettingStarted.dismissed = false;
+  flags({ store: true, stock: true, sale: true, team: true, install: false });
+  const view = render(<FirstStepsIsland />);
+  fireEvent.click(screen.getByRole('button', { name: 'Primeros pasos, 4 de 5' }));
+  expect(screen.getByTestId('first-step-install').querySelector('button')).toBeNull();
+  expect(screen.getByTestId('first-step-install')).toHaveTextContent('Disponible en Ayuda');
+  expect(state.updateGettingStarted).not.toHaveBeenCalled();
+  view.unmount(); render(<FirstStepsHelp />);
+  expect(screen.getByTestId('first-step-install').querySelector('button')).not.toBeNull();
+  installPreference.forever = false;
 });
