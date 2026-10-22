@@ -34,7 +34,7 @@ import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { StockCountScreen, StockEntryButton } from './StockCountScreen';
-import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
 function StatusMenu({ options, pressed, onToggle }: {
@@ -215,11 +215,6 @@ export function InventoryScreen() {
   };
   const showApprox = phone && sell != null && page.visible.some((item) => approxUsd(item.price, item.currency, money.active, sell));
 
-  const listOptions = <>
-    <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode(current => !current)}>Archivados</button>
-    <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
-  </>;
-
   if (stockOpen) return <StockCountScreen onBack={() => setStockOpen(false)} />;
 
   return (
@@ -252,19 +247,17 @@ export function InventoryScreen() {
       />
       <OnboardingInventorySummary />
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por IMEI, modelo o color" /></div> : null}
+      {phone ? <StockEntryButton onClick={() => setStockOpen(true)} /> : null}
+      {phone ? <button className="dbtn s stock-entry" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts drafts={ownDrafts} hint="Podés retomarlos para completar el cliente y la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'inventory' })} />
       <div className="dbar">
         {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
-        {phone ? <MobileListOptions active={[archivedMode ? 'Archivados' : '', sort !== 'Recientes' ? sort : ''].filter(Boolean).join(' · ')}>
-          <StockEntryButton onClick={() => setStockOpen(true)} />
-          <button className="dbtn s" type="button" onClick={() => open({ type: 'batch-eq' })}>Carga en serie</button>
-          {listOptions}
-          <button className="dbtn s" type="button" disabled={listed.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
-        </MobileListOptions> : listOptions}
+        <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
+        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions hideStart key={scope} selection={selection} total={listed.length}
+      <BulkActions key={scope} selection={selection} total={listed.length}
         label={(item) => equipmentTitle(item.model, item.capacity)}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
       />

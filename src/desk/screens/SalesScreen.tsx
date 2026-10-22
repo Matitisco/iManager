@@ -42,7 +42,7 @@ import { salesMatchingSellers, sellerChipLabel, sellerFilterOptions } from '../s
 import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Sale } from '../../types';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
@@ -184,11 +184,8 @@ export function SalesScreen() {
       {phone ? (
         <div className="dbar sale-pills">
           <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
-          <MobileListOptions active={[columns.sellers.length ? 'Vendedor' : '', statusOn ? statusPill : ''].filter(Boolean).join(' · ')}>
           <SellerChip phone label={sellerChipLabel(columns.sellers, sellerOptions, true)} active={columns.sellers.length > 0} onOpen={() => { setSellerDraft(columns.sellers); setSellerOpen(true); }} onClear={() => setColumn({ sellers: [] })} />
           <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Anulada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
-          <button className="dbtn s" type="button" disabled={shown.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
-          </MobileListOptions>
         </div>
       ) : null}
       {sellerOpen ? (
@@ -237,7 +234,7 @@ export function SalesScreen() {
       </div>
       )}
       <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
-      <BulkActions hideStart key={scope} selection={selection} total={shown.length}
+      <BulkActions key={scope} selection={selection} total={shown.length}
         label={saleCode}
         action={{
           label: 'Anular',

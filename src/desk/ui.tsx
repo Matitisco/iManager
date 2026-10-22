@@ -187,18 +187,6 @@ export function ScreenTitle({ title, subtitle, back, tools, desktop }: {
   );
 }
 
-/** Low-frequency list controls, expanded inline so every action remains reachable. */
-export function MobileListOptions({ children, active }: { children: React.ReactNode; active?: string }) {
-  return <details className="mobile-list-options" onKeyDown={(event) => {
-    if (event.key !== 'Escape') return;
-    event.currentTarget.open = false;
-    event.currentTarget.querySelector('summary')?.focus();
-  }}>
-    <summary>Opciones de lista{active ? ` · ${active}` : ''}</summary>
-    <div className="mobile-list-options-body">{children}</div>
-  </details>;
-}
-
 export function MobileDock({ primary, onPrimary, secondary, onSecondary }: {
   primary: string;
   onPrimary: () => void;

@@ -80,7 +80,6 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
     fireEvent.click(screen.getByRole(width === 390 ? 'menuitemcheckbox' : 'button', { name: 'Todos' }));
     if (width === 390) {
       fireEvent.click(screen.getByRole('button', { name: 'Estado' }));
-      fireEvent.click(screen.getByText('Opciones de lista', { exact: true }));
     }
     fireEvent.click(screen.getByRole('button', { name: 'Archivados' }));
     expect(screen.queryByText('Equipo activo · 128 GB')).not.toBeInTheDocument();
