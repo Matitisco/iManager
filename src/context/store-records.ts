@@ -140,8 +140,13 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [loadState, setLoadState] = useState<{ scope: string; modules: Partial<RecordsAvailability> }>({ scope: '', modules: {} });
   const setModuleLoad = (key: ReportModule, value: ModuleLoad) => {
     if (scopeRef.current !== currentScope) return;
-    setLoadState(previous => scopeRef.current !== currentScope ? previous : {
-      scope: currentScope, modules: { ...(previous.scope === currentScope ? previous.modules : {}), [key]: value },
+    setLoadState(previous => {
+      if (scopeRef.current !== currentScope) return previous;
+      const modules = previous.scope === currentScope ? previous.modules : {};
+      // A focus refresh keeps verified rows usable and their open controls mounted.
+      // Cache hydration and new scopes still require a successful network read.
+      if (value.status === 'loading' && modules[key]?.status === 'success') return previous;
+      return { scope: currentScope, modules: { ...modules, [key]: value } };
     });
   };
   const allowedModules = { inventory: loadInventoryEnabled, sales: loadSalesEnabled, clients: backendClientsEnabled, tradeIns: loadTradeInsEnabled, repairs: loadRepairsEnabled };

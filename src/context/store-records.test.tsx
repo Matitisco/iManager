@@ -182,6 +182,26 @@ describe('concurrent scoped list reads #461', () => {
 });
 
 describe('report availability #451', () => {
+  it('keeps verified data available during a focus refresh, but exposes failures and waits for a successful retry', async () => {
+    vi.mocked(fetchBackendSales).mockResolvedValueOnce([sale('confirmed', 'Confirmed customer')]);
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    await waitFor(() => expect(result.current.recordsAvailability.sales.status).toBe('success'));
+    let failRefresh!: (error: Error) => void;
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(new Promise((_resolve, reject) => { failRefresh = reject; }));
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    expect(result.current.recordsAvailability.sales.status).toBe('success');
+    expect(result.current.sales.map(row => row.id)).toEqual(['confirmed']);
+    await act(async () => { failRefresh(new Error('Refresh failed')); });
+    await waitFor(() => expect(result.current.recordsAvailability.sales.status).toBe('error'));
+    const pending = deferred<Sale[]>();
+    vi.mocked(fetchBackendSales).mockReturnValueOnce(pending.promise);
+    let retry!: Promise<void>;
+    act(() => { retry = result.current.refreshLists(); });
+    expect(result.current.recordsAvailability.sales.status).toBe('loading');
+    await act(async () => { pending.resolve([]); await retry; });
+    expect(result.current.recordsAvailability.sales.status).toBe('success');
+    expect(result.current.sales).toEqual([]);
+  });
   it('does not treat cached lists or settled failures as confirmed empty data and recovers on retry', async () => {
     seed('store-1', 'Cached history');
     const pending = deferred<Sale[]>();

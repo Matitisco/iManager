@@ -21,6 +21,10 @@ Reports SHALL distinguish loading, failed and successful empty data. Export SHAL
 - **WHEN** sales loading fails
 - **THEN** the screen shows an error and retry, disables export, and shows metrics only after successful recovery
 
+#### Scenario: Refresh a confirmed report in the background
+- **WHEN** focus triggers a refresh of a successfully loaded module in the same store and permission scope
+- **THEN** the confirmed report and its open controls remain mounted while the request is pending, and a failure replaces them with an explicit error
+
 ### Requirement: Calendar commissions
 Comisiones SHALL retain a separate month selection in the store timezone, request that month exactly, compare to the previous calendar month and preserve signed adjustments. CSV SHALL contain the visible category-filtered rows and original currency columns.
 #### Scenario: January and negative adjustments

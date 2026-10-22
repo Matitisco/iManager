@@ -5,23 +5,40 @@ python3 - <<'PY'
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
-import os
+import lzma
 import shutil
 import subprocess
 
 root = Path('/tmp/451-webkit-deps/root')
 archives = Path('/tmp/451-webkit-deps/https')
 archives.mkdir(parents=True, exist_ok=True)
-packages = '''libgtk-4-1 libgraphene-1.0-0 libgstreamer-gl1.0-0
+packages = '''libevent-2.1-7t64 libgtk-4-1 libgraphene-1.0-0 libgstreamer-gl1.0-0
 libgstreamer-plugins-bad1.0-0 libavif16 libmanette-0.2-0 libenchant-2-2
 libsecret-1-0 libwoff1 libgles2 libharfbuzz-subset0 libcairo-script-interpreter2
 libhidapi-hidraw0 libevdev2 libegl1 libyuv0 libgav1-1 libglvnd0
 libxcb-xfixes0 libegl-mesa0 libgbm1 mesa-libgallium'''.split()
 
+def records(metadata):
+    return [dict(line.split(': ', 1) for line in block.splitlines() if ': ' in line and not line.startswith(' ')) for block in metadata.split('\n\n')]
+
+# Minimal containers may not retain apt's indexes. Keep their replacement private.
+fallback = {}
+if not subprocess.run(['apt-cache', 'show', packages[0]], capture_output=True).stdout:
+    for distribution in ['trixie', 'trixie-security']:
+        repository = 'debian-security' if distribution.endswith('-security') else 'debian'
+        index = archives / (distribution + '-Packages.xz')
+        subprocess.run(['curl', '-fLsS', '--max-time', '60', '--retry', '1',
+                        f'https://deb.debian.org/{repository}/dists/{distribution}/main/binary-amd64/Packages.xz', '-o', str(index)], check=True)
+        for record in records(lzma.decompress(index.read_bytes()).decode()):
+            if record.get('Package') in packages:
+                fallback[record['Package']] = record
+
 def download(package):
-    metadata = subprocess.check_output(['apt-cache', 'show', package], text=True)
-    blocks = [dict(line.split(': ', 1) for line in block.splitlines() if ': ' in line and not line.startswith(' ')) for block in metadata.split('\n\n')]
-    record = next(block for block in blocks if 'Filename' in block and 'SHA256' in block)
+    if fallback:
+        record = fallback[package]
+    else:
+        metadata = subprocess.check_output(['apt-cache', 'show', package], text=True)
+        record = next(block for block in records(metadata) if 'Filename' in block and 'SHA256' in block)
     target = archives / Path(record['Filename']).name
     if not target.exists() or hashlib.sha256(target.read_bytes()).hexdigest() != record['SHA256']:
         subprocess.run(['curl', '-fLsS', '--max-time', '25', '--retry', '1', ('https://deb.debian.org/debian-security/' if record['Filename'].startswith('pool/updates/') else 'https://deb.debian.org/debian/') + record['Filename'], '-o', str(target)], check=True)
@@ -34,9 +51,7 @@ with ThreadPoolExecutor(max_workers=6) as pool:
 for archive in downloaded:
     subprocess.run(['dpkg-deb', '-x', str(archive), str(root)], check=True)
 
-env = dict(os.environ)
-env.pop('PLAYWRIGHT_BROWSERS_PATH', None)
-executable = Path(subprocess.check_output(['node', '-p', 'require("playwright").webkit.executablePath()'], env=env, text=True).strip())
+executable = Path(subprocess.check_output(['node', '-p', 'require("playwright").webkit.executablePath()'], text=True).strip())
 cache = executable.parent.parent
 target_cache = Path('/tmp/451-browsers')
 target_cache.mkdir(exist_ok=True)

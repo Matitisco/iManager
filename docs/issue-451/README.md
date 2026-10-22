@@ -1,6 +1,6 @@
 # Reportes — issue #451
 
-Implementado en `fix/451-reportes`, sobre `8115347807f50d8379a6a13205dd3ac4d40e1253`, con cambios en el working tree. Fecha de validación: 21/10/2026. Sin build, commit, push, rama nueva, PR, despliegue ni cambios de Prisma.
+Implementado en `fix/451-reportes`. Validación retomada el 21/10/2026 en `1f4123343e653d0c062599d4407595a940980f60`, después del merge de `origin/main` (`f889b830b32e40b29fb95bc9418d90de34ad008f`, incluida la navegación de #450). Las correcciones finales y la evidencia regenerada quedan en el working tree. En esta revisión no se hizo build, commit, push, rama nueva, PR, despliegue ni cambios de Prisma.
 
 ## Resultado
 
@@ -9,7 +9,7 @@ Implementado en `fix/451-reportes`, sobre `8115347807f50d8379a6a13205dd3ac4d40e1
 - Ventas conserva su elegibilidad y sus cancelaciones en detalle/CSV, identificadas como excluidas de totales. El desglose consulta el inventario autorizado completo, incluido stock anterior al rango. Resultado del negocio solo para propietario, debajo de gráficos, con los cálculos existentes de ventas, gastos y devoluciones.
 - Stock separa cohorte de ingresos, disponibles hoy, valor de venta actual y duraciones medibles vinculadas a ventas. Servicio separa presupuestos de cobros, contempla estimaciones cero, informa órdenes sin presupuesto y mide entregas únicamente con eventos válidos, con promedio decimal. Su evolución cuenta órdenes.
 - Comisiones usa mes calendario independiente en la zona de la tienda, `from === to`, comparación separada del mes anterior y representación con signo cuando hay ajustes negativos. CSV respeta la categoría visible y conserva monedas originales.
-- Disponibilidad por módulo distingue carga, error, éxito y permiso. Reintentos, caché, cambios de tienda y respuestas obsoletas conservan las guardas de #461. Clientes no presenta compras como cero sin permiso/datos de Ventas. Los informes no se exportan como vacíos tras un fallo de carga.
+- Disponibilidad por módulo distingue carga, error, éxito y permiso. Una actualización en segundo plano conserva el reporte confirmado y sus controles abiertos; si falla, muestra el error y bloquea la exportación hasta recuperarse. Reintentos, caché, cambios de tienda y respuestas obsoletas conservan las guardas de #461. Clientes no presenta compras como cero sin permiso/datos de Ventas.
 
 No se modificaron Dashboard, banner de instalación, Más, navegación inferior móvil, SalesScreen, `format.ts`, `net-profit.ts` ni código productivo del backend.
 
@@ -23,25 +23,32 @@ Las capturas `before-*` ejecutan el código original extraído con `git archive`
 
 | Comando | Resultado |
 |---|---|
-| `npm run test:frontend` | 1.203 pruebas, 159 archivos, aprobados |
+| `npm run test:frontend` | 1.213 pruebas, 160 archivos, aprobados |
 | `npm run test:backend:unit` | 520 pruebas, 76 archivos, aprobados |
 | `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/imanager_test npm run test:backend:integration` | 363 pruebas, 40 archivos, aprobados |
 | `npm run lint` | TypeScript/lint frontend aprobado |
 | `npm --prefix backend run lint` | TypeScript/lint backend aprobado |
 | `npx playwright test --config e2e/451-shots.config.ts` | 17 escenarios funcionales/visuales aprobados, Chromium |
-| Regresiones existentes de Reportes | 9 escenarios Chromium aprobados; WebKit en ejecución separada |
+| Regresiones existentes de Reportes | 9 escenarios Chromium y 6 WebKit aprobados sobre el código final, sin retries |
+| Selector iPhone `--repeat-each=5 --max-failures=1` | 5 repeticiones consecutivas aprobadas, sin retries |
 | `openspec validate fix-report-semantics-451 --strict` | Aprobado |
 | `git diff --check` | Aprobado |
 
-Las suites que utilizan base de datos se ejecutaron secuencialmente, exclusivamente contra PostgreSQL local `imanager_test`. El setup E2E confirmó que ya estaba sincronizada con el schema. Las pruebas del backend verifican permisos combinados, mes exacto, rangos invertidos, aislamiento por tienda y proyecciones históricas existentes.
+Las suites que utilizan base de datos se ejecutaron secuencialmente, exclusivamente contra PostgreSQL local `imanager_test`. En este entorno reanudado no había servidor PostgreSQL: se inició una instancia aislada en `/tmp/451-postgres-data`, escuchando únicamente en `127.0.0.1:5432`, y se sincronizó su base vacía sin pérdida de datos. El setup E2E confirmó luego que ya estaba sincronizada con el schema. Las pruebas del backend verifican permisos combinados, mes exacto, rangos invertidos, aislamiento por tienda y proyecciones históricas existentes.
 
-Los fallos intermedios se investigaron: se actualizaron etiquetas/expectativas anteriores, se agregó la respuesta de health a la fixture, se seleccionó la leyenda para evitar que el centro geométrico de una porción SVG cayera fuera del trazo, y se corrigió la tipificación del rango de buckets. Una corrida de frontend iniciada durante una edición cargó un módulo anterior; la corrida completa posterior, con fuentes estables, aprobó las 1.203 pruebas. WebKit inicialmente no arrancaba por bibliotecas ausentes; su preparación local se describe abajo.
+La primera ejecución de esta revisión no pudo iniciar las suites porque faltaban `node_modules`, Prisma Client y los navegadores. Se restauraron desde los lockfiles y se usó Node 22.23.3. Tras instalar Chromium, la suite frontend completa aprobó las 1.212 pruebas. El chequeo de tipos detectó `reducedMotion` fuera de `contextOptions` en la prueba de iPhone; se corrigió la configuración sin cambiar el selector de la aplicación. Los comandos se ejecutaron con cachés escribibles en `/tmp`, incluyendo `PLAYWRIGHT_BROWSERS_PATH=/tmp/451-browser-cache` para la suite frontend y las capturas.
+
+La traza de WebKit identificó además una regresión de disponibilidad: un refresh por foco cambiaba un módulo confirmado a carga inicial y desmontaba el selector durante su reapertura. `store-records` ahora conserva el éxito mientras esa petición está pendiente, únicamente dentro del mismo ámbito; un fallo sigue mostrando error y un reintento espera una nueva respuesta exitosa. La regresión unitaria verifica esos estados con una petición diferida. El escenario de iPhone descarta el aviso de instalación mediante almacenamiento de prueba y espera posición/foco en cada apertura, conservando todas las aserciones y sin forzar clics. El cierre externo consume clics de compatibilidad durante 400 ms; la última reapertura se hace con Enter y comprueba el cierre con Escape y la devolución del foco.
+
+Durante la implementación inicial se actualizaron etiquetas/expectativas anteriores, se agregó la respuesta de health a la fixture, se seleccionó la leyenda para evitar que el centro geométrico de una porción SVG cayera fuera del trazo, y se corrigió la tipificación del rango de buckets. La validación final de esta revisión usa el código ya integrado con main.
 
 ## Capturas y fixtures
 
-Playwright 1.59.1; Chromium 147.0.7727.15. Reloj fijo `2026-10-21T15:00:00Z`, idioma `es-AR`, zona `America/Argentina/Buenos_Aires`. Se espera carga y fuentes; las capturas completan/desactivan animaciones. Los importes y conteos son sintéticos y coherentes entre sí; no pretenden reproducir los números ilustrativos de los wireframes.
+Se regeneraron las 46 imágenes `after-*` sobre la revisión con el merge, manteniendo las 22 imágenes `before-*` originales. Playwright 1.59.1; Chromium 147.0.7727.15. Reloj fijo `2026-10-21T15:00:00Z`, idioma `es-AR`, zona `America/Argentina/Buenos_Aires`. Se espera carga y fuentes; las capturas completan/desactivan animaciones. Los importes y conteos son sintéticos y coherentes entre sí; no pretenden reproducir los números ilustrativos de los wireframes.
 
 Todas las llamadas de negocio se interceptan. Se simulan sesión, listas, gastos, devoluciones, comisiones y cambio; los endpoints no previstos fallan y la prueba exige que no haya ninguno. Vite se ejecuta sin backend ni setup de DB. El estado de instalación se descarta solo en almacenamiento de prueba.
+
+`451-shots.spec.ts` y `451-reports.spec.ts` se ejecutan exclusivamente mediante `451-shots.config.ts`, con su zona horaria y servidor controlados; se excluyen del descubrimiento del runner general, igual que las otras suites dedicadas de capturas. Se verificó el descubrimiento de ambos runners y la conservación de los 17 escenarios dedicados.
 
 | Estado | 390×844 | 1440×900 |
 |---|---|---|
@@ -93,26 +100,34 @@ Regresiones existentes con backend local, después de integración:
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/imanager_test \
 PLAYWRIGHT_APP_BASE_URL=http://127.0.0.1:4512 \
 PLAYWRIGHT_API_BASE_URL=http://127.0.0.1:3512 \
-npm run test:e2e -- e2e/mobile-reports.spec.ts e2e/report-period-right.spec.ts e2e/report-dropdown.spec.ts e2e/report-dropdown-iphone.spec.ts e2e/report-donut-fit.spec.ts e2e/staff-reports-permission.spec.ts --workers=1
+npm run test:e2e -- e2e/mobile-reports.spec.ts e2e/report-period-right.spec.ts e2e/report-dropdown.spec.ts e2e/report-donut-fit.spec.ts e2e/staff-reports-permission.spec.ts --grep-invert iPhone --workers=1
 ```
 
 ## WebKit en este entorno
 
-El cache de WebKit 26.4 estaba presente, pero Debian 13 no tenía sus bibliotecas GTK/WPE/EGL. Se descargaron paquetes oficiales de Debian y extrajeron exclusivamente en `/tmp/451-webkit-deps/root`; se copió el navegador a `/tmp/451-browsers`, sin modificar el cache instalado. El wrapper de esa copia conserva `LD_LIBRARY_PATH`. Mesa se selecciona mediante su JSON de EGL y renderiza por software. La validación de host basada en `ldconfig` no ve bibliotecas privadas; el navegador real se prueba con ellas.
+WebKit 26.4 se instaló en `/tmp/451-browser-cache`. Se descargaron las bibliotecas faltantes desde Debian y extrajeron exclusivamente en `/tmp/451-webkit-deps/root`; se copió el navegador a `/tmp/451-browsers`, sin modificar el cache instalado. El wrapper de esa copia conserva `LD_LIBRARY_PATH`. El script también admite contenedores sin índices de apt y respeta `PLAYWRIGHT_BROWSERS_PATH` al localizar el navegador original.
+
+En este entorno, WPE headless aborta al crear la página con `EGL_NOT_INITIALIZED` y una aserción de `wpebackend-fdo`. GTK pudo abrir y renderizar la página; las regresiones WebKit se ejecutan con `--headed` sobre una pantalla virtual dedicada, iniciada con `Xvfb :451 -screen 0 1536x1000x24 -nolisten tcp -ac`. La validación de host basada en `ldconfig` no ve las bibliotecas privadas; se comprueba el navegador real con ellas.
+
+El intento conjunto con interfaz gráfica sobre la pantalla compartida se interrumpió tras un timeout de estabilidad al pulsar el login de Chromium. La ejecución definitiva separa Chromium headless y WebKit GTK, manteniendo el backend local y las suites de base de datos secuenciales.
+
+Esta copia de GTK no cargó recursos HTTPS externos por falta de soporte TLS, por lo que sus comprobaciones de texto usaron la tipografía alternativa del CSS. Las APIs del recorrido son locales y las cotizaciones se simulan. Las capturas aprobadas se generan por separado con Chromium.
 
 ```bash
 PLAYWRIGHT_BROWSERS_PATH=/tmp/451-browsers \
+DISPLAY=:451 \
 PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 \
 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
 LIBGL_ALWAYS_SOFTWARE=1 \
 __EGL_VENDOR_LIBRARY_FILENAMES=/tmp/451-webkit-deps/root/usr/share/glvnd/egl_vendor.d/50_mesa.json \
 LD_LIBRARY_PATH=/tmp/451-webkit-deps/root/usr/lib/x86_64-linux-gnu \
+XDG_CACHE_HOME=/tmp/451-cache \
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/imanager_test \
 PLAYWRIGHT_APP_BASE_URL=http://127.0.0.1:4512 \
 PLAYWRIGHT_API_BASE_URL=http://127.0.0.1:3512 \
-npm run test:e2e -- e2e/report-donut-fit.spec.ts e2e/report-period-right.spec.ts e2e/report-dropdown-iphone.spec.ts --grep iPhone --workers=1
+npm run test:e2e -- e2e/report-donut-fit.spec.ts e2e/report-period-right.spec.ts e2e/report-dropdown-iphone.spec.ts --grep iPhone --workers=1 --headed
 ```
 
-La fixture repetitiva de medición de texto usa movimiento reducido; el escenario independiente de selector conserva sus comprobaciones de teclado, foco y cierre. Para preparar las dependencias privadas de este entorno: `bash docs/issue-451/setup-webkit.sh`. El script verifica SHA-256 contra los metadatos de Debian y solo escribe en `/tmp`.
+La fixture repetitiva de medición de texto usa movimiento reducido; el escenario independiente de selector conserva sus comprobaciones de teclado, foco y cierre. Para preparar las dependencias privadas de este entorno: `PLAYWRIGHT_BROWSERS_PATH=/tmp/451-browser-cache bash docs/issue-451/setup-webkit.sh`. El script verifica SHA-256 contra los metadatos de Debian y solo escribe en `/tmp`.
 
-La comprobación mínima de esa copia pudo abrir una página y renderizar texto. Resultado de los escenarios completos: pendiente de registrar.
+El selector aprobado también se ejecuta con el mismo entorno agregando `--repeat-each=5 --max-failures=1` y seleccionando solo `e2e/report-dropdown-iphone.spec.ts`. Las cinco repeticiones consecutivas aprobaron sin retries.

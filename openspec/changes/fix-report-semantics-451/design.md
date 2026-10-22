@@ -9,6 +9,7 @@ Use pure report-specific helpers and additive metadata. Preserve shared financia
 - Typed deltas carry direction, magnitude, unit, comparison and tone. Null conversion propagates in both cohorts.
 - Stock snapshot uses all authorized inventory; breakdown uses dated entry cohort; sale classification uses the full inventory lookup.
 - Availability travels through AppContext, keyed to the existing scope and accepted read tickets. Cache hydration does not establish request success. Retry uses existing refresh without clearing records.
+- A background refresh retains successful availability within the same scope, keeping open report controls mounted. A failed refresh exposes the error; retry and scope changes require successful data again.
 - Commission monthly responses and previous-month comparison are scoped independently; signed parts render as values, not proportions.
 - Scoped Reports CSS reconciles mobile wrapping; two independently scrollable rows retain reachable controls.
 

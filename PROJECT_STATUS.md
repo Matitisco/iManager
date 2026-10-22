@@ -3,6 +3,14 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-21**
 
+## Issue #451 — Reportes: semántica, períodos y validación final — 2026-10-21
+
+- Revisión final sobre `1f41233`, con el merge de main y la navegación de #450. Períodos explícitos con Este mes, variaciones monetarias/neutrales, resúmenes de Stock/Servicio, comisiones por mes calendario y CSV conforme al detalle visible; cálculos financieros y permisos conservados.
+- Corregida la regresión detectada en WebKit: una actualización por foco desmontaba el selector al marcar como carga inicial un reporte ya confirmado. Se conserva el éxito durante la actualización dentro del mismo ámbito; errores, reintentos, caché y cambios de tienda/permisos mantienen sus estados y guardas. Nueva regresión con respuesta diferida; selector iPhone con foco, teclado y cierres verificados, incluido Enter/Escape después del cierre externo.
+- Validación aprobada: 1.213 pruebas frontend, 520 unitarias backend, 363 integraciones PostgreSQL locales, TypeScript/lint de ambos proyectos, 17 escenarios funcionales/visuales, 9 regresiones Chromium y 6 WebKit. Selector iPhone: cinco repeticiones consecutivas sin retries. Suites de base secuenciales, exclusivamente en `127.0.0.1:5432/imanager_test`.
+- Regeneradas las 46 capturas posteriores y conservadas las 22 anteriores, con hashes y dimensiones verificadas a 390/1440 px y comprobaciones adicionales a 320/1536 px. Reproducción y límites de GTK/Xvfb en [docs/issue-451/README.md](docs/issue-451/README.md). Suites dedicadas excluidas del runner general; los 17 escenarios siguen en su configuración propia.
+- OpenSpec `fix-report-semantics-451` completado y validado, sin archivar. Sin build, cambios de Prisma, operaciones sobre producción, commit, push, rama nueva ni PR en esta revisión. Dashboard, banner de instalación, Más y navegación inferior sin cambios de esta revisión.
+
 ## Issue #450 — Navegación móvil y significado de indicadores — 2026-10-21
 
 - Revisión del check `test` E2E: Comisiones comprueba el contador explicado y abre opciones antes de seleccionar; Clientes vuelve a expandirlas tras recargar y el recorrido del escáner las abre antes de Carga en serie. La medición del menú de reglas espera la animación del Sheet sin reducir el mínimo de 44 px (20 repeticiones aprobadas). Suite completa con código 0: 296 aprobados, 1 intermitente aprobado al reintentar y 7 omitidos; frontend (1128), backend unitario (516), integración local (322), PWA assets/worker/servidor (15) y TypeScript/lint aprobados. Sin cambios de aplicación/backend/Prisma ni imágenes versionadas; reproducción y límites en `docs/issue-450/README.md`. Cambios sin commit ni push.
