@@ -318,7 +318,6 @@ describe.each([390, 1440])('unified void status at %ipx', width => {
       expect(screen.getByText(name).closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
     }
     if (width === 390) {
-      await user.click(screen.getByText('Opciones de lista', { exact: true }));
       await user.click(within(screen.getByTestId('sales-status')).getByRole('button', { name: 'Estado' }));
       expect(screen.queryByRole('button', { name: 'Cancelada' })).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Anulada' }));
