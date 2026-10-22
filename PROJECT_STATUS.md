@@ -13,6 +13,15 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Dashboard v2 — Referencias aprobadas — 2026-10-22
+
+- Dashboard desktop/celular con cuatro KPI, tendencia SVG agrupada por día/semana/mes, medios de pago, ventas recientes y accesos a canjes/saldos. Calendario flotante de rango con borrador/Aplicar en desktop; mes y CTA en móvil. Se reutiliza la isla existente de Primeros pasos encima del calendario y la navegación real del shell.
+- Finanzas desde `/reports/overview`, sólo con permiso y sesión lista; respuestas tardías descartadas y vacíos discretos. Stock/canjes/saldos/ventas recientes conservan AppContext. Sin cambios de Prisma, AppContext, Figma ni build.
+- Hallazgo del 398 %: cálculo local divergente del Dashboard, posible desborde de fecha anterior y fechas futuras actuales; no se atribuye el valor productivo sin sus datos. Backend ya comparaba ventanas contiguas de igual duración. Ahora excluye anuladas también en la base, omite bases menores a una unidad y agrupa por calendario argentino. Informe en `docs/dashv2-hallazgo-398.md`; copiar al destino solicitado en `/workspace` está impedido por el filesystem de sólo lectura.
+- Validación: 1.535 tests frontend, 569 unitarios backend, regresiones finales del área y TypeScript/lint de ambos paquetes. Cuatro E2E existentes de Dashboard/menús pasaron con PostgreSQL local exclusivo `imanager_dashboard_v2_test`; los 12 de detalle no pudieron iniciar por falta de WebKit y dependencias del sistema (el binario se descargó en `/tmp` sin instalar paquetes globales). Selectores existentes actualizados, sin casos E2E nuevos. Commit impedido por `.git` de sólo lectura (`index.lock`); cambios locales en `feat/dashboard-redisenio`, sin push. Capturas locales desktop 1440×1100, móvil 390 px y selector en `/tmp/dashboard-v2-shots`; sin errores de página ni desborde horizontal.
+
+- Integración de `origin/main` en `feat/dashboard-redisenio`: conflicto documental resuelto conservando ambas entradas completas; encabezados sin subtítulos y cargas secundarias compatibles con Dashboard v2. Typecheck frontend/backend, 1.560 tests frontend y 569 unitarios backend aprobados. Sin cambios de código, build, commit ni push; resolución en working tree, con índice pendiente por `.git` de sólo lectura.
+
 ## CI — Objetivo de PR menor a cinco minutos — 2026-10-22
 
 - Frontend, E2E y PWA usan la imagen oficial de Playwright derivada del lockfile, sin apt ni descargas de navegadores durante el job. E2E conecta al servicio PostgreSQL por hostname; instalaciones npm de frontend/backend una vez por proyecto y en paralelo, con cachés ajustadas a los lockfiles necesarios. Mantiene pruebas, selección PR/full, dos shards frontend, integración backend serial y cancelación existentes.

@@ -116,7 +116,7 @@ describe('apertura de sesión', () => {
     render(<App />);
     expect(await screen.findByText('Hola, Ana')).toBeInTheDocument();
     expect(screen.getByText('Venta guardada')).toBeInTheDocument();
-    expect(screen.getByText(/Canje guardado/)).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-trades')).toHaveTextContent('Canjes en curso1');
     expect(screen.queryByText('Resolviendo sesión segura')).not.toBeInTheDocument();
     expect(screen.queryByText('Todavía no registraste ventas')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();

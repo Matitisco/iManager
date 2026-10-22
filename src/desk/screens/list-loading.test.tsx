@@ -68,7 +68,7 @@ describe('listas en carga', () => {
     context.listsLoaded = false;
     desk(<DashboardContent />);
     expect(screen.getByTestId('dashboard-sales-loading')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-trades-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-trades')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('Todavía no registraste ventas')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();
     expect(screen.queryByText('0 equipos')).not.toBeInTheDocument();
@@ -78,8 +78,8 @@ describe('listas en carga', () => {
     phone();
     context.listsLoaded = false;
     desk(<DashboardContent />);
-    expect(screen.getByTestId('dashboard-sales-loading')).toHaveClass('cards');
-    expect(screen.getByTestId('dashboard-trades-loading')).toHaveClass('cards');
+    expect(screen.getByTestId('dashboard-sales-loading')).toHaveClass('rows');
+    expect(screen.getByTestId('dashboard-trades')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('Todavía no registraste ventas')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();
   });
@@ -88,7 +88,7 @@ describe('listas en carga', () => {
     context.listsLoaded = true;
     desk(<DashboardContent />);
     expect(screen.getByText('Todavía no registraste ventas')).toBeInTheDocument();
-    expect(screen.getByText('Sin canjes en curso')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-trades')).toHaveTextContent('Canjes en curso0');
     expect(screen.queryByTestId('dashboard-sales-loading')).not.toBeInTheDocument();
   });
 

@@ -139,21 +139,13 @@ test.describe('post 395', () => {
       await page.setViewportSize({ width, height: mobile ? 844 : 1000 });
       await page.goto('/#/dash');
       await expect(page.getByRole('heading', { name: /hoy/ })).toBeVisible();
-      const hero = page.locator('.hero');
-      await expect(hero).toBeVisible();
-      const heroPad = await hero.evaluate(el => getComputedStyle(el).padding);
-      const ring = await page.locator('.turn-ring').evaluate(el => el.getBoundingClientRect().width);
-      const itemPad = await page.locator('.hlist .item').first().evaluate(el => getComputedStyle(el).paddingTop);
-      const miniPad = await page.locator('button.mini').first().evaluate(el => getComputedStyle(el).paddingTop);
-      expect(ring).toBe(48);
-      expect(parseFloat(itemPad)).toBeLessThanOrEqual(10);
-      expect(parseFloat(miniPad)).toBeLessThanOrEqual(16);
-      if (!mobile) expect(heroPad.startsWith('16px')).toBe(true);
+      await expect(page.locator('.dashboard-kpi')).toHaveCount(4);
+      await expect(page.getByText('Flujo sugerido')).toHaveCount(0);
       if (!mobile) {
         const code = page.getByText('#V-0012');
         await expect(code).toBeVisible();
         expect(await code.evaluate(el => el.scrollWidth > el.clientWidth + 1)).toBe(false);
-        const amount = page.locator('.dashboard-screen .dtable.compact td.r b').filter({ hasText: '300' });
+        const amount = page.locator('.dashboard-sale-amount b').filter({ hasText: '300' });
         await expect(amount).toBeVisible();
         expect(await amount.evaluate(el => el.scrollWidth > el.clientWidth + 1)).toBe(false);
         await expect(page.getByTestId('sidebar-tab-clients').locator('.dcount')).toHaveText('1');

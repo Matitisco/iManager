@@ -1,4 +1,3 @@
-import { formatArDate } from "../../lib/ar-date.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 
@@ -175,24 +174,9 @@ function buildDateRangeWhere(
   };
 }
 
-function startOfDay(value: Date) {
-  const next = new Date(value);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function startOfMonth(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), 1);
-}
-
-function addDays(value: Date, amount: number) {
-  const next = new Date(value);
-  next.setDate(next.getDate() + amount);
-  return next;
-}
-
-function addMonths(value: Date, amount: number) {
-  return new Date(value.getFullYear(), value.getMonth() + amount, 1);
+// Reports use Argentine business days, independently of the server timezone.
+function argentinaDay(value: Date) {
+  return new Date(value.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function buildProductLabel(input?: {
@@ -225,10 +209,9 @@ export function formatPaymentMethodLabel(value: string) {
 }
 
 export function changePercent(current: number, previous: number) {
-  if (previous === 0) {
-    return current === 0 ? 0 : null;
-  }
-
+  // Less than one currency unit is not a useful denominator. This also avoids
+  // zero/zero implying a measured variation when there is no comparison base.
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || Math.abs(previous) < 1) return null;
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
@@ -304,83 +287,26 @@ function buildSalesSeries(
   startDate: Date | null,
   endDate: Date | null
 ): ReportsSeriesPoint[] {
-  const hasExplicitShortRange =
-    startDate &&
-    endDate &&
-    endDate.getTime() - startDate.getTime() <= 1000 * 60 * 60 * 24 * 45;
-
-  if (sales.length === 0 && !startDate && !endDate) {
-    return [];
-  }
-
-  if (hasExplicitShortRange && startDate && endDate) {
-    const buckets = new Map<string, ReportsSeriesPoint>();
-    let cursor = startOfDay(startDate);
-    const last = startOfDay(endDate);
-
-    while (cursor <= last) {
-      const key = cursor.toISOString().slice(0, 10);
-      buckets.set(key, {
-        label: formatArDate(cursor),
-        start: key,
-        revenue: 0,
-        unitsSold: 0,
-      });
-      cursor = addDays(cursor, 1);
-    }
-
-    for (const sale of sales) {
-      const key = startOfDay(sale.soldAt).toISOString().slice(0, 10);
-      const current = buckets.get(key);
-      if (!current) {
-        continue;
-      }
-
-      current.revenue += sale.amount;
-      current.unitsSold += 1;
-    }
-
-    return Array.from(buckets.values());
-  }
-
-  const sortedSales = [...sales].sort((left, right) => left.soldAt.getTime() - right.soldAt.getTime());
-  const firstMonth = startDate
-    ? startOfMonth(startDate)
-    : sortedSales.length > 0
-      ? startOfMonth(sortedSales[0].soldAt)
-      : startOfMonth(new Date());
-  const lastMonth = endDate
-    ? startOfMonth(endDate)
-    : sortedSales.length > 0
-      ? startOfMonth(sortedSales[sortedSales.length - 1].soldAt)
-      : startOfMonth(new Date());
+  if (!sales.length && !startDate && !endDate) return [];
+  const sorted = [...sales].sort((a, b) => a.soldAt.getTime() - b.soldAt.getTime());
+  const first = argentinaDay(startDate ?? sorted[0]?.soldAt ?? new Date());
+  const last = argentinaDay(endDate ?? sorted.at(-1)?.soldAt ?? new Date());
+  const daily = !!startDate && !!endDate && endDate.getTime() - startDate.getTime() <= 84 * 86400000;
+  const keyOf = (day: string) => daily ? day : `${day.slice(0, 7)}-01`;
   const buckets = new Map<string, ReportsSeriesPoint>();
-
-  let cursor = firstMonth;
-  while (cursor <= lastMonth) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
-    buckets.set(key, {
-      label: formatArDate(cursor),
-      start: `${key}-01`,
-      revenue: 0,
-      unitsSold: 0,
-    });
-    cursor = addMonths(cursor, 1);
+  const cursor = new Date(`${keyOf(first)}T12:00:00Z`);
+  const lastKey = keyOf(last);
+  while (cursor.toISOString().slice(0, 10) <= lastKey) {
+    const key = cursor.toISOString().slice(0, 10);
+    buckets.set(key, { label: key.split('-').reverse().join('/'), start: key, revenue: 0, unitsSold: 0 });
+    if (daily) cursor.setUTCDate(cursor.getUTCDate() + 1);
+    else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
-
   for (const sale of sales) {
-    const bucketDate = startOfMonth(sale.soldAt);
-    const key = `${bucketDate.getFullYear()}-${String(bucketDate.getMonth() + 1).padStart(2, "0")}`;
-    const current = buckets.get(key);
-    if (!current) {
-      continue;
-    }
-
-    current.revenue += sale.amount;
-    current.unitsSold += 1;
+    const bucket = buckets.get(keyOf(argentinaDay(sale.soldAt)));
+    if (bucket) { bucket.revenue += sale.amount; bucket.unitsSold += 1; }
   }
-
-  return Array.from(buckets.values());
+  return [...buckets.values()];
 }
 
 function buildActivitySeries(
@@ -468,6 +394,7 @@ export async function getReportsOverview(
       ? prisma.sale.findMany({
           where: {
             storeId,
+            voidedAt: null,
             status: "COMPLETADA",
             soldAt: {
               gte: previousWindow.startDate,

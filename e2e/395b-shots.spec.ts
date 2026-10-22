@@ -66,7 +66,7 @@ for (const width of [390, 1440]) {
     const stage = await box(page.locator('.stage')); const pill = await box(page.locator('.steps-pill'));
     if (mobile) {
       expect(stage.y + stage.height).toBeLessThanOrEqual(pill.y);
-      expect((await box(page.locator('.dashboard-screen h1'))).x).toBe(14);
+      expect((await box(page.locator('.dashboard-screen h1'))).x).toBe(16);
     }
     measurements.dashboard = { stage, pill }; await shot('dashboard');
 

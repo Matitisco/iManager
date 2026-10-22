@@ -1,0 +1,7 @@
+# Hallazgo sobre la variación del 398 %
+
+El Dashboard calculaba la variación en el frontend y no consumía `comparison` de `/reports/overview`. Sumaba todo el mes actual (incluso fechas posteriores a hoy), pero comparaba con los primeros días del mes anterior. Construir el final anterior con `new Date(año, mes - 1, día + 1)` podía desbordar febrero u otros meses cortos e incluir días del mes actual. Además, excluía sólo `CANCELADA`, no toda anulación. Son inconsistencias reproducibles; sin consultar los datos productivos no puede atribuirse el 398 % concreto a una de ellas.
+
+El backend ya usaba una ventana anterior contigua de igual duración: no comparaba deliberadamente mes parcial contra mes completo. Se corrigieron dos problemas: la consulta anterior no excluía `voidedAt`, y `changePercent` aceptaba bases casi nulas. Ahora devuelve `null` si la base absoluta es menor a una unidad (incluido 0/0) o hay valores no finitos. No se limitan porcentajes legítimos: 498 frente a 100 sigue siendo +398 %.
+
+Dashboard usa ahora overview para todos sus KPI financieros, comparación, tendencia y medios. El período inicial es del día 1 hasta hoy; las fechas inclusivas se envían con UTC−03:00 y la serie se agrupa por día argentino independientemente del huso del servidor. Por ejemplo, 1–22 de octubre se compara con 9–30 de septiembre, ambos de 22 días. Tests cubren estos límites, fin de mes/año, año bisiesto, bases nulas/despreciables, anulación y medianoche argentina.

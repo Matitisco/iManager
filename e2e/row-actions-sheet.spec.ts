@@ -172,8 +172,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
   await expect(page.locator('.side')).toBeVisible();
 
   const desktopTargets: { id: string; heading: string | RegExp; row: string }[] = [
-    { id: 'dashboard', heading: /Qué hay para/, row: '[data-testid="dashboard-sales"] tbody tr' },
-    { id: 'dashboard', heading: /Qué hay para/, row: '[data-testid="dashboard-trades"] .dash-cj' },
+    { id: 'dashboard', heading: /Qué hay para/, row: '[data-testid="dashboard-sales"] .dashboard-sale-row' },
     { id: 'inventory', heading: 'Inventario', row: '.dtable tbody tr' },
     { id: 'sales', heading: 'Ventas', row: '.dtable tbody tr' },
     { id: 'tradeins', heading: 'Canjes', row: '.dtable tbody tr' },
@@ -183,7 +182,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
 
   for (const target of desktopTargets) {
     await openSection(page, target.id, target.heading);
-    await expect(page.getByRole('button', { name: 'Más acciones' })).toHaveCount(0);
+    if (target.id !== 'dashboard') await expect(page.getByRole('button', { name: 'Más acciones' })).toHaveCount(0);
     const row = page.locator(target.row).first();
     await expect(row).toBeVisible();
     await row.click({ button: 'right' });
