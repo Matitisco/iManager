@@ -208,6 +208,31 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
   });
 
+  it.each([390, 1440])('entra a Control de stock solo por la pestaña y vuelve a Equipos a %spx', async width => {
+    if (width === 390) usePhone();
+    window.location.hash = '#/stock/equipos';
+    render(<DeskApp />);
+
+    expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('stock-count-entry')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Carga en serie' }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
+    expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
+    expect(window.location.hash).toBe('#/stock/control');
+    expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Equipos' })).toHaveAttribute('aria-selected', 'true');
+    expect(window.location.hash).toBe('#/stock/equipos');
+    expect(screen.queryByTestId('stock-count-page')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
+  });
+
   it.each([390, 1440])('clears only the visited section badge, retains marks during the visit and clears them on return at %spx', async width => {
     if (width === 390) usePhone();
     window.location.hash = '#/dashboard';
