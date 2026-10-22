@@ -382,7 +382,7 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, subtitle, children, onClose, busy = false, wide, className, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string }) {
+export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const modal = useModalLayer({ ref, onClose, busy });
   const phone = usePhoneLayout();
@@ -398,6 +398,7 @@ export function Sheet({ title, subtitle, children, onClose, busy = false, wide, 
         <div className="sheet-h">
           <div className="sheet-title">
             <h3>{title}</h3>
+            {titleAccessory}
             {subtitle ? <p className="sub">{subtitle}</p> : null}
           </div>
           <ModalCloseButton onClick={modal.requestClose} disabled={busy} />

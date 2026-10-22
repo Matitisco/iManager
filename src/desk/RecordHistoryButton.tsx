@@ -66,6 +66,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
         {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}>
           <span>{change.label}: </span>{change.before ? <>{change.before} <span aria-label="a">→</span> </> : null}{change.after || '—'}
         </p>)}
+        {!historyDetailRows(event).length && event.detail?.trim() ? <p className="record-history-change">{event.detail}</p> : null}
         {event.reason ? <p className="record-history-change">{event.reason}</p> : null}
       </li>)}
     </ol> : null}

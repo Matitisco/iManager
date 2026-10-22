@@ -17,6 +17,8 @@ export type HistoryEvent = {
   entityType: string;
   entityId: string;
   entityLabel: string | null;
+  entityIdentifier?: string | null;
+  entitySubtitle?: string | null;
   detail: string | null;
   changes: HistoryChange[];
   reason: string | null;

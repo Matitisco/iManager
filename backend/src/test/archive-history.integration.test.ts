@@ -74,6 +74,26 @@ describe("archive, void and history", () => {
     expect((await app.inject({ method: "GET", url: "/api/history", headers: staffHeaders })).statusCode).toBe(200);
   });
 
+  it("finds a complete IMEI within its store and returns real record context", async () => {
+    const app = getApp();
+    const owner = await seedStoreContext({ firebaseUid: "history-372-owner" });
+    const other = await seedStoreContext({ firebaseUid: "history-372-other", email: "other@example.com" });
+    const fixture = await seedCatalogFixture(owner.store!.id);
+    const foreign = await seedCatalogFixture(other.store!.id);
+    await prisma.auditEvent.createMany({ data: [fixture, foreign].map((data, index) => ({
+      storeId: index ? other.store!.id : owner.store!.id,
+      actorName: "Lucía Fernández", actorRole: "STAFF", action: "inventory.price", entityType: "inventory", entityId: data.inventoryItem.id,
+      entityLabel: "iPhone 14 128GB · IMEI …9012", detail: "Precio actualizado", changes: [],
+    })) });
+    const headers = buildAuthHeaders({ uid: "history-372-owner" });
+    const response = await app.inject({ method: "GET", url: `/api/history?q=${fixture.inventoryItem.imei}&period=30`, headers });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().events).toHaveLength(1);
+    expect(response.json().events[0]).toMatchObject({ entityId: fixture.inventoryItem.id, entityIdentifier: `IMEI ${fixture.inventoryItem.imei}`, changes: [], detail: "Precio actualizado" });
+    const absent = await app.inject({ method: "GET", url: "/api/history?q=999999999999999", headers });
+    expect(absent.json().events).toEqual([]);
+  });
+
   it("voids a sale without deleting it and rejects a second void", async () => {
     const app = getApp();
     const owner = await seedStoreContext({ firebaseUid: "void-owner", email: "void-owner@example.com", displayName: "Lucía" });
