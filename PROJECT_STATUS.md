@@ -1,5 +1,10 @@
 # iManager - Project Status
 
+- #372 Historial rediseñado según referencias aprobadas de 1440/390: persona, acción, registro con IMEI y hora; agrupación por fecha argentina completa y descendente, 30 días iniciales y filtros con valor visible. Mantiene Cargar más y cuenta movimientos mostrados, con errores/reintentos y descarte de páginas tardías.
+- Detalle #372: modal desktop y hoja inferior mobile con identidad, rol y fecha/hora; Antes/Después solo desde cambios estructurados, texto histórico y motivo registrados. Navega al registro únicamente con destino existente y permiso; los errores de archivados conservan el detalle abierto. La API agrega IMEI desde inventario y cliente de venta existentes; búsqueda IMEI aislada por tienda. Sin cambios de Prisma, AppContext ni datos de negocio.
+- Validación #372: TypeScript frontend/backend; 76 tests frontend, 12 unitarios backend y 4 integraciones con PostgreSQL local exclusivo `imanager_372_test`. Revisión visual del componente real con datos de prueba a 1440/390 (modal 578×420 y hoja 390×465), sin build ni E2E. Commit en rama actual, sin push por instrucción del pedido.
+- Ajustes #372: chip de sección alineado a la derecha en la misma línea que el IMEI/subtítulo móvil; vacío con padding, borde y tipografía compartidos con las otras pantallas. Typecheck frontend/backend y 19 tests de HistoryScreen aprobados, incluida limpieza de filtros desde el vacío; revisión visual a 390/1440, sin build ni push.
+
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
