@@ -142,7 +142,7 @@ export function archiveReturn(user: AuthUserLike, id: string, reason?: string) {
   return apiRequest<void>(user, `/api/returns/${id}`, {
     method: 'DELETE',
     body: { reason },
-    fallback: 'No se pudo eliminar el reclamo',
+    fallback: 'No se pudo anular el reclamo',
     errorFrom: 'friendly',
   });
 }

@@ -43,22 +43,22 @@ describe('acciones de fila de reclamos', () => {
     act(() => vi.advanceTimersByTime(500));
     expect(open).not.toHaveBeenCalled();
   });
-  it('routes Editar to the prefilled form and Eliminar to confirmation', async () => {
+  it('routes Editar to the prefilled form and Anular to confirmation', async () => {
     mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001', x: 10, y: 20 }} />);
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: 'Eliminar' })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: 'Anular' })).toHaveFocus();
     await userEvent.keyboard('{Home}');
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toHaveFocus();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Editar' }));
     expect(open).toHaveBeenLastCalledWith({ type: 'edit-return', id: 'claim' });
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Eliminar' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Anular' }));
     expect(open).toHaveBeenLastCalledWith({ type: 'del', kind: 'return', id: 'claim', label: 'RMA-0001' });
   });
   it('hides deletion for staff without sensitive access', () => {
     mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001', x: 10, y: 20 }} />, false);
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Eliminar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Anular' })).not.toBeInTheDocument();
   });
   it('keeps cancelled claims red, labels them Anulado ahead of old RMA state and excludes them from Activos', async () => {
     ctx.returns = [claim, { ...claim, id: 'cancelled', code: 'RMA-0002', status: 'ANULADO', rmaStatus: 'APROBADO' }];
@@ -74,6 +74,6 @@ describe('acciones de fila de reclamos', () => {
     ctx.returns = [{ ...claim, status: 'ANULADO' }];
     mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001', x: 10, y: 20 }} />);
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: 'Eliminar' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Anular' })).toBeDisabled();
   });
 });

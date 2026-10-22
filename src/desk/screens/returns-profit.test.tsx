@@ -4,7 +4,11 @@ import type { Sale, Product } from '../../types';
 import type { ReturnCaseView } from '../../services/returns-api';
 import { NetProfitCard } from './ReportsScreen';
 
-it('excludes cancelled claims from return totals and net profit even without deletedAt', () => {
+it.each([
+  { status: 'ANULADO', deletedAt: null },
+  { status: 'ANULADO', deletedAt: '2026-10-22T15:00:00Z' },
+  { status: 'RESUELTO', deletedAt: '2026-10-22T15:00:00Z' },
+])('excludes cancelled claims from return totals and net profit: %j', (voidFields) => {
   const props = {
     loading: false, start: new Date(2026, 9, 1), end: new Date(2026, 9, 31, 23, 59, 59), currency: 'ARS' as const,
     rate: 1300, show: (amount: number) => `$ ${amount}`, warning: null, expenses: [],
@@ -15,7 +19,7 @@ it('excludes cancelled claims from return totals and net profit even without del
   const { rerender } = render(<NetProfitCard {...props} returns={[claim]} />);
   expect(screen.getByTestId('net-profit-returns')).toHaveTextContent('$ 1200');
   expect(screen.getByText('Ganancia neta').parentElement).toHaveTextContent('$ 0');
-  rerender(<NetProfitCard {...props} returns={[{ ...claim, status: 'ANULADO' }]} />);
+  rerender(<NetProfitCard {...props} returns={[{ ...claim, ...voidFields }]} />);
   expect(screen.queryByTestId('net-profit-returns')).not.toBeInTheDocument();
   expect(screen.getByText('Ganancia neta').parentElement).toHaveTextContent('$ 400');
 });

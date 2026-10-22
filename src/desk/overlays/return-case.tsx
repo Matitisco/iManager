@@ -244,10 +244,10 @@ export function ReturnDelete({ id }: { id: string }) {
     if (busy || !current || isVoidRow(current)) return;
     setBusy(true); setError(null);
     try { await archiveReturn(id); toast('Reclamo anulado'); close(); }
-    catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo eliminar el reclamo.')); }
+    catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo anular el reclamo.')); }
     finally { setBusy(false); }
   };
-  return <Sheet title="¿Eliminar reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions primary="Eliminar" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
+  return <Sheet title="¿Anular reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions primary="Anular" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
     <p>{current?.code ?? 'Reclamo'} · Queda anulado y fuera de los totales.{current?.resolution ? ' Se conservan los movimientos registrados.' : ''}</p>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
   </Sheet>;

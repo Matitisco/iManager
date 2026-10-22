@@ -136,8 +136,8 @@ export function SupplierDetail({ id }: { id: string }) {
       {detail ? (
         <div className="supplier-file" data-testid="supplier-detail">
           {detail.phone || detail.email ? <dl className="supplier-contact">
-            {detail.phone ? <div><dt>Teléfono</dt><dd>{detail.phone}</dd></div> : null}
-            {detail.email ? <div><dt>Email</dt><dd>{detail.email}</dd></div> : null}
+            {detail.phone ? <div><dt>Teléfono</dt><dd title={detail.phone}>{detail.phone}</dd></div> : null}
+            {detail.email ? <div><dt>Email</dt><dd title={detail.email}>{detail.email}</dd></div> : null}
           </dl> : null}
           {detail.notes ? <p className="supplier-note">{detail.notes}</p> : null}
           {problemLine(detail.problemCount, detail.deviceCount) ? <p className="supplier-status" data-testid="supplier-problems">{problemLine(detail.problemCount, detail.deviceCount)}</p> : null}
