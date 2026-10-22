@@ -285,7 +285,6 @@ export function StockCountScreen() {
   };
 
   const hasOpen = counts.some((item) => item.status === 'OPEN') || view === 'count';
-  const subtitle = view === 'count' && blind ? blind.subtitle : 'Conteos físicos del local';
   const latest = blind?.scans[0] ? scanCopy(blind.scans[0]) : null;
   const lines = closed ? closed.buckets[filter] : [];
   const previous = counts.filter((item) => item.id !== (view === 'result' ? closed?.id : blind?.id));
@@ -306,7 +305,6 @@ export function StockCountScreen() {
       <div className="dtop">
         <div className="dtitle">
           <h1>Control de stock</h1>
-          <div className="dsub stock-subtitle">{subtitle}</div>
         </div>
         {!phone && view === 'count' && canManage ? <div className="dright"><button className="dbtn s" type="button" data-testid="stock-close" onClick={() => void finish()} disabled={busy}>Cerrar control</button></div> : null}
         {view !== 'count' && canManage && !hasOpen && !loading && counts.length > 0 ? <div className="dright"><button className="dbtn p stock-start" type="button" onClick={openStart} disabled={busy}><Play size={12} fill="currentColor" aria-hidden="true" />Iniciar control</button></div> : null}

@@ -111,7 +111,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('button', { name: 'En stock 1 equipo 1 disponible', exact: true })).toBeVisible();
       await page.getByTestId('sidebar-tab-inventory').click();
-      await expect(page.getByText(phone ? '1 equipo · 1 disponible' : '1 equipo · 1 disponible · 0 en catálogo', { exact: true })).toBeVisible();
+      await expect(page.getByTestId('inventory-total')).toHaveText('1 de 1');
       await sell(page, phone, 'Efectivo');
       expect((await fetchSales(request, email)).sales).toEqual([expect.objectContaining({ productId: product.id, amount: 100, status: 'COMPLETADA' })]);
       expect((await fetchInventory(request, email)).inventory.find(row => row.id === product.id)?.status).toBe('VENDIDO');

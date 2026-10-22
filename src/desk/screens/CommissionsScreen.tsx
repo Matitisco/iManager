@@ -107,13 +107,12 @@ export function CommissionsScreen() {
     setError('');
     try { await loadCommissionDetail(id, period); setMember(id); } catch (cause) { setError(toUserMessage(cause, 'No se pudo cargar el detalle')); }
   };
-  const label = monthLabel(period);
   const periodPicker = <CommissionMonthPicker value={period} onChange={setPeriod} />;
   const payable = summary ? { ...summary.summary, pending: summary.people.reduce((sum, p) => ({ ARS: sum.ARS + Math.max(0, p.pending.ARS), USD: sum.USD + Math.max(0, p.pending.USD) }), { ARS: 0, USD: 0 }) } : null;
   const deductions = summary?.people.filter(p => hasDeduction(p.pending)) ?? [];
   const people = summary?.people.filter(person => filter === 'Todos' || (filter === 'Pendientes' ? person.pending.ARS > 0 || person.pending.USD > 0 : hasDeduction(person.pending))) ?? [];
   return <div className={`dscreen commissions-screen${phone && manage ? ' has-dock' : ''}${!manage ? ' commission-mine' : ''}`}>
-    <ScreenTitle title={manage ? 'Comisiones' : 'Mis comisiones'} subtitle={manage ? `${label} · se liquida por mes` : `${label} · solo lo tuyo`} back={back}
+    <ScreenTitle title={manage ? 'Comisiones' : 'Mis comisiones'} back={back}
       tools={manage ? <IconButton label="Reglas" name="filtrar" onClick={() => setSheet('rule')} /> : undefined}
       desktop={<div className="dright">{periodPicker}{manage ? <><button type="button" className="dbtn s" onClick={() => setSheet('rule')}><ImanagerIcon name="filtrar" size={16} />Reglas</button><DeskCta onClick={() => setSheet('payment')}>Registrar pago</DeskCta></> : null}</div>} />
     {phone ? <div className="dbar">{periodPicker}{manage ? <MenuButton label={filter} options={['Todos', 'Pendientes', 'A descontar']} value={filter} onChange={setFilter} /> : null}</div> : null}

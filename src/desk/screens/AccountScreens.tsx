@@ -109,7 +109,6 @@ export function NotificationsScreen() {
       <div className="dscreen">
         <PageHead
           title="Notificaciones"
-          subtitle={unread.total ? `Total: ${unread.total} sin leer` : 'Todo al d\u00eda'}
           back={back}
           action={<div style={{ display: 'flex', gap: 14 }}>{unread.total > 0 ? <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>Leer todas</button> : null}<button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void refreshNotifications().catch(() => undefined)}>Actualizar</button></div>}
         />
@@ -363,11 +362,11 @@ export function SettingsScreen() {
     );
   }
 
-  if (place.page === 'team' && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><PageHead back={() => writeHash(configHash('settings'), 'replace')} title="Equipo" subtitle={members.length === 1 && !invites.length ? 'Solo vos por ahora' : `${countLabel(members.length, 'persona', 'personas')} · ${countLabel(invites.length, 'invitación', 'invitaciones')}`} />{teamContent}</div>;
+  if (place.page === 'team' && seeTeam) return <div className="dscreen team-page" data-testid="team-screen"><PageHead back={() => writeHash(configHash('settings'), 'replace')} title="Equipo" />{teamContent}</div>;
 
   return (
     <div className="dscreen" data-testid="settings-screen">
-      <PageHead title="Configuración" subtitle="Tienda, equipo y tu cuenta" back={back} />
+      <PageHead title="Configuración" back={back} />
       <div className="settings-grid">
         {!isStaff && (
           <>

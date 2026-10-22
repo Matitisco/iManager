@@ -265,7 +265,7 @@ describe('sidebar unread counts', () => {
     ];
     render(<DeskApp />);
     expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
-    expect(screen.getByText('Todas las secciones, agrupadas')).toBeInTheDocument();
+    expect(screen.queryByText('Todas las secciones, agrupadas')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Ana');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Propietario');

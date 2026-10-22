@@ -144,7 +144,6 @@ export function SalesScreen() {
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => isVoidRow(sale) ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'ANULADA'])].filter(Boolean);
 
-  const subtitle = onlyUnassigned && unassignedMonth ? monthLabel(unassignedMonth) : period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
   const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || statusOn || onlyUnassigned;
   const filteredTotal = money.sum(shown.filter(sale => !isVoidRow(sale)).map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const summaryText = filtersOn
@@ -164,7 +163,6 @@ export function SalesScreen() {
       {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Ventas"
-        subtitle={subtitle}
         back={back}
         tools={<IconButton label="Buscar" name="buscar" pressed={searchOpen} onClick={() => setSearchOpen((current) => !current)} />}
         desktop={(

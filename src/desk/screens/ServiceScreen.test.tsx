@@ -118,7 +118,7 @@ describe('servicio técnico', () => {
     expect(screen.getByRole('heading', { name: 'Servicio técnico' })).toBeInTheDocument();
     expect(screen.queryByText(/Propuesta tentativa/)).not.toBeInTheDocument();
     expect(screen.queryByText(/propuesta exploratoria/)).not.toBeInTheDocument();
-    expect(screen.getByText('2 órdenes abiertas · 0 listas para retirar')).toBeInTheDocument();
+    expect(screen.queryByText('2 órdenes abiertas · 0 listas para retirar')).not.toBeInTheDocument();
     expect(screen.getByTestId('repair-column-RECIBIDO')).toHaveTextContent('1');
     expect(screen.getByTestId('repair-column-EN_REPARACION')).toHaveTextContent('#OT-0095');
     expect(screen.queryByTestId('repair-column-EN_DIAGNOSTICO')).not.toBeInTheDocument();

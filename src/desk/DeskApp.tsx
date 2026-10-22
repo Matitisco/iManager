@@ -122,7 +122,6 @@ function MoreScreen({
       <div className="whead">
         <div>
           <h1>Más</h1>
-          <div className="wsub">Todas las secciones, agrupadas</div>
         </div>
       </div>
       <InstallCard />
