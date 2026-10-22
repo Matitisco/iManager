@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { toUserMessage } from '../../lib/user-message';
@@ -121,7 +122,7 @@ export function DepositChoices({ receipts, clientId, productId, selected, onChan
   const active = rows.filter(depositAvailable);
   if (!clientId) return null;
   return <section className="deposit-list" aria-label="Señas disponibles">
-    {loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}
+    {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
     {error ? <div className="ferr" role="alert">{error}<button type="button" className="wlink" onClick={retry}>Reintentar señas</button></div> : null}
     {active.length ? <h4>Señas disponibles</h4> : null}
     {active.map(row => {
@@ -162,7 +163,7 @@ export function RepairDepositSheet({ repairId }: { repairId: string }) {
   const active = rows.filter(depositAvailable);
   return <Sheet title="Aplicar seña a reparación" subtitle={`${order.code} · ${order.clientName}`} className="deposit-sheet" onClose={back}>
     {error || loadError ? <div className="ferr" role="alert">{error || loadError}{loadError ? <button type="button" className="wlink" onClick={retry}>Reintentar</button> : null}</div> : null}
-    {loading ? <p role="status">Cargando señas…</p> : null}
+    {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
     {!loading && !active.length ? <p className="eqs-note">El cliente no tiene señas disponibles. Podés agregar una desde su ficha.</p> : null}
     <p className="eqs-note">Se agrega al anticipo existente de la orden sin registrar otro cobro. Pendiente: {formatMoney(maximum, currency === 'USD' ? 'USD' : 'ARS')} {currency}.</p>
     {active.map(row => {

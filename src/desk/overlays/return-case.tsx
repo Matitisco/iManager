@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { archivedReturn } from '../archive-cache';
@@ -200,7 +201,7 @@ export function ReturnDetail({ id }: { id: string }) {
   };
 
   if (returns == null) {
-    return <Sheet title="Reclamo" onClose={close}><p className="mut">Cargando el reclamo…</p></Sheet>;
+    return <Sheet title="Reclamo" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
   }
   if (!current) {
     return <Sheet title="Reclamo" onClose={close}><p className="ferr">No encontramos ese reclamo.</p></Sheet>;

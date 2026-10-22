@@ -191,7 +191,7 @@ describe('Plan y facturación', () => {
   });
   it('el plan interno nunca muestra checkout ni cancelación', async () => {
     Object.assign(state.billingDetails, { plan: 'INTERNAL', memberLimit: null });
-    ui(); await waitFor(() => expect(screen.queryByText('Cargando planes…')).not.toBeInTheDocument());
+    ui(); await waitFor(() => expect(screen.queryByTestId('billing-loading')).not.toBeInTheDocument());
     expect(screen.getByText('Acceso ilimitado')).toBeVisible();
     expect(screen.getByText('Tu cuenta tiene acceso ilimitado, sin cobros ni límite de usuarios.')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Suscribirme|Cancelar suscripción/ })).not.toBeInTheDocument();

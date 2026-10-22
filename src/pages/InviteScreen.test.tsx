@@ -42,7 +42,8 @@ describe('accept invitation', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar verificación' }));
     expect(reload).toHaveBeenCalledOnce();
     view.rerender(<InviteScreen token="token" state={{ ...valid, preview: null, isLoading: true }} onLeave={leave} onAccept={accept} accepting={false} error="" ready />);
-    expect(screen.getByRole('status')).toHaveTextContent('Verificando invitación');
+    expect(screen.getByRole('status', { name: 'Cargando' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('status').textContent).toBe('');
   });
   it('accepts for the authenticated user and keeps a persistence error visible', async () => {
     context.user = { uid: 'new-user' };

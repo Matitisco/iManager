@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { track } from '../../lib/analytics';
 import { billingAccountSubtitle } from './BillingScreen';
 import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
@@ -119,7 +120,7 @@ export function NotificationsScreen() {
           ]} value={filter} onChange={setFilter} />
         </div>
         {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" style={{ maxWidth: 860 }} data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
-        {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>Cargando notificaciones...</div> : null}
+        {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="rows" testId="notifications-loading" /> : null}
         {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
           <div className="card" style={{ maxWidth: 860 }}>
             {visible.map((note) => {
@@ -173,7 +174,7 @@ export function NotificationsScreen() {
         <ChipRow options={sectionChips} value={section} onChange={setSection} />
       </div>
       {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
-      {notificationsLoading && operationNotifications.length === 0 ? <div className="wempty">Cargando notificaciones...</div> : visible.length === 0 ? (
+      {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="cards" testId="notifications-loading" /> : visible.length === 0 ? (
         quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
       ) : (
         <div className="notif-groups" data-testid="notification-groups">

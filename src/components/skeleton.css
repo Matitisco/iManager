@@ -1,0 +1,4 @@
+.skeleton { display: block; height: 12px; width: 100%; border-radius: 6px; background: #ecedef; animation: skeleton-pulse 1.8s ease-in-out infinite; }
+.skeleton-field { height: 42px; border-radius: 12px; }
+@keyframes skeleton-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

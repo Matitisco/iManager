@@ -62,7 +62,7 @@ describe('reporte automático en Configuración', () => {
     api.fetchPeriodicReport.mockResolvedValue({ enabled: true, frequency: 'MONTHLY', recipients: [], lastSentAt: null, lastPeriodLabel: null, lastError: 'El servidor todavía no puede enviar correos.' });
     const user = userEvent.setup();
     const run = renderForm();
-    expect(await screen.findByRole('status')).toHaveTextContent('El servidor todavía no puede enviar correos.');
+    expect(await screen.findByText('El servidor todavía no puede enviar correos.')).toHaveAttribute('role', 'status');
     await user.clear(screen.getByTestId('periodic-report-recipients'));
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(screen.getByText('Agregá al menos un correo.')).toBeInTheDocument();

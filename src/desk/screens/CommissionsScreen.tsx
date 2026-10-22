@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { ReasonSheet } from '../ReasonSheet';
 import { isVoidRow } from '../format';
 import { toUserMessage } from '../../lib/user-message';
@@ -117,7 +118,7 @@ export function CommissionsScreen() {
       desktop={<div className="dright">{periodPicker}{manage ? <><button type="button" className="dbtn s" onClick={() => setSheet('rule')}><ImanagerIcon name="filtrar" size={16} />Reglas</button><DeskCta onClick={() => setSheet('payment')}>Registrar pago</DeskCta></> : null}</div>} />
     {phone ? <div className="dbar">{periodPicker}{manage ? <MenuButton label={filter} options={['Todos', 'Pendientes', 'A descontar']} value={filter} onChange={setFilter} /> : null}</div> : null}
     {error ? <div className="ferr" role="alert">{error} <button className="wlink" type="button" onClick={() => setRetry(x => x + 1)}>Reintentar</button></div> : null}
-    {loading ? <p role="status" className="gnote">Cargando comisiones…</p> : null}
+    {loading ? <ListSkeleton variant="cards" rows={3} testId="commissions-loading" /> : null}
     {!manage && mine && !loading ? <><CommissionHero person={mine.person} mine /><p className="commission-banner">Tu regla: {ruleLabel(mine.person.sales.find(sale => !sale.cancelled)?.rule)}.</p><CommissionLines person={mine.person} period={period} financials={false} /></> : null}
     {manage && summary && !loading ? <>
       {phone ? <CommissionHero person={payable!} /> : <div className="commission-kpis">{([['Comisión del mes', summary.summary.earned], ['Pagado', summary.summary.paid], ['Pendiente', payable!.pending]] as const).map(([title, value]) => <div className={`dstat${title === 'Pendiente' ? ' pending' : ''}`} key={title}><div className="eb">{title}</div><CurrencyTotals value={value} /><small className="mut">{title === 'Comisión del mes' ? `${saleCount(summary.summary.salesCount)} con vendedor` : title === 'Pendiente' ? (deductions.length ? deductions.map(p => `${p.name}: a descontar ${commissionTotal({ ARS: Math.max(0, -p.pending.ARS), USD: Math.max(0, -p.pending.USD) })} en ${monthLabel(period, 1)}`).join(' · ') : `Lo pendiente pasa a ${monthLabel(period, 1)}`) : 'Pagos registrados'}</small></div>)}</div>}

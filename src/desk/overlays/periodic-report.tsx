@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { toUserMessage } from '../../lib/user-message';
@@ -59,7 +60,7 @@ export function PeriodicReportForm({ run, busy, error }: FormProps) {
         <textarea data-testid="periodic-report-recipients" rows={3} value={recipients} disabled={!loaded || busy} placeholder="nombre@correo.com" onChange={(event) => { setRecipients(event.target.value); setFieldError(''); }} />
       </Field>
       {note ? <p className="sub" role="status">{note}</p> : null}
-      {loaded ? null : <p className="sub">Cargando…</p>}
+      {loaded ? null : <ListSkeleton variant="rows" rows={3} />}
       <Actions busy={busy} primary="Guardar" onSecondary={close} onPrimary={() => {
         if (!user || !loaded) return;
         const list = recipients.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
